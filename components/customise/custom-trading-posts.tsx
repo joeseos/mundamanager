@@ -235,6 +235,49 @@ export function CustomiseTradingPosts({
     const additionsToSave = [...pendingAdditions];
     const removalsToSave = new Set(pendingRemovals);
 
+    const insertedAdditionTempIds = new Set<string>();
+    const insertedTempToRealId = new Map<string, string>();
+    const succeededAdditionRuleRealIds = new Set<string>();
+    const failedAdditionRulesByRealId = new Map<string, EquipmentPendingChanges>();
+    const succeededRemovalIds = new Set<string>();
+    const succeededOverrideIds = new Set<string>();
+
+    const reconcilePersistedPendingState = () => {
+      const hasProgress =
+        insertedAdditionTempIds.size > 0 ||
+        succeededRemovalIds.size > 0 ||
+        succeededOverrideIds.size > 0 ||
+        failedAdditionRulesByRealId.size > 0 ||
+        insertedTempToRealId.size > 0;
+      if (!hasProgress) return;
+
+      // Drop operations that already persisted so a retry cannot duplicate them.
+      if (insertedAdditionTempIds.size > 0) {
+        setPendingAdditions(prev => prev.filter(e => !insertedAdditionTempIds.has(e.id)));
+      }
+      if (succeededRemovalIds.size > 0) {
+        setPendingRemovals(prev => {
+          const next = new Set(prev);
+          succeededRemovalIds.forEach(id => next.delete(id));
+          return next;
+        });
+      }
+      setPendingOverrides(prev => {
+        const next = new Map(prev);
+        succeededOverrideIds.forEach(id => next.delete(id));
+        insertedTempToRealId.forEach((realId, tempId) => {
+          next.delete(tempId);
+          if (succeededAdditionRuleRealIds.has(realId)) return;
+          // Keep unfinished/failed addition rules under the real DB id for retry.
+          const changes = failedAdditionRulesByRealId.get(realId) ?? overridesToSave.get(tempId);
+          if (changes?.rulesModified) {
+            next.set(realId, changes);
+          }
+        });
+        return next;
+      });
+    };
+
     try {
       const result = await updateMutation.mutateAsync({ id: tradingPostId, data: formData });
       if (!result.success || !result.data) {
@@ -248,10 +291,6 @@ export function CustomiseTradingPosts({
       if (hasEquipmentChanges) {
         let equipmentSaveFailed = false;
         const pendingAdditionTempIds = new Set(additionsToSave.map(e => e.id));
-        const insertedAdditionTempIds = new Set<string>();
-        const failedAdditionRulesByRealId = new Map<string, EquipmentPendingChanges>();
-        const succeededRemovalIds = new Set<string>();
-        const succeededOverrideIds = new Set<string>();
 
         if (additionsToSave.length > 0) {
           const batchResult = await addTPEquipmentBatch(
@@ -286,7 +325,10 @@ export function CustomiseTradingPosts({
               })
               .filter((entry): entry is { tempId: string; realId: string } => !!entry.realId);
 
-            tempToReal.forEach(({ tempId }) => insertedAdditionTempIds.add(tempId));
+            tempToReal.forEach(({ tempId, realId }) => {
+              insertedAdditionTempIds.add(tempId);
+              insertedTempToRealId.set(tempId, realId);
+            });
 
             const pendingRulesSaves = tempToReal
               .filter(({ tempId }) => overridesToSave.get(tempId)?.rulesModified)
@@ -316,7 +358,9 @@ export function CustomiseTradingPosts({
                   equipmentSaveFailed = true;
                   // Remap under the real DB id so a retry uses updateTPEquipment, not re-insert.
                   failedAdditionRulesByRealId.set(realId, changes);
+                  return;
                 }
+                succeededAdditionRuleRealIds.add(realId);
               });
             await Promise.all(pendingRulesSaves);
           }
@@ -402,26 +446,7 @@ export function CustomiseTradingPosts({
         );
 
         if (equipmentSaveFailed) {
-          // Drop operations that already persisted so a retry cannot duplicate them.
-          if (insertedAdditionTempIds.size > 0) {
-            setPendingAdditions(prev => prev.filter(e => !insertedAdditionTempIds.has(e.id)));
-          }
-          if (succeededRemovalIds.size > 0) {
-            setPendingRemovals(prev => {
-              const next = new Set(prev);
-              succeededRemovalIds.forEach(id => next.delete(id));
-              return next;
-            });
-          }
-          setPendingOverrides(prev => {
-            const next = new Map(prev);
-            insertedAdditionTempIds.forEach(tempId => next.delete(tempId));
-            succeededOverrideIds.forEach(id => next.delete(id));
-            failedAdditionRulesByRealId.forEach((changes, realId) => {
-              next.set(realId, changes);
-            });
-            return next;
-          });
+          reconcilePersistedPendingState();
           return false;
         }
       }
@@ -429,6 +454,15 @@ export function CustomiseTradingPosts({
       toast.success('Custom trading post updated successfully');
       return true;
     } catch (error) {
+      reconcilePersistedPendingState();
+      // Ensure the UI reflects any rows already written if we threw before invalidate.
+      if (
+        insertedAdditionTempIds.size > 0 ||
+        succeededRemovalIds.size > 0 ||
+        succeededOverrideIds.size > 0
+      ) {
+        void queryClient.invalidateQueries({ queryKey: ['tpEquipment', tradingPostId] });
+      }
       toast.error(error instanceof Error ? error.message : 'Failed to update custom trading post');
       return false;
     }
