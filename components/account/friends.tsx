@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { Input } from "@/components/ui/input"
+import { useState, useCallback } from 'react'
 import { Badge } from "@/components/ui/badge"
 import { toast } from 'sonner';
 import Modal from '@/components/ui/modal'
 import { deleteFriend, sendFriendRequest } from '@/app/actions/friends'
 import { HiX } from "react-icons/hi";
 import { useRouter } from 'next/navigation'
+import UserSearchBar, { type UserSearchResult } from '@/components/shared/user-search-bar'
 
 interface Friend {
   id: string;
@@ -35,9 +35,6 @@ export default function FriendsSearchBar({
   onFriendAdd,
   disabled = false
 }: FriendsSearchBarProps) {
-  const [query, setQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<Friend[]>([])
-  const [isLoading, setIsLoading] = useState(false)
   const [isAdding, setIsAdding] = useState(false)
   const [friendToDelete, setFriendToDelete] = useState<Friend | null>(null)
   const router = useRouter()
@@ -48,76 +45,39 @@ export default function FriendsSearchBar({
     setLocalFriends(initialFriends);
   }
 
-  // Search functionality
-  useEffect(() => {
-    const searchUsers = async () => {
-      if (query.trim() === '') {
-        setSearchResults([])
-        return
-      }
-
-      setIsLoading(true)
-      try {
-        // Use the improved search API that prioritizes exact matches
-        const response = await fetch(`/api/search-users?query=${encodeURIComponent(query)}`)
-        
-        if (!response.ok) {
-          throw new Error('Failed to search users')
-        }
-
-        const profilesData = await response.json()
-
-        // Filter out current user and transform to Friend type
-        const transformedResults: Friend[] = (profilesData || [])
-          .filter((profile: { id: string; username: string }) => profile.id !== userId)
-          .map((profile: { id: string; username: string }) => ({
-            id: profile.id,
-            username: profile.username,
-            profile: {
-              id: profile.id,
-              username: profile.username,
-              updated_at: new Date().toISOString()
-            },
-            status: 'none', // default for search results
-            direction: 'none',
-          }));
-
-        setSearchResults(transformedResults);
-      } catch (error) {
-        console.error('Error searching users:', error);
-        setSearchResults([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    const debounceTimer = setTimeout(searchUsers, 300);
-    return () => clearTimeout(debounceTimer);
-  }, [query, userId]);
-
-  const handleAddFriend = async (friend: Friend) => {
+  const handleAddFriend = async (user: UserSearchResult) => {
     setIsAdding(true)
     try {
-      const result = await sendFriendRequest(userId, friend.id);
+      const result = await sendFriendRequest(userId, user.id);
 
       if (!result.success) {
-        toast.error(`A friend request already exists or you are already friends with ${friend.username}`);
+        toast.error(`A friend request already exists or you are already friends with ${user.username}`);
         setIsAdding(false);
         return;
       }
 
+      const friend: Friend = {
+        id: user.id,
+        username: user.username,
+        profile: {
+          id: user.id,
+          username: user.username,
+          updated_at: new Date().toISOString()
+        },
+        status: 'pending',
+        direction: 'outgoing',
+      };
+
       setLocalFriends(prev => {
         if (prev.some(f => f.id === friend.id)) return prev;
-        return [...prev, { ...friend, status: 'pending', direction: 'outgoing' }];
+        return [...prev, friend];
       });
 
       if (onFriendAdd) {
         onFriendAdd(friend);
       }
 
-      toast(`Friend request sent to ${friend.username}`);
-      setQuery('');
-      setSearchResults([]);
+      toast(`Friend request sent to ${user.username}`);
     } catch (error) {
       console.error('Error adding friend:', error);
       toast.error("Failed to send friend request");
@@ -213,36 +173,12 @@ export default function FriendsSearchBar({
           </div>
         </div>
       )}
-      <Input
-        type="text"
+      <UserSearchBar
         placeholder="Search for users to add as friends"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        className="w-full"
+        onSelect={handleAddFriend}
         disabled={disabled || isAdding}
+        excludeIds={[userId, ...localFriends.map((f) => f.id)]}
       />
-      {isLoading && (
-        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-          <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
-        </div>
-      )}
-      {searchResults.length > 0 && query && (
-        <div className="absolute mt-1 w-full bg-card rounded-lg border shadow-lg z-10">
-          <ul className="py-2">
-            {searchResults.map(friend => (
-              <li key={friend.id}>
-                <button
-                  onClick={() => handleAddFriend(friend)}
-                  className="w-full px-4 py-2 text-left hover:bg-muted"
-                  disabled={isAdding}
-                >
-                  <span className="font-medium">{friend.username}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
       {/* Delete Friend Confirmation Modal */}
       {friendToDelete && (
         <Modal
@@ -255,4 +191,4 @@ export default function FriendsSearchBar({
       )}
     </div>
   )
-} 
+}
