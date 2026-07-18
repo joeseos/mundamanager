@@ -362,12 +362,14 @@ export function CustomiseTradingPosts({
                 }
                 succeededAdditionRuleRealIds.add(realId);
               });
-            await Promise.all(pendingRulesSaves);
+            // allSettled ensures every sibling completes before we read the bookkeeping sets,
+            // preventing a single throw from cutting off in-flight siblings mid-reconcile.
+            await Promise.allSettled(pendingRulesSaves);
           }
         }
 
         if (removalsToSave.size > 0) {
-          await Promise.all(
+          await Promise.allSettled(
             Array.from(removalsToSave).map(async (id) => {
               const res = await removeTPEquipment(id);
               if (!res.success) {
@@ -425,7 +427,7 @@ export function CustomiseTradingPosts({
             }
             succeededOverrideIds.add(itemId);
           });
-        await Promise.all(equipmentSaves);
+        await Promise.allSettled(equipmentSaves);
 
         await queryClient.invalidateQueries({ queryKey: ['tpEquipment', tradingPostId] });
         await Promise.all(
@@ -456,12 +458,23 @@ export function CustomiseTradingPosts({
     } catch (error) {
       reconcilePersistedPendingState();
       // Ensure the UI reflects any rows already written if we threw before invalidate.
-      if (
+      const anyPersisted =
         insertedAdditionTempIds.size > 0 ||
         succeededRemovalIds.size > 0 ||
-        succeededOverrideIds.size > 0
-      ) {
+        succeededOverrideIds.size > 0 ||
+        succeededAdditionRuleRealIds.size > 0;
+      if (anyPersisted) {
         void queryClient.invalidateQueries({ queryKey: ['tpEquipment', tradingPostId] });
+        // Invalidate per-item rule caches for anything that may have silently persisted.
+        const allRelevantItemIds = new Set([
+          ...Array.from(overridesToSave.keys()),
+          ...Array.from(succeededAdditionRuleRealIds),
+          ...Array.from(failedAdditionRulesByRealId.keys()),
+        ]);
+        allRelevantItemIds.forEach(itemId => {
+          void queryClient.invalidateQueries({ queryKey: ['tpAvailabilityRules', itemId] });
+          void queryClient.invalidateQueries({ queryKey: ['tpPricingRules', itemId] });
+        });
       }
       toast.error(error instanceof Error ? error.message : 'Failed to update custom trading post');
       return false;
