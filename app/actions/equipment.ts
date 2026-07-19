@@ -1,19 +1,8 @@
 'use server'
 
+import { invalidateGang, invalidateFighter, invalidateGangCampaignMembership, invalidateGangStash, invalidateGangFinancials, invalidateUser } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
-import {
-  invalidateFighterData,
-  invalidateFighterDataWithFinancials,
-  invalidateFighterVehicleData,
-  invalidateEquipmentPurchase,
-  invalidateEquipmentDeletion,
-  invalidateGangStash,
-  invalidateGangRating,
-  invalidateFighterAdvancement,
-  CACHE_TAGS,
-  invalidateUserGangsList
-} from '@/utils/cache-tags';
-import { revalidateTag } from 'next/cache';
+
 import { updateGangFinancials, updateGangRatingSimple } from '@/utils/gang-rating-and-wealth';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
@@ -33,8 +22,7 @@ async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supa
     .single();
 
   if (ownerData) {
-    invalidateFighterData(ownerData.fighter_owner_id, gangId);
-    revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(ownerData.fighter_owner_id), { expire: 0 });
+    invalidateFighter(ownerData.fighter_owner_id, gangId);
   }
 }
 
@@ -708,7 +696,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     }
 
     // Home page gangs list cache (server-side, user-scoped)
-    invalidateUserGangsList(gang.user_id);
+    invalidateUser(gang.user_id);
 
     // Log equipment actions AFTER gang rating is updated (so logs show correct rating)
     try {
@@ -759,38 +747,28 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     }
 
     if (isResourcePurchase) {
-      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(params.gang_id), { expire: 0 });
+      invalidateGangCampaignMembership(params.gang_id);
     }
 
     // Optimized cache invalidation - use granular approach
     if (params.fighter_id) {
       // Always invalidate fighter equipment/credits/rating for a purchase on a fighter
-      invalidateEquipmentPurchase({
-        fighterId: params.fighter_id,
-        gangId: params.gang_id,
-        createdBeasts: createdBeasts.length > 0 ? createdBeasts : undefined
-      });
+      invalidateFighter(params.fighter_id, params.gang_id);
+      (createdBeasts.length > 0 ? createdBeasts : undefined)?.forEach(beast => invalidateFighter(beast.id, params.gang_id));
       // If effects were applied to the fighter, also invalidate effects + derived data
       if (appliedEffects.length > 0) {
-        invalidateFighterAdvancement({
-          fighterId: params.fighter_id,
-          gangId: params.gang_id,
-          advancementType: 'effect'
-        });
+        invalidateFighter(params.fighter_id, params.gang_id);
       }
       // If this fighter is a beast, invalidate the owner's cache
       await invalidateBeastOwnerCache(params.fighter_id, params.gang_id, supabase);
     } else if (params.vehicle_id) {
       if (vehicleAssignedFighterId) {
-        invalidateFighterDataWithFinancials(vehicleAssignedFighterId, params.gang_id);
-        invalidateFighterVehicleData(vehicleAssignedFighterId, params.gang_id);
+        invalidateFighter(vehicleAssignedFighterId, params.gang_id); invalidateGangFinancials(params.gang_id);
       }
     } else {
       // Gang stash purchases
-      invalidateGangStash({
-        gangId: params.gang_id,
-        userId: user.id
-      });
+      invalidateGangStash(params.gang_id);
+      invalidateGang(params.gang_id);
     }
 
     // Build response data to match RPC format
@@ -961,7 +939,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           if (result.success && params.fighter_id) {
             // Invalidate fighter caches so modified weapon profiles re-render
             try {
-              invalidateFighterDataWithFinancials(params.fighter_id, params.gang_id);
+              invalidateFighter(params.fighter_id, params.gang_id); invalidateGangFinancials(params.gang_id);
             } catch {}
           }
         } catch (e) {
@@ -1113,7 +1091,6 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
                            customEquipmentData?.equipment_name || 
                            'Unknown Equipment';
 
-
       await logEquipmentAction({
         gang_id: params.gang_id,
         fighter_id: equipmentBefore.fighter_id,
@@ -1141,7 +1118,7 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
         .single();
 
       if (gangOwner?.user_id) {
-        invalidateUserGangsList(gangOwner.user_id);
+        invalidateUser(gangOwner.user_id);
       }
     } catch {}
 
@@ -1167,19 +1144,11 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
 
     // Use optimized cache invalidation for equipment deletion
     // Note: We could detect deleted beast IDs here if needed for even more granular updates
-    invalidateEquipmentDeletion({
-      fighterId: params.fighter_id,
-      gangId: params.gang_id
-      // deletedBeastIds could be added here if we track which beasts were deleted
-    });
+    invalidateFighter(params.fighter_id, params.gang_id);
     
     // If the deleted equipment had associated effects, invalidate fighter effects + derived data
     if ((associatedEffects?.length || 0) > 0) {
-      invalidateFighterAdvancement({
-        fighterId: params.fighter_id,
-        gangId: params.gang_id,
-        advancementType: 'effect'
-      });
+      invalidateFighter(params.fighter_id, params.gang_id);
     }
 
     // If this fighter is a beast, invalidate the owner's cache
@@ -1305,7 +1274,7 @@ export async function applyEquipmentEffect(params: {
 
     // 5) Invalidate caches
     try {
-      invalidateFighterDataWithFinancials(params.fighter_id, params.gang_id);
+      invalidateFighter(params.fighter_id, params.gang_id); invalidateGangFinancials(params.gang_id);
     } catch {}
 
     return { success: true };
@@ -1345,7 +1314,8 @@ export async function deleteEquipmentFromStash(params: StashDeleteParams): Promi
       });
     }
 
-    invalidateGangStash({ gangId: row.gang_id, userId: user.id });
+    invalidateGangStash(row.gang_id);
+    invalidateGang(row.gang_id);
     return { success: true };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
@@ -1451,17 +1421,12 @@ export async function applySelfUpgradesToEquipment(params: {
         .select('user_id')
         .eq('id', params.fighter_id)
         .single();
-      if (fighterOwner?.user_id) invalidateUserGangsList(fighterOwner.user_id);
+      if (fighterOwner?.user_id) invalidateUser(fighterOwner.user_id);
     } catch {}
 
     // Invalidate caches once at the end
     try {
-      invalidateFighterAdvancement({
-        fighterId: params.fighter_id,
-        gangId: params.gang_id,
-        advancementType: 'effect'
-      });
-      revalidateTag(CACHE_TAGS.BASE_FIGHTER_EQUIPMENT(params.fighter_id), { expire: 0 });
+      invalidateFighter(params.fighter_id, params.gang_id);
     } catch (e) {
       console.error('Cache invalidation failed:', e);
     }
@@ -1542,17 +1507,12 @@ export async function deleteEquipmentEffect(
         .select('user_id')
         .eq('id', params.fighter_id)
         .single();
-      if (fighterOwner?.user_id) invalidateUserGangsList(fighterOwner.user_id);
+      if (fighterOwner?.user_id) invalidateUser(fighterOwner.user_id);
     } catch {}
 
     // Invalidate caches
     try {
-      invalidateFighterAdvancement({
-        fighterId: params.fighter_id,
-        gangId: params.gang_id,
-        advancementType: 'effect'
-      });
-      revalidateTag(CACHE_TAGS.BASE_FIGHTER_EQUIPMENT(params.fighter_id), { expire: 0 });
+      invalidateFighter(params.fighter_id, params.gang_id);
     } catch (e) {
       console.error('Cache invalidation failed:', e);
     }

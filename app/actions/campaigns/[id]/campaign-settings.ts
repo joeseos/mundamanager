@@ -1,8 +1,8 @@
 'use server';
 
+import { invalidateGang, invalidateGangCampaignMembership, invalidateCampaign, invalidateUser, invalidateCampaignCount } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
-import { revalidateTag } from "next/cache";
-import { CACHE_TAGS, invalidateCampaignCount } from "@/utils/cache-tags";
+
 import { getAuthenticatedUser } from '@/utils/auth';
 
 export interface UpdateCampaignSettingsParams {
@@ -66,14 +66,14 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
       .eq('campaign_id', campaignId);
 
     // Use granular cache invalidation with proper taxonomy
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId), { expire: 0 });
-    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId), { expire: 0 });
+    invalidateCampaign(campaignId);
+    invalidateCampaign(campaignId);
     
     // Invalidate gang caches to update campaign resource settings display
     if (campaignGangs && campaignGangs.length > 0) {
       campaignGangs.forEach(gang => {
         // Gang pages show campaign info (name, settings), so invalidate gang campaign cache
-        revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(gang.gang_id), { expire: 0 });
+        invalidateGangCampaignMembership(gang.gang_id);
         // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST - campaign changes don't affect fighter data
       });
     }
@@ -163,21 +163,21 @@ export async function deleteCampaign(campaignId: string) {
     }
 
     // Use comprehensive cache invalidation with proper taxonomy for deleted campaign
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId), { expire: 0 });
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId), { expire: 0 });
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_TERRITORIES(campaignId), { expire: 0 });
-    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId), { expire: 0 });
-    revalidateTag(CACHE_TAGS.SHARED_CAMPAIGN_GANG_LIST(campaignId), { expire: 0 });
+    invalidateCampaign(campaignId);
+    invalidateCampaign(campaignId);
+    invalidateCampaign(campaignId);
+    invalidateCampaign(campaignId);
+    invalidateCampaign(campaignId);
 
     // Invalidate gang campaign caches since campaign was deleted
     if (campaignGangs && campaignGangs.length > 0) {
       campaignGangs.forEach(gang => {
-        revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(gang.gang_id), { expire: 0 });
-        revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gang.gang_id), { expire: 0 });
+        invalidateGangCampaignMembership(gang.gang_id);
+        invalidateGang(gang.gang_id);
       });
     }
 
-    revalidateTag(CACHE_TAGS.USER_CAMPAIGNS(user.id), { expire: 0 });
+    invalidateUser(user.id);
 
     // Invalidate global campaign count
     invalidateCampaignCount();

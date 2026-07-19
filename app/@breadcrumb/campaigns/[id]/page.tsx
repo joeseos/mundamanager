@@ -1,5 +1,6 @@
 import { LuHouse } from "react-icons/lu";
 import { createClient } from "@/utils/supabase/server"
+import { getCampaignBasic } from "@/app/lib/campaigns/[id]/get-campaign-data"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -17,12 +18,9 @@ export default async function CampaignBreadcrumb({
 }) {
   const { id } = await params
   const supabase = await createClient()
-  
-  const { data: campaignData } = await supabase
-    .from('campaigns')
-    .select('campaign_name')
-    .eq('id', id)
-    .single()
+
+  // Reads the campaign page's cached basic entry instead of an uncached query
+  const campaignData = await getCampaignBasic(id, supabase).catch(() => null)
 
   return (
     <div 

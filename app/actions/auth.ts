@@ -1,11 +1,12 @@
 "use server";
 
+import { invalidateUserCount } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
-import { invalidateUserCount } from '@/utils/cache-tags';
+
 import { safePostSignInPath } from '@/utils/auth';
 
 export const signUpAction = async (formData: FormData) => {
@@ -208,7 +209,6 @@ export const signOutAction = async () => {
 
   return redirect("/sign-in");
 };
-
 
 export const updatePasswordAction = async (formData: FormData) => {
   const password = formData.get("password") as string;

@@ -1,11 +1,11 @@
 'use server';
 
+import { invalidateUserCustoms } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { CustomFighterType } from '@/types/fighter';
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
 import { removeItemFromAllCollections } from './custom-collections';
-import { invalidateUserCustomFighters, invalidateUserCustomCollections } from '@/utils/cache-tags';
 
 export interface CreateCustomFighterData {
   fighter_type: string;
@@ -295,7 +295,7 @@ export async function createCustomFighter(data: CreateCustomFighterData): Promis
       return { success: false, error: completeError || 'Failed to fetch complete fighter data' };
     }
 
-    invalidateUserCustomFighters(user.id);
+    invalidateUserCustoms(user.id);
     return { success: true, data: transformedFighter };
   } catch (error) {
     console.error('Error in createCustomFighter:', error);
@@ -342,8 +342,7 @@ export async function deleteCustomFighter(id: string): Promise<{ success: boolea
 
     await removeItemFromAllCollections(supabase, user.id, [{ type: 'fighter_type', id }]);
 
-    invalidateUserCustomFighters(user.id);
-    invalidateUserCustomCollections(user.id);
+    invalidateUserCustoms(user.id);
     return { success: true };
   } catch (error) {
     console.error('Error in deleteCustomFighter:', error);
@@ -540,8 +539,7 @@ export async function updateCustomFighter(id: string, data: CreateCustomFighterD
       return { success: false, error: completeError || 'Failed to fetch complete fighter data' };
     }
 
-    invalidateUserCustomFighters(user.id);
-    invalidateUserCustomCollections(user.id);
+    invalidateUserCustoms(user.id);
     return { success: true, data: transformedFighter };
   } catch (error) {
     console.error('Error in updateCustomFighter:', error);

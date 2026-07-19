@@ -211,7 +211,10 @@ export async function PUT(request: Request) {
   }
 }
 
+// NOTE: pre-existing stub left unwrapped — it performs no mutation.
 export async function DELETE(request: Request) {
   const supabase = await createClient();
   // ... existing code ...
-} 
+}
+
+

@@ -4,6 +4,7 @@ import { getAuthenticatedUser, signInPath } from '@/utils/auth';
 import { getBattleSessionCached } from '@/app/lib/battle-sessions/get-battle-session-data';
 import { getGangFightersList, getGangPositioning, type GangFighter } from '@/app/lib/shared/gang-data';
 import { getCampaignTerritories } from '@/app/lib/campaigns/[id]/get-campaign-data';
+import { getScenariosCached } from '@/app/lib/reference-data';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
 import ActiveSession from '@/components/battle-session/active-session';
 import CompletedSession from '@/components/battle-session/completed-session';
@@ -43,13 +44,10 @@ export async function renderBattleSessionPage(sessionId: string, currentPath: st
     new Set(session.participants.map((p) => p.gang_id))
   );
 
-  const [gangFighterLists, gangPositioningList, { data: scenarios }, campaignTerritories] = await Promise.all([
+  const [gangFighterLists, gangPositioningList, scenarios, campaignTerritories] = await Promise.all([
     Promise.all(uniqueGangIds.map((gId) => getGangFightersList(gId, supabase, { expandLoadoutsForPrint: true }))),
     Promise.all(uniqueGangIds.map((gId) => getGangPositioning(gId, supabase))),
-    supabase
-      .from('scenarios')
-      .select('id, scenario_name, scenario_number')
-      .order('scenario_number'),
+    getScenariosCached(supabase),
     session.campaign_id ? getCampaignTerritories(session.campaign_id, supabase) : Promise.resolve([]),
   ]);
 

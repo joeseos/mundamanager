@@ -1,7 +1,8 @@
 'use server'
 
+import { invalidateGang, invalidateFighter, invalidateGangFinancials } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
-import { invalidateVehicleEffects, invalidateVehicleRepair } from '@/utils/cache-tags';
+
 import { getAuthenticatedUser } from '@/utils/auth';
 import { logVehicleAction } from './logs/vehicle-logs';
 import { updateGangRatingSimple, updateGangFinancials, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
@@ -17,7 +18,6 @@ interface RemoveVehicleDamageResult {
   error?: string;
 }
 type RepairCondition = "Almost like new" | "Quality repairs" | "Superficial Damage";
-
 
 interface RepairVehicleDamageParams {
   damageIds: string[];
@@ -107,7 +107,7 @@ export async function removeVehicleDamage(params: RemoveVehicleDamageParams): Pr
 
     // Invalidate cache for vehicle effects
     if (effectRow?.vehicle_id) {
-      invalidateVehicleEffects(params.fighterId, params.gangId);
+      invalidateGang(params.gangId); if (params.fighterId) invalidateFighter(params.fighterId, params.gangId);
     }
 
     return {
@@ -259,7 +259,7 @@ export async function repairVehicleDamage(params: RepairVehicleDamageParams): Pr
     }
 
     // Invalidate cache for vehicle effects and gang credits
-    invalidateVehicleRepair(params.fighterId, params.gangId);
+    invalidateFighter(params.fighterId, params.gangId); invalidateGangFinancials(params.gangId);
 
     return {
       success: true

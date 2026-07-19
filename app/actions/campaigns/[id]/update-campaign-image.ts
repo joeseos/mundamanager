@@ -1,9 +1,8 @@
 'use server';
 
+import { invalidateCampaign, invalidateUser } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { revalidateTag } from 'next/cache';
-import { CACHE_TAGS } from '@/utils/cache-tags';
 
 export async function updateCampaignImage(campaignId: string, imageUrl: string | null) {
   try {
@@ -23,10 +22,10 @@ export async function updateCampaignImage(campaignId: string, imageUrl: string |
     }
 
     // Invalidate caches for this campaign
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId), { expire: 0 });
-    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId), { expire: 0 });
+    invalidateCampaign(campaignId);
+    invalidateCampaign(campaignId);
     // Also refresh user's campaigns list
-    revalidateTag(CACHE_TAGS.USER_CAMPAIGNS(user.id), { expire: 0 });
+    invalidateUser(user.id);
 
     return { success: true };
   } catch (error) {
@@ -34,5 +33,4 @@ export async function updateCampaignImage(campaignId: string, imageUrl: string |
     return { success: false, error: error instanceof Error ? error.message : 'Failed to update campaign image' };
   }
 }
-
 

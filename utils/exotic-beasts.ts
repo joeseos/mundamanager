@@ -1,11 +1,6 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { 
-  invalidateEquipmentDeletion,
-  addBeastToGangCache,
-  invalidateFighterOwnedBeasts
-} from '@/utils/cache-tags';
 
 export interface ExoticBeastCreationParams {
   equipmentId: string;
@@ -111,7 +106,6 @@ export async function createExoticBeastsForEquipment(
     if (!beastConfigs || beastConfigs.length === 0) {
       return { success: true, createdBeasts: [] };
     }
-
 
     
     // Create beast fighters for each beast config
@@ -401,70 +395,6 @@ async function addDefaultSkillsToBeast(
   } catch (error) {
     console.error('Error adding default skills to beast:', error);
     // Don't throw - this is not critical enough to fail the entire beast creation
-    return [];
-  }
-}
-
-
-/**
- * Handles cache invalidation when beasts are created during equipment purchase
- */
-export async function invalidateCacheForBeastCreation(params: {
-  ownerFighterId: string;
-  gangId: string;
-  createdBeasts: CreatedBeast[];
-}): Promise<void> {
-  if (params.createdBeasts.length === 0) {
-    return;
-  }
-
-  // Update the owner's beast list
-  invalidateFighterOwnedBeasts(params.ownerFighterId, params.gangId);
-  
-  // Add each beast to gang cache individually for optimal performance
-  params.createdBeasts.forEach(beast => {
-    addBeastToGangCache(beast.id, params.gangId);
-  });
-}
-
-/**
- * Handles cache invalidation when beasts are deleted during equipment deletion
- */
-export async function invalidateCacheForBeastDeletion(params: {
-  ownerFighterId: string;
-  gangId: string;
-  deletedBeastIds: string[];
-}): Promise<void> {
-  if (params.deletedBeastIds.length === 0) {
-    return;
-  }
-
-  // Use the optimized cache invalidation for equipment deletion
-  invalidateEquipmentDeletion({
-    fighterId: params.ownerFighterId,
-    gangId: params.gangId,
-    deletedBeastIds: params.deletedBeastIds
-  });
-}
-
-/**
- * Gets beast IDs that would be deleted when equipment is removed
- * This is useful for cache invalidation when equipment is deleted
- */
-export async function getBeastIdsForEquipment(
-  fighterEquipmentId: string
-): Promise<string[]> {
-  try {
-    const supabase = await createClient();
-    
-    const { data: beastOwnership } = await supabase
-      .from('fighter_exotic_beasts')
-      .select('fighter_pet_id')
-      .eq('fighter_equipment_id', fighterEquipmentId);
-
-    return beastOwnership?.map(ownership => ownership.fighter_pet_id) || [];
-  } catch (error) {
-    console.error('Error getting beast IDs for equipment:', error);
     return [];
   }
 }

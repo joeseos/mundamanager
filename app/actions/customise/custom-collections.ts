@@ -1,9 +1,9 @@
 'use server';
 
+import { invalidateUserCustoms } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { invalidateUserCustomCollections, invalidateAllUserCustomContent } from '@/utils/cache-tags';
 
 export type CollectionItemType = 'equipment' | 'fighter_type' | 'gang_type' | 'skill' | 'trading_post';
 
@@ -90,7 +90,7 @@ export async function createCustomCollection(
       return { success: false, error: `Failed to create custom collection: ${error.message}` };
     }
 
-    invalidateUserCustomCollections(user.id);
+    invalidateUserCustoms(user.id);
     return { success: true, data: newCollection as CustomCollection };
   } catch (error) {
     console.error('Error in createCustomCollection:', error);
@@ -123,7 +123,7 @@ export async function updateCustomCollection(
       return { success: false, error: error?.message || 'Custom collection not found or not owned by user' };
     }
 
-    invalidateUserCustomCollections(user.id);
+    invalidateUserCustoms(user.id);
     return { success: true, data: updated as CustomCollection };
   } catch (error) {
     console.error('Error in updateCustomCollection:', error);
@@ -147,7 +147,7 @@ export async function deleteCustomCollection(id: string): Promise<{ success: boo
       return { success: false, error: `Failed to delete custom collection: ${error.message}` };
     }
 
-    invalidateUserCustomCollections(user.id);
+    invalidateUserCustoms(user.id);
     return { success: true };
   } catch (error) {
     console.error('Error in deleteCustomCollection:', error);
@@ -208,7 +208,7 @@ export async function addCollectionItem(
       return { success: false, error: `Failed to add item to collection: ${updateError.message}` };
     }
 
-    invalidateUserCustomCollections(user.id);
+    invalidateUserCustoms(user.id);
     return { success: true, data: nextItems };
   } catch (error) {
     console.error('Error in addCollectionItem:', error);
@@ -252,7 +252,7 @@ export async function removeCollectionItem(
       return { success: false, error: `Failed to remove item from collection: ${updateError.message}` };
     }
 
-    invalidateUserCustomCollections(user.id);
+    invalidateUserCustoms(user.id);
     return { success: true, data: nextItems };
   } catch (error) {
     console.error('Error in removeCollectionItem:', error);
@@ -279,7 +279,7 @@ export async function copyCollection(
       return { success: false, error: `Failed to copy collection: ${error.message}` };
     }
 
-    invalidateAllUserCustomContent(user.id);
+    invalidateUserCustoms(user.id);
     return { success: true, newCollectionId: data as string };
   } catch (error) {
     console.error('Error in copyCollection:', error);

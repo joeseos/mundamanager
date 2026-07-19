@@ -41,32 +41,3 @@ export async function GET() {
   }
 }
 
-export async function DELETE(request: Request) {
-  const supabase = await createClient();
-  const url = new URL(request.url);
-  const effectId = url.searchParams.get('effectId');
-
-  if (!effectId) {
-    return NextResponse.json(
-      { error: 'Effect ID is required' },
-      { status: 400 }
-    );
-  }
-
-  try {
-    const { error: deleteError } = await supabase
-      .from('fighter_effects')
-      .delete()
-      .eq('id', effectId);
-
-    if (deleteError) throw deleteError;
-
-    return NextResponse.json({ message: 'Vehicle damage deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting vehicle damage:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete vehicle damage' },
-      { status: 500 }
-    );
-  }
-}

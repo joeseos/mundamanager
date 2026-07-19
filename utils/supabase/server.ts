@@ -3,6 +3,7 @@ import 'server-only'
 import { createServerClient } from '@supabase/ssr'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { isQueryCountEnabled, makeCountingFetch } from './query-counter'
 
 export async function createClient() {
   const cookieStore = await cookies()
@@ -11,6 +12,7 @@ export async function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      ...(isQueryCountEnabled() ? { global: { fetch: makeCountingFetch() } } : {}),
       cookies: {
         getAll() {
           return cookieStore.getAll()

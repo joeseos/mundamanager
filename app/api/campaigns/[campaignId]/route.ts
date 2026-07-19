@@ -1,4 +1,3 @@
-import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { 
   getCampaignBasic, 
@@ -7,7 +6,7 @@ import {
   getCampaignBattles,
   getCampaignCaptives
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
-import { revalidateTag } from 'next/cache';
+import { invalidateCampaign } from '@/utils/cache-tags';
 
 export async function GET(request: Request, props: { params: Promise<{ campaignId: string }> }) {
   const params = await props.params;
@@ -21,12 +20,9 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
   }
 
   try {
-    // Revalidate all relevant campaign cache tags for this campaign
-    revalidateTag(`campaign-basic-${campaignId}`, { expire: 0 });
-    revalidateTag(`campaign-members-${campaignId}`, { expire: 0 });
-    revalidateTag(`campaign-territories-${campaignId}`, { expire: 0 });
-    revalidateTag(`campaign-battles-${campaignId}`, { expire: 0 });
-    revalidateTag(`campaign-${campaignId}`, { expire: 0 });
+    // Force-refresh endpoint: bust the campaign cache before re-reading so the
+    // client gets fresh data (all campaign entries share the campaign-{id} tag)
+    invalidateCampaign(campaignId);
     // Use the same cached functions as the page
     const [
       campaignBasic,
@@ -75,43 +71,6 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
     console.error('Error fetching campaign:', error);
     return NextResponse.json(
       { error: "Failed to fetch campaign" },
-      { status: 500 }
-    );
-  }
-}
-
-export async function PATCH(request: Request, props: { params: Promise<{ campaignId: string }> }) {
-  const params = await props.params;
-  const supabase = await createClient();
-  const { campaignId } = params;
-
-  if (!campaignId) {
-    return NextResponse.json(
-      { error: "Campaign ID is required" },
-      { status: 400 }
-    );
-  }
-
-  try {
-    const updates = await request.json();
-    
-    // Add the updated_at timestamp
-    updates.updated_at = new Date().toISOString();
-
-    const { data, error } = await supabase
-      .from('campaigns')
-      .update(updates)
-      .eq('id', campaignId)
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    return NextResponse.json(data);
-  } catch (error) {
-    console.error('Error updating campaign:', error);
-    return NextResponse.json(
-      { error: "Failed to update campaign" },
       { status: 500 }
     );
   }

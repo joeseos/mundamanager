@@ -1,9 +1,9 @@
 'use server';
 
+import { invalidateCampaign, invalidateUserCustoms } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { revalidateTag } from 'next/cache';
-import { CACHE_TAGS, invalidateUserCustomTradingPosts, invalidateUserCustomCollections } from '@/utils/cache-tags';
+
 import { removeItemFromAllCollections } from './custom-collections';
 
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
@@ -49,7 +49,7 @@ export async function createCustomTradingPost(
       return { success: false, error: `Failed to create custom trading post: ${insertError.message}` };
     }
 
-    invalidateUserCustomTradingPosts(user.id);
+    invalidateUserCustoms(user.id);
     return { success: true, data: newTradingPost };
   } catch (error) {
     console.error('Error in createCustomTradingPost:', error);
@@ -101,8 +101,7 @@ export async function updateCustomTradingPost(
       return { success: false, error: `Failed to update custom trading post: ${updateError.message}` };
     }
 
-    invalidateUserCustomTradingPosts(user.id);
-    invalidateUserCustomCollections(user.id);
+    invalidateUserCustoms(user.id);
     return { success: true, data: updated };
   } catch (error) {
     console.error('Error in updateCustomTradingPost:', error);
@@ -163,15 +162,14 @@ export async function deleteCustomTradingPost(
             .from('campaigns')
             .update({ custom_trading_posts: updated })
             .eq('id', campaign.id);
-          revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaign.id), { expire: 0 });
+          invalidateCampaign(campaign.id);
         }
       }
     }
 
     await removeItemFromAllCollections(supabase, user.id, [{ type: 'trading_post', id }]);
 
-    invalidateUserCustomTradingPosts(user.id);
-    invalidateUserCustomCollections(user.id);
+    invalidateUserCustoms(user.id);
     return { success: true };
   } catch (error) {
     console.error('Error in deleteCustomTradingPost:', error);
@@ -349,6 +347,7 @@ export async function addTPEquipmentBatch(
 
     if (insertError) throw insertError;
 
+    invalidateUserCustoms(user.id);
     return {
       success: true,
       data: (inserted ?? []).map(r => ({
@@ -394,6 +393,7 @@ export async function updateTPEquipment(
       return { success: false, error: error.message };
     }
 
+    invalidateUserCustoms(user.id);
     return { success: true };
   } catch (error) {
     console.error('Error in updateTPEquipment:', error);
@@ -419,6 +419,7 @@ export async function removeTPEquipment(
       return { success: false, error: error.message };
     }
 
+    invalidateUserCustoms(user.id);
     return { success: true };
   } catch (error) {
     console.error('Error in removeTPEquipment:', error);
@@ -525,6 +526,7 @@ export async function addAvailabilityRule(
       return { success: false, error: error.message };
     }
 
+    invalidateUserCustoms(user.id);
     return { success: true };
   } catch (error) {
     console.error('Error in addAvailabilityRule:', error);
@@ -550,6 +552,7 @@ export async function deleteAvailabilityRule(
       return { success: false, error: error.message };
     }
 
+    invalidateUserCustoms(user.id);
     return { success: true };
   } catch (error) {
     console.error('Error in deleteAvailabilityRule:', error);
@@ -646,6 +649,7 @@ export async function addPricingRule(
       return { success: false, error: error.message };
     }
 
+    invalidateUserCustoms(user.id);
     return { success: true };
   } catch (error) {
     console.error('Error in addPricingRule:', error);
@@ -671,6 +675,7 @@ export async function deletePricingRule(
       return { success: false, error: error.message };
     }
 
+    invalidateUserCustoms(user.id);
     return { success: true };
   } catch (error) {
     console.error('Error in deletePricingRule:', error);
@@ -757,6 +762,7 @@ export async function saveEquipmentRules(
       if (error) throw error;
     }
 
+    invalidateUserCustoms(user.id);
     return { success: true };
   } catch (error) {
     console.error('Error in saveEquipmentRules:', error);

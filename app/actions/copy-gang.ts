@@ -1,8 +1,9 @@
 'use server'
 
+import { invalidateGang, invalidateUser, invalidateUserCustoms, invalidateGangCount } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { invalidateGangCreation, invalidateAllUserCustomContent } from '@/utils/cache-tags';
+
 import { duplicateCustomGangType } from '@/utils/duplicate-custom-gang-type';
 
 interface CopyGangInput {
@@ -597,10 +598,12 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
     }
 
     // 12) Invalidate caches for the new gang
-    invalidateGangCreation({ gangId: newGangId, userId: user.id });
+    invalidateGang(newGangId);
+    invalidateUser(user.id);
+    invalidateGangCount();
 
     if (newCustomGangTypeId) {
-      invalidateAllUserCustomContent(user.id);
+      invalidateUserCustoms(user.id);
     }
 
     return { success: true, newGangId };

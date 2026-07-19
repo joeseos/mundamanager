@@ -1,9 +1,9 @@
 'use server'
 
-import { revalidateTag } from 'next/cache';
+import { invalidateGang, invalidateFighter, invalidateGangFinancials } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { CACHE_TAGS, invalidateFighterVehicleData, invalidateGangFinancials } from '@/utils/cache-tags';
+
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { countsTowardRating } from '@/utils/fighter-status';
 import { logVehicleAction } from './logs/vehicle-logs';
@@ -185,12 +185,12 @@ export async function sellVehicle(params: SellVehicleParams): Promise<SellVehicl
     // Invalidate caches (credits + rating + fighter vehicles if assigned)
     invalidateGangFinancials(gangId);
     if (vehicle.fighter_id) {
-      invalidateFighterVehicleData(vehicle.fighter_id, gangId);
+      invalidateFighter(vehicle.fighter_id, gangId); invalidateGangFinancials(gangId);
     }
 
     // Always invalidate vehicle list caches (even for unassigned vehicles)
-    revalidateTag(CACHE_TAGS.BASE_GANG_VEHICLES(gangId), { expire: 0 });
-    revalidateTag(CACHE_TAGS.COMPUTED_GANG_VEHICLE_COUNT(gangId), { expire: 0 });
+    invalidateGang(gangId);
+    invalidateGang(gangId);
 
     return {
       success: true,
@@ -212,5 +212,4 @@ export async function sellVehicle(params: SellVehicleParams): Promise<SellVehicl
     };
   }
 }
-
 

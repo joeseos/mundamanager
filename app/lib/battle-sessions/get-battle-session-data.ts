@@ -1,5 +1,6 @@
+import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
-import { CACHE_TAGS } from '@/utils/cache-tags';
+
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BattleSession, BattleSessionFull } from '@/types/battle-session';
 import { fetchCampaignResources, type CampaignResource } from '@/utils/campaigns/resources';
@@ -148,7 +149,7 @@ export const getBattleSessionCached = async (
     () => fetchBattleSessionDirect(sessionId, supabase),
     [`battle-session-${sessionId}`],
     {
-      tags: [CACHE_TAGS.BASE_BATTLE_SESSION(sessionId)],
+      tags: [TAGS.battleSession(sessionId)],
       revalidate: false,
     }
   )();
@@ -181,7 +182,7 @@ export const getGangBattleSessionsCached = async (
     },
     [`gang-battle-sessions-${gangId}`],
     {
-      tags: [CACHE_TAGS.GANG_BATTLE_SESSIONS(gangId)],
+      tags: [TAGS.gangBattleSessions(gangId)],
       revalidate: false,
     }
   )();

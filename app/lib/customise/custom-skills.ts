@@ -1,5 +1,6 @@
+import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
-import { CACHE_TAGS } from "@/utils/cache-tags";
+
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export interface CustomSkillType {
@@ -74,9 +75,9 @@ export async function getUserCustomSkills(userId: string, supabase: SupabaseClie
         updated_at: skill.updated_at,
       }));
     },
-    [`user-custom-skills-${userId}`],
+    [`user-custom-skills-v2-${userId}`],
     {
-      tags: [CACHE_TAGS.USER_CUSTOM_SKILLS(userId)],
+      tags: [TAGS.customs(userId)],
       revalidate: false,
     }
   )();

@@ -1,8 +1,8 @@
 'use server';
 
+import { invalidateCampaign, invalidateCampaignGang, invalidateUser, invalidatePermission } from '@/utils/cache-tags';
 import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
-import { revalidateTag } from "next/cache";
-import { CACHE_TAGS, invalidateCampaignMembership, invalidatePermissionForUser, invalidateCampaignMemberPermissions } from "@/utils/cache-tags";
+
 import { logGangJoinedCampaign, logGangLeftCampaign } from "../../logs/gang-campaign-logs";
 import { getAuthenticatedUser } from '@/utils/auth';
 
@@ -175,18 +175,12 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
     
 
     // Use granular campaign membership invalidation
-    invalidateCampaignMembership({
-      campaignId: campaignId,
-      gangId: gangId,
-      userId: userId,
-      action: 'join'
-    });
+    invalidateCampaignGang(campaignId, gangId);
+    invalidateUser(userId);
 
     // Invalidate permission cache
-    invalidatePermissionForUser({
-      userId: userId,
-      gangId: gangId
-    });
+    invalidatePermission(userId, gangId);
+    invalidateUser(userId);
 
     return {
       success: true,
@@ -284,17 +278,13 @@ export async function removeMemberFromCampaign(params: RemoveMemberParams) {
     // Use granular campaign membership invalidation for each affected gang
     if (memberGangs && memberGangs.length > 0) {
       memberGangs.forEach(gang => {
-        invalidateCampaignMembership({
-          campaignId: campaignId,
-          gangId: gang.gang_id,
-          userId: userId,
-          action: 'leave'
-        });
+        invalidateCampaignGang(campaignId, gang.gang_id);
+        invalidateUser(userId);
       });
     } else {
       // If no specific gangs, still invalidate campaign data
-      revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId), { expire: 0 });
-      revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId), { expire: 0 });
+      invalidateCampaign(campaignId);
+      invalidateCampaign(campaignId);
     }
 
     return { success: true };
@@ -413,19 +403,13 @@ export async function removeGangFromCampaign(params: RemoveGangParams) {
       .single();
     
     // Use granular campaign membership invalidation
-    invalidateCampaignMembership({
-      campaignId: campaignId,
-      gangId: gangId,
-      userId: gangData?.user_id || 'unknown',
-      action: 'leave'
-    });
+    invalidateCampaignGang(campaignId, gangId);
+    invalidateUser(gangData?.user_id || 'unknown');
 
     // Invalidate permission cache
     if (gangData?.user_id) {
-      invalidatePermissionForUser({
-        userId: gangData.user_id,
-        gangId: gangId
-      });
+      invalidatePermission(gangData.user_id, gangId);
+      invalidateUser(gangData.user_id);
     }
 
     return { success: true };
@@ -478,8 +462,8 @@ export async function addMemberToCampaign(params: AddMemberToCampaignParams) {
     if (error) throw error;
 
     // Use targeted cache invalidation for member addition
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId), { expire: 0 });
-    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId), { expire: 0 });
+    invalidateCampaign(campaignId);
+    invalidateCampaign(campaignId);
 
     return { success: true, data };
   } catch (error) {
@@ -551,22 +535,17 @@ export async function updateMemberRole(params: UpdateMemberRoleParams) {
     // Invalidate permission caches for the promoted/demoted user across ALL gangs in the campaign
     if (allCampaignGangs && allCampaignGangs.length > 0) {
       allCampaignGangs.forEach(gang => {
-        invalidatePermissionForUser({
-          userId: userId,  // The user whose role changed
-          gangId: gang.gang_id
-        });
+        invalidatePermission(userId, gang.gang_id);
+        invalidateUser(userId);
       });
     }
 
     // Also use the new helper for broader invalidation
-    invalidateCampaignMemberPermissions({
-      campaignId,
-      userId
-    });
+    invalidateUser(userId);
 
     // Use targeted cache invalidation for role update
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId), { expire: 0 });
-    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId), { expire: 0 });
+    invalidateCampaign(campaignId);
+    invalidateCampaign(campaignId);
 
     return { success: true };
   } catch (error) {

@@ -1,5 +1,6 @@
 'use server';
 
+import { invalidateUserCustoms } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from '@/utils/auth';
 import { CustomWeaponProfileData } from "@/types/equipment";
@@ -75,27 +76,11 @@ export async function saveCustomWeaponProfiles(
       }
     }
 
+    invalidateUserCustoms(user.id);
     return { success: true };
   } catch (error) {
     console.error('Error saving weapon profiles:', error);
     throw error;
-  }
-}
-
-export async function testDatabaseConnection() {
-  const supabase = await createClient();
-  
-  try {
-    console.log('Testing database connection to custom_weapon_profiles...');
-    const { data, error, count } = await supabase
-      .from('custom_weapon_profiles')
-      .select('*', { count: 'exact' });
-    
-    console.log('Database test result:', { data, error, count });
-    return { data, error, count };
-  } catch (error) {
-    console.error('Database test error:', error);
-    return { error };
   }
 }
 

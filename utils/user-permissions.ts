@@ -1,10 +1,10 @@
+import { TAGS } from '@/utils/cache-tags';
 import 'server-only';
 
 import { createClient } from '@/utils/supabase/server';
 import type { UserPermissions, CampaignPermissions } from '@/types/user-permissions';
 import type { CampaignRole } from '@/types/user-permissions';
 import { unstable_cache } from 'next/cache';
-import { CACHE_TAGS } from '@/utils/cache-tags';
 
 export interface CheckPermissionResult {
   is_admin: boolean;
@@ -59,7 +59,7 @@ export async function checkPermissionCached(
     },
     [`check-permission-${userId}-${gangId}`],
     {
-      tags: [CACHE_TAGS.CHECK_PERMISSION(userId, gangId)],
+      tags: [TAGS.permission(userId, gangId)],
       revalidate: false,
     }
   )(userId, gangId, gangOwnerId);

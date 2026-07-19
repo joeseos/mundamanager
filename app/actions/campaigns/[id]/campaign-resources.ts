@@ -1,8 +1,8 @@
 'use server';
 
+import { invalidateCampaign } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
-import { revalidateTag } from "next/cache";
-import { CACHE_TAGS } from "@/utils/cache-tags";
+
 import { getAuthenticatedUser } from '@/utils/auth';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
 
@@ -67,10 +67,10 @@ export async function createCampaignResource(params: CreateCampaignResourceParam
     if (error) throw error;
 
     // Invalidate campaign cache
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(params.campaignId), { expire: 0 });
-    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(params.campaignId), { expire: 0 });
+    invalidateCampaign(params.campaignId);
+    invalidateCampaign(params.campaignId);
     // Also invalidate the specific resource cache
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_RESOURCES(params.campaignId), { expire: 0 });
+    invalidateCampaign(params.campaignId);
 
     return { success: true, data };
   } catch (error) {
@@ -117,12 +117,12 @@ export async function updateCampaignResource(params: UpdateCampaignResourceParam
     if (error) throw error;
 
     // Invalidate campaign cache
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(params.campaignId), { expire: 0 });
-    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(params.campaignId), { expire: 0 });
+    invalidateCampaign(params.campaignId);
+    invalidateCampaign(params.campaignId);
     // Also invalidate the specific resource cache
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_RESOURCES(params.campaignId), { expire: 0 });
+    invalidateCampaign(params.campaignId);
     // Invalidate campaign members cache since resource names may have changed
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(params.campaignId), { expire: 0 });
+    invalidateCampaign(params.campaignId);
 
     return { success: true, data };
   } catch (error) {
@@ -162,12 +162,12 @@ export async function deleteCampaignResource(params: DeleteCampaignResourceParam
     if (error) throw error;
 
     // Invalidate campaign cache
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(params.campaignId), { expire: 0 });
-    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(params.campaignId), { expire: 0 });
+    invalidateCampaign(params.campaignId);
+    invalidateCampaign(params.campaignId);
     // Also invalidate the specific resource cache
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_RESOURCES(params.campaignId), { expire: 0 });
+    invalidateCampaign(params.campaignId);
     // Invalidate campaign members cache since resource data has changed
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(params.campaignId), { expire: 0 });
+    invalidateCampaign(params.campaignId);
 
     return { success: true };
   } catch (error) {

@@ -1,5 +1,5 @@
+import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
-import { CACHE_TAGS } from '@/utils/cache-tags';
 
 export type Campaign = {
   id: string;
@@ -21,7 +21,6 @@ export type Campaign = {
 export const getUserCampaigns = async (userId: string, supabase: any): Promise<Campaign[]> => {
   return unstable_cache(
     async () => {
-      console.log("Server: Fetching user campaigns");
       try {
         const { data: campaignMembers, error: membersError } = await supabase
           .from('campaign_members')
@@ -34,7 +33,6 @@ export const getUserCampaigns = async (userId: string, supabase: any): Promise<C
         }
 
         if (!campaignMembers || campaignMembers.length === 0) {
-          console.log("Server: No campaign memberships found");
           return [];
         }
 
@@ -51,7 +49,6 @@ export const getUserCampaigns = async (userId: string, supabase: any): Promise<C
         }
 
         if (!campaigns || campaigns.length === 0) {
-          console.log("Server: No campaigns found");
           return [];
         }
 
@@ -65,8 +62,6 @@ export const getUserCampaigns = async (userId: string, supabase: any): Promise<C
           console.error('Error fetching campaign types:', typesError);
           throw typesError;
         }
-
-        console.log(`Server: Found ${campaigns.length} campaigns`);
 
         const campaignsWithDetails = campaigns.map((campaign: any) => {
           const memberData = campaignMembers.find((member: any) => member.campaign_id === campaign.id);
@@ -89,33 +84,34 @@ export const getUserCampaigns = async (userId: string, supabase: any): Promise<C
           };
         }) as Campaign[];
 
+        // Batch the user's gangs across all campaigns (previously two awaited
+        // queries PER CAMPAIGN inside a for-loop) into two .in() queries.
         const userGangsByCampaign: Record<string, { id: string; name: string }[]> = {};
-        for (const campaign of campaignsWithDetails) {
-          const { data: campaignGangs, error: campaignGangsError } = await supabase
-            .from('campaign_gangs')
-            .select('gang_id')
-            .eq('campaign_id', campaign.id)
-            .eq('user_id', userId);
+        const { data: allCampaignGangs, error: campaignGangsError } = await supabase
+          .from('campaign_gangs')
+          .select('campaign_id, gang_id')
+          .in('campaign_id', campaignIds)
+          .eq('user_id', userId);
 
-          if (campaignGangsError) {
-            console.error('Error fetching campaign gangs:', campaignGangsError);
-            userGangsByCampaign[campaign.id] = [];
-            continue;
+        if (campaignGangsError) {
+          console.error('Error fetching campaign gangs:', campaignGangsError);
+        } else if (allCampaignGangs && allCampaignGangs.length > 0) {
+          const allGangIds = Array.from(new Set(allCampaignGangs.map((g: any) => g.gang_id)));
+          const { data: gangDetails, error: gangDetailsError } = await supabase
+            .from('gangs')
+            .select('id, name')
+            .in('id', allGangIds);
+
+          const gangById = new Map<string, { id: string; name: string }>();
+          if (!gangDetailsError && gangDetails) {
+            gangDetails.forEach((g: any) => gangById.set(g.id, g));
           }
 
-          const gangIds = campaignGangs.map((g: any) => g.gang_id);
-          let gangs: { id: string; name: string }[] = [];
-          if (gangIds.length > 0) {
-            const { data: gangDetails, error: gangDetailsError } = await supabase
-              .from('gangs')
-              .select('id, name')
-              .in('id', gangIds);
-
-            if (!gangDetailsError && gangDetails) {
-              gangs = gangDetails;
-            }
-          }
-          userGangsByCampaign[campaign.id] = gangs;
+          allCampaignGangs.forEach((cg: any) => {
+            const gang = gangById.get(cg.gang_id);
+            if (!gang) return;
+            (userGangsByCampaign[cg.campaign_id] ||= []).push(gang);
+          });
         }
 
         const campaignsWithGangs = campaignsWithDetails.map(campaign => ({
@@ -126,8 +122,6 @@ export const getUserCampaigns = async (userId: string, supabase: any): Promise<C
         const sortedCampaigns = campaignsWithGangs.sort((a, b) =>
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         );
-
-        console.log(`Server: Processed ${sortedCampaigns.length} campaigns`);
         return sortedCampaigns;
       } catch (error) {
         console.error('Unexpected error in getUserCampaigns:', error);
@@ -139,9 +133,44 @@ export const getUserCampaigns = async (userId: string, supabase: any): Promise<C
         return [];
       }
     },
-    [`user-campaigns-${userId}`],
+    [`user-campaigns-v2-${userId}`],
     {
-      tags: [CACHE_TAGS.USER_CAMPAIGNS(userId)],
+      tags: [TAGS.user(userId)],
+      revalidate: false
+    }
+  )();
+};
+
+/**
+ * Campaigns where the user is OWNER/ARBITRATOR (custom-content share modal).
+ * Cache: user-{id} — fired by membership/role mutations.
+ */
+export const getUserShareCampaigns = async (
+  userId: string,
+  supabase: any
+): Promise<Array<{ id: string; campaign_name: string; status: string | null }>> => {
+  return unstable_cache(
+    async () => {
+      const { data: campaignMembers } = await supabase
+        .from('campaign_members')
+        .select('campaign_id')
+        .eq('user_id', userId)
+        .in('role', ['OWNER', 'ARBITRATOR']);
+
+      const campaignIds = (campaignMembers || []).map((cm: any) => cm.campaign_id);
+      if (campaignIds.length === 0) return [];
+
+      const { data: campaignsForShare } = await supabase
+        .from('campaigns')
+        .select('id, campaign_name, status')
+        .in('id', campaignIds)
+        .order('campaign_name');
+
+      return campaignsForShare || [];
+    },
+    [`user-share-campaigns-v2-${userId}`],
+    {
+      tags: [TAGS.user(userId)],
       revalidate: false
     }
   )();

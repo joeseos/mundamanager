@@ -26,22 +26,19 @@ export default async function PrintGangPage(props: {
   try {
     // Fetch gang data using granular shared functions
     const {
-      getGangBasic,
+      getGangCore,
       getGangPositioning,
       getGangType,
       getGangTypeConfig,
-      getAlliance,
       getGangFightersList,
       getGangCampaigns,
       getGangVariants,
-      getGangRatingAndWealth,
-      getGangCredits,
       getGangStash,
       getUserProfile,
     } = await import("@/app/lib/shared/gang-data");
 
-    // Fetch basic gang data first to check if gang exists
-    const gangBasic = await getGangBasic(params.id, supabase);
+    // Fetch the gang core first to check if gang exists
+    const gangBasic = await getGangCore(params.id, supabase);
 
     if (!gangBasic) {
       notFound();
@@ -59,27 +56,24 @@ export default async function PrintGangPage(props: {
       forbidden();
     }
 
-    // Fetch all related data in parallel using granular functions
+    // Credits, rating, wealth and alliance come from the gang core entry
+    const alliance = gangBasic.alliance;
+
+    // Fetch all related data in parallel
     const [
       gangPositioning,
       gangType,
-      alliance,
       fighters,
       campaigns,
-      gangCredits,
       gangVariants,
-      gangRatingAndWealth,
       stash,
       ownerProfile,
     ] = await Promise.all([
       getGangPositioning(params.id, supabase),
       getGangType(gangBasic, supabase),
-      getAlliance(gangBasic.alliance_id, supabase),
       getGangFightersList(params.id, supabase, { expandLoadoutsForPrint: true }),
       getGangCampaigns(params.id, supabase),
-      getGangCredits(params.id, supabase),
       getGangVariants(gangBasic.gang_variants || [], supabase),
-      getGangRatingAndWealth(params.id, supabase),
       getGangStash(params.id, supabase),
       getUserProfile(gangBasic.user_id, supabase),
     ]);
@@ -107,10 +101,10 @@ export default async function PrintGangPage(props: {
       gang_type_image_url: gangType.image_url,
       image_url: gangBasic.image_url,
       gang_colour: gangBasic.gang_colour,
-      credits: gangCredits,
+      credits: gangBasic.credits,
       reputation: gangBasic.reputation,
-      rating: gangRatingAndWealth.rating,
-      wealth: gangRatingAndWealth.wealth,
+      rating: gangBasic.rating,
+      wealth: gangBasic.wealth,
       alignment: gangBasic.alignment,
       alliance_name: alliance?.alliance_name || "",
       gang_affiliation_name: gangBasic.gang_affiliation?.name || "",

@@ -1,8 +1,7 @@
 'use server';
 
+import { invalidateGang, invalidateGangOverview } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
-import { revalidateTag } from 'next/cache';
-import { CACHE_TAGS } from '@/utils/cache-tags';
 
 export async function updateGangImage(
   gangId: string,
@@ -46,9 +45,9 @@ export async function updateGangImage(
     }
 
     // Revalidate the gang basic data used by the gang page
-    revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(gangId), { expire: 0 });
+    invalidateGang(gangId);
     // Also revalidate shared basic info used across pages that show the gang's basic info
-    revalidateTag(CACHE_TAGS.SHARED_GANG_BASIC_INFO(gangId), { expire: 0 });
+    invalidateGangOverview(gangId);
 
     return { success: true };
   } catch (error) {

@@ -5,20 +5,24 @@ import { CampaignErrorBoundary } from "@/components/campaigns/campaign-error-bou
 import { checkCampaignPermissions } from "@/utils/user-permissions";
 import type { CampaignPermissions } from "@/types/user-permissions";
 import { getAuthenticatedUser } from "@/utils/auth";
-
-// Import the optimized functions with unstable_cache
-import { 
-  getCampaignBasic, 
-  getCampaignMembers, 
-  getCampaignTerritories, 
-  getCampaignBattles,
+import {
+  getTradingPostTypesCached,
   getCampaignTriumphs,
   getCampaignTypes,
-  getAllTerritories,
+  getAllTerritories
+} from "@/app/lib/reference-data";
+
+// Import the optimized functions with unstable_cache
+import {
+  getCampaignBasic,
+  getCampaignMembers,
+  getCampaignTerritories,
+  getCampaignBattles,
   getCampaignGangsForModal,
   getCampaignAllegiances,
   getCampaignResources,
   getCampaignCaptives,
+  getCampaignSharedTradingPosts,
   getCampaignMapWithObjects
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
 
@@ -109,25 +113,15 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       getCampaignTriumphs(campaignBasic.campaign_type_id),
       getCampaignTypes(),
       getAllTerritories(),
-      supabase
-        .from('trading_post_types')
-        .select('id, trading_post_name')
-        .order('trading_post_name'),
+      getTradingPostTypesCached(supabase),
       getCampaignAllegiances(params.id, supabase),
       getCampaignResources(params.id, supabase),
       getCampaignCaptives(params.id, supabase),
-      supabase
-        .from('custom_shared')
-        .select('custom_trading_post_id, custom_trading_posts!inner(id, custom_trading_post_name)')
-        .eq('campaign_id', params.id)
-        .not('custom_trading_post_id', 'is', null)
+      getCampaignSharedTradingPosts(params.id, supabase)
     ]);
 
-    const tradingPostTypes = tradingPostTypesResult.data || [];
-    const customTradingPostTypes = (customTradingPostsResult.data || []).map((row: any) => ({
-      id: row.custom_trading_posts.id,
-      trading_post_name: row.custom_trading_posts.custom_trading_post_name,
-    }));
+    const tradingPostTypes = tradingPostTypesResult;
+    const customTradingPostTypes = customTradingPostsResult;
 
     // Combine the data
     const campaignData = {

@@ -23,80 +23,32 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
 
   let pageProps;
   try {
-    // Fetch fighter data using granular shared functions
+    const { getFighterBasic } = await import('@/app/lib/shared/fighter-data');
     const {
-      getFighterBasic,
-      getFighterEquipment,
-      getFighterSkills,
-      getFighterEffects,
-      getFighterVehicles,
-      getFighterOwnedBeastsCost,
-      getFighterTypeInfo,
-      getFighterSubTypeInfo,
-      getFighterOwnedBeastsData,
-      getFighterOwnershipInfo,
-      getFighterLoadouts
-    } = await import('@/app/lib/shared/fighter-data');
-
-    const {
-      getGangBasic,
+      getGangCore,
       getGangPositioning,
-      getGangCredits,
-      getGangCampaigns
+      getGangCampaigns,
+      getGangFightersBundle,
+      getGangVariants
     } = await import('@/app/lib/shared/gang-data');
+    const { assembleFighterView } = await import('@/app/lib/shared/gang-assembly');
 
-    // Fetch basic fighter data first to check if fighter exists
+    // Fetch basic fighter data first to check if fighter exists and resolve the gang
     const fighterBasic = await getFighterBasic(id, supabase);
 
     if (!fighterBasic) {
       notFound();
     }
 
-    // Fetch ALL data in parallel after we have fighterBasic
-    const [
-      gangBasic,
-      gangPositioning,
-      gangCredits,
-      equipment,
-      skills,
-      effects,
-      vehicles,
-      beastCosts,
-      fighterTypeData,
-      fighterSubTypeData,
-      gangCampaigns,
-      beastDataResult,
-      ownershipDataResult,
-      gangFighters,
-      loadouts
-    ] = await Promise.all([
-      // Gang data
-      getGangBasic(fighterBasic.gang_id, supabase),
+    // The fighter's data comes from the SAME cache entries the gang page uses
+    // (core + fighters bundle + campaigns bundle) — usually warm after any
+    // gang page visit.
+    const [gangBasic, gangPositioning, bundle, gangCampaigns, gangFighters] = await Promise.all([
+      getGangCore(fighterBasic.gang_id, supabase),
       getGangPositioning(fighterBasic.gang_id, supabase),
-      getGangCredits(fighterBasic.gang_id, supabase),
-      // Fighter data
-      getFighterEquipment(id, supabase),
-      getFighterSkills(id, supabase),
-      getFighterEffects(id, supabase),
-      getFighterVehicles(id, supabase),
-      getFighterOwnedBeastsCost(id, supabase),
-      // Fighter type data (using cached helpers)
-      getFighterTypeInfo(fighterBasic.fighter_type_id, supabase),
-      fighterBasic.fighter_sub_type_id ?
-        getFighterSubTypeInfo(fighterBasic.fighter_sub_type_id, supabase) :
-        Promise.resolve(null),
-      // Campaign data (gang-level cache using COMPOSITE_GANG_CAMPAIGNS)
+      getGangFightersBundle(fighterBasic.gang_id, supabase),
       getGangCampaigns(fighterBasic.gang_id, supabase),
-      // Beast ownership data (using cached helper)
-      getFighterOwnedBeastsData(id, supabase),
-      // Owner check (if this fighter is a beast, using cached helper)
-      fighterBasic.fighter_pet_id ?
-        getFighterOwnershipInfo(fighterBasic.fighter_pet_id, supabase) :
-        Promise.resolve(null),
-      // Gang fighters list
-      getGangFighters(fighterBasic.gang_id, supabase),
-      // Fighter loadouts
-      getFighterLoadouts(id, supabase)
+      getGangFighters(fighterBasic.gang_id, supabase)
     ]);
 
     // Check if gang exists (shouldn't happen but handle gracefully)
@@ -104,69 +56,37 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       notFound();
     }
 
-    const userPermissions = await checkPermissionCached(user.id, fighterBasic.gang_id, gangBasic.user_id);
+    const [userPermissions, gangVariantsResolved] = await Promise.all([
+      checkPermissionCached(user.id, fighterBasic.gang_id, gangBasic.user_id),
+      getGangVariants(gangBasic.gang_variants || [], supabase)
+    ]);
 
     // Permissions: All authenticated users can view fighters (canView is always true)
     // Edit/delete permissions are enforced in FighterPageComponent
 
+    const {
+      equipment,
+      skills,
+      effects,
+      vehicles,
+      beastCosts,
+      ownedBeastsData,
+      beastFighters,
+      ownershipInfo,
+      loadouts,
+      capturedByGangName,
+      fighterTypeData,
+      fighterSubTypeData
+    } = assembleFighterView(bundle, id);
+
     // Campaign data already processed and includes trading post names (from getGangCampaigns)
     const campaigns = gangCampaigns;
 
-    const beastIds = beastDataResult
-      .map((beast: any) => beast.fighter_pet_id)
-      .filter(Boolean);
-
-    // Parallel batch: beast fighters, gang variants, and captured-by gang name
-    const [
-      beastFightersResult,
-      gangVariantsResult,
-      capturedByGangResult
-    ] = await Promise.all([
-      // Beast fighters (only if needed)
-      beastIds.length > 0
-        ? supabase
-            .from('fighters')
-            .select(`
-              id,
-              fighter_name,
-              fighter_type,
-              fighter_class,
-              credits,
-              created_at,
-              retired
-            `)
-            .in('id', beastIds)
-            .then((result: any) => result.error ? { data: [] } : result)
-        : Promise.resolve({ data: [] }),
-      // Gang variants (only if needed)
-      gangBasic.gang_variants?.length
-        ? supabase
-            .from('gang_variant_types')
-            .select('id, variant')
-            .in('id', gangBasic.gang_variants!)
-            .then((result: any) => result.error ? { data: [] } : result)
-        : Promise.resolve({ data: [] }),
-      // Captured-by gang name (only if fighter is captured by a specific gang)
-      fighterBasic.captured_by_gang_id
-        ? supabase
-            .from('gangs')
-            .select('name')
-            .eq('id', fighterBasic.captured_by_gang_id)
-            .single()
-            .then((result: any) => result.error ? null : result.data?.name ?? null)
-        : Promise.resolve(null)
-    ]);
-
-    // Custom fighter type gang info is embedded in fighterBasic via the FK join
-    const customFighterTypeInfo = fighterBasic.custom_fighter_type ?? null;
-
-    // Campaign data already includes trading_post_names from getGangCampaigns, no processing needed
-
     // Process beast ownership data
     const ownedBeasts: any[] = [];
-    if (beastFightersResult.data?.length) {
-      beastDataResult.forEach((beastOwnership: any) => {
-        const beast = beastFightersResult.data.find((f: any) => f.id === beastOwnership.fighter_pet_id) as any;
+    if (beastFighters.length) {
+      ownedBeastsData.forEach((beastOwnership: any) => {
+        const beast = beastFighters.find((f: any) => f.id === beastOwnership.fighter_pet_id) as any;
         const equipment = beastOwnership.fighter_equipment?.equipment || beastOwnership.fighter_equipment?.custom_equipment;
 
         if (beast) {
@@ -186,25 +106,25 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     }
 
     // Process owner data
-    const ownerName = ownershipDataResult?.owner_name;
+    const ownerName = ownershipInfo?.owner_name;
 
-    // Calculate total cost inline (avoid redundant getFighterTotalCost call)
+    // Calculate total cost inline (derived from the shared bundle)
     let totalCost = 0;
 
     // Check if this fighter is owned by another fighter (exotic beast)
-    const isOwnedBeast = !!ownershipDataResult;
+    const isOwnedBeast = !!ownershipInfo;
 
     if (!isOwnedBeast) {
       // Calculate total cost for normal fighters
-      const equipmentCost = equipment.reduce((sum, eq) => sum + eq.purchase_cost, 0);
-      const skillsCost = Object.values(skills).reduce((sum, skill) => sum + skill.credits_increase, 0);
-      const effectsCost = Object.values(effects).flat().reduce((sum, effect) => {
+      const equipmentCost = equipment.reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0);
+      const skillsCost = Object.values(skills).reduce((sum: number, skill: any) => sum + skill.credits_increase, 0);
+      const effectsCost = Object.values(effects).flat().reduce((sum: number, effect: any) => {
         const data = effect.type_specific_data;
         return sum + (typeof data === 'object' && data?.credits_increase ? data.credits_increase : 0);
       }, 0);
 
       // Calculate vehicle costs (base vehicle cost + vehicle equipment + vehicle effects)
-      const vehicleCost = vehicles.reduce((sum, vehicle) => {
+      const vehicleCost = vehicles.reduce((sum: number, vehicle: any) => {
         let vehicleTotal = vehicle.cost || 0;
 
         // Add vehicle equipment costs
@@ -255,11 +175,11 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     // Filter effects by active loadout (for stats/display)
     // Total cost above uses ALL effects (correct for gang rating)
     if (fighterBasic.active_loadout_id) {
-      const activeLoadout = loadouts.find(l => l.id === fighterBasic.active_loadout_id);
+      const activeLoadout = loadouts.find((l: any) => l.id === fighterBasic.active_loadout_id);
       if (activeLoadout) {
         const loadoutEquipmentIds = new Set(activeLoadout.equipment_ids);
         Object.keys(effects).forEach(category => {
-          effects[category] = effects[category].filter(effect => {
+          effects[category] = effects[category].filter((effect: any) => {
             // Always show effects without equipment parent (injuries, advancements, etc.)
             if (!effect.fighter_equipment_id) {
               return true;
@@ -285,10 +205,10 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
           // Prefer the fighter type's own gang association; fall back to the owning gang's type
           // so the promotion dropdown is never silently empty (e.g. when a custom gang type was deleted).
           gang_type_id: fighterTypeData?.gang_type_id
-            || customFighterTypeInfo?.gang_type_id
+            || fighterBasic.custom_fighter_type?.gang_type_id
             || gangBasic.gang_type_id
             || null,
-          custom_gang_type_id: customFighterTypeInfo?.custom_gang_type_id
+          custom_gang_type_id: fighterBasic.custom_fighter_type?.custom_gang_type_id
             || gangBasic.custom_gang_type_id
             || null,
         },
@@ -303,31 +223,26 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         campaigns,
         owned_beasts: ownedBeasts,
         owner_name: ownerName,
-        captured_by_gang_name: capturedByGangResult ?? undefined,
+        captured_by_gang_name: capturedByGangName ?? undefined,
         refund_credits: refundCredits,
       },
       gang: {
         id: gangBasic.id,
-        credits: gangCredits,
+        credits: gangBasic.credits,
         reputation: gangBasic.reputation,
         gang_type_id: gangBasic.gang_type_id,
         custom_gang_type_id: gangBasic.custom_gang_type_id,
         gang_affiliation_id: gangBasic.gang_affiliation_id,
         gang_affiliation_name: gangBasic.gang_affiliation?.name,
         positioning: gangPositioning,
-        gang_variants: [] as any[] // Will be populated below if needed
+        gang_variants: gangVariantsResolved.map((v: any) => ({
+          id: v.id,
+          variant: v.variant
+        }))
       },
       equipment,
       loadouts,
     };
-
-    // Process gang variants
-    if (gangVariantsResult.data && gangVariantsResult.data.length > 0) {
-      fighterData.gang.gang_variants = gangVariantsResult.data.map((v: any) => ({
-        id: v.id,
-        variant: v.variant
-      }));
-    }
 
     pageProps = { fighterData, gangFighters, userPermissions };
   } catch (error) {
