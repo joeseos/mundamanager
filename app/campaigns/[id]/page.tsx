@@ -95,6 +95,21 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
     const campaignMap = campaignMapBundle.map;
     const campaignMapObjects = campaignMapBundle.objects;
 
+    // Whether a logged-in non-member already has a pending join request.
+    // Deliberately uncached: it's per-user state while the cached campaign
+    // helpers are keyed by campaign id only. RLS limits the read to own rows.
+    let hasPendingJoinRequest = false;
+    const isNonMember = !!userId && !permissions?.campaignRole && !permissions?.isAdmin;
+    if (isNonMember && campaignBasic.allow_join_requests) {
+      const { data: joinRequest } = await supabase
+        .from('campaign_join_requests')
+        .select('id')
+        .eq('campaign_id', params.id)
+        .eq('user_id', userId)
+        .maybeSingle();
+      hasPendingJoinRequest = !!joinRequest;
+    }
+
     // PARALLEL DATA FETCHING - Reference data for territory components
     const [
       campaignTriumphs,
@@ -145,6 +160,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       custom_trading_posts: campaignBasic.custom_trading_posts || [],
       discord_guild_id: campaignBasic.discord_guild_id || null,
       discord_channel_id: campaignBasic.discord_channel_id || null,
+      allow_join_requests: campaignBasic.allow_join_requests ?? false,
       note: campaignBasic.note,
       members: campaignMembers,
       territories: campaignTerritories,
@@ -168,6 +184,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       campaignResources,
       campaignMap,
       campaignMapObjects,
+      hasPendingJoinRequest,
     };
   } catch (error) {
     console.error('Error in CampaignPage:', error);
@@ -202,6 +219,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
         campaignResources={pageProps.campaignResources}
         mapData={pageProps.campaignMap}
         mapObjects={pageProps.campaignMapObjects}
+        hasPendingJoinRequest={pageProps.hasPendingJoinRequest}
       />
     </CampaignErrorBoundary>
   );

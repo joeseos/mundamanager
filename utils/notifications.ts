@@ -18,7 +18,8 @@ export type NotificationType =
   | 'campaign_invite'
   | 'friend_request'
   | 'battle_invite'
-  | 'gang_invite';
+  | 'gang_invite'
+  | 'campaign_join_request';
 
 export interface NotificationEmailConfig {
   /** Human label shown on the preferences screen. */
@@ -58,6 +59,8 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
   error: { label: 'Errors', supportsEmail: false, defaultEnabled: false, subject: '' },
   // Battle-session invitations — in-app only (deliberately not emailed).
   battle_invite: { label: 'Battle session invitations', supportsEmail: false, defaultEnabled: false, subject: '' },
+  // Requests to join a campaign (sent to OWNER/ARBITRATOR members) — in-app only.
+  campaign_join_request: { label: 'Campaign join requests', supportsEmail: false, defaultEnabled: false, subject: '' },
   // Legacy type: campaign AND battle invites both used 'invite' before they were split
   // into campaign_invite / battle_invite. Retained (in-app only) so historical rows still
   // render; no new producer emits it. Safe to remove once all such rows have expired.
@@ -146,7 +149,7 @@ export function shouldShowNotificationLinkAttachment(
   type: NotificationType,
   link: string | null | undefined
 ): link is string {
-  if (type === 'friend_request' || type === 'gang_invite') {
+  if (type === 'friend_request' || type === 'gang_invite' || type === 'campaign_join_request') {
     return false;
   }
 

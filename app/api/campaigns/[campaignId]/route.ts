@@ -64,6 +64,7 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       updated_at: campaignBasic.updated_at,
       note: campaignBasic.note,
       trading_posts: campaignBasic.trading_posts || [],
+      allow_join_requests: campaignBasic.allow_join_requests ?? false,
       members: campaignMembers,
       territories: campaignTerritories,
       battles: campaignBattles,
