@@ -109,9 +109,9 @@ export function CustomiseTradingPosts({
         if (context?.previous) setTradingPosts(context.previous);
       }
     },
-    onError: (error: Error, _, context) => {
+    onError: (_error: Error, _, context) => {
+      // Toast is owned by handleEditConfirm's catch to avoid double-toasting with mutateAsync.
       if (context?.previous) setTradingPosts(context.previous);
-      toast.error(error.message || 'Failed to update custom trading post');
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['customTradingPosts'] });
@@ -242,14 +242,37 @@ export function CustomiseTradingPosts({
     const succeededRemovalIds = new Set<string>();
     const succeededOverrideIds = new Set<string>();
 
+    const hasPersistedProgress = () =>
+      insertedAdditionTempIds.size > 0 ||
+      insertedTempToRealId.size > 0 ||
+      succeededRemovalIds.size > 0 ||
+      succeededOverrideIds.size > 0 ||
+      succeededAdditionRuleRealIds.size > 0 ||
+      failedAdditionRulesByRealId.size > 0;
+
+    const relevantRuleCacheItemIds = () =>
+      new Set([
+        ...Array.from(overridesToSave.keys()),
+        ...Array.from(succeededAdditionRuleRealIds),
+        ...Array.from(failedAdditionRulesByRealId.keys()),
+        ...Array.from(insertedTempToRealId.values()),
+      ]);
+
+    const invalidateItemRuleCaches = (itemIds: Iterable<string>) =>
+      Promise.all(
+        [...new Set(itemIds)].flatMap(id => [
+          queryClient.invalidateQueries({ queryKey: ['tpAvailabilityRules', id] }),
+          queryClient.invalidateQueries({ queryKey: ['tpPricingRules', id] }),
+        ])
+      );
+
+    const invalidateEquipmentCaches = async () => {
+      await queryClient.invalidateQueries({ queryKey: ['tpEquipment', tradingPostId] });
+      await invalidateItemRuleCaches(relevantRuleCacheItemIds());
+    };
+
     const reconcilePersistedPendingState = () => {
-      const hasProgress =
-        insertedAdditionTempIds.size > 0 ||
-        succeededRemovalIds.size > 0 ||
-        succeededOverrideIds.size > 0 ||
-        failedAdditionRulesByRealId.size > 0 ||
-        insertedTempToRealId.size > 0;
-      if (!hasProgress) return;
+      if (!hasPersistedProgress()) return;
 
       // Drop operations that already persisted so a retry cannot duplicate them.
       if (insertedAdditionTempIds.size > 0) {
@@ -459,23 +482,7 @@ export function CustomiseTradingPosts({
           }
         }
 
-        await queryClient.invalidateQueries({ queryKey: ['tpEquipment', tradingPostId] });
-        await Promise.all(
-          Array.from(overridesToSave.keys()).map((itemId) =>
-            Promise.all([
-              queryClient.invalidateQueries({ queryKey: ['tpAvailabilityRules', itemId] }),
-              queryClient.invalidateQueries({ queryKey: ['tpPricingRules', itemId] }),
-            ])
-          )
-        );
-        await Promise.all(
-          Array.from(failedAdditionRulesByRealId.keys()).map((itemId) =>
-            Promise.all([
-              queryClient.invalidateQueries({ queryKey: ['tpAvailabilityRules', itemId] }),
-              queryClient.invalidateQueries({ queryKey: ['tpPricingRules', itemId] }),
-            ])
-          )
-        );
+        await invalidateEquipmentCaches();
 
         if (equipmentSaveFailed) {
           reconcilePersistedPendingState();
@@ -488,23 +495,8 @@ export function CustomiseTradingPosts({
     } catch (error) {
       reconcilePersistedPendingState();
       // Ensure the UI reflects any rows already written if we threw before invalidate.
-      const anyPersisted =
-        insertedAdditionTempIds.size > 0 ||
-        succeededRemovalIds.size > 0 ||
-        succeededOverrideIds.size > 0 ||
-        succeededAdditionRuleRealIds.size > 0;
-      if (anyPersisted) {
-        void queryClient.invalidateQueries({ queryKey: ['tpEquipment', tradingPostId] });
-        // Invalidate per-item rule caches for anything that may have silently persisted.
-        const allRelevantItemIds = new Set([
-          ...Array.from(overridesToSave.keys()),
-          ...Array.from(succeededAdditionRuleRealIds),
-          ...Array.from(failedAdditionRulesByRealId.keys()),
-        ]);
-        allRelevantItemIds.forEach(itemId => {
-          void queryClient.invalidateQueries({ queryKey: ['tpAvailabilityRules', itemId] });
-          void queryClient.invalidateQueries({ queryKey: ['tpPricingRules', itemId] });
-        });
+      if (hasPersistedProgress()) {
+        await invalidateEquipmentCaches();
       }
       toast.error(error instanceof Error ? error.message : 'Failed to update custom trading post');
       return false;
