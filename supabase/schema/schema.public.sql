@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict sOMbG54n4jsWBJX4l3wyHd4ObiyyDDdWZMWdojS83TUJZv5zhcIlIOsxzEjiYTx
+\restrict WdVckhelgtOM3NH5EyWkL3uJaVryXaIrikruCgweKX4DigJeAahQXFuylIEKrl2
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -90,7 +90,7 @@ BEGIN
         ) OR EXISTS (
             SELECT 1
             FROM campaign_gangs cg
-            WHERE cg.gang_id = v_gang_id AND private.is_arb(cg.campaign_id)
+            WHERE cg.gang_id = v_gang_id AND cg.status = 'ACCEPTED' AND private.is_arb(cg.campaign_id)
         ) INTO v_user_has_access;
 
         IF NOT v_user_has_access THEN
@@ -356,7 +356,7 @@ BEGIN
         ) OR EXISTS (
             SELECT 1
             FROM campaign_gangs cg
-            WHERE cg.gang_id = v_gang_id AND private.is_arb(cg.campaign_id)
+            WHERE cg.gang_id = v_gang_id AND cg.status = 'ACCEPTED' AND private.is_arb(cg.campaign_id)
         ) INTO v_user_has_access;
 
         IF NOT v_user_has_access THEN
@@ -10007,7 +10007,7 @@ CREATE POLICY "Gang owners and campaign managers can delete campaign gang reso" 
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (campaign_gang_id IN ( SELECT cg.id
    FROM (public.campaign_gangs cg
      JOIN public.campaign_members cm ON ((cm.campaign_id = cg.campaign_id)))
-  WHERE ((cm.user_id = ( SELECT auth.uid() AS uid)) AND (cm.role = ANY (ARRAY['OWNER'::text, 'ARBITRATOR'::text])))))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND (cm.user_id = ( SELECT auth.uid() AS uid)) AND (cm.role = ANY (ARRAY['OWNER'::text, 'ARBITRATOR'::text])))))));
 
 
 --
@@ -10020,7 +10020,7 @@ CREATE POLICY "Gang owners and campaign managers can insert campaign gang reso" 
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (campaign_gang_id IN ( SELECT cg.id
    FROM (public.campaign_gangs cg
      JOIN public.campaign_members cm ON ((cm.campaign_id = cg.campaign_id)))
-  WHERE ((cm.user_id = ( SELECT auth.uid() AS uid)) AND (cm.role = ANY (ARRAY['OWNER'::text, 'ARBITRATOR'::text])))))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND (cm.user_id = ( SELECT auth.uid() AS uid)) AND (cm.role = ANY (ARRAY['OWNER'::text, 'ARBITRATOR'::text])))))));
 
 
 --
@@ -10033,13 +10033,13 @@ CREATE POLICY "Gang owners and campaign managers can update campaign gang reso" 
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (campaign_gang_id IN ( SELECT cg.id
    FROM (public.campaign_gangs cg
      JOIN public.campaign_members cm ON ((cm.campaign_id = cg.campaign_id)))
-  WHERE ((cm.user_id = ( SELECT auth.uid() AS uid)) AND (cm.role = ANY (ARRAY['OWNER'::text, 'ARBITRATOR'::text]))))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (campaign_gang_id IN ( SELECT cg.id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND (cm.user_id = ( SELECT auth.uid() AS uid)) AND (cm.role = ANY (ARRAY['OWNER'::text, 'ARBITRATOR'::text]))))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (campaign_gang_id IN ( SELECT cg.id
    FROM (public.campaign_gangs cg
      JOIN public.gangs g ON ((cg.gang_id = g.id)))
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (campaign_gang_id IN ( SELECT cg.id
    FROM (public.campaign_gangs cg
      JOIN public.campaign_members cm ON ((cm.campaign_id = cg.campaign_id)))
-  WHERE ((cm.user_id = ( SELECT auth.uid() AS uid)) AND (cm.role = ANY (ARRAY['OWNER'::text, 'ARBITRATOR'::text])))))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND (cm.user_id = ( SELECT auth.uid() AS uid)) AND (cm.role = ANY (ARRAY['OWNER'::text, 'ARBITRATOR'::text])))))));
 
 
 --
@@ -10050,7 +10050,7 @@ CREATE POLICY "Gang owners, admins, or arbitrators can create fighters" ON publi
    FROM public.gangs g
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -10818,10 +10818,10 @@ CREATE POLICY "Only custom weapon profile owner or admin can update" ON public.c
 CREATE POLICY "Only fighter effect owner or admin can delete" ON public.fighter_effects FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR ((fighter_id IS NOT NULL) AND (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))) OR ((vehicle_id IS NOT NULL) AND (vehicle_id IN ( SELECT v.id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) OR ((vehicle_id IS NOT NULL) AND (vehicle_id IN ( SELECT v.id
    FROM (public.vehicles v
      JOIN public.campaign_gangs cg ON ((cg.gang_id = v.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))));
 
 
 --
@@ -10831,16 +10831,16 @@ CREATE POLICY "Only fighter effect owner or admin can delete" ON public.fighter_
 CREATE POLICY "Only fighter effect owner or admin can update" ON public.fighter_effects FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR ((fighter_id IS NOT NULL) AND (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))) OR ((vehicle_id IS NOT NULL) AND (vehicle_id IN ( SELECT v.id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) OR ((vehicle_id IS NOT NULL) AND (vehicle_id IN ( SELECT v.id
    FROM (public.vehicles v
      JOIN public.campaign_gangs cg ON ((cg.gang_id = v.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR ((fighter_id IS NOT NULL) AND (fighter_id IN ( SELECT f.id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR ((fighter_id IS NOT NULL) AND (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))) OR ((vehicle_id IS NOT NULL) AND (vehicle_id IN ( SELECT v.id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) OR ((vehicle_id IS NOT NULL) AND (vehicle_id IN ( SELECT v.id
    FROM (public.vehicles v
      JOIN public.campaign_gangs cg ON ((cg.gang_id = v.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))));
 
 
 --
@@ -10889,7 +10889,7 @@ CREATE POLICY "Only fighter owner or admin can update injuries" ON public.fighte
 
 CREATE POLICY "Only fighter owner, admin, or arbitrator can delete" ON public.fighters FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -10898,9 +10898,9 @@ CREATE POLICY "Only fighter owner, admin, or arbitrator can delete" ON public.fi
 
 CREATE POLICY "Only fighter owner, admin, or arbitrator can update" ON public.fighters FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (gang_id IN ( SELECT cg.gang_id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -10910,7 +10910,7 @@ CREATE POLICY "Only fighter owner, admin, or arbitrator can update" ON public.fi
 CREATE POLICY "Only fighter skill owner or admin can delete" ON public.fighter_skills FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -10920,10 +10920,10 @@ CREATE POLICY "Only fighter skill owner or admin can delete" ON public.fighter_s
 CREATE POLICY "Only fighter skill owner or admin can update" ON public.fighter_skills FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -10957,9 +10957,9 @@ CREATE POLICY "Only gang owner or admin can update stash items" ON public.gang_s
 
 CREATE POLICY "Only gang owner, admin, or arbitrator can update" ON public.gangs FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (id IN ( SELECT cg.gang_id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -10978,7 +10978,7 @@ CREATE POLICY "Only gang owners or admins can delete logs" ON public.gang_logs F
 CREATE POLICY "Only override owner or admin can delete" ON public.fighter_skill_access_override FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -10988,10 +10988,10 @@ CREATE POLICY "Only override owner or admin can delete" ON public.fighter_skill_
 CREATE POLICY "Only override owner or admin can update" ON public.fighter_skill_access_override FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -11009,7 +11009,7 @@ CREATE POLICY "Users can create equipment for their gang" ON public.fighter_equi
    FROM public.gangs g
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -11029,7 +11029,7 @@ CREATE POLICY "Users can create loadout equipment for their fighters" ON public.
    FROM ((public.fighter_loadouts fl
      JOIN public.fighters f ON ((f.id = fl.fighter_id)))
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -11039,7 +11039,7 @@ CREATE POLICY "Users can create loadout equipment for their fighters" ON public.
 CREATE POLICY "Users can create loadouts for their gang fighters" ON public.fighter_loadouts FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -11058,7 +11058,7 @@ CREATE POLICY "Users can create skill access overrides for their own fighters" O
   WHERE (f.user_id = ( SELECT auth.uid() AS uid)))) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))))));
 
 
 --
@@ -11070,7 +11070,7 @@ CREATE POLICY "Users can create skills for their own fighters" ON public.fighter
   WHERE (f.user_id = ( SELECT auth.uid() AS uid)))) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))))));
 
 
 --
@@ -11088,7 +11088,7 @@ CREATE POLICY "Users can delete equipment from their gang" ON public.fighter_equ
    FROM public.gangs g
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -11101,7 +11101,7 @@ CREATE POLICY "Users can delete loadout equipment for their fighters" ON public.
    FROM ((public.fighter_loadouts fl
      JOIN public.fighters f ON ((f.id = fl.fighter_id)))
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -11111,7 +11111,7 @@ CREATE POLICY "Users can delete loadout equipment for their fighters" ON public.
 CREATE POLICY "Users can delete loadouts for their gang fighters" ON public.fighter_loadouts FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -11144,7 +11144,7 @@ CREATE POLICY "Users can insert logs for their gangs or campaign gangs" ON publi
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
    FROM (public.campaign_gangs cg
      JOIN public.campaign_members cm ON ((cm.campaign_id = cg.campaign_id)))
-  WHERE ((cm.user_id = ( SELECT auth.uid() AS uid)) AND (cm.role = ANY (ARRAY['OWNER'::text, 'ARBITRATOR'::text, 'MEMBER'::text])))))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND (cm.user_id = ( SELECT auth.uid() AS uid)) AND (cm.role = ANY (ARRAY['OWNER'::text, 'ARBITRATOR'::text, 'MEMBER'::text])))))));
 
 
 --
@@ -11189,13 +11189,13 @@ CREATE POLICY "Users can only create their own fighter effects" ON public.fighte
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) OR ((vehicle_id IS NOT NULL) AND ((vehicle_id IN ( SELECT v.id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) OR ((vehicle_id IS NOT NULL) AND ((vehicle_id IN ( SELECT v.id
    FROM (public.vehicles v
      JOIN public.gangs g ON ((v.gang_id = g.id)))
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (vehicle_id IN ( SELECT v.id
    FROM (public.vehicles v
      JOIN public.campaign_gangs cg ON ((cg.gang_id = v.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))))));
 
 
 --
@@ -11222,11 +11222,11 @@ CREATE POLICY "Users can update equipment in their gang" ON public.fighter_equip
    FROM public.gangs g
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
    FROM public.gangs g
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -11239,13 +11239,13 @@ CREATE POLICY "Users can update loadout equipment for their fighters" ON public.
    FROM ((public.fighter_loadouts fl
      JOIN public.fighters f ON ((f.id = fl.fighter_id)))
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (loadout_id IN ( SELECT fl.id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (loadout_id IN ( SELECT fl.id
    FROM public.fighter_loadouts fl
   WHERE (fl.user_id = ( SELECT auth.uid() AS uid)))) OR (loadout_id IN ( SELECT fl.id
    FROM ((public.fighter_loadouts fl
      JOIN public.fighters f ON ((f.id = fl.fighter_id)))
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -11255,10 +11255,10 @@ CREATE POLICY "Users can update loadout equipment for their fighters" ON public.
 CREATE POLICY "Users can update loadouts for their gang fighters" ON public.fighter_loadouts FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -11297,7 +11297,7 @@ CREATE POLICY "Users can view logs for their gangs or campaigns they moderate" O
    FROM public.gangs g
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -11739,11 +11739,11 @@ CREATE POLICY fighter_effect_modifiers_delete_policy ON public.fighter_effect_mo
    FROM ((public.fighter_effects fe
      JOIN public.fighters f ON ((f.id = fe.fighter_id)))
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((fe.fighter_id IS NOT NULL) AND private.is_arb(cg.campaign_id)))) OR (fighter_effect_id IN ( SELECT fe.id
+  WHERE ((fe.fighter_id IS NOT NULL) AND (cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id)))) OR (fighter_effect_id IN ( SELECT fe.id
    FROM ((public.fighter_effects fe
      JOIN public.vehicles v ON ((v.id = fe.vehicle_id)))
      JOIN public.campaign_gangs cg ON ((cg.gang_id = v.gang_id)))
-  WHERE ((fe.vehicle_id IS NOT NULL) AND private.is_arb(cg.campaign_id))))));
+  WHERE ((fe.vehicle_id IS NOT NULL) AND (cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id))))));
 
 
 --
@@ -11756,11 +11756,11 @@ CREATE POLICY fighter_effect_modifiers_insert_policy ON public.fighter_effect_mo
    FROM ((public.fighter_effects fe
      JOIN public.fighters f ON ((f.id = fe.fighter_id)))
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((fe.fighter_id IS NOT NULL) AND private.is_arb(cg.campaign_id)))) OR (fighter_effect_id IN ( SELECT fe.id
+  WHERE ((fe.fighter_id IS NOT NULL) AND (cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id)))) OR (fighter_effect_id IN ( SELECT fe.id
    FROM ((public.fighter_effects fe
      JOIN public.vehicles v ON ((v.id = fe.vehicle_id)))
      JOIN public.campaign_gangs cg ON ((cg.gang_id = v.gang_id)))
-  WHERE ((fe.vehicle_id IS NOT NULL) AND private.is_arb(cg.campaign_id))))));
+  WHERE ((fe.vehicle_id IS NOT NULL) AND (cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id))))));
 
 
 --
@@ -11773,21 +11773,21 @@ CREATE POLICY fighter_effect_modifiers_update_policy ON public.fighter_effect_mo
    FROM ((public.fighter_effects fe
      JOIN public.fighters f ON ((f.id = fe.fighter_id)))
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((fe.fighter_id IS NOT NULL) AND private.is_arb(cg.campaign_id)))) OR (fighter_effect_id IN ( SELECT fe.id
+  WHERE ((fe.fighter_id IS NOT NULL) AND (cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id)))) OR (fighter_effect_id IN ( SELECT fe.id
    FROM ((public.fighter_effects fe
      JOIN public.vehicles v ON ((v.id = fe.vehicle_id)))
      JOIN public.campaign_gangs cg ON ((cg.gang_id = v.gang_id)))
-  WHERE ((fe.vehicle_id IS NOT NULL) AND private.is_arb(cg.campaign_id)))))) WITH CHECK ((private.is_admin() OR (fighter_effect_id IN ( SELECT fe.id
+  WHERE ((fe.vehicle_id IS NOT NULL) AND (cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id)))))) WITH CHECK ((private.is_admin() OR (fighter_effect_id IN ( SELECT fe.id
    FROM public.fighter_effects fe
   WHERE (fe.user_id = ( SELECT auth.uid() AS uid)))) OR (fighter_effect_id IN ( SELECT fe.id
    FROM ((public.fighter_effects fe
      JOIN public.fighters f ON ((f.id = fe.fighter_id)))
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((fe.fighter_id IS NOT NULL) AND private.is_arb(cg.campaign_id)))) OR (fighter_effect_id IN ( SELECT fe.id
+  WHERE ((fe.fighter_id IS NOT NULL) AND (cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id)))) OR (fighter_effect_id IN ( SELECT fe.id
    FROM ((public.fighter_effects fe
      JOIN public.vehicles v ON ((v.id = fe.vehicle_id)))
      JOIN public.campaign_gangs cg ON ((cg.gang_id = v.gang_id)))
-  WHERE ((fe.vehicle_id IS NOT NULL) AND private.is_arb(cg.campaign_id))))));
+  WHERE ((fe.vehicle_id IS NOT NULL) AND (cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id))))));
 
 
 --
@@ -12283,7 +12283,7 @@ CREATE POLICY vehicles_user_delete_policy ON public.vehicles FOR DELETE TO authe
    FROM public.gangs g
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -12294,7 +12294,7 @@ CREATE POLICY vehicles_user_insert_policy ON public.vehicles FOR INSERT TO authe
    FROM public.gangs g
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -12305,11 +12305,11 @@ CREATE POLICY vehicles_user_update_policy ON public.vehicles FOR UPDATE TO authe
    FROM public.gangs g
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
    FROM public.gangs g
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -12343,5 +12343,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict sOMbG54n4jsWBJX4l3wyHd4ObiyyDDdWZMWdojS83TUJZv5zhcIlIOsxzEjiYTx
+\unrestrict WdVckhelgtOM3NH5EyWkL3uJaVryXaIrikruCgweKX4DigJeAahQXFuylIEKrl2
 
