@@ -13,6 +13,7 @@ import Modal from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { acceptFriendRequest, declineFriendRequest } from '@/app/actions/friends';
 import { acceptGangInvite, declineGangInvite } from '@/app/actions/campaigns/[id]/campaign-gangs';
+import { acceptJoinRequest, declineJoinRequest } from '@/app/actions/campaigns/[id]/campaign-join-requests';
 import { LuTrash2 } from "react-icons/lu";
 import { notificationTextToHtml, type NotificationType, shouldShowNotificationLinkAttachment, resolveNotificationLink, getNotificationLinkLabel, getNotificationLinkDescription } from '@/utils/notifications';
 
@@ -138,6 +139,70 @@ export default function NotificationsContent({ userId }: { userId: string }) {
       }
     } catch (error) {
       console.error('Error declining gang invite:', error);
+    } finally {
+      setProcessingRequest(null);
+    }
+  };
+
+  // Parse campaignId from a join request notification link (last path segment)
+  const parseJoinRequestLink = (link: string | null): { campaignId: string } | null => {
+    if (!link) return null;
+    try {
+      const url = new URL(link);
+      const pathParts = url.pathname.split('/');
+      const campaignId = pathParts[pathParts.length - 1];
+      if (campaignId) {
+        return { campaignId };
+      }
+    } catch {
+      // Invalid URL
+    }
+    return null;
+  };
+
+  // Handle campaign join request acceptance (sender_id is the requester)
+  const handleAcceptJoinRequest = async (notificationId: string, link: string | null, senderId: string) => {
+    const params = parseJoinRequestLink(link);
+    if (!params) {
+      console.error('Invalid join request link');
+      return;
+    }
+
+    setProcessingRequest(notificationId);
+    try {
+      const result = await acceptJoinRequest({ campaignId: params.campaignId, userId: senderId });
+      if (result.success) {
+        await deleteNotification(notificationId);
+        setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      } else {
+        console.error('Error accepting join request:', result.error);
+      }
+    } catch (error) {
+      console.error('Error accepting join request:', error);
+    } finally {
+      setProcessingRequest(null);
+    }
+  };
+
+  // Handle campaign join request decline
+  const handleDeclineJoinRequest = async (notificationId: string, link: string | null, senderId: string) => {
+    const params = parseJoinRequestLink(link);
+    if (!params) {
+      console.error('Invalid join request link');
+      return;
+    }
+
+    setProcessingRequest(notificationId);
+    try {
+      const result = await declineJoinRequest({ campaignId: params.campaignId, userId: senderId });
+      if (result.success) {
+        await deleteNotification(notificationId);
+        setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      } else {
+        console.error('Error declining join request:', result.error);
+      }
+    } catch (error) {
+      console.error('Error declining join request:', error);
     } finally {
       setProcessingRequest(null);
     }
@@ -280,6 +345,8 @@ export default function NotificationsContent({ userId }: { userId: string }) {
         return <LuUserPlus className="h-5 w-5 text-green-500" />;
       case 'gang_invite':
         return <LuUserPlus className="h-5 w-5 text-orange-500" />;
+      case 'campaign_join_request':
+        return <LuUserPlus className="h-5 w-5 text-sky-500" />;
       default:
         return <ImInfo className="h-5 w-5 text-blue-500" />;
     }
@@ -379,7 +446,38 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                       </Button>
                     </div>
                   )}
-                  {notification.type !== 'friend_request' && notification.type !== 'gang_invite' && (
+                  {/* Campaign Join Request Action Buttons */}
+                  {notification.type === 'campaign_join_request' && notification.link && notification.sender_id && (
+                    <div className="flex gap-2 items-center ml-2 self-center mt-2">
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeclineJoinRequest(notification.id, notification.link, notification.sender_id!);
+                        }}
+                        disabled={processingRequest === notification.id}
+                        variant="outline_remove"
+                        size="sm"
+                        className="flex items-center gap-1"
+                      >
+                        <HiX className="h-3 w-3" />
+                        {processingRequest === notification.id ? 'Declining...' : 'Decline'}
+                      </Button>
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAcceptJoinRequest(notification.id, notification.link, notification.sender_id!);
+                        }}
+                        disabled={processingRequest === notification.id}
+                        variant="outline_accept"
+                        size="sm"
+                        className="flex items-center gap-1"
+                      >
+                        <LuCheck className="h-3 w-3" />
+                        {processingRequest === notification.id ? 'Accepting...' : 'Accept'}
+                      </Button>
+                    </div>
+                  )}
+                  {notification.type !== 'friend_request' && notification.type !== 'gang_invite' && notification.type !== 'campaign_join_request' && (
                     <Button
                       onClick={(e) => {
                         e.stopPropagation();

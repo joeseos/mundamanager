@@ -26,7 +26,8 @@ async function _getCampaignBasic(campaignId: string, supabase: SupabaseClient) {
       note,
       image_url,
       discord_guild_id,
-      discord_channel_id
+      discord_channel_id,
+      allow_join_requests
     `)
     .eq('id', campaignId)
     .single();

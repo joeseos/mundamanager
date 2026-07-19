@@ -29,6 +29,7 @@ interface EditCampaignModalProps {
     campaign_name: string;
     description: string;
     status: string | null;
+    allow_join_requests?: boolean;
     trading_posts: string[];
     custom_trading_posts: string[];
     campaign_type_name?: string;
@@ -44,6 +45,7 @@ interface EditCampaignModalProps {
     trading_posts: string[];
     custom_trading_posts: string[];
     status: string;
+    allow_join_requests: boolean;
     discord_guild_id?: string | null;
     discord_channel_id?: string | null;
     discord_channel_type?: number | null;
@@ -89,6 +91,7 @@ export default function CampaignEditModal({
     campaignName: campaignData.campaign_name,
     description: campaignData.description ?? '',
     status: campaignData.status || 'Active',
+    allowJoinRequests: campaignData.allow_join_requests ?? false,
     tradingPosts: campaignData.trading_posts || [],
     customTradingPosts: campaignData.custom_trading_posts || [],
   });
@@ -109,6 +112,7 @@ export default function CampaignEditModal({
       campaignName: campaignData.campaign_name,
       description: campaignData.description ?? '',
       status: campaignData.status || 'Active',
+      allowJoinRequests: campaignData.allow_join_requests ?? false,
       tradingPosts: campaignData.trading_posts || [],
       customTradingPosts: campaignData.custom_trading_posts || [],
     });
@@ -158,6 +162,7 @@ export default function CampaignEditModal({
       trading_posts: formValues.tradingPosts,
       custom_trading_posts: formValues.customTradingPosts,
       status: formValues.status,
+      allow_join_requests: formValues.allowJoinRequests,
     };
 
     // Include discord fields if guild is connected
@@ -199,6 +204,7 @@ export default function CampaignEditModal({
       trading_posts: formValues.tradingPosts,
       custom_trading_posts: formValues.customTradingPosts,
       status: formValues.status,
+      allow_join_requests: formValues.allowJoinRequests,
       discord_guild_id: null,
       discord_channel_id: null,
       discord_channel_type: 0,
@@ -308,6 +314,29 @@ export default function CampaignEditModal({
                 className="w-full"
               />
             </div>
+
+            {/* Join Requests */}
+            <label
+              htmlFor="allow-join-requests"
+              className="flex items-center space-x-2 cursor-pointer"
+            >
+              <Checkbox
+                id="allow-join-requests"
+                checked={formValues.allowJoinRequests}
+                onCheckedChange={(checked) => setFormValues(prev => ({
+                  ...prev,
+                  allowJoinRequests: checked === true
+                }))}
+              />
+              <span className="text-sm font-medium">Allow join requests</span>
+              <span
+                className="relative cursor-pointer text-muted-foreground hover:text-foreground"
+                data-tooltip-id="resources-tooltip"
+                data-tooltip-description="When enabled, any logged-in user can request to join this campaign from the campaign page. Campaign owners and arbitrators receive a notification to accept or decline each request."
+              >
+                <ImInfo />
+              </span>
+            </label>
 
             {/* Resources Section */}
             <div>
