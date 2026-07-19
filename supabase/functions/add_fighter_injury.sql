@@ -56,7 +56,7 @@ BEGIN
         ) OR EXISTS (
             SELECT 1
             FROM campaign_gangs cg
-            WHERE cg.gang_id = v_gang_id AND private.is_arb(cg.campaign_id)
+            WHERE cg.gang_id = v_gang_id AND cg.status = 'ACCEPTED' AND private.is_arb(cg.campaign_id)
         ) INTO v_user_has_access;
 
         IF NOT v_user_has_access THEN
