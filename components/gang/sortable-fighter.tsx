@@ -1,67 +1,66 @@
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import { useSortable } from '@dnd-kit/react/sortable';
+import { directionBiased } from '@dnd-kit/collision';
 import FighterCard from './fighter-card';
 import { FighterProps } from '@/types/fighter';
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { GangPageViewMode } from './ViewModeDropdown';
 import { UserPermissions } from '@/types/user-permissions';
 
 interface SortableFighterProps {
   fighter: FighterProps;
+  index: number;
   positions: Record<number, string>;
   onFighterDeleted?: (fighterId: string, fighterCost: number) => void;
   viewMode?: GangPageViewMode;
   userPermissions?: UserPermissions;
 }
 
-export function SortableFighter({ fighter, viewMode = 'normal', userPermissions }: SortableFighterProps) {
-  const [isDragging, setIsDragging] = useState(false);
-  
+export function SortableFighter({ fighter, index, viewMode = 'normal', userPermissions }: SortableFighterProps) {
   // Check if user can edit to determine if drag should be enabled
   const canEdit = userPermissions?.canEdit ?? false;
-  
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging: dndKitIsDragging,
-  } = useSortable({ 
+
+  const { ref, isDragging } = useSortable({
     id: fighter.id,
-    animateLayoutChanges: () => false,
-    disabled: !canEdit // Disable drag when user can't edit
+    index,
+    disabled: !canEdit, // Disable drag when user can't edit
+    // Fighter cards vary a lot in height (killed/retired cards collapse);
+    // paired with the custom onDragOver sorting in DraggableFighters this is
+    // the stable combination for variable sizes (dnd-kit#1950)
+    collisionDetector: directionBiased,
   });
-
-  const style = {
-    transform: CSS.Translate.toString(transform),
-    transition,
-    zIndex: dndKitIsDragging ? 50 : 'auto',
-    position: 'relative',
-    pointerEvents: 'auto', // Ensure clicks still work for navigation
-  } as const;
-
-  if (dndKitIsDragging !== isDragging) {
-    setIsDragging(dndKitIsDragging);
-  }
 
   // Show grabbing cursor on document while dragging so it stays visible even when pointer leaves the card
   useEffect(() => {
-    if (!dndKitIsDragging) return;
+    if (!isDragging) return;
     const prevCursor = document.body.style.cursor;
     document.body.style.cursor = 'grabbing';
     return () => {
       document.body.style.cursor = prevCursor;
     };
-  }, [dndKitIsDragging]);
+  }, [isDragging]);
 
   // Extract the first vehicle from the vehicles array for the FighterCard
   const vehicle = fighter.vehicles && fighter.vehicles.length > 0 ? fighter.vehicles[0] : undefined;
 
   return (
     <div
-      ref={setNodeRef}
-      style={style}
+      ref={ref}
+      style={{
+        position: 'relative',
+        zIndex: isDragging ? 50 : undefined,
+        // iOS shows its native link long-press preview at ~500ms — before our
+        // 600ms drag delay — unless touch-callout/user-select compute to none
+        // AT THE ANCHOR. The card's <a> wraps the styled card body, so it
+        // inherits nothing from it; suppress from this ancestor instead.
+        ...(canEdit
+          ? {
+              touchAction: 'manipulation',
+              WebkitTouchCallout: 'none' as const,
+              WebkitUserSelect: 'none' as const,
+              userSelect: 'none' as const,
+            }
+          : {}),
+      }}
       className={viewMode !== 'normal' ? 'min-w-0 w-full' : undefined}
     >
       <FighterCard
@@ -72,10 +71,9 @@ export function SortableFighter({ fighter, viewMode = 'normal', userPermissions 
         vehicle={vehicle}
         disableLink={isDragging}
         viewMode={viewMode}
-        isDragging={dndKitIsDragging}
-        dragListeners={canEdit ? listeners : undefined}
-        dragAttributes={canEdit ? attributes : undefined}
+        isDragging={isDragging}
+        draggable={canEdit}
       />
     </div>
   );
-} 
+}

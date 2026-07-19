@@ -1,24 +1,23 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import type { Campaign } from '@/app/lib/get-user-campaigns'
-import { useSortable } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
+import { useSortable } from '@dnd-kit/react/sortable'
+import { closestCenter } from '@dnd-kit/collision'
 import { FiStar } from 'react-icons/fi'
 import { AiFillStar } from 'react-icons/ai'
 
 export interface CampaignCardProps {
   campaign: Campaign;
   onToggleFavourite: (campaignMemberId: string, isFavourite: boolean) => void;
-  dragListeners?: Record<string, unknown>;
-  dragAttributes?: Record<string, unknown>;
+  draggable?: boolean;
   isDragging?: boolean;
   disableLink?: boolean;
 }
 
-export function CampaignCardContent({ campaign, onToggleFavourite, dragListeners, dragAttributes, isDragging, disableLink = false }: CampaignCardProps) {
+export function CampaignCardContent({ campaign, onToggleFavourite, draggable = false, isDragging, disableLink = false }: CampaignCardProps) {
   const innerContent = (
     <>
       <div className="relative w-[80px] md:w-20 h-[80px] md:h-20 mr-3 md:mr-4 shrink-0 flex items-center justify-center">
@@ -73,9 +72,8 @@ export function CampaignCardContent({ campaign, onToggleFavourite, dragListeners
 
   return (
     <div
-      className={`flex items-center p-2 md:p-4 rounded-md hover:bg-muted transition-colors duration-200 ${isDragging ? 'border-[3px] border-rose-700' : ''} ${dragListeners ? 'cursor-grab' : ''}`}
-      {...(dragListeners || {})}
-      {...(dragAttributes || {})}
+      className={`flex items-center p-2 md:p-4 rounded-md hover:bg-muted transition-colors duration-200 ${isDragging ? 'border-[3px] border-rose-700 bg-card shadow-lg' : ''} ${draggable ? 'cursor-grab select-none' : ''}`}
+      style={draggable ? { touchAction: 'manipulation', WebkitTouchCallout: 'none' } : undefined}
     >
       {disableLink ? (
         <div className="flex items-center grow min-w-0">
@@ -104,54 +102,48 @@ export function CampaignCardContent({ campaign, onToggleFavourite, dragListeners
 
 interface SortableCampaignCardProps {
   campaign: Campaign;
+  index: number;
   onToggleFavourite: (campaignMemberId: string, isFavourite: boolean) => void;
 }
 
-export function SortableCampaignCard({ campaign, onToggleFavourite }: SortableCampaignCardProps) {
-  const [isDraggingState, setIsDraggingState] = useState(false);
-
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging: dndKitIsDragging,
-  } = useSortable({
+export function SortableCampaignCard({ campaign, index, onToggleFavourite }: SortableCampaignCardProps) {
+  const { ref, isDragging } = useSortable({
     id: campaign.campaign_member_id,
-    animateLayoutChanges: () => false,
+    index,
+    // Same collision strategy as the legacy DndContext used (closestCenter)
+    collisionDetector: closestCenter,
   });
 
-  const style = {
-    transform: CSS.Translate.toString(transform),
-    transition,
-    zIndex: dndKitIsDragging ? 50 : 'auto',
-    position: 'relative',
-    pointerEvents: 'auto',
-  } as const;
-
-  if (dndKitIsDragging !== isDraggingState) {
-    setIsDraggingState(dndKitIsDragging);
-  }
-
   useEffect(() => {
-    if (!dndKitIsDragging) return;
+    if (!isDragging) return;
     const prevCursor = document.body.style.cursor;
     document.body.style.cursor = 'grabbing';
     return () => {
       document.body.style.cursor = prevCursor;
     };
-  }, [dndKitIsDragging]);
+  }, [isDragging]);
 
   return (
-    <li ref={setNodeRef} style={style}>
+    // Touch-suppression must sit on the sortable SOURCE element itself (not just
+    // a child) to make touch drag work on Android — this matches the working
+    // gang-page fighter cards, whose ref element carries the same properties.
+    <li
+      ref={ref}
+      style={{
+        position: 'relative',
+        zIndex: isDragging ? 50 : undefined,
+        touchAction: 'manipulation',
+        WebkitTouchCallout: 'none',
+        WebkitUserSelect: 'none',
+        userSelect: 'none',
+      }}
+    >
       <CampaignCardContent
         campaign={campaign}
         onToggleFavourite={onToggleFavourite}
-        dragListeners={listeners as unknown as Record<string, unknown>}
-        dragAttributes={attributes as unknown as Record<string, unknown>}
-        isDragging={dndKitIsDragging}
-        disableLink={isDraggingState}
+        draggable
+        isDragging={isDragging}
+        disableLink={isDragging}
       />
     </li>
   );

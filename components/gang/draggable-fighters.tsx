@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { DndContext, closestCenter } from '@dnd-kit/core';
-import { rectSortingStrategy, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { useDndSensorsConfig } from '@/hooks/use-dnd-sensors';
-import { useIsMounted } from '@/hooks/use-is-mounted';
+import { DragDropProvider, type DragEndEvent, type DragOverEvent } from '@dnd-kit/react';
+import { dndSensors } from '@/utils/dnd-sensors';
 import { MyFighters } from './my-fighters';
 import { FighterProps } from '@/types/fighter';
 import { GangPageViewMode } from './ViewModeDropdown';
@@ -77,7 +75,10 @@ export function DraggableFighters({
     normalizeFighterPositions(initialPositions, fighters)
   );
   const lastSyncedPositionsSignature = useRef(positionsSignature(initialPositions));
-  const isMounted = useIsMounted();
+  // Order changes live during a drag (onDragOver); persistence and parent
+  // callbacks must wait until the drag settles
+  const [isSorting, setIsSorting] = useState(false);
+  const dragStartPositions = useRef<Record<number, string> | null>(null);
   const canEdit = userPermissions?.canEdit ?? false;
 
   const normalizedPositions = useMemo(
@@ -90,11 +91,11 @@ export function DraggableFighters({
 
   useEffect(() => {
     const signature = positionsSignature(normalizedPositions);
-    if (canEdit && signature !== lastSyncedPositionsSignature.current) {
+    if (canEdit && !isSorting && signature !== lastSyncedPositionsSignature.current) {
       lastSyncedPositionsSignature.current = signature;
       onPositionsUpdate?.(normalizedPositions);
     }
-  }, [canEdit, normalizedPositions, onPositionsUpdate]);
+  }, [canEdit, isSorting, normalizedPositions, onPositionsUpdate]);
   
   const sortedPositionedFighters = Object.entries(normalizedPositions)
     .sort(([a], [b]) => Number(a) - Number(b))
@@ -106,128 +107,73 @@ export function DraggableFighters({
     ...fighters.filter(fighter => !sortedPositionedIds.has(fighter.id))
   ];
 
-  const sensors = useDndSensorsConfig();
+  const handleDragStart = () => {
+    dragStartPositions.current = normalizedPositions;
+    setIsSorting(true);
+  };
 
-  const handleDragEnd = async (event: any) => {
-    const { active, over } = event;
-    
-    if (!active || !over || active.id === over.id) {
-      return;
-    }
+  // Custom live sorting: the library's built-in optimistic sorting jitters
+  // with variable-height cards (dnd-kit#1950/#2088), so we prevent it and
+  // place the dragged id at the target's slot in our own state instead
+  const handleDragOver = (event: DragOverEvent) => {
+    event.preventDefault();
+    const { source, target } = event.operation;
+    if (!source || !target || source.id === target.id) return;
 
-    try {
-      // First get the visually sorted fighters based on current positions
-      const getSortedFighterIds = () => {
-        // Extract position entries and sort them by position number
-        const positionEntries = Object.entries(normalizedPositions)
-          .map(([pos, id]) => ({ pos: parseInt(pos), id }))
-          .sort((a, b) => a.pos - b.pos);
-        
-        // Get the IDs in position order
-        return positionEntries.map(entry => entry.id);
-      };
-      
-      const sortedIds = getSortedFighterIds();
-      
-      // Find indices in the sorted array (this matches the visual order)
-      const oldIndex = sortedIds.indexOf(active.id);
-      const newIndex = sortedIds.indexOf(over.id);
-      
-      if (oldIndex === -1 || newIndex === -1) {
-        console.error('Could not find fighter indices in sorted IDs', { 
-          active: active.id, 
-          over: over.id,
-          sortedIds
-        });
-        return;
-      }
-      
-      // Get fighter name for logging
-      const draggedFighter = fighters.find(f => f.id === active.id);
-      if (!draggedFighter) {
-        console.error('Could not find dragged fighter', { id: active.id });
-        return;
-      }
-      
-      console.log('Drag operation:', { 
-        fighter: draggedFighter.fighter_name, 
-        from: oldIndex, 
-        to: newIndex,
-        activeId: active.id,
-        overId: over.id
-      });
-      
-      // Create new sorted IDs with the dragged item moved
-      const newSortedIds = [...sortedIds];
-      newSortedIds.splice(oldIndex, 1); // Remove from old position
-      newSortedIds.splice(newIndex, 0, active.id); // Insert at new position
-      
-      // Create new positions object based on the new order
-      const newPositions = newSortedIds.reduce((acc, id, index) => ({
+    setCurrentPositions(prev => {
+      const ids = Object.entries(prev)
+        .sort(([a], [b]) => Number(a) - Number(b))
+        .map(([, id]) => id);
+      const from = ids.indexOf(String(source.id));
+      const to = ids.indexOf(String(target.id));
+      if (from === -1 || to === -1 || from === to) return prev;
+
+      ids.splice(from, 1);
+      ids.splice(to, 0, String(source.id));
+      return ids.reduce<Record<number, string>>((acc, id, index) => ({
         ...acc,
         [index]: id
       }), {});
-      
-      console.log('New positions:', newPositions);
-      
-      // Create new fighters array in the new order
-      const newFighters = newSortedIds
-        .map(id => fighters.find(f => f.id === id))
+    });
+  };
+
+  // Must stay synchronous: the drop animation waits for this handler's React
+  // transition to settle (onPositionsUpdate persists via the sync effect
+  // once isSorting clears — a server action dispatched from here would
+  // entangle with the drop's transition and freeze the card)
+  const handleDragEnd = (event: DragEndEvent) => {
+    setIsSorting(false);
+    const startPositions = dragStartPositions.current;
+    dragStartPositions.current = null;
+
+    if (event.canceled) {
+      if (startPositions) setCurrentPositions(startPositions);
+      return;
+    }
+
+    if (startPositions && !positionsAreEqual(startPositions, normalizedPositions)) {
+      const newFighters = Object.entries(normalizedPositions)
+        .sort(([a], [b]) => Number(a) - Number(b))
+        .map(([, id]) => fighters.find(f => f.id === id))
         .filter(Boolean) as FighterProps[];
-      
-      // First update local state
-      setCurrentPositions(newPositions);
-      
-      // Then call the parent callbacks
       onFightersReorder?.(newFighters);
-      lastSyncedPositionsSignature.current = positionsSignature(newPositions);
-      onPositionsUpdate?.(newPositions);
-    } catch (error) {
-      console.error('Error handling drag end:', error);
     }
   };
 
-  // Render without drag functionality during SSR and initial client render
-  if (!isMounted) {
-    return (
-      <MyFighters
-        fighters={sortedFighters}
-        positions={normalizedPositions}
-        viewMode={viewMode}
-        userPermissions={userPermissions}
-      />
-    );
-  }
-
-  // If user doesn't have edit permissions, render without drag functionality
-  if (!canEdit) {
-    return (
-      <MyFighters
-        fighters={sortedFighters}
-        positions={normalizedPositions}
-        viewMode={viewMode}
-        userPermissions={userPermissions}
-      />
-    );
-  }
-
+  // Sortable items are disabled per-fighter via `disabled: !canEdit` in SortableFighter
   return (
-    <DndContext 
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragEnd={handleDragEnd}
+    <DragDropProvider
+      sensors={dndSensors}
+      onDragStart={canEdit ? handleDragStart : undefined}
+      onDragOver={canEdit ? handleDragOver : undefined}
+      onDragEnd={canEdit ? handleDragEnd : undefined}
     >
-      <SortableContext
-        items={sortedFighters.map(f => f.id)}
-        strategy={viewMode !== 'normal' ? rectSortingStrategy : verticalListSortingStrategy}
-      >
-        <MyFighters
-          fighters={sortedFighters}
-          positions={normalizedPositions}
-          viewMode={viewMode}
-          userPermissions={userPermissions}
-        />
-      </SortableContext>
-    </DndContext>
+      <MyFighters
+        fighters={sortedFighters}
+        positions={normalizedPositions}
+        viewMode={viewMode}
+        userPermissions={userPermissions}
+      />
+    </DragDropProvider>
   );
-} 
+}

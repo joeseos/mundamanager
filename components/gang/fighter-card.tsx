@@ -65,8 +65,7 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   image_url?: string;
   isDragging?: boolean;
   active_loadout_name?: string;  // Name of the active loadout
-  dragListeners?: any;  // Drag listeners from dnd-kit for icon-only dragging
-  dragAttributes?: any;  // Drag attributes from dnd-kit for icon-only dragging
+  draggable?: boolean;  // Whether the card is a drag source (dnd-kit sortable)
   disableHoverEffects?: boolean;  // Used by constrained modal previews; omit to keep normal gang-page hover scale/shadow.
 }
 
@@ -167,8 +166,7 @@ const FighterCard = memo(function FighterCard({
   image_url,
   isDragging = false,
   active_loadout_name,
-  dragListeners,
-  dragAttributes,
+  draggable = false,
   disableHoverEffects = false,
   is_spyrer = false,
 }: FighterCardProps) {
@@ -473,13 +471,11 @@ const FighterCard = memo(function FighterCard({
   const cardClassName = `relative rounded-lg overflow-hidden ${hoverEffectClass} transition-all duration-200 border-2 border-black ${isDragging ? 'border-[3px] border-rose-700 scale-[1.02]' : ''} print:hover:scale-[1] print-fighter-card print:inline-block
         ${isPrintView ? `${printCardSize} p-2 relative` : isNormalView ? 'p-4' : `${compactCardSize} relative`} fighter-card-bg
         ${isLoading ? 'cursor-default' : ''}
-        ${dragListeners && dragAttributes ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''}`;
+        ${draggable ? `select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}` : ''}`;
 
   const cardBody = (
     <div
       id={fighterCardId}
-      {...(dragListeners || {})}
-      {...(dragAttributes || {})}
       className={cardClassName}
         style={{
           backgroundColor: '#faf9f7',
@@ -487,7 +483,8 @@ const FighterCard = memo(function FighterCard({
           backgroundPosition: 'center',
           // Prevent hover effects from sticking on touch devices
           WebkitTapHighlightColor: 'transparent',
-          touchAction: 'manipulation'
+          touchAction: 'manipulation',
+          WebkitTouchCallout: 'none'
         }}
       >
       {isLoading && (
@@ -828,7 +825,7 @@ const FighterCard = memo(function FighterCard({
     </div>
   );
 
-  const menuTrigger = !isDragging && !disableLink && dragListeners && dragAttributes ? (
+  const menuTrigger = !isDragging && !disableLink && draggable ? (
     <div
       className="absolute bottom-2 right-2 md:right-3 z-30 print:hidden cursor-pointer select-none"
       style={{ WebkitTouchCallout: 'none' }}
