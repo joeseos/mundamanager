@@ -364,12 +364,22 @@ export function CustomiseTradingPosts({
               });
             // allSettled ensures every sibling completes before we read the bookkeeping sets,
             // preventing a single throw from cutting off in-flight siblings mid-reconcile.
-            await Promise.allSettled(pendingRulesSaves);
+            const settledRules = await Promise.allSettled(pendingRulesSaves);
+            for (const result of settledRules) {
+              if (result.status === 'rejected') {
+                equipmentSaveFailed = true;
+                toast.error(
+                  result.reason instanceof Error
+                    ? result.reason.message
+                    : 'Failed to save equipment rules'
+                );
+              }
+            }
           }
         }
 
         if (removalsToSave.size > 0) {
-          await Promise.allSettled(
+          const settledRemovals = await Promise.allSettled(
             Array.from(removalsToSave).map(async (id) => {
               const res = await removeTPEquipment(id);
               if (!res.success) {
@@ -380,6 +390,16 @@ export function CustomiseTradingPosts({
               succeededRemovalIds.add(id);
             })
           );
+          for (const result of settledRemovals) {
+            if (result.status === 'rejected') {
+              equipmentSaveFailed = true;
+              toast.error(
+                result.reason instanceof Error
+                  ? result.reason.message
+                  : 'Failed to remove equipment'
+              );
+            }
+          }
         }
 
         const equipmentSaves = Array.from(overridesToSave.entries())
@@ -427,7 +447,17 @@ export function CustomiseTradingPosts({
             }
             succeededOverrideIds.add(itemId);
           });
-        await Promise.allSettled(equipmentSaves);
+        const settledOverrides = await Promise.allSettled(equipmentSaves);
+        for (const result of settledOverrides) {
+          if (result.status === 'rejected') {
+            equipmentSaveFailed = true;
+            toast.error(
+              result.reason instanceof Error
+                ? result.reason.message
+                : 'Failed to save equipment overrides'
+            );
+          }
+        }
 
         await queryClient.invalidateQueries({ queryKey: ['tpEquipment', tradingPostId] });
         await Promise.all(
