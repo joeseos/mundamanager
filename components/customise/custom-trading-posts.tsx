@@ -260,7 +260,7 @@ export function CustomiseTradingPosts({
 
     const invalidateItemRuleCaches = (itemIds: Iterable<string>) =>
       Promise.all(
-        [...new Set(itemIds)].flatMap(id => [
+        Array.from(new Set(itemIds)).flatMap(id => [
           queryClient.invalidateQueries({ queryKey: ['tpAvailabilityRules', id] }),
           queryClient.invalidateQueries({ queryKey: ['tpPricingRules', id] }),
         ])
@@ -494,11 +494,15 @@ export function CustomiseTradingPosts({
       return true;
     } catch (error) {
       reconcilePersistedPendingState();
-      // Ensure the UI reflects any rows already written if we threw before invalidate.
-      if (hasPersistedProgress()) {
-        await invalidateEquipmentCaches();
-      }
       toast.error(error instanceof Error ? error.message : 'Failed to update custom trading post');
+      // Refresh caches after toasting so a rare invalidate failure can't swallow the error UI.
+      if (hasPersistedProgress()) {
+        try {
+          await invalidateEquipmentCaches();
+        } catch {
+          // ignore — pending state was already reconciled and the user was notified
+        }
+      }
       return false;
     }
   };
