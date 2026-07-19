@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict D3qrmqaDxChqpjB6LRvUKSCeNBHxY9x1Mu7HsE5j6jbY1mXDEgPq86NHdSjOniJ
+\restrict sOMbG54n4jsWBJX4l3wyHd4ObiyyDDdWZMWdojS83TUJZv5zhcIlIOsxzEjiYTx
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -523,6 +523,64 @@ $$;
 COMMENT ON FUNCTION public.check_permission(p_user_id uuid, p_campaign_id uuid, p_gang_id uuid) IS 'Returns { is_admin, campaign_role } for a user. Accepts campaign_id directly or resolves it from gang_id via campaign_gangs. Used for all app-level permission checks.';
 
 
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- Name: email_deliveries; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.email_deliveries (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    notification_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    provider text,
+    provider_message_id text,
+    attempts integer DEFAULT 0 NOT NULL,
+    last_error text,
+    next_attempt_at timestamp with time zone DEFAULT now() NOT NULL,
+    locked_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    sent_at timestamp with time zone,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT email_deliveries_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'processing'::text, 'sent'::text, 'skipped'::text, 'failed'::text, 'abandoned'::text])))
+);
+
+
+--
+-- Name: claim_email_deliveries(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.claim_email_deliveries(batch_size integer DEFAULT 25) RETURNS SETOF public.email_deliveries
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+   RETURN QUERY
+   WITH due AS (
+      SELECT id
+      FROM email_deliveries
+      WHERE status = 'pending'
+         OR (status = 'failed' AND attempts < 5 AND next_attempt_at <= now())
+         OR (status = 'processing' AND locked_at < now() - interval '10 minutes')
+      ORDER BY created_at
+      FOR UPDATE SKIP LOCKED
+      LIMIT batch_size
+   )
+   UPDATE email_deliveries d
+      SET status = 'processing',
+          attempts = d.attempts + 1,
+          locked_at = now(),
+          updated_at = now()
+     FROM due
+    WHERE d.id = due.id
+   RETURNING d.*;
+END;
+$$;
+
+
 --
 -- Name: copy_custom_collection(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
@@ -706,9 +764,9 @@ BEGIN
          (v_map_ft ->> fd.custom_fighter_type_id::text)::uuid, (v_map_eq ->> fd.custom_equipment_id::text)::uuid
   FROM public.fighter_defaults fd WHERE fd.custom_fighter_type_id = ANY(v_ft);
 
-  INSERT INTO public.custom_fighter_type_equipment (id, created_at, equipment_id, custom_equipment_id,
+  INSERT INTO public.custom_fighter_type_equipment (id, created_at, user_id, equipment_id, custom_equipment_id,
                                                     custom_fighter_type_id)
-  SELECT gen_random_uuid(), now(), fe.equipment_id, (v_map_eq ->> fe.custom_equipment_id::text)::uuid,
+  SELECT gen_random_uuid(), now(), v_user, fe.equipment_id, (v_map_eq ->> fe.custom_equipment_id::text)::uuid,
          (v_map_ft ->> fe.custom_fighter_type_id::text)::uuid
   FROM public.custom_fighter_type_equipment fe WHERE fe.custom_fighter_type_id = ANY(v_ft);
 
@@ -811,6 +869,26 @@ BEGIN
   event := jsonb_set(event, '{claims}', claims);
 
   RETURN event;
+END;
+$$;
+
+
+--
+-- Name: enqueue_notification_email(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.enqueue_notification_email() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+   IF NEW.type IN ('campaign_invite', 'gang_invite', 'friend_request') THEN
+      INSERT INTO email_deliveries (notification_id, user_id)
+      VALUES (NEW.id, NEW.receiver_id)
+      ON CONFLICT (notification_id) DO NOTHING;
+   END IF;
+
+   RETURN NEW;
 END;
 $$;
 
@@ -1930,14 +2008,8 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         e.equipment_type,
         e.created_at,
 
-        -- Is in fighter's equipment list?
-        CASE
-            WHEN fte.fighter_type_id IS NOT NULL
-                 OR fte.vehicle_type_id IS NOT NULL
-                 OR ea_var.id IS NOT NULL
-                 OR ea_origin.id IS NOT NULL THEN true
-            ELSE false
-        END AS fighter_type_equipment,
+        -- Is in fighter's equipment list? (computed once in ftl_flag below)
+        ftl_flag.is_fighter_list AS fighter_type_equipment,
 
         -- Has trading post access?
         COALESCE(tp.has_access, false) AS equipment_tradingpost,
@@ -2057,6 +2129,29 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         AND (fte.gang_origin_id IS NULL OR fte.gang_origin_id = gd.gang_origin_id)
         AND (fte.gang_type_id IS NULL OR fte.gang_type_id = $1)
 
+    -- Is this system equipment on the current custom fighter type's equipment list?
+    -- ($3 is a custom_fighter_types.id when the fighter is a custom fighter.)
+    LEFT JOIN LATERAL (
+        SELECT true AS is_ftl
+        FROM custom_fighter_type_equipment cfte_sys
+        WHERE cfte_sys.equipment_id = e.id
+          AND cfte_sys.custom_fighter_type_id = $3
+        LIMIT 1
+    ) cftl ON true
+
+    -- Single source of truth for "is this on the fighter's equipment list?"
+    -- Referenced by the output column and the fighter-list filter branches below,
+    -- so the predicate lives in exactly one place.
+    LEFT JOIN LATERAL (
+        SELECT (
+            fte.fighter_type_id IS NOT NULL
+            OR fte.vehicle_type_id IS NOT NULL
+            OR ea_var.id IS NOT NULL
+            OR ea_origin.id IS NOT NULL
+            OR cftl.is_ftl IS NOT NULL
+        ) AS is_fighter_list
+    ) ftl_flag ON true
+
     -- Pre-computed CTEs via simple LEFT JOINs
     LEFT JOIN best_adjusted_cost bac ON bac.equipment_id = e.id
     LEFT JOIN tp_summary tp ON tp.equipment_id = e.id
@@ -2071,7 +2166,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         -- Core equipment gating
         AND (
             COALESCE(e.core_equipment, false) = false
-            OR (e.core_equipment = true AND (fte.fighter_type_id IS NOT NULL OR $3 IS NULL))
+            OR (e.core_equipment = true AND (fte.fighter_type_id IS NOT NULL OR cftl.is_ftl IS NOT NULL OR $3 IS NULL))
         )
         -- Fighter list / trading post filter logic
         AND (
@@ -2080,23 +2175,13 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             OR
             -- Both filters: items in EITHER fighter's list OR trading post
             ($4 IS NOT NULL AND $5 IS NOT NULL AND (
-                (CASE
-                    WHEN fte.fighter_type_id IS NOT NULL OR fte.vehicle_type_id IS NOT NULL
-                         OR ea_var.id IS NOT NULL OR ea_origin.id IS NOT NULL THEN true
-                    ELSE false
-                END) = $4
+                ftl_flag.is_fighter_list = $4
                 OR
                 COALESCE(tp.has_access, false) = $5
             ))
             OR
             -- Fighter's list only
-            ($4 IS NOT NULL AND $5 IS NULL AND (
-                CASE
-                    WHEN fte.fighter_type_id IS NOT NULL OR fte.vehicle_type_id IS NOT NULL
-                         OR ea_var.id IS NOT NULL OR ea_origin.id IS NOT NULL THEN true
-                    ELSE false
-                END
-            ) = $4)
+            ($4 IS NOT NULL AND $5 IS NULL AND ftl_flag.is_fighter_list = $4)
             OR
             -- Trading post only
             ($4 IS NULL AND $5 IS NOT NULL AND COALESCE(tp.has_access, false) = $5)
@@ -2126,7 +2211,9 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         ce.equipment_category,
         ce.equipment_type,
         ce.created_at,
-        true AS fighter_type_equipment,
+        -- Custom equipment lives in the Trading Post; it is only on a fighter's
+        -- list when assigned to that fighter's custom fighter type ($3).
+        COALESCE(ftl.is_ftl, false) AS fighter_type_equipment,
         true AS equipment_tradingpost,
         true AS is_custom,
         COALESCE(
@@ -2209,10 +2296,27 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
     ) custom_tp ON custom_tp.custom_equipment_id = ce.id
     LEFT JOIN campaign_type_resources ctr_res2 ON ctr_res2.id = custom_tp.cost_type_resource_id
     LEFT JOIN campaign_resources cr_res2 ON cr_res2.id = custom_tp.cost_campaign_resource_id
+    -- Is this custom equipment on the current custom fighter type's equipment list?
+    -- ($3 is a custom_fighter_types.id when the fighter is a custom fighter.)
+    LEFT JOIN LATERAL (
+        SELECT true AS is_ftl
+        FROM custom_fighter_type_equipment cfte
+        WHERE cfte.custom_equipment_id = ce.id
+          AND cfte.custom_fighter_type_id = $3
+        LIMIT 1
+    ) ftl ON true
     WHERE
         (ce.user_id = auth.uid() OR shared.custom_equipment_id IS NOT NULL OR custom_tp.custom_equipment_id IS NOT NULL)
         AND ($2 IS NULL OR trim(both from ce.equipment_category) = trim(both from $2))
         AND ($7 IS NULL OR ce.id = $7)
+        -- Fighter list / trading post filter. Custom equipment is always a
+        -- trading-post item, and a fighter-list item only when assigned to the
+        -- fighter's custom type (ftl.is_ftl).
+        AND (
+            ($4 IS NULL AND $5 IS NULL)                              -- no filter
+            OR ($4 IS NOT NULL AND COALESCE(ftl.is_ftl, false) = $4) -- fighter's list requested
+            OR ($5 IS NOT NULL AND true = $5)                        -- trading post requested
+        )
 $_$;
 
 
@@ -2414,7 +2518,7 @@ $$;
 -- Name: get_fighter_types_with_cost(uuid, uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_fighter_types_with_cost(p_gang_type_id uuid DEFAULT NULL::uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid, p_is_gang_addition boolean DEFAULT NULL::boolean) RETURNS TABLE(id uuid, fighter_type text, fighter_class text, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, limitation numeric, alignment public.alignment, is_gang_addition boolean, alliance_id uuid, alliance_crew_name text, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, sub_type jsonb, free_skill boolean, delegation_cost numeric)
+CREATE FUNCTION public.get_fighter_types_with_cost(p_gang_type_id uuid DEFAULT NULL::uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid, p_is_gang_addition boolean DEFAULT NULL::boolean) RETURNS TABLE(id uuid, fighter_type text, fighter_class text, fighter_class_id uuid, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, limitation numeric, alignment public.alignment, is_gang_addition boolean, alliance_id uuid, alliance_crew_name text, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, sub_type jsonb, available_legacies jsonb, free_skill boolean, delegation_cost numeric, is_dramatis_personae boolean)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -2424,6 +2528,7 @@ BEGIN
         ft.id,
         ft.fighter_type,
         fc.class_name,
+        ft.fighter_class_id,
         ft.gang_type,
         -- Use adjusted_cost if available, otherwise use original cost
         COALESCE(ftgc.adjusted_cost, ft.cost) as cost,
@@ -2454,7 +2559,8 @@ BEGIN
                     'equipment_type', e.equipment_type,
                     'equipment_category', e.equipment_category,
                     'cost', 0,
-                    'availability', e.availability
+                    'availability', e.availability,
+                    'is_editable', COALESCE(e.is_editable, false)
                 )
             ), '[]'::jsonb)
             FROM fighter_defaults fd
@@ -3188,8 +3294,23 @@ BEGIN
                 )
             ELSE NULL
         END AS sub_type,
+        COALESCE(
+            (
+                SELECT jsonb_agg(
+                    jsonb_build_object(
+                        'id', fgl.id,
+                        'name', fgl.name
+                    )
+                )
+                FROM fighter_type_gang_legacies ftgl
+                JOIN fighter_gang_legacy fgl ON fgl.id = ftgl.fighter_gang_legacy_id
+                WHERE ftgl.fighter_type_id = ft.id
+            ),
+            '[]'::jsonb
+        ) AS available_legacies,
         ft.free_skill,
-        ft.delegation_cost
+        ft.delegation_cost,
+        ft.is_dramatis_personae
     FROM fighter_types ft
     JOIN fighter_classes fc ON fc.id = ft.fighter_class_id
     LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id 
@@ -3197,8 +3318,21 @@ BEGIN
         AND (ftgc.gang_affiliation_id IS NULL OR ftgc.gang_affiliation_id = p_gang_affiliation_id)
     LEFT JOIN fighter_sub_types fsub ON fsub.id = ft.fighter_sub_type_id
     WHERE
-        -- Removed the gang_type_id restriction for gang additions
-        (p_is_gang_addition IS NULL OR ft.is_gang_addition = p_is_gang_addition);
+        CASE
+            -- Gang additions: cross-gang pool, filtered only by the flag
+            WHEN p_is_gang_addition = true THEN ft.is_gang_addition = true
+            -- Roster: fighters belonging to this gang type (plus affiliation-cost
+            -- overrides). Matches the previous get_add_fighter_details behaviour,
+            -- including this gang type's own gang-addition-flagged fighters.
+            WHEN p_is_gang_addition = false THEN (
+                ft.gang_type_id = p_gang_type_id
+                OR (ftgc.fighter_type_id IS NOT NULL
+                    AND ftgc.gang_affiliation_id IS NOT NULL
+                    AND ftgc.gang_affiliation_id = p_gang_affiliation_id)
+            )
+            -- Include-all (both params NULL): every fighter type
+            ELSE true
+        END;
 END;
 $$;
 
@@ -4138,8 +4272,8 @@ BEGIN
    ) VALUES (
        NEW.user_id,
        NEW.invited_by,
-       'invite',
-       'You have been invited to the campaign "' || COALESCE(campaign_name_var, 'Unknown Campaign') || '". Click this notification to go to the campaign.',
+       'campaign_invite',
+       'You have been invited to the campaign "' || COALESCE(campaign_name_var, 'Unknown Campaign') || '". Click the link below to access the campaign.',
        'https://www.mundamanager.com/campaigns/' || NEW.campaign_id,
        false
    );
@@ -4244,10 +4378,6 @@ BEGIN
 END;
 $$;
 
-
-SET default_tablespace = '';
-
-SET default_table_access_method = heap;
 
 --
 -- Name: OLDfighter_equipment_tradingpost; Type: TABLE; Schema: public; Owner: -
@@ -4723,7 +4853,8 @@ CREATE TABLE public.custom_fighter_type_equipment (
     updated_at timestamp with time zone,
     equipment_id uuid,
     custom_equipment_id uuid,
-    custom_fighter_type_id uuid
+    custom_fighter_type_id uuid,
+    user_id uuid
 );
 
 
@@ -5441,7 +5572,8 @@ CREATE TABLE public.fighter_types (
     alliance_id uuid,
     alliance_crew_name text,
     is_spyrer boolean DEFAULT false,
-    delegation_cost numeric
+    delegation_cost numeric,
+    is_dramatis_personae boolean DEFAULT false NOT NULL
 );
 
 
@@ -5713,7 +5845,7 @@ CREATE TABLE public.notifications (
     link text,
     expires_at timestamp with time zone DEFAULT (now() + '30 days'::interval) NOT NULL,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    CONSTRAINT notifications_type_check CHECK (((type)::text = ANY (ARRAY['info'::text, 'warning'::text, 'error'::text, 'invite'::text, 'friend_request'::text, 'battle_invite'::text, 'gang_invite'::text])))
+    CONSTRAINT notifications_type_check CHECK (((type)::text = ANY (ARRAY['info'::text, 'warning'::text, 'error'::text, 'invite'::text, 'campaign_invite'::text, 'friend_request'::text, 'battle_invite'::text, 'gang_invite'::text])))
 );
 
 ALTER TABLE ONLY public.notifications REPLICA IDENTITY FULL;
@@ -5833,6 +5965,19 @@ CREATE TABLE public.trading_post_types (
     trading_post_name text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone
+);
+
+
+--
+-- Name: user_notification_preferences; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.user_notification_preferences (
+    user_id uuid NOT NULL,
+    notification_type text NOT NULL,
+    enabled boolean NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -6245,6 +6390,22 @@ ALTER TABLE ONLY public.custom_trading_posts
 
 ALTER TABLE ONLY public.custom_weapon_profiles
     ADD CONSTRAINT custom_weapon_profiles_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: email_deliveries email_deliveries_notification_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_deliveries
+    ADD CONSTRAINT email_deliveries_notification_id_key UNIQUE (notification_id);
+
+
+--
+-- Name: email_deliveries email_deliveries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_deliveries
+    ADD CONSTRAINT email_deliveries_pkey PRIMARY KEY (id);
 
 
 --
@@ -6680,6 +6841,14 @@ ALTER TABLE ONLY public.fighter_equipment_selections
 
 
 --
+-- Name: user_notification_preferences user_notification_preferences_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_notification_preferences
+    ADD CONSTRAINT user_notification_preferences_pkey PRIMARY KEY (user_id, notification_type);
+
+
+--
 -- Name: vehicle_types vehicle_types_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6884,6 +7053,20 @@ CREATE INDEX custom_shared_custom_equipment_id_idx ON public.custom_shared USING
 --
 
 CREATE INDEX custom_weapon_profiles_weapon_group_id_idx ON public.custom_weapon_profiles USING btree (weapon_group_id);
+
+
+--
+-- Name: email_deliveries_due_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX email_deliveries_due_idx ON public.email_deliveries USING btree (next_attempt_at) WHERE (status = ANY (ARRAY['pending'::text, 'failed'::text]));
+
+
+--
+-- Name: email_deliveries_user_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX email_deliveries_user_id_idx ON public.email_deliveries USING btree (user_id);
 
 
 --
@@ -7171,6 +7354,20 @@ CREATE INDEX idx_campaign_type_allegiances_campaign_type_id ON public.campaign_t
 --
 
 CREATE INDEX idx_campaign_type_resources_campaign_type_id ON public.campaign_type_resources USING btree (campaign_type_id);
+
+
+--
+-- Name: idx_cfte_fighter_type_custom_equipment; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_cfte_fighter_type_custom_equipment ON public.custom_fighter_type_equipment USING btree (custom_fighter_type_id, custom_equipment_id);
+
+
+--
+-- Name: idx_cfte_fighter_type_equipment; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_cfte_fighter_type_equipment ON public.custom_fighter_type_equipment USING btree (custom_fighter_type_id, equipment_id);
 
 
 --
@@ -7579,10 +7776,23 @@ CREATE TRIGGER on_gang_invite AFTER INSERT ON public.campaign_gangs FOR EACH ROW
 
 
 --
+-- Name: email_deliveries send-notification-email; Type: TRIGGER; Schema: public; Owner: -
+--
+
+
+
+--
 -- Name: campaign_members trigger_campaign_member_notification; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER trigger_campaign_member_notification AFTER INSERT ON public.campaign_members FOR EACH ROW EXECUTE FUNCTION public.notify_campaign_member_added();
+
+
+--
+-- Name: notifications trigger_enqueue_notification_email; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_enqueue_notification_email AFTER INSERT ON public.notifications FOR EACH ROW EXECUTE FUNCTION public.enqueue_notification_email();
 
 
 --
@@ -7885,7 +8095,7 @@ ALTER TABLE ONLY public.custom_fighter_type_equipment
 --
 
 ALTER TABLE ONLY public.custom_fighter_type_equipment
-    ADD CONSTRAINT custom_fighter_type_equipment_custom_fighter_type_id_fkey FOREIGN KEY (custom_fighter_type_id) REFERENCES public.custom_fighter_types(id);
+    ADD CONSTRAINT custom_fighter_type_equipment_custom_fighter_type_id_fkey FOREIGN KEY (custom_fighter_type_id) REFERENCES public.custom_fighter_types(id) ON DELETE CASCADE;
 
 
 --
@@ -7894,6 +8104,14 @@ ALTER TABLE ONLY public.custom_fighter_type_equipment
 
 ALTER TABLE ONLY public.custom_fighter_type_equipment
     ADD CONSTRAINT custom_fighter_type_equipment_equipment_id_fkey FOREIGN KEY (equipment_id) REFERENCES public.equipment(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_fighter_type_equipment custom_fighter_type_equipment_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_fighter_type_equipment
+    ADD CONSTRAINT custom_fighter_type_equipment_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 
 --
@@ -7982,6 +8200,14 @@ ALTER TABLE ONLY public.custom_shared
 
 ALTER TABLE ONLY public.custom_shared
     ADD CONSTRAINT custom_shared_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_skill_types custom_skill_types_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_skill_types
+    ADD CONSTRAINT custom_skill_types_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 
 --
@@ -8150,6 +8376,22 @@ ALTER TABLE ONLY public.custom_trading_posts
 
 ALTER TABLE ONLY public.custom_weapon_profiles
     ADD CONSTRAINT custom_weapon_profiles_custom_equipment_id_fkey FOREIGN KEY (custom_equipment_id) REFERENCES public.custom_equipment(id) ON DELETE CASCADE;
+
+
+--
+-- Name: email_deliveries email_deliveries_notification_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_deliveries
+    ADD CONSTRAINT email_deliveries_notification_id_fkey FOREIGN KEY (notification_id) REFERENCES public.notifications(id) ON DELETE CASCADE;
+
+
+--
+-- Name: email_deliveries email_deliveries_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_deliveries
+    ADD CONSTRAINT email_deliveries_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 
 --
@@ -8897,6 +9139,14 @@ ALTER TABLE ONLY public.trading_post_equipment
 
 
 --
+-- Name: user_notification_preferences user_notification_preferences_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_notification_preferences
+    ADD CONSTRAINT user_notification_preferences_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: vehicles vehicles_fighter_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9032,6 +9282,13 @@ CREATE POLICY "Allow authenticated users to create custom collections" ON public
 --
 
 CREATE POLICY "Allow authenticated users to create custom equipment" ON public.custom_equipment FOR INSERT TO authenticated WITH CHECK (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
+-- Name: custom_fighter_type_equipment Allow authenticated users to create custom fighter type equip; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to create custom fighter type equip" ON public.custom_fighter_type_equipment FOR INSERT TO authenticated WITH CHECK (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
 
 
 --
@@ -9186,6 +9443,13 @@ CREATE POLICY "Allow authenticated users to view custom collections" ON public.c
 --
 
 CREATE POLICY "Allow authenticated users to view custom equipment" ON public.custom_equipment FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: custom_fighter_type_equipment Allow authenticated users to view custom fighter type equip; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view custom fighter type equip" ON public.custom_fighter_type_equipment FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -10394,6 +10658,20 @@ CREATE POLICY "Only custom equipment owner or admin can update" ON public.custom
 
 
 --
+-- Name: custom_fighter_type_equipment Only custom fighter type equipment owner or admin can delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only custom fighter type equipment owner or admin can delete" ON public.custom_fighter_type_equipment FOR DELETE TO authenticated USING (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
+-- Name: custom_fighter_type_equipment Only custom fighter type equipment owner or admin can update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only custom fighter type equipment owner or admin can update" ON public.custom_fighter_type_equipment FOR UPDATE TO authenticated USING (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin))) WITH CHECK (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
 -- Name: custom_fighter_types Only custom fighter type owner or admin can delete; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -10796,6 +11074,13 @@ CREATE POLICY "Users can create skills for their own fighters" ON public.fighter
 
 
 --
+-- Name: user_notification_preferences Users can create their own notification preferences; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can create their own notification preferences" ON public.user_notification_preferences FOR INSERT TO authenticated WITH CHECK ((( SELECT auth.uid() AS uid) = user_id));
+
+
+--
 -- Name: fighter_equipment Users can delete equipment from their gang; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -10834,6 +11119,13 @@ CREATE POLICY "Users can delete loadouts for their gang fighters" ON public.figh
 --
 
 CREATE POLICY "Users can delete their own friendships" ON public.friends FOR DELETE TO authenticated USING (((( SELECT auth.uid() AS uid) = requester_id) OR (( SELECT auth.uid() AS uid) = addressee_id)));
+
+
+--
+-- Name: user_notification_preferences Users can delete their own notification preferences; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can delete their own notification preferences" ON public.user_notification_preferences FOR DELETE TO authenticated USING ((( SELECT auth.uid() AS uid) = user_id));
 
 
 --
@@ -10984,6 +11276,13 @@ CREATE POLICY "Users can update their own friendships" ON public.friends FOR UPD
 
 
 --
+-- Name: user_notification_preferences Users can update their own notification preferences; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can update their own notification preferences" ON public.user_notification_preferences FOR UPDATE TO authenticated USING ((( SELECT auth.uid() AS uid) = user_id)) WITH CHECK ((( SELECT auth.uid() AS uid) = user_id));
+
+
+--
 -- Name: notifications Users can update their own notifications; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -11006,6 +11305,13 @@ CREATE POLICY "Users can view logs for their gangs or campaigns they moderate" O
 --
 
 CREATE POLICY "Users can view their own friendships" ON public.friends FOR SELECT TO authenticated USING (((( SELECT auth.uid() AS uid) = requester_id) OR (( SELECT auth.uid() AS uid) = addressee_id)));
+
+
+--
+-- Name: user_notification_preferences Users can view their own notification preferences; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can view their own notification preferences" ON public.user_notification_preferences FOR SELECT TO authenticated USING ((( SELECT auth.uid() AS uid) = user_id));
 
 
 --
@@ -11242,6 +11548,12 @@ ALTER TABLE public.custom_trading_posts ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.custom_weapon_profiles ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: email_deliveries; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.email_deliveries ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: equipment; Type: ROW SECURITY; Schema: public; Owner: -
@@ -11925,6 +12237,12 @@ ALTER TABLE public.trading_post_equipment ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.trading_post_types ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: user_notification_preferences; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.user_notification_preferences ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: vehicle_types; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -12025,5 +12343,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict D3qrmqaDxChqpjB6LRvUKSCeNBHxY9x1Mu7HsE5j6jbY1mXDEgPq86NHdSjOniJ
+\unrestrict sOMbG54n4jsWBJX4l3wyHd4ObiyyDDdWZMWdojS83TUJZv5zhcIlIOsxzEjiYTx
 

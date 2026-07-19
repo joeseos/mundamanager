@@ -364,6 +364,10 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
   const [selectedEquipmentCategory, setSelectedEquipmentCategory] = useState('');
   const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
 
+  // Equipment list state (equipment the fighter is allowed to buy)
+  const [selectedEquipmentListCategory, setSelectedEquipmentListCategory] = useState('');
+  const [selectedEquipmentList, setSelectedEquipmentList] = useState<string[]>([]);
+
   // Check if selected fighter class is Crew (simplified stats)
   const isCrew = Boolean(selectedFighterClass && selectedFighterClass.class_name === 'Crew');
 
@@ -672,6 +676,8 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     setSkills([]);
     setSelectedEquipment([]);
     setSelectedEquipmentCategory('');
+    setSelectedEquipmentList([]);
+    setSelectedEquipmentListCategory('');
   };
 
   const handleEdit = async (fighter: CustomFighterType) => {
@@ -732,6 +738,14 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       setSelectedEquipment([]);
     }
     setSelectedEquipmentCategory('');
+
+    // Set selected equipment list from existing data
+    if (fighter.equipment_list && fighter.equipment_list.length > 0) {
+      setSelectedEquipmentList(fighter.equipment_list.map(equip => equip.equipment_id));
+    } else {
+      setSelectedEquipmentList([]);
+    }
+    setSelectedEquipmentListCategory('');
 
     // Fighter class will be set by useEffect when fighterClasses are loaded
   };
@@ -861,6 +875,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         skill_access: copyModalData.skill_access || [],
         default_skills: copyModalData.default_skills?.map(skill => skill.skill_id) || [],
         default_equipment: copyModalData.default_equipment?.map(eq => eq.equipment_id) || [],
+        equipment_list: copyModalData.equipment_list?.map(eq => eq.equipment_id) || [],
         description: copyModalData.description,
       };
 
@@ -942,6 +957,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       skill_access: skillAccess,
       default_skills: selectedSkills,
       default_equipment: selectedEquipment,
+      equipment_list: selectedEquipmentList,
       description,
     };
 
@@ -1032,6 +1048,77 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       </div>
     );
   };
+
+  // Equipment list picker (equipment the fighter is allowed to buy).
+  // Mirrors the "Default Equipment" picker: category select -> equipment select -> chips.
+  const renderEquipmentListSection = () => (
+    <div>
+      <label className="block text-sm font-medium text-muted-foreground mb-1">
+        Equipment List
+      </label>
+      <div className="space-y-2">
+        <select
+          value={selectedEquipmentListCategory}
+          onChange={(e) => setSelectedEquipmentListCategory(e.target.value)}
+          className="w-full p-2 border rounded-md"
+        >
+          <option value="">Select an equipment category</option>
+          {Array.from(new Set(equipment.map(eq => eq.equipment_category)))
+            .sort()
+            .map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+        </select>
+
+        <select
+          value=""
+          onChange={(e) => {
+            const value = e.target.value;
+            if (value && !selectedEquipmentList.includes(value)) {
+              setSelectedEquipmentList([...selectedEquipmentList, value]);
+            }
+            e.target.value = "";
+          }}
+          className="w-full p-2 border rounded-md"
+          disabled={!selectedEquipmentListCategory}
+        >
+          <option value="">Select equipment to add</option>
+          {equipment
+            .filter(eq => eq.equipment_category === selectedEquipmentListCategory && !selectedEquipmentList.includes(eq.id))
+            .map((eq) => (
+              <option key={eq.id} value={eq.id}>
+                {eq.equipment_name}
+              </option>
+            ))}
+        </select>
+
+        <div className="mt-2 flex flex-wrap gap-2">
+          {selectedEquipmentList.map((equipmentId, index) => {
+            const eq = equipment.find(e => e.id === equipmentId);
+            if (!eq) return null;
+
+            return (
+              <div
+                key={index}
+                className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+              >
+                <span>{eq.equipment_name}</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedEquipmentList(selectedEquipmentList.filter((_, i) => i !== index))}
+                  className="text-gray-600 dark:text-gray-400 hover:text-red-500 focus:outline-hidden"
+                >
+                  <HiX className="h-4 w-4" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className={className}>
@@ -1370,7 +1457,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                   value=""
                   onChange={(e) => {
                     const value = e.target.value;
-                    if (value) {
+                    if (value && !selectedEquipment.includes(value)) {
                       setSelectedEquipment([...selectedEquipment, value]);
                     }
                     e.target.value = "";
@@ -1380,7 +1467,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                 >
                   <option value="">Select equipment to add</option>
                   {equipment
-                    .filter(eq => eq.equipment_category === selectedEquipmentCategory)
+                    .filter(eq => eq.equipment_category === selectedEquipmentCategory && !selectedEquipment.includes(eq.id))
                     .map((eq) => (
                       <option key={eq.id} value={eq.id}>
                         {eq.equipment_name}
@@ -1412,6 +1499,9 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                 </div>
               </div>
             </div>
+
+            {/* Equipment List */}
+            {renderEquipmentListSection()}
 
             {/* Free Skill Checkbox */}
             <div className="flex items-center space-x-2">
@@ -1752,7 +1842,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                   value=""
                   onChange={(e) => {
                     const value = e.target.value;
-                    if (value) {
+                    if (value && !selectedEquipment.includes(value)) {
                       setSelectedEquipment([...selectedEquipment, value]);
                     }
                     e.target.value = "";
@@ -1762,7 +1852,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                 >
                   <option value="">Select equipment to add</option>
                   {equipment
-                    .filter(eq => eq.equipment_category === selectedEquipmentCategory)
+                    .filter(eq => eq.equipment_category === selectedEquipmentCategory && !selectedEquipment.includes(eq.id))
                     .map((eq) => (
                       <option key={eq.id} value={eq.id}>
                         {eq.equipment_name}
@@ -1794,6 +1884,9 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                 </div>
               </div>
             </div>
+
+            {/* Equipment List */}
+            {renderEquipmentListSection()}
 
             {/* Free Skill Checkbox */}
             <div className="flex items-center space-x-2">
@@ -1970,6 +2063,22 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                 </label>
                 <div className="space-y-2">
                   {equipment.map((eq, index) => (
+                    <div key={index} className="p-2 border rounded-md bg-muted">
+                      <span>{eq.equipment_name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Equipment List */}
+            {viewModalData.equipment_list && viewModalData.equipment_list.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
+                  Equipment List
+                </label>
+                <div className="space-y-2">
+                  {viewModalData.equipment_list.map((eq, index) => (
                     <div key={index} className="p-2 border rounded-md bg-muted">
                       <span>{eq.equipment_name}</span>
                     </div>

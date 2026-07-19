@@ -11,8 +11,7 @@ import { VehicleProps } from '@/types/vehicle';
 import Image from 'next/image';
 import { DraggableFighters } from './draggable-fighters';
 import { GiAncientRuins } from "react-icons/gi";
-import AddFighter from './add-fighter';
-import GangAdditions from './gang-additions';
+import FighterAddModal from './fighter-add/FighterAddModal';
 import AddVehicle from './add-vehicle';
 import { FiPrinter, FiShare2, FiCamera } from 'react-icons/fi';
 import { AiFillEyeInvisible } from "react-icons/ai";
@@ -282,6 +281,26 @@ export default function Gang({
       return total + baseCost + equipmentCost;
     }, 0);
   }, [vehicles]);
+
+  // All fighters for the activity log filter (includes killed/retired so their historical logs remain filterable)
+  const allFightersForLogs = useMemo(
+    () => fighters.map(f => ({ id: f.id, name: f.fighter_name })),
+    [fighters]
+  );
+
+  // All vehicles for the activity log filter (unassigned + vehicles assigned to fighters)
+  const allVehiclesForLogs = useMemo(() => {
+    const unassigned = (vehicles ?? []).map(v => ({ id: v.id, name: v.vehicle_name }));
+    const assigned = fighters.flatMap(f =>
+      (f.vehicles ?? []).map(v => ({ id: v.id, name: v.vehicle_name }))
+    );
+    const seen = new Set<string>();
+    return [...unassigned, ...assigned].filter(v => {
+      if (seen.has(v.id)) return false;
+      seen.add(v.id);
+      return true;
+    });
+  }, [vehicles, fighters]);
 
   // Calculate the total value of the Stash
   const totalStashValue = stash.reduce((total, item) => total + (item.cost || 0), 0);
@@ -1245,7 +1264,8 @@ export default function Gang({
           />
 
           {showAddFighterModal && (
-            <AddFighter
+            <FighterAddModal
+              catalog="roster"
               showModal={showAddFighterModal}
               setShowModal={setShowAddFighterModal}
               gangId={id}
@@ -1277,13 +1297,16 @@ export default function Gang({
           )}
 
           {showGangAdditionsModal && (
-            <GangAdditions
+            <FighterAddModal
+              catalog="additions"
               showModal={showGangAdditionsModal}
               setShowModal={setShowGangAdditionsModal}
               gangId={id}
               gangTypeId={gang_type_id}
               initialCredits={credits}
               onFighterAdded={handleFighterAdded}
+              onFighterRollback={onFighterRollback}
+              onFighterReconcile={onFighterReconcile}
               gangAffiliationId={gangAffiliationId}
             />
           )}
@@ -1292,6 +1315,8 @@ export default function Gang({
             fetchUrl={`/api/gangs/${id}/logs`}
             isOpen={showLogsModal}
             onClose={() => setShowLogsModal(false)}
+            fighters={allFightersForLogs}
+            vehicles={allVehiclesForLogs}
           />
           <CopyGangModal
             gangId={id}

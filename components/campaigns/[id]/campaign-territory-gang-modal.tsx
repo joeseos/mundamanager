@@ -4,6 +4,7 @@ import Modal from "@/components/ui/modal"
 import { useState, useEffect } from "react"
 import Link from 'next/link'
 import { Combobox } from "@/components/ui/combobox"
+import { buildGangComboboxOption } from '@/utils/gang-combobox-option'
 
 interface Gang {
   id: string;
@@ -84,20 +85,14 @@ export default function TerritoryGangModal({
             .slice()
             .sort((a, b) => a.name.localeCompare(b.name))
             .map((gang) => {
-              const owner = gang.owner_username ? ` • ${gang.owner_username}` : "";
               const alreadyAssigned = existingGangId === gang.id;
-              const suffix = alreadyAssigned ? " (Already assigned)" : "";
-              const displayValue = `${gang.name}${owner}${suffix}`;
               return {
-                value: gang.id,
-                label: (
-                  <span>
-                    <span>{gang.name}</span>
-                    {owner && <span className="text-xs text-muted-foreground">{owner}</span>}
-                    {alreadyAssigned && <span className="text-xs text-muted-foreground">(Already assigned)</span>}
-                  </span>
-                ),
-                displayValue,
+                ...buildGangComboboxOption(gang, {
+                  labelSuffix: alreadyAssigned
+                    ? <span className="text-xs text-muted-foreground">(Already assigned)</span>
+                    : undefined,
+                  displayValueSuffix: alreadyAssigned ? ' (Already assigned)' : '',
+                }),
                 disabled: alreadyAssigned,
               };
             })

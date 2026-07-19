@@ -88,4 +88,6 @@ export interface FighterType {
   is_spyrer?: boolean;
   free_skill?: boolean;
   delegation_cost?: number | null;
+  is_dramatis_personae?: boolean;
+  is_custom_fighter?: boolean;
 }

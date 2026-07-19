@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -9,12 +9,15 @@ import { HiX } from 'react-icons/hi';
 import { createBattleSession, addParticipant } from '@/app/actions/battle-sessions';
 import Modal from '@/components/ui/modal';
 import { Combobox } from '@/components/ui/combobox';
+import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { Button } from '@/components/ui/button';
+import UserSearchBar, { type UserSearchResult } from '@/components/shared/user-search-bar';
 import type { Scenario } from '@/types/campaign';
 
 export interface CampaignGang {
   id: string;
   name: string;
+  gang_colour?: string;
   user_id: string | null;
   owner_username: string;
 }
@@ -52,11 +55,7 @@ export default function CreateBattleModal({
   const [customScenario, setCustomScenario] = useState('');
 
   // Non-campaign: user search + gang picker
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<{ id: string; username: string }[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<{ id: string; username: string } | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserSearchResult | null>(null);
   const [selectedUserGangId, setSelectedUserGangId] = useState('');
 
   // Built-up opponent list
@@ -130,34 +129,8 @@ export default function CreateBattleModal({
       !existingGangIds.includes(g.id)
   );
 
-  // User search (non-campaign, debounced)
-  const shouldSearch = !!searchQuery.trim() && showSuggestions && !campaignId;
-  useEffect(() => {
-    if (!shouldSearch) return;
-    const timer = setTimeout(async () => {
-      setIsSearching(true);
-      try {
-        const res = await fetch(`/api/search-users?query=${encodeURIComponent(searchQuery)}`);
-        if (res.ok) setSearchResults(await res.json());
-      } catch {
-        setSearchResults([]);
-      } finally {
-        setIsSearching(false);
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [shouldSearch, searchQuery]);
-
-  const effectiveSearchResults = shouldSearch ? searchResults : [];
-  const filteredSearchResults = effectiveSearchResults.filter(
-    (p) => !opponents.some((o) => o.userId === p.id)
-  );
-
-  const handleSelectUser = (profile: { id: string; username: string }) => {
-    setSelectedUser(profile);
-    setSearchQuery('');
-    setShowSuggestions(false);
-    setSearchResults([]);
+  const handleSelectUser = (user: UserSearchResult) => {
+    setSelectedUser(user);
     setSelectedUserGangId('');
   };
 
@@ -324,10 +297,7 @@ export default function CreateBattleModal({
               Your Gang
             </label>
             <Combobox
-              options={myGangs.map((g) => ({
-                value: g.id,
-                label: g.name,
-              }))}
+              options={myGangs.map(g => buildGangComboboxOption(g))}
               value={selectedMyGangId}
               onValueChange={setSelectedMyGangId}
               placeholder="Select your gang..."
@@ -342,18 +312,7 @@ export default function CreateBattleModal({
               Opponent Gang
             </label>
             <Combobox
-              options={opponentCampaignGangs.map((g) => ({
-                value: g.id,
-                label: (
-                  <span>
-                    <span>{g.name}</span>
-                    {g.owner_username && (
-                      <span className="text-xs text-muted-foreground"> • {g.owner_username}</span>
-                    )}
-                  </span>
-                ),
-                displayValue: `${g.name} • ${g.owner_username}`,
-              }))}
+              options={opponentCampaignGangs.map(g => buildGangComboboxOption(g))}
               value=""
               onValueChange={addCampaignGang}
               placeholder="Select opponent gang..."
@@ -391,41 +350,11 @@ export default function CreateBattleModal({
 
             {/* User search */}
             {!selectedUser && (
-              <div className="relative">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setShowSuggestions(true);
-                  }}
-                  onBlur={() => {
-                    setTimeout(() => setShowSuggestions(false), 200);
-                  }}
-                  placeholder="Search by username..."
-                  className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-neutral-800"
-                />
-                {isSearching && (
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-neutral-400 border-t-transparent" />
-                  </div>
-                )}
-                {showSuggestions && filteredSearchResults.length > 0 && (
-                  <ul className="absolute z-[200] mt-1 w-full rounded-lg border bg-card py-2 shadow-lg">
-                    {filteredSearchResults.map((profile) => (
-                      <li key={profile.id}>
-                        <button
-                          type="button"
-                          onClick={() => handleSelectUser(profile)}
-                          className="w-full px-4 py-2 text-left text-sm hover:bg-muted"
-                        >
-                          {profile.username}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+              <UserSearchBar
+                placeholder="Search by username..."
+                onSelect={handleSelectUser}
+                excludeIds={opponents.map((o) => o.userId)}
+              />
             )}
 
             {/* Gang picker for selected user */}

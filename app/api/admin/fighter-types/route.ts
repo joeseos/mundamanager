@@ -65,6 +65,7 @@ export async function GET(request: Request) {
           free_skill,
           is_gang_addition,
           is_spyrer,
+          is_dramatis_personae,
           alignment,
           delegation_cost,
           equipment_discounts:equipment_discounts(
@@ -107,6 +108,7 @@ export async function GET(request: Request) {
           free_skill,
           is_gang_addition,
           is_spyrer,
+          is_dramatis_personae,
           alignment,
           delegation_cost,
           equipment_discounts:equipment_discounts(
@@ -245,6 +247,7 @@ export async function GET(request: Request) {
           free_skill,
           is_gang_addition,
           is_spyrer,
+          is_dramatis_personae,
           alignment,
           delegation_cost,
           equipment_discounts:equipment_discounts(
@@ -421,6 +424,7 @@ export async function GET(request: Request) {
         free_skill,
         is_gang_addition,
         is_spyrer,
+        is_dramatis_personae,
         alignment,
         delegation_cost,
         equipment_discounts:equipment_discounts(
@@ -510,6 +514,7 @@ export async function PUT(request: Request) {
         free_skill: data.free_skill,
         is_gang_addition: data.is_gang_addition,
         is_spyrer: data.is_spyrer,
+        is_dramatis_personae: data.is_dramatis_personae,
         alignment: data.alignment,
         delegation_cost: data.delegation_cost ?? null,
         updated_at: data.updated_at
@@ -815,6 +820,7 @@ export async function POST(request: Request) {
         free_skill: data.free_skill,
         is_gang_addition: data.is_gang_addition,
         is_spyrer: data.is_spyrer,
+        is_dramatis_personae: data.is_dramatis_personae,
         alignment: data.alignment,
         delegation_cost: data.delegation_cost ?? null
       })

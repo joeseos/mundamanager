@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import CampaignMapGangSummary from '@/components/campaigns/[id]/campaign-map-gang-summary';
 import { Combobox } from '@/components/ui/combobox';
+import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { assignGangToTerritory } from '@/app/actions/campaigns/[id]/campaign-territories';
 import { toast } from 'sonner';
 
@@ -207,18 +208,7 @@ export default function CampaignMap({
               Assign <span className="font-bold">{selectedTerritory.playing_card ? `${selectedTerritory.playing_card} ` : ''}{selectedTerritory.territory_name}</span> to:
             </h3>
             <Combobox
-              options={allGangs.map(g => ({
-                value: g.id,
-                label: (
-                  <>
-                    {g.name}
-                    {g.owner_username && (
-                      <span className="text-xs text-muted-foreground"> • {g.owner_username}</span>
-                    )}
-                  </>
-                ),
-                displayValue: g.owner_username ? `${g.name} • ${g.owner_username}` : g.name,
-              }))}
+              options={allGangs.map(g => buildGangComboboxOption(g))}
               value={selectedTerritory.gang_id ?? ''}
               onValueChange={handleAssignGang}
               placeholder="Select a gang..."

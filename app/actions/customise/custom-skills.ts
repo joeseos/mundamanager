@@ -7,6 +7,19 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
 import { removeItemFromAllCollections } from './custom-collections';
 
+// Deletes a user's custom skill set once it no longer contains any skills, so
+// orphaned empty sets don't linger in the DB or show up in skill-set dropdowns.
+async function deleteSkillTypeIfEmpty(supabase: any, userId: string, typeId: string | null | undefined) {
+  if (!typeId) return;
+  const { count } = await supabase
+    .from('custom_skills')
+    .select('id', { count: 'exact', head: true })
+    .eq('custom_skill_type_id', typeId)
+    .eq('user_id', userId);
+  if (count) return;
+  await supabase.from('custom_skill_types').delete().eq('id', typeId).eq('user_id', userId);
+}
+
 export async function createCustomSkill(data: {
   skill_name: string;
   skill_type_id?: string;
@@ -105,6 +118,14 @@ export async function updateCustomSkill(
     .select('fighter_id, fighters!inner(gang_id)')
     .eq('custom_skill_id', skillId);
 
+  // Capture the skill's current set so we can clean it up if this update moves the skill elsewhere
+  const { data: prev } = await supabase
+    .from('custom_skills')
+    .select('custom_skill_type_id')
+    .eq('id', skillId)
+    .eq('user_id', user.id)
+    .single();
+
   const { data, error } = await supabase
     .from('custom_skills')
     .update(updateData)
@@ -130,6 +151,10 @@ export async function updateCustomSkill(
   }
 
   invalidateUserCustoms(user.id);
+
+  if (prev?.custom_skill_type_id && prev.custom_skill_type_id !== (data as any).custom_skill_type_id) {
+    await deleteSkillTypeIfEmpty(supabase, user.id, prev.custom_skill_type_id);
+  }
 
   if (affectedFighters && affectedFighters.length > 0) {
     for (const row of affectedFighters) {
@@ -284,11 +309,13 @@ export async function deleteCustomSkill(skillId: string) {
     .select('fighter_id, fighters!inner(gang_id)')
     .eq('custom_skill_id', skillId);
 
-  const { error } = await supabase
+  const { data: deleted, error } = await supabase
     .from('custom_skills')
     .delete()
     .eq('id', skillId)
-    .eq('user_id', user.id);
+    .eq('user_id', user.id)
+    .select('custom_skill_type_id')
+    .single();
 
   if (error) {
     console.error('Error deleting custom skill:', error);
@@ -296,6 +323,8 @@ export async function deleteCustomSkill(skillId: string) {
   }
 
   await removeItemFromAllCollections(supabase, user.id, [{ type: 'skill', id: skillId }]);
+
+  await deleteSkillTypeIfEmpty(supabase, user.id, deleted?.custom_skill_type_id);
 
   invalidateUserCustoms(user.id);
 

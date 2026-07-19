@@ -865,7 +865,7 @@ export interface FighterView {
   ownershipInfo: { owner_name?: string; beast_equipment_stashed: boolean } | null;
   loadouts: Array<{ id: string; fighter_id: string; loadout_name: string; equipment_ids: string[] }>;
   capturedByGangName: string | null;
-  fighterTypeData: { id: string; fighter_type: string; alliance_crew_name?: string; is_spyrer?: boolean } | null;
+  fighterTypeData: { id: string; fighter_type: string; alliance_crew_name?: string; is_spyrer?: boolean; gang_type_id?: string | null } | null;
   fighterSubTypeData: { fighter_sub_type: string; fighter_sub_type_id: string } | null;
 }
 
@@ -1301,7 +1301,8 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
         id: fighterRow.fighter_type_id,
         fighter_type: (fighterRow.fighter_types as any).fighter_type,
         alliance_crew_name: (fighterRow.fighter_types as any).alliance_crew_name,
-        is_spyrer: (fighterRow.fighter_types as any).is_spyrer
+        is_spyrer: (fighterRow.fighter_types as any).is_spyrer,
+        gang_type_id: (fighterRow.fighter_types as any).gang_type_id ?? null
       }
     : null;
 

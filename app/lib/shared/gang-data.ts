@@ -857,7 +857,8 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
               fighter_type,
               alliance_crew_name,
               cost,
-              is_spyrer
+              is_spyrer,
+              gang_type_id
             ),
             fighter_sub_types!fighter_sub_type_id (
               id,
@@ -1130,7 +1131,7 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
         capturedByGangs: capturedByGangsRes.data || []
       };
     },
-    [`gang-fighters-bundle-v2-${gangId}`],
+    [`gang-fighters-bundle-v3-${gangId}`],
     {
       tags: [TAGS.gang(gangId)],
       revalidate: false

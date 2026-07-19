@@ -135,6 +135,7 @@ export function EditFighterModal({
     fighter_class_id?: string;
     special_rules?: string[];
     gang_type_id: string;
+    custom_gang_type_id?: string | null;
     total_cost: number;
     typeClassKey?: string;
     is_gang_variant?: boolean;
@@ -154,6 +155,7 @@ export function EditFighterModal({
       fighter_class_id: type.fighter_class_id,
       special_rules: (type.special_rules || []).map(normalizeSpecialRule).filter(Boolean),
       gang_type_id: type.gang_type_id,
+      custom_gang_type_id: type.custom_gang_type_id ?? null,
       total_cost: type.total_cost,
       typeClassKey: type.typeClassKey,
       is_gang_variant: type.is_gang_variant,
@@ -401,7 +403,7 @@ export function EditFighterModal({
         ...(submit.fighter_class ? { fighter_class: submit.fighter_class } : {}),
         ...(submit.fighter_type && (submit.fighter_type_id || submit.custom_fighter_type_id)
           ? {
-              fighter_type: { fighter_type: submit.fighter_type, fighter_type_id: submit.fighter_type_id ?? null } as any,
+              fighter_type: { fighter_type: submit.fighter_type, fighter_type_id: submit.fighter_type_id ?? null, gang_type_id: (submit as any).gang_type_id ?? null, custom_gang_type_id: (submit as any).custom_gang_type_id ?? null } as any,
               custom_fighter_type_id: submit.custom_fighter_type_id ?? null,
               fighter_type_id: submit.fighter_type_id ?? null,
             }
@@ -711,6 +713,7 @@ export function EditFighterModal({
     const removed = new Set<string>();
     if (fighter.effects) {
       Object.values(fighter.effects).flat().forEach((effect: any) => {
+        if (!effect) return;
         const tsd = typeof effect.type_specific_data === 'object' && effect.type_specific_data
           ? effect.type_specific_data : null;
         if (tsd) {
@@ -885,9 +888,15 @@ export function EditFighterModal({
           submitData.fighter_type_id = null;
           submitData.fighter_sub_type = null;
           submitData.fighter_sub_type_id = null;
+          // client-only: used by the optimistic fighter_type overlay, not forwarded to the server
+          submitData.gang_type_id = fighterTypeToUse.gang_type_id ?? null;
+          submitData.custom_gang_type_id = fighterTypeToUse.custom_gang_type_id ?? null;
         } else {
           submitData.fighter_type_id = fighterTypeToUse.id;
           submitData.custom_fighter_type_id = null;
+          // client-only: used by the optimistic fighter_type overlay, not forwarded to the server
+          submitData.gang_type_id = fighterTypeToUse.gang_type_id ?? null;
+          submitData.custom_gang_type_id = null;
           submitData.fighter_sub_type = selectedSubType && selectedSubType.fighter_sub_type !== 'Default' ? selectedSubType.fighter_sub_type : null;
           submitData.fighter_sub_type_id = selectedSubType && selectedSubType.fighter_sub_type !== 'Default' ? selectedSubType.id : null;
         }

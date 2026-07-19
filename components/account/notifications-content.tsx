@@ -1,23 +1,25 @@
 'use client';
 
-import { useCallback, useState, useEffect } from 'react';
-import { LuOctagonX, LuUserPlus, LuTriangleAlert } from "react-icons/lu";
+import { useCallback, useState, useEffect, type MouseEvent } from 'react';
+import { LuOctagonX, LuUserPlus, LuTriangleAlert, LuSwords, LuLink2, LuArrowUpRight } from "react-icons/lu";
 import { LuCheck } from "react-icons/lu";
 import { ImInfo } from "react-icons/im";
 import { HiX } from "react-icons/hi";
 import { cn } from '@/app/lib/utils';
 import { useFetchNotifications } from '../../hooks/use-notifications';
 import { useRouter, usePathname } from 'next/navigation';
+import Link from 'next/link';
 import Modal from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { acceptFriendRequest, declineFriendRequest } from '@/app/actions/friends';
 import { acceptGangInvite, declineGangInvite } from '@/app/actions/campaigns/[id]/campaign-gangs';
 import { LuTrash2 } from "react-icons/lu";
+import { notificationTextToHtml, type NotificationType, shouldShowNotificationLinkAttachment, resolveNotificationLink, getNotificationLinkLabel, getNotificationLinkDescription } from '@/utils/notifications';
 
 type Notification = {
   id: string;
   text: string;
-  type: 'info' | 'warning' | 'error' | 'invite' | 'friend_request' | 'gang_invite';
+  type: NotificationType;
   created_at: string;
   dismissed: boolean;
   link: string | null;
@@ -175,25 +177,105 @@ export default function NotificationsContent({ userId }: { userId: string }) {
     return `${months}mo ago`;
   };
 
-  // Render notification text with **bold** support (escapes HTML for XSS safety)
-  const renderNotificationText = (text: string) => {
-    const escaped = text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-    return escaped.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  // Render notification text with **bold** support (escapes HTML for XSS safety).
+  // Shared with the email worker via utils/notifications/render so both channels match.
+  const renderNotificationText = (text: string) => notificationTextToHtml(text);
+
+  const handleNotificationLinkClick = (
+    event: MouseEvent,
+    notification: Notification
+  ) => {
+    event.stopPropagation();
+
+    if (!shouldShowNotificationLinkAttachment(notification.type, notification.link)) {
+      return;
+    }
+
+    const resolved = resolveNotificationLink(notification.link);
+    if (!resolved) {
+      return;
+    }
+
+    const { href, isExternal } = resolved;
+
+    if (isExternal) {
+      window.open(href, '_blank', 'noopener,noreferrer');
+    } else {
+      router.push(href);
+    }
+
+    if (!notification.dismissed) {
+      dismissNotification(notification.id);
+    }
+  };
+
+  const renderNotificationLinkAttachment = (notification: Notification) => {
+    if (!shouldShowNotificationLinkAttachment(notification.type, notification.link)) {
+      return null;
+    }
+
+    const resolved = resolveNotificationLink(notification.link);
+    if (!resolved) {
+      return null;
+    }
+
+    const { href, isExternal } = resolved;
+    const label = getNotificationLinkLabel(notification.link);
+    const description = getNotificationLinkDescription(notification.link);
+
+    const attachmentContent = (
+      <>
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border bg-background">
+          <LuLink2 className="h-4 w-4 text-muted-foreground" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium leading-tight">{label}</p>
+          <p className="text-xs text-muted-foreground truncate">{description}</p>
+        </div>
+        <LuArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+      </>
+    );
+
+    const attachmentClassName =
+      'flex w-full items-center gap-3 rounded-md border bg-muted/40 px-3 py-2.5 text-left transition-colors hover:bg-muted/70';
+
+    if (isExternal) {
+      return (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={attachmentClassName}
+          onClick={(event) => handleNotificationLinkClick(event, notification)}
+        >
+          {attachmentContent}
+        </a>
+      );
+    }
+
+    return (
+      <Link
+        href={href}
+        className={attachmentClassName}
+        onClick={(event) => handleNotificationLinkClick(event, notification)}
+      >
+        {attachmentContent}
+      </Link>
+    );
   };
 
   // Get icon based on notification type
-  const getNotificationIcon = (type: 'info' | 'warning' | 'error' | 'invite' | 'friend_request' | 'gang_invite') => {
+  const getNotificationIcon = (type: NotificationType) => {
     switch (type) {
       case 'error':
         return <LuOctagonX className="h-5 w-5 text-red-500" />;
       case 'warning':
         return <LuTriangleAlert className="h-5 w-5 text-amber-500" />;
-      case 'invite':
+      case 'invite': // legacy: pre-split campaign/battle invites
+      case 'campaign_invite':
         return <LuUserPlus className="h-5 w-5 text-indigo-500" />;
+      case 'battle_invite':
+        return <LuSwords className="h-5 w-5 text-rose-500" />;
       case 'friend_request':
         return <LuUserPlus className="h-5 w-5 text-green-500" />;
       case 'gang_invite':
@@ -219,20 +301,8 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                 key={notification.id}
                 className={cn(
                   "p-4 rounded-lg border transition-colors",
-                  notification.dismissed
-                    ? "bg-muted"
-                    : "hover:bg-muted",
-                  notification.link && notification.type !== 'friend_request' && notification.type !== 'gang_invite' && "cursor-pointer"
+                  notification.dismissed ? "bg-muted" : "hover:bg-muted"
                 )}
-                onClick={() => {
-                  // Only navigate on click if it's not a friend/gang request and has a link
-                  if (notification.link && notification.type !== 'friend_request' && notification.type !== 'gang_invite') {
-                    router.push(notification.link);
-                    if (!notification.dismissed) {
-                      dismissNotification(notification.id);
-                    }
-                  }
-                }}
               >
                 <div className="flex items-start">
                   <div className="mr-3 shrink-0 mt-0.5">
@@ -243,7 +313,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                       className="text-sm mb-1 whitespace-pre-line"
                       dangerouslySetInnerHTML={{ __html: renderNotificationText(notification.text) }}
                     />
-                    <p className="text-xs text-muted-foreground mb-2">
+                    <p className="text-xs text-muted-foreground">
                       {timeAgo(notification.created_at)}
                     </p>
                   </div>
@@ -324,6 +394,11 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                     </Button>
                   )}
                 </div>
+                {shouldShowNotificationLinkAttachment(notification.type, notification.link) && (
+                  <div className="mt-3 ml-8 border-t border-border/60 pt-3">
+                    {renderNotificationLinkAttachment(notification)}
+                  </div>
+                )}
               </div>
             ))}
           </div>

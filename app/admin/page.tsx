@@ -1,6 +1,6 @@
 'use client';
 
-import { LuUsers, LuSword, LuCar, LuBookOpen, LuScrollText, LuBookUser, LuHeartCrack, LuSearch } from "react-icons/lu";
+import { LuUsers, LuSword, LuCar, LuBookOpen, LuScrollText, LuBookUser, LuHeartCrack, LuSearch, LuBell } from "react-icons/lu";
 import { LuChartColumn } from "react-icons/lu";
 import { PiFlagBannerFoldBold } from "react-icons/pi";
 import { LuSquarePen } from 'react-icons/lu';
@@ -19,6 +19,7 @@ import { AdminScenariosModal } from "@/components/admin/admin-scenarios-modal";
 import { AdminInjuriesGlitchesModal } from "@/components/admin/admin-injuries";
 import { AdminCampaignManagementModal } from "@/components/admin/admin-campaign-management";
 import { AdminSupportToolsModal } from "@/components/admin/admin-support-tools";
+import { AdminNotificationsModal } from "@/components/admin/admin-notifications-modal";
 
 export default function AdminPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -35,6 +36,7 @@ export default function AdminPage() {
   const [showInjuriesGlitches, setShowInjuriesGlitches] = useState(false);
   const [showCampaignManagement, setShowCampaignManagement] = useState(false);
   const [showSupportTools, setShowSupportTools] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   const coreSections = [
     {
@@ -125,6 +127,13 @@ export default function AdminPage() {
     icon: LuSearch
   };
 
+  const notificationsSection = {
+    title: "Notifications",
+    description: "Send a message to one or more users",
+    action: () => setShowNotifications(true),
+    icon: LuBell
+  };
+
   return (
     <>      
       <main className="flex min-h-screen flex-col items-center">
@@ -155,7 +164,7 @@ export default function AdminPage() {
             <hr className="my-6 border-t border-border" />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[supportToolsSection, statsSection].map((section) => (
+              {[supportToolsSection, notificationsSection, statsSection].map((section) => (
                 <button
                   key={section.title}
                   onClick={section.action}
@@ -277,6 +286,12 @@ export default function AdminPage() {
           <AdminSupportToolsModal
             onClose={() => setShowSupportTools(false)}
             onSubmit={() => setShowSupportTools(false)}
+          />
+        )}
+
+        {showNotifications && (
+          <AdminNotificationsModal
+            onClose={() => setShowNotifications(false)}
           />
         )}
       </main>

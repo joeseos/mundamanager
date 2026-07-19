@@ -201,7 +201,16 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         fighter_type: {
           fighter_type_id: fighterTypeData?.id || fighterBasic.custom_fighter_type_id || '',
           fighter_type: fighterBasic.fighter_type || fighterTypeData?.fighter_type || 'Unknown',
-          alliance_crew_name: fighterTypeData?.alliance_crew_name
+          alliance_crew_name: fighterTypeData?.alliance_crew_name,
+          // Prefer the fighter type's own gang association; fall back to the owning gang's type
+          // so the promotion dropdown is never silently empty (e.g. when a custom gang type was deleted).
+          gang_type_id: fighterTypeData?.gang_type_id
+            || fighterBasic.custom_fighter_type?.gang_type_id
+            || gangBasic.gang_type_id
+            || null,
+          custom_gang_type_id: fighterBasic.custom_fighter_type?.custom_gang_type_id
+            || gangBasic.custom_gang_type_id
+            || null,
         },
         fighter_sub_type: fighterSubTypeData ? {
           id: fighterSubTypeData.fighter_sub_type_id,

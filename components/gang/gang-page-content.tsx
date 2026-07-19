@@ -736,7 +736,7 @@ export default function GangPageContent({
                           injuries: isSpyrer ? [] : updatedInjuries,
                           'rig-glitches': isSpyrer
                             ? updatedInjuries
-                            : f.effects['rig-glitches'],
+                            : (f.effects?.['rig-glitches'] || []),
                         },
                       };
                     }),

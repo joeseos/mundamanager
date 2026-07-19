@@ -5,6 +5,7 @@ import PasswordChange from "@/components/password-change";
 import EmailChange from "@/components/account/email-change";
 import UsernameChange from "@/components/account/username-change";
 import { NotificationsSection } from "@/components/settings-modal";
+import NotificationPreferences from "@/components/account/notification-preferences";
 import FriendsSearchBar from "@/components/account/friends";
 import { getFriendsAndRequests } from "@/app/lib/friends";
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
@@ -28,6 +29,12 @@ export default async function AccountPage() {
 
   // Fetch all friends and requests
   const friends = await getFriendsAndRequests(user.id, supabase);
+
+  // Fetch the user's email notification preferences (RLS-scoped to this user).
+  const { data: notificationPreferences } = await supabase
+    .from('user_notification_preferences')
+    .select('notification_type, enabled')
+    .eq('user_id', user.id);
 
   return (
     <main className="flex min-h-screen flex-col items-center">
@@ -108,6 +115,14 @@ export default async function AccountPage() {
           <div className="mt-6">
             <h3 className="text-lg font-semibold mb-3">Notifications</h3>
             <NotificationsSection userId={user.id} />
+          </div>
+
+          {/* Email notification preferences */}
+          <div className="mt-6">
+            <h3 className="text-lg font-semibold mb-3">Email preferences</h3>
+            <NotificationPreferences
+              initialPreferences={notificationPreferences ?? []}
+            />
           </div>
         </div>
       </div>

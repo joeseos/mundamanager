@@ -37,6 +37,123 @@ export interface CreateCustomFighterData {
   }[];
   default_skills?: string[];
   default_equipment?: string[];
+  equipment_list?: string[];
+}
+
+// Fetch a custom fighter type with all its related data (skill access, default
+// skills, default equipment, and equipment list) transformed into CustomFighterType.
+// Shared by createCustomFighter and updateCustomFighter to avoid duplication.
+async function getCompleteCustomFighter(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  fighterId: string
+): Promise<{ data?: CustomFighterType; error?: string }> {
+  const { data: completeFighter, error: fetchError } = await supabase
+    .from('custom_fighter_types')
+    .select(`
+      *,
+      fighter_type_skill_access (
+        skill_type_id,
+        custom_skill_type_id,
+        access_level,
+        skill_types (
+          id,
+          name
+        ),
+        custom_skill_types (
+          id,
+          name
+        )
+      ),
+      fighter_defaults!fighter_defaults_custom_fighter_type_id_fkey (
+        skill_id,
+        equipment_id,
+        custom_equipment_id,
+        skills (
+          id,
+          name,
+          skill_type_id
+        ),
+        equipment (
+          id,
+          equipment_name
+        ),
+        custom_equipment (
+          id,
+          equipment_name
+        )
+      ),
+      custom_fighter_type_equipment (
+        equipment_id,
+        custom_equipment_id,
+        equipment (
+          id,
+          equipment_name
+        ),
+        custom_equipment (
+          id,
+          equipment_name
+        )
+      )
+    `)
+    .eq('id', fighterId)
+    .single();
+
+  if (fetchError) {
+    console.error('Error fetching complete fighter data:', fetchError);
+    return { error: `Failed to fetch complete fighter data: ${fetchError.message}` };
+  }
+
+  // Transform the data to match CustomFighterType interface
+  const skillAccessData = (completeFighter.fighter_type_skill_access || []) as any[];
+  const defaultsData = (completeFighter.fighter_defaults || []) as any[];
+  const equipmentListData = (completeFighter.custom_fighter_type_equipment || []) as any[];
+
+  const transformedFighter: CustomFighterType = {
+    ...completeFighter,
+    skill_access: skillAccessData.map((sa) => ({
+      skill_type_id: sa.skill_type_id || sa.custom_skill_type_id,
+      access_level: sa.access_level,
+      skill_type_name: sa.skill_types?.name || sa.custom_skill_types?.name || 'Unknown',
+      is_custom: !!sa.custom_skill_type_id
+    })),
+    default_skills: defaultsData
+      .filter((d) => d.skill_id)
+      .map((d) => ({
+        skill_id: d.skill_id,
+        skill_name: d.skills?.name || 'Unknown',
+        skill_type_id: d.skills?.skill_type_id || ''
+      })),
+    default_equipment: [
+      ...defaultsData
+        .filter((d) => d.equipment_id)
+        .map((d) => ({
+          equipment_id: d.equipment_id,
+          equipment_name: d.equipment?.equipment_name || 'Unknown'
+        })),
+      ...defaultsData
+        .filter((d) => d.custom_equipment_id)
+        .map((d) => ({
+          equipment_id: `custom_${d.custom_equipment_id}`,
+          equipment_name: `${d.custom_equipment?.equipment_name || 'Unknown'} (Custom)`
+        }))
+    ],
+    equipment_list: [
+      ...equipmentListData
+        .filter((e) => e.equipment_id)
+        .map((e) => ({
+          equipment_id: e.equipment_id,
+          equipment_name: e.equipment?.equipment_name || 'Unknown'
+        })),
+      ...equipmentListData
+        .filter((e) => e.custom_equipment_id)
+        .map((e) => ({
+          equipment_id: `custom_${e.custom_equipment_id}`,
+          equipment_name: `${e.custom_equipment?.equipment_name || 'Unknown'} (Custom)`
+        }))
+    ]
+  };
+
+  return { data: transformedFighter };
 }
 
 export async function createCustomFighter(data: CreateCustomFighterData): Promise<{ success: boolean; data?: CustomFighterType; error?: string }> {
@@ -148,85 +265,35 @@ export async function createCustomFighter(data: CreateCustomFighterData): Promis
       }
     }
 
-    // Fetch the complete fighter data with default_skills and default_equipment
-    const { data: completeFighter, error: fetchError } = await supabase
-      .from('custom_fighter_types')
-      .select(`
-        *,
-        fighter_type_skill_access (
-          skill_type_id,
-          custom_skill_type_id,
-          access_level,
-          skill_types (
-            id,
-            name
-          ),
-          custom_skill_types (
-            id,
-            name
-          )
-        ),
-        fighter_defaults!fighter_defaults_custom_fighter_type_id_fkey (
-          skill_id,
-          equipment_id,
-          custom_equipment_id,
-          skills (
-            id,
-            name,
-            skill_type_id
-          ),
-          equipment (
-            id,
-            equipment_name
-          ),
-          custom_equipment (
-            id,
-            equipment_name
-          )
-        )
-      `)
-      .eq('id', newCustomFighter.id)
-      .single();
+    // Handle equipment list if provided
+    if (data.equipment_list && Array.isArray(data.equipment_list) && data.equipment_list.length > 0) {
+      const equipmentListRows = data.equipment_list.map((equipmentId) => {
+        // Check if this is a custom equipment ID (prefixed with 'custom_')
+        const isCustomEquipment = equipmentId.startsWith('custom_');
 
-    if (fetchError) {
-      console.error('Error fetching complete fighter data:', fetchError);
-      return { success: false, error: `Failed to fetch complete fighter data: ${fetchError.message}` };
+        return {
+          user_id: user.id,
+          custom_fighter_type_id: newCustomFighter.id,
+          equipment_id: isCustomEquipment ? null : equipmentId,
+          custom_equipment_id: isCustomEquipment ? equipmentId.replace('custom_', '') : null
+        };
+      });
+
+      const { error: equipmentListError } = await supabase
+        .from('custom_fighter_type_equipment')
+        .insert(equipmentListRows);
+
+      if (equipmentListError) {
+        console.error('Error inserting equipment list:', equipmentListError);
+        return { success: false, error: `Failed to create equipment list: ${equipmentListError.message}` };
+      }
     }
 
-    // Transform the data to match CustomFighterType interface
-    const skillAccessData = (completeFighter.fighter_type_skill_access || []) as any[];
-    const defaultsData = (completeFighter.fighter_defaults || []) as any[];
-
-    const transformedFighter: CustomFighterType = {
-      ...completeFighter,
-      skill_access: skillAccessData.map((sa) => ({
-        skill_type_id: sa.skill_type_id || sa.custom_skill_type_id,
-        access_level: sa.access_level,
-        skill_type_name: sa.skill_types?.name || sa.custom_skill_types?.name || 'Unknown',
-        is_custom: !!sa.custom_skill_type_id
-      })),
-      default_skills: defaultsData
-        .filter((d) => d.skill_id)
-        .map((d) => ({
-          skill_id: d.skill_id,
-          skill_name: d.skills?.name || 'Unknown',
-          skill_type_id: d.skills?.skill_type_id || ''
-        })),
-      default_equipment: [
-        ...defaultsData
-          .filter((d) => d.equipment_id)
-          .map((d) => ({
-            equipment_id: d.equipment_id,
-            equipment_name: d.equipment?.equipment_name || 'Unknown'
-          })),
-        ...defaultsData
-          .filter((d) => d.custom_equipment_id)
-          .map((d) => ({
-            equipment_id: `custom_${d.custom_equipment_id}`,
-            equipment_name: `${d.custom_equipment?.equipment_name || 'Unknown'} (Custom)`
-          }))
-      ]
-    };
+    // Fetch the complete fighter data with skill access, default skills/equipment, and equipment list
+    const { data: transformedFighter, error: completeError } = await getCompleteCustomFighter(supabase, newCustomFighter.id);
+    if (completeError || !transformedFighter) {
+      return { success: false, error: completeError || 'Failed to fetch complete fighter data' };
+    }
 
     invalidateUserCustoms(user.id);
     return { success: true, data: transformedFighter };
@@ -431,85 +498,46 @@ export async function updateCustomFighter(id: string, data: CreateCustomFighterD
       }
     }
 
-    // Fetch the complete fighter data with default_skills and default_equipment
-    const { data: completeFighter, error: fetchCompleteError } = await supabase
-      .from('custom_fighter_types')
-      .select(`
-        *,
-        fighter_type_skill_access (
-          skill_type_id,
-          custom_skill_type_id,
-          access_level,
-          skill_types (
-            id,
-            name
-          ),
-          custom_skill_types (
-            id,
-            name
-          )
-        ),
-        fighter_defaults!fighter_defaults_custom_fighter_type_id_fkey (
-          skill_id,
-          equipment_id,
-          custom_equipment_id,
-          skills (
-            id,
-            name,
-            skill_type_id
-          ),
-          equipment (
-            id,
-            equipment_name
-          ),
-          custom_equipment (
-            id,
-            equipment_name
-          )
-        )
-      `)
-      .eq('id', id)
-      .single();
+    // Delete existing equipment list (will be replaced with new ones)
+    const { error: deleteEquipmentListError } = await supabase
+      .from('custom_fighter_type_equipment')
+      .delete()
+      .eq('custom_fighter_type_id', id);
 
-    if (fetchCompleteError) {
-      console.error('Error fetching complete fighter data:', fetchCompleteError);
-      return { success: false, error: `Failed to fetch complete fighter data: ${fetchCompleteError.message}` };
+    if (deleteEquipmentListError) {
+      console.error('Error deleting existing equipment list:', deleteEquipmentListError);
+      return { success: false, error: `Failed to update equipment list: ${deleteEquipmentListError.message}` };
     }
 
-    // Transform the data to match CustomFighterType interface
-    const skillAccessData = (completeFighter.fighter_type_skill_access || []) as any[];
-    const defaultsData = (completeFighter.fighter_defaults || []) as any[];
+    // Handle equipment list if provided
+    if (data.equipment_list && Array.isArray(data.equipment_list) && data.equipment_list.length > 0) {
+      const equipmentListRows = data.equipment_list.map((equipmentId) => {
+        // Check if this is a custom equipment ID (prefixed with 'custom_')
+        const isCustomEquipment = equipmentId.startsWith('custom_');
 
-    const transformedFighter: CustomFighterType = {
-      ...completeFighter,
-      skill_access: skillAccessData.map((sa) => ({
-        skill_type_id: sa.skill_type_id || sa.custom_skill_type_id,
-        access_level: sa.access_level,
-        skill_type_name: sa.skill_types?.name || sa.custom_skill_types?.name || 'Unknown',
-        is_custom: !!sa.custom_skill_type_id
-      })),
-      default_skills: defaultsData
-        .filter((d) => d.skill_id)
-        .map((d) => ({
-          skill_id: d.skill_id,
-          skill_name: d.skills?.name || 'Unknown',
-          skill_type_id: d.skills?.skill_type_id || ''
-        })),
-      default_equipment: [
-        ...defaultsData
-          .filter((d) => d.equipment_id)
-          .map((d) => ({
-            equipment_id: d.equipment_id,
-            equipment_name: d.equipment?.equipment_name || 'Unknown'
-          })),
-        ...defaultsData
-          .filter((d) => d.custom_equipment_id)
-          .map((d) => ({
-            equipment_id: `custom_${d.custom_equipment_id}`,
-            equipment_name: `${d.custom_equipment?.equipment_name || 'Unknown'} (Custom)`
-          }))
-      ]
-    };
+        return {
+          user_id: user.id,
+          custom_fighter_type_id: id,
+          equipment_id: isCustomEquipment ? null : equipmentId,
+          custom_equipment_id: isCustomEquipment ? equipmentId.replace('custom_', '') : null
+        };
+      });
+
+      const { error: equipmentListError } = await supabase
+        .from('custom_fighter_type_equipment')
+        .insert(equipmentListRows);
+
+      if (equipmentListError) {
+        console.error('Error inserting equipment list:', equipmentListError);
+        return { success: false, error: `Failed to update equipment list: ${equipmentListError.message}` };
+      }
+    }
+
+    // Fetch the complete fighter data with skill access, default skills/equipment, and equipment list
+    const { data: transformedFighter, error: completeError } = await getCompleteCustomFighter(supabase, id);
+    if (completeError || !transformedFighter) {
+      return { success: false, error: completeError || 'Failed to fetch complete fighter data' };
+    }
 
     invalidateUserCustoms(user.id);
     return { success: true, data: transformedFighter };

@@ -243,7 +243,7 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
   );
 
   const nextTargetWeaponId = profiles[0]?.weapon_group_id ?? null;
-  if (nextTargetWeaponId !== storedTargetWeaponId) {
+  if (profiles.length > 0 && nextTargetWeaponId !== storedTargetWeaponId) {
     setStoredTargetWeaponId(nextTargetWeaponId);
   }
 
