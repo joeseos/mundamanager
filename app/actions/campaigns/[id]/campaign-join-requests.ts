@@ -5,7 +5,6 @@ import { revalidateTag } from "next/cache";
 import { CACHE_TAGS } from "@/utils/cache-tags";
 import { getAuthenticatedUser } from '@/utils/auth';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
-import { addMemberToCampaign } from './campaign-members';
 
 export interface JoinRequestParams {
   campaignId: string;
@@ -116,86 +115,33 @@ export async function withdrawJoinRequest(params: JoinRequestParams) {
 export async function acceptJoinRequest(params: ResolveJoinRequestParams) {
   try {
     const supabase = await createClient();
-    const user = await getAuthenticatedUser(supabase);
+    await getAuthenticatedUser(supabase);
     const { campaignId, userId } = params;
 
-    const isArbitrator = await checkCampaignArbitrator(user.id, campaignId);
-    if (!isArbitrator) {
+    // Authorize, add the member (skipping if already one), delete the request, and
+    // clear the arbitrators' notifications — all in one SECURITY DEFINER transaction.
+    // The request row is locked FOR UPDATE, so concurrent accepts can't create
+    // duplicate members, and a mid-way failure rolls back cleanly (no request to
+    // restore by hand). See supabase/functions/accept_campaign_join_request.sql.
+    const { data: outcome, error } = await supabase.rpc('accept_campaign_join_request', {
+      p_campaign_id: campaignId,
+      p_user_id: userId,
+    });
+
+    if (error) throw error;
+
+    if (outcome === 'not_authorized') {
       return { success: false, error: 'Only campaign owners and arbitrators can accept join requests' };
     }
 
-    // Atomically claim the request by deleting it. campaign_join_requests has a
-    // UNIQUE (campaign_id, user_id) constraint and each PostgREST call runs in its
-    // own transaction, so of two concurrent accepts exactly one deletes the row and
-    // gets it back via RETURNING; the other (and any already withdrawn/declined
-    // request) deletes nothing. Only the winner adds the member. This closes the
-    // check-then-act race that would otherwise create duplicate campaign_members
-    // rows — that table has no unique constraint on (campaign_id, user_id), and
-    // addMemberToCampaign inserts unconditionally.
-    const { data: claimed, error: claimError } = await supabase
-      .from('campaign_join_requests')
-      .delete()
-      .eq('campaign_id', campaignId)
-      .eq('user_id', userId)
-      .select('id');
-
-    if (claimError) throw claimError;
-
-    // Lost the race, or the request was already withdrawn/declined/handled.
-    if (!claimed || claimed.length === 0) {
-      await cleanupJoinRequestNotifications(campaignId, userId);
-      return { success: true };
+    // Only 'accepted' actually changed membership; refresh the member/overview
+    // caches and the requester's own campaign list. 'already_member'/'no_request'
+    // touched no membership state.
+    if (outcome === 'accepted') {
+      revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId), { expire: 0 });
+      revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId), { expire: 0 });
+      revalidateTag(CACHE_TAGS.USER_CAMPAIGNS(userId), { expire: 0 });
     }
-
-    // We own the claim. Skip the insert if the user was already added by another
-    // path (e.g. a direct invite) between requesting and now — addMemberToCampaign
-    // is not idempotent, so guarding here avoids a duplicate row.
-    const { data: existingMembers, error: memberError } = await supabase
-      .from('campaign_members')
-      .select('id')
-      .eq('campaign_id', campaignId)
-      .eq('user_id', userId)
-      .limit(1);
-
-    if (memberError) throw memberError;
-
-    if (!existingMembers || existingMembers.length === 0) {
-      // Fires notify_campaign_member_added (acceptance notice to the requester)
-      // and invalidates the campaign member/overview caches.
-      const addResult = await addMemberToCampaign({
-        campaignId,
-        userId,
-        role: 'MEMBER',
-        invitedBy: user.id
-      });
-
-      if (!addResult.success) {
-        // addMemberToCampaign failed (a transient error — the arbitrator check and
-        // the campaign_members RLS both already passed). Restore the claimed request
-        // so it isn't silently dropped and an arbitrator can retry. This must use the
-        // service-role client: the row's user_id is the requester, not the acting
-        // arbitrator, so the self-insert RLS policy (user_id = auth.uid()) would
-        // reject a normal insert. Clear the original notifications first so the
-        // restore's fan-out trigger produces exactly one notification (and one email)
-        // per arbitrator instead of stacking a duplicate set on top of the originals.
-        await cleanupJoinRequestNotifications(campaignId, userId);
-        const serviceClient = createServiceRoleClient();
-        const { error: restoreError } = await serviceClient
-          .from('campaign_join_requests')
-          .insert({ campaign_id: campaignId, user_id: userId });
-        if (restoreError) {
-          // A UNIQUE violation just means the requester already re-requested, so an
-          // active request exists anyway — the desired end state still holds.
-          console.error('Error restoring join request after failed accept:', restoreError);
-        }
-        return { success: false, error: addResult.error };
-      }
-    }
-
-    await cleanupJoinRequestNotifications(campaignId, userId);
-
-    // The requester's own campaign list now includes this campaign
-    revalidateTag(CACHE_TAGS.USER_CAMPAIGNS(userId), { expire: 0 });
 
     return { success: true };
   } catch (error) {
