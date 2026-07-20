@@ -124,57 +124,60 @@ export async function acceptJoinRequest(params: ResolveJoinRequestParams) {
       return { success: false, error: 'Only campaign owners and arbitrators can accept join requests' };
     }
 
-    const [{ data: request, error: requestError }, { data: existingMembers, error: memberError }] = await Promise.all([
-      supabase
-        .from('campaign_join_requests')
-        .select('id')
-        .eq('campaign_id', campaignId)
-        .eq('user_id', userId)
-        .maybeSingle(),
-      supabase
-        .from('campaign_members')
-        .select('id')
-        .eq('campaign_id', campaignId)
-        .eq('user_id', userId)
-        .limit(1)
-    ]);
+    // Atomically claim the request by deleting it. campaign_join_requests has a
+    // UNIQUE (campaign_id, user_id) constraint and each PostgREST call runs in its
+    // own transaction, so of two concurrent accepts exactly one deletes the row and
+    // gets it back via RETURNING; the other (and any already withdrawn/declined
+    // request) deletes nothing. Only the winner adds the member. This closes the
+    // check-then-act race that would otherwise create duplicate campaign_members
+    // rows — that table has no unique constraint on (campaign_id, user_id), and
+    // addMemberToCampaign inserts unconditionally.
+    const { data: claimed, error: claimError } = await supabase
+      .from('campaign_join_requests')
+      .delete()
+      .eq('campaign_id', campaignId)
+      .eq('user_id', userId)
+      .select('id');
 
-    if (requestError) throw requestError;
-    if (memberError) throw memberError;
+    if (claimError) throw claimError;
 
-    // Another arbitrator already accepted: just clean up any lingering request.
-    // Do NOT call addMemberToCampaign — it would insert a duplicate member row.
-    if (existingMembers && existingMembers.length > 0) {
-      if (request) {
-        await supabase.from('campaign_join_requests').delete().eq('id', request.id);
-      }
+    // Lost the race, or the request was already withdrawn/declined/handled.
+    if (!claimed || claimed.length === 0) {
       await cleanupJoinRequestNotifications(campaignId, userId);
       return { success: true };
     }
 
-    if (!request) {
-      return { success: false, error: 'This join request has already been handled' };
+    // We own the claim. Skip the insert if the user was already added by another
+    // path (e.g. a direct invite) between requesting and now — addMemberToCampaign
+    // is not idempotent, so guarding here avoids a duplicate row.
+    const { data: existingMembers, error: memberError } = await supabase
+      .from('campaign_members')
+      .select('id')
+      .eq('campaign_id', campaignId)
+      .eq('user_id', userId)
+      .limit(1);
+
+    if (memberError) throw memberError;
+
+    if (!existingMembers || existingMembers.length === 0) {
+      // Fires notify_campaign_member_added (acceptance notice to the requester)
+      // and invalidates the campaign member/overview caches.
+      const addResult = await addMemberToCampaign({
+        campaignId,
+        userId,
+        role: 'MEMBER',
+        invitedBy: user.id
+      });
+
+      if (!addResult.success) {
+        // Restore the claimed request so a transient failure doesn't silently drop
+        // it — the arbitrator can retry from their (still-present) notification.
+        await supabase
+          .from('campaign_join_requests')
+          .insert({ campaign_id: campaignId, user_id: userId });
+        return { success: false, error: addResult.error };
+      }
     }
-
-    // Fires notify_campaign_member_added (acceptance notice to the requester)
-    // and invalidates the campaign member/overview caches.
-    const addResult = await addMemberToCampaign({
-      campaignId,
-      userId,
-      role: 'MEMBER',
-      invitedBy: user.id
-    });
-
-    if (!addResult.success) {
-      return { success: false, error: addResult.error };
-    }
-
-    const { error: deleteError } = await supabase
-      .from('campaign_join_requests')
-      .delete()
-      .eq('id', request.id);
-
-    if (deleteError) throw deleteError;
 
     await cleanupJoinRequestNotifications(campaignId, userId);
 
