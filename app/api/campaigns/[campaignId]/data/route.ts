@@ -466,7 +466,6 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
           campaign_member_id: member.id,
           username: member.username,
           role: member.role,
-          status: member.status,
           invited_at: member.invited_at,
           joined_at: member.joined_at
         },

@@ -48,7 +48,6 @@ interface UserData {
   campaigns: Array<{
     id: string; // campaign_members id
     role: string;
-    status: string;
     joined_at: string;
     campaign_id: string;
     campaign: {

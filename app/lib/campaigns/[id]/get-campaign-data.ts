@@ -69,7 +69,6 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
       id,
       user_id,
       role,
-      status,
       invited_at,
       joined_at,
       invited_by
@@ -332,7 +331,6 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
       user_id: member.user_id,
       username: memberProfile?.username || '',
       role: member.role,
-      status: member.status,
       invited_at: member.invited_at,
       joined_at: member.joined_at,
       invited_by: member.invited_by,

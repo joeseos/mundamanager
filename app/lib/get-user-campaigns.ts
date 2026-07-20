@@ -10,7 +10,6 @@ export type Campaign = {
   created_at: string;
   updated_at: string;
   role?: string;
-  status?: string;
   image_url: string;
   campaign_type_image_url: string;
   user_gangs?: { id: string; name: string }[];
@@ -25,7 +24,7 @@ export const getUserCampaigns = async (userId: string, supabase: any): Promise<C
       try {
         const { data: campaignMembers, error: membersError } = await supabase
           .from('campaign_members')
-          .select('id, campaign_id, role, status, is_favourite, favourite_order')
+          .select('id, campaign_id, role, is_favourite, favourite_order')
           .eq('user_id', userId);
 
         if (membersError) {
@@ -81,7 +80,6 @@ export const getUserCampaigns = async (userId: string, supabase: any): Promise<C
             created_at: campaign.created_at,
             updated_at: campaign.updated_at,
             role: memberData?.role || '',
-            status: memberData?.status || '',
             image_url: campaign.image_url || '',
             campaign_type_image_url: typeData?.image_url || '',
             is_favourite: memberData?.is_favourite ?? false,

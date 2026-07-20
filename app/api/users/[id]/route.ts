@@ -52,7 +52,7 @@ export async function GET(
     // Step 1: get campaign membership rows
     const { data: campaignMembers, error: membersError } = await supabase
       .from('campaign_members')
-      .select('id, role, status, joined_at, campaign_id')
+      .select('id, role, joined_at, campaign_id')
       .eq('user_id', userId)
       .order('joined_at', { ascending: false })
 
@@ -84,7 +84,6 @@ export async function GET(
     const campaigns = (campaignMembers || []).map((m: any) => ({
       id: m.id,
       role: m.role,
-      status: m.status,
       joined_at: m.joined_at,
       campaign_id: m.campaign_id,
       campaign: m.campaign_id ? campaignsById[m.campaign_id] ?? null : null,

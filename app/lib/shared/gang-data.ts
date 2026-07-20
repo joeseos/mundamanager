@@ -92,7 +92,6 @@ export interface GangCampaign {
   campaign_gang_id: string;
   campaign_name: string;
   role: string;
-  status: string;
   invited_at?: string;
   invited_by?: string;
   trading_posts?: string[] | null;
@@ -483,7 +482,6 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
           campaign_allegiance_id,
           campaign_members!campaign_member_id (
             role,
-            status,
             invited_at,
             invited_by
           ),
@@ -714,7 +712,7 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
             // Fallback: query all campaign_members entries for this user in this campaign
             const { data: allMemberEntries } = await supabase
               .from('campaign_members')
-              .select('role, status, invited_at, invited_by')
+              .select('role, invited_at, invited_by')
               .eq('campaign_id', (cg.campaigns as any).id)
               .eq('user_id', (cg as any).user_id);
 
@@ -726,7 +724,7 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
                 'MEMBER': 1
               };
 
-              type MemberEntry = { role: string; status: string | null; invited_at: string; invited_by: string };
+              type MemberEntry = { role: string; invited_at: string; invited_by: string };
               memberData = allMemberEntries.reduce((highest: MemberEntry, current: MemberEntry) => {
                 const currentRank = roleHierarchy[current.role] || 0;
                 const highestRank = roleHierarchy[highest.role] || 0;
@@ -757,7 +755,6 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
             campaign_gang_id: cg.id,
             campaign_name: (cg.campaigns as any).campaign_name,
             role: (memberData as any)?.role,
-            status: (memberData as any)?.status,
             invited_at: (memberData as any)?.invited_at,
             invited_by: (memberData as any)?.invited_by,
             trading_posts: tradingPosts,
