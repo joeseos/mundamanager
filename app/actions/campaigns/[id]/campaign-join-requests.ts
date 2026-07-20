@@ -170,11 +170,24 @@ export async function acceptJoinRequest(params: ResolveJoinRequestParams) {
       });
 
       if (!addResult.success) {
-        // Restore the claimed request so a transient failure doesn't silently drop
-        // it — the arbitrator can retry from their (still-present) notification.
-        await supabase
+        // addMemberToCampaign failed (a transient error — the arbitrator check and
+        // the campaign_members RLS both already passed). Restore the claimed request
+        // so it isn't silently dropped and an arbitrator can retry. This must use the
+        // service-role client: the row's user_id is the requester, not the acting
+        // arbitrator, so the self-insert RLS policy (user_id = auth.uid()) would
+        // reject a normal insert. Clear the original notifications first so the
+        // restore's fan-out trigger produces exactly one notification (and one email)
+        // per arbitrator instead of stacking a duplicate set on top of the originals.
+        await cleanupJoinRequestNotifications(campaignId, userId);
+        const serviceClient = createServiceRoleClient();
+        const { error: restoreError } = await serviceClient
           .from('campaign_join_requests')
           .insert({ campaign_id: campaignId, user_id: userId });
+        if (restoreError) {
+          // A UNIQUE violation just means the requester already re-requested, so an
+          // active request exists anyway — the desired end state still holds.
+          console.error('Error restoring join request after failed accept:', restoreError);
+        }
         return { success: false, error: addResult.error };
       }
     }
