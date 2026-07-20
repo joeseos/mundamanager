@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict WdVckhelgtOM3NH5EyWkL3uJaVryXaIrikruCgweKX4DigJeAahQXFuylIEKrl2
+\restrict wZhaEjQRzrqHjGAaGoC2TL7el2vcW9Z9HpOfUNxMXVwfHTzKmS6Z0i8qZaFOnb7
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -5421,6 +5421,33 @@ CREATE TABLE public.fighter_loadouts (
 
 
 --
+-- Name: fighter_ooa_records; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.fighter_ooa_records (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    causing_fighter_id uuid,
+    causing_gang_id uuid,
+    causing_fighter_name text,
+    causing_fighter_class text,
+    causing_fighter_gang_id uuid,
+    causing_fighter_gang_name text,
+    injured_fighter_id uuid,
+    injured_gang_id uuid,
+    injured_fighter_name text,
+    injured_fighter_class text,
+    injured_gang_name text,
+    event_type text NOT NULL,
+    vehicle_type text,
+    vehicle_name text,
+    campaign_id uuid,
+    user_id uuid DEFAULT auth.uid(),
+    CONSTRAINT fighter_ooa_records_event_type_check CHECK ((event_type = ANY (ARRAY['out_of_action'::text, 'vehicle_wrecked'::text])))
+);
+
+
+--
 -- Name: fighter_skill_access_override; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6561,6 +6588,14 @@ ALTER TABLE ONLY public.fighter_loadouts
 
 
 --
+-- Name: fighter_ooa_records fighter_ooa_records_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_ooa_records
+    ADD CONSTRAINT fighter_ooa_records_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: fighter_skill_access_override fighter_skill_access_override_fighter_id_skill_type_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7186,6 +7221,20 @@ CREATE INDEX fighter_equipment_vehicle_id_idx ON public.fighter_equipment USING 
 --
 
 CREATE INDEX fighter_exotic_beasts_fighter_pet_id_idx ON public.fighter_exotic_beasts USING btree (fighter_pet_id);
+
+
+--
+-- Name: fighter_ooa_records_causing_fighter_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_ooa_records_causing_fighter_id_idx ON public.fighter_ooa_records USING btree (causing_fighter_id);
+
+
+--
+-- Name: fighter_ooa_records_injured_fighter_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_ooa_records_injured_fighter_id_idx ON public.fighter_ooa_records USING btree (injured_fighter_id);
 
 
 --
@@ -8691,6 +8740,46 @@ ALTER TABLE ONLY public.fighter_loadouts
 
 
 --
+-- Name: fighter_ooa_records fighter_ooa_records_campaign_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_ooa_records
+    ADD CONSTRAINT fighter_ooa_records_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.campaigns(id) ON DELETE SET NULL;
+
+
+--
+-- Name: fighter_ooa_records fighter_ooa_records_causing_fighter_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_ooa_records
+    ADD CONSTRAINT fighter_ooa_records_causing_fighter_id_fkey FOREIGN KEY (causing_fighter_id) REFERENCES public.fighters(id) ON DELETE SET NULL;
+
+
+--
+-- Name: fighter_ooa_records fighter_ooa_records_causing_gang_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_ooa_records
+    ADD CONSTRAINT fighter_ooa_records_causing_gang_id_fkey FOREIGN KEY (causing_gang_id) REFERENCES public.gangs(id) ON DELETE SET NULL;
+
+
+--
+-- Name: fighter_ooa_records fighter_ooa_records_injured_fighter_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_ooa_records
+    ADD CONSTRAINT fighter_ooa_records_injured_fighter_id_fkey FOREIGN KEY (injured_fighter_id) REFERENCES public.fighters(id) ON DELETE SET NULL;
+
+
+--
+-- Name: fighter_ooa_records fighter_ooa_records_injured_gang_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_ooa_records
+    ADD CONSTRAINT fighter_ooa_records_injured_gang_id_fkey FOREIGN KEY (injured_gang_id) REFERENCES public.gangs(id) ON DELETE SET NULL;
+
+
+--
 -- Name: fighter_skill_access_override fighter_skill_access_override_fighter_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9565,6 +9654,13 @@ CREATE POLICY "Allow authenticated users to view fighter exotic beasts" ON publi
 
 
 --
+-- Name: fighter_ooa_records Allow authenticated users to view fighter ooa records; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view fighter ooa records" ON public.fighter_ooa_records FOR SELECT TO authenticated USING (true);
+
+
+--
 -- Name: fighter_skill_access_override Allow authenticated users to view fighter skill access override; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -9995,6 +10091,28 @@ CREATE POLICY "Campaign owners and arbitrators can update campaign resources" ON
   WHERE ((cm.user_id = ( SELECT auth.uid() AS uid)) AND (cm.role = ANY (ARRAY['OWNER'::text, 'ARBITRATOR'::text]))))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (campaign_id IN ( SELECT cm.campaign_id
    FROM public.campaign_members cm
   WHERE ((cm.user_id = ( SELECT auth.uid() AS uid)) AND (cm.role = ANY (ARRAY['OWNER'::text, 'ARBITRATOR'::text])))))));
+
+
+--
+-- Name: fighter_ooa_records Gang owner, admin or arb can delete fighter ooa records; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Gang owner, admin or arb can delete fighter ooa records" ON public.fighter_ooa_records FOR DELETE TO authenticated USING ((private.is_admin() OR (causing_gang_id IN ( SELECT g.id
+   FROM public.gangs g
+  WHERE (g.user_id = auth.uid()))) OR (causing_gang_id IN ( SELECT cg.gang_id
+   FROM public.campaign_gangs cg
+  WHERE ((cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id))))));
+
+
+--
+-- Name: fighter_ooa_records Gang owner, admin or arb can insert fighter ooa records; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Gang owner, admin or arb can insert fighter ooa records" ON public.fighter_ooa_records FOR INSERT TO authenticated WITH CHECK ((private.is_admin() OR (causing_gang_id IN ( SELECT g.id
+   FROM public.gangs g
+  WHERE (g.user_id = auth.uid()))) OR (causing_gang_id IN ( SELECT cg.gang_id
+   FROM public.campaign_gangs cg
+  WHERE ((cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id))))));
 
 
 --
@@ -11920,6 +12038,12 @@ ALTER TABLE public.fighter_loadout_equipment ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.fighter_loadouts ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: fighter_ooa_records; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.fighter_ooa_records ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: fighter_skill_access_override; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -12343,5 +12467,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict WdVckhelgtOM3NH5EyWkL3uJaVryXaIrikruCgweKX4DigJeAahQXFuylIEKrl2
+\unrestrict wZhaEjQRzrqHjGAaGoC2TL7el2vcW9Z9HpOfUNxMXVwfHTzKmS6Z0i8qZaFOnb7
 
