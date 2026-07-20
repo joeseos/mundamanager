@@ -115,7 +115,6 @@ export interface Member {
   user_id: string;
   username: string;
   role: 'OWNER' | 'ARBITRATOR' | 'MEMBER';
-  status: string | null;
   invited_at: string;
   joined_at: string | null;
   invited_by: string;
