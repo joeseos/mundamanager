@@ -353,7 +353,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                         checked={scaleCardsToContent}
                         onCheckedChange={(checked) => setScaleCardsToContent(checked === true)}
                       />
-                      <span className="text-sm">Adjust Cards height to Content</span>
+                      <span className="text-sm">Adjust Cards Height to Content</span>
                     </label>
                   </>
                 )}
