@@ -53,14 +53,19 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
     defaultEnabled: true,
     subject: 'You have a new friend request on Munda Manager',
   },
+  // Requests to join a campaign — every OWNER/ARBITRATOR is asked to accept/decline.
+  campaign_join_request: {
+    label: 'Campaign join requests',
+    supportsEmail: true,
+    defaultEnabled: true,
+    subject: 'Someone wants to join your campaign',
+  },
   // Not email-eligible (in-app only) — kept here so the type union is exhaustive.
   info: { label: 'Account & campaign updates', supportsEmail: false, defaultEnabled: false, subject: '' },
   warning: { label: 'Warnings', supportsEmail: false, defaultEnabled: false, subject: '' },
   error: { label: 'Errors', supportsEmail: false, defaultEnabled: false, subject: '' },
   // Battle-session invitations — in-app only (deliberately not emailed).
   battle_invite: { label: 'Battle session invitations', supportsEmail: false, defaultEnabled: false, subject: '' },
-  // Requests to join a campaign (sent to OWNER/ARBITRATOR members) — in-app only.
-  campaign_join_request: { label: 'Campaign join requests', supportsEmail: false, defaultEnabled: false, subject: '' },
   // Legacy type: campaign AND battle invites both used 'invite' before they were split
   // into campaign_invite / battle_invite. Retained (in-app only) so historical rows still
   // render; no new producer emits it. Safe to remove once all such rows have expired.
