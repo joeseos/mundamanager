@@ -1,6 +1,16 @@
 [db]
 major_version = 15
 
+[db.migrations]
+# The files in supabase/migrations/ are INCREMENTAL deltas for developers who
+# already have the full database; they assume a base schema that was never
+# captured as a migration, so they cannot be replayed from an empty database.
+# Disabling auto-run stops `supabase start` / `supabase db reset` from crashing
+# on them locally. New local databases are built from the schema snapshot with
+# `./scripts/setup-local-db.sh` instead (see the repo README). This flag is
+# local-only and does not affect how migrations are applied to the remote.
+enabled = false
+
 [functions.discord-interactions]
 entrypoint = "./edge-functions/discord-interactions/index.ts"
 verify_jwt = false
