@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict wZhaEjQRzrqHjGAaGoC2TL7el2vcW9Z9HpOfUNxMXVwfHTzKmS6Z0i8qZaFOnb7
+\restrict vvVV2rXOAdVu5ZvuCmetl9K3GuHUhOYQEYFLkAliOgl6FNOjEAuuzGrT0MFj5f5
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -5431,7 +5431,6 @@ CREATE TABLE public.fighter_ooa_records (
     causing_gang_id uuid,
     causing_fighter_name text,
     causing_fighter_class text,
-    causing_fighter_gang_id uuid,
     causing_fighter_gang_name text,
     injured_fighter_id uuid,
     injured_gang_id uuid,
@@ -5443,6 +5442,8 @@ CREATE TABLE public.fighter_ooa_records (
     vehicle_name text,
     campaign_id uuid,
     user_id uuid DEFAULT auth.uid(),
+    injured_fighter_type text,
+    causing_fighter_type text,
     CONSTRAINT fighter_ooa_records_event_type_check CHECK ((event_type = ANY (ARRAY['out_of_action'::text, 'vehicle_wrecked'::text])))
 );
 
@@ -12467,5 +12468,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict wZhaEjQRzrqHjGAaGoC2TL7el2vcW9Z9HpOfUNxMXVwfHTzKmS6Z0i8qZaFOnb7
+\unrestrict vvVV2rXOAdVu5ZvuCmetl9K3GuHUhOYQEYFLkAliOgl6FNOjEAuuzGrT0MFj5f5
 
