@@ -80,10 +80,11 @@ For questions about contributing, feel free to ask in our [Discord server](https
 
 ### Setting up a local Supabase database
 
-For step 2 above you can either point `.env.local` at a shared remote Supabase
-project (ask a maintainer for the URL + anon key) **or** run the whole stack
-locally with the Supabase CLI. Local is recommended for schema/backend work so
-you can experiment without touching shared data.
+The **local Supabase stack is the development database** — run it with the
+Supabase CLI. There is **no shared development remote**: the only hosted project
+is production, and you should not point local development at it. The steps below
+build a full local database from the committed schema snapshot, so you don't need
+remote access to get started.
 
 > **Why not just `supabase start`?**
 > The files in `supabase/migrations/` are *incremental* deltas for developers
@@ -119,6 +120,10 @@ you can experiment without touching shared data.
 3. **Start the app** with `npm run dev` as usual.
 
 **Notes**
+- **Test data:** there is no shared dev database to copy from — put local test
+  data in `supabase/seed.sql` and the bootstrap script applies it automatically as
+  its final step. Commit only safe synthetic fixtures there; never real user or
+  production data.
 - `supabase db reset` wipes the local database and (with migrations disabled)
   leaves it empty — re-run `./scripts/setup-local-db.sh` afterwards to rebuild it.
 - The email webhook is intentionally **not** part of local setup: it needs AWS

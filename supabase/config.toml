@@ -11,6 +11,14 @@ major_version = 15
 # local-only and does not affect how migrations are applied to the remote.
 enabled = false
 
+[db.seed]
+# Auto-seeding is disabled because `supabase start` runs seeds before this repo's
+# bootstrap has loaded the schema (see [db.migrations] above), so an auto-run seed
+# would hit tables that don't exist yet. Instead, put local test data in
+# supabase/seed.sql and it is applied as the final step of
+# ./scripts/setup-local-db.sh, after the schema is in place.
+enabled = false
+
 [functions.discord-interactions]
 entrypoint = "./edge-functions/discord-interactions/index.ts"
 verify_jwt = false

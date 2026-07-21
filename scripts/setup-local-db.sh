@@ -55,7 +55,7 @@ run_sql() { psql "$DB_URL" -v ON_ERROR_STOP=1 --quiet "$@"; }
 # policies reference private.is_admin()/private.is_arb(), which must already
 # exist. check_function_bodies=off lets the helpers compile now, before the
 # public tables they read exist.
-echo "==> [1/4] Resetting public and creating the private schema + RLS helpers…"
+echo "==> [1/5] Resetting public and creating the private schema + RLS helpers…"
 run_sql \
   -c 'drop schema if exists public cascade;' \
   -c 'create schema public;' \
@@ -69,7 +69,7 @@ run_sql \
 # commands (unknown to older psql) and a `CREATE SCHEMA public;` that clashes
 # with the public schema we just recreated in step 1. Strip those before loading;
 # every object lands in that fresh public schema.
-echo "==> [2/4] Loading the public schema snapshot…"
+echo "==> [2/5] Loading the public schema snapshot…"
 STRIPPED="$(mktemp)"
 trap 'rm -f "$STRIPPED"' EXIT
 sed -E '/^\\restrict/d; /^\\unrestrict/d; /^CREATE SCHEMA public;$/d' \
@@ -78,12 +78,22 @@ run_sql -f "$STRIPPED"
 
 # --- 3. restore standard Supabase grants -------------------------------------
 # The snapshot is dumped --no-privileges, so re-grant public to the API roles.
-echo "==> [3/4] Restoring public-schema grants for the API roles…"
+echo "==> [3/5] Restoring public-schema grants for the API roles…"
 run_sql -f "$SUPABASE_DIR/bootstrap/grants.sql"
 
 # --- 4. auth.users signup trigger --------------------------------------------
-echo "==> [4/4] Installing the auth.users signup trigger…"
+echo "==> [4/5] Installing the auth.users signup trigger…"
 run_sql -f "$SUPABASE_DIR/bootstrap/auth_trigger.sql"
+
+# --- 5. optional local seed data ---------------------------------------------
+# Auto-seeding is disabled in config.toml (it would run before the schema loads),
+# so the seed is applied here, last, once every table exists.
+if [[ -f "$SUPABASE_DIR/seed.sql" ]]; then
+  echo "==> [5/5] Applying local seed data (supabase/seed.sql)…"
+  run_sql -f "$SUPABASE_DIR/seed.sql"
+else
+  echo "==> [5/5] No supabase/seed.sql found — skipping seed data."
+fi
 
 echo ""
 echo "✅ Local database ready."
