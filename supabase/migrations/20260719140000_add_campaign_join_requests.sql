@@ -148,3 +148,12 @@ REVOKE ALL ON FUNCTION public.accept_campaign_join_request(uuid, uuid) FROM PUBL
 REVOKE EXECUTE ON FUNCTION public.accept_campaign_join_request(uuid, uuid) FROM anon;
 GRANT EXECUTE ON FUNCTION public.accept_campaign_join_request(uuid, uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.accept_campaign_join_request(uuid, uuid) TO service_role;
+
+-- 5. Drop the now-unused campaign_members.status column. No code path ever wrote it
+--    (all rows are NULL) and no RLS policy or SQL function references it; the TypeScript
+--    queries that selected it are removed in this same merge. Dropping it makes the
+--    membership invariant explicit: a campaign_members row IS a member, with no pending
+--    state hiding in the table. Pending membership lives in campaign_join_requests
+--    (above); pending gang consent stays in campaign_gangs.status, which is unaffected.
+ALTER TABLE public.campaign_members
+    DROP COLUMN IF EXISTS status;
