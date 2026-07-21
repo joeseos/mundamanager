@@ -80,10 +80,8 @@ For questions about contributing, feel free to ask in our [Discord server](https
 
 ### Setting up a local Supabase database
 
-For step 2 above you can either point `.env.local` at a shared remote Supabase
-project (ask a maintainer for the URL + anon key) **or** run the whole stack
-locally with the Supabase CLI. Local is recommended for schema/backend work so
-you can experiment without touching shared data.
+Run the whole stack locally with the Supabase CLI so you can experiment with
+schema/backend changes without touching the production database.
 
 > **Why not just `supabase start`?**
 > The files in `supabase/migrations/` are *incremental* deltas for developers
