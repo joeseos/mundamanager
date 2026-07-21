@@ -120,10 +120,6 @@ remote access to get started.
 3. **Start the app** with `npm run dev` as usual.
 
 **Notes**
-- **Test data:** there is no shared dev database to copy from — put local test
-  data in `supabase/seed.sql` and the bootstrap script applies it automatically as
-  its final step. Commit only safe synthetic fixtures there; never real user or
-  production data.
 - `supabase db reset` wipes the local database and (with migrations disabled)
   leaves it empty — re-run `./scripts/setup-local-db.sh` afterwards to rebuild it.
 - The email webhook is intentionally **not** part of local setup: it needs AWS
