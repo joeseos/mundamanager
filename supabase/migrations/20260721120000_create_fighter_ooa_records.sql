@@ -10,9 +10,8 @@ CREATE TABLE public.fighter_ooa_records (
     causing_fighter_id uuid REFERENCES public.fighters(id) ON DELETE SET NULL,
     causing_gang_id uuid REFERENCES public.gangs(id) ON DELETE SET NULL,
     causing_fighter_name text,
-    causing_fighter_type text;
+    causing_fighter_type text,
     causing_fighter_class text,
-    causing_fighter_gang_id uuid,
     causing_fighter_gang_name text,
     injured_fighter_id uuid REFERENCES public.fighters(id) ON DELETE SET NULL,
     injured_gang_id uuid REFERENCES public.gangs(id) ON DELETE SET NULL,

@@ -16,9 +16,11 @@ import {
   FighterOoaRecord,
 } from '@/app/actions/fighter-ooa-records';
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
+import { useCampaignGangFighterOptions, buildFighterComboboxOption } from '@/utils/campaign-gang-fighter-options';
 import { FaBookDead } from 'react-icons/fa';
 import { LuPencil, LuPlus, LuTrash2 } from 'react-icons/lu';
 import { toast } from 'sonner';
+import type { QueryClient } from '@tanstack/react-query';
 
 interface FighterOoaHistoryModalProps {
   isOpen: boolean;
@@ -68,6 +70,15 @@ function formatDateTime(value: string): string {
 
 function emptyAddForm(): EditFormState {
   return { eventType: 'out_of_action', date: toDateTimeInputValue() };
+}
+
+/** Invalidates both "Caused" and "Sustained" OOA history queries for any fighter. */
+function invalidateOoaRecordQueries(queryClient: QueryClient) {
+  queryClient.invalidateQueries({
+    predicate: (query) =>
+      typeof query.queryKey[0] === 'string' &&
+      query.queryKey[0].startsWith('fighter-ooa-records'),
+  });
 }
 
 export function FighterOoaHistoryModal({
@@ -120,7 +131,7 @@ export function FighterOoaHistoryModal({
         toast.error(result.error || 'Failed to add record');
         return;
       }
-      queryClient.invalidateQueries({ queryKey: ['fighter-ooa-records', fighterId] });
+      invalidateOoaRecordQueries(queryClient);
       setIsAdding(false);
       setAddForm(emptyAddForm());
       setCurrentPage(1);
@@ -138,7 +149,7 @@ export function FighterOoaHistoryModal({
         toast.error(result.error || 'Failed to update record');
         return;
       }
-      queryClient.invalidateQueries({ queryKey: ['fighter-ooa-records', fighterId] });
+      invalidateOoaRecordQueries(queryClient);
       setEditingId(null);
       setEditForm(null);
       toast.success('Record updated');
@@ -155,7 +166,7 @@ export function FighterOoaHistoryModal({
         toast.error(result.error || 'Failed to delete record');
         return;
       }
-      queryClient.invalidateQueries({ queryKey: ['fighter-ooa-records', fighterId] });
+      invalidateOoaRecordQueries(queryClient);
       setRecordToDelete(null);
       toast.success('Record deleted');
     },
@@ -187,20 +198,59 @@ export function FighterOoaHistoryModal({
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
   };
 
-  const gangOptions = campaignGangs.map((g) =>
-    buildGangComboboxOption({ id: g.gang_id, name: g.name, gang_colour: g.gang_colour })
+  const { getFighterOptions: baseGetFighterOptions } =
+    useCampaignGangFighterOptions(campaignGangs);
+
+  const editingRecord =
+    editingId != null ? causedRecords.find((r) => r.id === editingId) ?? null : null;
+  const editGangMissingFromCampaign = !!(
+    editForm?.gangId &&
+    !campaignGangs.some((g) => g.gang_id === editForm.gangId)
   );
 
+  const gangOptions = [
+    ...campaignGangs.map((g) =>
+      buildGangComboboxOption({
+        id: g.gang_id,
+        name: g.name,
+        gang_colour: g.gang_colour,
+        owner_username: g.owner_username,
+      })
+    ),
+    ...(editGangMissingFromCampaign && editingRecord?.injured_gang_id
+      ? [
+          buildGangComboboxOption({
+            id: editingRecord.injured_gang_id,
+            name: editingRecord.injured_gang_name || 'Unknown gang',
+          }),
+        ]
+      : []),
+  ];
+
   const getFighterOptions = (selectedGangId?: string, crewOnly?: boolean) => {
-    const gang = campaignGangs.find((g) => g.gang_id === selectedGangId);
-    if (!gang) return [];
-    return gang.fighters
-      .filter((f) => !crewOnly || f.fighter_class === 'Crew')
-      .map((f) => ({
-        value: f.id,
-        label: f.fighter_name || 'Unnamed',
-        displayValue: f.fighter_name || 'Unnamed',
-      }));
+    const options = baseGetFighterOptions(selectedGangId, crewOnly);
+    if (
+      !editGangMissingFromCampaign ||
+      !editingRecord?.injured_fighter_id ||
+      selectedGangId !== editingRecord.injured_gang_id
+    ) {
+      return options;
+    }
+    if (crewOnly && editingRecord.injured_fighter_class !== 'Crew') {
+      return options;
+    }
+    if (options.some((o) => o.value === editingRecord.injured_fighter_id)) {
+      return options;
+    }
+    return [
+      buildFighterComboboxOption({
+        id: editingRecord.injured_fighter_id,
+        fighter_name: editingRecord.injured_fighter_name,
+        fighter_type: editingRecord.injured_fighter_type,
+        fighter_class: editingRecord.injured_fighter_class,
+      }),
+      ...options,
+    ];
   };
 
   const startEdit = (record: FighterOoaRecord) => {
@@ -410,7 +460,7 @@ export function FighterOoaHistoryModal({
                       addForm.gangId
                         ? addCrewOnly
                           ? 'Select crew (optional)'
-                          : 'Select fighter (optional)'
+                          : 'Select fighter'
                         : 'Select a gang first'
                     }
                     disabled={!addForm.gangId}
@@ -469,7 +519,7 @@ export function FighterOoaHistoryModal({
                             </span>
                           </div>
 
-                          <div className="mt-1 text-xs text-muted-foreground space-y-">
+                          <div className="mt-1 text-xs text-muted-foreground space-y-1">
                             {isSustained ? (
                               (record.causing_fighter_type || record.causing_fighter_class || record.causing_fighter_gang_name) && (
                                 <div>
@@ -600,6 +650,11 @@ export function FighterOoaHistoryModal({
                             clearable
                             className="w-full"
                           />
+                          {editGangMissingFromCampaign && (
+                            <p className="text-xs text-amber-500">
+                              This gang is no longer in the campaign. Clear or pick another gang to change the target.
+                            </p>
+                          )}
                           <Combobox
                             options={getFighterOptions(editForm!.gangId, crewOnly)}
                             value={editForm!.fighterId}
@@ -611,8 +666,8 @@ export function FighterOoaHistoryModal({
                             placeholder={
                               editForm!.gangId
                                 ? crewOnly
-                                  ? 'Select crew (optional)'
-                                  : 'Select fighter (optional)'
+                                  ? 'Select crew'
+                                  : 'Select fighter'
                                 : 'Select a gang first'
                             }
                             disabled={!editForm!.gangId}

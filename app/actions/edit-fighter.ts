@@ -1239,7 +1239,6 @@ async function insertFighterOoaRecords(
       causing_fighter_name: params.causing_fighter_name ?? null,
       causing_fighter_type: params.causing_fighter_type ?? null,
       causing_fighter_class: params.causing_fighter_class ?? null,
-      causing_fighter_gang_id: params.causing_gang_id ?? null,
       causing_fighter_gang_name: params.causing_gang_name ?? null,
       injured_fighter_id: r.injured_fighter_id ?? null,
       injured_gang_id: injured?.gang_id ?? null,

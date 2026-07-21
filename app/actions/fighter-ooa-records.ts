@@ -11,7 +11,6 @@ export interface FighterOoaRecord {
   causing_fighter_name: string | null;
   causing_fighter_type: string | null;
   causing_fighter_class: string | null;
-  causing_fighter_gang_id: string | null;
   causing_fighter_gang_name: string | null;
   injured_fighter_id: string | null;
   injured_gang_id: string | null;
@@ -29,9 +28,11 @@ export interface CampaignGangWithFighters {
   gang_id: string;
   name: string;
   gang_colour: string | null;
+  owner_username: string | null;
   fighters: Array<{
     id: string;
     fighter_name: string;
+    fighter_type: string | null;
     fighter_class: string | null;
     gang_id: string;
   }>;
@@ -90,16 +91,23 @@ export async function getCampaignGangsAndFighters(params: {
   const gangIds = new Set<string>();
   if (params.gangId) gangIds.add(params.gangId);
 
+  // Prefer campaign_gangs.user_id (campaign member) when available, matching
+  // /api/campaigns/campaign-gangs used by the battle-log gang combobox.
+  const campaignOwnerByGangId = new Map<string, string>();
+
   if (params.campaignId) {
     const { data: campaignGangs, error: cgError } = await supabase
       .from('campaign_gangs')
-      .select('gang_id')
+      .select('gang_id, user_id')
       .eq('campaign_id', params.campaignId)
       .eq('status', 'ACCEPTED');
 
     if (cgError) throw cgError;
     (campaignGangs || []).forEach((cg: any) => {
-      if (cg.gang_id) gangIds.add(cg.gang_id);
+      if (cg.gang_id) {
+        gangIds.add(cg.gang_id);
+        if (cg.user_id) campaignOwnerByGangId.set(cg.gang_id, cg.user_id);
+      }
     });
   }
 
@@ -109,11 +117,11 @@ export async function getCampaignGangsAndFighters(params: {
   const [{ data: gangs, error: gangsError }, { data: fighters, error: fightersError }] = await Promise.all([
     supabase
       .from('gangs')
-      .select('id, name, gang_colour')
+      .select('id, name, gang_colour, user_id')
       .in('id', ids),
     supabase
       .from('fighters')
-      .select('id, fighter_name, fighter_class, gang_id')
+      .select('id, fighter_name, fighter_type, fighter_class, gang_id')
       .in('gang_id', ids)
       .order('fighter_name', { ascending: true }),
   ]);
@@ -121,24 +129,48 @@ export async function getCampaignGangsAndFighters(params: {
   if (gangsError) throw gangsError;
   if (fightersError) throw fightersError;
 
+  const ownerUserIds = Array.from(
+    new Set(
+      (gangs || [])
+        .map((g: any) => campaignOwnerByGangId.get(g.id) || g.user_id)
+        .filter((id: unknown): id is string => typeof id === 'string' && !!id)
+    )
+  );
+
+  const profileMap = new Map<string, string>();
+  if (ownerUserIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, username')
+      .in('id', ownerUserIds);
+    (profiles || []).forEach((p: any) => {
+      if (p.id && p.username) profileMap.set(p.id, p.username);
+    });
+  }
+
   const fightersByGang = new Map<string, CampaignGangWithFighters['fighters']>();
   (fighters || []).forEach((f: any) => {
     if (!fightersByGang.has(f.gang_id)) fightersByGang.set(f.gang_id, []);
     fightersByGang.get(f.gang_id)!.push({
       id: f.id,
       fighter_name: f.fighter_name,
+      fighter_type: f.fighter_type ?? null,
       fighter_class: f.fighter_class ?? null,
       gang_id: f.gang_id,
     });
   });
 
   return (gangs || [])
-    .map((g: any) => ({
-      gang_id: g.id,
-      name: g.name,
-      gang_colour: g.gang_colour ?? null,
-      fighters: fightersByGang.get(g.id) || [],
-    }))
+    .map((g: any) => {
+      const ownerUserId = campaignOwnerByGangId.get(g.id) || g.user_id || null;
+      return {
+        gang_id: g.id,
+        name: g.name,
+        gang_colour: g.gang_colour ?? null,
+        owner_username: ownerUserId ? profileMap.get(ownerUserId) ?? null : null,
+        fighters: fightersByGang.get(g.id) || [],
+      };
+    })
     .sort((a: CampaignGangWithFighters, b: CampaignGangWithFighters) =>
       (a.name || '').localeCompare(b.name || '')
     );
@@ -192,7 +224,6 @@ export async function createFighterOoaRecord(params: {
       causing_fighter_name: causing.fighter_name ?? null,
       causing_fighter_type: causing.fighter_type ?? null,
       causing_fighter_class: causing.fighter_class ?? null,
-      causing_fighter_gang_id: causing.gang_id ?? null,
       causing_fighter_gang_name: (causingGang as any)?.name ?? null,
       injured_fighter_id: null,
       injured_gang_id: null,

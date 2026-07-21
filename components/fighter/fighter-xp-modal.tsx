@@ -12,6 +12,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { updateFighterXpWithOoa } from '@/app/actions/edit-fighter';
 import { getCampaignGangsAndFighters } from '@/app/actions/fighter-ooa-records';
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
+import { useCampaignGangFighterOptions } from '@/utils/campaign-gang-fighter-options';
 import { toast } from 'sonner';
 
 type OoaEventType = 'out_of_action' | 'vehicle_wrecked';
@@ -132,21 +133,16 @@ export function FighterXpModal({
     staleTime: 60_000,
   });
 
-  const gangOptions = campaignGangs.map((g) =>
-    buildGangComboboxOption({ id: g.gang_id, name: g.name, gang_colour: g.gang_colour })
-  );
+  const { getFighterOptions } = useCampaignGangFighterOptions(campaignGangs);
 
-  const getFighterOptions = (selectedGangId?: string, crewOnly?: boolean) => {
-    const gang = campaignGangs.find((g) => g.gang_id === selectedGangId);
-    if (!gang) return [];
-    return gang.fighters
-      .filter((f) => !crewOnly || f.fighter_class === 'Crew')
-      .map((f) => ({
-        value: f.id,
-        label: f.fighter_name || 'Unnamed',
-        displayValue: f.fighter_name || 'Unnamed',
-      }));
-  };
+  const gangOptions = campaignGangs.map((g) =>
+    buildGangComboboxOption({
+      id: g.gang_id,
+      name: g.name,
+      gang_colour: g.gang_colour,
+      owner_username: g.owner_username,
+    })
+  );
 
   const toggleTargets = (caseId: string) => {
     setExpandedTargets((prev) => ({ ...prev, [caseId]: !prev[caseId] }));
