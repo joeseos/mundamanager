@@ -1,27 +1,21 @@
-'use client';
-
-import { useClaims } from '@/hooks/use-claims';
+import { createClient } from '@/utils/supabase/server';
+import { getClaims } from '@/utils/auth';
 import SettingsModal from '@/components/settings-modal';
 import { ThemeToggleDropdown } from '@/components/theme-toggle';
 
-export default function HeaderAuth() {
-  const { userId, email, profile, loading } = useClaims();
+export default async function HeaderAuth() {
+  const supabase = await createClient();
+  const claims = await getClaims(supabase);
 
-  if (loading) {
-    return (
-      <div className="flex items-center gap-2 mr-2">
-        <ThemeToggleDropdown />
-      </div>
-    );
-  }
-
-  if (!userId) {
+  if (!claims) {
     return (
       <div className="mr-2">
         <ThemeToggleDropdown />
       </div>
     );
   }
+
+  const { userId, email, profile } = claims;
 
   return (
     <div className="flex items-center gap-2 mr-2">
