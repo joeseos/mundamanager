@@ -1,14 +1,31 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Combobox } from "@/components/ui/combobox";
 import Modal from "@/components/ui/modal";
 import { LuPlus, LuMinus } from "react-icons/lu";
-import { useMutation } from '@tanstack/react-query';
+import { FaBookDead } from "react-icons/fa";
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { updateFighterXpWithOoa } from '@/app/actions/edit-fighter';
+import { getCampaignGangsAndFighters } from '@/app/actions/fighter-ooa-records';
+import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { toast } from 'sonner';
+
+type OoaEventType = 'out_of_action' | 'vehicle_wrecked';
+
+interface TargetCaseConfig {
+  id: string;
+  eventType: OoaEventType;
+  crewOnly: boolean;
+}
+
+const TARGET_CASES: TargetCaseConfig[] = [
+  { id: 'outOfAction', eventType: 'out_of_action', crewOnly: false },
+  { id: 'vehicleWrecked', eventType: 'vehicle_wrecked', crewOnly: true },
+];
 
 interface XpCase {
   id: string;
@@ -27,6 +44,10 @@ interface FighterXpModalProps {
   is_spyrer?: boolean;
   /** Optional fighter name shown in helper when modal is opened from gang card (not from fighter detail page) */
   helperFighterName?: string;
+  /** The active fighter's gang id. Enables the optional OOA/Wreck target selectors. */
+  gangId?: string;
+  /** The campaign to scope target gangs to (the fighter gang's first campaign). */
+  campaignId?: string;
   onClose: () => void;
   onXpUpdated: (newXp: number, newTotalXp: number, newKills: number, newKillCount?: number) => void;
 }
@@ -40,6 +61,8 @@ export function FighterXpModal({
   currentKillCount = 0,
   is_spyrer = false,
   helperFighterName,
+  gangId,
+  campaignId,
   onClose,
   onXpUpdated
 }: FighterXpModalProps) {
@@ -57,9 +80,9 @@ export function FighterXpModal({
   // Define XP "events" for the checkbox list
   const xpCountCases: XpCase[] = [
     { id: 'seriousInjury', label: 'Cause Serious Injury', xp: 1 },
-    { id: 'outOfAction', label: 'Cause OOA', xp: 2, onSelectText: (count) => `⚠️ Adds ${count} to the OOA count` },
+    { id: 'outOfAction', label: 'Cause OOA', xp: 2, onSelectText: (count) => `Adds ${count} to the OOA count` },
     { id: 'leaderChampionBonus', label: 'Leader/Champion', xp: 1 },
-    { id: 'vehicleWrecked', label: 'Wreck Vehicle', xp: 2 },
+    { id: 'vehicleWrecked', label: 'Wreck Vehicle', xp: 2, onSelectText: (count) => `Adds ${count} to the vehicle wrecked count` },
     { id: 'rally', label: 'Successful Rally', xp: 1 },
     { id: 'assistance', label: 'Provide Assistance', xp: 1 },
     { id: 'misc', label: 'Misc.', xp: 1 },
@@ -85,6 +108,82 @@ export function FighterXpModal({
   );
 
   const [miscNote, setMiscNote] = useState('');
+
+  // ---------------------------------------------------------------------------
+  // Optional OOA / Wreck target selectors
+  // ---------------------------------------------------------------------------
+  const showTargets = !!gangId;
+
+  const [expandedTargets, setExpandedTargets] = useState<Record<string, boolean>>({
+    outOfAction: false,
+    vehicleWrecked: false,
+  });
+
+  interface TargetRow { gangId?: string; fighterId?: string }
+  const [targetRows, setTargetRows] = useState<Record<string, TargetRow[]>>({
+    outOfAction: [],
+    vehicleWrecked: [],
+  });
+
+  const { data: campaignGangs = [], isLoading: gangsLoading } = useQuery({
+    queryKey: ['campaign-gangs-fighters', gangId, campaignId],
+    queryFn: () => getCampaignGangsAndFighters({ campaignId, gangId: gangId! }),
+    enabled: isOpen && showTargets,
+    staleTime: 60_000,
+  });
+
+  const gangOptions = campaignGangs.map((g) =>
+    buildGangComboboxOption({ id: g.gang_id, name: g.name, gang_colour: g.gang_colour })
+  );
+
+  const getFighterOptions = (selectedGangId?: string, crewOnly?: boolean) => {
+    const gang = campaignGangs.find((g) => g.gang_id === selectedGangId);
+    if (!gang) return [];
+    return gang.fighters
+      .filter((f) => !crewOnly || f.fighter_class === 'Crew')
+      .map((f) => ({
+        value: f.id,
+        label: f.fighter_name || 'Unnamed',
+        displayValue: f.fighter_name || 'Unnamed',
+      }));
+  };
+
+  const toggleTargets = (caseId: string) => {
+    setExpandedTargets((prev) => ({ ...prev, [caseId]: !prev[caseId] }));
+  };
+
+  const syncTargetRowCount = (caseId: string, count: number) => {
+    setTargetRows((prev) => {
+      const current = prev[caseId] || [];
+      if (count === current.length) return prev;
+      if (count > current.length) {
+        return {
+          ...prev,
+          [caseId]: [
+            ...current,
+            ...Array.from({ length: count - current.length }, () => ({} as TargetRow)),
+          ],
+        };
+      }
+      return { ...prev, [caseId]: current.slice(0, count) };
+    });
+  };
+
+  const setTargetGang = (caseId: string, index: number, value: string) => {
+    setTargetRows((prev) => {
+      const rows = [...(prev[caseId] || [])];
+      rows[index] = { gangId: value || undefined, fighterId: undefined };
+      return { ...prev, [caseId]: rows };
+    });
+  };
+
+  const setTargetFighter = (caseId: string, index: number, value: string) => {
+    setTargetRows((prev) => {
+      const rows = [...(prev[caseId] || [])];
+      rows[index] = { ...rows[index], fighterId: value || undefined };
+      return { ...prev, [caseId]: rows };
+    });
+  };
 
   // Handle toggling a checkbox
   const handleXpCheckboxChange = (id: string) => {
@@ -113,6 +212,9 @@ export function FighterXpModal({
       ...prev,
       [id]: value
     }));
+    if (TARGET_CASES.some((t) => t.id === id)) {
+      syncTargetRowCount(id, value);
+    }
   };
 
   // Compute total from checkboxes
@@ -145,6 +247,11 @@ export function FighterXpModal({
     return value === '' || value === '-' || /^-?\d+$/.test(value);
   };
 
+  // Gang selected without a fighter is incomplete — block save
+  const hasIncompleteTargetRows = TARGET_CASES.some((tc) =>
+    (targetRows[tc.id] || []).some((row) => !!row.gangId && !row.fighterId)
+  );
+
   // Handle XP mutation
   const handleAddXp = async (ooaCount?: number) => {
     if (!/^-?\d+$/.test(xpAmount)) {
@@ -156,6 +263,11 @@ export function FighterXpModal({
 
     if (isNaN(amount) || !Number.isInteger(Number(amount))) {
       setXpError('Please enter a valid integer');
+      return false;
+    }
+
+    if (hasIncompleteTargetRows) {
+      setXpError('Please select a fighter for each selected gang, or clear the gang');
       return false;
     }
 
@@ -186,13 +298,30 @@ export function FighterXpModal({
       });
     }
 
+    // One OOA / wreck record per count entry. Empty gang/fighter → unknown target.
+    const ooaRecords: Array<{ injured_fighter_id?: string; event_type: OoaEventType }> = [];
+    TARGET_CASES.forEach((tc) => {
+      const count = xpCounts[tc.id] ?? 0;
+      const rows = targetRows[tc.id] || [];
+      for (let i = 0; i < count; i++) {
+        const fighterId = rows[i]?.fighterId;
+        ooaRecords.push(
+          fighterId
+            ? { injured_fighter_id: fighterId, event_type: tc.eventType }
+            : { event_type: tc.eventType }
+        );
+      }
+    });
+
     // Fire mutation in background
     fighterXpMutation.mutateAsync({
       fighter_id: fighterId,
       xp_to_add: amount,
       ooa_count: ooaCount,
       xp_breakdown: Object.keys(xpBreakdown).length > 0 ? xpBreakdown : undefined,
-      xp_misc_note: miscNote.trim() || undefined
+      xp_misc_note: miscNote.trim() || undefined,
+      campaign_id: campaignId,
+      ooa_records: ooaRecords.length > 0 ? ooaRecords : undefined
     }).then((result) => {
       if (!result.success) {
         throw new Error(result.error || 'Failed to add XP');
@@ -252,6 +381,9 @@ export function FighterXpModal({
     setXpAmount('');
     setXpError('');
     setMiscNote('');
+    // Reset optional OOA / wreck target selectors
+    setExpandedTargets({ outOfAction: false, vehicleWrecked: false });
+    setTargetRows({ outOfAction: [], vehicleWrecked: [] });
     // Call the parent onClose function
     onClose();
   };
@@ -274,15 +406,34 @@ export function FighterXpModal({
         <div className="space-y-4">
           <div className="space-y-2">
             {/* Repeatable XP with counters */}
-            {xpCountCases.map((xpCase) => (
+            {xpCountCases.map((xpCase) => {
+              const targetCase = TARGET_CASES.find((t) => t.id === xpCase.id);
+              const showToggle = showTargets && !!targetCase;
+              const isExpanded = expandedTargets[xpCase.id];
+              return (
               <div key={xpCase.id}>
                 <div className="flex items-center justify-between">
-                  <label className="text-sm text-foreground">
-                    {xpCase.label} <span className="text-xs text-muted-foreground">(+{xpCase.xp} XP each)</span>
-                    {xpCase.onSelectText && xpCounts[xpCase.id] > 0 && (
-                      <p className="text-xs text-amber-700">{xpCase.onSelectText(xpCounts[xpCase.id])}</p>
+                  <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                    <label className="min-w-0 flex-1 text-sm text-foreground">
+                      {xpCase.label}{' '}
+                      <span className="block text-xs text-muted-foreground md:inline">(+{xpCase.xp} XP each)</span>
+                      {xpCase.onSelectText && xpCounts[xpCase.id] > 0 && (
+                        <p className="text-xs text-amber-700">{xpCase.onSelectText(xpCounts[xpCase.id])}</p>
+                      )}
+                    </label>
+                    {showToggle && (
+                      <button
+                        type="button"
+                        onClick={() => toggleTargets(xpCase.id)}
+                        title="Record which fighter was affected (optional)"
+                        aria-label="Record affected fighter"
+                        aria-pressed={isExpanded}
+                        className={`ml-auto mr-1.5 shrink-0 rounded p-1 hover:bg-accent hover:text-accent-foreground ${isExpanded ? 'text-primary' : 'text-muted-foreground'}`}
+                      >
+                        <FaBookDead className="w-[18px] h-[18px]" />
+                      </button>
                     )}
-                  </label>
+                  </div>
                   <div className="flex items-center space-x-2">
                     <Button
                       variant="outline"
@@ -312,8 +463,54 @@ export function FighterXpModal({
                     className="mt-1.5 ml-0 text-base md:text-sm w-48"
                   />
                 )}
+                {showToggle && isExpanded && (
+                  <div className="mt-2 space-y-3 rounded-md border border-border p-2">
+                    {xpCounts[xpCase.id] === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        {targetCase!.crewOnly
+                          ? 'Increase the count above to record injured crew and their vehicle.'
+                          : 'Increase the count above to record injured fighters.'}
+                      </p>
+                    ) : (
+                      (targetRows[xpCase.id] || []).map((row, index) => (
+                        <div key={index} className="space-y-2">
+                          {index > 0 && <hr className="border-border" />}
+                          <span className="text-xs text-muted-foreground">
+                            {targetCase!.crewOnly ? 'Wrecked crew' : 'Fighter taken OOA'}{' '}
+                            {xpCounts[xpCase.id] > 1 ? `${index + 1}` : ''} (optional)
+                          </span>
+                          <Combobox
+                            options={gangOptions}
+                            value={row.gangId}
+                            onValueChange={(value) => setTargetGang(xpCase.id, index, value)}
+                            placeholder={gangsLoading ? 'Loading gangs...' : 'Select gang'}
+                            clearable
+                            className="w-full"
+                          />
+                          <Combobox
+                            options={getFighterOptions(row.gangId, targetCase!.crewOnly)}
+                            value={row.fighterId}
+                            onValueChange={(value) => setTargetFighter(xpCase.id, index, value)}
+                            placeholder={
+                              row.gangId
+                                ? targetCase!.crewOnly
+                                  ? 'Select crew'
+                                  : 'Select fighter'
+                                : 'Select a gang first'
+                            }
+                            disabled={!row.gangId}
+                            clearable
+                            className="w-full"
+                            noResultsText={targetCase!.crewOnly ? 'No crew found' : 'No fighters found'}
+                          />
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
-            ))}
+              );
+            })}
 
             {/* Separator after the first cases */}
             <hr className="my-2 border-border" />
@@ -365,7 +562,7 @@ export function FighterXpModal({
       onClose={handleModalClose}
       onConfirm={() => handleAddXp(xpCounts.outOfAction)}
       confirmText={parseInt(xpAmount || '0', 10) < 0 ? 'Subtract XP' : 'Add XP'}
-      confirmDisabled={!xpAmount || !isValidXpInput(xpAmount)}
+      confirmDisabled={!xpAmount || !isValidXpInput(xpAmount) || hasIncompleteTargetRows}
     />
   );
 } 
