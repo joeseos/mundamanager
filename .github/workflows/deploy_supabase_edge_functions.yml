@@ -5,6 +5,12 @@ name: Deploy Supabase Edge Functions
 # this covers supabase/edge-functions/**. verify_jwt and entrypoints come from
 # supabase/config.toml.
 #
+# Only the functions whose files actually changed in the push are deployed
+# (mapped from supabase/edge-functions/<name>/**). A change to config.toml
+# redeploys all declared functions, since it can alter verify_jwt/entrypoint for
+# any of them. A manual dispatch (or a push with no usable base commit) also
+# redeploys all.
+#
 # Requires repo secrets:
 #   SUPABASE_ACCESS_TOKEN  — a Supabase personal access token
 #   SUPABASE_PROJECT_REF   — the project ref (iojoritxhpijprgkjfre)
@@ -25,11 +31,60 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+        with:
+          # Full history so we can diff the pushed range to find changed functions.
+          fetch-depth: 0
 
       - name: Install Supabase CLI
         uses: supabase/setup-cli@v1
         with:
           version: latest
 
-      - name: Deploy send-notification-email
-        run: supabase functions deploy send-notification-email --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
+      - name: Deploy changed edge functions
+        env:
+          PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          # Functions declared in config.toml (each has entrypoint + verify_jwt there).
+          declared=$(grep -oP '^\[functions\.\K[^]]+' supabase/config.toml)
+          if [ -z "$declared" ]; then
+            echo "No [functions.*] entries found in supabase/config.toml" >&2
+            exit 1
+          fi
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] \
+             || [ -z "${BEFORE_SHA:-}" ] \
+             || [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ] \
+             || ! git rev-parse -q --verify "$BEFORE_SHA^{commit}" >/dev/null 2>&1; then
+            echo "Manual run or no base commit -> deploying all declared functions."
+            targets="$declared"
+          else
+            changed=$(git diff --name-only "$BEFORE_SHA" "$AFTER_SHA")
+            echo "Changed files:"
+            echo "$changed"
+            if echo "$changed" | grep -qx 'supabase/config.toml'; then
+              echo "config.toml changed -> deploying all declared functions."
+              targets="$declared"
+            else
+              targets=$(echo "$changed" | grep -oP '^supabase/edge-functions/\K[^/]+' | sort -u || true)
+            fi
+          fi
+
+          if [ -z "${targets//[[:space:]]/}" ]; then
+            echo "No declared edge functions changed. Nothing to deploy."
+            exit 0
+          fi
+
+          for fn in $targets; do
+            if ! printf '%s\n' $declared | grep -qx "$fn"; then
+              echo "Skipping '$fn' (no [functions.$fn] entry in config.toml)"
+              continue
+            fi
+            echo "::group::Deploy $fn"
+            supabase functions deploy "$fn" --project-ref "$PROJECT_REF"
+            echo "::endgroup::"
+          done
