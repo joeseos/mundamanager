@@ -7,14 +7,12 @@ import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  getFighterOoaRecords,
-  getFighterSustainedOoaRecords,
-  getCampaignGangsAndFighters,
   createFighterOoaRecord,
   updateFighterOoaRecord,
   deleteFighterOoaRecord,
-  FighterOoaRecord,
 } from '@/app/actions/fighter-ooa-records';
+import { fetchFighterOoaRecords, fetchCampaignGangsAndFighters } from '@/utils/api/fighter-ooa-records';
+import type { FighterOoaRecord } from '@/types/fighter-ooa-record';
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { useCampaignGangFighterOptions, buildFighterComboboxOption } from '@/utils/campaign-gang-fighter-options';
 import { FaBookDead } from 'react-icons/fa';
@@ -100,14 +98,14 @@ export function FighterOoaHistoryModal({
 
   const { data: causedRecords = [], isLoading: causedLoading, isError: causedError } = useQuery({
     queryKey: ['fighter-ooa-records', fighterId],
-    queryFn: () => getFighterOoaRecords(fighterId),
+    queryFn: () => fetchFighterOoaRecords(fighterId, 'caused'),
     enabled: isOpen && !!fighterId,
     staleTime: 30_000,
   });
 
   const { data: sustainedRecords = [], isLoading: sustainedLoading, isError: sustainedError } = useQuery({
     queryKey: ['fighter-ooa-records-sustained', fighterId],
-    queryFn: () => getFighterSustainedOoaRecords(fighterId),
+    queryFn: () => fetchFighterOoaRecords(fighterId, 'sustained'),
     enabled: isOpen && activeTab === 'sustained' && !!fighterId,
     staleTime: 30_000,
   });
@@ -119,7 +117,7 @@ export function FighterOoaHistoryModal({
 
   const { data: campaignGangs = [], isLoading: gangsLoading } = useQuery({
     queryKey: ['campaign-gangs-fighters', gangId, campaignId],
-    queryFn: () => getCampaignGangsAndFighters({ campaignId, gangId: gangId! }),
+    queryFn: () => fetchCampaignGangsAndFighters({ campaignId, gangId: gangId! }),
     enabled: isOpen && canEdit && !!gangId,
     staleTime: 60_000,
   });

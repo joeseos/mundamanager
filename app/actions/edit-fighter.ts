@@ -9,6 +9,7 @@ import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { logFighterAction } from './logs/fighter-logs';
 import { countsTowardRating, hasKilledStatusFlag } from '@/utils/fighter-status';
 import { updateGangFinancials, updateGangRatingSimple, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
+import { insertFighterOoaRecords } from './fighter-ooa-records';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -1178,83 +1179,6 @@ export interface UpdateFighterXpWithOoaParams {
     injured_fighter_id?: string;
     event_type: 'out_of_action' | 'vehicle_wrecked';
   }>;
-}
-
-/**
- * Inserts OOA / vehicle-wreck records for the fighter who caused them.
- * Snapshots the injured fighter's name, class, gang name, and (for wrecks)
- * their vehicle type/name so history survives later edits or deletions.
- */
-async function insertFighterOoaRecords(
-  supabase: any,
-  params: {
-    causing_fighter_id: string;
-    causing_fighter_name?: string | null;
-    causing_fighter_type?: string | null;
-    causing_fighter_class?: string | null;
-    causing_gang_id: string;
-    causing_gang_name?: string | null;
-    campaign_id?: string;
-    records: Array<{ injured_fighter_id?: string; event_type: 'out_of_action' | 'vehicle_wrecked' }>;
-  }
-) {
-  const validRecords = (params.records || []).filter(r => r?.event_type);
-  if (validRecords.length === 0) return;
-
-  const injuredIds = Array.from(
-    new Set(validRecords.map(r => r.injured_fighter_id).filter((id): id is string => !!id))
-  );
-
-  const fighterMap = new Map<string, any>();
-  const vehicleMap = new Map<string, any>();
-
-  if (injuredIds.length > 0) {
-    // Snapshot injured fighters (name, type, class, gang)
-    const { data: injuredFighters } = await supabase
-      .from('fighters')
-      .select('id, fighter_name, fighter_type, fighter_class, gang_id, gangs!gang_id(id, name)')
-      .in('id', injuredIds);
-
-    (injuredFighters || []).forEach((f: any) => fighterMap.set(f.id, f));
-
-    // Snapshot vehicles assigned to injured fighters (for wreck events)
-    const { data: vehicles } = await supabase
-      .from('vehicles')
-      .select('fighter_id, vehicle_type, vehicle_name')
-      .in('fighter_id', injuredIds);
-
-    (vehicles || []).forEach((v: any) => {
-      if (v.fighter_id && !vehicleMap.has(v.fighter_id)) vehicleMap.set(v.fighter_id, v);
-    });
-  }
-
-  const rows = validRecords.map(r => {
-    const injured = r.injured_fighter_id ? fighterMap.get(r.injured_fighter_id) : null;
-    const gang = injured?.gangs && typeof injured.gangs === 'object' ? injured.gangs : null;
-    const vehicle = r.injured_fighter_id ? vehicleMap.get(r.injured_fighter_id) : null;
-    const isUnknown = !r.injured_fighter_id;
-    return {
-      causing_fighter_id: params.causing_fighter_id,
-      causing_gang_id: params.causing_gang_id,
-      causing_fighter_name: params.causing_fighter_name ?? null,
-      causing_fighter_type: params.causing_fighter_type ?? null,
-      causing_fighter_class: params.causing_fighter_class ?? null,
-      causing_fighter_gang_name: params.causing_gang_name ?? null,
-      injured_fighter_id: r.injured_fighter_id ?? null,
-      injured_gang_id: injured?.gang_id ?? null,
-      injured_fighter_name: isUnknown ? 'Unknown' : (injured?.fighter_name ?? null),
-      injured_fighter_type: injured?.fighter_type ?? null,
-      injured_fighter_class: injured?.fighter_class ?? null,
-      injured_gang_name: gang?.name ?? null,
-      event_type: r.event_type,
-      vehicle_type: vehicle?.vehicle_type ?? null,
-      vehicle_name: vehicle?.vehicle_name ?? null,
-      campaign_id: params.campaign_id ?? null
-    };
-  });
-
-  const { error } = await supabase.from('fighter_ooa_records').insert(rows);
-  if (error) throw error;
 }
 
 export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParams): Promise<EditFighterResult> {

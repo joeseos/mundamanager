@@ -10,7 +10,7 @@ import { LuPlus, LuMinus } from "react-icons/lu";
 import { FaBookDead } from "react-icons/fa";
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { updateFighterXpWithOoa } from '@/app/actions/edit-fighter';
-import { getCampaignGangsAndFighters } from '@/app/actions/fighter-ooa-records';
+import { fetchCampaignGangsAndFighters } from '@/utils/api/fighter-ooa-records';
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { useCampaignGangFighterOptions } from '@/utils/campaign-gang-fighter-options';
 import { toast } from 'sonner';
@@ -128,7 +128,7 @@ export function FighterXpModal({
 
   const { data: campaignGangs = [], isLoading: gangsLoading } = useQuery({
     queryKey: ['campaign-gangs-fighters', gangId, campaignId],
-    queryFn: () => getCampaignGangsAndFighters({ campaignId, gangId: gangId! }),
+    queryFn: () => fetchCampaignGangsAndFighters({ campaignId, gangId: gangId! }),
     enabled: isOpen && showTargets,
     staleTime: 60_000,
   });

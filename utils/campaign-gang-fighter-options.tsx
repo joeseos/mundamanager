@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from 'react';
-import type { CampaignGangWithFighters } from '@/app/actions/fighter-ooa-records';
+import type { CampaignGangWithFighters } from '@/types/fighter-ooa-record';
 
 export interface CampaignFighterComboboxOption {
   value: string;
