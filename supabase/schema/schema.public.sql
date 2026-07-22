@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict vvVV2rXOAdVu5ZvuCmetl9K3GuHUhOYQEYFLkAliOgl6FNOjEAuuzGrT0MFj5f5
+\restrict 3mBKqejLy0XsAUoHVRule1XcdwFVSOnqUSjrVcQs1zQ0qsVRhF6nILLI0wh2uJq
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -42,6 +42,63 @@ CREATE TYPE public.alignment AS ENUM (
     'Law Abiding',
     'Unaligned'
 );
+
+
+--
+-- Name: accept_campaign_join_request(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.accept_campaign_join_request(p_campaign_id uuid, p_user_id uuid) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+   v_request_id uuid;
+   v_is_member boolean;
+BEGIN
+   -- Only campaign OWNER/ARBITRATOR or a site admin may accept.
+   IF NOT (private.is_admin() OR private.is_arb(p_campaign_id)) THEN
+      RETURN 'not_authorized';
+   END IF;
+
+   -- Lock the pending request to serialize concurrent accepts.
+   SELECT id INTO v_request_id
+   FROM campaign_join_requests
+   WHERE campaign_id = p_campaign_id AND user_id = p_user_id
+   FOR UPDATE;
+
+   IF v_request_id IS NULL THEN
+      RETURN 'no_request';
+   END IF;
+
+   SELECT EXISTS (
+      SELECT 1 FROM campaign_members
+      WHERE campaign_id = p_campaign_id AND user_id = p_user_id
+   ) INTO v_is_member;
+
+   IF NOT v_is_member THEN
+      -- auth.uid() is the acting arbitrator even inside SECURITY DEFINER. This
+      -- INSERT fires notify_campaign_member_added, sending the requester their
+      -- acceptance notice ("you've been invited"), inside this same transaction.
+      INSERT INTO campaign_members (campaign_id, user_id, role, invited_at, invited_by)
+      VALUES (p_campaign_id, p_user_id, 'MEMBER', now(), auth.uid());
+   END IF;
+
+   DELETE FROM campaign_join_requests WHERE id = v_request_id;
+
+   -- Clear the "wants to join" notifications this request fanned out to every
+   -- OWNER/ARBITRATOR, so no stale copies linger once it is handled.
+   DELETE FROM notifications
+   WHERE type = 'campaign_join_request'
+     AND sender_id = p_user_id
+     AND link = 'https://www.mundamanager.com/campaigns/' || p_campaign_id;
+
+   IF v_is_member THEN
+      RETURN 'already_member';
+   END IF;
+   RETURN 'accepted';
+END;
+$$;
 
 
 --
@@ -882,7 +939,7 @@ CREATE FUNCTION public.enqueue_notification_email() RETURNS trigger
     SET search_path TO 'public'
     AS $$
 BEGIN
-   IF NEW.type IN ('campaign_invite', 'gang_invite', 'friend_request') THEN
+   IF NEW.type IN ('campaign_invite', 'gang_invite', 'friend_request', 'campaign_join_request') THEN
       INSERT INTO email_deliveries (notification_id, user_id)
       VALUES (NEW.id, NEW.receiver_id)
       ON CONFLICT (notification_id) DO NOTHING;
@@ -4241,6 +4298,56 @@ $$;
 
 
 --
+-- Name: notify_campaign_join_request(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.notify_campaign_join_request() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+   campaign_name_var TEXT;
+   requester_name_var TEXT;
+BEGIN
+   -- Get the campaign name
+   SELECT campaign_name INTO campaign_name_var
+   FROM campaigns
+   WHERE id = NEW.campaign_id;
+
+   -- Get the requester's username
+   SELECT username INTO requester_name_var
+   FROM profiles
+   WHERE id = NEW.user_id;
+
+   -- One notification per OWNER/ARBITRATOR. DISTINCT because campaign_members
+   -- can hold duplicate rows per user. sender_id carries the requester and the
+   -- link carries the campaign, which is all the accept/decline UI needs.
+   INSERT INTO notifications (
+       receiver_id,
+       sender_id,
+       type,
+       text,
+       link,
+       dismissed
+   )
+   SELECT DISTINCT
+       cm.user_id,
+       NEW.user_id,
+       'campaign_join_request',
+       COALESCE(requester_name_var, 'Someone') || ' wants to join your campaign "' || COALESCE(campaign_name_var, 'Unknown Campaign') || '".',
+       'https://www.mundamanager.com/campaigns/' || NEW.campaign_id,
+       false
+   FROM campaign_members cm
+   WHERE cm.campaign_id = NEW.campaign_id
+     AND cm.role IN ('OWNER', 'ARBITRATOR')
+     AND cm.user_id <> NEW.user_id;
+
+   RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: notify_campaign_member_added(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4600,6 +4707,18 @@ COMMENT ON COLUMN public.campaign_gangs.campaign_allegiance_id IS 'Gang''s alleg
 
 
 --
+-- Name: campaign_join_requests; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.campaign_join_requests (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    campaign_id uuid NOT NULL,
+    user_id uuid NOT NULL
+);
+
+
+--
 -- Name: campaign_map_objects; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4639,7 +4758,6 @@ CREATE TABLE public.campaign_members (
     campaign_id uuid,
     invited_by uuid,
     role text,
-    status text,
     invited_at timestamp with time zone DEFAULT now(),
     joined_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now(),
@@ -4793,7 +4911,8 @@ CREATE TABLE public.campaigns (
     discord_guild_id text,
     discord_channel_type integer DEFAULT 0 NOT NULL,
     created_by uuid DEFAULT auth.uid(),
-    custom_trading_posts jsonb
+    custom_trading_posts jsonb,
+    allow_join_requests boolean DEFAULT false NOT NULL
 );
 
 
@@ -5873,7 +5992,7 @@ CREATE TABLE public.notifications (
     link text,
     expires_at timestamp with time zone DEFAULT (now() + '30 days'::interval) NOT NULL,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    CONSTRAINT notifications_type_check CHECK (((type)::text = ANY (ARRAY['info'::text, 'warning'::text, 'error'::text, 'invite'::text, 'campaign_invite'::text, 'friend_request'::text, 'battle_invite'::text, 'gang_invite'::text])))
+    CONSTRAINT notifications_type_check CHECK (((type)::text = ANY (ARRAY['info'::text, 'warning'::text, 'error'::text, 'invite'::text, 'campaign_invite'::text, 'friend_request'::text, 'battle_invite'::text, 'gang_invite'::text, 'campaign_join_request'::text])))
 );
 
 ALTER TABLE ONLY public.notifications REPLICA IDENTITY FULL;
@@ -6186,6 +6305,22 @@ ALTER TABLE ONLY public.campaign_gang_resources
 
 ALTER TABLE ONLY public.campaign_gang_resources
     ADD CONSTRAINT campaign_gang_resources_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: campaign_join_requests campaign_join_requests_campaign_user_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_join_requests
+    ADD CONSTRAINT campaign_join_requests_campaign_user_key UNIQUE (campaign_id, user_id);
+
+
+--
+-- Name: campaign_join_requests campaign_join_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_join_requests
+    ADD CONSTRAINT campaign_join_requests_pkey PRIMARY KEY (id);
 
 
 --
@@ -7372,6 +7507,13 @@ CREATE INDEX idx_campaign_gangs_gang_id ON public.campaign_gangs USING btree (ga
 
 
 --
+-- Name: idx_campaign_join_requests_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_campaign_join_requests_user_id ON public.campaign_join_requests USING btree (user_id);
+
+
+--
 -- Name: idx_campaign_members_campaign_user_role; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7819,6 +7961,13 @@ CREATE INDEX weapon_profiles_weapon_id_idx ON public.weapon_profiles USING btree
 
 
 --
+-- Name: campaign_join_requests on_campaign_join_request; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER on_campaign_join_request AFTER INSERT ON public.campaign_join_requests FOR EACH ROW EXECUTE FUNCTION public.notify_campaign_join_request();
+
+
+--
 -- Name: campaign_gangs on_gang_invite; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -8026,6 +8175,22 @@ ALTER TABLE ONLY public.campaign_gangs
 
 ALTER TABLE ONLY public.campaign_gangs
     ADD CONSTRAINT campaign_gangs_gang_id_fkey FOREIGN KEY (gang_id) REFERENCES public.gangs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: campaign_join_requests campaign_join_requests_campaign_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_join_requests
+    ADD CONSTRAINT campaign_join_requests_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.campaigns(id) ON DELETE CASCADE;
+
+
+--
+-- Name: campaign_join_requests campaign_join_requests_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_join_requests
+    ADD CONSTRAINT campaign_join_requests_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
 
 
 --
@@ -11121,6 +11286,20 @@ CREATE POLICY "Public profiles are viewable by everyone" ON public.profiles FOR 
 
 
 --
+-- Name: campaign_join_requests Requester, arbitrators or admin can delete join requests; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Requester, arbitrators or admin can delete join requests" ON public.campaign_join_requests FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR ( SELECT private.is_arb(campaign_join_requests.campaign_id) AS is_arb)));
+
+
+--
+-- Name: campaign_join_requests Requester, arbitrators or admin can view join requests; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Requester, arbitrators or admin can view join requests" ON public.campaign_join_requests FOR SELECT TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR ( SELECT private.is_arb(campaign_join_requests.campaign_id) AS is_arb)));
+
+
+--
 -- Name: fighter_equipment Users can create equipment for their gang; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -11334,6 +11513,17 @@ CREATE POLICY "Users can only create their own gangs" ON public.gangs FOR INSERT
 
 
 --
+-- Name: campaign_join_requests Users can request to join campaigns that allow it; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can request to join campaigns that allow it" ON public.campaign_join_requests FOR INSERT TO authenticated WITH CHECK (((user_id = ( SELECT auth.uid() AS uid)) AND (EXISTS ( SELECT 1
+   FROM public.campaigns c
+  WHERE ((c.id = campaign_join_requests.campaign_id) AND (c.allow_join_requests = true)))) AND (NOT (EXISTS ( SELECT 1
+   FROM public.campaign_members cm
+  WHERE ((cm.campaign_id = campaign_join_requests.campaign_id) AND (cm.user_id = ( SELECT auth.uid() AS uid))))))));
+
+
+--
 -- Name: fighter_equipment Users can update equipment in their gang; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -11529,6 +11719,12 @@ ALTER TABLE public.campaign_gang_resources ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.campaign_gangs ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: campaign_join_requests; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.campaign_join_requests ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: campaign_map_objects; Type: ROW SECURITY; Schema: public; Owner: -
@@ -12468,5 +12664,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict vvVV2rXOAdVu5ZvuCmetl9K3GuHUhOYQEYFLkAliOgl6FNOjEAuuzGrT0MFj5f5
+\unrestrict 3mBKqejLy0XsAUoHVRule1XcdwFVSOnqUSjrVcQs1zQ0qsVRhF6nILLI0wh2uJq
 
