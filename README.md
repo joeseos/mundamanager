@@ -100,15 +100,15 @@ schema/backend changes without touching the production database.
 
 1. **Bootstrap the database** from the repo root:
    ```bash
-   ./scripts/setup-local-db.sh
+   supabase start
    ```
-   The script runs `supabase start`, then loads the private schema + helper
-   functions, the schema snapshot, the grants, and the auth trigger. It is safe
-   to re-run — each run rebuilds the `public` schema from scratch, discarding any
-   existing local data.
+   Or if the stack is already running and you want to clean/rebuild your local database from scratch:
+   ```bash
+   supabase db reset
+   ```
+   Supabase CLI natively resets the database and seeds the schema snapshot (`schema.public.sql`), helper schemas, role grants, triggers, and game reference data (`seed.sql`).
 
-2. **Point `.env.local` at the local stack.** Run `supabase status` to get the
-   local API URL and anon key, then set:
+2. **Point `.env.local` at the local stack.** Run `supabase status` to get the local API URL and anon key, then set:
    ```
    NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
    NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key from `supabase status`>
@@ -117,8 +117,7 @@ schema/backend changes without touching the production database.
 3. **Start the app** with `npm run dev` as usual.
 
 **Notes**
-- `supabase db reset` wipes the local database and (with migrations disabled)
-  leaves it empty — re-run `./scripts/setup-local-db.sh` afterwards to rebuild it.
+- `supabase db reset` wipes the local database, rebuilds it cleanly from the daily production schema snapshot, and seeds reference game lookup data.
 - The email webhook is intentionally **not** part of local setup: it needs AWS
   SES secrets and only matters for outbound notification email. See
   `supabase/webhooks/README.md` if you need it.

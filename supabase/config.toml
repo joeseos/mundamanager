@@ -1,5 +1,5 @@
 [db]
-major_version = 15
+major_version = 17
 
 [db.migrations]
 # The files in supabase/migrations/ are INCREMENTAL deltas for developers who
@@ -10,6 +10,18 @@ major_version = 15
 # `./scripts/setup-local-db.sh` instead (see the repo README). This flag is
 # local-only and does not affect how migrations are applied to the remote.
 enabled = false
+
+[db.seed]
+enabled = true
+sql_paths = [
+  "./bootstrap/private_schema.sql",
+  "./functions/is_admin.sql",
+  "./functions/is_arb.sql",
+  "./schema/schema.public.sql",
+  "./bootstrap/grants.sql",
+  "./bootstrap/auth_trigger.sql",
+  "./seed.sql"
+]
 
 [functions.discord-interactions]
 entrypoint = "./edge-functions/discord-interactions/index.ts"

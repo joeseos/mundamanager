@@ -16,6 +16,8 @@
 -- denied for schema private" — the calling role needs schema USAGE even for a
 -- SECURITY DEFINER function.
 
+SET check_function_bodies = off;
+
 create schema if not exists private;
 
 grant usage on schema private to anon, authenticated, service_role;
