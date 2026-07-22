@@ -108,7 +108,28 @@ export function DraggableFighters({
 
   const sensors = useDndSensorsConfig();
 
+  // After a drag, the browser still synthesizes a `click` on whatever is under the pointer
+  // (often a *different* fighter card than the one that was dragged). Swallow that one click
+  // in the capture phase so no card's `<a>` navigates to a fighter page.
+  const suppressClickAfterDrag = () => {
+    const suppress = (event: Event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      cleanup();
+    };
+    const cleanup = () => {
+      document.removeEventListener('click', suppress, true);
+      window.clearTimeout(timeoutId);
+    };
+    document.addEventListener('click', suppress, true);
+    const timeoutId = window.setTimeout(cleanup, 500);
+  };
+
   const handleDragEnd = async (event: any) => {
+    // Always suppress — including same-position drops / cancelled-looking ends — because a
+    // real drag still produces a trailing click.
+    suppressClickAfterDrag();
+
     const { active, over } = event;
     
     if (!active || !over || active.id === over.id) {
@@ -216,6 +237,7 @@ export function DraggableFighters({
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
+      onDragCancel={suppressClickAfterDrag}
     >
       <SortableContext
         items={sortedFighters.map(f => f.id)}

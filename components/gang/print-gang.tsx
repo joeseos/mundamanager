@@ -185,7 +185,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
   const [showAdditionalDetails, setShowAdditionalDetails] = useState(true);
   const [showInactiveFighterLoadouts, setShowInactiveFighterLoadouts] = useState(false);
   const [cardsGangCardsPosition, setCardsGangCardsPosition] = useState<"before" | "after">("before");
-  const [scaleCardsToContent, setScaleCardsToContent] = useState(false);
+  const [scaleCardsToContent, setScaleCardsToContent] = useState(true);
 
   // Handle print with style
   const handlePrint = () => {

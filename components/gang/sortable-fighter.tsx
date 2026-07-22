@@ -62,7 +62,7 @@ export function SortableFighter({ fighter, viewMode = 'normal', userPermissions 
     <div
       ref={setNodeRef}
       style={style}
-      className={viewMode !== 'normal' ? 'min-w-0 w-full' : undefined}
+      className={viewMode !== 'normal' ? 'min-w-0 w-full flex flex-col' : undefined}
     >
       <FighterCard
         {...fighter}
