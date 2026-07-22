@@ -5,6 +5,9 @@ name: Deploy Supabase Edge Functions
 # this covers supabase/edge-functions/**. verify_jwt and entrypoints come from
 # supabase/config.toml.
 #
+# Every function declared as [functions.<name>] in supabase/config.toml is
+# deployed, so adding a new function there is enough — no need to edit this file.
+#
 # Requires repo secrets:
 #   SUPABASE_ACCESS_TOKEN  — a Supabase personal access token
 #   SUPABASE_PROJECT_REF   — the project ref (iojoritxhpijprgkjfre)
@@ -31,5 +34,17 @@ jobs:
         with:
           version: latest
 
-      - name: Deploy send-notification-email
-        run: supabase functions deploy send-notification-email --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
+      - name: Deploy all edge functions declared in config.toml
+        run: |
+          set -euo pipefail
+          functions=$(grep -oP '^\[functions\.\K[^]]+' supabase/config.toml)
+          if [ -z "$functions" ]; then
+            echo "No [functions.*] entries found in supabase/config.toml" >&2
+            exit 1
+          fi
+          echo "Deploying functions:" $functions
+          for fn in $functions; do
+            echo "::group::Deploy $fn"
+            supabase functions deploy "$fn" --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
+            echo "::endgroup::"
+          done

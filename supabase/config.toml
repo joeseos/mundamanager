@@ -17,6 +17,7 @@ verify_jwt = false
 
 [functions.discord-campaign-bot]
 entrypoint = "./edge-functions/discord-campaign-bot/index.ts"
+verify_jwt = false
 
 [functions.users-images-cleanup-drafts]
 entrypoint = "./edge-functions/users-images-cleanup-drafts/index.ts"
