@@ -10,12 +10,13 @@ import { TbMeatOff } from "react-icons/tb";
 import { GiHandcuffs, GiImprisoned } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";
 import { MdChair } from "react-icons/md";
-import { FaMedkit } from "react-icons/fa";
+import { FaMedkit, FaBookDead } from "react-icons/fa";
 import { LuLogs } from "react-icons/lu";
 import { Equipment } from '@/types/equipment';
 import { UserPermissions } from '@/types/user-permissions';
 import { FighterImageEditModal } from './fighter-image-edit-modal';
 import LogModal from '@/components/log-modal';
+import { FighterOoaHistoryModal } from './fighter-ooa-history-modal';
 
 // Vehicle equipment interface that extends Equipment
 interface VehicleEquipment extends Equipment {
@@ -81,6 +82,8 @@ interface FighterDetailsCardProps {
   vehicles?: Vehicle[];
   vehicleEquipment?: VehicleEquipment[];
   gangId?: string;
+  /** First campaign the gang belongs to — scopes OOA record edit comboboxes. */
+  campaignId?: string;
   userPermissions: UserPermissions;
   owner_name?: string; // Name of the fighter who owns this fighter (for exotic beasts)
   captured_by_gang_name?: string;
@@ -250,6 +253,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   effects,
   vehicles,
   gangId,
+  campaignId,
   userPermissions,
   owner_name,
   captured_by_gang_name,
@@ -261,6 +265,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [currentImageUrl, setCurrentImageUrl] = useState(image_url);
   const [isLogsModalOpen, setIsLogsModalOpen] = useState(false);
+  const [isOoaHistoryModalOpen, setIsOoaHistoryModalOpen] = useState(false);
 
   // Create fighter data object for stat calculation
   const fighterData = useMemo<FighterProps>(() => ({
@@ -461,8 +466,19 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       </div>
 
       <div className="flex flex-wrap justify-between items-center">
-        <div className="text-base text-muted-foreground flex gap-2">
-          <div>OOA: {kills}</div>
+        <div className="text-base text-muted-foreground flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setIsOoaHistoryModalOpen(true)}
+              title="View OOA / Wreck records"
+              aria-label="View OOA / Wreck records"
+              className="print:hidden text-muted-foreground hover:text-foreground rounded p-0.5"
+            >
+              <FaBookDead className="w-5 h-5" />
+            </button>
+            <span className="text-sm"> OOA: {kills}</span>
+          </div>
           {is_spyrer && <div>Kills: {kill_count ?? 0}</div>}
         </div>
 
@@ -616,6 +632,16 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
         emptyMessage="No activity logs found for this fighter."
         isOpen={isLogsModalOpen}
         onClose={() => setIsLogsModalOpen(false)}
+      />
+
+      {/* OOA / Wreck Records Modal */}
+      <FighterOoaHistoryModal
+        isOpen={isOoaHistoryModalOpen}
+        fighterId={id}
+        gangId={gangId}
+        campaignId={campaignId}
+        canEdit={canShowEditButtons}
+        onClose={() => setIsOoaHistoryModalOpen(false)}
       />
     </div>
   );

@@ -685,6 +685,7 @@ export default function FighterPage({
             }}
             vehicles={fighterData.fighter?.vehicles}
             gangId={fighterData.gang?.id}
+            campaignId={fighterData.fighter?.campaigns?.[0]?.campaign_id}
             vehicleEquipment={fighterData.vehicleEquipment}
             userPermissions={userPermissions}
             owner_name={initialFighterData.fighter?.owner_name}
@@ -1262,6 +1263,8 @@ export default function FighterPage({
               currentKills={fighterData.fighter.kills ?? 0}
               currentKillCount={fighterData.fighter.kill_count ?? 0}
               is_spyrer={fighterData.fighter.is_spyrer}
+              gangId={fighterData.gang?.id}
+              campaignId={fighterData.fighter?.campaigns?.[0]?.campaign_id}
               onClose={() => handleModalToggle('addXp', false)}
               onXpUpdated={handleXpUpdated}
             />

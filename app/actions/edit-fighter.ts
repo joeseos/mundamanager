@@ -9,6 +9,7 @@ import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { logFighterAction } from './logs/fighter-logs';
 import { countsTowardRating, hasKilledStatusFlag } from '@/utils/fighter-status';
 import { updateGangFinancials, updateGangRatingSimple, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
+import { insertFighterOoaRecords } from './fighter-ooa-records';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -1171,6 +1172,13 @@ export interface UpdateFighterXpWithOoaParams {
   xp_breakdown?: Record<string, number>;
   /** Optional note for Misc. XP - logged if present when misc is in breakdown */
   xp_misc_note?: string;
+  /** Campaign the OOA/wreck happened in (for context, optional) */
+  campaign_id?: string;
+  /** Optional records of opposing fighters taken OOA / vehicles wrecked. Snapshots are computed server-side. Omit injured_fighter_id for an unknown target. */
+  ooa_records?: Array<{
+    injured_fighter_id?: string;
+    event_type: 'out_of_action' | 'vehicle_wrecked';
+  }>;
 }
 
 export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParams): Promise<EditFighterResult> {
@@ -1182,13 +1190,15 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
     // Get fighter data (RLS will handle permissions)
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, xp, kills, kill_count, fighter_name, fighter_type_id, fighter_types(is_spyrer)')
+      .select('id, gang_id, xp, kills, kill_count, fighter_name, fighter_type, fighter_class, fighter_type_id, fighter_types(is_spyrer), gangs!gang_id(name)')
       .eq('id', params.fighter_id)
       .single();
 
     if (fighterError || !fighter) {
       throw new Error('Fighter not found');
     }
+
+    const causingGang = fighter.gangs && typeof fighter.gangs === 'object' ? fighter.gangs : null;
 
     // Type-safe access to fighter_types (may be null for custom fighters)
     const fighterTypes = fighter.fighter_types;
@@ -1240,6 +1250,24 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
       });
     } catch (logError) {
       console.error('Failed to log fighter XP change:', logError);
+    }
+
+    // Record OOA / vehicle-wreck targets (optional). Failure here does not fail the XP write.
+    if (params.ooa_records && params.ooa_records.length > 0) {
+      try {
+        await insertFighterOoaRecords(supabase, {
+          causing_fighter_id: params.fighter_id,
+          causing_fighter_name: fighter.fighter_name,
+          causing_fighter_type: fighter.fighter_type,
+          causing_fighter_class: fighter.fighter_class,
+          causing_gang_id: fighter.gang_id,
+          causing_gang_name: (causingGang as any)?.name ?? null,
+          campaign_id: params.campaign_id,
+          records: params.ooa_records
+        });
+      } catch (recordError) {
+        console.error('Failed to record fighter OOA/wreck targets:', recordError);
+      }
     }
 
     // Invalidate cache - surgical XP-only invalidation
