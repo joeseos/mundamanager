@@ -108,11 +108,21 @@ export function DraggableFighters({
 
   const sensors = useDndSensorsConfig();
 
-  // After a drag, the browser still synthesizes a `click` on whatever is under the pointer
-  // (often a *different* fighter card than the one that was dragged). Swallow that one click
-  // in the capture phase so no card's `<a>` navigates to a fighter page.
-  const suppressClickAfterDrag = () => {
+  // After a pointer drag, the browser still synthesizes a `click` on whatever is under the
+  // pointer (often a *different* fighter card than the one dragged). Swallow that one click
+  // in the capture phase so no card's `<a>` navigates away. Scoped to fighter-card links only
+  // so unrelated UI (nav, "Add Fighter", menus, etc.) stays clickable if the listener is still
+  // armed. Keyboard reorder never produces a trailing click, so we skip arming for it.
+  const suppressClickAfterDrag = (activatorEvent?: Event | null) => {
+    if (activatorEvent instanceof KeyboardEvent) return;
+
     const suppress = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      // Only eat navigation clicks on fighter cards — leave everything else alone and keep
+      // listening until a card click arrives or the timeout clears.
+      if (!target.closest('.fighter-card-bg')?.closest('a')) return;
+
       event.preventDefault();
       event.stopPropagation();
       cleanup();
@@ -126,9 +136,9 @@ export function DraggableFighters({
   };
 
   const handleDragEnd = async (event: any) => {
-    // Always suppress — including same-position drops / cancelled-looking ends — because a
+    // Always consider suppress for pointer drags — including same-position drops — because a
     // real drag still produces a trailing click.
-    suppressClickAfterDrag();
+    suppressClickAfterDrag(event.activatorEvent);
 
     const { active, over } = event;
     
@@ -237,7 +247,7 @@ export function DraggableFighters({
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
-      onDragCancel={suppressClickAfterDrag}
+      onDragCancel={(event) => suppressClickAfterDrag(event.activatorEvent)}
     >
       <SortableContext
         items={sortedFighters.map(f => f.id)}

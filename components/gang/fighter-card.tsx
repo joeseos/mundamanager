@@ -29,6 +29,8 @@ const COMPACT_DESIGN_WIDTH = 800;
 // than the number itself — the content-box is what the absolutely-positioned inner wrapper
 // (`inset-0`) actually measures against. Without adding this back, the measured content
 // overflows that inner wrapper's `overflow-hidden` and its last line gets clipped.
+// The constant is 8 (not 4) on purpose: 4px covers the border-box shortfall, and an extra
+// 4px is a safety margin for sub-pixel rounding under `transform: scale(...)`.
 const COMPACT_CARD_VERTICAL_BORDER_PX = 8;
 
 interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_type' | 'vehicles' | 'skills' | 'effects'> {
