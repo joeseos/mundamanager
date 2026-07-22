@@ -223,7 +223,11 @@ Deno.serve(async (req) => {
       const budget = Math.min(DISCORD_DESC_MAX, DISCORD_TOTAL_MAX - infoChars);
       let description = battle.note;
       if (description.length > budget) {
-        description = description.slice(0, Math.max(0, budget - 1)).trimEnd() + "…";
+        let cut = description.slice(0, Math.max(0, budget - 1));
+        // Avoid splitting a UTF-16 surrogate pair (e.g. an emoji) at the cut,
+        // which would leave a lone high surrogate that renders as "�".
+        if (cut.length > 0 && /[\uD800-\uDBFF]$/.test(cut)) cut = cut.slice(0, -1);
+        description = cut.trimEnd() + "…";
       }
       // The report is the last embed, so it carries the footer + timestamp.
       embeds.push({
