@@ -114,7 +114,9 @@ export function MyFighters({ fighters, positions, isLoading, error, viewMode = '
     <div className={
       viewMode === 'normal'
         ? "space-y-4 print:flex print:flex-wrap print:flex-row gap-x-2 print:space-y-0"
-        : `${viewModeGridClass[viewMode]} w-full items-start px-0`
+        // items-stretch (CSS Grid default) makes every card in a row match the tallest card's
+        // height, since each card's own height is content-driven (see fighter-card.tsx).
+        : `${viewModeGridClass[viewMode]} w-full items-stretch px-0`
     }>
       {sortedFighters.map((fighter) => (
         <SortableFighter

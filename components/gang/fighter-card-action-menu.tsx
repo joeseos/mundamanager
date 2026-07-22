@@ -234,7 +234,9 @@ export function FighterCardActionMenu({
 
   return (
     <div
-      className="relative"
+      // flex flex-col + grow/min-h-0 are no-ops unless an ancestor has a definite height (e.g. a
+      // card-view grid row stretched to its tallest card) — see components/gang/fighter-card.tsx.
+      className="relative flex flex-col grow min-h-0"
       onPointerDownCapture={handlePointerDown}
       onTouchStartCapture={handleTouchStart}
       onContextMenuCapture={handleContextMenu}
