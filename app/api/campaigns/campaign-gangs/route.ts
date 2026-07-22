@@ -2,7 +2,10 @@ import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 
 type CampaignGangWithGang = {
-  id: string;
+  // Real campaign_gangs row id, or null when this entry was synthesized
+  // below to guarantee the caller's own gang is present (not backed by an
+  // actual campaign_gangs membership row).
+  id: string | null;
   gang_id: string;
   user_id: string | null;
   campaign_member_id: string | null;
@@ -82,7 +85,7 @@ export async function GET(request: Request) {
 
       if (ownGang) {
         campaignGangs.push({
-          id: '',
+          id: null, // not a real campaign_gangs row
           gang_id: ownGang.id,
           user_id: ownGang.user_id,
           campaign_member_id: null,
@@ -134,7 +137,7 @@ export async function GET(request: Request) {
         name: cg.gangs.name,
         gang_type: cg.gangs.gang_type,
         gang_colour: cg.gangs.gang_colour,
-        campaign_gang_id: cg.id || null,
+        campaign_gang_id: cg.id,
         user_id: cg.user_id,
         campaign_member_id: cg.campaign_member_id,
         owner_username: (cg.user_id && profileMap.get(cg.user_id)) || 'Unknown'
