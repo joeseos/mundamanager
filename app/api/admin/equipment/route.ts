@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
-import { WeaponProfileInput } from "@/types/equipment";
+import { WeaponProfileInput, EquipmentAvailability, EquipmentOriginAvailability, EquipmentVariantAvailability } from "@/types/equipment";
 import { 
   FighterEffectType, 
   FighterEffectTypeModifier, 
@@ -16,22 +16,6 @@ interface FighterTypeEquipment {
 interface GangAdjustedCost {
   gang_type_id: string;
   adjusted_cost: number;
-}
-
-interface EquipmentAvailability {
-  gang_type_id: string;
-  availability: string;
-  exclusive?: boolean;
-}
-
-interface EquipmentOriginAvailability {
-  gang_origin_id: string;
-  availability: string;
-}
-
-interface EquipmentVariantAvailability {
-  gang_variant_id: string;
-  availability: string;
 }
 
 export async function GET(request: Request) {
@@ -551,7 +535,7 @@ export async function POST(request: Request) {
 
     // Handle equipment availabilities if provided
     if (equipment_availabilities && equipment_availabilities.length > 0) {
-      const availabilityRecords = equipment_availabilities.map((avail: EquipmentAvailability) => ({
+      const availabilityRecords = equipment_availabilities.map((avail: Pick<EquipmentAvailability, 'gang_type_id' | 'availability' | 'exclusive'>) => ({
         equipment_id: equipment.id,
         gang_type_id: avail.gang_type_id,
         availability: avail.availability.trimEnd(),
@@ -1024,7 +1008,7 @@ export async function PATCH(request: Request) {
 
       // If there are new availabilities to add
       if (Array.isArray(equipment_availabilities) && equipment_availabilities.length > 0) {
-        const availabilityRecords = equipment_availabilities.map((avail: EquipmentAvailability) => ({
+        const availabilityRecords = equipment_availabilities.map((avail: Pick<EquipmentAvailability, 'gang_type_id' | 'availability' | 'exclusive'>) => ({
           equipment_id: id,
           gang_type_id: avail.gang_type_id,
           availability: avail.availability.trimEnd(),
@@ -1061,7 +1045,7 @@ export async function PATCH(request: Request) {
 
       // If there are new origin availabilities to add
       if (Array.isArray(equipment_origin_availabilities) && equipment_origin_availabilities.length > 0) {
-        const originAvailabilityRecords = equipment_origin_availabilities.map((avail: any) => ({
+        const originAvailabilityRecords = equipment_origin_availabilities.map((avail: Pick<EquipmentOriginAvailability, 'gang_origin_id' | 'availability'>) => ({
           equipment_id: id,
           gang_origin_id: avail.gang_origin_id,
           availability: avail.availability.trimEnd(),
@@ -1097,7 +1081,7 @@ export async function PATCH(request: Request) {
 
       // If there are new variant availabilities to add
       if (Array.isArray(equipment_variant_availabilities) && equipment_variant_availabilities.length > 0) {
-        const variantAvailabilityRecords = equipment_variant_availabilities.map((avail: EquipmentVariantAvailability) => ({
+        const variantAvailabilityRecords = equipment_variant_availabilities.map((avail: Pick<EquipmentVariantAvailability, 'gang_variant_id' | 'availability'>) => ({
           equipment_id: id,
           gang_variant_id: avail.gang_variant_id,
           availability: avail.availability.trimEnd(),

@@ -191,3 +191,28 @@ export interface ResourceCost {
   typeResourceId?: string;
   campaignResourceId?: string;
 }
+
+/**
+ * Per-gang availability entries used by the equipment admin editor.
+ * The label fields (gang_type / origin_name / variant) are for display only;
+ * the API persists the id + availability (+ exclusive for gang-type rows).
+ * `exclusive` marks the row as an "available only to this gang" allow-list entry.
+ */
+export interface EquipmentAvailability {
+  gang_type: string;
+  gang_type_id: string;
+  availability: string;
+  exclusive?: boolean;
+}
+
+export interface EquipmentOriginAvailability {
+  origin_name: string;
+  gang_origin_id: string;
+  availability: string;
+}
+
+export interface EquipmentVariantAvailability {
+  variant: string;
+  gang_variant_id: string;
+  availability: string;
+}

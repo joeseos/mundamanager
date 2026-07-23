@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AvailabilityPicker, combineAvailability } from '@/components/ui/availability-picker';
 import { toast } from 'sonner';
-import { WeaponProfileInput } from "@/types/equipment";
+import { WeaponProfileInput, EquipmentAvailability } from "@/types/equipment";
 import { HiX } from "react-icons/hi";
 import { LuTrash2 } from 'react-icons/lu'
 
@@ -23,12 +23,6 @@ interface GangAdjustedCost {
   gang_type: string;
   gang_type_id: string;
   adjusted_cost: number;
-}
-
-interface EquipmentAvailability {
-  gang_type: string;
-  gang_type_id: string;
-  availability: string;
 }
 
 export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEquipmentModalProps) {

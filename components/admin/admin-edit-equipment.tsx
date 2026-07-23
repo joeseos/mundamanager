@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
 import { toast } from 'sonner';
 import { FighterType } from "@/types/fighter";
-import { WeaponProfileInput, EquipmentGrants } from "@/types/equipment";
+import { WeaponProfileInput, EquipmentGrants, EquipmentAvailability, EquipmentOriginAvailability, EquipmentVariantAvailability } from "@/types/equipment";
 import { HiX } from "react-icons/hi";
 import { fighterClassRank } from "@/utils/fighterClassRank";
 import { gangOriginRank } from "@/utils/gangOriginRank";
@@ -36,25 +36,6 @@ interface GangOriginAdjustedCost {
   origin_name: string;
   gang_origin_id: string;
   adjusted_cost: number;
-}
-
-interface EquipmentAvailability {
-  gang_type: string;
-  gang_type_id: string;
-  availability: string;
-  exclusive: boolean;
-}
-
-interface EquipmentOriginAvailability {
-  origin_name: string;
-  gang_origin_id: string;
-  availability: string;
-}
-
-interface EquipmentVariantAvailability {
-  variant: string;
-  gang_variant_id: string;
-  availability: string;
 }
 
 interface Equipment {
