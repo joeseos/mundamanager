@@ -593,7 +593,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
             </div>
             <div className="flex items-center gap-3 justify-center">
               {!isStashMode && (
-                <label className="flex text-sm text-muted-foreground cursor-pointer whitespace-nowrap leading-8">
+                <label className="flex items-center text-sm text-muted-foreground cursor-pointer whitespace-nowrap">
                   <input
                     type="radio"
                     name="equipment-list"
@@ -609,7 +609,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                   {isVehicleEquipment ? "Vehicle's List" : "Fighter's List"}
                 </label>
               )}
-              <label className="flex text-sm text-muted-foreground cursor-pointer whitespace-nowrap">
+              <label className="flex items-center text-sm text-muted-foreground cursor-pointer whitespace-nowrap">
                 <input
                   type="radio"
                   name="equipment-list"
@@ -624,7 +624,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 />
                 Trading Post
               </label>
-              <label className="flex text-sm text-muted-foreground cursor-pointer whitespace-nowrap">
+              <label className="flex items-center text-sm text-muted-foreground cursor-pointer whitespace-nowrap">
                 <input
                   type="radio"
                   name="equipment-list"
