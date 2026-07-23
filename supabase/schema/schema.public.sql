@@ -2,8 +2,6 @@
 -- PostgreSQL database dump
 --
 
-\restrict 3mBKqejLy0XsAUoHVRule1XcdwFVSOnqUSjrVcQs1zQ0qsVRhF6nILLI0wh2uJq
-
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
 
@@ -18,12 +16,6 @@ SET check_function_bodies = false;
 SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
-
---
--- Name: public; Type: SCHEMA; Schema: -; Owner: -
---
-
-CREATE SCHEMA public;
 
 
 --
@@ -12663,6 +12655,3 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict 3mBKqejLy0XsAUoHVRule1XcdwFVSOnqUSjrVcQs1zQ0qsVRhF6nILLI0wh2uJq
-
