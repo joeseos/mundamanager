@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
-import { WeaponProfileInput, EquipmentAvailability, EquipmentOriginAvailability, EquipmentVariantAvailability } from "@/types/equipment";
+import { WeaponProfileInput, EquipmentAvailability, EquipmentOriginAvailability, EquipmentVariantAvailability, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
 import { 
   FighterEffectType, 
   FighterEffectTypeModifier, 
@@ -11,11 +11,6 @@ import {
 interface FighterTypeEquipment {
   fighter_type_id: string;
   equipment_id: string;
-}
-
-interface GangAdjustedCost {
-  gang_type_id: string;
-  adjusted_cost: number;
 }
 
 export async function GET(request: Request) {
@@ -519,7 +514,7 @@ export async function POST(request: Request) {
 
     // Handle gang adjustedCosts if provided
     if (gang_adjusted_costs && gang_adjusted_costs.length > 0) {
-      const adjustedCostRecords = gang_adjusted_costs.map((adjusted_cost: GangAdjustedCost) => ({
+      const adjustedCostRecords = gang_adjusted_costs.map((adjusted_cost: Pick<GangAdjustedCost, 'gang_type_id' | 'adjusted_cost'>) => ({
         equipment_id: equipment.id,
         gang_type_id: adjusted_cost.gang_type_id,
         adjusted_cost: adjusted_cost.adjusted_cost.toString(),
@@ -738,7 +733,7 @@ export async function PUT(request: Request) {
         );
 
         // Add type for the adjustedCost in the map function
-        const adjustedCostRecords = gang_adjusted_costs.map((adjusted_cost: GangAdjustedCost) => ({
+        const adjustedCostRecords = gang_adjusted_costs.map((adjusted_cost: Pick<GangAdjustedCost, 'gang_type_id' | 'adjusted_cost'>) => ({
           equipment_id: id,
           gang_type_id: adjusted_cost.gang_type_id,
           adjusted_cost: adjusted_cost.adjusted_cost.toString(),
@@ -936,7 +931,7 @@ export async function PATCH(request: Request) {
       // If there are new adjustedCosts to add
       if (gang_adjusted_costs.length > 0) {
         // Add type for the adjusted_cost in the map function
-        const adjustedCostRecords = gang_adjusted_costs.map((adjusted_cost: GangAdjustedCost) => ({
+        const adjustedCostRecords = gang_adjusted_costs.map((adjusted_cost: Pick<GangAdjustedCost, 'gang_type_id' | 'adjusted_cost'>) => ({
           equipment_id: id,
           gang_type_id: adjusted_cost.gang_type_id,
           adjusted_cost: adjusted_cost.adjusted_cost.toString(),
@@ -971,7 +966,7 @@ export async function PATCH(request: Request) {
 
       // If there are new origin adjustedCosts to add
       if (Array.isArray(gang_origin_adjusted_costs) && gang_origin_adjusted_costs.length > 0) {
-        const originAdjustedCostRecords = gang_origin_adjusted_costs.map((adjusted_cost: any) => ({
+        const originAdjustedCostRecords = gang_origin_adjusted_costs.map((adjusted_cost: Pick<GangOriginAdjustedCost, 'gang_origin_id' | 'adjusted_cost'>) => ({
           equipment_id: id,
           gang_origin_id: adjusted_cost.gang_origin_id,
           adjusted_cost: adjusted_cost.adjusted_cost.toString(),

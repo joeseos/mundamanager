@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AvailabilityPicker, combineAvailability } from '@/components/ui/availability-picker';
 import { toast } from 'sonner';
-import { WeaponProfileInput, EquipmentAvailability } from "@/types/equipment";
+import { WeaponProfileInput, EquipmentAvailability, GangAdjustedCost } from "@/types/equipment";
 import { HiX } from "react-icons/hi";
 import { LuTrash2 } from 'react-icons/lu'
 
@@ -18,12 +18,6 @@ interface AdminCreateEquipmentModalProps {
 
 const EQUIPMENT_TYPES = ['wargear', 'weapon', 'vehicle_upgrade'] as const;
 type EquipmentType = typeof EQUIPMENT_TYPES[number];
-
-interface GangAdjustedCost {
-  gang_type: string;
-  gang_type_id: string;
-  adjusted_cost: number;
-}
 
 export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEquipmentModalProps) {
   const queryClient = useQueryClient();

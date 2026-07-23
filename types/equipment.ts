@@ -216,3 +216,20 @@ export interface EquipmentVariantAvailability {
   gang_variant_id: string;
   availability: string;
 }
+
+/**
+ * Per-gang adjusted-cost entries used by the equipment admin editor.
+ * The label fields (gang_type / origin_name) are for display only; the API
+ * persists the id + adjusted_cost.
+ */
+export interface GangAdjustedCost {
+  gang_type: string;
+  gang_type_id: string;
+  adjusted_cost: number;
+}
+
+export interface GangOriginAdjustedCost {
+  origin_name: string;
+  gang_origin_id: string;
+  adjusted_cost: number;
+}

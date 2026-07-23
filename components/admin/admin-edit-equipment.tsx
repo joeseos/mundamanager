@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
 import { toast } from 'sonner';
 import { FighterType } from "@/types/fighter";
-import { WeaponProfileInput, EquipmentGrants, EquipmentAvailability, EquipmentOriginAvailability, EquipmentVariantAvailability } from "@/types/equipment";
+import { WeaponProfileInput, EquipmentGrants, EquipmentAvailability, EquipmentOriginAvailability, EquipmentVariantAvailability, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
 import { HiX } from "react-icons/hi";
 import { fighterClassRank } from "@/utils/fighterClassRank";
 import { gangOriginRank } from "@/utils/gangOriginRank";
@@ -25,18 +25,6 @@ interface AdminEditEquipmentModalProps {
 
 const EQUIPMENT_TYPES = ['wargear', 'weapon', 'vehicle_upgrade'] as const;
 type EquipmentType = typeof EQUIPMENT_TYPES[number];
-
-interface GangAdjustedCost {
-  gang_type: string;
-  gang_type_id: string;
-  adjusted_cost: number;
-}
-
-interface GangOriginAdjustedCost {
-  origin_name: string;
-  gang_origin_id: string;
-  adjusted_cost: number;
-}
 
 interface Equipment {
   id: string;
