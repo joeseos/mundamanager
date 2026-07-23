@@ -83,17 +83,14 @@ For questions about contributing, feel free to ask in our [Discord server](https
 Run the whole stack locally with the Supabase CLI so you can experiment with
 schema/backend changes without touching the production database.
 
-> **Why not just `supabase start`?**
+> **Why are local migrations disabled in config.toml?**
 > The files in `supabase/migrations/` are *incremental* deltas for developers
 > who already have the full database — they assume base tables that were never
 > captured as a migration, so replaying them from empty crashes. Local migration
-> auto-run is therefore disabled in `supabase/config.toml`. A fresh local
-> database is built instead from the committed schema snapshot
-> (`supabase/schema/schema.public.sql`, regenerated daily by CI) plus three
-> pieces a `--schema=public` dump can never contain: the `private` schema (the
-> `is_admin` / `is_arb` helpers that ~200 RLS policies call), the `auth.users`
-> signup trigger, and the standard public-schema grants. The setup script layers
-> all of these in, in the right order.
+> auto-run is therefore disabled in `supabase/config.toml`. Instead, `supabase start`
+> and `supabase db reset` natively build the fresh local database via `[db.seed].sql_paths`
+> in `supabase/config.toml`, loading the committed schema snapshot (`schema.public.sql`),
+> helper schemas, role grants, triggers, and game reference data (`seed.sql`) in the exact right order.
 
 **Prerequisites:** [Supabase CLI](https://supabase.com/docs/guides/cli), Docker
 (for the local stack), and a `psql` client.

@@ -6,9 +6,9 @@ major_version = 17
 # already have the full database; they assume a base schema that was never
 # captured as a migration, so they cannot be replayed from an empty database.
 # Disabling auto-run stops `supabase start` / `supabase db reset` from crashing
-# on them locally. New local databases are built from the schema snapshot with
-# `./scripts/setup-local-db.sh` instead (see the repo README). This flag is
-# local-only and does not affect how migrations are applied to the remote.
+# on them locally. Fresh local databases are built natively via `[db.seed].sql_paths`
+# below (see the repo README). This flag is local-only and does not affect how
+# migrations are applied to the remote.
 enabled = false
 
 [db.seed]
