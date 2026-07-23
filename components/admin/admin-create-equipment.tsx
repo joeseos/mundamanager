@@ -53,6 +53,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   const [selectedAvailabilityGangType, setSelectedAvailabilityGangType] = useState("");
   const [availValueLetter, setAvailValueLetter] = useState('');
   const [availValueNumber, setAvailValueNumber] = useState(6);
+  const [availExclusive, setAvailExclusive] = useState(false);
   const [equipmentAvailabilities, setEquipmentAvailabilities] = useState<EquipmentAvailability[]>([]);
   
   
@@ -168,7 +169,8 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
           })),
           equipment_availabilities: equipmentAvailabilities.map(a => ({
             gang_type_id: a.gang_type_id,
-            availability: a.availability
+            availability: a.availability,
+            exclusive: a.exclusive
           }))
         }),
       });
@@ -476,7 +478,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                         key={index}
                         className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                       >
-                        <span>{avail.gang_type} (Availability: {avail.availability})</span>
+                        <span>{avail.gang_type} (Availability: {avail.availability}{avail.exclusive ? ', Exclusive' : ''})</span>
                         <button
                           onClick={() => setEquipmentAvailabilities(prev => 
                             prev.filter((_, i) => i !== index)
@@ -500,6 +502,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                         setSelectedAvailabilityGangType("");
                         setAvailValueLetter('');
                         setAvailValueNumber(6);
+                        setAvailExclusive(false);
                       }
                     }}
                   >
@@ -538,6 +541,20 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           allowEmpty
                         />
 
+                        <label className="flex items-start space-x-2">
+                          <Checkbox
+                            checked={availExclusive}
+                            onCheckedChange={(checked) => setAvailExclusive(checked === true)}
+                            className="mt-1"
+                          />
+                          <div>
+                            <span className="text-sm font-medium text-muted-foreground">Available only to this gang</span>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Limits this item&apos;s Trading Post visibility to only the gangs flagged here. Flag several gangs to make it available to each of them.
+                            </p>
+                          </div>
+                        </label>
+
                         <div className="flex gap-2 justify-end mt-6">
                           <Button
                             variant="outline"
@@ -546,6 +563,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                               setSelectedAvailabilityGangType("");
                               setAvailValueLetter('');
                               setAvailValueNumber(6);
+                              setAvailExclusive(false);
                             }}
                           >
                             Cancel
@@ -561,13 +579,15 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                                     {
                                       gang_type: selectedGang.gang_type,
                                       gang_type_id: selectedGang.gang_type_id,
-                                      availability: combined
+                                      availability: combined,
+                                      exclusive: availExclusive
                                     }
                                   ]);
                                   setShowAvailabilityDialog(false);
                                   setSelectedAvailabilityGangType("");
                                   setAvailValueLetter('');
                                   setAvailValueNumber(6);
+                                  setAvailExclusive(false);
                                 }
                               }
                             }}
