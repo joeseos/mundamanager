@@ -583,9 +583,9 @@ export default function CampaignPageContent({
 
             {/* Right Section: Content */}
             <div className="grow w-full">
-                             <div className="flex justify-between items-start mb-1">
-                 <h2 className="text-xl md:text-2xl font-bold">{campaignData.campaign_name}</h2>
-                 <div className="flex gap-2 print:hidden">
+                             <div className="flex justify-between items-start mb-1 gap-2">
+                 <h2 className="text-xl md:text-2xl font-bold min-w-0 break-words">{campaignData.campaign_name}</h2>
+                 <div className="flex gap-2 shrink-0 print:hidden">
                    {canRequestToJoin && (
                      joinRequestPending ? (
                        <Button
