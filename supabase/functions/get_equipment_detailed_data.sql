@@ -127,6 +127,20 @@ AS $$
                 '{}'::text[]
             ) AS tp_names
         FROM tp_access ta
+        -- Gang-exclusive allow-list: an item flagged "available only to this gang"
+        -- (an exclusive gang-type availability row) is hidden from the Trading Post
+        -- of gangs that are not on its allow-list. Scoped to Trading Post access
+        -- only, so the fighter's-list path is unaffected.
+        WHERE NOT EXISTS (
+                  SELECT 1 FROM equipment_availability xa
+                  WHERE xa.equipment_id = ta.equipment_id
+                    AND xa.exclusive AND xa.gang_type_id IS NOT NULL
+              )
+           OR EXISTS (
+                  SELECT 1 FROM equipment_availability xa
+                  WHERE xa.equipment_id = ta.equipment_id
+                    AND xa.exclusive AND xa.gang_type_id = $1
+              )
         GROUP BY ta.equipment_id
     ),
 
@@ -261,8 +275,8 @@ AS $$
         -- Is in fighter's equipment list? (computed once in ftl_flag below)
         ftl_flag.is_fighter_list AS fighter_type_equipment,
 
-        -- Has trading post access? (exclusivity-aware; see tp_eff below)
-        tp_eff.has_access AS equipment_tradingpost,
+        -- Has trading post access? (tp_summary is gang-exclusivity-aware)
+        COALESCE(tp.has_access, false) AS equipment_tradingpost,
 
         false AS is_custom,
 
@@ -405,25 +419,6 @@ AS $$
     -- Pre-computed CTEs via simple LEFT JOINs
     LEFT JOIN best_adjusted_cost bac ON bac.equipment_id = e.id
     LEFT JOIN tp_summary tp ON tp.equipment_id = e.id
-
-    -- Effective trading-post access. Gang-exclusive allow-list: an item flagged
-    -- "available only to this gang" (an exclusive gang-type availability row) is
-    -- only purchasable from the Trading Post by gangs on its allow-list. This
-    -- narrows TRADING POST visibility only — the fighter's-list path is untouched,
-    -- so items assigned to a fighter type still appear on that fighter's list.
-    LEFT JOIN LATERAL (
-        SELECT COALESCE(tp.has_access, false)
-            AND NOT (
-                COALESCE(ea.exclusive, false) = false
-                AND EXISTS (
-                    SELECT 1 FROM equipment_availability xa
-                    WHERE xa.equipment_id = e.id
-                      AND xa.exclusive
-                      AND xa.gang_type_id IS NOT NULL
-                )
-            ) AS has_access
-    ) tp_eff ON true
-
     LEFT JOIN custom_tp_override cto ON cto.equipment_id = e.id
     LEFT JOIN campaign_type_resources ctr_res ON ctr_res.id = cto.cost_type_resource_id
     LEFT JOIN campaign_resources cr_res ON cr_res.id = cto.cost_campaign_resource_id
@@ -442,20 +437,18 @@ AS $$
             -- No filter
             ($4 IS NULL AND $5 IS NULL)
             OR
-            -- Both filters: items in EITHER fighter's list OR trading post.
-            -- tp_eff.has_access already excludes gang-exclusive items from the
-            -- Trading Post for non-allowed gangs, without affecting the list.
+            -- Both filters: items in EITHER fighter's list OR trading post
             ($4 IS NOT NULL AND $5 IS NOT NULL AND (
                 ftl_flag.is_fighter_list = $4
                 OR
-                tp_eff.has_access = $5
+                COALESCE(tp.has_access, false) = $5
             ))
             OR
             -- Fighter's list only
             ($4 IS NOT NULL AND $5 IS NULL AND ftl_flag.is_fighter_list = $4)
             OR
             -- Trading post only
-            ($4 IS NULL AND $5 IS NOT NULL AND tp_eff.has_access = $5)
+            ($4 IS NULL AND $5 IS NOT NULL AND COALESCE(tp.has_access, false) = $5)
         )
 
     UNION ALL
