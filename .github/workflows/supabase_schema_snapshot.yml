@@ -67,6 +67,9 @@ jobs:
           set -euo pipefail
           schema="$SUPABASE_SNAPSHOT_PATH/schema.public.sql"
 
+          # Remove pg_dump meta-directives incompatible with Supabase CLI Go SQL parser
+          sed -i -E '/^\\restrict/d; /^\\unrestrict/d; /^CREATE SCHEMA public;$/d' "$schema"
+
           # Remove triggers using supabase_functions.http_request (Dashboard webhooks with hardcoded credentials)
           if grep -q 'supabase_functions\.http_request' "$schema"; then
             sed -i '/supabase_functions\.http_request/d' "$schema"

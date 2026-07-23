@@ -2,21 +2,16 @@
 
 ## Local development
 
-To spin up a fresh local database, run `./scripts/setup-local-db.sh` from the repo
-root and follow the "Setting up a local Supabase database" section of the top-level
-README. `supabase start` on its own does **not** work: the files in `migrations/`
-are incremental deltas that assume a pre-existing base schema, so local migration
-auto-run is disabled in `config.toml` and the local database is built from
-`schema/schema.public.sql` instead.
+To spin up a fresh local database, run `supabase start` or `supabase db reset` from the repo root and follow the "Setting up a local Supabase database" section of the top-level README. Local migration auto-run is disabled in `config.toml` because the files in `migrations/` are incremental deltas that assume a pre-existing base schema. Instead, `supabase start` / `supabase db reset` automatically build the fresh database natively using `[db.seed].sql_paths` configured in `config.toml`.
 
-`schema/schema.public.sql` is a `pg_dump --schema=public` snapshot (regenerated
-daily by `.github/workflows/supabase_schema_snapshot.yml`). Because it is
-public-only, three things live **outside** it and are applied separately:
+`schema/schema.public.sql` is a `pg_dump --schema=public` snapshot (regenerated daily by `.github/workflows/supabase_schema_snapshot.yml`). Because it is public-only, non-public bootstrap scripts and reference seed data are applied alongside it via `config.toml`:
 
 | Piece | Where it lives | Applied by |
 |-------|----------------|------------|
-| `private` schema (`is_admin`, `is_arb`) | `functions/is_admin.sql`, `functions/is_arb.sql` + `bootstrap/private_schema.sql` | `setup-local-db.sh` locally; manually on the remote |
-| `auth.users` signup trigger (`on_auth_user_created` → `handle_new_user`) | `migrations/20260525_create_handle_new_user_trigger.sql` / `bootstrap/auth_trigger.sql` | migrations on the remote; `setup-local-db.sh` locally |
+| `private` schema (`is_admin`, `is_arb`) | `functions/is_admin.sql`, `functions/is_arb.sql` + `bootstrap/private_schema.sql` | `[db.seed].sql_paths` in `config.toml` locally; manually on the remote |
+| Public schema snapshot | `schema/schema.public.sql` | `[db.seed].sql_paths` in `config.toml` locally; DB dump restore on remote |
+| Grants & Triggers | `bootstrap/grants.sql`, `bootstrap/auth_trigger.sql` | `[db.seed].sql_paths` in `config.toml` locally; migrations on remote |
+| Game Reference Data | `seed.sql` | `[db.seed].sql_paths` in `config.toml` locally |
 | Notification-email webhook | `webhooks/send_notification_email.sql` | manually (see `webhooks/README.md`) |
 
 ### Private schema
