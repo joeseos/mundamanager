@@ -970,7 +970,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                               key={index}
                               className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                             >
-                              <span>{avail.gang_type} (Availability: {avail.availability}{avail.exclusive ? ', Exclusive' : ''})</span>
+                              <span>{avail.gang_type} ({[avail.availability ? `Availability: ${avail.availability}` : null, avail.exclusive ? 'Exclusive' : null].filter(Boolean).join(', ')})</span>
                               <button
                                 onClick={() => setEquipmentAvailabilities(prev =>
                                   prev.filter((_, i) => i !== index)
@@ -998,7 +998,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           }}
                           onConfirm={() => {
                             const combined = combineAvailability(availValueLetter, availValueNumber);
-                            if (selectedAvailabilityGangType && combined) {
+                            if (selectedAvailabilityGangType && (combined || availExclusive)) {
                               const selectedGang = gangTypeOptions.find(g => g.gang_type_id === selectedAvailabilityGangType);
                               if (selectedGang) {
                                 setEquipmentAvailabilities(prev => [
@@ -1022,7 +1022,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           confirmDisabled={
                             isGangTypesLoading ||
                             !selectedAvailabilityGangType ||
-                            !availValueLetter
+                            (!availValueLetter && !availExclusive)
                           }
                           width="sm"
                         >

@@ -183,7 +183,7 @@ export async function GET(request: Request) {
 
       // Format the availabilities with null check
       interface AvailabilityData {
-        availability: string;
+        availability: string | null;
         gang_type_id: string | null;
         exclusive?: boolean;
       }
@@ -533,7 +533,7 @@ export async function POST(request: Request) {
       const availabilityRecords = equipment_availabilities.map((avail: Pick<EquipmentAvailability, 'gang_type_id' | 'availability' | 'exclusive'>) => ({
         equipment_id: equipment.id,
         gang_type_id: avail.gang_type_id,
-        availability: avail.availability.trimEnd(),
+        availability: avail.availability ? avail.availability.trimEnd() : null,
         exclusive: avail.exclusive ?? false
       }));
 
@@ -1006,7 +1006,7 @@ export async function PATCH(request: Request) {
         const availabilityRecords = equipment_availabilities.map((avail: Pick<EquipmentAvailability, 'gang_type_id' | 'availability' | 'exclusive'>) => ({
           equipment_id: id,
           gang_type_id: avail.gang_type_id,
-          availability: avail.availability.trimEnd(),
+          availability: avail.availability ? avail.availability.trimEnd() : null,
           gang_origin_id: null,
           exclusive: avail.exclusive ?? false
         }));

@@ -201,7 +201,9 @@ export interface ResourceCost {
 export interface EquipmentAvailability {
   gang_type: string;
   gang_type_id: string;
-  availability: string;
+  // null when the row only restricts the item to this gang (exclusive) without
+  // overriding availability — the item keeps its normal availability.
+  availability: string | null;
   exclusive?: boolean;
 }
 
