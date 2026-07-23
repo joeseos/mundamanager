@@ -2,6 +2,7 @@
 -- PostgreSQL database dump
 --
 
+
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
 
@@ -16,6 +17,11 @@ SET check_function_bodies = false;
 SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
+
+--
+-- Name: public; Type: SCHEMA; Schema: -; Owner: -
+--
+
 
 
 --
@@ -1926,6 +1932,20 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
                 '{}'::text[]
             ) AS tp_names
         FROM tp_access ta
+        -- Gang-exclusive allow-list: an item flagged "available only to this gang"
+        -- (an exclusive gang-type availability row) is hidden from the Trading Post
+        -- of gangs that are not on its allow-list. Scoped to Trading Post access
+        -- only, so the fighter's-list path is unaffected.
+        WHERE NOT EXISTS (
+                  SELECT 1 FROM equipment_availability xa
+                  WHERE xa.equipment_id = ta.equipment_id
+                    AND xa.exclusive AND xa.gang_type_id IS NOT NULL
+              )
+           OR EXISTS (
+                  SELECT 1 FROM equipment_availability xa
+                  WHERE xa.equipment_id = ta.equipment_id
+                    AND xa.exclusive AND xa.gang_type_id = $1
+              )
         GROUP BY ta.equipment_id
     ),
 
@@ -2060,7 +2080,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         -- Is in fighter's equipment list? (computed once in ftl_flag below)
         ftl_flag.is_fighter_list AS fighter_type_equipment,
 
-        -- Has trading post access?
+        -- Has trading post access? (tp_summary is gang-exclusivity-aware)
         COALESCE(tp.has_access, false) AS equipment_tradingpost,
 
         false AS is_custom,
@@ -5243,7 +5263,8 @@ CREATE TABLE public.equipment_availability (
     gang_type_id uuid,
     equipment_id uuid,
     gang_origin_id uuid,
-    gang_variant_id uuid
+    gang_variant_id uuid,
+    exclusive boolean DEFAULT false NOT NULL
 );
 
 
@@ -12655,3 +12676,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 --
 -- PostgreSQL database dump complete
 --
+
+
