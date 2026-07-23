@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
-import { WeaponProfileInput } from "@/types/equipment";
+import { WeaponProfileInput, EquipmentAvailability, EquipmentOriginAvailability, EquipmentVariantAvailability, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
 import { 
   FighterEffectType, 
   FighterEffectTypeModifier, 
@@ -11,26 +11,6 @@ import {
 interface FighterTypeEquipment {
   fighter_type_id: string;
   equipment_id: string;
-}
-
-interface GangAdjustedCost {
-  gang_type_id: string;
-  adjusted_cost: number;
-}
-
-interface EquipmentAvailability {
-  gang_type_id: string;
-  availability: string;
-}
-
-interface EquipmentOriginAvailability {
-  gang_origin_id: string;
-  availability: string;
-}
-
-interface EquipmentVariantAvailability {
-  gang_variant_id: string;
-  availability: string;
 }
 
 export async function GET(request: Request) {
@@ -90,7 +70,7 @@ export async function GET(request: Request) {
       // Fetch equipment availabilities (gang-based)
       const { data: availabilities, error: availabilitiesError } = await supabase
         .from('equipment_availability')
-        .select('availability, gang_type_id')
+        .select('availability, gang_type_id, exclusive')
         .eq('equipment_id', id)
         .not('gang_type_id', 'is', null);
 
@@ -203,8 +183,9 @@ export async function GET(request: Request) {
 
       // Format the availabilities with null check
       interface AvailabilityData {
-        availability: string;
+        availability: string | null;
         gang_type_id: string | null;
+        exclusive?: boolean;
       }
 
       const formattedAvailabilities = (availabilities as AvailabilityData[] || [])
@@ -212,7 +193,8 @@ export async function GET(request: Request) {
         .map(a => ({
           gang_type: gangTypeMap.get(a.gang_type_id!) || '',
           gang_type_id: a.gang_type_id!,
-          availability: a.availability
+          availability: a.availability,
+          exclusive: a.exclusive ?? false
         }));
 
       console.log('Formatted availabilities:', formattedAvailabilities);
@@ -532,7 +514,7 @@ export async function POST(request: Request) {
 
     // Handle gang adjustedCosts if provided
     if (gang_adjusted_costs && gang_adjusted_costs.length > 0) {
-      const adjustedCostRecords = gang_adjusted_costs.map((adjusted_cost: GangAdjustedCost) => ({
+      const adjustedCostRecords = gang_adjusted_costs.map((adjusted_cost: Pick<GangAdjustedCost, 'gang_type_id' | 'adjusted_cost'>) => ({
         equipment_id: equipment.id,
         gang_type_id: adjusted_cost.gang_type_id,
         adjusted_cost: adjusted_cost.adjusted_cost.toString(),
@@ -548,10 +530,11 @@ export async function POST(request: Request) {
 
     // Handle equipment availabilities if provided
     if (equipment_availabilities && equipment_availabilities.length > 0) {
-      const availabilityRecords = equipment_availabilities.map((avail: EquipmentAvailability) => ({
+      const availabilityRecords = equipment_availabilities.map((avail: Pick<EquipmentAvailability, 'gang_type_id' | 'availability' | 'exclusive'>) => ({
         equipment_id: equipment.id,
         gang_type_id: avail.gang_type_id,
-        availability: avail.availability.trimEnd()
+        availability: avail.availability ? avail.availability.trimEnd() : null,
+        exclusive: avail.exclusive ?? false
       }));
 
       const { error: availabilityError } = await supabase
@@ -750,7 +733,7 @@ export async function PUT(request: Request) {
         );
 
         // Add type for the adjustedCost in the map function
-        const adjustedCostRecords = gang_adjusted_costs.map((adjusted_cost: GangAdjustedCost) => ({
+        const adjustedCostRecords = gang_adjusted_costs.map((adjusted_cost: Pick<GangAdjustedCost, 'gang_type_id' | 'adjusted_cost'>) => ({
           equipment_id: id,
           gang_type_id: adjusted_cost.gang_type_id,
           adjusted_cost: adjusted_cost.adjusted_cost.toString(),
@@ -948,7 +931,7 @@ export async function PATCH(request: Request) {
       // If there are new adjustedCosts to add
       if (gang_adjusted_costs.length > 0) {
         // Add type for the adjusted_cost in the map function
-        const adjustedCostRecords = gang_adjusted_costs.map((adjusted_cost: GangAdjustedCost) => ({
+        const adjustedCostRecords = gang_adjusted_costs.map((adjusted_cost: Pick<GangAdjustedCost, 'gang_type_id' | 'adjusted_cost'>) => ({
           equipment_id: id,
           gang_type_id: adjusted_cost.gang_type_id,
           adjusted_cost: adjusted_cost.adjusted_cost.toString(),
@@ -983,7 +966,7 @@ export async function PATCH(request: Request) {
 
       // If there are new origin adjustedCosts to add
       if (Array.isArray(gang_origin_adjusted_costs) && gang_origin_adjusted_costs.length > 0) {
-        const originAdjustedCostRecords = gang_origin_adjusted_costs.map((adjusted_cost: any) => ({
+        const originAdjustedCostRecords = gang_origin_adjusted_costs.map((adjusted_cost: Pick<GangOriginAdjustedCost, 'gang_origin_id' | 'adjusted_cost'>) => ({
           equipment_id: id,
           gang_origin_id: adjusted_cost.gang_origin_id,
           adjusted_cost: adjusted_cost.adjusted_cost.toString(),
@@ -1020,11 +1003,12 @@ export async function PATCH(request: Request) {
 
       // If there are new availabilities to add
       if (Array.isArray(equipment_availabilities) && equipment_availabilities.length > 0) {
-        const availabilityRecords = equipment_availabilities.map((avail: EquipmentAvailability) => ({
+        const availabilityRecords = equipment_availabilities.map((avail: Pick<EquipmentAvailability, 'gang_type_id' | 'availability' | 'exclusive'>) => ({
           equipment_id: id,
           gang_type_id: avail.gang_type_id,
-          availability: avail.availability.trimEnd(),
-          gang_origin_id: null
+          availability: avail.availability ? avail.availability.trimEnd() : null,
+          gang_origin_id: null,
+          exclusive: avail.exclusive ?? false
         }));
 
         if (availabilityRecords.length > 0) {
@@ -1056,7 +1040,7 @@ export async function PATCH(request: Request) {
 
       // If there are new origin availabilities to add
       if (Array.isArray(equipment_origin_availabilities) && equipment_origin_availabilities.length > 0) {
-        const originAvailabilityRecords = equipment_origin_availabilities.map((avail: any) => ({
+        const originAvailabilityRecords = equipment_origin_availabilities.map((avail: Pick<EquipmentOriginAvailability, 'gang_origin_id' | 'availability'>) => ({
           equipment_id: id,
           gang_origin_id: avail.gang_origin_id,
           availability: avail.availability.trimEnd(),
@@ -1092,7 +1076,7 @@ export async function PATCH(request: Request) {
 
       // If there are new variant availabilities to add
       if (Array.isArray(equipment_variant_availabilities) && equipment_variant_availabilities.length > 0) {
-        const variantAvailabilityRecords = equipment_variant_availabilities.map((avail: EquipmentVariantAvailability) => ({
+        const variantAvailabilityRecords = equipment_variant_availabilities.map((avail: Pick<EquipmentVariantAvailability, 'gang_variant_id' | 'availability'>) => ({
           equipment_id: id,
           gang_variant_id: avail.gang_variant_id,
           availability: avail.availability.trimEnd(),

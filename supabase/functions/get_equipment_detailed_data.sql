@@ -127,6 +127,20 @@ AS $$
                 '{}'::text[]
             ) AS tp_names
         FROM tp_access ta
+        -- Gang-exclusive allow-list: an item flagged "available only to this gang"
+        -- (an exclusive gang-type availability row) is hidden from the Trading Post
+        -- of gangs that are not on its allow-list. Scoped to Trading Post access
+        -- only, so the fighter's-list path is unaffected.
+        WHERE NOT EXISTS (
+                  SELECT 1 FROM equipment_availability xa
+                  WHERE xa.equipment_id = ta.equipment_id
+                    AND xa.exclusive AND xa.gang_type_id IS NOT NULL
+              )
+           OR EXISTS (
+                  SELECT 1 FROM equipment_availability xa
+                  WHERE xa.equipment_id = ta.equipment_id
+                    AND xa.exclusive AND xa.gang_type_id = $1
+              )
         GROUP BY ta.equipment_id
     ),
 
@@ -261,7 +275,7 @@ AS $$
         -- Is in fighter's equipment list? (computed once in ftl_flag below)
         ftl_flag.is_fighter_list AS fighter_type_equipment,
 
-        -- Has trading post access?
+        -- Has trading post access? (tp_summary is gang-exclusivity-aware)
         COALESCE(tp.has_access, false) AS equipment_tradingpost,
 
         false AS is_custom,
