@@ -5,6 +5,7 @@ import { getBattleSessionCached } from '@/app/lib/battle-sessions/get-battle-ses
 import { getGangFightersList, getGangPositioning, type GangFighter } from '@/app/lib/shared/gang-data';
 import { getCampaignTerritories } from '@/app/lib/campaigns/[id]/get-campaign-data';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
+import { sortFightersByPositioning } from '@/utils/fighter-positioning';
 import ActiveSession from '@/components/battle-session/active-session';
 import CompletedSession from '@/components/battle-session/completed-session';
 
@@ -56,8 +57,10 @@ export async function renderBattleSessionPage(sessionId: string, currentPath: st
   const gangFightersMap: Record<string, GangFighter[]> = {};
   const gangPositioningMap: Record<string, Record<string, any> | null> = {};
   uniqueGangIds.forEach((gId, i) => {
-    gangFightersMap[gId] = gangFighterLists[i];
-    gangPositioningMap[gId] = gangPositioningList[i];
+    const fighters = gangFighterLists[i];
+    const positioning = gangPositioningList[i];
+    gangFightersMap[gId] = sortFightersByPositioning(fighters, positioning);
+    gangPositioningMap[gId] = positioning;
   });
 
   return (

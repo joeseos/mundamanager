@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { sortFightersByPositioning, sortParticipantFightersByPositioning } from '@/utils/fighter-positioning';
+import { sortParticipantFightersByPositioning } from '@/utils/fighter-positioning';
 
 import { useMutation } from '@tanstack/react-query';
 import type { GangFighter } from '@/app/lib/shared/gang-data';
@@ -1027,8 +1027,7 @@ export default function ParticipantCard({
 
   // Map expanded gang fighters (one entry per loadout) to crew modal format
   const gangFighters = useMemo(() => {
-    const sortedList = sortFightersByPositioning(gangFightersList, positioning);
-    return sortedList.map((gf) => ({
+    return gangFightersList.map((gf) => ({
       id: gf.id,
       fighter_name: gf.fighter_name,
       label: gf.label,
@@ -1046,7 +1045,7 @@ export default function ParticipantCard({
       owner_id: gf.owner_id,
       owner_name: gf.owner_name,
     }));
-  }, [gangFightersList, positioning]);
+  }, [gangFightersList]);
 
   const selectedFighterIds = new Set(localFighters.map((f) => f.fighter_id));
   const selectedFighters = new Map<string, string | undefined>(
