@@ -42,6 +42,7 @@ interface EquipmentAvailability {
   gang_type: string;
   gang_type_id: string;
   availability: string;
+  exclusive: boolean;
 }
 
 interface EquipmentOriginAvailability {
@@ -116,6 +117,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [selectedAvailabilityGangType, setSelectedAvailabilityGangType] = useState("");
   const [availValueLetter, setAvailValueLetter] = useState('');
   const [availValueNumber, setAvailValueNumber] = useState(6);
+  const [availExclusive, setAvailExclusive] = useState(false);
   const [equipmentAvailabilities, setEquipmentAvailabilities] = useState<EquipmentAvailability[]>([]);
   const [showOriginAvailabilityDialog, setShowOriginAvailabilityDialog] = useState(false);
   const [selectedAvailabilityGangOrigin, setSelectedAvailabilityGangOrigin] = useState("");
@@ -247,7 +249,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         setEquipmentAvailabilities(equipmentDetails.equipment_availabilities.map((a: any) => ({
           gang_type: a.gang_type,
           gang_type_id: a.gang_type_id,
-          availability: a.availability
+          availability: a.availability,
+          exclusive: a.exclusive ?? false
         })));
       }
 
@@ -441,7 +444,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         })),
         equipment_availabilities: equipmentAvailabilities.map(a => ({
           gang_type_id: a.gang_type_id,
-          availability: a.availability
+          availability: a.availability,
+          exclusive: a.exclusive
         })),
         equipment_origin_availabilities: equipmentOriginAvailabilities.map(a => ({
           gang_origin_id: a.gang_origin_id,
@@ -997,7 +1001,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                               key={index}
                               className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                             >
-                              <span>{avail.gang_type} (Availability: {avail.availability})</span>
+                              <span>{avail.gang_type} (Availability: {avail.availability}{avail.exclusive ? ', Exclusive' : ''})</span>
                               <button
                                 onClick={() => setEquipmentAvailabilities(prev =>
                                   prev.filter((_, i) => i !== index)
@@ -1021,6 +1025,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             setSelectedAvailabilityGangType("");
                             setAvailValueLetter('');
                             setAvailValueNumber(6);
+                            setAvailExclusive(false);
                           }}
                           onConfirm={() => {
                             const combined = combineAvailability(availValueLetter, availValueNumber);
@@ -1032,13 +1037,15 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                   {
                                     gang_type: selectedGang.gang_type,
                                     gang_type_id: selectedGang.gang_type_id,
-                                    availability: combined
+                                    availability: combined,
+                                    exclusive: availExclusive
                                   }
                                 ]);
                                 setShowAvailabilityDialog(false);
                                 setSelectedAvailabilityGangType("");
                                 setAvailValueLetter('');
                                 setAvailValueNumber(6);
+                                setAvailExclusive(false);
                               }
                             }
                           }}
@@ -1085,6 +1092,20 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                               onNumberChange={setAvailValueNumber}
                               allowEmpty
                             />
+
+                            <label className="flex items-start space-x-2">
+                              <Checkbox
+                                checked={availExclusive}
+                                onCheckedChange={(checked) => setAvailExclusive(checked === true)}
+                                className="mt-1"
+                              />
+                              <div>
+                                <span className="text-sm font-medium text-muted-foreground">Available only to this gang</span>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  Limits this item&apos;s Trading Post visibility to only the gangs flagged here. Flag several gangs to make it available to each of them.
+                                </p>
+                              </div>
+                            </label>
                           </div>
                         </Modal>
                       )}

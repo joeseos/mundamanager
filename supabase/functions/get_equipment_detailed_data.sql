@@ -436,6 +436,19 @@ AS $$
             -- Trading post only
             ($4 IS NULL AND $5 IS NOT NULL AND COALESCE(tp.has_access, false) = $5)
         )
+        -- Gang-exclusive allow-list: if an item has any "available only to this
+        -- gang" row, show it ONLY to gangs whose type / origin / variant matches
+        -- a flagged row (ea / ea_origin / ea_var are already joined to this gang).
+        -- Items with no flagged rows are unaffected.
+        AND (
+            NOT EXISTS (
+                SELECT 1 FROM equipment_availability xa
+                WHERE xa.equipment_id = e.id AND xa.exclusive
+            )
+            OR COALESCE(ea.exclusive, false)
+            OR COALESCE(ea_origin.exclusive, false)
+            OR COALESCE(ea_var.exclusive, false)
+        )
 
     UNION ALL
 

@@ -21,6 +21,7 @@ interface GangAdjustedCost {
 interface EquipmentAvailability {
   gang_type_id: string;
   availability: string;
+  exclusive?: boolean;
 }
 
 interface EquipmentOriginAvailability {
@@ -90,7 +91,7 @@ export async function GET(request: Request) {
       // Fetch equipment availabilities (gang-based)
       const { data: availabilities, error: availabilitiesError } = await supabase
         .from('equipment_availability')
-        .select('availability, gang_type_id')
+        .select('availability, gang_type_id, exclusive')
         .eq('equipment_id', id)
         .not('gang_type_id', 'is', null);
 
@@ -205,6 +206,7 @@ export async function GET(request: Request) {
       interface AvailabilityData {
         availability: string;
         gang_type_id: string | null;
+        exclusive?: boolean;
       }
 
       const formattedAvailabilities = (availabilities as AvailabilityData[] || [])
@@ -212,7 +214,8 @@ export async function GET(request: Request) {
         .map(a => ({
           gang_type: gangTypeMap.get(a.gang_type_id!) || '',
           gang_type_id: a.gang_type_id!,
-          availability: a.availability
+          availability: a.availability,
+          exclusive: a.exclusive ?? false
         }));
 
       console.log('Formatted availabilities:', formattedAvailabilities);
@@ -551,7 +554,8 @@ export async function POST(request: Request) {
       const availabilityRecords = equipment_availabilities.map((avail: EquipmentAvailability) => ({
         equipment_id: equipment.id,
         gang_type_id: avail.gang_type_id,
-        availability: avail.availability.trimEnd()
+        availability: avail.availability.trimEnd(),
+        exclusive: avail.exclusive ?? false
       }));
 
       const { error: availabilityError } = await supabase
@@ -1024,7 +1028,8 @@ export async function PATCH(request: Request) {
           equipment_id: id,
           gang_type_id: avail.gang_type_id,
           availability: avail.availability.trimEnd(),
-          gang_origin_id: null
+          gang_origin_id: null,
+          exclusive: avail.exclusive ?? false
         }));
 
         if (availabilityRecords.length > 0) {
