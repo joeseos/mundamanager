@@ -6,6 +6,7 @@ import { FighterProps, Vehicle, FighterEffect } from "@/types/fighter";
 import { Equipment } from "@/types/equipment";
 import { VehicleEquipment } from "@/types/fighter";
 import { calculateAdjustedStats, applySpecialRulesModifiers } from "@/utils/effect-modifiers";
+import { sortFightersByPositioning } from "@/utils/fighter-positioning";
 import { injuryAggregationLabel } from "@/utils/bitterEnmityDisplay";
 import WeaponTable from "./fighter-card-weapon-table";
 import { StatsTable, StatsType } from "../ui/fighter-card-stats-table";
@@ -201,42 +202,35 @@ export default function PrintGang({ gang }: PrintGangProps) {
     }, 100);
   };
 
-  // Order fighters by positioning and filter based on options
-  const positionMap: Record<string, number> = {};
-  Object.entries(positioning || {}).forEach(([pos, fighterId]) => {
-    positionMap[fighterId] = Number(pos);
-  });
-
   // Use pre-filtered list when "Inactive Fighters Loadouts" is off (server-side filter is reliable)
   const sourceFighters =
     !showInactiveFighterLoadouts && fightersActiveLoadoutOnly.length > 0
       ? fightersActiveLoadoutOnly
       : fighters;
 
-  const sortedFighters = [...sourceFighters]
-    .filter((f) => {
-      // Filter out inactive fighters if option is disabled
-      if (!showInactiveFighters && (f.killed || f.enslaved || f.retired)) {
-        return false;
-      }
-      // Filter out fighters in recovery if option is disabled
-      if (!showFightersInRecovery && f.recovery) {
-        return false;
-      }
-      // If both options are disabled, only show active fighters (not killed, not enslaved, not retired, not captured, not in recovery)
-      if (!showInactiveFighters && !showFightersInRecovery) {
-        return !f.killed && !f.enslaved && !f.retired && !f.recovery;
-      }
-      return true;
-    })
-    .sort((a, b) => {
-      const posA = positionMap[a.id] ?? Number.MAX_SAFE_INTEGER;
-      const posB = positionMap[b.id] ?? Number.MAX_SAFE_INTEGER;
-      if (posA !== posB) return posA - posB;
-      const loadoutIdA = (a as { active_loadout_id?: string }).active_loadout_id ?? "";
-      const loadoutIdB = (b as { active_loadout_id?: string }).active_loadout_id ?? "";
-      return loadoutIdA.localeCompare(loadoutIdB);
-    });
+  const filteredFighters = sourceFighters.filter((f) => {
+    // Filter out inactive fighters if option is disabled
+    if (!showInactiveFighters && (f.killed || f.enslaved || f.retired)) {
+      return false;
+    }
+    // Filter out fighters in recovery if option is disabled
+    if (!showFightersInRecovery && f.recovery) {
+      return false;
+    }
+    // If both options are disabled, only show active fighters (not killed, not enslaved, not retired, not captured, not in recovery)
+    if (!showInactiveFighters && !showFightersInRecovery) {
+      return !f.killed && !f.enslaved && !f.retired && !f.recovery;
+    }
+    return true;
+  });
+
+  // Order fighters by positioning; fighters sharing a position (multiple loadouts)
+  // keep a stable order by active loadout id.
+  const sortedFighters = sortFightersByPositioning(filteredFighters, positioning, (a, b) => {
+    const loadoutIdA = (a as { active_loadout_id?: string }).active_loadout_id ?? "";
+    const loadoutIdB = (b as { active_loadout_id?: string }).active_loadout_id ?? "";
+    return loadoutIdA.localeCompare(loadoutIdB);
+  });
 
   return (
     <div className="min-h-screen print:min-h-0 text-foreground w-full">

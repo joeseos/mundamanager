@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { FighterProps } from '@/types/fighter';
+import { sortFightersByPositioning } from '@/utils/fighter-positioning';
 import { IoSkull } from 'react-icons/io5';
 import { MdChair } from 'react-icons/md';
 import { GiCrossedChains, GiHandcuffs } from 'react-icons/gi';
@@ -26,20 +27,12 @@ export function useCrewFighterOptions(
   positioning: Record<number, string> | undefined
 ): CrewFighterOption[] {
   return useMemo(() => {
-    return fighters
-      .filter(
-        (f) =>
-          f.fighter_class === 'Crew' &&
-          (!f.vehicles || f.vehicles.length === 0)
-      )
-      .sort((a, b) => {
-        if (!positioning) return 0;
-        const indexA = Object.entries(positioning).find(([, id]) => id === a.id)?.[0];
-        const indexB = Object.entries(positioning).find(([, id]) => id === b.id)?.[0];
-        const posA = indexA !== undefined ? parseInt(indexA) : Infinity;
-        const posB = indexB !== undefined ? parseInt(indexB) : Infinity;
-        return posA - posB;
-      })
+    const crewFighters = fighters.filter(
+      (f) =>
+        f.fighter_class === 'Crew' &&
+        (!f.vehicles || f.vehicles.length === 0)
+    );
+    return sortFightersByPositioning(crewFighters, positioning)
       .map((f) => {
         const statusIcons: React.ReactNode[] = [];
         if (f.killed) statusIcons.push(<IoSkull className="text-gray-400 w-4 h-4" key="killed" />);

@@ -32,6 +32,7 @@ import { Tooltip } from 'react-tooltip';
 import { UserPermissions } from '@/types/user-permissions';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
+import { sortFightersByPositioning } from '@/utils/fighter-positioning';
 
 interface GangInventoryProps {
   stash: StashItem[];
@@ -744,14 +745,7 @@ export default function GangInventory({
     if (!hasVehicleExclusiveItem) {
       options.push({ value: '__fighters_header__', label: <span className="font-bold">Fighters</span>, displayValue: 'Fighters', disabled: true });
 
-      const sorted = [...fighters].sort((a, b) => {
-        if (!positioning) return 0;
-        const indexA = Object.entries(positioning).find(([, id]) => id === a.id)?.[0];
-        const indexB = Object.entries(positioning).find(([, id]) => id === b.id)?.[0];
-        const posA = indexA !== undefined ? parseInt(indexA) : Infinity;
-        const posB = indexB !== undefined ? parseInt(indexB) : Infinity;
-        return posA - posB;
-      });
+      const sorted = sortFightersByPositioning(fighters, positioning);
 
       for (const fighter of sorted) {
         const isDisabled = hasSelectedVehicle && !isCrew(fighter);
