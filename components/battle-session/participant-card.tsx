@@ -152,6 +152,8 @@ function ConditionBadge({
 
 function FighterActionModal({
   fighter,
+  gangId,
+  campaignId,
   onXpChanged,
   onConditionsChanged,
   onInjuryAdded,
@@ -159,6 +161,8 @@ function FighterActionModal({
   onClose,
 }: {
   fighter: BattleSessionFighter;
+  gangId: string;
+  campaignId?: string | null;
   onXpChanged: (delta: number) => void;
   onConditionsChanged: (conditions: SessionCondition[]) => void;
   onInjuryAdded: (injury: SessionInjuryRecord) => void;
@@ -324,6 +328,8 @@ function FighterActionModal({
           currentTotalXp={fighterData.xp}
           currentKills={fighterData.kills}
           currentKillCount={fighterData.kill_count}
+          gangId={gangId}
+          campaignId={campaignId ?? undefined}
           onClose={() => setShowXpModal(false)}
           onXpUpdated={(newXp) => {
             const delta = newXp - (fighterData?.xp ?? 0);
@@ -579,6 +585,8 @@ function FighterRow({
   battleActive,
   isSpyrer,
   gangFighter,
+  gangId,
+  campaignId,
   onXpChanged,
   onConditionsChanged,
   onActivationsChange,
@@ -596,6 +604,8 @@ function FighterRow({
   battleActive: boolean;
   isSpyrer: boolean;
   gangFighter: GangFighter | undefined;
+  gangId: string;
+  campaignId?: string | null;
   onXpChanged: (delta: number) => void;
   onConditionsChanged: (conditions: SessionCondition[]) => void;
   onActivationsChange: (activations: number) => void;
@@ -726,6 +736,8 @@ function FighterRow({
           {showActionModal && createPortal(
             <FighterActionModal
               fighter={fighter}
+              gangId={gangId}
+              campaignId={campaignId}
               onXpChanged={onXpChanged}
               onConditionsChanged={onConditionsChanged}
               onInjuryAdded={onInjuryAdded}
@@ -1645,6 +1657,8 @@ export default function ParticipantCard({
                         battleActive={battleActive}
                         isSpyrer={hasDualActivation(fullMatch?.special_rules) || hasDualActivation(f.fighter?.special_rules)}
                         gangFighter={fullMatch}
+                        gangId={participant.gang_id}
+                        campaignId={session.campaign_id}
                         onXpChanged={(delta) => {
                           const totalXp = (f.session_record?.xp_earned ?? 0) + delta;
                           updateXpMutation.mutate({ sessionFighterId: f.id, totalXp });
