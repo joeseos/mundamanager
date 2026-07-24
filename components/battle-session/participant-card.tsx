@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { sortParticipantFightersByPositioning } from '@/utils/fighter-positioning';
 
 import { useMutation } from '@tanstack/react-query';
 import type { GangFighter } from '@/app/lib/shared/gang-data';
@@ -1053,15 +1054,7 @@ export default function ParticipantCard({
   const availableFighters = gangFighters.filter((f) => !selectedFighterIds.has(f.id));
 
   const sortedLocalFighters = useMemo(() => {
-    const posMap: Record<string, number> = {};
-    Object.entries(positioning || {}).forEach(([pos, fighterId]) => {
-      posMap[fighterId as string] = Number(pos);
-    });
-    return [...localFighters].sort((a, b) => {
-      const posA = posMap[a.fighter_id] ?? Number.MAX_SAFE_INTEGER;
-      const posB = posMap[b.fighter_id] ?? Number.MAX_SAFE_INTEGER;
-      return posA - posB;
-    });
+    return sortParticipantFightersByPositioning(localFighters, positioning);
   }, [localFighters, positioning]);
 
   const totalInjuries = localFighters.reduce((sum, f) => sum + (f.session_record?.injuries?.length ?? 0), 0);
