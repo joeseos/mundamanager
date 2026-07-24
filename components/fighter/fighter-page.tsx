@@ -30,6 +30,7 @@ import { TbMeatOff } from "react-icons/tb";
 import { FaMedkit } from "react-icons/fa";
 import { GiHandcuffs } from "react-icons/gi";
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
+import { sortFightersByPositioning } from '@/utils/fighter-positioning';
 
 interface FighterPageProps {
   initialFighterData: any;
@@ -579,15 +580,10 @@ export default function FighterPage({
   const vehicle = fighterData.fighter?.vehicles?.[0];
 
   // Prepare options for Combobox
-  const fighterOptions = [...fighterData.gangFighters]
-    .sort((a, b) => {
-      const positioning = fighterData.gang?.positioning || {};
-      const indexA = Object.entries(positioning).find(([, id]) => id === a.id)?.[0];
-      const indexB = Object.entries(positioning).find(([, id]) => id === b.id)?.[0];
-      const posA = indexA !== undefined ? parseInt(indexA) : Infinity;
-      const posB = indexB !== undefined ? parseInt(indexB) : Infinity;
-      return posA - posB;
-    })
+  const fighterOptions = sortFightersByPositioning(
+    fighterData.gangFighters,
+    fighterData.gang?.positioning
+  )
     .map((f) => {
       const statusIcons = [];
       if (f.killed) statusIcons.push(<IoSkull className="text-gray-400 w-4 h-4" key="killed" />);

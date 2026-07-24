@@ -4,6 +4,7 @@ import { FighterProps } from '@/types/fighter';
 import { calculateAdjustedStats } from '@/utils/effect-modifiers';
 import { SortableFighter } from './sortable-fighter';
 import { fighterClassRank } from '@/utils/fighterClassRank';
+import { sortFightersByPositioning } from '@/utils/fighter-positioning';
 import { GangPageViewMode } from './ViewModeDropdown';
 import { UserPermissions } from '@/types/user-permissions';
 
@@ -69,23 +70,10 @@ export function MyFighters({ fighters, positions, isLoading, error, viewMode = '
     }
   }), []);
 
-  const sortedFighters = useMemo(() => {
-    // Create a position-based ordering using the positions object directly
-    const positionMap: Record<string, number> = {};
-    
-    // First, create a mapping of fighter IDs to their positions
-    Object.entries(positions).forEach(([position, fighterId]) => {
-      positionMap[fighterId] = parseInt(position);
-    });
-    
-    // Then sort the fighters based on their positions
-    return [...fighters].sort((a, b) => {
-      // If fighter has a position, use it; otherwise put it at the end
-      const posA = positionMap[a.id] !== undefined ? positionMap[a.id] : Number.MAX_SAFE_INTEGER;
-      const posB = positionMap[b.id] !== undefined ? positionMap[b.id] : Number.MAX_SAFE_INTEGER;
-      return posA - posB;
-    });
-  }, [fighters, positions]);
+  const sortedFighters = useMemo(
+    () => sortFightersByPositioning(fighters, positions),
+    [fighters, positions]
+  );
 
   // Filter out any invalid fighters
   const validFighters = fighters.filter(fighter => 
