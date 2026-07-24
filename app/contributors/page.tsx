@@ -93,6 +93,7 @@ export default async function ContributorsPage() {
     { name: "Steady" },
     { name: "T_H_E_S_E_U_S" },
     { name: "Age" },
+    { name: "Boschi" },
   ];
 
   const pastContributors: Contributor[] = [
