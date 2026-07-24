@@ -72,8 +72,7 @@ INSERT INTO public.fighter_classes (id, class_name, created_at) VALUES
 ('fe93ecdb-390b-4b31-8650-a25a90d427a5', 'Champion', now()),
 ('d53f7381-09c2-48f3-b324-2199c5128684', 'Ganger', now()),
 ('fcd056a9-b219-48d8-ad61-e838091cc4da', 'Juve', now()),
-('d11d15a8-07ea-4a5a-beae-35ddea16e544', 'Specialist', now()),
-('bb723bee-883c-4e84-9136-be30ed195023', 'Exotic Beast', now())
+('d11d15a8-07ea-4a5a-beae-35ddea16e544', 'Specialist', now())
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
@@ -169,9 +168,7 @@ INSERT INTO public.equipment (id, equipment_name, cost, equipment_category, equi
 -- Pistols
 ('c9999999-9999-9999-9999-999999999999', 'Stub Gun', 5, 'Pistols', '8e6fe32b-d70d-48a5-95c0-00441b502ae5', 'weapon', 'Common', true, false, false, now()),
 -- Close Combat Weapons
-('daaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Fighting Knife', 10, 'Close Combat Weapons', 'aceb626f-259d-45b2-8a36-0d9c7369969f', 'weapon', 'Common', true, false, false, now()),
--- Exotic Beast Wargear
-('e8888888-8888-8888-8888-888888888888', 'Sheenbird (Exotic Beast)', 90, 'Personal Equipment', '18a867b0-42cb-42bb-b3a6-330fa3e65700', 'wargear', 'Common', true, false, false, now())
+('daaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Fighting Knife', 10, 'Close Combat Weapons', 'aceb626f-259d-45b2-8a36-0d9c7369969f', 'weapon', 'Common', true, false, false, now())
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
@@ -203,8 +200,7 @@ INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cos
 ('c2222222-2222-2222-2222-222222222222', 'c0a579a9-ac5e-4289-96db-43f87537847b', 'House Cawdor', 'Priest/Deacon', 95, 5, 3, 3, 3, 4, 2, 4, 5, 6, 6, 6, 2, 'Champion', 'fe93ecdb-390b-4b31-8650-a25a90d427a5', true, false, now()),
 ('c3333333-3333-3333-3333-333333333333', 'c0a579a9-ac5e-4289-96db-43f87537847b', 'House Cawdor', 'Firebrand', 60, 5, 4, 4, 3, 3, 1, 4, 6, 7, 7, 7, 1, 'Specialist', 'd11d15a8-07ea-4a5a-beae-35ddea16e544', false, false, now()),
 ('c4444444-4444-4444-4444-444444444444', 'c0a579a9-ac5e-4289-96db-43f87537847b', 'House Cawdor', 'Brethren', 55, 5, 4, 4, 3, 3, 1, 4, 6, 7, 7, 7, 1, 'Ganger', 'd53f7381-09c2-48f3-b324-2199c5128684', false, false, now()),
-('c5555555-5555-5555-5555-555555555555', 'c0a579a9-ac5e-4289-96db-43f87537847b', 'House Cawdor', 'Bonepicker', 30, 6, 5, 5, 3, 3, 1, 3, 7, 8, 8, 8, 1, 'Juve', 'fcd056a9-b219-48d8-ad61-e838091cc4da', false, false, now()),
-('c6666666-6666-6666-6666-666666666666', 'c0a579a9-ac5e-4289-96db-43f87537847b', 'House Cawdor', 'Sheenbird', 90, 6, 4, 5, 3, 3, 1, 3, 7, 7, 8, 8, 2, 'Exotic Beast', 'bb723bee-883c-4e84-9136-be30ed195023', false, false, now())
+('c5555555-5555-5555-5555-555555555555', 'c0a579a9-ac5e-4289-96db-43f87537847b', 'House Cawdor', 'Bonepicker', 30, 6, 5, 5, 3, 3, 1, 3, 7, 8, 8, 8, 1, 'Juve', 'fcd056a9-b219-48d8-ad61-e838091cc4da', false, false, now())
 ON CONFLICT (id) DO NOTHING;
 
 -- House Delaque Fighter Types
@@ -270,19 +266,6 @@ SELECT ft.id, e.id
 FROM public.fighter_types ft, public.equipment e
 WHERE ft.fighter_class = 'Juve'
   AND e.equipment_name = 'Fighting Knife';
-
--- Cawdor Leaders and Champions can have Sheenbird (Exotic Beast)
-INSERT INTO public.fighter_type_equipment (fighter_type_id, equipment_id)
-SELECT ft.id, 'e8888888-8888-8888-8888-888888888888'
-FROM public.fighter_types ft
-WHERE ft.gang_type = 'House Cawdor' AND ft.fighter_class IN ('Leader', 'Champion');
-
--- ============================================================================
--- 24. EXOTIC BEAST MAPPINGS (EQUIPMENT TO FIGHTER TYPE)
--- ============================================================================
-INSERT INTO public.exotic_beasts (id, equipment_id, fighter_type_id, created_at) VALUES
-('eb111111-1111-1111-1111-111111111111', 'e8888888-8888-8888-8888-888888888888', 'c6666666-6666-6666-6666-666666666666', now())
-ON CONFLICT (id) DO NOTHING;
 
 -- Restore standard session replication role
 SET session_replication_role = 'origin';
