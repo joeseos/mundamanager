@@ -75,11 +75,6 @@ export function MyFighters({ fighters, positions, isLoading, error, viewMode = '
     [fighters, positions]
   );
 
-  // Filter out any invalid fighters
-  const validFighters = fighters.filter(fighter => 
-    fighter && fighter.id && fighter.fighter_name && fighter.fighter_type
-  );
-
   if (isLoading) {
     return <div className="animate-pulse">Loading fighters...</div>;
   }
