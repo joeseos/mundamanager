@@ -525,7 +525,20 @@ const FighterCard = memo(function FighterCard({
           ...(compactMinHeightPx ? { minHeight: `${compactMinHeightPx}px` } : {}),
           // Prevent hover effects from sticking on touch devices
           WebkitTapHighlightColor: 'transparent',
-          touchAction: 'manipulation'
+          touchAction: 'manipulation',
+          // The long press that starts a drag is also a long press on the card's text, so iOS
+          // opens its text-selection magnifier over your finger — it reads as the page zooming
+          // mid-drag. Only on draggable cards, so view-only and print cards keep selectable text.
+          //
+          // This also removes the short haptic tick iOS played when that gesture fired. That tick
+          // was never ours — there's no vibration code in the app — and it can't be reinstated:
+          // since iOS 18.4 navigator.vibrate needs a recent *click* to be granted, and dragging
+          // doesn't count. Losing it is the accepted trade for losing the magnifier.
+          ...(dragListeners ? {
+            WebkitUserSelect: 'none' as const,
+            userSelect: 'none' as const,
+            WebkitTouchCallout: 'none' as const,
+          } : {})
         }}
       >
       {isLoading && (
