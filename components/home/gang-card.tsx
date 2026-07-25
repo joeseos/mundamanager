@@ -88,7 +88,7 @@ export function GangCardContent({ gang, onToggleFavourite, dragListeners, dragAt
 
   return (
     <div
-      className={`flex items-center p-2 md:p-4 rounded-md hover:bg-muted transition-colors duration-200 ${isDragging ? 'border-[3px] border-rose-700' : ''} ${dragListeners ? 'cursor-grab' : ''}`}
+      className={`flex items-center p-2 md:p-4 rounded-md hover:bg-muted transition-colors duration-200 ${isDragging ? 'border-[3px] border-rose-700 bg-card' : ''} ${dragListeners ? 'cursor-grab' : ''}`}
       {...(dragListeners || {})}
       {...(dragAttributes || {})}
       {...dragSurfaceProps(isDraggable)}
