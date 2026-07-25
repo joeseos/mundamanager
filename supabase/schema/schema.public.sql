@@ -7254,6 +7254,13 @@ CREATE INDEX email_deliveries_user_id_idx ON public.email_deliveries USING btree
 
 
 --
+-- Name: equipment_availability_equipment_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX equipment_availability_equipment_id_idx ON public.equipment_availability USING btree (equipment_id);
+
+
+--
 -- Name: equipment_availability_gang_origin_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7937,6 +7944,13 @@ CREATE INDEX skills_skill_type_id_idx ON public.skills USING btree (skill_type_i
 --
 
 CREATE INDEX territories_campaign_type_id_idx ON public.territories USING btree (campaign_type_id);
+
+
+--
+-- Name: trading_post_equipment_equipment_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX trading_post_equipment_equipment_id_idx ON public.trading_post_equipment USING btree (equipment_id);
 
 
 --
