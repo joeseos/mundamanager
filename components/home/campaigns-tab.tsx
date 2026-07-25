@@ -7,7 +7,7 @@ import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-ki
 import { toggleFavourite } from '@/app/actions/toggle-favourite'
 import { reorderFavourites } from '@/app/actions/reorder-favourites'
 import { toast } from 'sonner'
-import { useDndSensorsConfig } from '@/hooks/use-dnd-sensors'
+import { useDndSensorsConfig, useSuppressClickAfterDrag } from '@/hooks/use-dnd-sensors'
 import { useIsMounted } from '@/hooks/use-is-mounted'
 import { CampaignCardContent, SortableCampaignCard } from '@/components/home/campaign-card'
 
@@ -19,6 +19,7 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
   const [localCampaigns, setLocalCampaigns] = useState<Campaign[]>(campaigns);
   const isMounted = useIsMounted();
   const sensors = useDndSensorsConfig();
+  const suppressClickAfterDrag = useSuppressClickAfterDrag('.home-favourite-card-link');
 
   const [prevCampaigns, setPrevCampaigns] = useState(campaigns);
   if (campaigns !== prevCampaigns) {
@@ -66,7 +67,11 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
     }
   }, [localCampaigns]);
 
-  const handleCampaignDragEnd = useCallback(async (event: { active: { id: string | number }; over: { id: string | number } | null }) => {
+  const handleCampaignDragEnd = useCallback(async (event: { active: { id: string | number }; over: { id: string | number } | null; activatorEvent?: Event | null }) => {
+    // Always consider suppress for pointer drags — including same-position drops — because a
+    // real drag still produces a trailing click.
+    suppressClickAfterDrag(event.activatorEvent);
+
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -92,7 +97,7 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
     if (!result.success) {
       toast.error(result.error || 'Failed to reorder favourites');
     }
-  }, [favouriteCampaigns]);
+  }, [favouriteCampaigns, suppressClickAfterDrag]);
 
   return (
     <div className="bg-card shadow-md rounded-lg p-4">
@@ -109,6 +114,7 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
                   sensors={sensors}
                   collisionDetection={closestCenter}
                   onDragEnd={handleCampaignDragEnd}
+                  onDragCancel={(event) => suppressClickAfterDrag(event.activatorEvent)}
                 >
                   <SortableContext
                     items={favouriteCampaigns.map(c => c.campaign_member_id)}

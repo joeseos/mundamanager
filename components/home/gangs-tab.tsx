@@ -7,7 +7,7 @@ import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-ki
 import { toggleFavourite } from '@/app/actions/toggle-favourite'
 import { reorderFavourites } from '@/app/actions/reorder-favourites'
 import { toast } from 'sonner'
-import { useDndSensorsConfig } from '@/hooks/use-dnd-sensors'
+import { useDndSensorsConfig, useSuppressClickAfterDrag } from '@/hooks/use-dnd-sensors'
 import { useIsMounted } from '@/hooks/use-is-mounted'
 import { GangCardContent, SortableGangCard } from '@/components/home/gang-card'
 
@@ -19,6 +19,7 @@ export function GangsTab({ gangs }: GangsTabProps) {
   const [localGangs, setLocalGangs] = useState<Gang[]>(gangs);
   const isMounted = useIsMounted();
   const sensors = useDndSensorsConfig();
+  const suppressClickAfterDrag = useSuppressClickAfterDrag('.home-favourite-card-link');
 
   const [prevGangs, setPrevGangs] = useState(gangs);
   if (gangs !== prevGangs) {
@@ -66,7 +67,11 @@ export function GangsTab({ gangs }: GangsTabProps) {
     }
   }, [localGangs]);
 
-  const handleDragEnd = useCallback(async (event: { active: { id: string | number }; over: { id: string | number } | null }) => {
+  const handleDragEnd = useCallback(async (event: { active: { id: string | number }; over: { id: string | number } | null; activatorEvent?: Event | null }) => {
+    // Always consider suppress for pointer drags — including same-position drops — because a
+    // real drag still produces a trailing click.
+    suppressClickAfterDrag(event.activatorEvent);
+
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -92,7 +97,7 @@ export function GangsTab({ gangs }: GangsTabProps) {
     if (!result.success) {
       toast.error(result.error || 'Failed to reorder favourites');
     }
-  }, [favouriteGangs]);
+  }, [favouriteGangs, suppressClickAfterDrag]);
 
   return (
     <div className="bg-card shadow-md rounded-lg p-4">
@@ -109,6 +114,7 @@ export function GangsTab({ gangs }: GangsTabProps) {
                   sensors={sensors}
                   collisionDetection={closestCenter}
                   onDragEnd={handleDragEnd}
+                  onDragCancel={(event) => suppressClickAfterDrag(event.activatorEvent)}
                 >
                   <SortableContext
                     items={favouriteGangs.map(g => g.id)}
