@@ -8,20 +8,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { FiStar } from 'react-icons/fi'
 import { AiFillStar } from 'react-icons/ai'
-
-// A long press over an `<a href>` makes the browser offer its own link menu ("Open in New
-// Tab"), which on iOS steals the gesture before dnd-kit's TouchSensor delay elapses. Cancelling
-// `contextmenu` is what stops it — the same trick fighter-card-action-menu.tsx uses for its menu
-// trigger. dnd-kit has a contextmenu guard of its own, but only once a drag has activated, which
-// is too late. The CSS is belt-and-braces for iOS; both properties inherit, so they cover the
-// `<Link>` inside. Only for favourites, so plain cards keep normal selection and link behaviour.
-const dragSurfaceStyle = {
-  WebkitTouchCallout: 'none',
-  WebkitUserSelect: 'none',
-  userSelect: 'none',
-  WebkitTapHighlightColor: 'transparent',
-  touchAction: 'manipulation',
-} as const;
+import { dragSurfaceProps } from '@/hooks/use-dnd-sensors'
 
 export interface CampaignCardProps {
   campaign: Campaign;
@@ -92,11 +79,7 @@ export function CampaignCardContent({ campaign, onToggleFavourite, dragListeners
       className={`flex items-center p-2 md:p-4 rounded-md hover:bg-muted transition-colors duration-200 ${isDragging ? 'border-[3px] border-rose-700' : ''} ${dragListeners ? 'cursor-grab' : ''}`}
       {...(dragListeners || {})}
       {...(dragAttributes || {})}
-      style={isDraggable ? dragSurfaceStyle : undefined}
-      onContextMenu={isDraggable ? (e) => {
-        // Only on touch devices, so desktop right-click still opens the browser menu.
-        if (window.matchMedia('(pointer: coarse)').matches) e.preventDefault();
-      } : undefined}
+      {...dragSurfaceProps(isDraggable)}
     >
       {/* Always rendered — never swapped for a bare div when `disableLink` flips on drag start,
           so the touch target stays stable for the whole gesture. Next's Link skips navigating

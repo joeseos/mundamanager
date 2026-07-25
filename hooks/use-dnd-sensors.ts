@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback } from 'react'
+import { useCallback, type MouseEvent as ReactMouseEvent } from 'react'
 import { MouseSensor, TouchSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 
@@ -16,6 +16,34 @@ export function useDndSensorsConfig() {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
+}
+
+const dragSurfaceStyle = {
+  WebkitTouchCallout: 'none',
+  WebkitUserSelect: 'none',
+  userSelect: 'none',
+  WebkitTapHighlightColor: 'transparent',
+  touchAction: 'manipulation',
+} as const;
+
+// Props for a drag surface that wraps a link. A long press over an `<a href>` makes the browser
+// offer its own menu ("Open in New Tab"), which on iOS steals the gesture before the TouchSensor
+// delay elapses. Cancelling `contextmenu` is what stops it — the same trick
+// fighter-card-action-menu.tsx uses for its menu trigger. dnd-kit has a contextmenu guard of its
+// own, but only once a drag has activated, which is too late. The CSS is belt-and-braces for
+// iOS; `-webkit-touch-callout` and `user-select` inherit, so they cover the link inside.
+//
+// Returns nothing when the card isn't draggable, so plain cards keep normal text selection and
+// native link behaviour.
+export function dragSurfaceProps(isDraggable: boolean) {
+  if (!isDraggable) return {};
+  return {
+    style: dragSurfaceStyle,
+    onContextMenu: (e: ReactMouseEvent) => {
+      // Only on touch devices, so desktop right-click still opens the browser menu.
+      if (window.matchMedia('(pointer: coarse)').matches) e.preventDefault();
+    },
+  };
 }
 
 // A drag that starts and ends on the same spot still leaves the browser with a matching
