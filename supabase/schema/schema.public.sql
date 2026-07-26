@@ -4909,15 +4909,9 @@ CREATE TABLE public.campaigns (
     campaign_type_id uuid,
     status text,
     updated_at timestamp with time zone,
-    "OLDhas_meat" boolean DEFAULT false NOT NULL,
-    "OLDhas_exploration_points" boolean DEFAULT false NOT NULL,
-    "OLDhas_scavenging_rolls" boolean DEFAULT false NOT NULL,
     note text,
     description text,
     image_url text,
-    "OLDhas_power" boolean DEFAULT false,
-    "OLDhas_sustenance" boolean DEFAULT false,
-    "OLDhas_salvage" boolean DEFAULT false,
     trading_posts jsonb,
     discord_channel_id text,
     discord_guild_id text,
@@ -7356,6 +7350,13 @@ CREATE INDEX fighter_effect_types_fighter_effect_category_id_idx ON public.fight
 --
 
 CREATE INDEX fighter_effects_fighter_equipment_id_idx ON public.fighter_effects USING btree (fighter_equipment_id);
+
+
+--
+-- Name: fighter_equipment_equipment_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_equipment_equipment_id_idx ON public.fighter_equipment USING btree (equipment_id);
 
 
 --
