@@ -8,6 +8,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { FiStar } from 'react-icons/fi'
 import { AiFillStar } from 'react-icons/ai'
+import { dragSurfaceProps } from '@/hooks/use-dnd-sensors'
 
 export interface GangCardProps {
   gang: Gang;
@@ -19,6 +20,8 @@ export interface GangCardProps {
 }
 
 export function GangCardContent({ gang, onToggleFavourite, dragListeners, dragAttributes, isDragging, disableLink = false }: GangCardProps) {
+  const isDraggable = Boolean(dragListeners);
+
   let imageUrl: string | null = null;
 
   if (gang.image_url) {
@@ -85,19 +88,24 @@ export function GangCardContent({ gang, onToggleFavourite, dragListeners, dragAt
 
   return (
     <div
-      className={`flex items-center p-2 md:p-4 rounded-md hover:bg-muted transition-colors duration-200 ${isDragging ? 'border-[3px] border-rose-700' : ''} ${dragListeners ? 'cursor-grab' : ''}`}
+      className={`flex items-center p-2 md:p-4 rounded-md hover:bg-muted transition-colors duration-200 ${isDragging ? 'border-[3px] border-rose-700 bg-card' : ''} ${dragListeners ? 'cursor-grab' : ''}`}
       {...(dragListeners || {})}
       {...(dragAttributes || {})}
+      {...dragSurfaceProps(isDraggable)}
     >
-      {disableLink ? (
-        <div className="flex items-center grow min-w-0">
-          {innerContent}
-        </div>
-      ) : (
-        <Link href={`/gang/${gang.id}`} prefetch={false} className="flex items-center grow min-w-0">
-          {innerContent}
-        </Link>
-      )}
+      {/* Always rendered — never swapped for a bare div when `disableLink` flips on drag start,
+          so the touch target stays stable for the whole gesture. Next's Link skips navigating
+          when a click handler calls preventDefault, so soft navigation is preserved. */}
+      <Link
+        href={`/gang/${gang.id}`}
+        prefetch={false}
+        onClick={(e) => { if (disableLink) e.preventDefault(); }}
+        tabIndex={disableLink ? -1 : undefined}
+        aria-hidden={disableLink || undefined}
+        className={`flex items-center grow min-w-0${isDraggable ? ' home-favourite-card-link' : ''}`}
+      >
+        {innerContent}
+      </Link>
       <button
         type="button"
         onClick={(e) => {

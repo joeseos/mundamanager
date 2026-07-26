@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { rectSortingStrategy, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { useDndSensorsConfig } from '@/hooks/use-dnd-sensors';
+import { useDndSensorsConfig, useSuppressClickAfterDrag } from '@/hooks/use-dnd-sensors';
 import { useIsMounted } from '@/hooks/use-is-mounted';
 import { MyFighters } from './my-fighters';
 import { FighterProps } from '@/types/fighter';
@@ -108,32 +108,7 @@ export function DraggableFighters({
 
   const sensors = useDndSensorsConfig();
 
-  // After a pointer drag, the browser still synthesizes a `click` on whatever is under the
-  // pointer (often a *different* fighter card than the one dragged). Swallow that one click
-  // in the capture phase so no card's `<a>` navigates away. Scoped to fighter-card links only
-  // so unrelated UI (nav, "Add Fighter", menus, etc.) stays clickable if the listener is still
-  // armed. Keyboard reorder never produces a trailing click, so we skip arming for it.
-  const suppressClickAfterDrag = (activatorEvent?: Event | null) => {
-    if (activatorEvent instanceof KeyboardEvent) return;
-
-    const suppress = (event: Event) => {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      // Only eat navigation clicks on fighter cards — leave everything else alone and keep
-      // listening until a card click arrives or the timeout clears.
-      if (!target.closest('.fighter-card-bg')?.closest('a')) return;
-
-      event.preventDefault();
-      event.stopPropagation();
-      cleanup();
-    };
-    const cleanup = () => {
-      document.removeEventListener('click', suppress, true);
-      window.clearTimeout(timeoutId);
-    };
-    document.addEventListener('click', suppress, true);
-    const timeoutId = window.setTimeout(cleanup, 500);
-  };
+  const suppressClickAfterDrag = useSuppressClickAfterDrag('.fighter-card-bg');
 
   const handleDragEnd = async (event: any) => {
     // Always consider suppress for pointer drags — including same-position drops — because a
