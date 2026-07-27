@@ -244,7 +244,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
     try {
       setIsSubmitting(true);
       const response = await fetch(`/api/admin/gang-lineages?id=${selectedGangLineage.id}&type=${selectedGangLineage.type}`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },

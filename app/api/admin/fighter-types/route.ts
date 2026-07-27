@@ -463,8 +463,8 @@ export async function GET(request: Request) {
   }
 }
 
-// Add PUT handler to the existing file
-export async function PUT(request: Request) {
+// Update an existing fighter type and its related records
+export async function PATCH(request: Request) {
   const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
@@ -753,7 +753,7 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error in PUT fighter-type:', error);
+    console.error('Error in PATCH fighter-type:', error);
     return NextResponse.json(
       { 
         error: 'Error updating fighter type',
@@ -903,52 +903,3 @@ export async function POST(request: Request) {
     );
   }
 }
-
-// Add PATCH method specifically for is_gang_addition
-export async function PATCH(request: Request) {
-  const supabase = await createClient();
-  const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id');
-
-  if (!id) {
-    return NextResponse.json({ error: 'Fighter type ID is required' }, { status: 400 });
-  }
-
-  try {
-    const isAdmin = await checkAdmin(supabase);
-    if (!isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const data = await request.json();
-    
-    // Only allow updating the is_gang_addition field
-    if (data.is_gang_addition === undefined) {
-      return NextResponse.json({ error: 'is_gang_addition field is required' }, { status: 400 });
-    }
-
-    // Update only the is_gang_addition field
-    const { error: updateError } = await supabase
-      .from('fighter_types')
-      .update({
-        is_gang_addition: data.is_gang_addition
-      })
-      .eq('id', id);
-
-    if (updateError) {
-      console.error('Error updating is_gang_addition:', updateError);
-      throw updateError;
-    }
-
-    return NextResponse.json({ success: true, is_gang_addition: data.is_gang_addition });
-  } catch (error) {
-    console.error('Error in PATCH fighter-type:', error);
-    return NextResponse.json(
-      { 
-        error: 'Error updating fighter type',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { status: 500 }
-    );
-  }
-} 

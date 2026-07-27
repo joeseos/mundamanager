@@ -1090,7 +1090,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       );
 
       const response = await fetch(`/api/admin/fighter-types?id=${fighterIdToUpdate}`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
