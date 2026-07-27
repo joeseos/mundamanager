@@ -1,7 +1,8 @@
 -- ============================================================================
 -- MUNDAMANAGER SEED FILE
 -- ============================================================================
--- Contains reference game data and local dev mock environment data (dev account, 2 gangs, 20 equipped fighters, skills)
+-- Contains reference/lookup game data only (categories, gang types, fighter types,
+-- equipment, weapon profiles, skills, effects). No user, gang or fighter rows.
 -- ============================================================================
 
 BEGIN;
@@ -61,7 +62,10 @@ INSERT INTO public.gang_types (gang_type_id, gang_type, alignment, affiliation, 
 ('2c67ccbc-e103-433c-9535-bc6f9435fa38', 'House Delaque', 'Unaligned', false, false, 'cada4005-66e3-4e3c-8a77-146329bd1eda', null, now()),
 ('d66feb66-7a3b-4306-9d0b-58725b72ee0d', 'House Escher', 'Unaligned', false, false, 'cada4005-66e3-4e3c-8a77-146329bd1eda', null, now()),
 ('ad325025-d293-4078-b14b-4306be45f1c8', 'House Goliath', 'Unaligned', false, false, 'cada4005-66e3-4e3c-8a77-146329bd1eda', null, now()),
-('b86a0a06-4f47-4c78-8d04-fb7b7042c14e', 'House Orlock', 'Law Abiding', false, false, 'cada4005-66e3-4e3c-8a77-146329bd1eda', null, now())
+('b86a0a06-4f47-4c78-8d04-fb7b7042c14e', 'House Orlock', 'Law Abiding', false, false, 'cada4005-66e3-4e3c-8a77-146329bd1eda', null, now()),
+-- Hidden pseudo-gang that owns Bounty Hunters / Dramatis Personae. Fighters here are
+-- surfaced through the "Gang Additions" tab of every gang, not as a playable gang.
+('6145eb6e-84a6-4fbd-b1d3-87348505db42', 'Hired Guns', null, false, true, 'cada4005-66e3-4e3c-8a77-146329bd1eda', null, now())
 ON CONFLICT (gang_type_id) DO NOTHING;
 
 -- ============================================================================
@@ -73,7 +77,9 @@ INSERT INTO public.fighter_classes (id, class_name, created_at) VALUES
 ('d53f7381-09c2-48f3-b324-2199c5128684', 'Ganger', now()),
 ('fcd056a9-b219-48d8-ad61-e838091cc4da', 'Juve', now()),
 ('d11d15a8-07ea-4a5a-beae-35ddea16e544', 'Specialist', now()),
-('bb723bee-883c-4e84-9136-be30ed195023', 'Exotic Beast', now())
+('bb723bee-883c-4e84-9136-be30ed195023', 'Exotic Beast', now()),
+-- Required by get_fighter_types_with_cost, which INNER JOINs fighter_classes
+('9e310c58-5276-4758-bc9f-be010ac69457', 'Bounty Hunter', now())
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
@@ -97,7 +103,11 @@ INSERT INTO public.skills (id, name, skill_type_id, xp_cost, credit_cost, create
 ('a1111111-1111-1111-1111-111111111111', 'Nerves of Steel', '9d1eeed9-02e3-4dd4-a0ab-39639805bca0', 9, 35, now()),
 ('b2222222-2222-2222-2222-222222222222', 'Iron Jaw', '9d1eeed9-02e3-4dd4-a0ab-39639805bca0', 9, 35, now()),
 ('c3333333-3333-3333-3333-333333333333', 'Sprint', '5e9c5a63-9962-4ab6-9f04-453717130c48', 9, 35, now()),
-('d4444444-4444-4444-4444-444444444444', 'Dodge', '5e9c5a63-9962-4ab6-9f04-453717130c48', 9, 35, now())
+('d4444444-4444-4444-4444-444444444444', 'Dodge', '5e9c5a63-9962-4ab6-9f04-453717130c48', 9, 35, now()),
+-- Default skills of Arbelesta Raen Catallus (no xp/credit cost: granted, not bought)
+('9518eb83-c10c-4f1b-a7dc-3f0351209ae3', 'Precision Shot', '419983ce-5fb1-4ad3-a68b-ccce33b7275f', null, null, now()),
+('43095380-4e72-4fea-8741-16ab4b21a69b', 'Trick Shot', '419983ce-5fb1-4ad3-a68b-ccce33b7275f', null, null, now()),
+('9a7d31f4-00a5-444d-ae04-0a060ee1359b', 'Infiltrate', '7341bb7b-f1e4-40bf-a605-2cb33c213c7c', null, null, now())
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
@@ -142,18 +152,26 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.fighter_effect_categories (id, category_name, created_at) VALUES
 ('789b2065-c26d-453b-a4d5-81c04c5d4419', 'advancements', now()),
 ('890c3065-c26d-453b-a4d5-81c04c5d4420', 'injuries', now()),
-('901d4065-c26d-453b-a4d5-81c04c5d4421', 'bionics', now())
+('901d4065-c26d-453b-a4d5-81c04c5d4421', 'bionics', now()),
+('54065db2-c547-430e-ba88-4dc48c39a3b3', 'equipment upgrade', now())
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.fighter_effect_types (id, effect_name, fighter_effect_category_id, type_specific_data, created_at) VALUES
 ('2172a7a0-7892-4d31-bd7b-512b744a8fdd', 'Attacks', '789b2065-c26d-453b-a4d5-81c04c5d4419', '{"xp_cost": 12, "credits_increase": 45}'::jsonb, now()),
-('2172a7a0-7892-4d31-bd7b-512b744a8fde', 'Head Wound', '890c3065-c26d-453b-a4d5-81c04c5d4420', '{}'::jsonb, now())
+('2172a7a0-7892-4d31-bd7b-512b744a8fde', 'Head Wound', '890c3065-c26d-453b-a4d5-81c04c5d4420', '{}'::jsonb, now()),
+-- Weapon-accessory upgrade. "applies_to": "equipment" is what makes the purchase flow
+-- ask which weapon to fit it to; add-fighter.ts finds this row by matching
+-- type_specific_data->>'equipment_id' against the equipment being granted.
+('c9ac2edb-22e1-4b63-808f-ce3db6db9261', 'Infra-sight†', '54065db2-c547-430e-ba88-4dc48c39a3b3', '{"applies_to": "equipment", "equipment_id": "3b509dcd-47ed-4938-837d-7bbdc74df58c", "effect_selection": "fixed"}'::jsonb, now())
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.fighter_effect_type_modifiers (id, fighter_effect_type_id, stat_name, default_numeric_value, operation, created_at) VALUES
 ('a3628d78-4080-4b63-89b7-b1112232bcac', '2172a7a0-7892-4d31-bd7b-512b744a8fdd', 'attacks', 1, null, now()),
 ('a3628d78-4080-4b63-89b7-b1112232bcad', '2172a7a0-7892-4d31-bd7b-512b744a8fde', 'ballistic_skill', -1, null, now())
 ON CONFLICT (id) DO NOTHING;
+-- Note: Infra-sight† intentionally has no modifier rows (matches production). It is a
+-- rules-text upgrade, so the visible outcome is the wargear nesting under the weapon
+-- it is fitted to, not a change to the weapon's stat line.
 
 -- ============================================================================
 -- 14. REFERENCE EQUIPMENT (WEAPONS AND ARMOUR)
@@ -171,7 +189,16 @@ INSERT INTO public.equipment (id, equipment_name, cost, equipment_category, equi
 -- Close Combat Weapons
 ('daaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Fighting Knife', 10, 'Close Combat Weapons', 'aceb626f-259d-45b2-8a36-0d9c7369969f', 'weapon', 'Common', true, false, false, now()),
 -- Exotic Beast Wargear
-('e8888888-8888-8888-8888-888888888888', 'Sheenbird (Exotic Beast)', 90, 'Personal Equipment', '18a867b0-42cb-42bb-b3a6-330fa3e65700', 'wargear', 'Common', true, false, false, now())
+('e8888888-8888-8888-8888-888888888888', 'Sheenbird (Exotic Beast)', 90, 'Personal Equipment', '18a867b0-42cb-42bb-b3a6-330fa3e65700', 'wargear', 'Common', true, false, false, now()),
+-- Hired Guns / Dramatis Personae wargear and weapons (real production ids).
+-- Deliberately no 'Mesh armour' row here: the 'Mesh Armour' above is the same item
+-- (15cr, Armour) and is reused instead of seeding a near-identical duplicate.
+('43892923-61f5-4b59-88ea-b4dfa78bcb36', 'Needle long rifle', 0, 'Special Weapons', '1e3528d0-2064-4766-a23b-62b39ead07f4', 'weapon', 'E', true, false, false, now()),
+('791b34ff-a194-4fbf-9a7d-57e055af9e6d', 'Needle pistol', 30, 'Pistols', '8e6fe32b-d70d-48a5-95c0-00441b502ae5', 'weapon', 'R9', false, false, false, now()),
+('3b509dcd-47ed-4938-837d-7bbdc74df58c', 'Infra-sight†', 40, 'Weapon Accessories', 'ad9d7b9b-7cea-48dc-9278-45e3e47a1aad', 'wargear', 'R8', false, false, false, now()),
+('26d926ca-81ec-4211-8ad7-8948f647703f', 'Chem-synth', 15, 'Personal Equipment', '18a867b0-42cb-42bb-b3a6-330fa3e65700', 'wargear', 'R12', false, false, false, now()),
+('7f7bdff7-389e-45ed-a3c6-e2dfe5d567e0', 'Photo-goggles', 35, 'Personal Equipment', '18a867b0-42cb-42bb-b3a6-330fa3e65700', 'wargear', 'R9', false, false, false, now()),
+('d131bb1e-809b-4652-8c39-93fdc21c1256', 'Respirator', 15, 'Personal Equipment', '18a867b0-42cb-42bb-b3a6-330fa3e65700', 'wargear', 'C', false, false, false, now())
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
@@ -182,7 +209,10 @@ INSERT INTO public.weapon_profiles (id, weapon_id, profile_name, range_short, ra
 ('b8888888-8888-8888-8888-999999999999', 'b8888888-8888-8888-8888-888888888888', 'Standard', '8"', '24"', '+1', '-', '3', '-', '1', '2+', 'Plentiful', 1, now()),
 ('e7777777-7777-7777-7777-aaaaaaaaaaaa', 'e7777777-7777-7777-7777-777777777777', 'Standard', '12"', '24"', '+1', '-', '4', '-1', '2', '4+', 'Rapid Fire (1)', 1, now()),
 ('c9999999-9999-9999-9999-bbbbbbbbbbbb', 'c9999999-9999-9999-9999-999999999999', 'Standard', '6"', '12"', '+1', '-', '3', '-', '1', '4+', '-', 1, now()),
-('daaaaaaa-aaaa-aaaa-aaaa-cccccccccccc', 'daaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Standard', 'E', '-', '-', '-', 'S', '-1', '1', '-', 'Backstab', 1, now())
+('daaaaaaa-aaaa-aaaa-aaaa-cccccccccccc', 'daaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Standard', 'E', '-', '-', '-', 'S', '-1', '1', '-', 'Backstab', 1, now()),
+-- Hired Guns / Dramatis Personae weapons
+('e1a34e27-612d-4051-ab74-e1bdb59b74e2', '43892923-61f5-4b59-88ea-b4dfa78bcb36', 'Needle long rifle', '24"', '45"', '-', '+1', '-', '-2', '-', '6+', 'Scarce, Silent, Toxin', 1, now()),
+('916b024a-ea68-4bba-99a1-3500887ef193', '791b34ff-a194-4fbf-9a7d-57e055af9e6d', 'Needle pistol', '4"', '9"', '+2', '-', '-', '-1', '-', '6+', 'Scarce, Sidearm, Silent, Toxin', null, now())
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
@@ -234,6 +264,41 @@ INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cos
 ('85555555-5555-5555-5555-555555555555', 'ad325025-d293-4078-b14b-4306be45f1c8', 'House Goliath', 'Grit', 35, 5, 4, 5, 3, 3, 1, 4, 7, 8, 8, 8, 1, 'Juve', 'fcd056a9-b219-48d8-ad61-e838091cc4da', false, false, now())
 ON CONFLICT (id) DO NOTHING;
 
+-- Hired Guns (Dramatis Personae / Bounty Hunters)
+-- is_gang_addition = true is what surfaces her in every gang's "Gang Additions" tab:
+-- get_fighter_types_with_cost filters gang additions on that flag alone and ignores
+-- gang_type_id. Needs four columns the house rows above don't use.
+INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, fighter_class, fighter_class_id, free_skill, is_gang_addition, special_rules, limitation, alignment, is_dramatis_personae, created_at) VALUES
+('7eaf0b51-6e82-4b8d-861c-e870927f665e', '6145eb6e-84a6-4fbd-b1d3-87348505db42', 'Hired Guns', 'Arbelesta Raen Catallus', 250, 5, 6, 2, 3, 3, 2, 3, 7, 7, 6, 6, 1, 'Bounty Hunter', '9e310c58-5276-4758-bc9f-be010ac69457', false, true, ARRAY['"Unique Partnership"', '"Bounty Hunter"', '"Slotted"']::jsonb[], 1, 'Law Abiding', true, now())
+ON CONFLICT (id) DO NOTHING;
+
+-- ============================================================================
+-- 17. FIGHTER DEFAULTS (STARTING EQUIPMENT AND SKILLS)
+-- ============================================================================
+-- Rows here are materialised into fighter_equipment / fighter_skills at recruitment
+-- by app/actions/add-fighter.ts. Each row is either an equipment default or a skill
+-- default, never both. Row ids match production so local can be diffed against remote.
+INSERT INTO public.fighter_defaults (id, fighter_type_id, equipment_id, skill_id, created_at) VALUES
+('729145b8-3e51-4ecc-9c61-a57c021e378e', '7eaf0b51-6e82-4b8d-861c-e870927f665e', '43892923-61f5-4b59-88ea-b4dfa78bcb36', null, now()),
+('d1654989-91b5-4eb5-8c8a-c391403a0ba0', '7eaf0b51-6e82-4b8d-861c-e870927f665e', '791b34ff-a194-4fbf-9a7d-57e055af9e6d', null, now()),
+('d8b10e90-e8d3-44df-962d-e691b5db2f58', '7eaf0b51-6e82-4b8d-861c-e870927f665e', '26d926ca-81ec-4211-8ad7-8948f647703f', null, now()),
+-- Points at the seed's existing 'Mesh Armour' rather than production's 'Mesh armour'
+-- (49ba2507-a60f-40e9-8125-8dde2373400f) to avoid seeding a duplicate of the same item.
+('e677c9ae-9b9d-4e66-8b03-9dfc257a8498', '7eaf0b51-6e82-4b8d-861c-e870927f665e', 'f6666666-6666-6666-6666-666666666666', null, now()),
+('73900233-8f25-4b0e-9ffb-c7c080db9b56', '7eaf0b51-6e82-4b8d-861c-e870927f665e', '7f7bdff7-389e-45ed-a3c6-e2dfe5d567e0', null, now()),
+('450c0125-f5e3-4133-8c5f-1bdc96cd7a10', '7eaf0b51-6e82-4b8d-861c-e870927f665e', 'd131bb1e-809b-4652-8c39-93fdc21c1256', null, now()),
+-- TODO(fighter-default-weapons): once fighter_defaults gains a self-referencing link
+-- column, the Infra-sight† row below is the one that points at the Needle long rifle
+-- row (729145b8-3e51-4ecc-9c61-a57c021e378e), so recruitment can set
+-- fighter_effects.target_equipment_id and nest the sight under the weapon.
+--   linked_default_id => '729145b8-3e51-4ecc-9c61-a57c021e378e'
+('b1be9e8b-27bc-4768-b51b-c2a1add11eee', '7eaf0b51-6e82-4b8d-861c-e870927f665e', '3b509dcd-47ed-4938-837d-7bbdc74df58c', null, now()),
+-- Skill defaults
+('1d1b3f96-2ce0-4b79-bfef-5a31c084f7ad', '7eaf0b51-6e82-4b8d-861c-e870927f665e', null, '9518eb83-c10c-4f1b-a7dc-3f0351209ae3', now()),
+('492ff467-0ecf-4a27-96a4-833a41a41958', '7eaf0b51-6e82-4b8d-861c-e870927f665e', null, '43095380-4e72-4fea-8741-16ab4b21a69b', now()),
+('894ad5f7-c0d5-4b15-bc21-bcd41ec2db9d', '7eaf0b51-6e82-4b8d-861c-e870927f665e', null, '9a7d31f4-00a5-444d-ae04-0a060ee1359b', now())
+ON CONFLICT (id) DO NOTHING;
+
 -- ============================================================================
 -- 22. TRADING POST EQUIPMENT MAPPING
 -- ============================================================================
@@ -244,11 +309,14 @@ FROM public.equipment;
 -- ============================================================================
 -- 23. FIGHTER TYPE EQUIPMENT MAPPING (HOUSE LISTS)
 -- ============================================================================
--- All fighter types can have Flak Armour and Stub Guns
+-- All house fighter types can have Flak Armour and Stub Guns.
+-- Hired Guns are excluded: Dramatis Personae have no equipment list of their own
+-- (production has zero fighter_type_equipment rows for them).
 INSERT INTO public.fighter_type_equipment (fighter_type_id, equipment_id)
 SELECT ft.id, e.id
 FROM public.fighter_types ft, public.equipment e
-WHERE e.equipment_name IN ('Flak Armour', 'Stub Gun');
+WHERE e.equipment_name IN ('Flak Armour', 'Stub Gun')
+  AND ft.gang_type <> 'Hired Guns';
 
 -- Leaders, Champions, Specialists, and Gangers can have Autoguns, Lasguns, and Fighting Knives
 INSERT INTO public.fighter_type_equipment (fighter_type_id, equipment_id)
