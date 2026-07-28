@@ -220,8 +220,8 @@ export async function POST(request: Request) {
   }
 }
 
-// PUT - Update gang lineage; requires query param type for current table; body.type may differ (move)
-export async function PUT(request: Request) {
+// PATCH - Update gang lineage; requires query param type for current table; body.type may differ (move)
+export async function PATCH(request: Request) {
   const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
@@ -361,7 +361,7 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ success: true, id: newId, type: newType });
   } catch (error) {
-    console.error('Error in PUT gang-lineage:', error);
+    console.error('Error in PATCH gang-lineage:', error);
     return NextResponse.json(
       { 
         error: 'Error updating gang lineage',

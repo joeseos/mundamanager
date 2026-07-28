@@ -38,8 +38,6 @@ export async function GET(request: Request) {
 
     if (error) throw error;
 
-    console.log('Fetched weapon profiles:', profiles);
-
     return NextResponse.json(profiles || []);
   } catch (error) {
     console.error('Error in GET weapon profiles:', error);
