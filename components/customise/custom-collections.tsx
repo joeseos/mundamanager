@@ -11,6 +11,9 @@ import { toast } from 'sonner';
 import { LuEye, LuSquarePen, LuTrash2 } from 'react-icons/lu';
 import { FaRegCopy } from 'react-icons/fa';
 import { FiShare2 } from 'react-icons/fi';
+import { BiSolidNotepad } from 'react-icons/bi';
+import { Tooltip } from 'react-tooltip';
+import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ShareCustomCollectionModal } from '@/components/customise/custom-shared';
 import {
@@ -297,7 +300,7 @@ export function CustomiseCollections({
       key: 'resolvedItems',
       label: 'Items',
       align: 'left',
-      width: '15%',
+      width: '55%',
       cellClassName: 'text-sm text-muted-foreground',
       render: (value) => {
         const count = (value as ResolvedCollectionItem[]).length;
@@ -306,11 +309,20 @@ export function CustomiseCollections({
     },
     {
       key: 'description',
-      label: 'Description',
+      label: 'Desc.',
       align: 'left',
-      width: '45%',
-      cellClassName: 'text-sm text-muted-foreground',
-      render: (value) => (value as string) || '-',
+      width: '5%',
+      render: (_value, item: CustomCollectionWithItems) =>
+        item.description?.trim() ? (
+          <span
+            className="inline-flex text-muted-foreground hover:text-foreground cursor-help"
+            data-tooltip-id="custom-collection-description-tooltip"
+            data-tooltip-title={item.name}
+            data-tooltip-description={item.description}
+          >
+            <BiSolidNotepad className="text-lg" aria-label="View asset collection description" />
+          </span>
+        ) : null,
     },
   ];
 
@@ -468,6 +480,21 @@ export function CustomiseCollections({
           onClose={() => setShareModalData(null)}
         />
       )}
+
+      <Tooltip
+        id="custom-collection-description-tooltip"
+        place="top"
+        className="bg-neutral-900! text-white! text-xs! z-[2000]!"
+        delayHide={100}
+        clickable={true}
+        render={renderDescriptionTooltip}
+        style={{
+          padding: '6px',
+          width: '24rem',
+          maxWidth: '90vw',
+          maxHeight: '60vh',
+        }}
+      />
     </div>
   );
 }
