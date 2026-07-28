@@ -295,7 +295,7 @@ export function CustomiseCollections({
   };
 
   const columns: ListColumn[] = [
-    { key: 'name', label: 'Asset Collection', align: 'left', width: '35%' },
+    { key: 'name', label: 'Name', align: 'left', width: '35%' },
     {
       key: 'resolvedItems',
       label: 'Items',
