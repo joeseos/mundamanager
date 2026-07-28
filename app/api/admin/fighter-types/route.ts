@@ -218,7 +218,6 @@ export async function GET(request: Request) {
 
     // If direct fighter_type and fighter_class are provided, use those instead of ID lookup
     if (fighter_type && fighter_class) {
-      console.log(`Direct search by fighter_type=${fighter_type} and fighter_class=${fighter_class}`);
       
       // Find all fighters with matching type and class with all details
       const { data: relatedFighterTypes, error: relatedError } = await supabase
@@ -263,8 +262,6 @@ export async function GET(request: Request) {
         throw relatedError;
       }
 
-      console.log('Found fighters by name and class:', relatedFighterTypes?.length);
-      
       if (!relatedFighterTypes || relatedFighterTypes.length === 0) {
         return NextResponse.json(
           { error: 'No fighter types found matching those criteria' },
@@ -383,8 +380,6 @@ export async function GET(request: Request) {
         return (aSubType?.sub_type_name || '').localeCompare(bSubType?.sub_type_name || '');
       });
       
-      console.log(`Returning ${fighterDetails.length} fighter details with ${subTypes.length} sub-types`);
-      
       return NextResponse.json({
         fighter_type,
         fighter_class,
@@ -437,7 +432,6 @@ export async function GET(request: Request) {
     
     // Add gang type filter if requested and gang_type_id is provided
     if (filter_by_gang && gang_type_id) {
-      console.log(`Filtering fighters by gang_type_id: ${gang_type_id}`);
       query = query.eq('gang_type_id', gang_type_id);
     }
 
@@ -480,12 +474,6 @@ export async function PATCH(request: Request) {
     }
 
     const data = await request.json();
-    console.log('Received update data:', data);
-    console.log('Equipment selection data received:', {
-      exists: !!data.equipment_selection,
-      keys: data.equipment_selection ? Object.keys(data.equipment_selection) : [],
-      content: data.equipment_selection
-    });
 
     // Update fighter type
     const { error: updateError } = await supabase
@@ -632,7 +620,6 @@ export async function PATCH(request: Request) {
 
     // Handle equipment selection
     if (data.equipment_selection) {
-      console.log('Processing equipment selection:', data.equipment_selection);
 
       // Check if we have any content in the equipment selection
       const hasSelection = data.equipment_selection &&
@@ -641,7 +628,6 @@ export async function PATCH(request: Request) {
          Object.values(data.equipment_selection.multiple).some(isNonEmptyArray));
 
       if (hasSelection) {
-        console.log('About to upsert equipment_selection:', JSON.stringify(data.equipment_selection, null, 2));
         const { error: upsertError } = await supabase
           .from('fighter_equipment_selections')
           .upsert({
@@ -656,8 +642,6 @@ export async function PATCH(request: Request) {
           console.error('Error upserting equipment selection:', upsertError);
           console.error('Equipment selection data that failed:', data.equipment_selection);
           throw upsertError;
-        } else {
-          console.log('Successfully upserted equipment selection data');
         }
       } else {
         // If no selection content, delete any existing row
@@ -670,7 +654,6 @@ export async function PATCH(request: Request) {
           console.error('Error deleting empty equipment selection:', deleteError);
           throw deleteError;
         }
-        console.log('No equipment selection content, deleted any existing row');
       }
     } else {
       // If no equipment_selection field, delete any existing row
@@ -683,12 +666,10 @@ export async function PATCH(request: Request) {
         console.error('Error deleting equipment selection:', deleteError);
         throw deleteError;
       }
-      console.log('No equipment_selection field in update data, deleted any existing row');
     }
 
     // Handle gang-specific costs
     if (data.gang_type_costs && Array.isArray(data.gang_type_costs)) {
-      console.log('Processing gang-specific costs:', data.gang_type_costs);
       
       // First delete existing costs
       const { error: deleteError } = await supabase
@@ -709,8 +690,6 @@ export async function PATCH(request: Request) {
           adjusted_cost: cost.adjusted_cost,
           gang_affiliation_id: cost.gang_affiliation_id || null
         }));
-        
-        console.log('Inserting gang costs with affiliations:', gangCostsToInsert);
         
         const { error: insertError } = await supabase
           .from('fighter_type_gang_cost')

@@ -3,16 +3,13 @@ import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
 
 export async function GET() {
-  console.log('Fighter classes API endpoint called');
 
   const supabase = await createClient();
 
   try {
     const isAdmin = await checkAdmin(supabase);
-    console.log('Is admin check result:', isAdmin);
 
     if (!isAdmin) {
-      console.log('Unauthorized - not an admin');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -21,8 +18,6 @@ export async function GET() {
       .from('fighter_classes')
       .select('id, class_name')
       .order('class_name');
-
-    console.log('Query result:', { data: fighterClasses, error });
 
     if (error) {
       console.error('Database error:', error);
@@ -33,7 +28,6 @@ export async function GET() {
     }
 
     if (!fighterClasses || fighterClasses.length === 0) {
-      console.log('No fighter classes found - check RLS policies');
       return NextResponse.json({ 
         error: 'No data found', 
         details: 'Check RLS policies and table data' 

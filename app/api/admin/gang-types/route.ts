@@ -62,7 +62,6 @@ export async function POST(request: Request) {
     }
 
     const data: FighterTypeData = await request.json();
-    console.log('Received data:', data);
 
     // Get the gang type
     const { data: gangType, error: gangTypeError } = await supabase
@@ -112,16 +111,12 @@ export async function POST(request: Request) {
       throw insertError;
     }
 
-    console.log('Created fighter type:', newFighterType); // Debug log
-
     // Create equipment defaults with proper typing
     if (data.default_equipment && data.default_equipment.length > 0) {
       const equipmentDefaults = data.default_equipment.map((equipmentId: string) => ({
         fighter_type_id: newFighterType.id,
         equipment_id: equipmentId
       }));
-
-      console.log('Creating equipment defaults:', equipmentDefaults);
 
       const { error: equipmentError } = await supabase
         .from('fighter_defaults')

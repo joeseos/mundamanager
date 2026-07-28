@@ -3,7 +3,6 @@ import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
 
 export async function GET(request: Request) {
-  console.log('Fighter sub-types API endpoint called');
 
   const supabase = await createClient();
 
@@ -11,7 +10,6 @@ export async function GET(request: Request) {
     // Check admin authorization
     const isAdmin = await checkAdmin(supabase);
     if (!isAdmin) {
-      console.log('Unauthorized - not an admin');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -20,8 +18,6 @@ export async function GET(request: Request) {
       .from('fighter_sub_types')
       .select('id, sub_type_name')
       .order('sub_type_name');
-
-    console.log('Query result:', { data: fighterSubTypes, error });
 
     if (error) {
       console.error('Database error:', error);
@@ -32,7 +28,6 @@ export async function GET(request: Request) {
     }
 
     if (!fighterSubTypes || fighterSubTypes.length === 0) {
-      console.log('No fighter sub-types found - check RLS policies');
       return NextResponse.json([]); // Return empty array instead of error
     }
 
@@ -51,7 +46,6 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  console.log('POST fighter sub-type API endpoint called');
   
   const supabase = await createClient();
   
@@ -59,7 +53,6 @@ export async function POST(request: Request) {
     // Check admin authorization
     const isAdmin = await checkAdmin(supabase);
     if (!isAdmin) {
-      console.log('Unauthorized - not an admin');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
@@ -90,7 +83,6 @@ export async function POST(request: Request) {
     
     // If a sub-type with the same name already exists, return it instead of creating a new one
     if (existingSubTypes && existingSubTypes.length > 0) {
-      console.log('Found existing sub-type with same name:', existingSubTypes[0]);
       return NextResponse.json({ 
         id: existingSubTypes[0].id,
         sub_type_name: existingSubTypes[0].sub_type_name,
@@ -115,7 +107,6 @@ export async function POST(request: Request) {
       }, { status: 500 });
     }
     
-    console.log('Created new fighter sub-type:', newSubType);
     return NextResponse.json(newSubType, { status: 201 });
     
   } catch (error) {
@@ -131,7 +122,6 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  console.log('PUT fighter sub-type API endpoint called');
   
   const supabase = await createClient();
   
@@ -139,7 +129,6 @@ export async function PUT(request: Request) {
     // Check admin authorization
     const isAdmin = await checkAdmin(supabase);
     if (!isAdmin) {
-      console.log('Unauthorized - not an admin');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
@@ -196,7 +185,6 @@ export async function PUT(request: Request) {
       }, { status: 500 });
     }
     
-    console.log('Updated fighter sub-type:', updatedSubType);
     return NextResponse.json(updatedSubType);
     
   } catch (error) {
