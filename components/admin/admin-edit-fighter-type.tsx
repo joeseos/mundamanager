@@ -1925,86 +1925,109 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   disabled={!selectedFighterTypeId}
                 >
                   <option value="">Select equipment to add</option>
-                  {equipment
-                    .map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.equipment_name}
-                      </option>
-                    ))}
+                  {/* Any equipment may be added more than once (e.g. two Stub Guns, or a
+                      Weapon Accessory attached to two different default weapons). */}
+                  {equipment.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.equipment_name}
+                    </option>
+                  ))}
                 </select>
 
-                <div className="mt-2 flex flex-col gap-2">
-                  {selectedEquipment.map((slot, index) => {
-                    const item = equipment.find(e => e.id === slot.equipment_id);
-                    if (!item) return null;
+                {/* Number weapon slots globally (in list order) so the same #N is shown both
+                    next to the weapon itself and in every accessory's "Attach to" dropdown,
+                    making the link visible without having to count duplicate weapon names. */}
+                {(() => {
+                  const weaponIndexBySlotId = new Map<string, number>();
+                  let weaponCounter = 0;
+                  selectedEquipment.forEach(s => {
+                    const eq = equipment.find(e => e.id === s.equipment_id);
+                    if (eq && eq.equipment_type === 'weapon') {
+                      weaponCounter += 1;
+                      weaponIndexBySlotId.set(s.id, weaponCounter);
+                    }
+                  });
 
-                    // Find available weapon slots that this item could be attached to
-                    const availableWeaponSlots = selectedEquipment
-                      .map((s, idx) => {
-                        const eq = equipment.find(e => e.id === s.equipment_id);
-                        return eq && eq.equipment_type === 'weapon' && s.id !== slot.id
-                          ? { slot: s, eq, weaponIndex: idx + 1 }
-                          : null;
-                      })
-                      .filter((w): w is { slot: typeof slot; eq: any; weaponIndex: number } => w !== null);
+                  return (
+                    <div className="mt-2 flex flex-col gap-2">
+                      {selectedEquipment.map((slot) => {
+                        const item = equipment.find(e => e.id === slot.equipment_id);
+                        if (!item) return null;
 
-                    const isWeaponAccessory = item.equipment_category?.toLowerCase() === 'weapon accessories';
+                        const weaponIndex = weaponIndexBySlotId.get(slot.id);
 
-                    return (
-                      <div
-                        key={slot.id}
-                        className="flex flex-wrap items-center justify-between gap-2 bg-muted p-2 rounded-md text-sm"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{item.equipment_name}</span>
-                          <span className="text-xs text-muted-foreground capitalize">({item.equipment_type.replace('_', ' ')})</span>
-                        </div>
+                        const availableWeaponSlots = selectedEquipment
+                          .filter(s => s.id !== slot.id && weaponIndexBySlotId.has(s.id))
+                          .map(s => ({
+                            slot: s,
+                            eq: equipment.find(e => e.id === s.equipment_id) as any,
+                            weaponIndex: weaponIndexBySlotId.get(s.id)!
+                          }));
 
-                        <div className="flex items-center gap-2">
-                          {isWeaponAccessory && availableWeaponSlots.length > 0 && (
-                            <div className="flex items-center gap-1">
-                              <span className="text-xs text-muted-foreground">Attach to:</span>
-                              <select
-                                value={slot.target_fighter_default_id || ''}
-                                onChange={(e) => {
-                                  const targetId = e.target.value || null;
-                                  setSelectedEquipment(selectedEquipment.map(s => 
-                                    s.id === slot.id ? { ...s, target_fighter_default_id: targetId } : s
-                                  ));
-                                }}
-                                className="text-xs p-1 border rounded bg-background text-foreground"
-                                disabled={!selectedFighterTypeId}
-                              >
-                                <option value="">(Unattached / Standalone)</option>
-                                {availableWeaponSlots.map(({ slot: wSlot, eq: wEq, weaponIndex }) => (
-                                  <option key={wSlot.id} value={wSlot.id}>
-                                    {wEq.equipment_name} #{weaponIndex}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
+                        const isWeaponAccessory = item.equipment_category?.toLowerCase() === 'weapon accessories';
 
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedEquipment(
-                                selectedEquipment
-                                  .filter(s => s.id !== slot.id)
-                                  .map(s => s.target_fighter_default_id === slot.id ? { ...s, target_fighter_default_id: null } : s)
-                              );
-                            }}
-                            className="hover:text-red-500 focus:outline-hidden p-1"
-                            disabled={!selectedFighterTypeId}
-                            title="Remove equipment"
+                        return (
+                          <div
+                            key={slot.id}
+                            className="flex flex-wrap items-center justify-between gap-2 bg-muted p-2 rounded-md text-sm"
                           >
-                            <HiX className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">
+                                {item.equipment_name}
+                                {weaponIndex !== undefined && (
+                                  <span className="text-muted-foreground"> #{weaponIndex}</span>
+                                )}
+                              </span>
+                              <span className="text-xs text-muted-foreground capitalize">({item.equipment_type.replace('_', ' ')})</span>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {isWeaponAccessory && availableWeaponSlots.length > 0 && (
+                                <div className="flex items-center gap-1">
+                                  <span className="text-xs text-muted-foreground">Attach to:</span>
+                                  <select
+                                    value={slot.target_fighter_default_id || ''}
+                                    onChange={(e) => {
+                                      const targetId = e.target.value || null;
+                                      setSelectedEquipment(selectedEquipment.map(s =>
+                                        s.id === slot.id ? { ...s, target_fighter_default_id: targetId } : s
+                                      ));
+                                    }}
+                                    className="text-xs p-1 border rounded bg-background text-foreground"
+                                    disabled={!selectedFighterTypeId}
+                                  >
+                                    <option value="">(Unattached / Standalone)</option>
+                                    {availableWeaponSlots.map(({ slot: wSlot, eq: wEq, weaponIndex }) => (
+                                      <option key={wSlot.id} value={wSlot.id}>
+                                        {wEq.equipment_name} #{weaponIndex}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedEquipment(
+                                    selectedEquipment
+                                      .filter(s => s.id !== slot.id)
+                                      .map(s => s.target_fighter_default_id === slot.id ? { ...s, target_fighter_default_id: null } : s)
+                                  );
+                                }}
+                                className="hover:text-red-500 focus:outline-hidden p-1"
+                                disabled={!selectedFighterTypeId}
+                                title="Remove equipment"
+                              >
+                                <HiX className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
 
               <div className="mt-2">

@@ -551,7 +551,7 @@ export async function PUT(request: Request) {
         ...(typeof item === 'object' && item.id ? { id: item.id } : {}),
         fighter_type_id: id,
         equipment_id: typeof item === 'string' ? item : item.equipment_id,
-        target_fighter_default_id: typeof item === 'object' ? (item.target_fighter_default_id || item.target_id || null) : null,
+        target_fighter_default_id: typeof item === 'object' ? (item.target_fighter_default_id || null) : null,
         skill_id: null
       }));
 
@@ -864,7 +864,7 @@ export async function POST(request: Request) {
         ...(typeof item === 'object' && item.id ? { id: item.id } : {}),
         fighter_type_id: newFighterType.id,
         equipment_id: typeof item === 'string' ? item : item.equipment_id,
-        target_fighter_default_id: typeof item === 'object' ? (item.target_fighter_default_id || item.target_id || null) : null
+        target_fighter_default_id: typeof item === 'object' ? (item.target_fighter_default_id || null) : null
       }));
 
       const { error: equipmentError } = await supabase
