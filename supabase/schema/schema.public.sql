@@ -2624,6 +2624,8 @@ BEGIN
             SELECT COALESCE(jsonb_agg(
                 jsonb_build_object(
                     'id', e.id,
+                    'default_id', fd.id,
+                    'target_fighter_default_id', fd.target_fighter_default_id,
                     'equipment_name', e.equipment_name,
                     'equipment_type', e.equipment_type,
                     'equipment_category', e.equipment_category,
@@ -5332,7 +5334,8 @@ CREATE TABLE public.fighter_defaults (
     skill_id uuid,
     updated_at timestamp with time zone,
     custom_fighter_type_id uuid,
-    custom_equipment_id uuid
+    custom_equipment_id uuid,
+    target_fighter_default_id uuid
 );
 
 

@@ -108,7 +108,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [isSpyrer, setIsSpyrer] = useState(false);
   const [alignment, setAlignment] = useState<string>('');
   const [equipment, setEquipment] = useState<EquipmentWithId[]>([]);
-  const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
+  const [selectedEquipment, setSelectedEquipment] = useState<{
+    id: string;
+    equipment_id: string;
+    target_fighter_default_id?: string | null;
+  }[]>([]);
   const [gangTypeFilter, setGangTypeFilter] = useState('');
   const [skills, setSkills] = useState<Skill[]>([]);
   const [selectedSkillType, setSelectedSkillType] = useState('');
@@ -480,7 +484,17 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       setIsDramatisPersonae(!!data.is_dramatis_personae);
       setIsSpyrer(!!data.is_spyrer);
       setAlignment(data.alignment || '');
-      setSelectedEquipment(data.default_equipment || []);
+      const normalizedDefaults = (data.default_equipment || []).map((item: any) => {
+        if (typeof item === 'string') {
+          return { id: crypto.randomUUID(), equipment_id: item, target_fighter_default_id: null };
+        }
+        return {
+          id: item.id || crypto.randomUUID(),
+          equipment_id: item.equipment_id,
+          target_fighter_default_id: item.target_fighter_default_id || null
+        };
+      });
+      setSelectedEquipment(normalizedDefaults);
       setSelectedSkills(data.default_skills || []);
       // Reset fetched skills tracking when loading a new fighter type
       fetchedSkillDetailsRef.current.clear();
@@ -1900,7 +1914,10 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   onChange={(e) => {
                     const value = e.target.value;
                     if (value) {
-                      setSelectedEquipment([...selectedEquipment, value]);
+                      setSelectedEquipment([
+                        ...selectedEquipment,
+                        { id: crypto.randomUUID(), equipment_id: value, target_fighter_default_id: null }
+                      ]);
                     }
                     e.target.value = "";
                   }}
@@ -1916,27 +1933,74 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                     ))}
                 </select>
 
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {selectedEquipment.map((equipId, index) => {
-                    const item = equipment.find(e => e.id === equipId);
+                <div className="mt-2 flex flex-col gap-2">
+                  {selectedEquipment.map((slot, index) => {
+                    const item = equipment.find(e => e.id === slot.equipment_id);
                     if (!item) return null;
+
+                    // Find available weapon slots that this item could be attached to
+                    const availableWeaponSlots = selectedEquipment
+                      .map((s, idx) => {
+                        const eq = equipment.find(e => e.id === s.equipment_id);
+                        return eq && eq.equipment_type === 'weapon' && s.id !== slot.id
+                          ? { slot: s, eq, weaponIndex: idx + 1 }
+                          : null;
+                      })
+                      .filter((w): w is { slot: typeof slot; eq: any; weaponIndex: number } => w !== null);
+
+                    const isWeaponAccessory = item.equipment_category?.toLowerCase() === 'weapon accessories';
 
                     return (
                       <div
-                        key={`${item.id}-${index}`}
-                        className={`flex items-center gap-1 px-2 py-1 rounded-full text-sm ${
-                          selectedFighterTypeId ? 'bg-muted' : 'bg-muted'
-                        }`}
+                        key={slot.id}
+                        className="flex flex-wrap items-center justify-between gap-2 bg-muted p-2 rounded-md text-sm"
                       >
-                        <span>{item.equipment_name}</span>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedEquipment(selectedEquipment.filter((_, i) => i !== index))}
-                          className="hover:text-red-500 focus:outline-hidden"
-                          disabled={!selectedFighterTypeId}
-                        >
-                          <HiX className="h-4 w-4" />
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{item.equipment_name}</span>
+                          <span className="text-xs text-muted-foreground capitalize">({item.equipment_type.replace('_', ' ')})</span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {isWeaponAccessory && availableWeaponSlots.length > 0 && (
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-muted-foreground">Attach to:</span>
+                              <select
+                                value={slot.target_fighter_default_id || ''}
+                                onChange={(e) => {
+                                  const targetId = e.target.value || null;
+                                  setSelectedEquipment(selectedEquipment.map(s => 
+                                    s.id === slot.id ? { ...s, target_fighter_default_id: targetId } : s
+                                  ));
+                                }}
+                                className="text-xs p-1 border rounded bg-background text-foreground"
+                                disabled={!selectedFighterTypeId}
+                              >
+                                <option value="">(Unattached / Standalone)</option>
+                                {availableWeaponSlots.map(({ slot: wSlot, eq: wEq, weaponIndex }) => (
+                                  <option key={wSlot.id} value={wSlot.id}>
+                                    {wEq.equipment_name} #{weaponIndex}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedEquipment(
+                                selectedEquipment
+                                  .filter(s => s.id !== slot.id)
+                                  .map(s => s.target_fighter_default_id === slot.id ? { ...s, target_fighter_default_id: null } : s)
+                              );
+                            }}
+                            className="hover:text-red-500 focus:outline-hidden p-1"
+                            disabled={!selectedFighterTypeId}
+                            title="Remove equipment"
+                          >
+                            <HiX className="h-4 w-4" />
+                          </button>
+                        </div>
                       </div>
                     );
                   })}

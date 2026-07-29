@@ -70,7 +70,11 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   const [isDramatisPersonae, setIsDramatisPersonae] = useState(false);
   const [isSpyrer, setIsSpyrer] = useState(false);
   const [alignment, setAlignment] = useState<string>('');
-  const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
+  const [selectedEquipment, setSelectedEquipment] = useState<{
+    id: string;
+    equipment_id: string;
+    target_fighter_default_id?: string | null;
+  }[]>([]);
   const [selectedSkillType, setSelectedSkillType] = useState('');
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [equipmentListSelections, setEquipmentListSelections] = useState<string[]>([]);
@@ -590,42 +594,91 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                 value=""
                 onChange={(e) => {
                   const value = e.target.value;
-                  if (value && !selectedEquipment.includes(value)) {
-                    setSelectedEquipment([...selectedEquipment, value]);
+                  if (value) {
+                    setSelectedEquipment([
+                      ...selectedEquipment,
+                      { id: crypto.randomUUID(), equipment_id: value, target_fighter_default_id: null }
+                    ]);
                   }
-                  // Reset the select to empty after selection
                   e.target.value = "";
                 }}
                 className="w-full p-2 border rounded-md"
               >
                 <option value="">Select equipment to add</option>
-                {equipment
-                  .filter(item => !selectedEquipment.includes(item.id))
-                  .map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.equipment_name}
-                    </option>
-                  ))}
+                {equipment.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.equipment_name}
+                  </option>
+                ))}
               </select>
 
-              <div className="mt-2 flex flex-wrap gap-2">
-                {selectedEquipment.map((equipId) => {
-                  const item = equipment.find(e => e.id === equipId);
+              <div className="mt-2 flex flex-col gap-2">
+                {selectedEquipment.map((slot, index) => {
+                  const item = equipment.find(e => e.id === slot.equipment_id);
                   if (!item) return null;
-                  
+
+                  // Find available weapon slots that this item could be attached to
+                  const availableWeaponSlots = selectedEquipment
+                    .map((s, idx) => {
+                      const eq = equipment.find(e => e.id === s.equipment_id);
+                      return eq && eq.equipment_type === 'weapon' && s.id !== slot.id
+                        ? { slot: s, eq, weaponIndex: idx + 1 }
+                        : null;
+                    })
+                    .filter((w): w is { slot: typeof slot; eq: EquipmentWithId; weaponIndex: number } => w !== null);
+
+                  const isWeaponAccessory = item.equipment_category?.toLowerCase() === 'weapon accessories';
+
                   return (
                     <div 
-                      key={item.id}
-                      className="flex items-center gap-1 bg-muted px-2 py-1 rounded-full text-sm"
+                      key={slot.id}
+                      className="flex flex-wrap items-center justify-between gap-2 bg-muted p-2 rounded-md text-sm"
                     >
-                      <span>{item.equipment_name}</span>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedEquipment(selectedEquipment.filter(id => id !== item.id))}
-                        className="hover:text-red-500 focus:outline-hidden"
-                      >
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{item.equipment_name}</span>
+                        <span className="text-xs text-muted-foreground capitalize">({item.equipment_type.replace('_', ' ')})</span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {isWeaponAccessory && availableWeaponSlots.length > 0 && (
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-muted-foreground">Attach to:</span>
+                            <select
+                              value={slot.target_fighter_default_id || ''}
+                              onChange={(e) => {
+                                const targetId = e.target.value || null;
+                                setSelectedEquipment(selectedEquipment.map(s => 
+                                  s.id === slot.id ? { ...s, target_fighter_default_id: targetId } : s
+                                ));
+                              }}
+                              className="text-xs p-1 border rounded bg-background text-foreground"
+                            >
+                              <option value="">(Unattached / Standalone)</option>
+                              {availableWeaponSlots.map(({ slot: wSlot, eq: wEq, weaponIndex }) => (
+                                <option key={wSlot.id} value={wSlot.id}>
+                                  {wEq.equipment_name} #{weaponIndex}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // Remove item and clear any target references pointing to this item
+                            setSelectedEquipment(
+                              selectedEquipment
+                                .filter(s => s.id !== slot.id)
+                                .map(s => s.target_fighter_default_id === slot.id ? { ...s, target_fighter_default_id: null } : s)
+                            );
+                          }}
+                          className="hover:text-red-500 focus:outline-hidden p-1"
+                          title="Remove equipment"
+                        >
                           <HiX className="h-4 w-4" />
-                      </button>
+                        </button>
+                      </div>
                     </div>
                   );
                 })}

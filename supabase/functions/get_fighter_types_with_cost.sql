@@ -78,6 +78,8 @@ BEGIN
             SELECT COALESCE(jsonb_agg(
                 jsonb_build_object(
                     'id', e.id,
+                    'default_id', fd.id,
+                    'target_fighter_default_id', fd.target_fighter_default_id,
                     'equipment_name', e.equipment_name,
                     'equipment_type', e.equipment_type,
                     'equipment_category', e.equipment_category,
