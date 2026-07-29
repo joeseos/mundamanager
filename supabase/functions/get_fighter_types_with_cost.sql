@@ -113,6 +113,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'is_editable', COALESCE(e.is_editable, false),
                                                             'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
@@ -123,7 +124,8 @@ BEGIN
                                                                             'equipment_type', re.equipment_type,
                                                                             'equipment_category', re.equipment_category,
                                                                             'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer
+                                                                            'max_quantity', (repl->>'max_quantity')::integer,
+                                                                            'is_editable', COALESCE(re.is_editable, false)
                                                                         )
                                                                     )
                                                                     FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -153,6 +155,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'is_editable', COALESCE(e.is_editable, false),
                                                         'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
@@ -163,7 +166,8 @@ BEGIN
                                                                         'equipment_type', re.equipment_type,
                                                                         'equipment_category', re.equipment_category,
                                                                         'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer
+                                                                        'max_quantity', (repl->>'max_quantity')::integer,
+                                                                        'is_editable', COALESCE(re.is_editable, false)
                                                                     )
                                                                 )
                                                                 FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -200,6 +204,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'is_editable', COALESCE(e.is_editable, false),
                                                             'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
@@ -210,7 +215,8 @@ BEGIN
                                                                             'equipment_type', re.equipment_type,
                                                                             'equipment_category', re.equipment_category,
                                                                             'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer
+                                                                            'max_quantity', (repl->>'max_quantity')::integer,
+                                                                            'is_editable', COALESCE(re.is_editable, false)
                                                                         )
                                                                     )
                                                                     FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -240,6 +246,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'is_editable', COALESCE(e.is_editable, false),
                                                         'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
@@ -250,7 +257,8 @@ BEGIN
                                                                         'equipment_type', re.equipment_type,
                                                                         'equipment_category', re.equipment_category,
                                                                         'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer
+                                                                        'max_quantity', (repl->>'max_quantity')::integer,
+                                                                        'is_editable', COALESCE(re.is_editable, false)
                                                                     )
                                                                 )
                                                                 FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -289,6 +297,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'is_editable', COALESCE(e.is_editable, false),
                                                             'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
@@ -299,7 +308,8 @@ BEGIN
                                                                             'equipment_type', re.equipment_type,
                                                                             'equipment_category', re.equipment_category,
                                                                             'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer
+                                                                            'max_quantity', (repl->>'max_quantity')::integer,
+                                                                            'is_editable', COALESCE(re.is_editable, false)
                                                                         )
                                                                     )
                                                                     FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -329,6 +339,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'is_editable', COALESCE(e.is_editable, false),
                                                         'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
@@ -339,7 +350,8 @@ BEGIN
                                                                         'equipment_type', re.equipment_type,
                                                                         'equipment_category', re.equipment_category,
                                                                         'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer
+                                                                        'max_quantity', (repl->>'max_quantity')::integer,
+                                                                        'is_editable', COALESCE(re.is_editable, false)
                                                                     )
                                                                 )
                                                                 FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -376,6 +388,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'is_editable', COALESCE(e.is_editable, false),
                                                             'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
@@ -386,7 +399,8 @@ BEGIN
                                                                             'equipment_type', re.equipment_type,
                                                                             'equipment_category', re.equipment_category,
                                                                             'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer
+                                                                            'max_quantity', (repl->>'max_quantity')::integer,
+                                                                            'is_editable', COALESCE(re.is_editable, false)
                                                                         )
                                                                     )
                                                                     FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -416,6 +430,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'is_editable', COALESCE(e.is_editable, false),
                                                         'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
@@ -426,7 +441,8 @@ BEGIN
                                                                         'equipment_type', re.equipment_type,
                                                                         'equipment_category', re.equipment_category,
                                                                         'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer
+                                                                        'max_quantity', (repl->>'max_quantity')::integer,
+                                                                        'is_editable', COALESCE(re.is_editable, false)
                                                                     )
                                                                 )
                                                                 FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -465,6 +481,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'is_editable', COALESCE(e.is_editable, false),
                                                             'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
@@ -475,7 +492,8 @@ BEGIN
                                                                             'equipment_type', re.equipment_type,
                                                                             'equipment_category', re.equipment_category,
                                                                             'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer
+                                                                            'max_quantity', (repl->>'max_quantity')::integer,
+                                                                            'is_editable', COALESCE(re.is_editable, false)
                                                                         )
                                                                     )
                                                                     FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -505,6 +523,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'is_editable', COALESCE(e.is_editable, false),
                                                         'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
@@ -515,7 +534,8 @@ BEGIN
                                                                         'equipment_type', re.equipment_type,
                                                                         'equipment_category', re.equipment_category,
                                                                         'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer
+                                                                        'max_quantity', (repl->>'max_quantity')::integer,
+                                                                        'is_editable', COALESCE(re.is_editable, false)
                                                                     )
                                                                 )
                                                                 FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -552,6 +572,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'is_editable', COALESCE(e.is_editable, false),
                                                             'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
@@ -562,7 +583,8 @@ BEGIN
                                                                             'equipment_type', re.equipment_type,
                                                                             'equipment_category', re.equipment_category,
                                                                             'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer
+                                                                            'max_quantity', (repl->>'max_quantity')::integer,
+                                                                            'is_editable', COALESCE(re.is_editable, false)
                                                                         )
                                                                     )
                                                                     FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -592,6 +614,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'is_editable', COALESCE(e.is_editable, false),
                                                         'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
@@ -602,7 +625,8 @@ BEGIN
                                                                         'equipment_type', re.equipment_type,
                                                                         'equipment_category', re.equipment_category,
                                                                         'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer
+                                                                        'max_quantity', (repl->>'max_quantity')::integer,
+                                                                        'is_editable', COALESCE(re.is_editable, false)
                                                                     )
                                                                 )
                                                                 FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -641,6 +665,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'is_editable', COALESCE(e.is_editable, false),
                                                             'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
@@ -651,7 +676,8 @@ BEGIN
                                                                             'equipment_type', re.equipment_type,
                                                                             'equipment_category', re.equipment_category,
                                                                             'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer
+                                                                            'max_quantity', (repl->>'max_quantity')::integer,
+                                                                            'is_editable', COALESCE(re.is_editable, false)
                                                                         )
                                                                     )
                                                                     FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -681,6 +707,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'is_editable', COALESCE(e.is_editable, false),
                                                         'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
@@ -691,7 +718,8 @@ BEGIN
                                                                         'equipment_type', re.equipment_type,
                                                                         'equipment_category', re.equipment_category,
                                                                         'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer
+                                                                        'max_quantity', (repl->>'max_quantity')::integer,
+                                                                        'is_editable', COALESCE(re.is_editable, false)
                                                                     )
                                                                 )
                                                                 FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -728,6 +756,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'is_editable', COALESCE(e.is_editable, false),
                                                             'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
@@ -738,7 +767,8 @@ BEGIN
                                                                             'equipment_type', re.equipment_type,
                                                                             'equipment_category', re.equipment_category,
                                                                             'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer
+                                                                            'max_quantity', (repl->>'max_quantity')::integer,
+                                                                            'is_editable', COALESCE(re.is_editable, false)
                                                                         )
                                                                     )
                                                                     FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -768,6 +798,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'is_editable', COALESCE(e.is_editable, false),
                                                         'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
@@ -778,7 +809,8 @@ BEGIN
                                                                         'equipment_type', re.equipment_type,
                                                                         'equipment_category', re.equipment_category,
                                                                         'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer
+                                                                        'max_quantity', (repl->>'max_quantity')::integer,
+                                                                        'is_editable', COALESCE(re.is_editable, false)
                                                                     )
                                                                 )
                                                                 FROM jsonb_array_elements(item_data->'replacements') AS repl
