@@ -1,5 +1,6 @@
 'use server'
 
+import { randomUUID } from 'crypto';
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
 import { invalidateFighterAddition, invalidateUserGangsList } from '@/utils/cache-tags';
@@ -16,8 +17,11 @@ interface InsertedEquipment {
   equipment_id: string | null;
   custom_equipment_id: string | null;
   purchase_cost?: number;
-  equipment?: { equipment_name: string; equipment_type: string; equipment_category: string; equipment_category_id?: string; is_consumable?: boolean };
-  custom_equipment?: { equipment_name: string; equipment_type: string; equipment_category: string; is_consumable?: boolean };
+  is_editable?: boolean;
+  // Shapes mirror the embedded resources in the fighter_equipment `.select(...)` below.
+  // `equipment` exposes equipment_category_id (not equipment_category); custom_equipment exposes equipment_category.
+  equipment?: { equipment_name: string; equipment_type: string; equipment_category_id?: string };
+  custom_equipment?: { equipment_name: string; equipment_type: string; equipment_category: string };
 }
 
 interface SelectedEquipment {
@@ -107,6 +111,7 @@ interface AddFighterResult {
       equipment_type: string;
       cost: number;
       weapon_profiles?: any[];
+      effect_names?: string[];
     }>;
     skills: Array<{
       skill_id: string;
@@ -613,8 +618,12 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         return null;
       }).filter(Boolean);
 
-    // Prepare equipment insertions with deduplication
+    // Prepare equipment insertions with deduplication.
+    // We pre-generate each fighter_equipment `id` client-side (the column accepts a supplied
+    // uuid) so we can correlate inserted rows back to their source metadata by id, without
+    // relying on PostgREST returning the RETURNING rows in the same order they were submitted.
     const equipmentInserts: Array<{
+      id: string;
       fighter_id: string;
       equipment_id: string | null;
       custom_equipment_id?: string | null;
@@ -625,8 +634,9 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       is_editable?: boolean;
     }> = [];
 
-    // Parallel array to track default metadata (default_id and target_fighter_default_id)
+    // Parallel array to track metadata keyed by the pre-generated fighter_equipment id (feId).
     const equipmentMeta: Array<{
+      feId: string;
       default_id?: string;
       target_fighter_default_id?: string | null;
     }> = [];
@@ -641,7 +651,9 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         const isCustomEquipment = defaultEquipment.equipment_id.startsWith('custom_');
         // Track for cross-source deduplication (prevents params.default_equipment from duplicating)
         addedEquipment.add(defaultEquipment.equipment_id);
+        const feId = randomUUID();
         equipmentInserts.push({
+          id: feId,
           fighter_id: fighterId,
           equipment_id: isCustomEquipment ? null : defaultEquipment.equipment_id,
           custom_equipment_id: isCustomEquipment ? defaultEquipment.equipment_id.replace('custom_', '') : null,
@@ -652,6 +664,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
           is_editable: defaultEquipment.is_editable || false
         });
         equipmentMeta.push({
+          feId,
           default_id: defaultEquipment.default_id,
           target_fighter_default_id: defaultEquipment.target_fighter_default_id || null
         });
@@ -666,7 +679,9 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
           addedEquipment.add(defaultItem.equipment_id);
           for (let i = 0; i < (defaultItem.quantity || 1); i++) {
             const isCustomEquipment = defaultItem.equipment_id.startsWith('custom_');
+            const feId = randomUUID();
             equipmentInserts.push({
+              id: feId,
               fighter_id: fighterId,
               equipment_id: isCustomEquipment ? null : defaultItem.equipment_id,
               custom_equipment_id: isCustomEquipment ? defaultItem.equipment_id.replace('custom_', '') : null,
@@ -676,7 +691,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
               user_id: gangData.user_id,
               is_editable: defaultItem.is_editable || false
             });
-            equipmentMeta.push({});
+            equipmentMeta.push({ feId });
           }
         }
       });
@@ -687,8 +702,10 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       params.selected_equipment.forEach((selectedItem) => {
         for (let i = 0; i < (selectedItem.quantity || 1); i++) {
           const isCustomEquipment = selectedItem.equipment_id.startsWith('custom_');
+          const feId = randomUUID();
           // Don't deduplicate selected equipment - user explicitly chose these
           equipmentInserts.push({
+            id: feId,
             fighter_id: fighterId,
             equipment_id: isCustomEquipment ? null : selectedItem.equipment_id,
             custom_equipment_id: isCustomEquipment ? selectedItem.equipment_id.replace('custom_', '') : null,
@@ -698,7 +715,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
             user_id: gangData.user_id,
             is_editable: selectedItem.is_editable || false
           });
-          equipmentMeta.push({});
+          equipmentMeta.push({ feId });
         }
       });
     }
@@ -791,6 +808,11 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     let allAppliedEffects: any[] = [];
     let totalEffectsCreditsIncrease = 0;
 
+    // Names of accessories attached to a given weapon's fighter_equipment.id, so the
+    // equipment response can show them attached (matching gang-data.ts's refetch behaviour)
+    // without waiting for a reload.
+    const effectNamesByTargetId = new Map<string, string[]>();
+
     for (const result of insertResults) {
       if (result.status === 'fulfilled') {
         const { type, result: queryResult } = result.value;
@@ -829,6 +851,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                     `)
                     .in('type_specific_data->>equipment_id', validEquipmentIds);
 
+                  // Filter to ONLY auto-apply fixed effects (exclude editable effects that user adds later)
+                  const fixedEffectsByEquipment = new Map<string, any[]>();
                   if (!batchQueryError && allEffectTypes && allEffectTypes.length > 0) {
                     // Group effects by equipment_id for processing
                     const effectsByEquipment = new Map<string, any[]>();
@@ -842,8 +866,6 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                       }
                     });
 
-                    // Filter to ONLY auto-apply fixed effects (exclude editable effects that user adds later)
-                    const fixedEffectsByEquipment = new Map<string, any[]>();
                     Array.from(effectsByEquipment.entries()).forEach(([equipmentId, effects]) => {
                       const fixedEffects = effects.filter((et: any) => {
                         // Only exclude effects marked as editable (user adds these via edit modal after purchase)
@@ -856,23 +878,29 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                     });
                   }
 
-                  // Build map of default_id -> inserted fighter_equipment.id for linking target equipment
-                  // Note: We rely on Supabase/PostgREST returning the inserted rows in the exact same array order.
-                  // This allows us to map the newly generated DB 'id' back to our local 'equipmentMeta' using the index.
+                  // Index metadata by the pre-generated fighter_equipment id. Because we supplied
+                  // these ids ourselves, correlation no longer depends on PostgREST returning the
+                  // inserted rows in submission order.
+                  const metaByFeId = new Map<string, (typeof equipmentMeta)[number]>();
                   const defaultToFighterEquipMap = new Map<string, string>();
-                  insertedEquipment.forEach((item, idx: number) => {
-                    const meta = equipmentMeta[idx];
-                    if (meta?.default_id) {
-                      defaultToFighterEquipMap.set(meta.default_id, item.id);
+                  equipmentMeta.forEach((meta) => {
+                    metaByFeId.set(meta.feId, meta);
+                    if (meta.default_id) {
+                      defaultToFighterEquipMap.set(meta.default_id, meta.feId);
                     }
                   });
 
+                  const recordAttachment = (weaponFighterEquipId: string, accessoryName: string) => {
+                    const existing = effectNamesByTargetId.get(weaponFighterEquipId) || [];
+                    existing.push(accessoryName);
+                    effectNamesByTargetId.set(weaponFighterEquipId, existing);
+                  };
+
                   // Apply effects for each equipment piece
-                  for (let i = 0; i < insertedEquipment.length; i++) {
-                    const equipmentItem = insertedEquipment[i];
+                  for (const equipmentItem of insertedEquipment) {
                     if (!equipmentItem.equipment_id || equipmentItem.custom_equipment_id) continue;
 
-                    const meta = equipmentMeta[i];
+                    const meta = metaByFeId.get(equipmentItem.id);
                     let targetFighterEquipId: string | null = null;
                     if (meta?.target_fighter_default_id) {
                       targetFighterEquipId = defaultToFighterEquipMap.get(meta.target_fighter_default_id) || null;
@@ -894,6 +922,9 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
 
                         allAppliedEffects.push(...effectsResult.appliedEffects);
                         totalEffectsCreditsIncrease += effectsResult.effectsCreditsIncrease;
+                        if (targetFighterEquipId) {
+                          recordAttachment(targetFighterEquipId, equipmentItem.equipment?.equipment_name || 'Wargear');
+                        }
                       } catch (effectError) {
                         console.error(`Error applying effects for equipment ${equipmentItem.equipment_id} on fighter ${fighterId} (User: ${effectiveUserId}):`, effectError);
                       }
@@ -920,6 +951,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
 
                         if (!directEffectErr && directEffect) {
                           allAppliedEffects.push(directEffect);
+                          recordAttachment(targetFighterEquipId, effectName);
                         }
                       } catch (directEffectError) {
                         console.error(`Error applying direct target effect for equipment ${equipmentItem.equipment_id} on fighter ${fighterId} (User: ${effectiveUserId}):`, directEffectError);
@@ -1022,16 +1054,19 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                   }
                 }
 
+                const attachedNames = effectNamesByTargetId.get(item.id);
+
                 return {
                   fighter_equipment_id: item.id,
                   equipment_id: item.equipment_id || undefined,
                   custom_equipment_id: item.custom_equipment_id || undefined,
                   equipment_name: item.equipment?.equipment_name || item.custom_equipment?.equipment_name || 'Unknown',
                   equipment_type: equipmentType || 'unknown',
-                  equipment_category: item.equipment?.equipment_category || item.custom_equipment?.equipment_category || 'unknown',
+                  equipment_category: item.custom_equipment?.equipment_category || 'unknown',
                   cost: item.purchase_cost,
                   weapon_profiles: itemWeaponProfiles,
-                  is_editable: false
+                  is_editable: item.is_editable || false,
+                  effect_names: attachedNames && attachedNames.length > 0 ? attachedNames : undefined
                 };
               });
 

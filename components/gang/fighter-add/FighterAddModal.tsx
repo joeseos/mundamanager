@@ -291,7 +291,7 @@ export default function FighterAddModal({
       .filter((item: any) => item.equipment_type === 'weapon')
       .map((item: any) => {
         const attachedAccessories = defaultEquipment.filter(
-          (eq: any) => eq.target_fighter_default_id === item.id
+          (eq: any) => eq.target_fighter_default_id === item.default_id
         );
         const effectNames = attachedAccessories.map((eq: any) => eq.equipment_name);
         return {

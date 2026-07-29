@@ -96,6 +96,7 @@ export interface AddFighterServerData {
     equipment_type: string;
     cost: number;
     weapon_profiles?: any[];
+    effect_names?: string[];
   }>;
   skills: Array<{
     skill_id: string;
@@ -168,7 +169,8 @@ export function buildWeaponsFromEquipment(equipment: AddFighterServerData['equip
       weapon_id: item.equipment_id,
       cost: item.cost,
       fighter_weapon_id: item.fighter_equipment_id,
-      weapon_profiles: item.weapon_profiles || []
+      weapon_profiles: item.weapon_profiles || [],
+      effect_names: item.effect_names
     }));
 }
 
