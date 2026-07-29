@@ -533,7 +533,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         for (const option of optionsToGrant) {
           const { data: grantedEquip } = await supabase
             .from('equipment')
-            .select('id, equipment_name, cost')
+            .select('id, equipment_name, cost, is_editable')
             .eq('id', option.equipment_id)
             .single();
 
@@ -548,7 +548,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
                 original_cost: grantedEquip.cost,
                 purchase_cost: option.additional_cost,
                 granted_by_equipment_id: newEquipmentId,
-                user_id: gang.user_id
+                user_id: gang.user_id,
+                is_editable: grantedEquip.is_editable || false
               });
 
             // Add to rating delta for granted equipment (fighters and assigned vehicles)

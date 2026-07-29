@@ -1011,7 +1011,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                     // Fetch granted equipment details
                     const { data: grantedEquipmentDetails } = await supabase
                       .from('equipment')
-                      .select('id, equipment_name, cost')
+                      .select('id, equipment_name, cost, is_editable')
                       .in('id', allGrantedEquipmentIds);
 
                     if (grantedEquipmentDetails && grantedEquipmentDetails.length > 0) {
@@ -1033,7 +1033,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                               purchase_cost: parentInfo.additionalCost,
                               granted_by_equipment_id: parentFighterEquip.id,
                               gang_id: params.gang_id,
-                              user_id: gangData.user_id
+                              user_id: gangData.user_id,
+                              is_editable: grantedEquip.is_editable || false
                             });
                           }
                         }
@@ -1048,6 +1049,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                             equipment_id,
                             original_cost,
                             purchase_cost,
+                            is_editable,
                             equipment!equipment_id(
                               id,
                               equipment_name,
@@ -1088,7 +1090,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                               equipment_category: 'unknown',
                               cost: item.purchase_cost,
                               weapon_profiles: itemWeaponProfiles,
-                              is_editable: false
+                              is_editable: item.is_editable || false
                             };
                           });
 
