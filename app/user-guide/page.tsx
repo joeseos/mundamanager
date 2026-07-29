@@ -101,7 +101,7 @@ export default function UserGuidePage() {
                   <li><a href="#house-escher-chem-alchemy" className="underline hover:text-red-800">House Escher: Chem-Alchemy</a></li>
                   <li><a href="#house-goliath-gene-smithing" className="underline hover:text-red-800">House Goliath: Gene-Smithing</a></li>
                   <li><a href="#house-van-saar-archaeo-cyberteknika" className="underline hover:text-red-800">House Van Saar: Archaeo-Cyberteknika</a></li>
-                  <li><a href="#spyre-hunting-party-spyres-rig-upgrades" className="underline hover:text-red-800">Spyre Hunting Party: Spyres Rig Upgrades</a></li>
+                  <li><a href="#spyre-hunting-party-spyrer-equipment-augmentations" className="underline hover:text-red-800">Spyre Hunting Party: Spyrer Equipment Augmentations</a></li>
                   <li><a href="#venator-gang-legacy-outcast-gang-affiliation" className="underline hover:text-red-800">Venator: Gang Legacy & Outcast Gang Affiliation</a></li>
                   <li><a href="#outcast-elevating-a-fighter-to-leader" className="underline hover:text-red-800">Outcast: Elevating a fighter to Leader &amp; setting Archetypes</a></li>
                   <li><a href="#palanite-enforcers-selecting-a-prefecture" className="underline hover:text-red-800">Palanite Enforcers: Selecting a Prefecture</a></li>
@@ -287,14 +287,25 @@ export default function UserGuidePage() {
                   />
                 </div>
 
-              <h3 id="spyre-hunting-party-spyres-rig-upgrades" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
-                <a href="#spyre-hunting-party-spyres-rig-upgrades" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
-                  Spyre Hunting Party: Spyres Rig Upgrades
+              <h3 id="spyre-hunting-party-spyrer-equipment-augmentations" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
+                <a href="#spyre-hunting-party-spyrer-equipment-augmentations" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Spyre Hunting Party: Spyrer Equipment Augmentations
                 </a>
               </h3>
                 <p className="text-muted-foreground mb-2">
-                  For Spyrer gangs, Rig upgrades are treated as equipment as well. Their rig prices reflect the <strong className="text-foreground">+20</strong> Cost increase incorrect when rolling on the power-table. You can simply discard the previous Tier and add the higher tier for 0 cost, but leave the base rating enabled.
+                  For Spyrer gangs, you can apply the Tier advances via an Edit option on your fighters. This will prompt a menu with which you can apply the Tier upgrade you&apos;ve unlocked.
                 </p>
+                <p className="text-muted-foreground mb-2">
+                  This upgrade costs the gang no credits, but does increase the fighter&apos;s rating as shown.
+                </p>
+                <div className="my-4 flex justify-center">
+                  <img
+                    src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/spyrer-augmentation.webp"
+                    alt="Edit equipment dialog showing Tier 1, 2 and 3 augmentation options for Paired Yeld laser gauntlets on a Spyrer fighter"
+                    className="rounded-lg"
+                    style={{ maxWidth: '450px', width: '100%', height: 'auto' }}
+                  />
+                </div>
 
               <h3 id="venator-gang-legacy-outcast-gang-affiliation" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
                 <a href="#venator-gang-legacy-outcast-gang-affiliation" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
