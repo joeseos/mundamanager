@@ -96,6 +96,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           purchase_cost,
           original_cost,
           is_master_crafted,
+          is_editable,
           vehicle_id
         ),
         fighter_skills(
@@ -400,6 +401,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
             purchase_cost: eq.purchase_cost,
             original_cost: eq.original_cost,
             is_master_crafted: eq.is_master_crafted || false,
+            is_editable: eq.is_editable || false,
             gang_id: params.target_gang_id,
             user_id: gang.user_id
           })
@@ -431,6 +433,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
             purchase_cost: eq.purchase_cost,
             original_cost: eq.original_cost,
             is_master_crafted: eq.is_master_crafted || false,
+            is_editable: eq.is_editable || false,
             gang_id: params.target_gang_id,
             user_id: gang.user_id
           })
@@ -649,7 +652,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           .from('fighters')
           .select(`
             *,
-            fighter_equipment(id, equipment_id, custom_equipment_id, purchase_cost, original_cost, is_master_crafted),
+            fighter_equipment(id, equipment_id, custom_equipment_id, purchase_cost, original_cost, is_master_crafted, is_editable),
             fighter_skills(id, skill_id, custom_skill_id, credits_increase, xp_cost, is_advance),
             fighter_effects(
               id, effect_name, fighter_effect_type_id, type_specific_data,
@@ -735,6 +738,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
                 purchase_cost: eq.purchase_cost,
                 original_cost: eq.original_cost,
                 is_master_crafted: eq.is_master_crafted || false,
+                is_editable: eq.is_editable || false,
                 gang_id: params.target_gang_id,
                 user_id: gang.user_id
               })
