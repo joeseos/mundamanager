@@ -51,6 +51,3 @@ todo.md
 supabase/.temp/
 supabase/policies/
 supabase/seed/
-
-# scratch folder for images awaiting manual upload to Supabase Storage
-/uploadimages/
