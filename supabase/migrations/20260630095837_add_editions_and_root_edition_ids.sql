@@ -10,7 +10,6 @@ CREATE TABLE IF NOT EXISTS public.editions (
   slug text NOT NULL UNIQUE,
   released_at date,
   is_current boolean NOT NULL DEFAULT false,
-  sort_order integer NOT NULL DEFAULT 0,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone,
   CONSTRAINT editions_slug_format_chk CHECK (slug ~ '^[a-z][a-z0-9_]*$')
@@ -53,8 +52,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS editions_single_current_idx
   ON public.editions (is_current)
   WHERE is_current;
 
-INSERT INTO public.editions (name, slug, is_current, sort_order)
-SELECT 'Necromunda (2023)', 'n23', true, 1
+INSERT INTO public.editions (name, slug, is_current)
+SELECT 'Necromunda (2023)', 'n23', true
 WHERE NOT EXISTS (
   SELECT 1
   FROM public.editions
