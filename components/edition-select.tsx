@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Edition } from '@/types/edition';
 
@@ -22,8 +22,13 @@ export function EditionSelect({ value, onChange, defaultToCurrent = false, label
     staleTime: 5 * 60 * 1000,
   });
 
+  // Default only once, when editions first load — never after, so an explicit
+  // blank selection ("all editions" in filter contexts) sticks
+  const hasDefaulted = useRef(false);
   useEffect(() => {
-    if (!defaultToCurrent || value || editions.length === 0) return;
+    if (hasDefaulted.current || editions.length === 0) return;
+    hasDefaulted.current = true;
+    if (!defaultToCurrent || value) return;
     const current = editions.find(edition => edition.is_current);
     if (current) onChange(current.id);
   }, [defaultToCurrent, value, editions, onChange]);
