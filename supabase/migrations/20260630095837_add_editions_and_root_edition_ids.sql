@@ -118,46 +118,46 @@ BEGIN
   END LOOP;
 END $$;
 
--- fighter_classes needs a stable, edition-independent key so per-edition rows of
+-- fighter_classes needs a stable, edition-independent slug so per-edition rows of
 -- the same class can be matched to each other without relying on display names.
 ALTER TABLE public.fighter_classes
-  ADD COLUMN IF NOT EXISTS code text;
+  ADD COLUMN IF NOT EXISTS slug text;
 
 UPDATE public.fighter_classes
-SET code = CASE
+SET slug = CASE
     WHEN class_name = '*' THEN 'any'
     ELSE trim(BOTH '_' FROM lower(regexp_replace(class_name, '[^a-zA-Z0-9]+', '_', 'g')))
   END
-WHERE code IS NULL;
+WHERE slug IS NULL;
 
 ALTER TABLE public.fighter_classes
-  ALTER COLUMN code SET NOT NULL;
+  ALTER COLUMN slug SET NOT NULL;
 
 DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1
     FROM pg_constraint
-    WHERE conname = 'fighter_classes_code_format_chk'
+    WHERE conname = 'fighter_classes_slug_format_chk'
       AND conrelid = 'public.fighter_classes'::regclass
   ) THEN
     ALTER TABLE public.fighter_classes
-      ADD CONSTRAINT fighter_classes_code_format_chk
-      CHECK (code ~ '^[a-z][a-z0-9_]*$');
+      ADD CONSTRAINT fighter_classes_slug_format_chk
+      CHECK (slug ~ '^[a-z][a-z0-9_]*$');
   END IF;
 END $$;
 
-CREATE UNIQUE INDEX IF NOT EXISTS fighter_classes_edition_code_idx
-  ON public.fighter_classes (edition_id, code)
+CREATE UNIQUE INDEX IF NOT EXISTS fighter_classes_edition_slug_idx
+  ON public.fighter_classes (edition_id, slug)
   WHERE edition_id IS NOT NULL;
 
 -- Naming collision worth documenting: the rulebook term "Subtypes" refers to
 -- what this schema calls fighter_classes, not to fighter_sub_types.
 COMMENT ON TABLE public.fighter_classes IS
-  'Fighter roles (Leader, Champion, Ganger, ...). The new edition rulebook calls these "Subtypes"; the display label is resolved per edition in app code. NOT related to fighter_sub_types. One row per class per edition, joined across editions on code.';
+  'Fighter roles (Leader, Champion, Ganger, ...). The new edition rulebook calls these "Subtypes"; the display label is resolved per edition in app code. NOT related to fighter_sub_types. One row per class per edition, joined across editions on slug.';
 
 COMMENT ON TABLE public.fighter_sub_types IS
   'Variants within a single fighter type. Unrelated to the rulebook term "Subtypes", which maps to fighter_classes.';
 
-COMMENT ON COLUMN public.fighter_classes.code IS
-  'Stable slug shared across editions; match on this, never on class_name or id. Not user-editable.';
+COMMENT ON COLUMN public.fighter_classes.slug IS
+  'Stable identifier shared across editions; match on this, never on class_name or id. Not user-editable.';
