@@ -4554,7 +4554,8 @@ CREATE TABLE public.alliances (
     alignment text,
     strong_alliance uuid,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    alliance_crew_name text
+    alliance_crew_name text,
+    edition_id uuid
 );
 
 
@@ -4926,7 +4927,8 @@ CREATE TABLE public.campaign_types (
     campaign_type_name text,
     description text,
     image_url text,
-    trading_posts jsonb
+    trading_posts jsonb,
+    edition_id uuid
 );
 
 
@@ -4972,7 +4974,8 @@ CREATE TABLE public.custom_collections (
     user_id uuid NOT NULL,
     name text NOT NULL,
     description text,
-    items jsonb DEFAULT '[]'::jsonb NOT NULL
+    items jsonb DEFAULT '[]'::jsonb NOT NULL,
+    edition_id uuid
 );
 
 
@@ -4996,7 +4999,8 @@ CREATE TABLE public.custom_equipment (
     user_id uuid NOT NULL,
     is_editable boolean DEFAULT false,
     is_consumable boolean DEFAULT false,
-    description text
+    description text,
+    edition_id uuid
 );
 
 
@@ -5045,7 +5049,8 @@ CREATE TABLE public.custom_fighter_types (
     fighter_class_id uuid,
     user_id uuid,
     custom_gang_type_id uuid,
-    description text
+    description text,
+    edition_id uuid
 );
 
 
@@ -5062,7 +5067,8 @@ CREATE TABLE public.custom_gang_types (
     alignment public.alignment,
     trading_post_type_id uuid,
     default_image_urls jsonb DEFAULT '[{"url": "https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_gang_cropped_web.webp"}, {"url": "https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_cropped_web_foy9m7.avif", "credit": {"url": "https://www.ashenquarter.com/", "name": "Djidiouf", "suffix": "(AI-assisted)"}}]'::jsonb,
-    description text
+    description text,
+    edition_id uuid
 );
 
 
@@ -5101,7 +5107,8 @@ CREATE TABLE public.custom_skill_types (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone,
     name text,
-    user_id uuid
+    user_id uuid,
+    edition_id uuid
 );
 
 
@@ -5209,7 +5216,8 @@ CREATE TABLE public.custom_trading_posts (
     updated_at timestamp with time zone,
     user_id uuid NOT NULL,
     custom_trading_post_name text NOT NULL,
-    description text
+    description text,
+    edition_id uuid
 );
 
 
@@ -5239,6 +5247,36 @@ CREATE TABLE public.custom_weapon_profiles (
 
 
 --
+-- Name: editions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.editions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    slug text NOT NULL,
+    released_at date,
+    is_current boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    CONSTRAINT editions_slug_format_chk CHECK ((slug ~ '^[a-z][a-z0-9_]*$'::text))
+);
+
+
+--
+-- Name: COLUMN editions.slug; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.editions.slug IS 'Stable identifier for an edition so application code can reference it without hardcoding UUIDs.';
+
+
+--
+-- Name: COLUMN editions.is_current; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.editions.is_current IS 'Picks the default edition for pages that have no gang or campaign context to derive an edition from. It does NOT mark other editions unsupported, and catalog rows must never be filtered on it.';
+
+
+--
 -- Name: equipment; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5258,7 +5296,8 @@ CREATE TABLE public.equipment (
     updated_at timestamp with time zone,
     is_editable boolean DEFAULT false,
     grants_equipment jsonb,
-    is_consumable boolean DEFAULT false
+    is_consumable boolean DEFAULT false,
+    edition_id uuid
 );
 
 
@@ -5342,8 +5381,25 @@ CREATE TABLE public.fighter_classes (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     class_name text,
-    standard_class boolean DEFAULT false
+    standard_class boolean DEFAULT false,
+    edition_id uuid,
+    slug text NOT NULL,
+    CONSTRAINT fighter_classes_slug_format_chk CHECK ((slug ~ '^[a-z][a-z0-9_]*$'::text))
 );
+
+
+--
+-- Name: TABLE fighter_classes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.fighter_classes IS 'Fighter roles (Leader, Champion, Ganger, ...). The new edition rulebook calls these "Subtypes"; the display label is resolved per edition in app code. NOT related to fighter_sub_types. One row per class per edition, joined across editions on slug.';
+
+
+--
+-- Name: COLUMN fighter_classes.slug; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighter_classes.slug IS 'Stable identifier shared across editions; match on this, never on class_name or id. Not user-editable.';
 
 
 --
@@ -5429,7 +5485,8 @@ CREATE TABLE public.fighter_effect_types (
     updated_at timestamp with time zone,
     fighter_effect_category_id uuid,
     type_specific_data jsonb,
-    sort_order numeric
+    sort_order numeric,
+    edition_id uuid
 );
 
 
@@ -5655,6 +5712,13 @@ CREATE TABLE public.fighter_sub_types (
 
 
 --
+-- Name: TABLE fighter_sub_types; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.fighter_sub_types IS 'Variants within a single fighter type. Unrelated to the rulebook term "Subtypes", which maps to fighter_classes.';
+
+
+--
 -- Name: fighter_type_equipment; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5759,8 +5823,16 @@ CREATE TABLE public.fighter_types (
     alliance_crew_name text,
     is_spyrer boolean DEFAULT false,
     delegation_cost numeric,
-    is_dramatis_personae boolean DEFAULT false NOT NULL
+    is_dramatis_personae boolean DEFAULT false NOT NULL,
+    edition_id uuid
 );
+
+
+--
+-- Name: COLUMN fighter_types.edition_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighter_types.edition_id IS 'Denormalized from gang_types via the composite FK on (gang_type_id, edition_id); derived server-side from the chosen gang type, never accepted from clients.';
 
 
 --
@@ -5861,7 +5933,8 @@ CREATE TABLE public.gang_affiliation (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone,
     name text,
-    fighter_type_id uuid
+    fighter_type_id uuid,
+    edition_id uuid
 );
 
 
@@ -5902,7 +5975,8 @@ CREATE TABLE public.gang_origins (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone,
     origin_name text,
-    gang_origin_category_id uuid
+    gang_origin_category_id uuid,
+    edition_id uuid
 );
 
 
@@ -5936,7 +6010,8 @@ CREATE TABLE public.gang_types (
     trading_post_type_id uuid,
     affiliation boolean DEFAULT false,
     gang_origin_category_id uuid,
-    default_image_urls jsonb
+    default_image_urls jsonb,
+    edition_id uuid
 );
 
 
@@ -5969,7 +6044,8 @@ CREATE TABLE public.gang_variant_types (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     variant text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone
+    updated_at timestamp with time zone,
+    edition_id uuid
 );
 
 
@@ -6067,7 +6143,8 @@ CREATE TABLE public.scenarios (
     scenario_name text,
     campaign_type_id uuid,
     scenario_tags text,
-    scenario_number numeric
+    scenario_number numeric,
+    edition_id uuid
 );
 
 
@@ -6095,7 +6172,8 @@ CREATE TABLE public.skill_types (
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone,
     name text NOT NULL,
-    legendary_name boolean DEFAULT false NOT NULL
+    legendary_name boolean DEFAULT false NOT NULL,
+    edition_id uuid
 );
 
 
@@ -6125,7 +6203,8 @@ CREATE TABLE public.territories (
     campaign_type_id uuid,
     territory_name text NOT NULL,
     updated_at timestamp with time zone,
-    playing_card text
+    playing_card text,
+    edition_id uuid
 );
 
 
@@ -6150,7 +6229,8 @@ CREATE TABLE public.trading_post_types (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     trading_post_name text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone
+    updated_at timestamp with time zone,
+    edition_id uuid
 );
 
 
@@ -6191,7 +6271,8 @@ CREATE TABLE public.vehicle_types (
     engine_slots_occupied numeric,
     gang_type_id uuid,
     cost numeric,
-    hardpoints jsonb
+    hardpoints jsonb,
+    edition_id uuid
 );
 
 
@@ -6595,6 +6676,22 @@ ALTER TABLE ONLY public.custom_weapon_profiles
 
 
 --
+-- Name: editions editions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.editions
+    ADD CONSTRAINT editions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: editions editions_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.editions
+    ADD CONSTRAINT editions_slug_key UNIQUE (slug);
+
+
+--
 -- Name: email_deliveries email_deliveries_notification_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6923,6 +7020,14 @@ ALTER TABLE ONLY public.gang_stash
 
 
 --
+-- Name: gang_types gang_types_gang_type_id_edition_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_types
+    ADD CONSTRAINT gang_types_gang_type_id_edition_id_key UNIQUE (gang_type_id, edition_id);
+
+
+--
 -- Name: gang_types gang_types_gang_type_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7091,6 +7196,13 @@ ALTER TABLE ONLY public.equipment
 
 
 --
+-- Name: alliances_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX alliances_edition_id_idx ON public.alliances USING btree (edition_id);
+
+
+--
 -- Name: battle_session_fighters_created_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7210,6 +7322,13 @@ CREATE INDEX campaign_territories_territory_id_idx ON public.campaign_territorie
 
 
 --
+-- Name: campaign_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_types_edition_id_idx ON public.campaign_types USING btree (edition_id);
+
+
+--
 -- Name: campaigns_created_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7231,6 +7350,20 @@ CREATE INDEX campaigns_status_idx ON public.campaigns USING btree (status);
 
 
 --
+-- Name: custom_collections_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_collections_edition_id_idx ON public.custom_collections USING btree (edition_id);
+
+
+--
+-- Name: custom_equipment_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_equipment_edition_id_idx ON public.custom_equipment USING btree (edition_id);
+
+
+--
 -- Name: custom_equipment_equipment_name_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7242,6 +7375,20 @@ CREATE INDEX custom_equipment_equipment_name_idx ON public.custom_equipment USIN
 --
 
 CREATE INDEX custom_equipment_user_id_idx ON public.custom_equipment USING btree (user_id);
+
+
+--
+-- Name: custom_fighter_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_fighter_types_edition_id_idx ON public.custom_fighter_types USING btree (edition_id);
+
+
+--
+-- Name: custom_gang_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_gang_types_edition_id_idx ON public.custom_gang_types USING btree (edition_id);
 
 
 --
@@ -7259,10 +7406,31 @@ CREATE INDEX custom_shared_custom_equipment_id_idx ON public.custom_shared USING
 
 
 --
+-- Name: custom_skill_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_skill_types_edition_id_idx ON public.custom_skill_types USING btree (edition_id);
+
+
+--
+-- Name: custom_trading_posts_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_trading_posts_edition_id_idx ON public.custom_trading_posts USING btree (edition_id);
+
+
+--
 -- Name: custom_weapon_profiles_weapon_group_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX custom_weapon_profiles_weapon_group_id_idx ON public.custom_weapon_profiles USING btree (weapon_group_id);
+
+
+--
+-- Name: editions_single_current_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX editions_single_current_idx ON public.editions USING btree (is_current) WHERE is_current;
 
 
 --
@@ -7301,6 +7469,13 @@ CREATE INDEX equipment_discounts_gang_origin_id_idx ON public.equipment_discount
 
 
 --
+-- Name: equipment_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX equipment_edition_id_idx ON public.equipment USING btree (edition_id);
+
+
+--
 -- Name: equipment_equipment_category_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7336,6 +7511,20 @@ CREATE INDEX fighter_classes_class_name_idx ON public.fighter_classes USING btre
 
 
 --
+-- Name: fighter_classes_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_classes_edition_id_idx ON public.fighter_classes USING btree (edition_id);
+
+
+--
+-- Name: fighter_classes_edition_slug_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX fighter_classes_edition_slug_idx ON public.fighter_classes USING btree (edition_id, slug) WHERE (edition_id IS NOT NULL);
+
+
+--
 -- Name: fighter_defaults_fighter_type_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7361,6 +7550,13 @@ CREATE INDEX fighter_effect_type_modifiers_fighter_effect_type_id_idx ON public.
 --
 
 CREATE INDEX fighter_effect_type_modifiers_stat_name_idx ON public.fighter_effect_type_modifiers USING btree (stat_name);
+
+
+--
+-- Name: fighter_effect_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_effect_types_edition_id_idx ON public.fighter_effect_types USING btree (edition_id);
 
 
 --
@@ -7441,6 +7637,13 @@ CREATE INDEX fighter_type_equipment_equipment_id_idx ON public.fighter_type_equi
 
 
 --
+-- Name: fighter_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_types_edition_id_idx ON public.fighter_types USING btree (edition_id);
+
+
+--
 -- Name: fighter_types_fighter_type_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7483,6 +7686,20 @@ CREATE INDEX fighters_updated_at_idx ON public.fighters USING btree (updated_at)
 
 
 --
+-- Name: gang_affiliation_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gang_affiliation_edition_id_idx ON public.gang_affiliation USING btree (edition_id);
+
+
+--
+-- Name: gang_origins_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gang_origins_edition_id_idx ON public.gang_origins USING btree (edition_id);
+
+
+--
 -- Name: gang_origins_gang_origin_category_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7490,10 +7707,24 @@ CREATE INDEX gang_origins_gang_origin_category_id_idx ON public.gang_origins USI
 
 
 --
+-- Name: gang_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gang_types_edition_id_idx ON public.gang_types USING btree (edition_id);
+
+
+--
 -- Name: gang_types_gang_type_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX gang_types_gang_type_idx ON public.gang_types USING btree (gang_type);
+
+
+--
+-- Name: gang_variant_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gang_variant_types_edition_id_idx ON public.gang_variant_types USING btree (edition_id);
 
 
 --
@@ -7952,10 +8183,24 @@ CREATE INDEX notifications_type_idx ON public.notifications USING btree (type);
 
 
 --
+-- Name: scenarios_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX scenarios_edition_id_idx ON public.scenarios USING btree (edition_id);
+
+
+--
 -- Name: scenarios_scenario_name_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX scenarios_scenario_name_idx ON public.scenarios USING btree (scenario_name);
+
+
+--
+-- Name: skill_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX skill_types_edition_id_idx ON public.skill_types USING btree (edition_id);
 
 
 --
@@ -7980,10 +8225,31 @@ CREATE INDEX territories_campaign_type_id_idx ON public.territories USING btree 
 
 
 --
+-- Name: territories_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX territories_edition_id_idx ON public.territories USING btree (edition_id);
+
+
+--
 -- Name: trading_post_equipment_equipment_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX trading_post_equipment_equipment_id_idx ON public.trading_post_equipment USING btree (equipment_id);
+
+
+--
+-- Name: trading_post_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX trading_post_types_edition_id_idx ON public.trading_post_types USING btree (edition_id);
+
+
+--
+-- Name: vehicle_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX vehicle_types_edition_id_idx ON public.vehicle_types USING btree (edition_id);
 
 
 --
@@ -8059,6 +8325,14 @@ CREATE TRIGGER trigger_enqueue_notification_email AFTER INSERT ON public.notific
 --
 
 CREATE TRIGGER trigger_friend_request_notification AFTER INSERT ON public.friends FOR EACH ROW EXECUTE FUNCTION public.notify_friend_request_sent();
+
+
+--
+-- Name: alliances alliances_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.alliances
+    ADD CONSTRAINT alliances_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
 
 
 --
@@ -8326,6 +8600,14 @@ ALTER TABLE ONLY public.campaign_type_resources
 
 
 --
+-- Name: campaign_types campaign_types_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_types
+    ADD CONSTRAINT campaign_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: campaigns campaigns_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8334,11 +8616,27 @@ ALTER TABLE ONLY public.campaigns
 
 
 --
+-- Name: custom_collections custom_collections_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_collections
+    ADD CONSTRAINT custom_collections_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: custom_collections custom_collections_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.custom_collections
     ADD CONSTRAINT custom_collections_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_equipment custom_equipment_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_equipment
+    ADD CONSTRAINT custom_equipment_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
 
 
 --
@@ -8395,6 +8693,22 @@ ALTER TABLE ONLY public.custom_fighter_type_equipment
 
 ALTER TABLE ONLY public.custom_fighter_types
     ADD CONSTRAINT custom_fighter_types_custom_gang_type_id_fkey FOREIGN KEY (custom_gang_type_id) REFERENCES public.custom_gang_types(id) ON DELETE SET NULL;
+
+
+--
+-- Name: custom_fighter_types custom_fighter_types_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_fighter_types
+    ADD CONSTRAINT custom_fighter_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: custom_gang_types custom_gang_types_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_gang_types
+    ADD CONSTRAINT custom_gang_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
 
 
 --
@@ -8475,6 +8789,14 @@ ALTER TABLE ONLY public.custom_shared
 
 ALTER TABLE ONLY public.custom_shared
     ADD CONSTRAINT custom_shared_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_skill_types custom_skill_types_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_skill_types
+    ADD CONSTRAINT custom_skill_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
 
 
 --
@@ -8638,6 +8960,14 @@ ALTER TABLE ONLY public.custom_trading_post_pricing
 
 
 --
+-- Name: custom_trading_posts custom_trading_posts_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_trading_posts
+    ADD CONSTRAINT custom_trading_posts_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: custom_trading_posts custom_trading_posts_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8718,6 +9048,14 @@ ALTER TABLE ONLY public.equipment_discounts
 
 
 --
+-- Name: equipment equipment_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.equipment
+    ADD CONSTRAINT equipment_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: exotic_beasts exotic_beasts_equipment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8731,6 +9069,14 @@ ALTER TABLE ONLY public.exotic_beasts
 
 ALTER TABLE ONLY public.exotic_beasts
     ADD CONSTRAINT exotic_beasts_fighter_type_id_fkey FOREIGN KEY (fighter_type_id) REFERENCES public.fighter_types(id) ON DELETE CASCADE;
+
+
+--
+-- Name: fighter_classes fighter_classes_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_classes
+    ADD CONSTRAINT fighter_classes_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
 
 
 --
@@ -8795,6 +9141,14 @@ ALTER TABLE ONLY public.fighter_effect_modifiers
 
 ALTER TABLE ONLY public.fighter_effect_type_modifiers
     ADD CONSTRAINT fighter_effect_type_modifiers_fighter_effect_type_id_fkey FOREIGN KEY (fighter_effect_type_id) REFERENCES public.fighter_effect_types(id) ON DELETE CASCADE;
+
+
+--
+-- Name: fighter_effect_types fighter_effect_types_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_effect_types
+    ADD CONSTRAINT fighter_effect_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
 
 
 --
@@ -9182,11 +9536,27 @@ ALTER TABLE ONLY public.fighter_type_skill_access
 
 
 --
+-- Name: fighter_types fighter_types_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_types
+    ADD CONSTRAINT fighter_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: fighter_types fighter_types_fighter_sub_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.fighter_types
     ADD CONSTRAINT fighter_types_fighter_sub_type_id_fkey FOREIGN KEY (fighter_sub_type_id) REFERENCES public.fighter_sub_types(id);
+
+
+--
+-- Name: fighter_types fighter_types_gang_type_edition_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_types
+    ADD CONSTRAINT fighter_types_gang_type_edition_fkey FOREIGN KEY (gang_type_id, edition_id) REFERENCES public.gang_types(gang_type_id, edition_id) ON UPDATE CASCADE;
 
 
 --
@@ -9302,6 +9672,14 @@ ALTER TABLE ONLY public.friends
 
 
 --
+-- Name: gang_affiliation gang_affiliation_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_affiliation
+    ADD CONSTRAINT gang_affiliation_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: gang_affiliation gang_affiliation_fighter_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9315,6 +9693,14 @@ ALTER TABLE ONLY public.gang_affiliation
 
 ALTER TABLE ONLY public.gang_logs
     ADD CONSTRAINT gang_logs_gang_id_fkey FOREIGN KEY (gang_id) REFERENCES public.gangs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: gang_origins gang_origins_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_origins
+    ADD CONSTRAINT gang_origins_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
 
 
 --
@@ -9350,11 +9736,27 @@ ALTER TABLE ONLY public.gang_stash
 
 
 --
+-- Name: gang_types gang_types_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_types
+    ADD CONSTRAINT gang_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: gang_types gang_types_gang_origin_category_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.gang_types
     ADD CONSTRAINT gang_types_gang_origin_category_id_fkey FOREIGN KEY (gang_origin_category_id) REFERENCES public.gang_origin_categories(id) ON DELETE SET NULL;
+
+
+--
+-- Name: gang_variant_types gang_variant_types_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_variant_types
+    ADD CONSTRAINT gang_variant_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
 
 
 --
@@ -9422,6 +9824,14 @@ ALTER TABLE ONLY public.profiles
 
 
 --
+-- Name: scenarios scenarios_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenarios
+    ADD CONSTRAINT scenarios_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: skill_access_archetypes skill_access_archetypes_fighter_class_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9430,11 +9840,27 @@ ALTER TABLE ONLY public.skill_access_archetypes
 
 
 --
+-- Name: skill_types skill_types_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.skill_types
+    ADD CONSTRAINT skill_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: skills skills_gang_origin_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.skills
     ADD CONSTRAINT skills_gang_origin_id_fkey FOREIGN KEY (gang_origin_id) REFERENCES public.gang_origins(id) ON DELETE SET NULL;
+
+
+--
+-- Name: territories territories_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.territories
+    ADD CONSTRAINT territories_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
 
 
 --
@@ -9454,11 +9880,27 @@ ALTER TABLE ONLY public.trading_post_equipment
 
 
 --
+-- Name: trading_post_types trading_post_types_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.trading_post_types
+    ADD CONSTRAINT trading_post_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: user_notification_preferences user_notification_preferences_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.user_notification_preferences
     ADD CONSTRAINT user_notification_preferences_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: vehicle_types vehicle_types_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.vehicle_types
+    ADD CONSTRAINT vehicle_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
 
 
 --
@@ -9835,6 +10277,13 @@ CREATE POLICY "Allow authenticated users to view custom trading posts" ON public
 --
 
 CREATE POLICY "Allow authenticated users to view custom weapon profiles" ON public.custom_weapon_profiles FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: editions Allow authenticated users to view editions; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view editions" ON public.editions FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -10418,6 +10867,13 @@ CREATE POLICY "Only admin can create campaign_types entries" ON public.campaign_
 
 
 --
+-- Name: editions Only admin can create editions entries; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can create editions entries" ON public.editions FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
 -- Name: equipment_discounts Only admin can create equipment_discounts entries; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -10534,6 +10990,13 @@ CREATE POLICY "Only admin can delete campaign_triumphs" ON public.campaign_trium
 --
 
 CREATE POLICY "Only admin can delete campaign_types" ON public.campaign_types FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: editions Only admin can delete editions; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can delete editions" ON public.editions FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -10695,6 +11158,13 @@ CREATE POLICY "Only admin can update campaign_triumphs" ON public.campaign_trium
 --
 
 CREATE POLICY "Only admin can update campaign_types" ON public.campaign_types FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: editions Only admin can update editions; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can update editions" ON public.editions FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -11923,6 +12393,12 @@ ALTER TABLE public.custom_trading_posts ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.custom_weapon_profiles ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: editions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.editions ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: email_deliveries; Type: ROW SECURITY; Schema: public; Owner: -
