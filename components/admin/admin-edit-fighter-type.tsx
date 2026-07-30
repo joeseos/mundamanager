@@ -14,6 +14,7 @@ import { Equipment } from '@/types/equipment';
 import { skillSetRank } from "@/utils/skillSetRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { AdminFighterEquipmentSelection, EquipmentSelection, guiToDataModel, dataModelToGui } from "@/components/admin/admin-fighter-equipment-selection";
+import { EditionSelect } from '@/components/edition-select';
 import Modal from '@/components/ui/modal';
 
 interface FighterSubType {
@@ -110,6 +111,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [equipment, setEquipment] = useState<EquipmentWithId[]>([]);
   const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
   const [gangTypeFilter, setGangTypeFilter] = useState('');
+  const [editionId, setEditionId] = useState('');
   const [skills, setSkills] = useState<Skill[]>([]);
   const [selectedSkillType, setSelectedSkillType] = useState('');
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
@@ -299,6 +301,24 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     },
     staleTime: 5 * 60 * 1000,
   });
+
+  // Edition only filters the gang-type dropdown; the fighter type's edition is
+  // derived server-side from its gang type
+  const filteredGangTypes = editionId
+    ? gangTypes.filter(type => type.edition_id === editionId)
+    : gangTypes;
+
+  const handleEditionChange = (newEditionId: string) => {
+    setEditionId(newEditionId);
+    if (newEditionId && gangTypeFilter) {
+      const gangType = gangTypes.find(type => type.gang_type_id === gangTypeFilter);
+      if (gangType && gangType.edition_id !== newEditionId) {
+        setGangTypeFilter('');
+        setSelectedFighterTypeId('');
+        setSelectedSubTypeId('');
+      }
+    }
+  };
 
   const { data: gangAffiliations = [] } = useQuery<GangAffiliation[]>({
     queryKey: ['admin-lineages', 'affiliation'],
@@ -1302,6 +1322,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
         <div className="px-[10px] py-4 overflow-y-auto grow">
           <div className="space-y-4">
+            <EditionSelect value={editionId} onChange={handleEditionChange} defaultToCurrent />
+
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Filter by Gang Type
@@ -1317,7 +1339,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 className="w-full p-2 border rounded-md"
               >
                 <option value="">All Gang Types</option>
-                {gangTypes.map((type) => (
+                {filteredGangTypes.map((type) => (
                   <option key={type.gang_type_id} value={type.gang_type_id}>
                     {type.gang_type}
                   </option>

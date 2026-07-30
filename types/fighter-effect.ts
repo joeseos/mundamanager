@@ -92,6 +92,7 @@ export interface FighterEffectType {
   type_specific_data: TypeSpecificData | null;
   modifiers: FighterEffectTypeModifier[];
   sort_order?: number | null;
+  edition_id?: string | null;
   fighter_effect_categories?: FighterEffectCategory;
 }
 

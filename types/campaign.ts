@@ -171,5 +171,6 @@ export interface CampaignType {
   campaign_type_name: string;
   image_url?: string | null;
   trading_posts?: string[] | null;
+  edition_id?: string | null;
   campaign_type_resources?: CampaignTypeResource[];
 }

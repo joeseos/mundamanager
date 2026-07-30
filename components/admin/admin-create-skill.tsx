@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from 'sonner';
 import { skillSetRank } from "@/utils/skillSetRank";
 import { gangOriginRank } from "@/utils/gangOriginRank";
+import { EditionSelect } from '@/components/edition-select';
 
 interface AdminCreateSkillModalProps {
   onClose: () => void;
@@ -19,6 +20,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
   const [skillType, setSkillType] = useState('');
   const [skillTypeName, setSkillTypeName] = useState('');
   const [gangOrigin, setGangOrigin] = useState('');
+  const [editionId, setEditionId] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const { data: skillTypeList = [] } = useQuery<Array<{id: string, skill_type: string}>>({
@@ -98,7 +100,8 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: skillTypeName
+          name: skillTypeName,
+          edition_id: editionId || null
         }),
       });
 
@@ -268,6 +271,11 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
                 <p className="text-xs text-amber-600 mt-1">Clear the Skill Set selection to enter a Skill Set Name.</p>
               )}
             </div>
+
+            {/* Skills inherit their edition from the skill set; only new skill sets need one */}
+            {skillTypeName !== '' && (
+              <EditionSelect value={editionId} onChange={setEditionId} defaultToCurrent />
+            )}
           </div>
         </div>
 

@@ -14,6 +14,7 @@ export interface GangType {
   gang_type: string;
   alignment: string;
   note?: string;
+  edition_id?: string | null;
   gang_origin_category_id?: string;
   available_origins?: GangOrigin[];
 }

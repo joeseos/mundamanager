@@ -14,6 +14,7 @@ import { fighterClassRank } from "@/utils/fighterClassRank";
 import { gangOriginRank } from "@/utils/gangOriginRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
 import { AdminFighterEffects } from "./admin-fighter-effects";
+import { EditionSelect } from '@/components/edition-select';
 import { AdminTradingPost } from "./admin-trading-post";
 import { LuTrash2 } from 'react-icons/lu';
 import Modal from "@/components/ui/modal";
@@ -35,6 +36,7 @@ interface Equipment {
   equipment_category: string;
   equipment_type: EquipmentType;
   core_equipment: boolean;
+  edition_id?: string | null;
   weapon_profiles?: WeaponProfileInput[];
   fighter_types?: string[];
   gang_adjusted_costs?: GangAdjustedCost[];
@@ -51,6 +53,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [variants, setVariants] = useState('');
   const [equipmentCategory, setEquipmentCategory] = useState('');
   const [equipmentType, setEquipmentType] = useState<EquipmentType | ''>('');
+  const [editionId, setEditionId] = useState('');
   const [coreEquipment, setCoreEquipment] = useState(false);
   const [isEditable, setIsEditable] = useState(false);
   const [isConsumable, setIsConsumable] = useState(false);
@@ -126,6 +129,22 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     staleTime: 5 * 60 * 1000,
   });
 
+  // Edition is the top-level filter: only equipment of the chosen edition is
+  // offered for editing, and the saved row keeps that edition
+  const filteredEquipmentList = editionId
+    ? equipmentList.filter(item => item.edition_id === editionId)
+    : equipmentList;
+
+  const handleEditionChange = (newEditionId: string) => {
+    setEditionId(newEditionId);
+    if (newEditionId && selectedEquipmentId) {
+      const selected = equipmentList.find(item => item.id === selectedEquipmentId);
+      if (selected && selected.edition_id !== newEditionId) {
+        setSelectedEquipmentId('');
+      }
+    }
+  };
+
   const { data: equipmentDetails, isLoading: isEquipmentDetailsLoading } = useQuery<any>({
     queryKey: ['admin-equipment-details', selectedEquipmentId],
     queryFn: async () => {
@@ -186,6 +205,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       setVariants(equipmentDetails.variants || '');
       setEquipmentCategory(equipmentDetails.equipment_category_id);
       setEquipmentType(equipmentDetails.equipment_type);
+      setEditionId(equipmentDetails.edition_id ?? '');
       setCoreEquipment(equipmentDetails.core_equipment || false);
       setIsEditable(equipmentDetails.is_editable || false);
       setIsConsumable(equipmentDetails.is_consumable || false);
@@ -393,6 +413,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         equipment_category_id: equipmentCategory,
         equipment_type: equipmentType,
         core_equipment: coreEquipment,
+        edition_id: editionId || null,
         is_editable: isEditable,
         is_consumable: isConsumable,
         grants_equipment: normalizedGrantsEquipment,
@@ -504,6 +525,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         <div className="px-[10px] py-4 overflow-y-auto flex-1">
           <div className="grid grid-cols-3 gap-4">
             <div className="col-span-3">
+              <EditionSelect value={editionId} onChange={handleEditionChange} defaultToCurrent />
+            </div>
+
+            <div className="col-span-3">
               <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Select Category *
               </label>
@@ -535,7 +560,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                 disabled={!categoryFilter}
               >
                 <option value="">Select equipment</option>
-                {equipmentList
+                {filteredEquipmentList
                   .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name))
                   .map((item: Equipment) => (
                     <option key={item.id} value={item.id}>

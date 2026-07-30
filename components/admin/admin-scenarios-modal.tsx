@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from 'sonner';
+import { EditionSelect } from '@/components/edition-select';
 
 enum OperationType {
   POST = 'POST',
@@ -16,6 +17,7 @@ interface Scenario {
   id: string;
   scenario_name: string;
   scenario_number: number;
+  edition_id: string | null;
 }
 
 interface AdminScenariosModalProps {
@@ -29,6 +31,7 @@ export function AdminScenariosModal({ onClose, onSubmit }: AdminScenariosModalPr
   const [selectedScenarioId, setSelectedScenarioId] = useState('');
   const [scenarioName, setScenarioName] = useState('');
   const [scenarioNumber, setScenarioNumber] = useState<number | ''>('');
+  const [editionId, setEditionId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCreateMode, setIsCreateMode] = useState(false);
 
@@ -44,12 +47,32 @@ export function AdminScenariosModal({ onClose, onSubmit }: AdminScenariosModalPr
 
   const isLoading = isLoadingScenarios || isSubmitting;
 
+  // Edition is the top-level filter: only scenarios of the chosen edition are
+  // offered for editing, and created/saved scenarios keep that edition
+  const filteredScenarios = editionId
+    ? scenarios.filter(s => s.edition_id === editionId)
+    : scenarios;
+
+  const handleEditionChange = (newEditionId: string) => {
+    setEditionId(newEditionId);
+    if (newEditionId && selectedScenarioId) {
+      const scenario = scenarios.find(s => s.id === selectedScenarioId);
+      if (scenario && scenario.edition_id !== newEditionId) {
+        setSelectedScenarioId('');
+        setScenarioName('');
+        setScenarioNumber('');
+        setIsCreateMode(false);
+      }
+    }
+  };
+
   const handleScenarioSelect = (scenarioId: string) => {
     setSelectedScenarioId(scenarioId);
     const scenario = scenarios.find(s => s.id === scenarioId);
     if (scenario) {
       setScenarioName(scenario.scenario_name);
       setScenarioNumber(scenario.scenario_number);
+      setEditionId(scenario.edition_id ?? '');
       setIsCreateMode(false);
     } else {
       // If empty selection, just exit create mode and clear fields
@@ -86,6 +109,7 @@ export function AdminScenariosModal({ onClose, onSubmit }: AdminScenariosModalPr
           body = JSON.stringify({
             scenario_name: scenarioName,
             scenario_number: Number(scenarioNumber),
+            edition_id: editionId || null,
           });
           break;
         case OperationType.UPDATE:
@@ -94,6 +118,7 @@ export function AdminScenariosModal({ onClose, onSubmit }: AdminScenariosModalPr
             id: selectedScenarioId,
             scenario_name: scenarioName,
             scenario_number: Number(scenarioNumber),
+            edition_id: editionId || null,
           });
           break;
         case OperationType.DELETE:
@@ -161,6 +186,8 @@ export function AdminScenariosModal({ onClose, onSubmit }: AdminScenariosModalPr
 
         <div className="px-[10px] py-4">
           <div className="space-y-4">
+            <EditionSelect value={editionId} onChange={handleEditionChange} defaultToCurrent />
+
             <div>
               <div className="flex justify-between items-center mb-1">
                 <label className="block text-sm font-medium text-muted-foreground">
@@ -180,7 +207,7 @@ export function AdminScenariosModal({ onClose, onSubmit }: AdminScenariosModalPr
                 className="w-full p-2 border rounded-md"
               >
                 <option value="">Select a scenario to edit</option>
-                {scenarios
+                {filteredScenarios
                   .sort((a, b) => a.scenario_number - b.scenario_number)
                   .map((scenario) => (
                     <option key={scenario.id} value={scenario.id}>

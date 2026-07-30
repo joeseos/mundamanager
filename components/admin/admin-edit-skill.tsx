@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { skillSetRank } from "@/utils/skillSetRank";
 import { gangOriginRank } from "@/utils/gangOriginRank";
 import { AdminFighterEffects } from './admin-fighter-effects';
+import { EditionSelect } from '@/components/edition-select';
 
 enum OperationType {
   POST = 'POST',
@@ -150,12 +151,13 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
   const [skillType, setSkillType] = useState('');
   const [skillTypeName, setSkillTypeName] = useState('');
   const [gangOrigin, setGangOrigin] = useState('');
+  const [editionId, setEditionId] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [skillEffects, setSkillEffects] = useState<any[]>([]);
   const [skillsCategoryId, setSkillsCategoryId] = useState('');
   const [effectCategories, setEffectCategories] = useState<any[]>([]);
 
-  const { data: skillTypeList = [] } = useQuery<Array<{id: string, skill_type: string}>>({
+  const { data: skillTypeList = [] } = useQuery<Array<{id: string, skill_type: string, edition_id?: string | null}>>({
     queryKey: ['admin-skill-types'],
     queryFn: async () => {
       const response = await fetch('/api/admin/skill-types');
@@ -175,6 +177,26 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
     staleTime: 5 * 60 * 1000,
   });
 
+
+  // Edition is the top-level filter: only skill sets of the chosen edition are
+  // offered for editing, and the saved skill set keeps that edition
+  const filteredSkillTypeList = editionId
+    ? skillTypeList.filter(type => type.edition_id === editionId)
+    : skillTypeList;
+
+  const handleEditionChange = (newEditionId: string) => {
+    setEditionId(newEditionId);
+    if (newEditionId && skillType) {
+      const selectedType = skillTypeList.find(t => t.id === skillType);
+      if (selectedType && selectedType.edition_id !== newEditionId) {
+        setSkillType('');
+        setSkillTypeName('');
+        setSkillName('');
+        setSkillId('');
+        setSkillList([]);
+      }
+    }
+  };
 
   const [prevSkillId, setPrevSkillId] = useState(skillId);
   const [prevSkillNameList, setPrevSkillNameList] = useState(skillNameList);
@@ -261,6 +283,7 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
         body = JSON.stringify({
           name: skillTypeName,
           id: skillType,
+          edition_id: editionId || null,
         });
         break;
       case OperationType.DELETE:
@@ -397,6 +420,8 @@ const handleSubmitSkill = async (operation: OperationType) => {
 
         <div className="px-[10px] py-4">
           <div className="grid grid-cols-1 gap-4">
+            <EditionSelect value={editionId} onChange={handleEditionChange} defaultToCurrent />
+
             <div className="col-span-1">
               <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Skill Set *
@@ -414,6 +439,8 @@ const handleSubmitSkill = async (operation: OperationType) => {
                       searchSkillType(e.target.value);
                     }
                     setSkillTypeName(selectedSkillType);
+                    const selectedType = skillTypeList.find(t => t.id === e.target.value);
+                    setEditionId(selectedType?.edition_id ?? '');
                   }
                 }
                 className="w-full p-2 border rounded-md"
@@ -421,7 +448,7 @@ const handleSubmitSkill = async (operation: OperationType) => {
                 <option value="">Select a skill set</option>
 
                 {Object.entries(
-                  skillTypeList
+                  filteredSkillTypeList
                     .sort((a, b) => {
                       const rankA = skillSetRank[a.skill_type.toLowerCase()] ?? Infinity;
                       const rankB = skillSetRank[b.skill_type.toLowerCase()] ?? Infinity;
@@ -574,6 +601,7 @@ const handleSubmitSkill = async (operation: OperationType) => {
                 disabled={skillName == '' && skillType == ''}
               />
             </div>
+
           </div>
         </div>
 

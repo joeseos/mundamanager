@@ -415,7 +415,8 @@ export async function POST(request: Request) {
       weapon_profiles,
       fighter_types,
       gang_adjusted_costs,
-      equipment_availabilities
+      equipment_availabilities,
+      edition_id
     } = data;
 
     // First get the category name from the ID
@@ -438,7 +439,8 @@ export async function POST(request: Request) {
         equipment_category: categoryData.category_name,
         equipment_category_id,
         equipment_type: equipment_type.toLowerCase(),
-        core_equipment
+        core_equipment,
+        edition_id: edition_id || null
       })
       .select()
       .single();
@@ -571,7 +573,8 @@ export async function PATCH(request: Request) {
       equipment_origin_availabilities,
       equipment_variant_availabilities,
       fighter_effects,
-      grants_equipment
+      grants_equipment,
+      edition_id
     } = data;
 
     // Update equipment
@@ -589,6 +592,7 @@ export async function PATCH(request: Request) {
         grants_equipment: grants_equipment || null,
         is_editable,
         is_consumable: is_consumable ?? false,
+        edition_id: edition_id || null,
         updated_at: new Date().toISOString()
       })
       .eq('id', id);

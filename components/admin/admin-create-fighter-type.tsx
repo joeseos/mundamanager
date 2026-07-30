@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from 'sonner';
 import { HiX } from "react-icons/hi";
 import { GangType, Equipment } from "@/types/gang";
+import { EditionSelect } from '@/components/edition-select';
 import { skillSetRank } from "@/utils/skillSetRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 
@@ -49,6 +50,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   const [baseCost, setBaseCost] = useState('');
   const [delegationCost, setDelegationCost] = useState('');
   const [selectedGangType, setSelectedGangType] = useState('');
+  const [editionId, setEditionId] = useState('');
   const [selectedFighterClass, setSelectedFighterClass] = useState<FighterClass | ''>('');
   const [isLoading, setIsLoading] = useState(false);
   
@@ -96,6 +98,22 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
     },
     staleTime: 5 * 60 * 1000,
   });
+
+  // The fighter type's edition is implied by its gang type (derived server-side);
+  // the edition select only filters the gang type options
+  const filteredGangTypes = editionId
+    ? gangTypes.filter(type => type.edition_id === editionId)
+    : gangTypes;
+
+  const handleEditionChange = (newEditionId: string) => {
+    setEditionId(newEditionId);
+    if (newEditionId && selectedGangType) {
+      const gangType = gangTypes.find(type => type.gang_type_id === selectedGangType);
+      if (gangType && gangType.edition_id !== newEditionId) {
+        setSelectedGangType('');
+      }
+    }
+  };
 
   const { data: equipment = [] } = useQuery<EquipmentWithId[]>({
     queryKey: ['admin-equipment-list'],
@@ -304,6 +322,8 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
 
         <div className="px-[10px] py-4 overflow-y-auto grow">
           <div className="space-y-4">
+            <EditionSelect value={editionId} onChange={handleEditionChange} defaultToCurrent />
+
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Gang Type *
@@ -314,7 +334,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                 className="w-full p-2 border rounded-md"
               >
                 <option value="">Select gang type</option>
-                {gangTypes.map((type) => (
+                {filteredGangTypes.map((type) => (
                   <option key={type.gang_type_id} value={type.gang_type_id}>
                     {type.gang_type}
                   </option>

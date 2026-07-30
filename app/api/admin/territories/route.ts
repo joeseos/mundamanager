@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 
     let query = supabase
       .from('territories')
-      .select('id, territory_name, campaign_type_id, playing_card')
+      .select('id, territory_name, campaign_type_id, playing_card, edition_id')
       .order('territory_name', { ascending: true });
 
     if (campaignTypeId) {
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { territory_name, campaign_type_id, playing_card } = body;
+    const { territory_name, campaign_type_id, playing_card, edition_id } = body;
     const normalisedPlayingCard = typeof playing_card === 'string' ? playing_card.trim() || null : null;
 
     if (!territory_name?.trim()) {
@@ -68,7 +68,8 @@ export async function POST(request: Request) {
       .insert([{
         territory_name: territory_name.trim(),
         campaign_type_id: campaign_type_id || null,
-        playing_card: normalisedPlayingCard
+        playing_card: normalisedPlayingCard,
+        edition_id: edition_id || null
       }])
       .select()
       .single();
@@ -94,7 +95,7 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json();
-    const { id, territory_name, campaign_type_id, playing_card } = body;
+    const { id, territory_name, campaign_type_id, playing_card, edition_id } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -119,6 +120,9 @@ export async function PATCH(request: Request) {
     }
     if (playing_card !== undefined) {
       updateData.playing_card = typeof playing_card === 'string' ? playing_card.trim() || null : null;
+    }
+    if (edition_id !== undefined) {
+      updateData.edition_id = edition_id || null;
     }
 
     if (Object.keys(updateData).length === 0) {

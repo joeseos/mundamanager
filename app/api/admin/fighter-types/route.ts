@@ -396,6 +396,7 @@ export async function GET(request: Request) {
         fighter_type,
         gang_type_id,
         gang_type,
+        edition_id,
         fighter_class,
         fighter_class_id,
         fighter_sub_type_id,
@@ -475,6 +476,19 @@ export async function PATCH(request: Request) {
 
     const data = await request.json();
 
+    // edition_id is derived from the gang type, never taken from the client
+    // (the composite FK on (gang_type_id, edition_id) rejects mismatches)
+    const { data: gangType, error: gangTypeError } = await supabase
+      .from('gang_types')
+      .select('edition_id')
+      .eq('gang_type_id', data.gang_type_id)
+      .single();
+
+    if (gangTypeError) {
+      console.error('Error fetching gang type:', gangTypeError);
+      throw gangTypeError;
+    }
+
     // Update fighter type
     const { error: updateError } = await supabase
       .from('fighter_types')
@@ -482,6 +496,7 @@ export async function PATCH(request: Request) {
         fighter_type: data.fighter_type,
         cost: data.cost,
         gang_type_id: data.gang_type_id,
+        edition_id: gangType.edition_id ?? null,
         fighter_class: data.fighter_class,
         fighter_class_id: data.fighter_class_id,
         fighter_sub_type_id: data.fighter_sub_type_id,
@@ -755,10 +770,11 @@ export async function POST(request: Request) {
 
     const data = await request.json();
 
-    // First fetch the gang type name
+    // First fetch the gang type name and edition (edition_id is derived from
+    // the gang type, never taken from the client)
     const { data: gangType, error: gangTypeError } = await supabase
       .from('gang_types')
-      .select('gang_type')
+      .select('gang_type, edition_id')
       .eq('gang_type_id', data.gangTypeId)
       .single();
 
@@ -778,6 +794,7 @@ export async function POST(request: Request) {
         fighter_type: data.fighterType,
         gang_type_id: data.gangTypeId,
         gang_type: gangType.gang_type,
+        edition_id: gangType.edition_id ?? null,
         fighter_class: data.fighterClass,
         fighter_class_id: data.fighterClassId,
         fighter_sub_type_id: data.fighterSubTypeId,

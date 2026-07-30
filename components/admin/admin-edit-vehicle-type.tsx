@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import Modal from "@/components/ui/modal";
 import { HiX } from "react-icons/hi";
 import { gangOriginRank } from "@/utils/gangOriginRank";
+import { EditionSelect } from '@/components/edition-select';
 
 interface AdminEditVehicleTypeModalProps {
   onClose: () => void;
@@ -436,7 +437,7 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: vehicleTypes = [] } = useQuery<{ id: number; vehicle_type: string }[]>({
+  const { data: vehicleTypes = [] } = useQuery<{ id: number; vehicle_type: string; edition_id?: string | null }[]>({
     queryKey: ['admin-vehicle-types'],
     queryFn: async () => {
       const response = await fetch('/api/admin/vehicles?fetch_type=vehicle_types');
@@ -482,12 +483,29 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
     vehicle_type: '',
     gang_type_id: ''
   });
+  const [editionId, setEditionId] = useState('');
 
   const handleVehicleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setVehicleForm(prev => ({
       ...prev,
       [e.target.name]: e.target.value
     }));
+  };
+
+  // Edition is the top-level filter: only vehicle types of the chosen edition
+  // are offered for editing, and the saved row keeps that edition
+  const filteredVehicleTypes = editionId
+    ? vehicleTypes.filter(vehicle => vehicle.edition_id === editionId)
+    : vehicleTypes;
+
+  const handleEditionChange = (newEditionId: string) => {
+    setEditionId(newEditionId);
+    if (newEditionId && selectedVehicle) {
+      const vehicle = vehicleTypes.find(v => v.id.toString() === selectedVehicle);
+      if (vehicle && vehicle.edition_id !== newEditionId) {
+        resetVehicleForm();
+      }
+    }
   };
 
   const fetchVehicleDetails = async (vehicleId: string) => {
@@ -535,6 +553,7 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
         vehicle_type: vehicleData.vehicle_type || '',
         gang_type_id: vehicleData.gang_type_id ? vehicleData.gang_type_id.toString() : "0"
       });
+      setEditionId(vehicleData.edition_id ?? '');
 
     } catch (error) {
       console.error('Error fetching vehicle details:', error);
@@ -588,6 +607,7 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
         },
         body: JSON.stringify({
           ...vehicleForm,
+          edition_id: editionId || null,
           special_rules: vehicleForm.special_rules
             .split(',')
             .map(rule => rule.trim())
@@ -638,6 +658,10 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
         content={
           <div className="space-y-4">
             <div className="grid grid-cols-3 gap-4">
+            <div className="col-span-3">
+              <EditionSelect value={editionId} onChange={handleEditionChange} defaultToCurrent />
+            </div>
+
             {/* Vehicle Type Selection Dropdown */}
             <div className="col-span-3">
               <label className="block text-sm font-medium text-muted-foreground">
@@ -656,7 +680,7 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
                 required
               >
                 <option value="">Select a vehicle type to edit</option>
-                {vehicleTypes.map((vehicle) => (
+                {filteredVehicleTypes.map((vehicle) => (
                   <option key={vehicle.id} value={vehicle.id}>
                     {vehicle.vehicle_type}
                   </option>

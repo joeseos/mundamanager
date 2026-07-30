@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { AvailabilityPicker, combineAvailability } from '@/components/ui/availability-picker';
 import { toast } from 'sonner';
 import { WeaponProfileInput, EquipmentAvailability, GangAdjustedCost } from "@/types/equipment";
+import { EditionSelect } from '@/components/edition-select';
 import { HiX } from "react-icons/hi";
 import { LuTrash2 } from 'react-icons/lu'
 
@@ -28,6 +29,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   const [variants] = useState('');
   const [equipmentCategory, setEquipmentCategory] = useState('');
   const [equipmentType, setEquipmentType] = useState<EquipmentType | ''>('');
+  const [editionId, setEditionId] = useState('');
   const [coreEquipment, setCoreEquipment] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [weaponProfiles, setWeaponProfiles] = useState<WeaponProfileInput[]>([{
@@ -162,6 +164,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
           equipment_category_id: equipmentCategory,
           equipment_type: equipmentType,
           core_equipment: coreEquipment,
+          edition_id: editionId || null,
           weapon_profiles: cleanedWeaponProfiles,
           gang_adjusted_costs: gangAdjustedCosts.map(d => ({
             gang_type_id: d.gang_type_id,
@@ -278,6 +281,8 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                 ))}
               </select>
             </div>
+
+            <EditionSelect value={editionId} onChange={setEditionId} defaultToCurrent />
 
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
