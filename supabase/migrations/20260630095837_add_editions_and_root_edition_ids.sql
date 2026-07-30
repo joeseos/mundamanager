@@ -148,7 +148,8 @@ BEGIN
 END $$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS fighter_classes_edition_code_idx
-  ON public.fighter_classes (edition_id, code);
+  ON public.fighter_classes (edition_id, code)
+  WHERE edition_id IS NOT NULL;
 
 -- Naming collision worth documenting: the rulebook term "Subtypes" refers to
 -- what this schema calls fighter_classes, not to fighter_sub_types.
