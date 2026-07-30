@@ -37,10 +37,11 @@ export async function GET(request: Request) {
   const type = typeParam as LineageType;
   const table = getTableName(type);
   // edition_id only exists on gang_affiliation, not fighter_gang_legacy.
-  // Cast to a single literal so the supabase query parser can type the result.
+  // Cast to the wider literal so the supabase query parser can type the result;
+  // for the legacy branch edition_id is simply absent (undefined) at runtime.
   const lineageColumns = (type === 'affiliation'
     ? 'id, name, fighter_type_id, created_at, updated_at, edition_id'
-    : 'id, name, fighter_type_id, created_at, updated_at') as 'id, name, fighter_type_id, created_at, updated_at';
+    : 'id, name, fighter_type_id, created_at, updated_at') as 'id, name, fighter_type_id, created_at, updated_at, edition_id';
 
   try {
     if (id) {
