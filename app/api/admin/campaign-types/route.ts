@@ -13,7 +13,7 @@ export async function GET() {
 
     const { data: campaignTypes, error } = await supabase
       .from('campaign_types')
-      .select('id, campaign_type_name, image_url, trading_posts, campaign_type_resources(id, resource_name)')
+      .select('id, campaign_type_name, image_url, trading_posts, edition_id, campaign_type_resources(id, resource_name)')
       .order('campaign_type_name', { ascending: true });
 
     if (error) throw error;
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { campaign_type_name, image_url, trading_posts, resources } = body;
+    const { campaign_type_name, image_url, trading_posts, resources, edition_id } = body;
 
     if (!campaign_type_name?.trim()) {
       return NextResponse.json(
@@ -90,7 +90,8 @@ export async function POST(request: Request) {
       .insert([{
         campaign_type_name: campaign_type_name.trim(),
         image_url: image_url?.trim() || null,
-        trading_posts: trading_posts ?? null
+        trading_posts: trading_posts ?? null,
+        edition_id: edition_id || null
       }])
       .select()
       .single();
@@ -128,7 +129,7 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json();
-    const { id, campaign_type_name, image_url, trading_posts, resources } = body;
+    const { id, campaign_type_name, image_url, trading_posts, resources, edition_id } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -183,6 +184,9 @@ export async function PATCH(request: Request) {
       }
       updateData.trading_posts = trading_posts;
     }
+    if (edition_id !== undefined) {
+      updateData.edition_id = edition_id || null;
+    }
 
     if (Object.keys(updateData).length === 0 && resources === undefined) {
       return NextResponse.json(
@@ -232,7 +236,7 @@ export async function PATCH(request: Request) {
 
     const { data: updatedCampaignType, error: fetchError } = await supabase
       .from('campaign_types')
-      .select('id, campaign_type_name, image_url, trading_posts, campaign_type_resources(id, resource_name)')
+      .select('id, campaign_type_name, image_url, trading_posts, edition_id, campaign_type_resources(id, resource_name)')
       .eq('id', id)
       .single();
     if (fetchError) throw fetchError;

@@ -78,6 +78,7 @@ export async function GET(request: NextRequest) {
             fighter_effect_category_id,
             type_specific_data,
             sort_order,
+            edition_id,
             fighter_effect_categories(id, category_name)
           `)
           .eq('type_specific_data->>equipment_id', equipmentId)
@@ -127,6 +128,7 @@ export async function GET(request: NextRequest) {
             fighter_effect_category_id,
             type_specific_data,
             sort_order,
+            edition_id,
             fighter_effect_categories(id, category_name)
           `);
           
@@ -191,6 +193,7 @@ export async function GET(request: NextRequest) {
           fighter_effect_category_id,
           type_specific_data,
           sort_order,
+          edition_id,
           fighter_effect_categories(id, category_name)
         `)
         .eq('fighter_effect_category_id', categoryId)
@@ -392,7 +395,8 @@ export async function POST(request: NextRequest) {
           effect_name: body.effect_name,
           fighter_effect_category_id: body.fighter_effect_category_id || null,
           type_specific_data: typeSpecificData,
-          sort_order: body.sort_order ?? null
+          sort_order: body.sort_order ?? null,
+          edition_id: body.edition_id || null
         })
         .select()
         .single();
@@ -409,7 +413,8 @@ export async function POST(request: NextRequest) {
               effect_name: body.effect_name,
               fighter_effect_category_id: body.fighter_effect_category_id || null,
               type_specific_data: JSON.stringify(typeSpecificData),
-              sort_order: body.sort_order ?? null
+              sort_order: body.sort_order ?? null,
+              edition_id: body.edition_id || null
             })
             .select()
             .single();
@@ -482,7 +487,8 @@ export async function PATCH(request: NextRequest) {
         effect_name: body.effect_name,
         fighter_effect_category_id: body.fighter_effect_category_id || null,
         ...(typeSpecificData !== undefined && { type_specific_data: typeSpecificData }),
-        ...(body.sort_order !== undefined && { sort_order: body.sort_order ?? null })
+        ...(body.sort_order !== undefined && { sort_order: body.sort_order ?? null }),
+        ...(body.edition_id !== undefined && { edition_id: body.edition_id || null })
       })
       .eq('id', id)
       .select()

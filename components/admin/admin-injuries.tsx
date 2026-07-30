@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from 'sonner';
 import { AdminFighterEffects } from "./admin-fighter-effects";
+import { EditionSelect } from '@/components/edition-select';
 import {
   FighterEffectType,
   FighterEffectCategory,
@@ -30,6 +31,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
   const [selectedCategory, setSelectedCategory] = useState<'injuries' | 'rig-glitches'>('injuries');
   const [selectedEffectId, setSelectedEffectId] = useState('');
   const [effectName, setEffectName] = useState('');
+  const [editionId, setEditionId] = useState('');
   const [isCreateMode, setIsCreateMode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fighterEffects, setFighterEffects] = useState<FighterEffectType[]>([]);
@@ -73,6 +75,22 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
   // Computed disabled state for form fields
   const isFormDisabled = (!isCreateMode && !selectedEffectId) || isLoading;
 
+  // Edition is the top-level filter: only effects of the chosen edition are
+  // offered for editing, and created/saved effects keep that edition
+  const filteredEffects = editionId
+    ? effects.filter(effect => effect.edition_id === editionId)
+    : effects;
+
+  const handleEditionChange = (newEditionId: string) => {
+    setEditionId(newEditionId);
+    if (newEditionId && selectedEffectId) {
+      const effect = effects.find(e => e.id === selectedEffectId);
+      if (effect && effect.edition_id !== newEditionId) {
+        handleEffectSelect('');
+      }
+    }
+  };
+
   const handleCategoryChange = (newCategory: 'injuries' | 'rig-glitches') => {
     setSelectedCategory(newCategory);
     setSelectedEffectId('');
@@ -92,6 +110,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
     const effect = effects.find(e => e.id === effectId);
     if (effect) {
       setEffectName(effect.effect_name);
+      setEditionId(effect.edition_id ?? '');
       setIsCreateMode(false);
       // Set the effect for AdminFighterEffects to display modifiers
       setFighterEffects([effect]);
@@ -161,7 +180,8 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
           body = JSON.stringify({
             effect_name: effectName,
             fighter_effect_category_id: category.id,
-            type_specific_data: typeSpecificData
+            type_specific_data: typeSpecificData,
+            edition_id: editionId || null
           });
           break;
         case OperationType.UPDATE:
@@ -170,7 +190,8 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
           body = JSON.stringify({
             effect_name: effectName,
             fighter_effect_category_id: category.id,
-            type_specific_data: typeSpecificData
+            type_specific_data: typeSpecificData,
+            edition_id: editionId || null
           });
           break;
         case OperationType.DELETE:
@@ -325,6 +346,8 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
 
         <div className="px-[10px] py-4">
           <div className="space-y-4">
+            <EditionSelect value={editionId} onChange={handleEditionChange} defaultToCurrent />
+
             {/* Category Selector */}
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
@@ -362,7 +385,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
                 disabled={isLoading}
               >
                 <option value="">Select an effect to edit</option>
-                {effects.map((effect) => (
+                {filteredEffects.map((effect) => (
                   <option key={effect.id} value={effect.id}>
                     {effect.effect_name}
                   </option>

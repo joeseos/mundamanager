@@ -36,19 +36,18 @@ export async function GET(request: Request) {
 
   const type = typeParam as LineageType;
   const table = getTableName(type);
+  // edition_id only exists on gang_affiliation, not fighter_gang_legacy.
+  // Cast to a single literal so the supabase query parser can type the result.
+  const lineageColumns = (type === 'affiliation'
+    ? 'id, name, fighter_type_id, created_at, updated_at, edition_id'
+    : 'id, name, fighter_type_id, created_at, updated_at') as 'id, name, fighter_type_id, created_at, updated_at';
 
   try {
     if (id) {
       // Get specific lineage by type
       const { data: row, error } = await supabase
         .from(table)
-        .select(`
-          id,
-          name,
-          fighter_type_id,
-          created_at,
-          updated_at
-        `)
+        .select(lineageColumns)
         .eq('id', id)
         .single();
 
@@ -94,13 +93,7 @@ export async function GET(request: Request) {
       // Get all of type
       const { data: rows, error } = await supabase
         .from(table)
-        .select(`
-          id,
-          name,
-          fighter_type_id,
-          created_at,
-          updated_at
-        `)
+        .select(lineageColumns)
         .order('name', { ascending: true });
 
       if (error) throw error;
@@ -181,12 +174,13 @@ export async function POST(request: Request) {
 
     const table = getTableName(data.type as LineageType);
 
-    // Create the lineage in the specific table
+    // Create the lineage in the specific table (edition_id only exists on gang_affiliation)
     const { data: newLineage, error: insertError } = await supabase
       .from(table)
       .insert({
         name: data.name,
-        fighter_type_id: data.fighter_type_id
+        fighter_type_id: data.fighter_type_id,
+        ...(data.type === 'affiliation' && { edition_id: data.edition_id || null })
       })
       .select()
       .single();
@@ -259,6 +253,7 @@ export async function PATCH(request: Request) {
         .update({
           name: data.name,
           fighter_type_id: data.fighter_type_id,
+          ...(currentType === 'affiliation' && { edition_id: data.edition_id || null }),
           updated_at: new Date().toISOString()
         })
         .eq('id', id);
@@ -292,12 +287,13 @@ export async function PATCH(request: Request) {
     const oldFightersFk = currentType === 'legacy' ? 'fighter_gang_legacy_id' : 'gang_affiliation_id';
     const newFightersFk = newType === 'legacy' ? 'fighter_gang_legacy_id' : 'gang_affiliation_id';
 
-    // Create new record in new table
+    // Create new record in new table (edition_id only exists on gang_affiliation)
     const { data: insertedNew, error: insertNewErr } = await supabase
       .from(newTable)
       .insert({
         name: data.name,
-        fighter_type_id: data.fighter_type_id
+        fighter_type_id: data.fighter_type_id,
+        ...(newType === 'affiliation' && { edition_id: data.edition_id || null })
       })
       .select()
       .single();

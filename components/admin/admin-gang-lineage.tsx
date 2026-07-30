@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { LuTrash2, LuPlus } from "react-icons/lu";
 import { HiX } from "react-icons/hi";
 import Modal from '@/components/ui/modal';
+import { EditionSelect } from '@/components/edition-select';
 
 type LineageType = 'legacy' | 'affiliation';
 
@@ -15,6 +16,7 @@ interface GangLineage {
   id: string;
   name: string;
   fighter_type_id: string;
+  edition_id?: string | null;
   type: LineageType | string;
   created_at: string;
   updated_at?: string;
@@ -63,6 +65,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
   const [selectedGangTypeId, setSelectedGangTypeId] = useState('');
   const [associatedFighterTypeId, setAssociatedFighterTypeId] = useState('');
   const [lineageType, setLineageType] = useState<LineageType | ''>('');
+  const [editionId, setEditionId] = useState('');
   const [fighterTypeAccess, setFighterTypeAccess] = useState<string[]>([]);
   
   
@@ -164,6 +167,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
       setSelectedGangLineage(gangLineageDetailsData);
       setGangLineageName(gangLineageDetailsData.name);
       setLineageType(gangLineageDetailsData.type);
+      setEditionId(gangLineageDetailsData.edition_id ?? '');
       setFighterTypeAccess(gangLineageDetailsData.fighter_type_access || []);
       if (gangLineageDetailsData.associated_fighter_type) {
         setSelectedGangTypeId(gangLineageDetailsData.associated_fighter_type.gang_type_id || '');
@@ -171,6 +175,22 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
       setAssociatedFighterTypeId(gangLineageDetailsData.fighter_type_id);
     }
   }
+
+  // Edition is the top-level filter for affiliations (legacies have no edition):
+  // only affiliations of the chosen edition are offered, and saved rows keep it
+  const editionFilteredLineages = selectedType === 'affiliation' && editionId
+    ? filteredGangLineages.filter(lineage => lineage.edition_id === editionId)
+    : filteredGangLineages;
+
+  const handleEditionChange = (newEditionId: string) => {
+    setEditionId(newEditionId);
+    if (newEditionId && selectedGangLineageId) {
+      const lineage = filteredGangLineages.find(l => l.id === selectedGangLineageId);
+      if (lineage && lineage.edition_id !== newEditionId) {
+        setSelectedGangLineageId('');
+      }
+    }
+  };
 
   // Derived: filter fighter types by selected gang type
   const filteredFighterTypes = useMemo(
@@ -211,6 +231,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
           name: gangLineageName,
           fighter_type_id: associatedFighterTypeId,
           type: lineageType,
+          edition_id: editionId || null,
           fighter_type_access: fighterTypeAccess
         }),
       });
@@ -252,6 +273,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
           name: gangLineageName,
           fighter_type_id: associatedFighterTypeId,
           type: lineageType,
+          edition_id: editionId || null,
           fighter_type_access: fighterTypeAccess
         }),
       });
@@ -357,6 +379,11 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
           <option value="affiliation">Affiliation</option>
         </select>
       </div>
+
+      {/* Only gang_affiliation carries an edition; legacies do not */}
+      {lineageType === 'affiliation' && (
+        <EditionSelect value={editionId} onChange={setEditionId} defaultToCurrent />
+      )}
 
       <div>
         <label className="block text-sm font-medium text-muted-foreground mb-1">
@@ -534,6 +561,11 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                 </select>
               </div>
 
+              {/* Only gang_affiliation carries an edition; legacies do not */}
+              {selectedType === 'affiliation' && (
+                <EditionSelect value={editionId} onChange={handleEditionChange} defaultToCurrent />
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Select Gang Affiliation or Legacy
@@ -545,14 +577,14 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                   disabled={isLoading || !selectedType}
                 >
                   <option value="">
-                    {!selectedType 
-                      ? "Select a type first" 
-                      : filteredGangLineages.length === 0 
-                        ? "No lineages available" 
+                    {!selectedType
+                      ? "Select a type first"
+                      : editionFilteredLineages.length === 0
+                        ? "No lineages available"
                         : "Select a gang affiliation or legacy"
                     }
                   </option>
-                  {filteredGangLineages.map((lineage) => (
+                  {editionFilteredLineages.map((lineage) => (
                     <option key={lineage.id} value={lineage.id}>
                       {lineage.name}
                     </option>
