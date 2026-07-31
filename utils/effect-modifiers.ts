@@ -37,13 +37,13 @@ interface Effect {
  * Handles unparseable values ("-", "N/A", null) gracefully via null semantics
  */
 function applyNumericModifiers(
-  baseValue: number | string,
+  baseValue: number | string | null | undefined,
   modifiers: EffectModifier[],
   options: {
     parseStrings?: boolean;  // true for weapons (can be "6+"), false for fighter stats
     addSuffix?: string;      // '+' for ammo field
   } = {}
-): number | string {
+): number | string | null | undefined {
   // =============================================
   // STEP 1: Parse base value (with safe defaults)
   // =============================================
@@ -140,8 +140,7 @@ export function calculateAdjustedStats(fighter: FighterProps) {
     cool: fighter.cool,
     willpower: fighter.willpower,
     intelligence: fighter.intelligence,
-    // N26 only; not in statMapping below — the 'save' stat_name belongs to vehicle effects
-    save: fighter.save
+    save: fighter.save  // N26 only; null for pre-N26 fighters
   };
 
   if (fighter.effects) {
@@ -151,9 +150,7 @@ export function calculateAdjustedStats(fighter: FighterProps) {
           effect.fighter_effect_modifiers.forEach(modifier => {
             const statName = modifier.stat_name.toLowerCase();
 
-            // 'save' is deliberately excluded: fighter-side save effects are not
-            // supported, and the 'save' stat_name belongs to vehicle effects
-            const statMapping: Record<string, Exclude<keyof typeof adjustedStats, 'save'>> = {
+            const statMapping: Record<string, keyof typeof adjustedStats> = {
               'movement': 'movement',
               'weapon_skill': 'weapon_skill',
               'ballistic_skill': 'ballistic_skill',
@@ -165,7 +162,11 @@ export function calculateAdjustedStats(fighter: FighterProps) {
               'leadership': 'leadership',
               'cool': 'cool',
               'willpower': 'willpower',
-              'intelligence': 'intelligence'
+              'intelligence': 'intelligence',
+              // N26 armour etc. grants/improves a save. Use operation 'set' to grant
+              // one (a null base is overridden cleanly); 'add' against a null save
+              // resolves to the addend alone, which the 2+..6+ range check flags.
+              'save': 'save'
             };
 
             const statKey = statMapping[statName];
