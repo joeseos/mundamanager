@@ -27,6 +27,7 @@ type FighterStats = {
   'W': number;
   'I': string;
   'A': number;
+  'Sv'?: string; // N26 fighters only — omitted key hides the column
   'Ld': string;
   'Cl': string;
   'Wil': string;
@@ -82,7 +83,7 @@ export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
   // Define the order of stats based on fighter type
   const statOrder = isCrew
     ? ['M', 'Front', 'Side', 'Rear', 'HP', 'Hnd', 'Sv', 'BS', 'Ld', 'Cl', 'Wil', 'Int', 'XP'] as const
-    : ['M', 'WS', 'BS', 'S', 'T', 'W', 'I', 'A', 'Ld', 'Cl', 'Wil', 'Int', 'XP'] as const;
+    : ['M', 'WS', 'BS', 'S', 'T', 'W', 'I', 'A', 'Sv', 'Ld', 'Cl', 'Wil', 'Int', 'XP'] as const;
 
   // Type guard to check if data is CrewStats
   const isCrewStats = (data: StatsType): data is CrewStats => {
@@ -109,7 +110,9 @@ export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
       if (isCrew && isCrewStats(data)) {
         acc[key] = data[key as keyof CrewStats];
       } else if (!isCrew && isFighterStats(data)) {
-        acc[key] = data[key as keyof FighterStats];
+        // Sv is optional (N26 only); the filter above already excluded absent keys
+        const value = data[key as keyof FighterStats];
+        if (value !== undefined) acc[key] = value;
       }
       return acc;
     }, {});

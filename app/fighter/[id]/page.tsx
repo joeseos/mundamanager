@@ -278,6 +278,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         credits: totalCost,
         alliance_crew_name: fighterTypeData?.alliance_crew_name,
         is_spyrer: fighterTypeData?.is_spyrer || false,
+        edition_slug: fighterTypeData?.editions?.slug ?? null,
         fighter_type: {
           fighter_type_id: fighterTypeData?.id || fighterBasic.custom_fighter_type_id || '',
           fighter_type: fighterBasic.fighter_type || fighterTypeData?.fighter_type || 'Unknown',

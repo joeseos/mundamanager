@@ -139,7 +139,9 @@ export function calculateAdjustedStats(fighter: FighterProps) {
     leadership: fighter.leadership,
     cool: fighter.cool,
     willpower: fighter.willpower,
-    intelligence: fighter.intelligence
+    intelligence: fighter.intelligence,
+    // N26 only; not in statMapping below — the 'save' stat_name belongs to vehicle effects
+    save: fighter.save
   };
 
   if (fighter.effects) {
@@ -149,7 +151,9 @@ export function calculateAdjustedStats(fighter: FighterProps) {
           effect.fighter_effect_modifiers.forEach(modifier => {
             const statName = modifier.stat_name.toLowerCase();
 
-            const statMapping: Record<string, keyof typeof adjustedStats> = {
+            // 'save' is deliberately excluded: fighter-side save effects are not
+            // supported, and the 'save' stat_name belongs to vehicle effects
+            const statMapping: Record<string, Exclude<keyof typeof adjustedStats, 'save'>> = {
               'movement': 'movement',
               'weapon_skill': 'weapon_skill',
               'ballistic_skill': 'ballistic_skill',

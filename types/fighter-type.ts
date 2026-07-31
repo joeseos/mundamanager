@@ -72,6 +72,8 @@ export interface FighterType {
   willpower: number;
   intelligence: number;
   attacks: number;
+  save?: number | null;
+  edition_slug?: string | null;
   limitation?: number;
   alignment?: string;
   default_equipment: any[];

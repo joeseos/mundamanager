@@ -45,6 +45,7 @@ interface FighterStats {
   cool: number;
   willpower: number;
   intelligence: number;
+  save?: number | null;
   xp: number;
   kills: number;
 }
@@ -75,6 +76,7 @@ interface AddFighterResult {
       cool: number;
       willpower: number;
       intelligence: number;
+      save?: number | null;
     };
     current_stats: {
       movement: number;
@@ -89,6 +91,7 @@ interface AddFighterResult {
       cool: number;
       willpower: number;
       intelligence: number;
+      save?: number | null;
     };
     stats: FighterStats;
     equipment: Array<{
@@ -129,6 +132,7 @@ interface AddFighterResult {
       cool: number;
       willpower: number;
       intelligence: number;
+      save?: number | null;
       xp: number;
       kills: number;
       special_rules: string[];
@@ -462,6 +466,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       cool: effectiveFighterData.cool,
       willpower: effectiveFighterData.willpower,
       intelligence: effectiveFighterData.intelligence,
+      save: effectiveFighterData.save ?? null,
       xp: 0,
       kills: 0,
       special_rules: effectiveFighterData.special_rules,
@@ -1182,6 +1187,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       cool: insertedFighter.cool,
       willpower: insertedFighter.willpower,
       intelligence: insertedFighter.intelligence,
+      save: insertedFighter.save ?? null,
       xp: insertedFighter.xp,
       kills: insertedFighter.kills
     };
@@ -1216,7 +1222,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
           leadership: baseStats.leadership,
           cool: baseStats.cool,
           willpower: baseStats.willpower,
-          intelligence: baseStats.intelligence
+          intelligence: baseStats.intelligence,
+          save: baseStats.save
         },
         // Current stats (after effects applied) for immediate display
         current_stats: {
@@ -1231,7 +1238,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
           leadership: currentStats.leadership,
           cool: currentStats.cool,
           willpower: currentStats.willpower,
-          intelligence: currentStats.intelligence
+          intelligence: currentStats.intelligence,
+          save: currentStats.save
         },
         // Legacy stats field for backward compatibility (use current stats)
         stats: currentStats,

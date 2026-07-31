@@ -29,6 +29,7 @@ export interface FighterBasic {
   cool: number;
   willpower: number;
   intelligence: number;
+  save?: number | null;
   xp: number;
   special_rules?: string[];
   fighter_class?: string;
@@ -148,6 +149,7 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
           cool,
           willpower,
           intelligence,
+          save,
           xp,
           special_rules,
           fighter_class,
@@ -197,7 +199,7 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
       }
       return data;
     },
-    [`fighter-basic-${fighterId}`],
+    [`fighter-basic-${fighterId}-v2`],
     {
       tags: [CACHE_TAGS.BASE_FIGHTER_BASIC(fighterId)],
       revalidate: false
@@ -1187,6 +1189,8 @@ export const getFighterTypeInfo = async (fighterTypeId: string | null, supabase:
   alliance_crew_name?: string;
   is_spyrer?: boolean;
   gang_type_id?: string | null;
+  edition_id?: string | null;
+  editions?: { slug: string } | null;
 } | null> => {
   if (!fighterTypeId) return null;
 
@@ -1194,14 +1198,14 @@ export const getFighterTypeInfo = async (fighterTypeId: string | null, supabase:
     async () => {
       const { data, error } = await supabase
         .from('fighter_types')
-        .select('id, fighter_type, alliance_crew_name, is_spyrer, gang_type_id')
+        .select('id, fighter_type, alliance_crew_name, is_spyrer, gang_type_id, edition_id, editions:edition_id (slug)')
         .eq('id', fighterTypeId)
         .single();
 
       if (error) return null;
       return data;
     },
-    [`fighter-type-${fighterTypeId}`],
+    [`fighter-type-${fighterTypeId}-v2`],
     {
       tags: [CACHE_TAGS.GLOBAL_FIGHTER_TYPES()],
       revalidate: 3600 // Fighter types rarely change
