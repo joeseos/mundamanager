@@ -916,7 +916,7 @@ export const getGangFightersList = async (
   options?: GetGangFightersListOptions
 ): Promise<GangFighter[]> => {
   const expandLoadoutsForPrint = options?.expandLoadoutsForPrint ?? false;
-  const cacheKey = expandLoadoutsForPrint ? `gang-fighters-list-print-${gangId}-v2` : `gang-fighters-list-${gangId}-v2`;
+  const cacheKey = expandLoadoutsForPrint ? `gang-fighters-list-print-${gangId}` : `gang-fighters-list-${gangId}`;
 
   return unstable_cache(
     async () => {
