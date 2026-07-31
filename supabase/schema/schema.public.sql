@@ -2587,7 +2587,7 @@ $$;
 -- Name: get_fighter_types_with_cost(uuid, uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_fighter_types_with_cost(p_gang_type_id uuid DEFAULT NULL::uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid, p_is_gang_addition boolean DEFAULT NULL::boolean) RETURNS TABLE(id uuid, fighter_type text, fighter_class text, fighter_class_id uuid, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, limitation numeric, alignment public.alignment, is_gang_addition boolean, alliance_id uuid, alliance_crew_name text, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, sub_type jsonb, available_legacies jsonb, free_skill boolean, delegation_cost numeric, is_dramatis_personae boolean)
+CREATE FUNCTION public.get_fighter_types_with_cost(p_gang_type_id uuid DEFAULT NULL::uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid, p_is_gang_addition boolean DEFAULT NULL::boolean) RETURNS TABLE(id uuid, fighter_type text, fighter_class text, fighter_class_id uuid, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, save numeric, limitation numeric, alignment public.alignment, is_gang_addition boolean, alliance_id uuid, alliance_crew_name text, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, sub_type jsonb, available_legacies jsonb, free_skill boolean, delegation_cost numeric, is_dramatis_personae boolean, edition_slug text)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -2615,6 +2615,7 @@ BEGIN
         ft.willpower,
         ft.intelligence,
         ft.attacks,
+        ft.save,
         ft.limitation,
         ft.alignment,
         ft.is_gang_addition,
@@ -3411,13 +3412,15 @@ BEGIN
         ) AS available_legacies,
         ft.free_skill,
         ft.delegation_cost,
-        ft.is_dramatis_personae
+        ft.is_dramatis_personae,
+        ed.slug AS edition_slug
     FROM fighter_types ft
     JOIN fighter_classes fc ON fc.id = ft.fighter_class_id
-    LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id 
+    LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id
         AND ftgc.gang_type_id = p_gang_type_id
         AND (ftgc.gang_affiliation_id IS NULL OR ftgc.gang_affiliation_id = p_gang_affiliation_id)
     LEFT JOIN fighter_sub_types fsub ON fsub.id = ft.fighter_sub_type_id
+    LEFT JOIN editions ed ON ed.id = ft.edition_id
     WHERE
         CASE
             -- Gang additions: cross-gang pool, filtered only by the flag
@@ -5050,7 +5053,8 @@ CREATE TABLE public.custom_fighter_types (
     user_id uuid,
     custom_gang_type_id uuid,
     description text,
-    edition_id uuid
+    edition_id uuid,
+    save numeric
 );
 
 
@@ -5824,7 +5828,8 @@ CREATE TABLE public.fighter_types (
     is_spyrer boolean DEFAULT false,
     delegation_cost numeric,
     is_dramatis_personae boolean DEFAULT false NOT NULL,
-    edition_id uuid
+    edition_id uuid,
+    save numeric
 );
 
 
@@ -5890,6 +5895,7 @@ CREATE TABLE public.fighters (
     active_loadout_id uuid,
     selected_archetype_id uuid,
     captured_by_gang_id uuid,
+    save numeric,
     CONSTRAINT fighters_label_check CHECK ((length(label) <= 5))
 );
 
@@ -5906,6 +5912,13 @@ COMMENT ON TABLE public.fighters IS 'users records';
 --
 
 COMMENT ON COLUMN public.fighters.kill_count IS 'kill_count is used to keep track of spyrers kill count';
+
+
+--
+-- Name: COLUMN fighters.save; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighters.save IS 'N26 Save characteristic (e.g. 4 renders as 4+). NULL for pre-N26 fighters.';
 
 
 --
