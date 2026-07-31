@@ -199,7 +199,7 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
       }
       return data;
     },
-    [`fighter-basic-${fighterId}-v2`],
+    [`fighter-basic-${fighterId}`],
     {
       tags: [CACHE_TAGS.BASE_FIGHTER_BASIC(fighterId)],
       revalidate: false
@@ -1205,7 +1205,7 @@ export const getFighterTypeInfo = async (fighterTypeId: string | null, supabase:
       if (error) return null;
       return data;
     },
-    [`fighter-type-${fighterTypeId}-v2`],
+    [`fighter-type-${fighterTypeId}`],
     {
       tags: [CACHE_TAGS.GLOBAL_FIGHTER_TYPES()],
       revalidate: 3600 // Fighter types rarely change
