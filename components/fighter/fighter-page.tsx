@@ -79,6 +79,8 @@ interface Fighter {
   cool: number;
   willpower: number;
   intelligence: number;
+  save?: number | null;
+  edition_slug?: string | null;
   xp: number;
   total_xp: number;
   killed?: boolean;
@@ -651,6 +653,8 @@ export default function FighterPage({
             cool={fighterData.fighter?.cool || 0}
             willpower={fighterData.fighter?.willpower || 0}
             intelligence={fighterData.fighter?.intelligence || 0}
+            save={fighterData.fighter?.save ?? null}
+            edition_slug={fighterData.fighter?.edition_slug ?? null}
             xp={fighterData.fighter?.xp || 0}
             total_xp={fighterData.fighter?.total_xp || 0}
             advancements={fighterData.fighter?.advancements || { characteristics: {}, skills: {} }}

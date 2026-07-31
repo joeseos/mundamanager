@@ -152,6 +152,8 @@ export interface FighterProps {
   cool: number;
   willpower: number;
   intelligence: number;
+  save?: number | null;
+  edition_slug?: string | null;
   xp: number;
   kills: number;
   kill_count?: number;

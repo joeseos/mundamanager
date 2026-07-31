@@ -14,7 +14,8 @@ import { Equipment } from '@/types/equipment';
 import { skillSetRank } from "@/utils/skillSetRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { AdminFighterEquipmentSelection, EquipmentSelection, guiToDataModel, dataModelToGui } from "@/components/admin/admin-fighter-equipment-selection";
-import { EditionSelect } from '@/components/edition-select';
+import { EditionSelect, useEditions } from '@/components/edition-select';
+import { hasSaveCharacteristic } from '@/types/edition';
 import Modal from '@/components/ui/modal';
 
 interface FighterSubType {
@@ -102,6 +103,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [willpower, setWillpower] = useState('');
   const [intelligence, setIntelligence] = useState('');
   const [attacks, setAttacks] = useState('');
+  const [save, setSave] = useState('');
   const [specialSkills, setSpecialSkills] = useState('');
   const [freeSkill, setFreeSkill] = useState(false);
   const [isGangAddition, setIsGangAddition] = useState(false);
@@ -304,6 +306,9 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
   // Edition only filters the gang-type dropdown; the fighter type's edition is
   // derived server-side from its gang type
+  const { data: editions = [] } = useEditions();
+  const showSave = hasSaveCharacteristic(editions.find(edition => edition.id === editionId)?.slug);
+
   const filteredGangTypes = editionId
     ? gangTypes.filter(type => type.edition_id === editionId)
     : gangTypes;
@@ -494,6 +499,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       setWillpower(data.willpower?.toString() || '0');
       setIntelligence(data.intelligence?.toString() || '0');
       setAttacks(data.attacks?.toString() || '0');
+      setSave(data.save != null ? data.save.toString() : '');
       setSpecialSkills(data.special_rules?.join(', ') || '');
       setFreeSkill(!!data.free_skill);
       setIsGangAddition(!!data.is_gang_addition);
@@ -1077,6 +1083,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         willpower: parseInt(willpower),
         intelligence: parseInt(intelligence),
         attacks: parseInt(attacks),
+        save: showSave && save ? parseInt(save) : null,
         special_rules: specialRulesArray,
         free_skill: freeSkill,
         is_gang_addition: isGangAddition,
@@ -1620,6 +1627,20 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                     className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 </div>
+
+                {showSave && (
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">
+                      Sv
+                    </label>
+                    <Input
+                      type="text"
+                      value={save}
+                      onChange={(e) => setSave(e.target.value)}
+                      className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-xs font-medium text-muted-foreground mb-1">

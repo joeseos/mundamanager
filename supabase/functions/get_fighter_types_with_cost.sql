@@ -31,6 +31,7 @@ RETURNS TABLE (
     willpower numeric,
     intelligence numeric,
     attacks numeric,
+    save numeric,
     limitation numeric,
     alignment alignment,
     is_gang_addition boolean,
@@ -43,7 +44,8 @@ RETURNS TABLE (
     available_legacies jsonb,
     free_skill boolean,
     delegation_cost numeric,
-    is_dramatis_personae boolean
+    is_dramatis_personae boolean,
+    edition_slug text
 ) LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
     RETURN QUERY
@@ -69,6 +71,7 @@ BEGIN
         ft.willpower,
         ft.intelligence,
         ft.attacks,
+        ft.save,
         ft.limitation,
         ft.alignment,
         ft.is_gang_addition,
@@ -865,13 +868,15 @@ BEGIN
         ) AS available_legacies,
         ft.free_skill,
         ft.delegation_cost,
-        ft.is_dramatis_personae
+        ft.is_dramatis_personae,
+        ed.slug AS edition_slug
     FROM fighter_types ft
     JOIN fighter_classes fc ON fc.id = ft.fighter_class_id
-    LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id 
+    LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id
         AND ftgc.gang_type_id = p_gang_type_id
         AND (ftgc.gang_affiliation_id IS NULL OR ftgc.gang_affiliation_id = p_gang_affiliation_id)
     LEFT JOIN fighter_sub_types fsub ON fsub.id = ft.fighter_sub_type_id
+    LEFT JOIN editions ed ON ed.id = ft.edition_id
     WHERE
         CASE
             -- Gang additions: cross-gang pool, filtered only by the flag

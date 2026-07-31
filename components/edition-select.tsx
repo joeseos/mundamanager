@@ -11,8 +11,9 @@ interface EditionSelectProps {
   label?: string;
 }
 
-export function EditionSelect({ value, onChange, defaultToCurrent = false, label = 'Edition' }: EditionSelectProps) {
-  const { data: editions = [] } = useQuery<Edition[]>({
+/** Shared editions query — also used by callers that need to resolve a slug from an edition id. */
+export function useEditions() {
+  return useQuery<Edition[]>({
     queryKey: ['editions'],
     queryFn: async () => {
       const response = await fetch('/api/editions');
@@ -21,6 +22,10 @@ export function EditionSelect({ value, onChange, defaultToCurrent = false, label
     },
     staleTime: 5 * 60 * 1000,
   });
+}
+
+export function EditionSelect({ value, onChange, defaultToCurrent = false, label = 'Edition' }: EditionSelectProps) {
+  const { data: editions = [] } = useEditions();
 
   // Default only once, when editions first load — never after, so an explicit
   // blank selection ("all editions" in filter contexts) sticks

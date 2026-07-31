@@ -4,6 +4,7 @@ import { StatsTable, StatsType } from '../ui/fighter-card-stats-table';
 import WeaponTable from './fighter-card-weapon-table';
 import { Equipment } from '@/types/equipment';
 import { FighterProps, FighterEffect, Vehicle, VehicleEquipment, FighterSkills } from '@/types/fighter';
+import { hasSaveCharacteristic } from '@/types/edition';
 import { calculateAdjustedStats, applySpecialRulesModifiers } from '@/utils/effect-modifiers';
 import { injuryAggregationLabel } from '@/utils/bitterEnmityDisplay';
 import { TbMeatOff } from "react-icons/tb";
@@ -150,6 +151,8 @@ const FighterCard = memo(function FighterCard({
   cool,
   willpower,
   intelligence,
+  save,
+  edition_slug,
   xp,
   advancements,
   weapons,
@@ -338,6 +341,7 @@ const FighterCard = memo(function FighterCard({
       cool,
       willpower,
       intelligence,
+      save,
       xp,
       kills,
       skills: skills, // Direct assignment since skills is already in the correct format
@@ -393,7 +397,7 @@ const FighterCard = memo(function FighterCard({
   }, [
     id, name, type, fighter_class, fighter_sub_type, credits, movement, weapon_skill,
     ballistic_skill, strength, toughness, wounds, initiative,
-    attacks, leadership, cool, willpower, intelligence, xp,
+    attacks, leadership, cool, willpower, intelligence, save, xp,
     kills, advancements, weapons, wargear, special_rules, effects, skills
   ]);
 
@@ -434,13 +438,14 @@ const FighterCard = memo(function FighterCard({
       'W': adjustedStats.wounds,
       'I': `${adjustedStats.initiative}+`,
       'A': adjustedStats.attacks,
+      ...(hasSaveCharacteristic(edition_slug) && { 'Sv': adjustedStats.save != null ? `${adjustedStats.save}+` : '-' }),
       'Ld': `${adjustedStats.leadership}+`,
       'Cl': `${adjustedStats.cool}+`,
       'Wil': `${adjustedStats.willpower}+`,
       'Int': `${adjustedStats.intelligence}+`,
       'XP': xp
     };
-  }, [isCrew, vehicleStats, adjustedStats, xp]);
+  }, [isCrew, vehicleStats, adjustedStats, xp, edition_slug]);
 
   const isInactive = killed || retired || enslaved || recovery;
 

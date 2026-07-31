@@ -43,6 +43,7 @@ export interface CreatedBeast {
   cool: number;
   willpower: number;
   intelligence: number;
+  save?: number | null;
   xp: number;
   kills: number;
   special_rules: string[];
@@ -103,6 +104,7 @@ export async function createExoticBeastsForEquipment(
           cool,
           willpower,
           intelligence,
+          save,
           special_rules
         )
       `)
@@ -145,6 +147,7 @@ export async function createExoticBeastsForEquipment(
           cool: fighterType.cool,
           willpower: fighterType.willpower,
           intelligence: fighterType.intelligence,
+          save: fighterType.save ?? null,
           special_rules: fighterType.special_rules || [],
           xp: 0
         })
@@ -220,6 +223,7 @@ export async function createExoticBeastsForEquipment(
         cool: fighterType.cool,
         willpower: fighterType.willpower,
         intelligence: fighterType.intelligence,
+        save: fighterType.save ?? null,
         xp: 0,
         kills: 0,
         special_rules: fighterType.special_rules || [],

@@ -7,6 +7,7 @@ export const fighterCharacteristicLimits: Record<string, [string | number, strin
   W: [1, 6],
   I: ['2+', '6+'],
   A: [1, 10],
+  Sv: ['2+', '6+'],
   Ld: ['3+', '10+'],
   Cl: ['3+', '10+'],
   Wil: ['3+', '10+'],
