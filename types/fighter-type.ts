@@ -55,6 +55,7 @@ export interface FighterType {
   fighter_type: string;
   fighter_class: string;
   fighter_class_id?: string;
+  fighter_classes: string[];
   gang_type: string;
   cost: number;
   gang_type_id: string;

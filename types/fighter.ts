@@ -26,6 +26,7 @@ export interface FighterType {
   fighter_type: string;
   fighter_class: string;
   fighter_class_id?: string;
+  fighter_classes: string[];
   gang_type_id: string;
   gang_type: string;
   fighter_sub_type: string;
@@ -175,6 +176,7 @@ export interface FighterProps {
   free_skill?: boolean;
   fighter_class?: string;
   fighter_class_id?: string;
+  fighter_classes: string[];
   note?: string;
   effects: {
     injuries: FighterEffect[];
@@ -250,7 +252,9 @@ export const FIGHTER_CLASSES = [
   'Crew',
   'Exotic Beast',
   'Exotic Beast Specialist',
-  'Brute'
+  'Brute',
+  'Beast',
+  'Pet'
 ] as const;
 
 export type FighterClass = typeof FIGHTER_CLASSES[number];
@@ -293,6 +297,7 @@ export interface CustomFighterType {
   delegation_cost?: number | null;
   fighter_class?: string;
   fighter_class_id?: string;
+  fighter_classes: string[];
   description?: string | null;
   skill_access?: {
     skill_type_id: string;

@@ -33,6 +33,7 @@ export interface FighterBasic {
   special_rules?: string[];
   fighter_class?: string;
   fighter_class_id?: string;
+  fighter_classes: string[];
   fighter_type?: string;
   fighter_type_id: string;
   custom_fighter_type_id?: string | null;
@@ -152,6 +153,7 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
           special_rules,
           fighter_class,
           fighter_class_id,
+          fighter_classes,
           fighter_type,
           fighter_type_id,
           custom_fighter_type_id,

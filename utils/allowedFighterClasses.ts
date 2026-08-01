@@ -14,7 +14,8 @@ export const allowedFighterClasses: { [key: string]: boolean } = {
   "Hanger-on": true,
   "Hive Scum": true,
   "House Agent": true,
-
+  "Beast": true,
+  "Pet": true,
 };
 
 /**
