@@ -24,8 +24,6 @@ export type { WeaponProfile, Weapon };
 export interface FighterType {
   id: string;
   fighter_type: string;
-  fighter_class: string;
-  fighter_class_id?: string;
   fighter_classes: string[];
   gang_type_id: string;
   gang_type: string;
@@ -174,8 +172,6 @@ export interface FighterProps {
   captured_by_gang_id?: string | null;
   captured_by_gang_name?: string;
   free_skill?: boolean;
-  fighter_class?: string;
-  fighter_class_id?: string;
   fighter_classes: string[];
   note?: string;
   effects: {
@@ -295,8 +291,6 @@ export interface CustomFighterType {
   special_rules?: string[];
   free_skill?: boolean;
   delegation_cost?: number | null;
-  fighter_class?: string;
-  fighter_class_id?: string;
   fighter_classes: string[];
   description?: string | null;
   skill_access?: {
