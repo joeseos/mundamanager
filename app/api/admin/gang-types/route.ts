@@ -33,6 +33,7 @@ interface FighterTypeData {
   baseCost: number;
   gangTypeId: string;
   fighterClass: string;
+  fighterClasses?: string[];
   movement: number;
   weapon_skill: number;
   ballistic_skill: number;
@@ -88,6 +89,7 @@ export async function POST(request: Request) {
         gang_type_id: data.gangTypeId,
         gang_type: gangType.gang_type,
         fighter_class: data.fighterClass,
+        fighter_classes: Array.isArray(data.fighterClasses) ? data.fighterClasses : (data.fighterClass ? [data.fighterClass] : []),
         movement: data.movement,
         weapon_skill: data.weapon_skill,
         ballistic_skill: data.ballistic_skill,

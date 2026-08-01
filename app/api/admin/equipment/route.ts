@@ -312,6 +312,7 @@ export async function GET(request: Request) {
             fighter_type,
             gang_type,
             fighter_class,
+            fighter_classes,
             fighter_sub_type_id,
             fighter_sub_types(
               sub_type_name

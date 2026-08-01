@@ -55,6 +55,7 @@ function transformCustomFighter(cf: any) {
     id: cf.id,
     fighter_type: cf.fighter_type,
     fighter_class: cf.fighter_class || 'Custom',
+    fighter_classes: cf.fighter_classes || [cf.fighter_class || 'Custom'],
     gang_type: cf.gang_type,
     cost: cf.cost,
     gang_type_id: cf.gang_type_id,
@@ -253,7 +254,7 @@ export async function GET(request: Request) {
 
           // Apply variant rules (like removing Leaders)
           if (variantModifier.removeLeaders) {
-            data = data.filter((type: any) => type.fighter_class !== 'Leader');
+            data = data.filter((type: any) => !(type.fighter_classes ?? [type.fighter_class]).includes('Leader'));
           }
 
           // Fetch variant-specific fighter types and merge

@@ -130,6 +130,7 @@ export async function createExoticBeastsForEquipment(
           fighter_type: fighterType.fighter_type,
           fighter_type_id: beastConfig.fighter_type_id,
           fighter_class: 'Exotic Beast',
+          fighter_classes: ['Exotic Beast'],
           fighter_class_id: fighterType.fighter_class_id || 'bb723bee-883c-4e84-9136-be30ed195023',
           gang_id: params.gangId,
           credits: 0,
