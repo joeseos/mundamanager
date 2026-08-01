@@ -317,9 +317,9 @@ export default function Gang({
     const counts = new Map<string, { label: string; count: number; classKey: string }>();
     for (const fighter of activeFighters) {
       const typeLabel = fighter.fighter_type || 'Unknown Type';
-      const classLabel = fighter.fighter_class || 'Unknown Class';
+      const classLabel = fighter.fighter_classes?.join(', ') || fighter.fighter_class || 'Unknown Class';
       const key = `${typeLabel} (${classLabel})`;
-      const classKey = (fighter.fighter_class || 'unknown').toLowerCase();
+      const classKey = (fighter.fighter_classes?.[0] || fighter.fighter_class || 'unknown').toLowerCase();
       const existing = counts.get(key);
       if (existing) {
         existing.count += 1;
@@ -841,7 +841,7 @@ export default function Gang({
 
   const visibleFighters = useMemo(() => {
     return fighters.filter(fighter => {
-      if (fighter.fighter_class?.toLowerCase().startsWith('exotic beast') && fighter.beast_equipment_stashed) {
+      if ((fighter.fighter_classes?.some(c => c.toLowerCase().startsWith('exotic beast')) || fighter.fighter_class?.toLowerCase().startsWith('exotic beast')) && fighter.beast_equipment_stashed) {
         return false;
       }
       return true;

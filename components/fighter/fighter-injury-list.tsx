@@ -56,6 +56,7 @@ interface InjuriesListProps {
   fighterCapturedByGangId?: string | null;
   userPermissions: UserPermissions;
   fighter_class?: string;
+  fighter_classes?: string[];
   is_spyrer?: boolean;
   kill_count?: number;
   gangCredits?: number;
@@ -82,6 +83,7 @@ export function InjuriesList({
   fighterCapturedByGangId = null,
   userPermissions,
   fighter_class,
+  fighter_classes,
   is_spyrer = false,
   kill_count = 0,
   gangCredits = 0,
@@ -569,10 +571,12 @@ export function InjuriesList({
   });
 
   // Helper function to format the range display
+  const isCrew = fighter_classes?.includes('Crew') ?? fighter_class === 'Crew';
+
   const formatInjuryRange = (injuryName: string): string => {
     const range = is_spyrer
       ? resolveRigGlitchRangeFromUtilByName(injuryName)
-      : (fighter_class === 'Crew'
+      : (isCrew
         ? resolveInjuryRangeFromUtilByNameCrew(injuryName)
         : resolveInjuryRangeFromUtilByName(injuryName));
 
@@ -617,7 +621,7 @@ export function InjuriesList({
   const logRolledInjury = (injury: FighterEffect, roll: number) => {
     const injuryTable = is_spyrer
       ? 'Rig Glitch'
-      : (fighter_class === 'Crew' ? 'Lasting Injury Crew' : 'Lasting Injury');
+      : (isCrew ? 'Lasting Injury Crew' : 'Lasting Injury');
 
     logInjuryRollMutation.mutate({
       fighter_id: fighterId,
@@ -960,13 +964,13 @@ export function InjuriesList({
           inline
           rollFn={rollD66Outcome}
           resolveNameForRoll={(r) => {
-            const resolver = is_spyrer ? resolveRigGlitchFromUtil : (fighter_class === 'Crew' ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil);
+            const resolver = is_spyrer ? resolveRigGlitchFromUtil : (isCrew ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil);
             return resolver(r)?.name;
           }}
           onRolled={(rolled) => {
             if (rolled.length > 0) {
               const roll = rolled[0].roll;
-              const resolver = is_spyrer ? resolveRigGlitchFromUtil : (fighter_class === 'Crew' ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil);
+              const resolver = is_spyrer ? resolveRigGlitchFromUtil : (isCrew ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil);
               const util = resolver(roll);
               let match: any = null;
               if (util) {
@@ -981,7 +985,7 @@ export function InjuriesList({
             }
           }}
           onRoll={(roll) => {
-            const resolver = is_spyrer ? resolveRigGlitchFromUtil : (fighter_class === 'Crew' ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil);
+            const resolver = is_spyrer ? resolveRigGlitchFromUtil : (isCrew ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil);
             const util = resolver(roll);
             if (!util) return;
             const match = localAvailableInjuries.find(i => (i as any).effect_name === util.name) as any;
@@ -1023,7 +1027,7 @@ export function InjuriesList({
             localAvailableInjuries
               .slice()
               .filter(injury => {
-                if (fighter_class === 'Crew') {
+                if (isCrew) {
                   return lastingInjuryCrewRank.hasOwnProperty(injury.effect_name);
                 }
                 if (injury.effect_name === 'Captured' && hasCapturedInjury) {
@@ -1042,7 +1046,7 @@ export function InjuriesList({
                 return minA - minB;
               })
               .reduce((groups, injury) => {
-                const rankMap = fighter_class === 'Crew' ? lastingInjuryCrewRank : lastingInjuryRank;
+                const rankMap = isCrew ? lastingInjuryCrewRank : lastingInjuryRank;
                 const rank = rankMap[injury.effect_name] ?? Infinity;
                 let groupLabel = "Other Injuries";
                 if (is_spyrer) {

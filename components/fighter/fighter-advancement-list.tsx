@@ -57,6 +57,7 @@ interface AdvancementModalProps {
   fighterSubTypeId?: string;
   onFighterDetailsUpdate?: (patch: {
     fighter_class?: string;
+    fighter_classes?: string[];
     fighter_class_id?: string;
     fighter_type?: string;
     fighter_type_id?: string;
@@ -186,6 +187,7 @@ interface AdvancementsListProps {
   fighterSubTypeId?: string;
   onFighterDetailsUpdate?: (patch: {
     fighter_class?: string;
+    fighter_classes?: string[];
     fighter_class_id?: string;
     fighter_type?: string;
     fighter_type_id?: string;
@@ -1013,6 +1015,7 @@ export function AdvancementModal({
     onSuccess: (_data, vars) => {
       onFighterDetailsUpdate?.({
         fighter_class: vars.promotion.fighter_class,
+        fighter_classes: vars.promotion.fighter_classes ?? [vars.promotion.fighter_class],
         fighter_class_id: vars.promotion.fighter_class_id,
         fighter_type: vars.promotion.fighter_type,
         fighter_type_id: vars.promotion.fighter_type_id,
@@ -1069,6 +1072,7 @@ export function AdvancementModal({
     onSuccess: (_data, vars) => {
       onFighterDetailsUpdate?.({
         fighter_class: vars.promotion.fighter_class,
+        fighter_classes: vars.promotion.fighter_classes ?? [vars.promotion.fighter_class],
         fighter_class_id: vars.promotion.fighter_class_id,
         fighter_type: vars.promotion.fighter_type,
         fighter_type_id: vars.promotion.fighter_type_id,
@@ -2246,7 +2250,7 @@ export function AdvancementModal({
                       <p className="text-xs text-green-600 dark:text-green-400">
                         Promotion to{' '}
                         <strong>
-                          {gangerPendingPromotion.fighter_type} ({gangerPendingPromotion.fighter_class})
+                          {gangerPendingPromotion.fighter_type} ({gangerPendingPromotion.fighter_classes?.join(', ') || gangerPendingPromotion.fighter_class})
                         </strong>{' '}
                         confirmed. Once the advancement is applied, this promotion cannot be undone.
                       </p>
@@ -2385,7 +2389,7 @@ export function AdvancementModal({
                   <p className="text-xs text-green-600 dark:text-green-400">
                     Promotion to{' '}
                     <strong>
-                      {championPendingPromotion.fighter_type} ({championPendingPromotion.fighter_class})
+                      {championPendingPromotion.fighter_type} ({championPendingPromotion.fighter_classes?.join(', ') || championPendingPromotion.fighter_class})
                     </strong>{' '}
                     confirmed. Once the advancement is applied, this promotion cannot be undone.
                   </p>
@@ -2722,6 +2726,7 @@ export function AdvancementsList({
       const result = await updateFighterDetails({
         fighter_id: fighterId,
         fighter_class: promotion.fighter_class,
+        fighter_classes: promotion.fighter_classes ?? [promotion.fighter_class],
         fighter_class_id: promotion.fighter_class_id,
         fighter_type: promotion.fighter_type,
         fighter_type_id: promotion.fighter_type_id,
@@ -2737,6 +2742,7 @@ export function AdvancementsList({
     onMutate: async (promotion) => {
       const previousPatch = {
         fighter_class: fighterClass,
+        fighter_classes: undefined as string[] | undefined,
         fighter_type: fighterTypeName,
         fighter_type_id: fighterTypeId,
         special_rules: fighterSpecialRules,

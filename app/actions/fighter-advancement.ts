@@ -69,6 +69,7 @@ export interface PromotionWithSkillAdvancementParams {
     fighter_type: string;
     fighter_type_id: string;
     fighter_class: string;
+    fighter_classes?: string[];
     fighter_class_id: string;
     special_rules: string[];
     fighter_sub_type?: string | null;
@@ -568,7 +569,7 @@ export async function applyPromotionWithSkillAdvancement(
     const supabase = await createClient();
     const { data: before, error: beforeError } = await supabase
       .from('fighters')
-      .select('fighter_class, fighter_class_id, fighter_type, fighter_type_id, fighter_sub_type, fighter_sub_type_id, special_rules')
+      .select('fighter_class, fighter_classes, fighter_class_id, fighter_type, fighter_type_id, fighter_sub_type, fighter_sub_type_id, special_rules')
       .eq('id', params.fighter_id)
       .single();
 
@@ -579,6 +580,7 @@ export async function applyPromotionWithSkillAdvancement(
     const promotionResult = await updateFighterDetails({
       fighter_id: params.fighter_id,
       fighter_class: params.promotion.fighter_class,
+      fighter_classes: params.promotion.fighter_classes ?? [params.promotion.fighter_class],
       fighter_class_id: params.promotion.fighter_class_id,
       fighter_type: params.promotion.fighter_type,
       fighter_type_id: params.promotion.fighter_type_id,
@@ -603,6 +605,7 @@ export async function applyPromotionWithSkillAdvancement(
       const revertResult = await updateFighterDetails({
         fighter_id: params.fighter_id,
         fighter_class: before.fighter_class ?? undefined,
+        fighter_classes: before.fighter_classes ?? (before.fighter_class ? [before.fighter_class] : undefined),
         fighter_class_id: before.fighter_class_id ?? undefined,
         fighter_type: before.fighter_type ?? undefined,
         fighter_type_id: before.fighter_type_id ?? undefined,
@@ -1326,7 +1329,7 @@ export async function verifyAndLogRolledGangerAdvancementRoll(
 
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, fighter_name, fighter_class')
+      .select('id, gang_id, fighter_name, fighter_class, fighter_classes')
       .eq('id', params.fighter_id)
       .single();
 
@@ -1334,7 +1337,7 @@ export async function verifyAndLogRolledGangerAdvancementRoll(
       throw new Error('Fighter not found');
     }
 
-    if (!fighter.fighter_class || !GANGER_ELIGIBLE_CLASSES.has(fighter.fighter_class)) {
+    if (!fighter.fighter_classes?.some((c: string) => GANGER_ELIGIBLE_CLASSES.has(c)) && (!fighter.fighter_class || !GANGER_ELIGIBLE_CLASSES.has(fighter.fighter_class))) {
       throw new Error('Advancement roll is only for Gangers and Exotic Beasts');
     }
 
@@ -1389,7 +1392,7 @@ export async function verifyAndLogRolledSkillAdvancementRoll(
 
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, fighter_name, fighter_class')
+      .select('id, gang_id, fighter_name, fighter_class, fighter_classes')
       .eq('id', params.fighter_id)
       .single();
 
@@ -1397,7 +1400,7 @@ export async function verifyAndLogRolledSkillAdvancementRoll(
       throw new Error('Fighter not found');
     }
 
-    if (fighter.fighter_class && GANGER_ELIGIBLE_CLASSES.has(fighter.fighter_class)) {
+    if (fighter.fighter_classes?.some((c: string) => GANGER_ELIGIBLE_CLASSES.has(c)) || (fighter.fighter_class && GANGER_ELIGIBLE_CLASSES.has(fighter.fighter_class))) {
       throw new Error('Use the Ganger / Exotic Beast advancement roll logger for this fighter class');
     }
 

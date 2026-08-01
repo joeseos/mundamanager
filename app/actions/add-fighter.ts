@@ -56,6 +56,7 @@ interface AddFighterResult {
     fighter_name: string;
     fighter_type: string;
     fighter_class: string;
+    fighter_classes?: string[];
     fighter_class_id: string;
     fighter_sub_type_id?: string;
     free_skill: boolean;
@@ -109,6 +110,7 @@ interface AddFighterResult {
       fighter_name: string;
       fighter_type: string;
       fighter_class: string;
+      fighter_classes?: string[];
       fighter_type_id: string;
       credits: number;
       equipment_source: string;
@@ -448,6 +450,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       gang_id: params.gang_id,
       fighter_type: effectiveFighterData.fighter_type,
       fighter_class: effectiveFighterData.fighter_class || 'Custom',
+      fighter_classes: [effectiveFighterData.fighter_class || 'Custom'],
       free_skill: effectiveFighterData.free_skill || false,
       credits: ratingCost,
       movement: effectiveFighterData.movement,
@@ -1197,6 +1200,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         fighter_name: insertedFighter.fighter_name,
         fighter_type: effectiveFighterData.fighter_type,
         fighter_class: effectiveFighterData.fighter_class || 'Custom',
+        fighter_classes: [effectiveFighterData.fighter_class || 'Custom'],
         fighter_class_id: isCustomFighter ? null : fighterTypeData.fighter_class_id,
         fighter_sub_type_id: isCustomFighter ? null : fighterTypeData.fighter_sub_type_id,
         free_skill: effectiveFighterData.free_skill || false,

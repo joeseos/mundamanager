@@ -131,6 +131,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
               fighter_name,
               fighter_type,
               fighter_class,
+              fighter_classes,
               credits,
               created_at,
               retired
@@ -175,6 +176,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
             fighter_name: beast.fighter_name,
             fighter_type: beast.fighter_type,
             fighter_class: beast.fighter_class,
+            fighter_classes: beast.fighter_classes,
             credits: beast.credits,
             equipment_source: 'Granted by equipment',
             equipment_name: equipment?.equipment_name || 'Unknown Equipment',

@@ -63,6 +63,7 @@ interface FighterDetailsCardProps {
   recovery?: boolean;
   captured?: boolean;
   fighter_class?: string;
+  fighter_classes?: string[];
   kills: number;
   kill_count?: number;
   is_spyrer?: boolean;
@@ -247,6 +248,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   recovery,
   captured,
   fighter_class,
+  fighter_classes,
   kills,
   kill_count,
   is_spyrer,
@@ -309,6 +311,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       skills: effects?.skills || []
     },
     fighter_class,
+    fighter_classes: fighter_classes || (fighter_class ? [fighter_class] : []),
     base_stats: {
       movement,
       weapon_skill,
@@ -341,10 +344,10 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
     id, name, type, sub_type, credits, movement, weapon_skill, ballistic_skill,
     strength, toughness, wounds, initiative, attacks, leadership,
     cool, willpower, intelligence, xp, kills, advancements, effects,
-    fighter_class
+    fighter_class, fighter_classes
   ]);
   const canShowEditButtons = userPermissions.canEdit;
-  const isCrew = fighter_class === 'Crew';
+  const isCrew = fighter_classes?.includes('Crew') ?? fighter_class === 'Crew';
 
   const handleImageClick = () => {
     if (canShowEditButtons) {
@@ -428,7 +431,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
                 <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden text-ellipsis whitespace-nowrap w-full print:text-muted-foreground">
                   {type}
                   {alliance_crew_name && ` – ${alliance_crew_name}`}
-                  {fighter_class && ` (${fighter_class})`}
+                  {(fighter_classes?.join(', ') || fighter_class) && ` (${fighter_classes?.join(', ') || fighter_class})`}
                   {sub_type?.fighter_sub_type && `, ${sub_type.fighter_sub_type}`}
                 </div>
               </div>
@@ -567,7 +570,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
 
       {/* Show vehicle information for crew fighters */}
       <div className="mt-4">
-      {fighter_class === 'Crew' && (
+      {isCrew && (
           <div className="text-sm text-muted-foreground">
             Vehicle:{' '}
             {vehicles?.[0]
@@ -578,7 +581,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
             }
           </div>
         )}
-        {fighter_class === 'Crew' && vehicles?.[0] && vehicleStats && (() => {
+        {isCrew && vehicles?.[0] && vehicleStats && (() => {
           const occupiedSlots = calculateOccupiedSlots(vehicles?.[0]);
           return (
             <>
@@ -627,7 +630,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
 
       {/* Fighter Logs Modal */}
       <LogModal
-        fetchUrl={`/api/gangs/${gangId || ''}/logs?fighterId=${id}${fighter_class === 'Crew' && vehicles?.[0] ? `&vehicleId=${vehicles[0].id}` : ''}`}
+        fetchUrl={`/api/gangs/${gangId || ''}/logs?fighterId=${id}${isCrew && vehicles?.[0] ? `&vehicleId=${vehicles[0].id}` : ''}`}
         title={`Activity Logs: ${name}`}
         emptyMessage="No activity logs found for this fighter."
         isOpen={isLogsModalOpen}

@@ -1062,6 +1062,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         cost: parseInt(baseCost),
         gang_type_id: fighterToUpdate.gang_type_id,
         fighter_class: selectedFighterClass,
+        fighter_classes: selectedFighterClass ? [selectedFighterClass] : [],
         fighter_class_id: fighterClass?.id,
         fighter_sub_type_id: finalSubTypeId,
         fighter_sub_type: finalSubTypeName,

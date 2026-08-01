@@ -29,6 +29,7 @@ export interface CreateCustomFighterData {
   special_rules: string[];
   free_skill: boolean;
   fighter_class: string;
+  fighter_classes?: string[];
   fighter_class_id: string;
   skill_access: {
     skill_type_id: string;
@@ -192,6 +193,7 @@ export async function createCustomFighter(data: CreateCustomFighterData): Promis
         special_rules: data.special_rules,
         free_skill: data.free_skill,
         fighter_class: data.fighter_class,
+        fighter_classes: data.fighter_classes ?? [data.fighter_class],
         fighter_class_id: data.fighter_class_id,
         created_at: new Date().toISOString()
       })

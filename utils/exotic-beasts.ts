@@ -21,6 +21,7 @@ export interface CreatedBeast {
   fighter_name: string;
   fighter_type: string;
   fighter_class: string;
+  fighter_classes: string[];
   fighter_type_id: string;
   credits: number;
   equipment_source: string;
@@ -149,7 +150,7 @@ export async function createExoticBeastsForEquipment(
           special_rules: fighterType.special_rules || [],
           xp: 0
         })
-        .select('id, fighter_name, fighter_type, fighter_class, credits, created_at')
+        .select('id, fighter_name, fighter_type, fighter_class, fighter_classes, credits, created_at')
         .single();
 
       if (createError || !newFighter) {
@@ -199,6 +200,7 @@ export async function createExoticBeastsForEquipment(
         fighter_name: newFighter.fighter_name,
         fighter_type: newFighter.fighter_type,
         fighter_class: newFighter.fighter_class,
+        fighter_classes: newFighter.fighter_classes || [],
         fighter_type_id: beastConfig.fighter_type_id,
         credits: fighterType.cost || 0,
         equipment_source: 'Granted by equipment',

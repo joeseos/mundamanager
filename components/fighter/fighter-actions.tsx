@@ -167,7 +167,7 @@ export function FighterActions({
     ) ?? false;
   }, [fighter.campaigns]);
 
-  const isOwnedExoticBeast = fighter?.fighter_class === 'Exotic Beast' && !!fighter?.owner_name;
+  const isOwnedExoticBeast = (fighter?.fighter_classes?.includes('Exotic Beast') || fighter?.fighter_class === 'Exotic Beast') && !!fighter?.owner_name;
 
   // Calculate total vehicle equipment cost
   const vehicleEquipmentCost = useMemo(() => {

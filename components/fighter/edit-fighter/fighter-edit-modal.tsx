@@ -24,6 +24,7 @@ interface FighterTypesData {
     id: string;
     fighter_type: string;
     fighter_class: string;
+    fighter_classes?: string[];
     fighter_class_id?: string;
     special_rules?: string[];
     gang_type_id: string;
@@ -63,6 +64,7 @@ interface EditFighterModalProps {
     kills: number;
     costAdjustment: string;
     fighter_class?: string;
+    fighter_classes?: string[];
     fighter_class_id?: string;
     fighter_type?: string;
     fighter_type_id?: string | null;
@@ -132,6 +134,7 @@ export function EditFighterModal({
     id: string;
     fighter_type: string;
     fighter_class: string;
+    fighter_classes?: string[];
     fighter_class_id?: string;
     special_rules?: string[];
     gang_type_id: string;
@@ -152,6 +155,7 @@ export function EditFighterModal({
       id: type.id,
       fighter_type: type.fighter_type,
       fighter_class: type.fighter_class,
+      fighter_classes: type.fighter_classes || (type.fighter_class ? [type.fighter_class] : []),
       fighter_class_id: type.fighter_class_id,
       special_rules: (type.special_rules || []).map(normalizeSpecialRule).filter(Boolean),
       gang_type_id: type.gang_type_id,
@@ -335,6 +339,7 @@ export function EditFighterModal({
       kill_count?: number;
       costAdjustment: string;
       fighter_class?: string;
+      fighter_classes?: string[];
       fighter_class_id?: string;
       fighter_type?: string;
       fighter_type_id?: string | null;
@@ -354,6 +359,7 @@ export function EditFighterModal({
         cost_adjustment: parseInt(submit.costAdjustment) || 0,
         special_rules: submit.special_rules,
         fighter_class: submit.fighter_class,
+        fighter_classes: submit.fighter_classes,
         fighter_class_id: submit.fighter_class_id,
         fighter_type: submit.fighter_type,
         fighter_type_id: submit.fighter_type_id,
@@ -552,6 +558,7 @@ export function EditFighterModal({
       formUpdate: {
         fighter_type: currentType.fighter_type,
         fighter_class: currentType.fighter_class,
+        fighter_classes: currentType.fighter_classes || (currentType.fighter_class ? [currentType.fighter_class] : []),
         fighter_class_id: currentType.fighter_class_id,
       },
       legacies: currentType.available_legacies || [],
@@ -597,6 +604,7 @@ export function EditFighterModal({
         ...prev,
         fighter_type: selectedType.fighter_type,
         fighter_class: selectedType.fighter_class,
+        fighter_classes: selectedType.fighter_classes || (selectedType.fighter_class ? [selectedType.fighter_class] : []),
         fighter_class_id: selectedType.fighter_class_id
       }));
 
@@ -880,6 +888,7 @@ export function EditFighterModal({
       // Only include fighter type fields if we're actually updating the fighter type
       if (shouldUpdateFighterType && fighterTypeToUse) {
         submitData.fighter_class = fighterTypeToUse.fighter_class;
+        submitData.fighter_classes = fighterTypeToUse.fighter_classes || (fighterTypeToUse.fighter_class ? [fighterTypeToUse.fighter_class] : []);
         submitData.fighter_class_id = fighterTypeToUse.fighter_class_id;
         submitData.fighter_type = fighterTypeToUse.fighter_type;
         if (fighterTypeToUse.is_custom_fighter) {
@@ -907,11 +916,13 @@ export function EditFighterModal({
         const selectedClass = allFighterClasses.find(fc => fc.id === selectedFighterClassId);
         if (selectedClass) {
           submitData.fighter_class = selectedClass.class_name;
+          submitData.fighter_classes = [selectedClass.class_name];
           submitData.fighter_class_id = selectedClass.id;
         } else {
           // Class ID set but not in allFighterClasses (e.g. promotion to Exotic Beast Specialist)
           // Use the values from formValues which were set by the promotion modal
           submitData.fighter_class = formValues.fighter_class;
+          submitData.fighter_classes = formValues.fighter_classes || (formValues.fighter_class ? [formValues.fighter_class] : []);
           submitData.fighter_class_id = formValues.fighter_class_id;
         }
       }
@@ -1042,7 +1053,7 @@ export function EditFighterModal({
                   const typeClassMap = new Map();
                   
                   fighterTypes.forEach(fighter => {
-                    const key = `${fighter.fighter_type}-${fighter.fighter_class}`;
+                    const key = `${fighter.fighter_type}-${fighter.fighter_classes?.join(',') || fighter.fighter_class}`;
                     
                     if (!typeClassMap.has(key)) {
                       typeClassMap.set(key, {
@@ -1080,8 +1091,8 @@ export function EditFighterModal({
                   // Convert the map values to an array and sort
                   return Array.from(typeClassMap.values())
                     .sort((a, b) => {
-                      const classRankA = fighterClassRank[a.fighter.fighter_class.toLowerCase()] ?? Infinity;
-                      const classRankB = fighterClassRank[b.fighter.fighter_class.toLowerCase()] ?? Infinity;
+                      const classRankA = fighterClassRank[(a.fighter.fighter_classes?.[0] || a.fighter.fighter_class || '').toLowerCase()] ?? Infinity;
+                      const classRankB = fighterClassRank[(b.fighter.fighter_classes?.[0] || b.fighter.fighter_class || '').toLowerCase()] ?? Infinity;
 
                       if (classRankA !== classRankB) {
                         return classRankA - classRankB;
@@ -1090,7 +1101,7 @@ export function EditFighterModal({
                       return a.cost - b.cost;
                     })
                     .map(({ fighter }) => {
-                      const displayName = `${fighter.fighter_type} (${fighter.fighter_class})`;
+                      const displayName = `${fighter.fighter_type} (${fighter.fighter_classes?.join(', ') || fighter.fighter_class})`;
                       const gangVariantSuffix = (fighter as any).is_gang_variant ? ` - ${(fighter as any).gang_variant_name}` : '';
                       
                       
@@ -1110,7 +1121,7 @@ export function EditFighterModal({
                   {` `}
                   {typeof fighter.fighter_class === 'object'
                     ? `(${(fighter.fighter_class as any).class_name || 'Unknown Class'})`
-                    : `(${fighter.fighter_class || 'Unknown Class'})`}
+                    : `(${fighter.fighter_classes?.join(', ') || fighter.fighter_class || 'Unknown Class'})`}
                 </div>
               )}
             </div>
@@ -1163,13 +1174,13 @@ export function EditFighterModal({
               >
                 {allFighterClasses
                   ?.filter(fc => !['*', 'Others', 'Special Terrain'].includes(fc.class_name))
-                  ?.filter(fc => fc.class_name !== 'Exotic Beast Specialist' || fighter.fighter_class === 'Exotic Beast')
+                  ?.filter(fc => fc.class_name !== 'Exotic Beast Specialist' || fighter.fighter_classes?.includes('Exotic Beast') || fighter.fighter_class === 'Exotic Beast')
                   .map(fc => (
                     <option key={fc.id} value={fc.id}>{fc.class_name}</option>
                   ))}
               </select>
               <div className="mt-1 text-sm text-muted-foreground">
-                Current: {fighter.fighter_class || 'Unknown'}
+                Current: {fighter.fighter_classes?.join(', ') || fighter.fighter_class || 'Unknown'}
               </div>
             </div>
 
