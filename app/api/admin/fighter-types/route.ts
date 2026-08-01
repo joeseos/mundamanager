@@ -159,7 +159,7 @@ export async function GET(request: Request) {
       // Fetch default equipment
       const { data: defaultEquipment, error: equipmentError } = await supabase
         .from('fighter_defaults')
-        .select('equipment_id')
+        .select('id, equipment_id, target_fighter_default_id')
         .eq('fighter_type_id', fighterType.id)
         .not('equipment_id', 'is', null);
 
@@ -203,7 +203,11 @@ export async function GET(request: Request) {
 
       const formattedFighterType = {
         ...fighterType,
-        default_equipment: defaultEquipment?.map(d => d.equipment_id) || [],
+        default_equipment: defaultEquipment?.map(d => ({
+          id: d.id,
+          equipment_id: d.equipment_id,
+          target_fighter_default_id: d.target_fighter_default_id || null
+        })) || [],
         default_skills: defaultSkills?.map(d => d.skill_id) || [],
         equipment_list: equipmentList?.map(e => e.equipment_id) || [],
         equipment_discounts: fighterType.equipment_discounts?.map(d => ({
@@ -299,7 +303,7 @@ export async function GET(request: Request) {
             // Fetch default equipment
             const { data: defaultEquipment, error: equipmentError } = await supabase
               .from('fighter_defaults')
-              .select('equipment_id')
+              .select('id, equipment_id, target_fighter_default_id')
               .eq('fighter_type_id', fighter.id)
               .not('equipment_id', 'is', null);
 
@@ -346,7 +350,11 @@ export async function GET(request: Request) {
 
             return {
               ...fighter,
-              default_equipment: defaultEquipment?.map(d => d.equipment_id) || [],
+              default_equipment: defaultEquipment?.map(d => ({
+                id: d.id,
+                equipment_id: d.equipment_id,
+                target_fighter_default_id: d.target_fighter_default_id || null
+              })) || [],
               default_skills: defaultSkills?.map(d => d.skill_id) || [],
               equipment_list: equipmentList?.map(e => e.equipment_id) || [],
               equipment_discounts: fighter.equipment_discounts?.map((d: any) => ({
@@ -547,9 +555,11 @@ export async function PATCH(request: Request) {
 
     // Insert new equipment defaults
     if (data.default_equipment?.length > 0) {
-      const equipmentDefaults = data.default_equipment.map((equipmentId: string) => ({
+      const equipmentDefaults = data.default_equipment.map((item: any) => ({
+        ...(typeof item === 'object' && item.id ? { id: item.id } : {}),
         fighter_type_id: id,
-        equipment_id: equipmentId,
+        equipment_id: typeof item === 'string' ? item : item.equipment_id,
+        target_fighter_default_id: typeof item === 'object' ? (item.target_fighter_default_id || null) : null,
         skill_id: null
       }));
 
@@ -852,9 +862,11 @@ export async function POST(request: Request) {
 
     // Handle default equipment if provided
     if (data.default_equipment && data.default_equipment.length > 0) {
-      const equipmentDefaults = data.default_equipment.map((equipmentId: string) => ({
+      const equipmentDefaults = data.default_equipment.map((item: any) => ({
+        ...(typeof item === 'object' && item.id ? { id: item.id } : {}),
         fighter_type_id: newFighterType.id,
-        equipment_id: equipmentId
+        equipment_id: typeof item === 'string' ? item : item.equipment_id,
+        target_fighter_default_id: typeof item === 'object' ? (item.target_fighter_default_id || null) : null
       }));
 
       const { error: equipmentError } = await supabase

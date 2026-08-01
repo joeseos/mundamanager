@@ -291,18 +291,25 @@ export default function FighterAddModal({
     const defaultEquipment = selectedType?.default_equipment || [];
     const optimisticWeapons = defaultEquipment
       .filter((item: any) => item.equipment_type === 'weapon')
-      .map((item: any) => ({
-        fighter_weapon_id: `temp-${item.id}`,
-        weapon_id: item.id,
-        weapon_name: item.equipment_name,
-        cost: item.cost || 0,
-        weapon_profiles: [],
-      }));
+      .map((item: any) => {
+        const attachedAccessories = defaultEquipment.filter(
+          (eq: any) => eq.target_fighter_default_id === item.default_id
+        );
+        const effectNames = attachedAccessories.map((eq: any) => eq.equipment_name);
+        return {
+          fighter_weapon_id: `temp-${item.id}`,
+          weapon_id: item.equipment_id || item.id,
+          weapon_name: item.equipment_name,
+          cost: item.cost || 0,
+          weapon_profiles: [],
+          effect_names: effectNames.length > 0 ? effectNames : undefined,
+        };
+      });
     const optimisticWargear = defaultEquipment
       .filter((item: any) => item.equipment_type === 'wargear')
       .map((item: any) => ({
         fighter_weapon_id: `temp-${item.id}`,
-        wargear_id: item.id,
+        wargear_id: item.equipment_id || item.id,
         wargear_name: item.equipment_name,
         cost: item.cost || 0,
       }));
