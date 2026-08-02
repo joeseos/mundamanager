@@ -23,7 +23,7 @@ BEGIN
     RAISE EXCEPTION 'Fighter not found with ID %', get_fighter_available_advancements.fighter_id;
   END IF;
   
-  -- Determine if the fighter uses flat costs based on fighter_class
+  -- Determine if the fighter uses flat costs based on their classes
   -- Only Gangers and Exotic Beasts use flat costs
   v_uses_flat_cost :=
     v_fighter_classes ?| array['Ganger', 'Exotic Beast'];
@@ -128,7 +128,6 @@ BEGIN
   SELECT jsonb_build_object(
     'fighter_id', get_fighter_available_advancements.fighter_id,
     'current_xp', v_fighter_xp,
-    'fighter_class', v_fighter_classes->>0,
     'fighter_classes', v_fighter_classes,
     'uses_flat_cost', v_uses_flat_cost,
     -- Ganger/Exotic Beast: Specialist table row (random Primary skill) — same flat costs as other ganger advances
