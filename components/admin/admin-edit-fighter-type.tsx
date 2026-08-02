@@ -15,7 +15,7 @@ import { skillSetRank } from "@/utils/skillSetRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { AdminFighterEquipmentSelection, EquipmentSelection, guiToDataModel, dataModelToGui } from "@/components/admin/admin-fighter-equipment-selection";
 import { EditionSelect, useEditions } from '@/components/edition-select';
-import { hasSaveCharacteristic } from '@/types/edition';
+import { isLegacyEdition } from '@/types/edition';
 import Modal from '@/components/ui/modal';
 
 interface FighterSubType {
@@ -61,6 +61,17 @@ interface FighterTypeCombo {
   gang_type_id: string;
 }
 
+/**
+ * Renders a fighter type's classes as the single string that identifies it in
+ * the "Select Fighter Type to Edit" dropdown. Combos are packed into a
+ * `type|class|gang_type_id` string, and "|" never appears in a class name, so
+ * joining on ", " keeps the combo parseable while distinguishing fighter types
+ * that share a first class but differ later in the list.
+ */
+function formatFighterClasses(fighterClasses?: string[] | null): string {
+  return (fighterClasses ?? []).join(', ');
+}
+
 interface FighterTypeGangCost {
   id?: string;
   fighter_type_id: string;
@@ -85,7 +96,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [fighterType, setFighterType] = useState('');
   const [baseCost, setBaseCost] = useState('');
   const [delegationCost, setDelegationCost] = useState('');
-  const [selectedFighterClass, setSelectedFighterClass] = useState<string>('');
+  const [selectedFighterClasses, setSelectedFighterClasses] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedSubTypeId, setSelectedSubTypeId] = useState<string>('');
   const [availableSubTypes, setAvailableSubTypes] = useState<FighterSubType[]>([]);
@@ -307,7 +318,18 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   // Edition only filters the gang-type dropdown; the fighter type's edition is
   // derived server-side from its gang type
   const { data: editions = [] } = useEditions();
-  const showSave = hasSaveCharacteristic(editions.find(edition => edition.id === editionId)?.slug);
+  const editionSlug = editions.find(edition => edition.id === editionId)?.slug;
+  const showSave = !isLegacyEdition(editionSlug);
+  // N26 onward a fighter can hold several classes at once; N23 has exactly one
+  const allowMultipleClasses = !isLegacyEdition(editionSlug);
+
+  const toggleFighterClass = (className: string, checked: boolean) => {
+    const selected = new Set(selectedFighterClasses);
+    if (checked) selected.add(className); else selected.delete(className);
+    // Keep the reference-list order so the stored array doesn't depend on the
+    // order the boxes happened to be ticked in
+    setSelectedFighterClasses(fighterClasses.map(fc => fc.class_name).filter(name => selected.has(name)));
+  };
 
   const filteredGangTypes = editionId
     ? gangTypes.filter(type => type.edition_id === editionId)
@@ -315,6 +337,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
   const handleEditionChange = (newEditionId: string) => {
     setEditionId(newEditionId);
+    // A single-class edition must not leave extra classes selected but hidden
+    // behind the dropdown, where they would still be submitted
+    if (isLegacyEdition(editions.find(edition => edition.id === newEditionId)?.slug)) {
+      setSelectedFighterClasses(prev => prev.slice(0, 1));
+    }
     if (newEditionId && gangTypeFilter) {
       const gangType = gangTypes.find(type => type.gang_type_id === gangTypeFilter);
       if (gangType && gangType.edition_id !== newEditionId) {
@@ -360,15 +387,16 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const fighterTypeCombos = useMemo(() => {
     const uniqueCombinations: FighterTypeCombo[] = [];
     fighterTypes.forEach(fighter => {
+      const classLabel = formatFighterClasses(fighter.fighter_classes);
       const existingCombo = uniqueCombinations.find(
         combo => combo.type === fighter.fighter_type &&
-                combo.class === (fighter.fighter_classes?.[0] || '') &&
+                combo.class === classLabel &&
                 combo.gang_type_id === fighter.gang_type_id
       );
       if (!existingCombo) {
         uniqueCombinations.push({
           type: fighter.fighter_type,
-          class: fighter.fighter_classes?.[0] || '',
+          class: classLabel,
           gang_type_id: fighter.gang_type_id
         });
       }
@@ -486,7 +514,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       setFighterType(data.fighter_type || '');
       setBaseCost(data.cost?.toString() || '0');
       setDelegationCost(data.delegation_cost?.toString() || '');
-      setSelectedFighterClass(data.fighter_classes?.[0] || '');
+      setSelectedFighterClasses(Array.isArray(data.fighter_classes) ? data.fighter_classes : []);
       setMovement(data.movement?.toString() || '0');
       setWeaponSkill(data.weapon_skill?.toString() || '0');
       setBallisticSkill(data.ballistic_skill?.toString() || '0');
@@ -626,10 +654,13 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         return;
       }
       
-      // Find all fighters that match this type+class+gang_type
-      const matchingFighters = fighterTypes.filter(f => 
-        f.fighter_type === fighterType && 
-        f.fighter_classes?.includes(fighterClass) &&
+      // Find all fighters that match this type+class+gang_type. The whole class
+      // list has to match, not just contain the first one: with multi-class
+      // fighter types a "Ganger" combo would otherwise also swallow every
+      // "Ganger, Specialist" type and mix their sub-types together.
+      const matchingFighters = fighterTypes.filter(f =>
+        f.fighter_type === fighterType &&
+        formatFighterClasses(f.fighter_classes) === fighterClass &&
         f.gang_type_id === gangTypeId
       );
       
@@ -710,7 +741,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         // Use any fighter from the matching set to get basic type info
         const fighter = matchingFighters[0];
         setFighterType(fighter.fighter_type);
-        setSelectedFighterClass(fighter.fighter_classes?.[0] || '');
+        setSelectedFighterClasses(fighter.fighter_classes ?? []);
       }
     } catch (error) {
       console.error('Error processing fighter type combo:', error);
@@ -877,8 +908,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         .split(',')
         .map(rule => rule.trim())
         .filter(rule => rule.length > 0);
-
-      const fighterClass = fighterClasses.find(fc => fc.class_name === selectedFighterClass);
 
       // Validate required fields
       if (!fighterType || !fighterToUpdate?.gang_type_id) {
@@ -1056,7 +1085,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         fighter_type: fighterType,
         cost: parseInt(baseCost),
         gang_type_id: fighterToUpdate.gang_type_id,
-        fighter_classes: selectedFighterClass ? [selectedFighterClass] : [],
+        fighter_classes: selectedFighterClasses,
         fighter_sub_type_id: finalSubTypeId,
         fighter_sub_type: finalSubTypeName,
         movement: parseInt(movement),
@@ -1457,21 +1486,32 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   <label className="block text-sm font-medium text-muted-foreground mb-1">
                     Fighter Class *
                   </label>
-                  <select
-                    value={selectedFighterClass}
-                    onChange={(e) => {
-                      console.log('Selected fighter class:', e.target.value);
-                      setSelectedFighterClass(e.target.value);
-                    }}
-                    className="w-full p-2 border rounded-md"
-                  >
-                    <option value="">Select fighter class</option>
-                    {fighterClasses.map((fighterClass) => (
-                      <option key={fighterClass.id} value={fighterClass.class_name}>
-                        {fighterClass.class_name}
-                      </option>
-                    ))}
-                  </select>
+                  {allowMultipleClasses ? (
+                    <div className="border rounded-md p-2 grid grid-cols-2 gap-x-4 gap-y-2">
+                      {fighterClasses.map((fighterClass) => (
+                        <label key={fighterClass.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                          <Checkbox
+                            checked={selectedFighterClasses.includes(fighterClass.class_name)}
+                            onCheckedChange={(checked) => toggleFighterClass(fighterClass.class_name, checked === true)}
+                          />
+                          <span>{fighterClass.class_name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <select
+                      value={selectedFighterClasses[0] ?? ''}
+                      onChange={(e) => setSelectedFighterClasses(e.target.value ? [e.target.value] : [])}
+                      className="w-full p-2 border rounded-md"
+                    >
+                      <option value="">Select fighter class</option>
+                      {fighterClasses.map((fighterClass) => (
+                        <option key={fighterClass.id} value={fighterClass.class_name}>
+                          {fighterClass.class_name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 <div>
