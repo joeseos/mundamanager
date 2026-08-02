@@ -81,15 +81,34 @@ BEGIN
 
   -- standard_class is deliberately not set: 20260402100000 drops the column, and
   -- where it still exists it defaults to false. Omitting it works in both cases.
+  -- slug is still supplied only because the column is NOT NULL; it is matched on
+  -- class_name, and the writes go away with the column (see section 6).
   INSERT INTO public.fighter_classes (class_name, slug, edition_id)
   SELECT v.class_name, v.slug, v_edition_id
   FROM (VALUES ('Beast', 'beast'), ('Pet', 'pet')) AS v(class_name, slug)
   WHERE NOT EXISTS (
     SELECT 1 FROM public.fighter_classes fc
-    WHERE fc.slug = v.slug
+    WHERE fc.class_name = v.class_name
       AND fc.edition_id = v_edition_id
   );
 END $$;
+
+-- 3b. Move the per-edition uniqueness guarantee from slug onto class_name.
+-- fighter_classes.slug exists only as a cross-edition match key, but nothing in
+-- the application reads it — fighters and fighter_types store class *names* in
+-- their fighter_classes array, so the name is the real identity. Before slug can
+-- be dropped, the uniqueness it enforced via fighter_classes_edition_slug_idx
+-- has to live on class_name instead; otherwise nothing prevents two 'Leader'
+-- rows in one edition, which would make resolving a class by name ambiguous.
+--
+-- This fails loudly if the target database already holds duplicate class names
+-- within an edition; those have to be reconciled before it can be applied.
+CREATE UNIQUE INDEX IF NOT EXISTS fighter_classes_edition_class_name_idx
+  ON public.fighter_classes (edition_id, class_name)
+  WHERE edition_id IS NOT NULL;
+
+COMMENT ON TABLE public.fighter_classes IS
+  'Fighter roles (Leader, Champion, Ganger, ...). The new edition rulebook calls these "Subtypes"; the display label is resolved per edition in app code. NOT related to fighter_sub_types. One row per class per edition, matched across editions on class_name.';
 
 -- 4. Add fighter_classes JSONB columns to fighter_ooa_records (class snapshots
 -- recorded at the time a fighter went out of action)
@@ -119,3 +138,15 @@ WHERE injured_fighter_class IS NOT NULL
 --   get_fighter_types_with_cost
 --   get_gang_details
 --   copy_custom_collection
+
+-- 6. Follow-up migration (after this is verified in preview) drops the columns
+-- this one deliberately leaves in place:
+--   fighters.fighter_class, fighters.fighter_class_id
+--   fighter_types.fighter_class, fighter_types.fighter_class_id
+--   custom_fighter_types.fighter_class, custom_fighter_types.fighter_class_id
+--   fighter_ooa_records.causing_fighter_class, .injured_fighter_class
+--   fighter_classes.slug, plus fighter_classes_slug_format_chk and
+--     fighter_classes_edition_slug_idx (superseded by the class_name index
+--     created in section 3b above)
+-- Dropping fighter_classes.slug also lets the Beast/Pet inserts here and in
+-- seed.sql stop supplying it — it is only passed today because it is NOT NULL.

@@ -5,11 +5,12 @@ import { getUserIdFromClaims } from "@/utils/auth";
 /**
  * Lists fighter classes.
  *
- * fighter_classes holds one row per class per edition (matched across editions
- * on slug), so class_name alone is not unique. Callers that resolve a class by
- * name — e.g. to find the fighter_class_id for the skill-archetype lookup —
- * must scope the request to an edition via `edition_slug` or `edition_id`,
- * otherwise two editions' rows with the same class_name are indistinguishable.
+ * fighter_classes holds one row per class per edition, so class_name is unique
+ * only within an edition (enforced by fighter_classes_edition_class_name_idx).
+ * Callers that resolve a class by name — e.g. to find the fighter_class_id for
+ * the skill-archetype lookup — must scope the request to an edition via
+ * `edition_slug` or `edition_id`, otherwise two editions' rows with the same
+ * class_name are indistinguishable.
  *
  * Both filters are optional; omitting them returns every edition's rows.
  */
@@ -55,7 +56,7 @@ export async function GET(request: Request) {
 
     let query = supabase
       .from('fighter_classes')
-      .select('id, class_name, slug, edition_id');
+      .select('id, class_name, edition_id');
 
     if (resolvedEditionId) {
       query = query.eq('edition_id', resolvedEditionId);

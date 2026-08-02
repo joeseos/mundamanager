@@ -94,7 +94,7 @@ CROSS JOIN (VALUES ('Beast', 'beast'), ('Pet', 'pet')) AS v(class_name, slug)
 WHERE e.slug = 'n26'
   AND NOT EXISTS (
     SELECT 1 FROM public.fighter_classes fc
-    WHERE fc.slug = v.slug
+    WHERE fc.class_name = v.class_name
       AND fc.edition_id = e.id
   );
 
