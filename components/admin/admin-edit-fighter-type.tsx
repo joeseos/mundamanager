@@ -357,13 +357,13 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     fighterTypes.forEach(fighter => {
       const existingCombo = uniqueCombinations.find(
         combo => combo.type === fighter.fighter_type &&
-                combo.class === fighter.fighter_class &&
+                combo.class === (fighter.fighter_classes?.[0] || '') &&
                 combo.gang_type_id === fighter.gang_type_id
       );
       if (!existingCombo) {
         uniqueCombinations.push({
           type: fighter.fighter_type,
-          class: fighter.fighter_class,
+          class: fighter.fighter_classes?.[0] || '',
           gang_type_id: fighter.gang_type_id
         });
       }
@@ -481,7 +481,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       setFighterType(data.fighter_type || '');
       setBaseCost(data.cost?.toString() || '0');
       setDelegationCost(data.delegation_cost?.toString() || '');
-      setSelectedFighterClass(data.fighter_class || '');
+      setSelectedFighterClass(data.fighter_classes?.[0] || '');
       setMovement(data.movement?.toString() || '0');
       setWeaponSkill(data.weapon_skill?.toString() || '0');
       setBallisticSkill(data.ballistic_skill?.toString() || '0');
@@ -623,7 +623,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       // Find all fighters that match this type+class+gang_type
       const matchingFighters = fighterTypes.filter(f => 
         f.fighter_type === fighterType && 
-        f.fighter_class === fighterClass && 
+        f.fighter_classes?.includes(fighterClass) &&
         f.gang_type_id === gangTypeId
       );
       
@@ -704,18 +704,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         // Use any fighter from the matching set to get basic type info
         const fighter = matchingFighters[0];
         setFighterType(fighter.fighter_type);
-        setSelectedFighterClass(fighter.fighter_class);
-        
-        // Don't overwrite the full list of fighter classes, just ensure the current one is selected
-        // Comment out this code that's overwriting all fighter classes
-        /*
-        if (fighter.fighter_class && fighter.fighter_class_id) {
-          setFighterClasses([{
-            id: fighter.fighter_class_id,
-            class_name: fighter.fighter_class
-          }]);
-        }
-        */
+        setSelectedFighterClass(fighter.fighter_classes?.[0] || '');
       }
     } catch (error) {
       console.error('Error processing fighter type combo:', error);
@@ -1061,9 +1050,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         fighter_type: fighterType,
         cost: parseInt(baseCost),
         gang_type_id: fighterToUpdate.gang_type_id,
-        fighter_class: selectedFighterClass,
         fighter_classes: selectedFighterClass ? [selectedFighterClass] : [],
-        fighter_class_id: fighterClass?.id,
         fighter_sub_type_id: finalSubTypeId,
         fighter_sub_type: finalSubTypeName,
         movement: parseInt(movement),

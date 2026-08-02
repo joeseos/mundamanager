@@ -34,7 +34,6 @@ interface FighterType {
   fighter_type: string;
   gang_type: string;
   gang_type_id: string;
-  fighter_class: string;
   fighter_classes?: string[];
   fighter_sub_type?: string | null;
 }
@@ -351,7 +350,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
     let displayName = fighterType.fighter_type;
     
     // Add fighter class in parentheses
-    const classDisplay = fighterType.fighter_classes?.join(', ') || fighterType.fighter_class;
+    const classDisplay = fighterType.fighter_classes?.join(', ');
     if (classDisplay) {
       displayName += ` (${classDisplay})`;
     }

@@ -20,7 +20,6 @@ export interface CreatedBeast {
   id: string;
   fighter_name: string;
   fighter_type: string;
-  fighter_class: string;
   fighter_classes: string[];
   fighter_type_id: string;
   credits: number;
@@ -90,7 +89,6 @@ export async function createExoticBeastsForEquipment(
         fighter_types (
           id,
           fighter_type,
-          fighter_class_id,
           cost,
           movement,
           weapon_skill,
@@ -130,9 +128,7 @@ export async function createExoticBeastsForEquipment(
           fighter_name: fighterType.fighter_type,
           fighter_type: fighterType.fighter_type,
           fighter_type_id: beastConfig.fighter_type_id,
-          fighter_class: 'Exotic Beast',
           fighter_classes: ['Exotic Beast'],
-          fighter_class_id: fighterType.fighter_class_id || 'bb723bee-883c-4e84-9136-be30ed195023',
           gang_id: params.gangId,
           credits: 0,
           movement: fighterType.movement,
@@ -150,7 +146,7 @@ export async function createExoticBeastsForEquipment(
           special_rules: fighterType.special_rules || [],
           xp: 0
         })
-        .select('id, fighter_name, fighter_type, fighter_class, fighter_classes, credits, created_at')
+        .select('id, fighter_name, fighter_type, fighter_classes, credits, created_at')
         .single();
 
       if (createError || !newFighter) {
@@ -199,7 +195,6 @@ export async function createExoticBeastsForEquipment(
         id: newFighter.id,
         fighter_name: newFighter.fighter_name,
         fighter_type: newFighter.fighter_type,
-        fighter_class: newFighter.fighter_class,
         fighter_classes: newFighter.fighter_classes || [],
         fighter_type_id: beastConfig.fighter_type_id,
         credits: fighterType.cost || 0,

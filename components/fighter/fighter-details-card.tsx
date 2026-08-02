@@ -62,8 +62,7 @@ interface FighterDetailsCardProps {
   starved?: boolean;
   recovery?: boolean;
   captured?: boolean;
-  fighter_class?: string;
-  fighter_classes?: string[];
+  fighter_classes: string[];
   kills: number;
   kill_count?: number;
   is_spyrer?: boolean;
@@ -247,7 +246,6 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   starved,
   recovery,
   captured,
-  fighter_class,
   fighter_classes,
   kills,
   kill_count,
@@ -310,8 +308,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       user: effects?.user || [],
       skills: effects?.skills || []
     },
-    fighter_class,
-    fighter_classes: fighter_classes || (fighter_class ? [fighter_class] : []),
+    fighter_classes,
     base_stats: {
       movement,
       weapon_skill,
@@ -344,10 +341,10 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
     id, name, type, sub_type, credits, movement, weapon_skill, ballistic_skill,
     strength, toughness, wounds, initiative, attacks, leadership,
     cool, willpower, intelligence, xp, kills, advancements, effects,
-    fighter_class, fighter_classes
+    fighter_classes
   ]);
   const canShowEditButtons = userPermissions.canEdit;
-  const isCrew = fighter_classes?.includes('Crew') ?? fighter_class === 'Crew';
+  const isCrew = fighter_classes.includes('Crew');
 
   const handleImageClick = () => {
     if (canShowEditButtons) {
@@ -431,7 +428,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
                 <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden text-ellipsis whitespace-nowrap w-full print:text-muted-foreground">
                   {type}
                   {alliance_crew_name && ` – ${alliance_crew_name}`}
-                  {(fighter_classes?.join(', ') || fighter_class) && ` (${fighter_classes?.join(', ') || fighter_class})`}
+                  {fighter_classes.length > 0 && ` (${fighter_classes.join(', ')})`}
                   {sub_type?.fighter_sub_type && `, ${sub_type.fighter_sub_type}`}
                 </div>
               </div>

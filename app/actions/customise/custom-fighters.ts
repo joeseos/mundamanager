@@ -28,9 +28,7 @@ export interface CreateCustomFighterData {
   intelligence?: number;
   special_rules: string[];
   free_skill: boolean;
-  fighter_class: string;
-  fighter_classes?: string[];
-  fighter_class_id: string;
+  fighter_classes: string[];
   skill_access: {
     skill_type_id: string;
     access_level: 'primary' | 'secondary' | 'allowed';
@@ -192,9 +190,7 @@ export async function createCustomFighter(data: CreateCustomFighterData): Promis
         intelligence: data.intelligence,
         special_rules: data.special_rules,
         free_skill: data.free_skill,
-        fighter_class: data.fighter_class,
-        fighter_classes: data.fighter_classes ?? [data.fighter_class],
-        fighter_class_id: data.fighter_class_id,
+        fighter_classes: data.fighter_classes,
         created_at: new Date().toISOString()
       })
       .select()
@@ -403,8 +399,7 @@ export async function updateCustomFighter(id: string, data: CreateCustomFighterD
         intelligence: data.intelligence,
         special_rules: data.special_rules,
         free_skill: data.free_skill,
-        fighter_class: data.fighter_class,
-        fighter_class_id: data.fighter_class_id,
+        fighter_classes: data.fighter_classes,
         updated_at: new Date().toISOString()
       })
       .eq('id', id)

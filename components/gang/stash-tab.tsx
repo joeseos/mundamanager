@@ -211,7 +211,7 @@ export default function GangInventory({
   
   // Update isCrew to handle undefined
   const isCrew = (fighter: FighterProps | undefined): boolean =>
-    fighter?.fighter_classes?.includes('Crew') || fighter?.fighter_class === 'Crew' || false;
+    fighter?.fighter_classes?.includes('Crew') || false;
 
   const findFighter = (id: string): FighterProps | undefined => 
     fighters.find(f => f.id === id);
@@ -646,7 +646,7 @@ export default function GangInventory({
       if (result.affected_beast_ids && result.affected_beast_ids.length > 0) {
         const updatedBeasts: FighterProps[] = [];
         setFighters(prev => prev.map(f => {
-          if (result.affected_beast_ids!.includes(f.id) && (f.fighter_classes?.some(c => c.toLowerCase().startsWith('exotic beast')) || f.fighter_class?.toLowerCase().startsWith('exotic beast'))) {
+          if (result.affected_beast_ids!.includes(f.id) && f.fighter_classes?.some(c => c.toLowerCase().startsWith('exotic beast'))) {
             const updatedBeast = { ...f, beast_equipment_stashed: false };
             updatedBeasts.push(updatedBeast);
             return updatedBeast;
@@ -756,7 +756,7 @@ export default function GangInventory({
         if (fighter.starved) statusIcons.push(<TbMeatOff className="text-red-500 w-4 h-4" key="starved" />);
         if (fighter.recovery) statusIcons.push(<FaMedkit className="text-blue-500 w-4 h-4" key="recovery" />);
         if (fighter.captured) statusIcons.push(<GiHandcuffs className="text-red-600 w-4 h-4" key="captured" />);
-        const displayText = `${fighter.fighter_name} (${fighter.fighter_classes?.join(', ') || fighter.fighter_class}) - ${fighter.credits} credits`;
+        const displayText = `${fighter.fighter_name} (${fighter.fighter_classes?.join(', ')}) - ${fighter.credits} credits`;
         options.push({
           value: fighter.id,
           displayValue: displayText,

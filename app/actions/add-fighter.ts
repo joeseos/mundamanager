@@ -55,9 +55,7 @@ interface AddFighterResult {
     fighter_id: string;
     fighter_name: string;
     fighter_type: string;
-    fighter_class: string;
-    fighter_classes?: string[];
-    fighter_class_id: string;
+    fighter_classes: string[];
     fighter_sub_type_id?: string;
     free_skill: boolean;
     cost: number;
@@ -109,8 +107,7 @@ interface AddFighterResult {
       id: string;
       fighter_name: string;
       fighter_type: string;
-      fighter_class: string;
-      fighter_classes?: string[];
+      fighter_classes: string[];
       fighter_type_id: string;
       credits: number;
       equipment_source: string;
@@ -432,7 +429,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     if (params.selected_archetype_id) {
       if (!isArchetypeEligible({
         gangTypeId: gangData.gang_type_id,
-        fighterClass: effectiveFighterData.fighter_class,
+        fighterClass: effectiveFighterData.fighter_classes?.[0] ?? 'Custom',
       })) {
         return {
           success: false,
@@ -449,8 +446,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       fighter_name: params.fighter_name.trimEnd(),
       gang_id: params.gang_id,
       fighter_type: effectiveFighterData.fighter_type,
-      fighter_class: effectiveFighterData.fighter_class || 'Custom',
-      fighter_classes: [effectiveFighterData.fighter_class || 'Custom'],
+      fighter_classes: effectiveFighterData.fighter_classes?.length ? effectiveFighterData.fighter_classes : ['Custom'],
       free_skill: effectiveFighterData.free_skill || false,
       credits: ratingCost,
       movement: effectiveFighterData.movement,
@@ -477,11 +473,9 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     if (isCustomFighter) {
       fighterInsertData.custom_fighter_type_id = params.fighter_type_id;
       fighterInsertData.fighter_type_id = null;
-      fighterInsertData.fighter_class_id = null;
       fighterInsertData.fighter_sub_type_id = null;
     } else {
       fighterInsertData.fighter_type_id = params.fighter_type_id;
-      fighterInsertData.fighter_class_id = fighterTypeData.fighter_class_id;
       fighterInsertData.fighter_sub_type_id = fighterTypeData.fighter_sub_type_id;
       fighterInsertData.custom_fighter_type_id = null;
     }
@@ -1199,9 +1193,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         fighter_id: fighterId,
         fighter_name: insertedFighter.fighter_name,
         fighter_type: effectiveFighterData.fighter_type,
-        fighter_class: effectiveFighterData.fighter_class || 'Custom',
-        fighter_classes: [effectiveFighterData.fighter_class || 'Custom'],
-        fighter_class_id: isCustomFighter ? null : fighterTypeData.fighter_class_id,
+        fighter_classes: effectiveFighterData.fighter_classes?.length ? effectiveFighterData.fighter_classes : ['Custom'],
         fighter_sub_type_id: isCustomFighter ? null : fighterTypeData.fighter_sub_type_id,
         free_skill: effectiveFighterData.free_skill || false,
         cost: fighterCost,

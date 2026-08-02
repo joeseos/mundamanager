@@ -63,8 +63,7 @@ interface Fighter {
     fighter_sub_type: string;
     fighter_sub_type_id: string;
   };
-  fighter_class?: string;
-  fighter_classes?: string[];
+  fighter_classes: string[];
   alliance_crew_name?: string;
   label?: string;
   credits: number;
@@ -319,8 +318,7 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
   return {
     fighter: {
       ...fighterData.fighter,
-      fighter_class: fighterData.fighter.fighter_class,
-      fighter_classes: fighterData.fighter.fighter_classes || (fighterData.fighter.fighter_class ? [fighterData.fighter.fighter_class] : []),
+      fighter_classes: fighterData.fighter.fighter_classes || [],
       fighter_type: {
         fighter_type: fighterData.fighter.fighter_type.fighter_type,
         fighter_type_id: fighterData.fighter.fighter_type.fighter_type_id,
@@ -665,8 +663,7 @@ export default function FighterPage({
             starved={fighterData.fighter?.starved}
             recovery={fighterData.fighter?.recovery}
             captured={fighterData.fighter?.captured}
-            fighter_class={fighterData.fighter?.fighter_class}
-            fighter_classes={fighterData.fighter?.fighter_classes}
+            fighter_classes={fighterData.fighter?.fighter_classes || []}
             kills={fighterData.fighter?.kills || 0}
             kill_count={fighterData.fighter?.kill_count}
             is_spyrer={fighterData.fighter?.is_spyrer}
@@ -814,8 +811,7 @@ export default function FighterPage({
           <AdvancementsList
             fighterXp={fighterData.fighter?.xp || 0}
             fighterId={fighterData.fighter?.id || ''}
-            fighterClass={fighterData.fighter?.fighter_class || ''}
-            fighterClasses={fighterData.fighter?.fighter_classes}
+            fighterClasses={fighterData.fighter?.fighter_classes || []}
             advancements={fighterData.fighter?.effects?.advancements || []}
             skills={fighterData.fighter?.skills || {}}
             userPermissions={userPermissions}
@@ -832,7 +828,6 @@ export default function FighterPage({
                 fighter: prev.fighter
                   ? {
                       ...prev.fighter,
-                      fighter_class: patch.fighter_class ?? prev.fighter.fighter_class,
                       fighter_classes: patch.fighter_classes ?? prev.fighter.fighter_classes,
                       special_rules: patch.special_rules ?? prev.fighter.special_rules,
                       fighter_type:
@@ -944,8 +939,7 @@ export default function FighterPage({
             fighterCaptured={fighterData.fighter?.captured}
             fighterCapturedByGangId={fighterData.fighter?.captured_by_gang_id ?? null}
             userPermissions={userPermissions}
-            fighter_class={fighterData.fighter?.fighter_class}
-            fighter_classes={fighterData.fighter?.fighter_classes}
+            fighter_classes={fighterData.fighter?.fighter_classes || []}
             is_spyrer={fighterData.fighter?.is_spyrer}
             kill_count={fighterData.fighter?.kill_count ?? 0}
             gangCredits={fighterData.gang?.credits ?? 0}
@@ -1179,7 +1173,6 @@ export default function FighterPage({
               base_copy_cost: fighterData.fighter.base_copy_cost || 0,
               is_spyrer: fighterData.fighter.is_spyrer,
               owner_name: fighterData.fighter?.owner_name,
-              fighter_class: fighterData.fighter?.fighter_class,
               campaigns: fighterData.fighter?.campaigns,
               vehicles: fighterData.fighter?.vehicles?.map(v => ({
                 id: v.id,

@@ -46,7 +46,6 @@ export async function GET(request: Request) {
           fighter_type,
           gang_type_id,
           gang_type,
-          fighter_class,
           fighter_classes,
           fighter_sub_type_id,
           cost,
@@ -90,7 +89,6 @@ export async function GET(request: Request) {
           fighter_type,
           gang_type_id,
           gang_type,
-          fighter_class,
           fighter_classes,
           fighter_sub_type_id,
           cost,
@@ -229,7 +227,6 @@ export async function GET(request: Request) {
           fighter_type,
           gang_type_id,
           gang_type,
-          fighter_class,
           fighter_classes,
           fighter_sub_type_id,
           cost,
@@ -258,7 +255,7 @@ export async function GET(request: Request) {
           )
         `)
         .eq('fighter_type', fighter_type)
-        .eq('fighter_class', fighter_class);
+        .contains('fighter_classes', JSON.stringify([fighter_class]));
 
       if (relatedError) {
         console.error('Error fetching related fighter types:', relatedError);
@@ -385,7 +382,6 @@ export async function GET(request: Request) {
       
       return NextResponse.json({
         fighter_type,
-        fighter_class,
         fighters: fighterDetails,
         sub_types: subTypes
       });
@@ -400,9 +396,7 @@ export async function GET(request: Request) {
         gang_type_id,
         gang_type,
         edition_id,
-        fighter_class,
         fighter_classes,
-        fighter_class_id,
         fighter_sub_type_id,
         fighter_sub_types(
           sub_type_name
@@ -501,9 +495,7 @@ export async function PATCH(request: Request) {
         cost: data.cost,
         gang_type_id: data.gang_type_id,
         edition_id: gangType.edition_id ?? null,
-        fighter_class: data.fighter_class,
-        fighter_classes: Array.isArray(data.fighter_classes) ? data.fighter_classes : (data.fighter_class ? [data.fighter_class] : []),
-        fighter_class_id: data.fighter_class_id,
+        fighter_classes: Array.isArray(data.fighter_classes) ? data.fighter_classes : [],
         fighter_sub_type_id: data.fighter_sub_type_id,
         fighter_sub_type: data.fighter_sub_type,
         movement: data.movement,
@@ -800,9 +792,7 @@ export async function POST(request: Request) {
         gang_type_id: data.gangTypeId,
         gang_type: gangType.gang_type,
         edition_id: gangType.edition_id ?? null,
-        fighter_class: data.fighterClass,
-        fighter_classes: Array.isArray(data.fighterClasses) ? data.fighterClasses : (data.fighterClass ? [data.fighterClass] : []),
-        fighter_class_id: data.fighterClassId,
+        fighter_classes: Array.isArray(data.fighterClasses) ? data.fighterClasses : [],
         fighter_sub_type_id: data.fighterSubTypeId,
         fighter_sub_type: data.fighterSubType,
         cost: data.baseCost,

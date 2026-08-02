@@ -37,7 +37,6 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   name: string;  // maps to fighter_name
   type: string;  // maps to fighter_type
   label?: string;
-  fighter_class?: string;
   fighter_classes?: string[];
   fighter_sub_type?: { fighter_sub_type: string; fighter_sub_type_id: string } | null;
   alliance_crew_name?: string;
@@ -133,7 +132,6 @@ const FighterCard = memo(function FighterCard({
   name,
   type,
   label,
-  fighter_class,
   fighter_classes,
   fighter_sub_type,
   alliance_crew_name,
@@ -184,7 +182,7 @@ const FighterCard = memo(function FighterCard({
 }: FighterCardProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [isMultiline, setIsMultiline] = useState(false);
-  const isCrew = fighter_classes?.includes('Crew') ?? fighter_class === 'Crew';
+  const isCrew = fighter_classes?.includes('Crew') ?? false;
   const isLoading = id.startsWith('temp-');
 
   const isNormalView = viewMode === 'normal' || viewMode === undefined;
@@ -325,7 +323,6 @@ const FighterCard = memo(function FighterCard({
       id,
       fighter_name: name,
       fighter_type: type,
-      fighter_class,
       fighter_classes,
       fighter_sub_type,
       credits,
@@ -394,7 +391,7 @@ const FighterCard = memo(function FighterCard({
       }
     };
   }, [
-    id, name, type, fighter_class, fighter_classes, fighter_sub_type, credits, movement, weapon_skill,
+    id, name, type, fighter_classes, fighter_sub_type, credits, movement, weapon_skill,
     ballistic_skill, strength, toughness, wounds, initiative,
     attacks, leadership, cool, willpower, intelligence, xp,
     kills, advancements, weapons, wargear, special_rules, effects, skills
@@ -589,7 +586,7 @@ const FighterCard = memo(function FighterCard({
                 <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden text-ellipsis whitespace-nowrap w-full print:text-muted-foreground fancy-print-keep-color-subtitle">
                   {type}
                   {alliance_crew_name && ` - ${alliance_crew_name}`}
-                  {(fighter_classes?.join(', ') || fighter_class) && ` (${fighter_classes?.join(', ') || fighter_class})`}
+                  {fighter_classes?.join(', ') && ` (${fighter_classes.join(', ')})`}
                   {fighter_sub_type && fighter_sub_type.fighter_sub_type ? `, ${fighter_sub_type.fighter_sub_type}` : ''}
                 </div>
               </div>

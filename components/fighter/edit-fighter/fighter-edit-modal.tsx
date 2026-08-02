@@ -23,9 +23,7 @@ interface FighterTypesData {
   displayTypes: Array<{
     id: string;
     fighter_type: string;
-    fighter_class: string;
-    fighter_classes?: string[];
-    fighter_class_id?: string;
+    fighter_classes: string[];
     special_rules?: string[];
     gang_type_id: string;
     total_cost: number;
@@ -63,9 +61,7 @@ interface EditFighterModalProps {
     label: string;
     kills: number;
     costAdjustment: string;
-    fighter_class?: string;
     fighter_classes?: string[];
-    fighter_class_id?: string;
     fighter_type?: string;
     fighter_type_id?: string | null;
     custom_fighter_type_id?: string | null;
@@ -104,8 +100,6 @@ export function EditFighterModal({
     kills: initialValues.kills,
     kill_count: initialValues.kill_count || 0,
     costAdjustment: initialValues.costAdjustment,
-    fighter_class: fighter.fighter_class || '',
-    fighter_class_id: (fighter as any).fighter_class_id || '',
     fighter_type: (fighter.fighter_type as any)?.fighter_type || fighter.fighter_type || '',
     fighter_type_id: (fighter.fighter_type as any)?.fighter_type_id || '',
     special_rules: Array.isArray(fighter.special_rules) ? fighter.special_rules : [], 
@@ -133,9 +127,7 @@ export function EditFighterModal({
   type FighterTypeEntry = {
     id: string;
     fighter_type: string;
-    fighter_class: string;
-    fighter_classes?: string[];
-    fighter_class_id?: string;
+    fighter_classes: string[];
     special_rules?: string[];
     gang_type_id: string;
     custom_gang_type_id?: string | null;
@@ -154,9 +146,7 @@ export function EditFighterModal({
     return fetchedFighterTypes.map((type: any) => ({
       id: type.id,
       fighter_type: type.fighter_type,
-      fighter_class: type.fighter_class,
-      fighter_classes: type.fighter_classes || (type.fighter_class ? [type.fighter_class] : []),
-      fighter_class_id: type.fighter_class_id,
+      fighter_classes: type.fighter_classes || [],
       special_rules: (type.special_rules || []).map(normalizeSpecialRule).filter(Boolean),
       gang_type_id: type.gang_type_id,
       custom_gang_type_id: type.custom_gang_type_id ?? null,
@@ -209,7 +199,7 @@ export function EditFighterModal({
   const [showSkillAccessModal, setShowSkillAccessModal] = useState(false);
 
   // State for fighter class selection
-  const [selectedFighterClassId, setSelectedFighterClassId] = useState<string>((fighter as any).fighter_class_id || '');
+  const [selectedFighterClassId, setSelectedFighterClassId] = useState<string>('');
 
   // State for archetype selection - initialize from fighter's saved archetype
   const [selectedArchetypeId, setSelectedArchetypeId] = useState<string>(fighter.selected_archetype_id || '');
@@ -230,10 +220,10 @@ export function EditFighterModal({
   const defaultFighterClassName = useMemo(() => {
     if (selectedFighterTypeId && fighterTypes.length > 0) {
       const selectedType = fighterTypes.find(ft => ft.id === selectedFighterTypeId);
-      if (selectedType) return selectedType.fighter_class;
+      if (selectedType) return selectedType.fighter_classes[0] || 'Unknown';
     }
-    return fighter.fighter_class || 'Unknown';
-  }, [selectedFighterTypeId, fighterTypes, fighter.fighter_class]);
+    return fighter.fighter_classes?.[0] || 'Unknown';
+  }, [selectedFighterTypeId, fighterTypes, fighter.fighter_classes]);
 
   // The effective fighter class: override if selected, otherwise default from type
   const effectiveFighterClass = useMemo(() => {
@@ -311,7 +301,7 @@ export function EditFighterModal({
   // Determine if this fighter can use archetypes (Outcasts gang + Leader/Champion class)
   const canUseArchetypes = isArchetypeEligible({
     gangTypeId,
-    fighterClass: effectiveFighterClass || formValues.fighter_class || fighter.fighter_class,
+    fighterClass: effectiveFighterClass || fighter.fighter_classes?.[0],
   });
 
   // Fetch archetypes using TanStack Query (only if eligible and modal is open)
@@ -338,9 +328,7 @@ export function EditFighterModal({
       kills: number;
       kill_count?: number;
       costAdjustment: string;
-      fighter_class?: string;
       fighter_classes?: string[];
-      fighter_class_id?: string;
       fighter_type?: string;
       fighter_type_id?: string | null;
       custom_fighter_type_id?: string | null;
@@ -358,9 +346,7 @@ export function EditFighterModal({
         kill_count: submit.kill_count,
         cost_adjustment: parseInt(submit.costAdjustment) || 0,
         special_rules: submit.special_rules,
-        fighter_class: submit.fighter_class,
         fighter_classes: submit.fighter_classes,
-        fighter_class_id: submit.fighter_class_id,
         fighter_type: submit.fighter_type,
         fighter_type_id: submit.fighter_type_id,
         custom_fighter_type_id: submit.custom_fighter_type_id,
@@ -406,7 +392,6 @@ export function EditFighterModal({
         kills: submit.kills,
         kill_count: submit.kill_count,
         cost_adjustment: parseInt(submit.costAdjustment) || 0,
-        ...(submit.fighter_class ? { fighter_class: submit.fighter_class } : {}),
         ...(submit.fighter_type && (submit.fighter_type_id || submit.custom_fighter_type_id)
           ? {
               fighter_type: { fighter_type: submit.fighter_type, fighter_type_id: submit.fighter_type_id ?? null, gang_type_id: (submit as any).gang_type_id ?? null, custom_gang_type_id: (submit as any).custom_gang_type_id ?? null } as any,
@@ -475,8 +460,9 @@ export function EditFighterModal({
     setSelectedGangLegacyId((fighter as any).fighter_gang_legacy_id || '');
     setSelectedArchetypeId(fighter.selected_archetype_id || '');
     setHasExplicitlySelectedType(false);
-    if ((fighter as any).fighter_class_id) {
-      setSelectedFighterClassId((fighter as any).fighter_class_id);
+    if (fighter.fighter_classes?.length && allFighterClasses) {
+      const classMatch = allFighterClasses.find(fc => fighter.fighter_classes.includes(fc.class_name));
+      if (classMatch) setSelectedFighterClassId(classMatch.id);
     }
   }
 
@@ -492,7 +478,7 @@ export function EditFighterModal({
 
     const allVariantsOfType = fighterTypes.filter(ft =>
       ft.fighter_type === currentType.fighter_type &&
-      ft.fighter_class === currentType.fighter_class
+      ft.fighter_classes[0] === currentType.fighter_classes[0]
     );
 
     let dropdownType = allVariantsOfType.find(ft =>
@@ -509,7 +495,7 @@ export function EditFighterModal({
 
     const fighterTypeGroup = fighterTypes.filter(t =>
       t.fighter_type === currentType.fighter_type &&
-      t.fighter_class === currentType.fighter_class
+      t.fighter_classes[0] === currentType.fighter_classes[0]
     );
 
     const subTypeOptions: Array<{ value: string; label: string; cost: number; fighterTypeId: string }> = [];
@@ -557,9 +543,7 @@ export function EditFighterModal({
       dropdownId,
       formUpdate: {
         fighter_type: currentType.fighter_type,
-        fighter_class: currentType.fighter_class,
-        fighter_classes: currentType.fighter_classes || (currentType.fighter_class ? [currentType.fighter_class] : []),
-        fighter_class_id: currentType.fighter_class_id,
+        fighter_classes: currentType.fighter_classes,
       },
       legacies: currentType.available_legacies || [],
       subTypeOptions,
@@ -603,18 +587,16 @@ export function EditFighterModal({
       setFormValues(prev => ({
         ...prev,
         fighter_type: selectedType.fighter_type,
-        fighter_class: selectedType.fighter_class,
-        fighter_classes: selectedType.fighter_classes || (selectedType.fighter_class ? [selectedType.fighter_class] : []),
-        fighter_class_id: selectedType.fighter_class_id
+        fighter_classes: selectedType.fighter_classes
       }));
 
       // Update available legacies for the selected fighter type
       setAvailableLegacies(selectedType.available_legacies || []);
 
-      // Get all fighters with the same fighter_type name and fighter_class to check for sub-types
-      const fighterTypeGroup = fighterTypes.filter(t => 
+      // Get all fighters with the same fighter_type name and fighter_classes to check for sub-types
+      const fighterTypeGroup = fighterTypes.filter(t =>
         t.fighter_type === selectedType.fighter_type &&
-        t.fighter_class === selectedType.fighter_class
+        t.fighter_classes[0] === selectedType.fighter_classes[0]
       );
       
       // If we have multiple entries with the same fighter_type + class, they represent different sub-types
@@ -848,16 +830,16 @@ export function EditFighterModal({
           
           // Get the actual fighter type and class values
           const currentFighterType = (fighter.fighter_type as any)?.fighter_type || fighter.fighter_type;
-          const currentFighterClass = (fighter.fighter_class as any)?.class_name || fighter.fighter_class;
-          
-          const availableFighterTypes = fighterTypes.filter(ft => 
-            ft.fighter_type === currentFighterType && ft.fighter_class === currentFighterClass
+          const currentFighterClasses = fighter.fighter_classes || [];
+
+          const availableFighterTypes = fighterTypes.filter(ft =>
+            ft.fighter_type === currentFighterType && ft.fighter_classes[0] === currentFighterClasses[0]
           );
-          
-          const fighterTypeWithSubType = fighterTypes.find(ft => 
+
+          const fighterTypeWithSubType = fighterTypes.find(ft =>
             ft.fighter_sub_type_id === selectedSubType!.id &&
             ft.fighter_type === currentFighterType &&
-            ft.fighter_class === currentFighterClass
+            ft.fighter_classes[0] === currentFighterClasses[0]
           );
           if (fighterTypeWithSubType) {
             fighterTypeToUse = fighterTypeWithSubType;
@@ -887,9 +869,7 @@ export function EditFighterModal({
 
       // Only include fighter type fields if we're actually updating the fighter type
       if (shouldUpdateFighterType && fighterTypeToUse) {
-        submitData.fighter_class = fighterTypeToUse.fighter_class;
-        submitData.fighter_classes = fighterTypeToUse.fighter_classes || (fighterTypeToUse.fighter_class ? [fighterTypeToUse.fighter_class] : []);
-        submitData.fighter_class_id = fighterTypeToUse.fighter_class_id;
+        submitData.fighter_classes = fighterTypeToUse.fighter_classes;
         submitData.fighter_type = fighterTypeToUse.fighter_type;
         if (fighterTypeToUse.is_custom_fighter) {
           // Custom type IDs live in custom_fighter_types, not fighter_types — must not write to fighter_type_id
@@ -915,15 +895,9 @@ export function EditFighterModal({
       if (selectedFighterClassId && allFighterClasses) {
         const selectedClass = allFighterClasses.find(fc => fc.id === selectedFighterClassId);
         if (selectedClass) {
-          submitData.fighter_class = selectedClass.class_name;
           submitData.fighter_classes = [selectedClass.class_name];
-          submitData.fighter_class_id = selectedClass.id;
         } else {
-          // Class ID set but not in allFighterClasses (e.g. promotion to Exotic Beast Specialist)
-          // Use the values from formValues which were set by the promotion modal
-          submitData.fighter_class = formValues.fighter_class;
-          submitData.fighter_classes = formValues.fighter_classes || (formValues.fighter_class ? [formValues.fighter_class] : []);
-          submitData.fighter_class_id = formValues.fighter_class_id;
+          submitData.fighter_classes = formValues.fighter_classes;
         }
       }
       
@@ -1053,7 +1027,7 @@ export function EditFighterModal({
                   const typeClassMap = new Map();
                   
                   fighterTypes.forEach(fighter => {
-                    const key = `${fighter.fighter_type}-${fighter.fighter_classes?.join(',') || fighter.fighter_class}`;
+                    const key = `${fighter.fighter_type}-${fighter.fighter_classes.join(',')}`;
                     
                     if (!typeClassMap.has(key)) {
                       typeClassMap.set(key, {
@@ -1091,8 +1065,8 @@ export function EditFighterModal({
                   // Convert the map values to an array and sort
                   return Array.from(typeClassMap.values())
                     .sort((a, b) => {
-                      const classRankA = fighterClassRank[(a.fighter.fighter_classes?.[0] || a.fighter.fighter_class || '').toLowerCase()] ?? Infinity;
-                      const classRankB = fighterClassRank[(b.fighter.fighter_classes?.[0] || b.fighter.fighter_class || '').toLowerCase()] ?? Infinity;
+                      const classRankA = fighterClassRank[(a.fighter.fighter_classes[0] || '').toLowerCase()] ?? Infinity;
+                      const classRankB = fighterClassRank[(b.fighter.fighter_classes[0] || '').toLowerCase()] ?? Infinity;
 
                       if (classRankA !== classRankB) {
                         return classRankA - classRankB;
@@ -1101,7 +1075,7 @@ export function EditFighterModal({
                       return a.cost - b.cost;
                     })
                     .map(({ fighter }) => {
-                      const displayName = `${fighter.fighter_type} (${fighter.fighter_classes?.join(', ') || fighter.fighter_class})`;
+                      const displayName = `${fighter.fighter_type} (${fighter.fighter_classes.join(', ')})`;
                       const gangVariantSuffix = (fighter as any).is_gang_variant ? ` - ${(fighter as any).gang_variant_name}` : '';
                       
                       
@@ -1119,9 +1093,7 @@ export function EditFighterModal({
                     ? (fighter as any).fighter_type.fighter_type 
                     : fighter.fighter_type}
                   {` `}
-                  {typeof fighter.fighter_class === 'object'
-                    ? `(${(fighter.fighter_class as any).class_name || 'Unknown Class'})`
-                    : `(${fighter.fighter_classes?.join(', ') || fighter.fighter_class || 'Unknown Class'})`}
+                  {`(${fighter.fighter_classes?.join(', ') || 'Unknown Class'})`}
                 </div>
               )}
             </div>
@@ -1174,13 +1146,13 @@ export function EditFighterModal({
               >
                 {allFighterClasses
                   ?.filter(fc => !['*', 'Others', 'Special Terrain'].includes(fc.class_name))
-                  ?.filter(fc => fc.class_name !== 'Exotic Beast Specialist' || fighter.fighter_classes?.includes('Exotic Beast') || fighter.fighter_class === 'Exotic Beast')
+                  ?.filter(fc => fc.class_name !== 'Exotic Beast Specialist' || fighter.fighter_classes?.includes('Exotic Beast'))
                   .map(fc => (
                     <option key={fc.id} value={fc.id}>{fc.class_name}</option>
                   ))}
               </select>
               <div className="mt-1 text-sm text-muted-foreground">
-                Current: {fighter.fighter_classes?.join(', ') || fighter.fighter_class || 'Unknown'}
+                Current: {fighter.fighter_classes?.join(', ') || 'Unknown'}
               </div>
             </div>
 

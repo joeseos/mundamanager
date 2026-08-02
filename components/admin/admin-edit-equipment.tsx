@@ -1525,8 +1525,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         const gangCompare = a.gang_type.localeCompare(b.gang_type);
                         if (gangCompare !== 0) return gangCompare;
                         // Then by fighter class priority
-                        const classCompare = (fighterClassRank[(a.fighter_classes?.[0] || a.fighter_class || '').toLowerCase() as keyof typeof fighterClassRank] || Infinity)
-                          - (fighterClassRank[(b.fighter_classes?.[0] || b.fighter_class || '').toLowerCase() as keyof typeof fighterClassRank] || Infinity);
+                        const classCompare = (fighterClassRank[(a.fighter_classes?.[0] || '').toLowerCase() as keyof typeof fighterClassRank] || Infinity)
+                          - (fighterClassRank[(b.fighter_classes?.[0] || '').toLowerCase() as keyof typeof fighterClassRank] || Infinity);
                         if (classCompare !== 0) return classCompare;
                         // Finally by fighter type name
                         return a.fighter_type.localeCompare(b.fighter_type);
@@ -1535,7 +1535,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         const subTypeText = ft.fighter_sub_types?.sub_type_name ? ` - ${ft.fighter_sub_types.sub_type_name}` : '';
                         return (
                           <option key={ft.id} value={ft.id}>
-                            {`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_classes?.join(', ') || ft.fighter_class})${subTypeText}`}
+                            {`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_classes?.join(', ')})${subTypeText}`}
                           </option>
                         );
                       })}
@@ -1551,7 +1551,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           key={ft.id}
                           className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                         >
-                          <span>{`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_classes?.join(', ') || ft.fighter_class})${ft.fighter_sub_types?.sub_type_name ? ` - ${ft.fighter_sub_types.sub_type_name}` : ''}`}</span>
+                          <span>{`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_classes?.join(', ')})${ft.fighter_sub_types?.sub_type_name ? ` - ${ft.fighter_sub_types.sub_type_name}` : ''}`}</span>
                           <button
                             type="button"
                             onClick={() => setSelectedFighterTypes(selectedFighterTypes.filter(id => id !== ft.id))}

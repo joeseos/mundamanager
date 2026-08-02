@@ -104,7 +104,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       // Get gang_id and status from fighter
       const { data: fighter, error: fighterError } = await supabase
         .from('fighters')
-        .select('gang_id, user_id, killed, retired, enslaved, captured, fighter_class, fighter_classes')
+        .select('gang_id, user_id, killed, retired, enslaved, captured, fighter_classes')
         .eq('id', equipmentData.fighter_id)
         .single();
 

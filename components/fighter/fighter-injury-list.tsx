@@ -55,8 +55,7 @@ interface InjuriesListProps {
   fighterCaptured?: boolean;
   fighterCapturedByGangId?: string | null;
   userPermissions: UserPermissions;
-  fighter_class?: string;
-  fighter_classes?: string[];
+  fighter_classes: string[];
   is_spyrer?: boolean;
   kill_count?: number;
   gangCredits?: number;
@@ -82,7 +81,6 @@ export function InjuriesList({
   fighterCaptured = false,
   fighterCapturedByGangId = null,
   userPermissions,
-  fighter_class,
   fighter_classes,
   is_spyrer = false,
   kill_count = 0,
@@ -571,7 +569,7 @@ export function InjuriesList({
   });
 
   // Helper function to format the range display
-  const isCrew = fighter_classes?.includes('Crew') ?? fighter_class === 'Crew';
+  const isCrew = fighter_classes.includes('Crew');
 
   const formatInjuryRange = (injuryName: string): string => {
     const range = is_spyrer

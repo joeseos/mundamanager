@@ -155,7 +155,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
     if (params.fighter_id) {
       const { data: fighter } = await supabase
         .from('fighters')
-        .select('killed, retired, enslaved, captured, fighter_class, fighter_classes')
+        .select('killed, retired, enslaved, captured, fighter_classes')
         .eq('id', params.fighter_id)
         .single();
       fighterIsActive = countsTowardRating(fighter);
