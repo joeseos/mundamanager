@@ -2,13 +2,16 @@
 export const EDITION_N23 = 'n23';
 
 /**
- * Editions from N26 onward have a Save (Sv) characteristic; N23 does not.
- * Gates on the legacy edition rather than a specific new one, so future
- * editions inherit modern behaviour without a code change.
- * An unknown/unset edition is treated as legacy.
+ * N23 is the one legacy ruleset; everything from N26 onward is "modern" and
+ * differs from it in the same ways — a Save (Sv) characteristic, fighters
+ * holding several classes at once, and so on.
+ *
+ * Gates on the legacy edition rather than on a specific new one, so future
+ * editions inherit modern behaviour without a code change. An unknown/unset
+ * edition is treated as legacy.
  */
-export function hasSaveCharacteristic(editionSlug?: string | null): boolean {
-  return !!editionSlug && editionSlug !== EDITION_N23;
+export function isLegacyEdition(editionSlug?: string | null): boolean {
+  return !editionSlug || editionSlug === EDITION_N23;
 }
 
 export interface Edition {

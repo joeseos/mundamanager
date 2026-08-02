@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { FighterDetailsStatsTable } from '../ui/fighter-details-stats-table';
-import { hasSaveCharacteristic } from '@/types/edition';
+import { isLegacyEdition } from '@/types/edition';
 import { memo } from 'react';
 import { calculateAdjustedStats } from '@/utils/effect-modifiers';
 import { FighterProps, FighterEffect, Vehicle } from '@/types/fighter';
@@ -399,7 +399,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       'W': modifiedStats.wounds,
       'I': `${modifiedStats.initiative}+`,
       'A': modifiedStats.attacks,
-      ...(hasSaveCharacteristic(edition_slug) && { 'Sv': modifiedStats.save != null ? `${modifiedStats.save}+` : '-' }),
+      ...(!isLegacyEdition(edition_slug) && { 'Sv': modifiedStats.save != null ? `${modifiedStats.save}+` : '-' }),
       'Ld': `${modifiedStats.leadership}+`,
       'Cl': `${modifiedStats.cool}+`,
       'Wil': `${modifiedStats.willpower}+`,
