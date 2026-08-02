@@ -84,6 +84,14 @@ INSERT INTO public.fighter_classes (id, class_name, slug, created_at) VALUES
 ('9e310c58-5276-4758-bc9f-be010ac69457', 'Bounty Hunter', 'bounty_hunter', now())
 ON CONFLICT (id) DO NOTHING;
 
+-- Migrations backfill existing classes onto n23, but that runs before this file,
+-- so rows seeded above would keep a NULL edition_id — invisible to every
+-- edition-scoped query and outside the (edition_id, class_name) unique index.
+-- Put them on the same edition the backfill uses.
+UPDATE public.fighter_classes
+SET edition_id = (SELECT id FROM public.editions WHERE slug = 'n23')
+WHERE edition_id IS NULL;
+
 -- Beast and Pet are N26 classes, so they are scoped to that edition rather than
 -- left edition-less: fighter_classes holds one row per class per edition. The
 -- edition id is resolved by slug because migrations seed it with a generated uuid.
