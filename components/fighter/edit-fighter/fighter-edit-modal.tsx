@@ -897,7 +897,7 @@ export function EditFighterModal({
         if (selectedClass) {
           submitData.fighter_classes = [selectedClass.class_name];
         } else {
-          submitData.fighter_classes = formValues.fighter_classes;
+          submitData.fighter_classes = fighter.fighter_classes;
         }
       }
       

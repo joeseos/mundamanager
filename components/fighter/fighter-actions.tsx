@@ -31,6 +31,7 @@ interface Fighter {
   base_credits?: number;
   base_copy_cost?: number;
   is_spyrer?: boolean;
+  fighter_classes?: string[];
   owner_name?: string;
   campaigns?: Array<{
     campaign_id: string;

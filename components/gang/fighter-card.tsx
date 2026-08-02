@@ -38,7 +38,6 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   name: string;  // maps to fighter_name
   type: string;  // maps to fighter_type
   label?: string;
-  fighter_classes?: string[];
   fighter_sub_type?: { fighter_sub_type: string; fighter_sub_type_id: string } | null;
   alliance_crew_name?: string;
   killed?: boolean;

@@ -257,7 +257,7 @@ export function buildFighterFromServerData(
     fighter_name: data.fighter_name,
     fighter_type_id: fighterTypeId,
     fighter_type: data.fighter_type,
-    fighter_classes: data.fighter_classes,
+    fighter_classes: data.fighter_classes ?? [],
     fighter_sub_type: data.fighter_sub_type_id ? {
       fighter_sub_type_id: data.fighter_sub_type_id,
       fighter_sub_type: subTypeName || ''
@@ -317,7 +317,7 @@ export function buildBeastFromServerData(beast: ExoticBeastServerData): FighterP
     id: beast.id,
     fighter_name: beast.fighter_name,
     fighter_type: beast.fighter_type,
-    fighter_classes: beast.fighter_classes,
+    fighter_classes: beast.fighter_classes ?? [],
     fighter_type_id: beast.fighter_type_id,
     credits: beast.credits,
     owner_name: beast.owner?.fighter_name,

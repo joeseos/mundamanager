@@ -1258,7 +1258,7 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
           causing_fighter_id: params.fighter_id,
           causing_fighter_name: fighter.fighter_name,
           causing_fighter_type: fighter.fighter_type,
-          causing_fighter_class: fighter.fighter_classes?.join(', ') ?? null,
+          causing_fighter_classes: fighter.fighter_classes ?? [],
           causing_gang_id: fighter.gang_id,
           causing_gang_name: (causingGang as any)?.name ?? null,
           campaign_id: params.campaign_id,

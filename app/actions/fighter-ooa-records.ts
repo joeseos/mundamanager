@@ -141,7 +141,7 @@ export async function insertFighterOoaRecords(
     causing_fighter_id: string;
     causing_fighter_name?: string | null;
     causing_fighter_type?: string | null;
-    causing_fighter_class?: string | null;
+    causing_fighter_classes?: string[] | null;
     causing_gang_id: string;
     causing_gang_name?: string | null;
     campaign_id?: string;
@@ -165,13 +165,13 @@ export async function insertFighterOoaRecords(
       causing_gang_id: params.causing_gang_id,
       causing_fighter_name: params.causing_fighter_name ?? null,
       causing_fighter_type: params.causing_fighter_type ?? null,
-      causing_fighter_class: params.causing_fighter_class ?? null,
+      causing_fighter_classes: params.causing_fighter_classes ?? [],
       causing_fighter_gang_name: params.causing_gang_name ?? null,
       injured_fighter_id: r.injured_fighter_id ?? null,
       injured_gang_id: snapshot?.injured_gang_id ?? null,
       injured_fighter_name: isUnknown ? 'Unknown' : (snapshot?.injured_fighter_name ?? null),
       injured_fighter_type: snapshot?.injured_fighter_type ?? null,
-      injured_fighter_class: snapshot?.injured_fighter_class ?? null,
+      injured_fighter_classes: snapshot?.injured_fighter_classes ?? [],
       injured_gang_name: snapshot?.injured_gang_name ?? null,
       event_type: r.event_type,
       vehicle_type: snapshot?.vehicle_type ?? null,
@@ -235,7 +235,7 @@ export async function createFighterOoaRecord(params: {
       causing_gang_id: causing.gang_id,
       causing_fighter_name: causing.fighter_name ?? null,
       causing_fighter_type: causing.fighter_type ?? null,
-      causing_fighter_class: causing.fighter_classes?.join(', ') ?? null,
+      causing_fighter_classes: causing.fighter_classes ?? [],
       causing_fighter_gang_name: (causingGang as any)?.name ?? null,
       event_type: params.event_type,
       campaign_id: params.campaign_id ?? null,
