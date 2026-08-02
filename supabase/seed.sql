@@ -78,7 +78,8 @@ INSERT INTO public.fighter_classes (id, class_name, created_at) VALUES
 ('fcd056a9-b219-48d8-ad61-e838091cc4da', 'Juve', now()),
 ('d11d15a8-07ea-4a5a-beae-35ddea16e544', 'Specialist', now()),
 ('bb723bee-883c-4e84-9136-be30ed195023', 'Exotic Beast', now()),
--- Required by get_fighter_types_with_cost, which INNER JOINs fighter_classes
+-- Reference list of valid class names; fighters/fighter_types store the names
+-- themselves in their fighter_classes JSONB array.
 ('9e310c58-5276-4758-bc9f-be010ac69457', 'Bounty Hunter', now())
 ON CONFLICT (id) DO NOTHING;
 

@@ -13,8 +13,6 @@ CREATE OR REPLACE FUNCTION get_fighter_types_with_cost(
 RETURNS TABLE (
     id uuid,
     fighter_type text,
-    fighter_class text,
-    fighter_class_id uuid,
     fighter_classes jsonb,
     gang_type text,
     cost numeric,
@@ -53,8 +51,6 @@ BEGIN
     SELECT
         ft.id,
         ft.fighter_type,
-        fc.class_name,
-        ft.fighter_class_id,
         ft.fighter_classes,
         ft.gang_type,
         -- Use adjusted_cost if available, otherwise use original cost
@@ -873,7 +869,6 @@ BEGIN
         ft.is_dramatis_personae,
         ed.slug AS edition_slug
     FROM fighter_types ft
-    JOIN fighter_classes fc ON fc.id = ft.fighter_class_id
     LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id
         AND ftgc.gang_type_id = p_gang_type_id
         AND (ftgc.gang_affiliation_id IS NULL OR ftgc.gang_affiliation_id = p_gang_affiliation_id)

@@ -101,7 +101,7 @@ BEGIN
       -- Check if fighter has enough XP based on the calculated cost
       CASE
         WHEN v_uses_flat_cost THEN v_fighter_xp >= 6
-        WHEN v_fighter_class IN ('Juve', 'Prospect') THEN v_fighter_xp >= etc.base_xp_cost
+        WHEN v_fighter_classes ?| array['Juve', 'Prospect'] THEN v_fighter_xp >= etc.base_xp_cost
         WHEN COALESCE(ac.times_increased, 0) = 0 THEN v_fighter_xp >= etc.base_xp_cost
         ELSE v_fighter_xp >= (etc.base_xp_cost + (2 * ac.times_increased))
       END as has_enough_xp
