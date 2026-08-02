@@ -914,6 +914,13 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         throw new Error('Missing required fields');
       }
 
+      // Nothing downstream rejects an empty array — the column defaults to '[]'
+      // and the API passes it straight through — so a classless fighter type
+      // would silently reach the SQL functions that branch on class name.
+      if (selectedFighterClasses.length === 0) {
+        throw new Error('Please select at least one fighter class');
+      }
+
       // Special handling for subTypeId and subTypeName
       let finalSubTypeId: string | null = null;
       let finalSubTypeName: string | null = null;
@@ -2346,7 +2353,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!selectedSubTypeId || isLoading}
+            disabled={!selectedSubTypeId || selectedFighterClasses.length === 0 || isLoading}
             className="px-4 py-2 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
           >
             {isLoading ? 'Updating...' : 'Update Fighter Type'}
