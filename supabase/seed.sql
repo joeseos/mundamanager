@@ -87,8 +87,8 @@ ON CONFLICT (id) DO NOTHING;
 -- Beast and Pet are N26 classes, so they are scoped to that edition rather than
 -- left edition-less: fighter_classes holds one row per class per edition. The
 -- edition id is resolved by slug because migrations seed it with a generated uuid.
-INSERT INTO public.fighter_classes (class_name, slug, standard_class, edition_id)
-SELECT v.class_name, v.slug, false, e.id
+INSERT INTO public.fighter_classes (class_name, slug, edition_id)
+SELECT v.class_name, v.slug, e.id
 FROM public.editions e
 CROSS JOIN (VALUES ('Beast', 'beast'), ('Pet', 'pet')) AS v(class_name, slug)
 WHERE e.slug = 'n26'

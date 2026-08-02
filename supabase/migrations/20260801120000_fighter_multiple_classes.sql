@@ -79,8 +79,10 @@ BEGIN
       'N26 edition not found; 20260730150000_add_fighter_save_stat_and_n26.sql must run first';
   END IF;
 
-  INSERT INTO public.fighter_classes (class_name, slug, standard_class, edition_id)
-  SELECT v.class_name, v.slug, false, v_edition_id
+  -- standard_class is deliberately not set: 20260402100000 drops the column, and
+  -- where it still exists it defaults to false. Omitting it works in both cases.
+  INSERT INTO public.fighter_classes (class_name, slug, edition_id)
+  SELECT v.class_name, v.slug, v_edition_id
   FROM (VALUES ('Beast', 'beast'), ('Pet', 'pet')) AS v(class_name, slug)
   WHERE NOT EXISTS (
     SELECT 1 FROM public.fighter_classes fc
