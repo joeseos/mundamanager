@@ -22,7 +22,7 @@ interface InjuredSnapshot {
   injured_gang_id: string | null;
   injured_fighter_name: string | null;
   injured_fighter_type: string | null;
-  injured_fighter_class: string | null;
+  injured_fighter_classes: string[];
   injured_gang_name: string | null;
   vehicle_type: string | null;
   vehicle_name: string | null;
@@ -33,7 +33,7 @@ const UNKNOWN_INJURED_SNAPSHOT: InjuredSnapshot = {
   injured_gang_id: null,
   injured_fighter_name: 'Unknown',
   injured_fighter_type: null,
-  injured_fighter_class: null,
+  injured_fighter_classes: [],
   injured_gang_name: null,
   vehicle_type: null,
   vehicle_name: null,
@@ -60,7 +60,7 @@ async function fetchInjuredSnapshotMap(
   const [{ data: fighters, error: fightersError }, { data: vehicles, error: vehiclesError }] = await Promise.all([
     supabase
       .from('fighters')
-      .select('id, fighter_name, fighter_type, fighter_class, gang_id, gangs!gang_id(id, name)')
+      .select('id, fighter_name, fighter_type, fighter_classes, gang_id, gangs!gang_id(id, name)')
       .in('id', ids),
     supabase
       .from('vehicles')
@@ -87,7 +87,7 @@ async function fetchInjuredSnapshotMap(
       injured_gang_id: f.gang_id ?? null,
       injured_fighter_name: f.fighter_name ?? null,
       injured_fighter_type: f.fighter_type ?? null,
-      injured_fighter_class: f.fighter_class ?? null,
+      injured_fighter_classes: f.fighter_classes || [],
       injured_gang_name: (gang as any)?.name ?? null,
       vehicle_type: vehicle?.vehicle_type ?? null,
       vehicle_name: vehicle?.vehicle_name ?? null,
@@ -141,7 +141,7 @@ export async function insertFighterOoaRecords(
     causing_fighter_id: string;
     causing_fighter_name?: string | null;
     causing_fighter_type?: string | null;
-    causing_fighter_class?: string | null;
+    causing_fighter_classes?: string[] | null;
     causing_gang_id: string;
     causing_gang_name?: string | null;
     campaign_id?: string;
@@ -165,13 +165,13 @@ export async function insertFighterOoaRecords(
       causing_gang_id: params.causing_gang_id,
       causing_fighter_name: params.causing_fighter_name ?? null,
       causing_fighter_type: params.causing_fighter_type ?? null,
-      causing_fighter_class: params.causing_fighter_class ?? null,
+      causing_fighter_classes: params.causing_fighter_classes ?? [],
       causing_fighter_gang_name: params.causing_gang_name ?? null,
       injured_fighter_id: r.injured_fighter_id ?? null,
       injured_gang_id: snapshot?.injured_gang_id ?? null,
       injured_fighter_name: isUnknown ? 'Unknown' : (snapshot?.injured_fighter_name ?? null),
       injured_fighter_type: snapshot?.injured_fighter_type ?? null,
-      injured_fighter_class: snapshot?.injured_fighter_class ?? null,
+      injured_fighter_classes: snapshot?.injured_fighter_classes ?? [],
       injured_gang_name: snapshot?.injured_gang_name ?? null,
       event_type: r.event_type,
       vehicle_type: snapshot?.vehicle_type ?? null,
@@ -215,7 +215,7 @@ export async function createFighterOoaRecord(params: {
 
     const { data: causing, error: causingError } = await supabase
       .from('fighters')
-      .select('id, fighter_name, fighter_type, fighter_class, gang_id, gangs!gang_id(name)')
+      .select('id, fighter_name, fighter_type, fighter_classes, gang_id, gangs!gang_id(name)')
       .eq('id', params.causing_fighter_id)
       .single();
 
@@ -235,7 +235,7 @@ export async function createFighterOoaRecord(params: {
       causing_gang_id: causing.gang_id,
       causing_fighter_name: causing.fighter_name ?? null,
       causing_fighter_type: causing.fighter_type ?? null,
-      causing_fighter_class: causing.fighter_class ?? null,
+      causing_fighter_classes: causing.fighter_classes ?? [],
       causing_fighter_gang_name: (causingGang as any)?.name ?? null,
       event_type: params.event_type,
       campaign_id: params.campaign_id ?? null,

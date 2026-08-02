@@ -29,7 +29,7 @@ interface CampaignGangApiResult {
     id: string;
     fighter_name: string;
     fighter_type: string | null;
-    fighter_class: string | null;
+    fighter_classes?: string[];
     gang_id: string;
   }>;
 }

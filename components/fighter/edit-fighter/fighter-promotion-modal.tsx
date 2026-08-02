@@ -19,7 +19,6 @@ const PROMOTION_MAP: Record<string, string> = {
   'Exotic Beast Specialist': 'Champion',
 };
 
-const EXOTIC_BEAST_SPECIALIST_CLASS_ID = '38598144-0f38-43c5-9a07-512106b9fc9e';
 const EXOTIC_BEAST_SPECIALIST_CLASS_NAME = 'Exotic Beast Specialist';
 
 const normalizeSpecialRule = (rule: string) => rule.replace(/^"|"$/g, '');
@@ -34,8 +33,8 @@ type PromotionFighterType = FighterPromotionModalProps['fighterTypes'][number];
 
 function sortPromotionFighterTypes(types: PromotionFighterType[]): PromotionFighterType[] {
   return [...types].sort((a, b) => {
-    const classRankA = fighterClassRank[a.fighter_class.toLowerCase()] ?? Infinity;
-    const classRankB = fighterClassRank[b.fighter_class.toLowerCase()] ?? Infinity;
+    const classRankA = fighterClassRank[(a.fighter_classes[0] || '').toLowerCase()] ?? Infinity;
+    const classRankB = fighterClassRank[(b.fighter_classes[0] || '').toLowerCase()] ?? Infinity;
     if (classRankA !== classRankB) return classRankA - classRankB;
 
     const typeCompare = a.fighter_type.localeCompare(b.fighter_type);
@@ -46,15 +45,14 @@ function sortPromotionFighterTypes(types: PromotionFighterType[]): PromotionFigh
 }
 
 function formatPromotionFighterTypeLabel(ft: PromotionFighterType): string {
-  const base = `${ft.fighter_type} (${ft.fighter_class})`;
+  const base = `${ft.fighter_type} (${ft.fighter_classes.join(', ')})`;
   return ft.sub_type?.sub_type_name ? `${base}, ${ft.sub_type.sub_type_name}` : base;
 }
 
 export type FighterPromotionResult = {
   fighter_type: string;
   fighter_type_id: string;
-  fighter_class: string;
-  fighter_class_id: string;
+  fighter_classes: string[];
   special_rules: string[];
   fighter_sub_type?: string | null;
   fighter_sub_type_id?: string | null;
@@ -71,6 +69,7 @@ function promotionSubTypeFields(
 
 interface FighterPromotionModalProps {
   currentClass: string;
+  currentClasses?: string[];
   currentSpecialRules: string[];
   currentFighterType?: string;
   currentFighterTypeId?: string;
@@ -78,9 +77,8 @@ interface FighterPromotionModalProps {
   fighterTypes: Array<{
     id: string;
     fighter_type: string;
-    fighter_class: string;
-    fighter_class_id?: string;
     special_rules?: string[];
+    fighter_classes: string[];
     total_cost: number;
     sub_type?: { id: string; sub_type_name: string } | null;
   }>;
@@ -93,6 +91,7 @@ interface FighterPromotionModalProps {
 
 export function FighterPromotionModal({
   currentClass,
+  currentClasses,
   currentSpecialRules,
   currentFighterType,
   currentFighterTypeId,
@@ -108,14 +107,14 @@ export function FighterPromotionModal({
   const [newRuleInput, setNewRuleInput] = useState('');
   const [includeAllGangFighterTypes, setIncludeAllGangFighterTypes] = useState(false);
 
-  const targetClass = PROMOTION_MAP[currentClass] || '';
-  const isExoticBeast = currentClass === 'Exotic Beast';
+  const targetClass = PROMOTION_MAP[currentClasses?.[0] || currentClass] || '';
+  const isExoticBeast = currentClasses?.includes('Exotic Beast') || currentClass === 'Exotic Beast';
 
   // Fighter types matching the standard promotion target class
   const eligibleTypes = useMemo(() => {
     if (isExoticBeast || !targetClass) return [];
     return sortPromotionFighterTypes(
-      fighterTypes.filter(ft => ft.fighter_class === targetClass)
+      fighterTypes.filter(ft => ft.fighter_classes.includes(targetClass))
     );
   }, [fighterTypes, targetClass, isExoticBeast]);
 
@@ -144,7 +143,7 @@ export function FighterPromotionModal({
         const isDifferentSubType =
           Boolean(resolvedCurrentSubTypeId) && optionSubTypeId !== resolvedCurrentSubTypeId;
         const isIneligibleForPromotion =
-          includeAllGangFighterTypes && Boolean(targetClass) && ft.fighter_class !== targetClass;
+          includeAllGangFighterTypes && Boolean(targetClass) && !ft.fighter_classes.includes(targetClass);
         const useMutedStyle = isDifferentSubType || isIneligibleForPromotion;
 
         return {
@@ -218,8 +217,7 @@ export function FighterPromotionModal({
       onPromoted({
         fighter_type: currentFighterType || '',
         fighter_type_id: currentFighterTypeId || '',
-        fighter_class: EXOTIC_BEAST_SPECIALIST_CLASS_NAME,
-        fighter_class_id: EXOTIC_BEAST_SPECIALIST_CLASS_ID,
+        fighter_classes: [EXOTIC_BEAST_SPECIALIST_CLASS_NAME],
         special_rules: newSpecialRules,
         ...promotionSubTypeFields(currentType),
       });
@@ -229,8 +227,7 @@ export function FighterPromotionModal({
     onPromoted({
       fighter_type: selectedType.fighter_type,
       fighter_type_id: selectedType.id,
-      fighter_class: selectedType.fighter_class,
-      fighter_class_id: selectedType.fighter_class_id || '',
+      fighter_classes: selectedType.fighter_classes,
       special_rules: newSpecialRules,
       ...promotionSubTypeFields(selectedType),
     });

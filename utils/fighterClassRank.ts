@@ -9,4 +9,6 @@ export const fighterClassRank: { [key: string]: number } = {
   "exotic beast": 8,
   "brute": 9,
   "exotic beast specialist": 10,
+  "beast": 11,
+  "pet": 12,
 };

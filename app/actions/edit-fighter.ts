@@ -111,8 +111,7 @@ export interface UpdateFighterDetailsParams {
   kill_count?: number;
   cost_adjustment?: number;
   special_rules?: string[];
-  fighter_class?: string;
-  fighter_class_id?: string;
+  fighter_classes?: string[];
   fighter_type?: string;
   fighter_type_id?: string | null;
   custom_fighter_type_id?: string | null;
@@ -1190,7 +1189,7 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
     // Get fighter data (RLS will handle permissions)
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, xp, kills, kill_count, fighter_name, fighter_type, fighter_class, fighter_type_id, fighter_types(is_spyrer), gangs!gang_id(name)')
+      .select('id, gang_id, xp, kills, kill_count, fighter_name, fighter_type, fighter_classes, fighter_type_id, fighter_types(is_spyrer), gangs!gang_id(name)')
       .eq('id', params.fighter_id)
       .single();
 
@@ -1259,7 +1258,7 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
           causing_fighter_id: params.fighter_id,
           causing_fighter_name: fighter.fighter_name,
           causing_fighter_type: fighter.fighter_type,
-          causing_fighter_class: fighter.fighter_class,
+          causing_fighter_classes: fighter.fighter_classes ?? [],
           causing_gang_id: fighter.gang_id,
           causing_gang_name: (causingGang as any)?.name ?? null,
           campaign_id: params.campaign_id,
@@ -1331,8 +1330,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (params.kill_count !== undefined) updateData.kill_count = params.kill_count;
     if (params.cost_adjustment !== undefined) updateData.cost_adjustment = params.cost_adjustment;
     if (params.special_rules !== undefined) updateData.special_rules = params.special_rules;
-    if (params.fighter_class !== undefined) updateData.fighter_class = params.fighter_class;
-    if (params.fighter_class_id !== undefined) updateData.fighter_class_id = params.fighter_class_id;
+    if (params.fighter_classes !== undefined) updateData.fighter_classes = params.fighter_classes;
     if (params.fighter_type !== undefined) updateData.fighter_type = params.fighter_type;
     if (params.fighter_type_id !== undefined) updateData.fighter_type_id = params.fighter_type_id;
     if (params.custom_fighter_type_id !== undefined) updateData.custom_fighter_type_id = params.custom_fighter_type_id;

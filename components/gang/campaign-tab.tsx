@@ -24,10 +24,11 @@ function getClassRank(fighterClass: string) {
 }
 
 function breakdownRowKey(
-  fighter: { fighter_name: string; fighter_type: string; fighter_class: string },
+  fighter: { fighter_name: string; fighter_type: string; fighter_classes?: string[] },
   index: number,
 ) {
-  return `${fighter.fighter_name}-${fighter.fighter_type}-${fighter.fighter_class}-${index}`;
+  const classKey = fighter.fighter_classes?.join(',') || '';
+  return `${fighter.fighter_name}-${fighter.fighter_type}-${classKey}-${index}`;
 }
 
 interface Territory {
@@ -335,8 +336,8 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
       return response.json() as Promise<{
         ooa_caused: number;
         deaths_suffered: number;
-        ooa_breakdown?: Array<{ fighter_name: string; fighter_type: string; fighter_class: string; kills: number }>;
-        deaths_breakdown?: Array<{ fighter_name: string; fighter_type: string; fighter_class: string }>;
+        ooa_breakdown?: Array<{ fighter_name: string; fighter_type: string; fighter_classes?: string[]; kills: number }>;
+        deaths_breakdown?: Array<{ fighter_name: string; fighter_type: string; fighter_classes?: string[] }>;
       }>;
     },
     staleTime: 5 * 60 * 1000,
@@ -349,14 +350,14 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
   const ooaBreakdown = useMemo(() => {
     const breakdown = fighterStats?.ooa_breakdown ?? [];
     return [...breakdown].sort(
-      (a, b) => getClassRank(a.fighter_class) - getClassRank(b.fighter_class)
+      (a, b) => getClassRank(a.fighter_classes?.[0] || '') - getClassRank(b.fighter_classes?.[0] || '')
     );
   }, [fighterStats?.ooa_breakdown]);
 
   const deathsBreakdown = useMemo(() => {
     const breakdown = fighterStats?.deaths_breakdown ?? [];
     return [...breakdown].sort(
-      (a, b) => getClassRank(a.fighter_class) - getClassRank(b.fighter_class)
+      (a, b) => getClassRank(a.fighter_classes?.[0] || '') - getClassRank(b.fighter_classes?.[0] || '')
     );
   }, [fighterStats?.deaths_breakdown]);
 
@@ -818,7 +819,7 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
               {ooaBreakdown.map((fighter, index) => (
                 <div key={breakdownRowKey(fighter, index)} className="flex justify-between gap-3">
                   <span className="flex-1 truncate text-left">
-                    {fighter.fighter_name} - {fighter.fighter_type} ({fighter.fighter_class})
+                    {fighter.fighter_name} - {fighter.fighter_type} ({fighter.fighter_classes?.join(', ')})
                   </span>
                   <span className="shrink-0 text-right">{fighter.kills}</span>
                 </div>
@@ -851,7 +852,7 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
               {deathsBreakdown.map((fighter, index) => (
                 <div key={breakdownRowKey(fighter, index)} className="flex justify-between gap-3">
                   <span className="flex-1 truncate text-left">
-                    {fighter.fighter_name} - {fighter.fighter_type} ({fighter.fighter_class})
+                    {fighter.fighter_name} - {fighter.fighter_type} ({fighter.fighter_classes?.join(', ')})
                   </span>
                   <span className="shrink-0 text-right">1</span>
                 </div>

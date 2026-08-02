@@ -156,7 +156,7 @@ export async function GET(request: Request) {
     const gangIds = gangs.map(g => g.id);
     const { data: fighters, error: fightersError } = await supabase
       .from('fighters')
-      .select('id, fighter_name, fighter_type, fighter_class, gang_id')
+      .select('id, fighter_name, fighter_type, fighter_classes, gang_id')
       .in('gang_id', gangIds)
       .order('fighter_name', { ascending: true });
 
@@ -168,14 +168,14 @@ export async function GET(request: Request) {
       );
     }
 
-    const fightersByGang = new Map<string, Array<{ id: string; fighter_name: string; fighter_type: string | null; fighter_class: string | null; gang_id: string }>>();
+    const fightersByGang = new Map<string, Array<{ id: string; fighter_name: string; fighter_type: string | null; fighter_classes: string[] | null; gang_id: string }>>();
     (fighters || []).forEach((f: any) => {
       if (!fightersByGang.has(f.gang_id)) fightersByGang.set(f.gang_id, []);
       fightersByGang.get(f.gang_id)!.push({
         id: f.id,
         fighter_name: f.fighter_name,
         fighter_type: f.fighter_type ?? null,
-        fighter_class: f.fighter_class ?? null,
+        fighter_classes: f.fighter_classes ?? null,
         gang_id: f.gang_id,
       });
     });

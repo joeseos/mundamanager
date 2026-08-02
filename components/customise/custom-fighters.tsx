@@ -159,8 +159,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         intelligence: newFighterData.intelligence,
         special_rules: newFighterData.special_rules,
         free_skill: newFighterData.free_skill,
-        fighter_class: newFighterData.fighter_class,
-        fighter_class_id: newFighterData.fighter_class_id,
+        fighter_classes: newFighterData.fighter_classes,
         description: newFighterData.description,
         skill_access: newFighterData.skill_access,
         created_at: new Date().toISOString(),
@@ -273,8 +272,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         intelligence: data.intelligence,
         special_rules: data.special_rules,
         free_skill: data.free_skill,
-        fighter_class: data.fighter_class,
-        fighter_class_id: data.fighter_class_id,
+        fighter_classes: data.fighter_classes,
         description: data.description,
         skill_access: data.skill_access,
         updated_at: new Date().toISOString(),
@@ -391,7 +389,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     setPrevEditClassKey(editClassKey);
     if (editModalData && fighterClasses.length > 0 && !selectedFighterClass) {
       const fighterClass = fighterClasses.find(fc =>
-        fc.id === editModalData.fighter_class_id || fc.class_name === editModalData.fighter_class
+        editModalData.fighter_classes?.includes(fc.class_name)
       );
       if (fighterClass) {
         setSelectedFighterClass(fighterClass);
@@ -407,7 +405,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       width: '40%'
     },
     {
-      key: 'fighter_class',
+      key: 'fighter_classes',
       label: 'Class',
       align: 'left',
       width: '20%',
@@ -870,8 +868,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         gang_type: copyModalData.gang_type || '',
         gang_type_id: copyModalData.custom_gang_type_id ? undefined : (copyModalData.gang_type_id || ''),
         custom_gang_type_id: copyModalData.custom_gang_type_id || undefined,
-        fighter_class: copyModalData.fighter_class || '',
-        fighter_class_id: copyModalData.fighter_class_id || '',
+        fighter_classes: copyModalData.fighter_classes || [],
         skill_access: copyModalData.skill_access || [],
         default_skills: copyModalData.default_skills?.map(skill => skill.skill_id) || [],
         default_equipment: copyModalData.default_equipment?.map(eq => eq.equipment_id) || [],
@@ -938,8 +935,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       gang_type_id: isCustomGangType ? undefined : selectedGangType,
       custom_gang_type_id: isCustomGangType ? selectedGangType : undefined,
       gang_type: selectedGang?.gang_type || '',
-      fighter_class: selectedFighterClass.class_name,
-      fighter_class_id: selectedFighterClass.id,
+      fighter_classes: [selectedFighterClass.class_name],
       movement: isCrew ? 0 : (movement ? parseInt(movement) : undefined),
       weapon_skill: isCrew ? 0 : (weaponSkill ? parseInt(weaponSkill) : undefined),
       ballistic_skill: ballisticSkill ? parseInt(ballisticSkill) : undefined,
@@ -1933,7 +1929,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                   Fighter Class
                 </label>
                 <div className="w-full p-2 border rounded-md bg-muted">
-                  {viewModalData.fighter_class}
+                  {viewModalData.fighter_classes?.join(', ')}
                 </div>
               </div>
             </div>

@@ -31,8 +31,8 @@ interface Fighter {
   base_credits?: number;
   base_copy_cost?: number;
   is_spyrer?: boolean;
+  fighter_classes?: string[];
   owner_name?: string;
-  fighter_class?: string;
   campaigns?: Array<{
     campaign_id: string;
     resources?: Array<{ resource_name: string }>;
@@ -167,7 +167,7 @@ export function FighterActions({
     ) ?? false;
   }, [fighter.campaigns]);
 
-  const isOwnedExoticBeast = fighter?.fighter_class === 'Exotic Beast' && !!fighter?.owner_name;
+  const isOwnedExoticBeast = fighter?.fighter_classes?.includes('Exotic Beast') && !!fighter?.owner_name;
 
   // Calculate total vehicle equipment cost
   const vehicleEquipmentCost = useMemo(() => {

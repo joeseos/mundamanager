@@ -1794,14 +1794,14 @@ function AddAvailabilityRuleModal({
 type PricingRuleFighterType = {
   id: string;
   fighter_type: string;
-  fighter_class?: string;
+  fighter_classes: string[];
   gang_type?: string;
   gang_type_id?: string;
   sub_type?: { id?: string; sub_type_name?: string } | null;
 };
 
 function getPricingRuleFighterTypeClassKey(ft: PricingRuleFighterType): string {
-  return `${ft.fighter_type}-${ft.fighter_class || 'Unknown'}`;
+  return `${ft.fighter_type}-${ft.fighter_classes.join(',') || 'Unknown'}`;
 }
 
 function buildMultiProfileKeys(fighterTypes: PricingRuleFighterType[]): Set<string> {
@@ -1821,7 +1821,7 @@ function formatPricingRuleFighterTypeLabel(
   ft: PricingRuleFighterType,
   multiProfileKeys: Set<string>
 ): string {
-  const fighterClass = ft.fighter_class || 'Unknown';
+  const fighterClass = ft.fighter_classes.join(', ') || 'Unknown';
   const base = `${ft.fighter_type} (${fighterClass})`;
   if (!multiProfileKeys.has(getPricingRuleFighterTypeClassKey(ft))) return base;
   if (!ft.sub_type?.sub_type_name) return base;

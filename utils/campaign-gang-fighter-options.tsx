@@ -15,11 +15,12 @@ export function buildFighterComboboxOption(fighter: {
   id: string;
   fighter_name?: string | null;
   fighter_type?: string | null;
-  fighter_class?: string | null;
+  fighter_classes?: string[];
 }): CampaignFighterComboboxOption {
   const displayName = fighter.fighter_name || 'Unnamed';
   const typePart = fighter.fighter_type?.trim() || '';
-  const classPart = fighter.fighter_class?.trim() ? `(${fighter.fighter_class.trim()})` : '';
+  const classDisplay = fighter.fighter_classes?.join(', ') || '';
+  const classPart = classDisplay ? `(${classDisplay})` : '';
   const details = [typePart, classPart].filter(Boolean).join(' ');
   const detailsSuffix = details ? ` \u2022 ${details}` : '';
 
@@ -49,7 +50,7 @@ export function useCampaignGangFighterOptions(campaignGangs: CampaignGangWithFig
       const gang = campaignGangs.find((g) => g.gang_id === selectedGangId);
       if (!gang) return [];
       return gang.fighters
-        .filter((f) => !crewOnly || f.fighter_class === 'Crew')
+        .filter((f) => !crewOnly || f.fighter_classes?.includes('Crew'))
         .map((f) => buildFighterComboboxOption(f));
     };
   }, [campaignGangs]);
