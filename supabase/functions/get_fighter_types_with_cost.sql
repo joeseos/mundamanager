@@ -13,12 +13,6 @@ CREATE OR REPLACE FUNCTION get_fighter_types_with_cost(
 RETURNS TABLE (
     id uuid,
     fighter_type text,
-    -- Legacy single-value columns, kept so the previous frontend build keeps
-    -- working while this RPC is deployed ahead of the app. Derived from
-    -- fighter_classes rather than the old join; dropped in the follow-up that
-    -- drops the underlying columns.
-    fighter_class text,
-    fighter_class_id uuid,
     fighter_classes jsonb,
     gang_type text,
     cost numeric,
@@ -57,11 +51,6 @@ BEGIN
     SELECT
         ft.id,
         ft.fighter_type,
-        -- COALESCE to '' so the previous build's unguarded
-        -- fighter_class.toLowerCase() cannot throw on a row with an empty
-        -- fighter_classes array (such rows were hidden by the old INNER JOIN).
-        COALESCE(ft.fighter_classes->>0, '') AS fighter_class,
-        ft.fighter_class_id,
         ft.fighter_classes,
         ft.gang_type,
         -- Use adjusted_cost if available, otherwise use original cost

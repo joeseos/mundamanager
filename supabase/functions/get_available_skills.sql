@@ -145,7 +145,6 @@ BEGIN
     )
     SELECT jsonb_build_object(
         'fighter_id', get_available_skills.fighter_id,
-        'fighter_class', v_fighter_classes->>0,
         'fighter_classes', v_fighter_classes,
         'skills', COALESCE(
             jsonb_agg(
@@ -153,7 +152,6 @@ BEGIN
                     'skill_id', a.skill_id,
                     'skill_name', a.skill_name,
                     'is_custom', a.is_custom,
-                    'fighter_class', v_fighter_classes->>0,
                     'skill_type_id', a.skill_type_id,
                     'skill_type_name', a.skill_type_name,
                     'effective_access_level', a.effective_access_level,
