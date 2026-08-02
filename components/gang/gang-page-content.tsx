@@ -41,6 +41,7 @@ interface GangDataState {
     gang_type_id?: string | null;
     custom_gang_type_id?: string | null;
     gang_type: string;
+    edition_slug?: string | null;
     gang_type_image_url: string;
     image_url?: string;
     default_gang_image?: number | null;
@@ -48,6 +49,7 @@ interface GangDataState {
     gang_colour: string;
     credits: number;
     reputation: number;
+    trade_points: number;
     rating: number;
     wealth: number;
     alignment: string;

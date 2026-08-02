@@ -15,8 +15,10 @@ export interface GangBasic {
   name: string;
   gang_type: string;
   gang_type_id: string;
+  edition_slug?: string | null;
   gang_colour: string;
   reputation: number;
+  trade_points: number;
   alignment: string;
   note?: string;
   note_backstory?: string;
@@ -46,9 +48,17 @@ export interface GangBasic {
     gang_origin_categories?: {
       category_name: string;
     } | null;
+    editions?: {
+      slug: string;
+    } | null;
   } | null;
   custom_gang_type_id?: string | null;
   custom_gang_types?: null;
+  custom_gang_type_edition?: {
+    editions?: {
+      slug: string;
+    } | null;
+  } | null;
   image_url?: string;
   default_gang_image?: number | null;
   hidden: boolean;
@@ -187,6 +197,7 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
           gang_type_id,
           gang_colour,
           reputation,
+          trade_points,
           alignment,
           note,
           note_backstory,
@@ -215,9 +226,17 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
             gang_origin_category_id,
             gang_origin_categories!gang_origin_category_id (
               category_name
+            ),
+            editions:edition_id (
+              slug
             )
           ),
           custom_gang_type_id,
+          custom_gang_type_edition:custom_gang_types!custom_gang_type_id (
+            editions:edition_id (
+              slug
+            )
+          ),
           image_url,
           default_gang_image,
           hidden
@@ -230,7 +249,16 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
         if (error.code === '22P02') return null;
         throw error;
       }
-      return data ?? null;
+      if (!data) return null;
+
+      // Flatten the edition slug from whichever gang type applies (official or
+      // custom) so consumers can gate edition-specific resources like Trade Points.
+      const edition_slug =
+        data.gang_types?.editions?.slug ??
+        data.custom_gang_type_edition?.editions?.slug ??
+        null;
+
+      return { ...data, edition_slug };
     },
     [`gang-basic-${gangId}`],
     {
