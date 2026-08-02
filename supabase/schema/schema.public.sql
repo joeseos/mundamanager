@@ -798,13 +798,13 @@ BEGIN
   INSERT INTO public.custom_fighter_types (id, created_at, user_id, fighter_type, gang_type, cost, movement,
                                            weapon_skill, ballistic_skill, strength, toughness, wounds, initiative,
                                            attacks, leadership, cool, willpower, intelligence, gang_type_id,
-                                           special_rules, free_skill, fighter_class, fighter_class_id,
-                                           custom_gang_type_id, description)
+                                           special_rules, free_skill,
+                                           fighter_classes, custom_gang_type_id, description)
   SELECT (v_map_ft ->> cft.id::text)::uuid, now(), v_user, cft.fighter_type, cft.gang_type, cft.cost, cft.movement,
          cft.weapon_skill, cft.ballistic_skill, cft.strength, cft.toughness, cft.wounds, cft.initiative,
          cft.attacks, cft.leadership, cft.cool, cft.willpower, cft.intelligence, cft.gang_type_id,
-         cft.special_rules, cft.free_skill, cft.fighter_class, cft.fighter_class_id,
-         (v_map_gt ->> cft.custom_gang_type_id::text)::uuid, cft.description
+         cft.special_rules, cft.free_skill,
+         cft.fighter_classes, (v_map_gt ->> cft.custom_gang_type_id::text)::uuid, cft.description
   FROM public.custom_fighter_types cft WHERE cft.id = ANY(v_ft);
 
   INSERT INTO public.fighter_type_skill_access (id, fighter_type_id, skill_type_id, access_level,
@@ -1627,16 +1627,16 @@ CREATE FUNCTION public.get_available_skills(fighter_id uuid) RETURNS jsonb
     AS $$
 DECLARE
     v_result jsonb;
-    v_fighter_class text;
+    v_fighter_classes jsonb;
     v_gang_origin_id uuid;
     v_gang_id uuid;
     v_fighter_type_id uuid;
     v_custom_fighter_type_id uuid;
     v_origin_skill_type_id uuid;
 BEGIN
-    -- Get fighter class, gang origin ID, gang ID, fighter type IDs, and verify fighter exists
-    SELECT f.fighter_class, g.gang_origin_id, f.gang_id, f.fighter_type_id, f.custom_fighter_type_id
-    INTO v_fighter_class, v_gang_origin_id, v_gang_id, v_fighter_type_id, v_custom_fighter_type_id
+    -- Get fighter classes, gang origin ID, gang ID, fighter type IDs, and verify fighter exists
+    SELECT f.fighter_classes, g.gang_origin_id, f.gang_id, f.fighter_type_id, f.custom_fighter_type_id
+    INTO v_fighter_classes, v_gang_origin_id, v_gang_id, v_fighter_type_id, v_custom_fighter_type_id
     FROM fighters f
     JOIN gangs g ON g.id = f.gang_id
     WHERE f.id = get_available_skills.fighter_id;
@@ -1764,14 +1764,15 @@ BEGIN
     )
     SELECT jsonb_build_object(
         'fighter_id', get_available_skills.fighter_id,
-        'fighter_class', v_fighter_class,
+        'fighter_class', v_fighter_classes->>0,
+        'fighter_classes', v_fighter_classes,
         'skills', COALESCE(
             jsonb_agg(
                 jsonb_build_object(
                     'skill_id', a.skill_id,
                     'skill_name', a.skill_name,
                     'is_custom', a.is_custom,
-                    'fighter_class', v_fighter_class,
+                    'fighter_class', v_fighter_classes->>0,
                     'skill_type_id', a.skill_type_id,
                     'skill_type_name', a.skill_type_name,
                     'effective_access_level', a.effective_access_level,
@@ -1795,7 +1796,7 @@ BEGIN
                                 )
                             )
                         -- Regular skill costs
-                        WHEN v_fighter_class IN ('Leader', 'Champion', 'Juve', 'Specialist', 'Crew', 'Prospect', 'Brute', 'Exotic Beast Specialist')
+                        WHEN v_fighter_classes ?| array['Leader', 'Champion', 'Juve', 'Specialist', 'Crew', 'Prospect', 'Brute', 'Exotic Beast Specialist']
                         THEN jsonb_build_array(
                             jsonb_build_object(
                                 'type_id', 'primary_selected',
@@ -2442,12 +2443,12 @@ DECLARE
   v_result jsonb;
   v_fighter_xp integer;
   v_advancements_category_id UUID;
-  v_fighter_class text;
+  v_fighter_classes jsonb;
   v_uses_flat_cost boolean; -- Flag for fighters that use flat costs (Ganger and Exotic Beast)
 BEGIN
-  -- Get fighter's current XP and fighter class
-  SELECT f.xp, f.fighter_class
-  INTO v_fighter_xp, v_fighter_class
+  -- Get fighter's current XP and fighter classes
+  SELECT f.xp, f.fighter_classes
+  INTO v_fighter_xp, v_fighter_classes
   FROM fighters f
   WHERE f.id = get_fighter_available_advancements.fighter_id;
 
@@ -2458,7 +2459,7 @@ BEGIN
   -- Determine if the fighter uses flat costs based on fighter_class
   -- Only Gangers and Exotic Beasts use flat costs
   v_uses_flat_cost :=
-    v_fighter_class IN ('Ganger', 'Exotic Beast');
+    v_fighter_classes ?| array['Ganger', 'Exotic Beast'];
   
   -- Get the advancements category ID
   SELECT id INTO v_advancements_category_id
@@ -2503,7 +2504,7 @@ BEGIN
         -- For Gangers and Exotic Beasts: fixed 6 XP cost
         WHEN v_uses_flat_cost THEN 6
         -- For Juves and Prospects: base cost only (no escalating penalty)
-        WHEN v_fighter_class IN ('Juve', 'Prospect') THEN etc.base_xp_cost
+        WHEN v_fighter_classes ?| array['Juve', 'Prospect'] THEN etc.base_xp_cost
         -- For other fighters: base cost + (2 * times increased)
         WHEN COALESCE(ac.times_increased, 0) = 0 THEN etc.base_xp_cost
         ELSE etc.base_xp_cost + (2 * ac.times_increased)
@@ -2533,7 +2534,7 @@ BEGIN
       -- Check if fighter has enough XP based on the calculated cost
       CASE
         WHEN v_uses_flat_cost THEN v_fighter_xp >= 6
-        WHEN v_fighter_class IN ('Juve', 'Prospect') THEN v_fighter_xp >= etc.base_xp_cost
+        WHEN v_fighter_classes ?| array['Juve', 'Prospect'] THEN v_fighter_xp >= etc.base_xp_cost
         WHEN COALESCE(ac.times_increased, 0) = 0 THEN v_fighter_xp >= etc.base_xp_cost
         ELSE v_fighter_xp >= (etc.base_xp_cost + (2 * ac.times_increased))
       END as has_enough_xp
@@ -2560,7 +2561,8 @@ BEGIN
   SELECT jsonb_build_object(
     'fighter_id', get_fighter_available_advancements.fighter_id,
     'current_xp', v_fighter_xp,
-    'fighter_class', v_fighter_class,
+    'fighter_class', v_fighter_classes->>0,
+    'fighter_classes', v_fighter_classes,
     'uses_flat_cost', v_uses_flat_cost,
     -- Ganger/Exotic Beast: Specialist table row (random Primary skill) — same flat costs as other ganger advances
     'ganger_to_specialist_advancement', CASE WHEN v_uses_flat_cost THEN jsonb_build_object(
@@ -2587,7 +2589,7 @@ $$;
 -- Name: get_fighter_types_with_cost(uuid, uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_fighter_types_with_cost(p_gang_type_id uuid DEFAULT NULL::uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid, p_is_gang_addition boolean DEFAULT NULL::boolean) RETURNS TABLE(id uuid, fighter_type text, fighter_class text, fighter_class_id uuid, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, save numeric, limitation numeric, alignment public.alignment, is_gang_addition boolean, alliance_id uuid, alliance_crew_name text, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, sub_type jsonb, available_legacies jsonb, free_skill boolean, delegation_cost numeric, is_dramatis_personae boolean, edition_slug text)
+CREATE FUNCTION public.get_fighter_types_with_cost(p_gang_type_id uuid DEFAULT NULL::uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid, p_is_gang_addition boolean DEFAULT NULL::boolean) RETURNS TABLE(id uuid, fighter_type text, fighter_class text, fighter_class_id uuid, fighter_classes jsonb, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, save numeric, limitation numeric, alignment public.alignment, is_gang_addition boolean, alliance_id uuid, alliance_crew_name text, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, sub_type jsonb, available_legacies jsonb, free_skill boolean, delegation_cost numeric, is_dramatis_personae boolean, edition_slug text)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -2596,8 +2598,12 @@ BEGIN
     SELECT
         ft.id,
         ft.fighter_type,
-        fc.class_name,
+        -- COALESCE to '' so the previous build's unguarded
+        -- fighter_class.toLowerCase() cannot throw on a row with an empty
+        -- fighter_classes array (such rows were hidden by the old INNER JOIN).
+        COALESCE(ft.fighter_classes->>0, '') AS fighter_class,
         ft.fighter_class_id,
+        ft.fighter_classes,
         ft.gang_type,
         -- Use adjusted_cost if available, otherwise use original cost
         COALESCE(ftgc.adjusted_cost, ft.cost) as cost,
@@ -3415,7 +3421,6 @@ BEGIN
         ft.is_dramatis_personae,
         ed.slug AS edition_slug
     FROM fighter_types ft
-    JOIN fighter_classes fc ON fc.id = ft.fighter_class_id
     LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id
         AND ftgc.gang_type_id = p_gang_type_id
         AND (ftgc.gang_affiliation_id IS NULL OR ftgc.gang_affiliation_id = p_gang_affiliation_id)
@@ -3470,6 +3475,7 @@ BEGIN
            f.fighter_type,
            f.fighter_type_id,
            f.fighter_class,
+           f.fighter_classes,
            f.fighter_sub_type_id,
            f.xp,
            f.kills,
@@ -4001,6 +4007,7 @@ BEGIN
            f.fighter_type,
            f.fighter_type_id,
            f.fighter_class,
+           f.fighter_classes,
            json_build_object(
              'fighter_sub_type', fst.sub_type_name,
              'fighter_sub_type_id', fst.id
@@ -4147,6 +4154,7 @@ BEGIN
                'label', cf.label,
                'fighter_type', cf.fighter_type,
                'fighter_class', cf.fighter_class,
+               'fighter_classes', cf.fighter_classes,
                'fighter_sub_type', cf.fighter_sub_type,
                'alliance_crew_name', cf.alliance_crew_name,
                'position', cf.position,
@@ -5054,7 +5062,8 @@ CREATE TABLE public.custom_fighter_types (
     custom_gang_type_id uuid,
     description text,
     edition_id uuid,
-    save numeric
+    save numeric,
+    fighter_classes jsonb DEFAULT '[]'::jsonb NOT NULL
 );
 
 
@@ -5396,7 +5405,7 @@ CREATE TABLE public.fighter_classes (
 -- Name: TABLE fighter_classes; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.fighter_classes IS 'Fighter roles (Leader, Champion, Ganger, ...). The new edition rulebook calls these "Subtypes"; the display label is resolved per edition in app code. NOT related to fighter_sub_types. One row per class per edition, joined across editions on slug.';
+COMMENT ON TABLE public.fighter_classes IS 'Fighter roles (Leader, Champion, Ganger, ...). The new edition rulebook calls these "Subtypes"; the display label is resolved per edition in app code. NOT related to fighter_sub_types. One row per class per edition, matched across editions on class_name.';
 
 
 --
@@ -5663,6 +5672,8 @@ CREATE TABLE public.fighter_ooa_records (
     user_id uuid DEFAULT auth.uid(),
     injured_fighter_type text,
     causing_fighter_type text,
+    causing_fighter_classes jsonb DEFAULT '[]'::jsonb NOT NULL,
+    injured_fighter_classes jsonb DEFAULT '[]'::jsonb NOT NULL,
     CONSTRAINT fighter_ooa_records_event_type_check CHECK ((event_type = ANY (ARRAY['out_of_action'::text, 'vehicle_wrecked'::text])))
 );
 
@@ -5829,7 +5840,8 @@ CREATE TABLE public.fighter_types (
     delegation_cost numeric,
     is_dramatis_personae boolean DEFAULT false NOT NULL,
     edition_id uuid,
-    save numeric
+    save numeric,
+    fighter_classes jsonb DEFAULT '[]'::jsonb NOT NULL
 );
 
 
@@ -5896,6 +5908,7 @@ CREATE TABLE public.fighters (
     selected_archetype_id uuid,
     captured_by_gang_id uuid,
     save numeric,
+    fighter_classes jsonb DEFAULT '[]'::jsonb NOT NULL,
     CONSTRAINT fighters_label_check CHECK ((length(label) <= 5))
 );
 
@@ -6095,6 +6108,7 @@ CREATE TABLE public.gangs (
     custom_gang_type_id uuid,
     note_private text,
     note_private_updated_at timestamp with time zone,
+    trade_points numeric DEFAULT 0 NOT NULL,
     CONSTRAINT chk_gang_type_exclusive CHECK ((num_nonnulls(gang_type_id, custom_gang_type_id) = 1))
 );
 
@@ -6104,6 +6118,13 @@ CREATE TABLE public.gangs (
 --
 
 COMMENT ON COLUMN public.gangs.default_gang_image IS 'Default Gang Image the user selected';
+
+
+--
+-- Name: COLUMN gangs.trade_points; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gangs.trade_points IS 'N26 Trade Points resource. Only surfaced/edited for gangs whose gang type uses edition n26.';
 
 
 --
@@ -7321,6 +7342,13 @@ CREATE INDEX campaign_battles_campaign_territory_id_idx ON public.campaign_battl
 
 
 --
+-- Name: campaign_gangs_invited_by_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_gangs_invited_by_idx ON public.campaign_gangs USING btree (invited_by);
+
+
+--
 -- Name: campaign_map_objects_campaign_map_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7398,6 +7426,13 @@ CREATE INDEX custom_fighter_types_edition_id_idx ON public.custom_fighter_types 
 
 
 --
+-- Name: custom_fighter_types_user_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_fighter_types_user_id_idx ON public.custom_fighter_types USING btree (user_id);
+
+
+--
 -- Name: custom_gang_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7430,6 +7465,13 @@ CREATE INDEX custom_skill_types_edition_id_idx ON public.custom_skill_types USIN
 --
 
 CREATE INDEX custom_trading_posts_edition_id_idx ON public.custom_trading_posts USING btree (edition_id);
+
+
+--
+-- Name: custom_weapon_profiles_user_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_weapon_profiles_user_id_idx ON public.custom_weapon_profiles USING btree (user_id);
 
 
 --
@@ -7524,6 +7566,13 @@ CREATE INDEX fighter_classes_class_name_idx ON public.fighter_classes USING btre
 
 
 --
+-- Name: fighter_classes_edition_class_name_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX fighter_classes_edition_class_name_idx ON public.fighter_classes USING btree (edition_id, class_name) WHERE (edition_id IS NOT NULL);
+
+
+--
 -- Name: fighter_classes_edition_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7542,6 +7591,13 @@ CREATE UNIQUE INDEX fighter_classes_edition_slug_idx ON public.fighter_classes U
 --
 
 CREATE INDEX fighter_defaults_fighter_type_id_idx ON public.fighter_defaults USING btree (fighter_type_id);
+
+
+--
+-- Name: fighter_effect_modifiers_user_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_effect_modifiers_user_id_idx ON public.fighter_effect_modifiers USING btree (user_id);
 
 
 --
