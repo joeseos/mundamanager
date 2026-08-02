@@ -16,6 +16,7 @@ export interface FighterStats {
   cool: number;
   willpower: number;
   intelligence: number;
+  save?: number | null;
 }
 
 /**
@@ -70,7 +71,8 @@ export function createStats(stats: FighterStats): FighterStats {
     leadership: stats.leadership,
     cool: stats.cool,
     willpower: stats.willpower,
-    intelligence: stats.intelligence
+    intelligence: stats.intelligence,
+    save: stats.save ?? null
   };
 }
 
@@ -140,6 +142,7 @@ export interface ExoticBeastServerData {
   cool: number;
   willpower: number;
   intelligence: number;
+  save?: number | null;
   xp: number;
   kills: number;
   equipment: Array<{
@@ -272,6 +275,7 @@ export function buildFighterFromServerData(
     cool: data.base_stats.cool,
     willpower: data.base_stats.willpower,
     intelligence: data.base_stats.intelligence,
+    save: data.base_stats.save ?? null,
     xp: data.stats.xp,
     kills: 0,
     weapons: buildWeaponsFromEquipment(data.equipment),
@@ -305,7 +309,8 @@ export function buildBeastFromServerData(beast: ExoticBeastServerData): FighterP
     leadership: beast.leadership,
     cool: beast.cool,
     willpower: beast.willpower,
-    intelligence: beast.intelligence
+    intelligence: beast.intelligence,
+    save: beast.save ?? null
   };
 
   return {
@@ -328,6 +333,7 @@ export function buildBeastFromServerData(beast: ExoticBeastServerData): FighterP
     cool: stats.cool,
     willpower: stats.willpower,
     intelligence: stats.intelligence,
+    save: stats.save ?? null,
     xp: beast.xp,
     kills: beast.kills,
     weapons: buildWeaponsFromEquipment(beast.equipment),

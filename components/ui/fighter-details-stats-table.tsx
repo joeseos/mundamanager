@@ -19,7 +19,7 @@ export function FighterDetailsStatsTable({ data, isCrew }: FighterDetailsStatsTa
   // Define the order of stats based on fighter type
   const statOrder = isCrew
     ? ['M', 'Front', 'Side', 'Rear', 'HP', 'Hnd', 'Sv', 'BS', 'Ld', 'Cl', 'Wil', 'Int', 'XP']
-    : ['M', 'WS', 'BS', 'S', 'T', 'W', 'I', 'A', 'Ld', 'Cl', 'Wil', 'Int', 'XP'];
+    : ['M', 'WS', 'BS', 'S', 'T', 'W', 'I', 'A', 'Sv', 'Ld', 'Cl', 'Wil', 'Int', 'XP'];
 
   const specialBackgroundStats = isCrew
     ? ['BS', 'Ld', 'Cl', 'Wil', 'Int']

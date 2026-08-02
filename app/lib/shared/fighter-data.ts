@@ -29,6 +29,7 @@ export interface FighterBasic {
   cool: number;
   willpower: number;
   intelligence: number;
+  save?: number | null;
   xp: number;
   special_rules?: string[];
   fighter_classes: string[];
@@ -147,6 +148,7 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
           cool,
           willpower,
           intelligence,
+          save,
           xp,
           special_rules,
           fighter_classes,
@@ -1185,6 +1187,8 @@ export const getFighterTypeInfo = async (fighterTypeId: string | null, supabase:
   alliance_crew_name?: string;
   is_spyrer?: boolean;
   gang_type_id?: string | null;
+  edition_id?: string | null;
+  editions?: { slug: string } | null;
 } | null> => {
   if (!fighterTypeId) return null;
 
@@ -1192,7 +1196,7 @@ export const getFighterTypeInfo = async (fighterTypeId: string | null, supabase:
     async () => {
       const { data, error } = await supabase
         .from('fighter_types')
-        .select('id, fighter_type, alliance_crew_name, is_spyrer, gang_type_id')
+        .select('id, fighter_type, alliance_crew_name, is_spyrer, gang_type_id, edition_id, editions:edition_id (slug)')
         .eq('id', fighterTypeId)
         .single();
 

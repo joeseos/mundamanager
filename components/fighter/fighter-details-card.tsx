@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { FighterDetailsStatsTable } from '../ui/fighter-details-stats-table';
+import { hasSaveCharacteristic } from '@/types/edition';
 import { memo } from 'react';
 import { calculateAdjustedStats } from '@/utils/effect-modifiers';
 import { FighterProps, FighterEffect, Vehicle } from '@/types/fighter';
@@ -47,6 +48,8 @@ interface FighterDetailsCardProps {
   cool: number;
   willpower: number;
   intelligence: number;
+  save?: number | null;
+  edition_slug?: string | null;
   xp: number;
   total_xp?: number;
   advancements?: {
@@ -236,6 +239,8 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   cool,
   willpower,
   intelligence,
+  save,
+  edition_slug,
   xp,
   advancements,
   onAddXp,
@@ -286,6 +291,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
     cool,
     willpower,
     intelligence,
+    save,
     xp: xp ?? 0,
     kills,
     advancements: {
@@ -340,7 +346,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   }), [
     id, name, type, sub_type, credits, movement, weapon_skill, ballistic_skill,
     strength, toughness, wounds, initiative, attacks, leadership,
-    cool, willpower, intelligence, xp, kills, advancements, effects,
+    cool, willpower, intelligence, save, xp, kills, advancements, effects,
     fighter_classes
   ]);
   const canShowEditButtons = userPermissions.canEdit;
@@ -393,13 +399,14 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       'W': modifiedStats.wounds,
       'I': `${modifiedStats.initiative}+`,
       'A': modifiedStats.attacks,
+      ...(hasSaveCharacteristic(edition_slug) && { 'Sv': modifiedStats.save != null ? `${modifiedStats.save}+` : '-' }),
       'Ld': `${modifiedStats.leadership}+`,
       'Cl': `${modifiedStats.cool}+`,
       'Wil': `${modifiedStats.willpower}+`,
       'Int': `${modifiedStats.intelligence}+`,
       'XP': xp ?? 0
     })
-  }), [isCrew, vehicleStats, vehicles, modifiedStats, xp]);
+  }), [isCrew, vehicleStats, vehicles, modifiedStats, xp, edition_slug]);
 
   return (
     <div className="relative">

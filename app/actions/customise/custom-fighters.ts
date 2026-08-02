@@ -26,6 +26,7 @@ export interface CreateCustomFighterData {
   cool?: number;
   willpower?: number;
   intelligence?: number;
+  save?: number | null;
   special_rules: string[];
   free_skill: boolean;
   fighter_classes: string[];
@@ -188,6 +189,7 @@ export async function createCustomFighter(data: CreateCustomFighterData): Promis
         cool: data.cool,
         willpower: data.willpower,
         intelligence: data.intelligence,
+        save: data.save ?? null,
         special_rules: data.special_rules,
         free_skill: data.free_skill,
         fighter_classes: data.fighter_classes,
@@ -397,6 +399,7 @@ export async function updateCustomFighter(id: string, data: CreateCustomFighterD
         cool: data.cool,
         willpower: data.willpower,
         intelligence: data.intelligence,
+        save: data.save ?? null,
         special_rules: data.special_rules,
         free_skill: data.free_skill,
         fighter_classes: data.fighter_classes,

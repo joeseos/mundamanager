@@ -140,6 +140,8 @@ export interface GangFighter {
   cool: number;
   willpower: number;
   intelligence: number;
+  save?: number | null;
+  edition_slug?: string | null;
   weapons: WeaponProps[];
   wargear: WargearItem[];
   effects: Record<string, any[]>;
@@ -941,6 +943,7 @@ export const getGangFightersList = async (
           cool,
           willpower,
           intelligence,
+          save,
           xp,
           special_rules,
           fighter_classes,
@@ -972,7 +975,11 @@ export const getGangFightersList = async (
             fighter_type,
             alliance_crew_name,
             cost,
-            is_spyrer
+            is_spyrer,
+            edition_id,
+            editions:edition_id (
+              slug
+            )
           ),
           fighter_sub_types!fighter_sub_type_id (
             id,
@@ -1970,6 +1977,8 @@ export const getGangFightersList = async (
           cool: fighter.cool,
           willpower: fighter.willpower,
           intelligence: fighter.intelligence,
+          save: fighter.save ?? null,
+          edition_slug: fighterTypeInfo.editions?.slug ?? null,
           weapons,
           wargear,
           effects,

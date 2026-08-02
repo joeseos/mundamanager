@@ -37,13 +37,13 @@ interface Effect {
  * Handles unparseable values ("-", "N/A", null) gracefully via null semantics
  */
 function applyNumericModifiers(
-  baseValue: number | string,
+  baseValue: number | string | null | undefined,
   modifiers: EffectModifier[],
   options: {
     parseStrings?: boolean;  // true for weapons (can be "6+"), false for fighter stats
     addSuffix?: string;      // '+' for ammo field
   } = {}
-): number | string {
+): number | string | null | undefined {
   // =============================================
   // STEP 1: Parse base value (with safe defaults)
   // =============================================
@@ -139,7 +139,8 @@ export function calculateAdjustedStats(fighter: FighterProps) {
     leadership: fighter.leadership,
     cool: fighter.cool,
     willpower: fighter.willpower,
-    intelligence: fighter.intelligence
+    intelligence: fighter.intelligence,
+    save: fighter.save  // N26 only; null for pre-N26 fighters
   };
 
   if (fighter.effects) {
@@ -161,7 +162,11 @@ export function calculateAdjustedStats(fighter: FighterProps) {
               'leadership': 'leadership',
               'cool': 'cool',
               'willpower': 'willpower',
-              'intelligence': 'intelligence'
+              'intelligence': 'intelligence',
+              // N26 armour etc. grants/improves a save. Use operation 'set' to grant
+              // one (a null base is overridden cleanly); 'add' against a null save
+              // resolves to the addend alone, which the 2+..6+ range check flags.
+              'save': 'save'
             };
 
             const statKey = statMapping[statName];

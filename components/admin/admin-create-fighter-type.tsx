@@ -8,7 +8,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from 'sonner';
 import { HiX } from "react-icons/hi";
 import { GangType, Equipment } from "@/types/gang";
-import { EditionSelect } from '@/components/edition-select';
+import { EditionSelect, useEditions } from '@/components/edition-select';
+import { hasSaveCharacteristic } from '@/types/edition';
 import { skillSetRank } from "@/utils/skillSetRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 
@@ -66,6 +67,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   const [willpower, setWillpower] = useState('');
   const [intelligence, setIntelligence] = useState('');
   const [attacks, setAttacks] = useState('');
+  const [save, setSave] = useState('');
   const [specialSkills, setSpecialSkills] = useState('');
   const [freeSkill, setFreeSkill] = useState(false);
   const [isGangAddition, setIsGangAddition] = useState(false);
@@ -101,6 +103,9 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
 
   // The fighter type's edition is implied by its gang type (derived server-side);
   // the edition select only filters the gang type options
+  const { data: editions = [] } = useEditions();
+  const showSave = hasSaveCharacteristic(editions.find(edition => edition.id === editionId)?.slug);
+
   const filteredGangTypes = editionId
     ? gangTypes.filter(type => type.edition_id === editionId)
     : gangTypes;
@@ -249,6 +254,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         willpower: willpower ? parseInt(willpower) : null,
         intelligence: intelligence ? parseInt(intelligence) : null,
         attacks: attacks ? parseInt(attacks) : null,
+        save: showSave && save ? parseInt(save) : null,
         special_rules: specialSkills.split(',').map(skill => skill.trim()).filter(Boolean),
         free_skill: freeSkill,
         is_gang_addition: isGangAddition,
@@ -536,6 +542,20 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                   className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
               </div>
+
+              {showSave && (
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
+                    Sv
+                  </label>
+                  <Input
+                    type="text"
+                    value={save}
+                    onChange={(e) => setSave(e.target.value)}
+                    className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1">

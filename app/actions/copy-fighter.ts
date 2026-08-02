@@ -274,6 +274,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       cool: sourceFighter.cool,
       willpower: sourceFighter.willpower,
       intelligence: sourceFighter.intelligence,
+      save: sourceFighter.save ?? null,
 
       xp: params.copy_as_experienced ? sourceFighter.xp : 0,
       total_xp: params.copy_as_experienced ? sourceFighter.total_xp : 0,
@@ -695,6 +696,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
             cool: beastFighter.cool,
             willpower: beastFighter.willpower,
             intelligence: beastFighter.intelligence,
+            save: beastFighter.save ?? null,
             xp: params.copy_as_experienced ? beastFighter.xp : 0,
             total_xp: params.copy_as_experienced ? beastFighter.total_xp : 0,
             kills: params.copy_as_experienced ? beastFighter.kills : 0,

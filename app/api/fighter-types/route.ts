@@ -73,6 +73,8 @@ function transformCustomFighter(cf: any) {
     willpower: cf.willpower,
     intelligence: cf.intelligence,
     attacks: cf.attacks,
+    save: cf.save ?? null,
+    edition_slug: null, // custom fighters get edition support with the customise edition selector
     limitation: null,
     alignment: null,
     default_equipment: [],

@@ -74,6 +74,8 @@ function mapFighterType(type: any): FighterType {
     willpower: type.willpower,
     intelligence: type.intelligence,
     attacks: type.attacks,
+    save: type.save ?? null,
+    edition_slug: type.edition_slug ?? null,
     limitation: type.limitation,
     alignment: type.alignment,
     default_equipment: type.default_equipment || [],
@@ -333,6 +335,7 @@ export default function FighterAddModal({
       cool: selectedType?.cool || 0,
       willpower: selectedType?.willpower || 0,
       intelligence: selectedType?.intelligence || 0,
+      save: selectedType?.save ?? null,
     });
 
     return {
@@ -347,6 +350,7 @@ export default function FighterAddModal({
       } : undefined,
       credits: displayCost,
       ...stats,
+      edition_slug: selectedType?.edition_slug ?? null,
       xp: 0,
       kills: 0,
       weapons: optimisticWeapons,
@@ -412,11 +416,14 @@ export default function FighterAddModal({
       const data = result.data;
 
       const selectedType = fighterTypes.find(t => t.id === variables.fighter_type_id);
-      const realFighter = buildFighterFromServerData(
-        data as AddFighterServerData,
-        variables.fighter_type_id,
-        selectedType?.sub_type?.sub_type_name
-      );
+      const realFighter = {
+        ...buildFighterFromServerData(
+          data as AddFighterServerData,
+          variables.fighter_type_id,
+          selectedType?.sub_type?.sub_type_name
+        ),
+        edition_slug: selectedType?.edition_slug ?? null
+      };
 
       if (context.tempFighterId && onFighterReconcile) {
         onFighterReconcile(context.tempFighterId, realFighter);
