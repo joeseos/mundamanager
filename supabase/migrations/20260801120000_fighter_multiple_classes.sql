@@ -1,5 +1,8 @@
--- Migration: Add fighter_classes JSONB column to support multiple classes per fighter
--- Phase 1: Adds new column alongside existing fighter_class/fighter_class_id for rollback safety
+-- Migration: Add fighter_classes JSONB columns to support multiple classes per fighter
+-- Phase 1: Adds new columns alongside the existing single-value columns for rollback
+-- safety. Code reads and writes only the new columns. The old columns
+-- (fighter_class, fighter_class_id, causing_fighter_class, injured_fighter_class)
+-- are NOT dropped yet — they will be removed in a follow-up migration after testing.
 
 -- 1. Add fighter_classes JSONB column to three tables
 ALTER TABLE public.fighter_types
@@ -41,7 +44,25 @@ INSERT INTO public.fighter_classes (class_name, slug, standard_class)
 SELECT 'Pet', 'pet', false
 WHERE NOT EXISTS (SELECT 1 FROM public.fighter_classes WHERE slug = 'pet');
 
--- 4. SQL functions are NOT updated here.
+-- 4. Add fighter_classes JSONB columns to fighter_ooa_records (class snapshots
+-- recorded at the time a fighter went out of action)
+ALTER TABLE public.fighter_ooa_records
+  ADD COLUMN IF NOT EXISTS causing_fighter_classes jsonb NOT NULL DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS injured_fighter_classes jsonb NOT NULL DEFAULT '[]'::jsonb;
+
+UPDATE public.fighter_ooa_records
+SET causing_fighter_classes = jsonb_build_array(causing_fighter_class)
+WHERE causing_fighter_class IS NOT NULL
+  AND causing_fighter_class != ''
+  AND causing_fighter_classes = '[]'::jsonb;
+
+UPDATE public.fighter_ooa_records
+SET injured_fighter_classes = jsonb_build_array(injured_fighter_class)
+WHERE injured_fighter_class IS NOT NULL
+  AND injured_fighter_class != ''
+  AND injured_fighter_classes = '[]'::jsonb;
+
+-- 5. SQL functions are NOT updated here.
 -- The following RPCs read fighter_classes and are maintained in supabase/functions/,
 -- to be applied manually:
 --   get_available_skills
