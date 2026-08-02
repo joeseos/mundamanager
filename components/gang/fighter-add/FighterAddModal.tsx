@@ -177,10 +177,17 @@ export default function FighterAddModal({
     fighterClass: currentFighterType?.fighter_classes?.[0],
   });
 
+  // Scope the class lookup to the fighter type's edition: class_name is only
+  // unique within an edition, so an unscoped fetch could resolve the wrong
+  // fighter_class_id once a class exists in more than one edition.
+  const currentEditionSlug = currentFighterType?.edition_slug ?? null;
+
   const { data: allFighterClasses } = useQuery<Array<{ id: string; class_name: string }>>({
-    queryKey: ['fighter-classes'],
+    queryKey: ['fighter-classes', currentEditionSlug],
     queryFn: async () => {
-      const response = await fetch('/api/fighter-classes');
+      const params = new URLSearchParams();
+      if (currentEditionSlug) params.set('edition_slug', currentEditionSlug);
+      const response = await fetch(`/api/fighter-classes?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch fighter classes');
       return response.json();
     },

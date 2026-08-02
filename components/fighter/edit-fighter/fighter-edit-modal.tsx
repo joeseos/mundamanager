@@ -204,11 +204,16 @@ export function EditFighterModal({
   // State for archetype selection - initialize from fighter's saved archetype
   const [selectedArchetypeId, setSelectedArchetypeId] = useState<string>(fighter.selected_archetype_id || '');
 
-  // Fetch all fighter classes for the class dropdown
+  // Fetch fighter classes for the class dropdown, scoped to the fighter's
+  // edition: class_name is only unique within an edition, so an unscoped fetch
+  // could resolve the wrong fighter_class_id (used for the archetype lookup)
+  // once a class exists in more than one edition.
   const { data: allFighterClasses } = useQuery<Array<{ id: string; class_name: string }>>({
-    queryKey: ['fighter-classes'],
+    queryKey: ['fighter-classes', fighter.edition_slug ?? null],
     queryFn: async () => {
-      const response = await fetch('/api/fighter-classes');
+      const params = new URLSearchParams();
+      if (fighter.edition_slug) params.set('edition_slug', fighter.edition_slug);
+      const response = await fetch(`/api/fighter-classes?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch fighter classes');
       return response.json();
     },
