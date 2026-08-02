@@ -64,14 +64,30 @@ FROM public.fighter_classes fc
 WHERE fc.id = cft.fighter_class_id
   AND cft.fighter_classes = '[]'::jsonb;
 
--- 3. Seed new fighter classes (Beast, Pet) for the new edition
-INSERT INTO public.fighter_classes (class_name, slug, standard_class)
-SELECT 'Beast', 'beast', false
-WHERE NOT EXISTS (SELECT 1 FROM public.fighter_classes WHERE slug = 'beast');
+-- 3. Seed the new fighter classes (Beast, Pet) against the N26 edition.
+-- fighter_classes holds one row per class per edition, joined across editions
+-- on slug, so these must be edition-scoped rather than NULL. The edition id is
+-- resolved by slug because 20260730150000 seeds N26 with a generated uuid.
+DO $$
+DECLARE
+  v_edition_id uuid;
+BEGIN
+  SELECT id INTO v_edition_id FROM public.editions WHERE slug = 'n26';
 
-INSERT INTO public.fighter_classes (class_name, slug, standard_class)
-SELECT 'Pet', 'pet', false
-WHERE NOT EXISTS (SELECT 1 FROM public.fighter_classes WHERE slug = 'pet');
+  IF v_edition_id IS NULL THEN
+    RAISE EXCEPTION
+      'N26 edition not found; 20260730150000_add_fighter_save_stat_and_n26.sql must run first';
+  END IF;
+
+  INSERT INTO public.fighter_classes (class_name, slug, standard_class, edition_id)
+  SELECT v.class_name, v.slug, false, v_edition_id
+  FROM (VALUES ('Beast', 'beast'), ('Pet', 'pet')) AS v(class_name, slug)
+  WHERE NOT EXISTS (
+    SELECT 1 FROM public.fighter_classes fc
+    WHERE fc.slug = v.slug
+      AND fc.edition_id = v_edition_id
+  );
+END $$;
 
 -- 4. Add fighter_classes JSONB columns to fighter_ooa_records (class snapshots
 -- recorded at the time a fighter went out of action)
