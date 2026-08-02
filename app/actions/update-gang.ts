@@ -7,33 +7,7 @@ import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { logGangResourceChanges } from './logs/gang-resource-logs';
 import { hasTradePoints } from '@/types/edition';
-
-/**
- * Resolve a gang's edition slug via its gang type (official or custom).
- * Used to gate edition-specific resources like Trade Points on the server.
- */
-async function getGangEditionSlug(
-  supabase: any,
-  gang: { gang_type_id?: string | null; custom_gang_type_id?: string | null }
-): Promise<string | null> {
-  if (gang.custom_gang_type_id) {
-    const { data } = await supabase
-      .from('custom_gang_types')
-      .select('editions:edition_id ( slug )')
-      .eq('id', gang.custom_gang_type_id)
-      .maybeSingle();
-    return data?.editions?.slug ?? null;
-  }
-  if (gang.gang_type_id) {
-    const { data } = await supabase
-      .from('gang_types')
-      .select('editions:edition_id ( slug )')
-      .eq('gang_type_id', gang.gang_type_id)
-      .maybeSingle();
-    return data?.editions?.slug ?? null;
-  }
-  return null;
-}
+import { fetchGangEditionSlug } from '@/utils/gang-edition';
 
 interface UpdateGangParams {
   gang_id: string;
@@ -183,7 +157,7 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     // even if a client sends the field.
     let tradePointsChanged = false;
     if (params.trade_points !== undefined && params.trade_points_operation) {
-      const editionSlug = await getGangEditionSlug(supabase, gang);
+      const editionSlug = await fetchGangEditionSlug(supabase, gang);
       if (!hasTradePoints(editionSlug)) {
         throw new Error('Trade Points is not available for this gang edition');
       }
