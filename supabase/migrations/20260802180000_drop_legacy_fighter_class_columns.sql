@@ -28,10 +28,14 @@ BEGIN
       SELECT 1 FROM information_schema.columns
       WHERE table_schema = 'public' AND table_name = t AND column_name = 'fighter_class'
     ) THEN
+      -- NULLIF mirrors 20260801120000's backfill, which treated an empty string
+      -- as "no class". Without it a row holding '' would block the drop forever:
+      -- the guard would flag it, but re-running that backfill skips '' too, so
+      -- there would be no way to clear it.
       EXECUTE format(
         'SELECT count(*) FROM public.%I
           WHERE fighter_classes = ''[]''::jsonb
-            AND (fighter_class IS NOT NULL OR fighter_class_id IS NOT NULL)', t
+            AND (NULLIF(fighter_class, '''') IS NOT NULL OR fighter_class_id IS NOT NULL)', t
       ) INTO v_n;
 
       IF v_n > 0 THEN
@@ -49,8 +53,8 @@ BEGIN
   ) THEN
     EXECUTE
       'SELECT count(*) FROM public.fighter_ooa_records
-        WHERE (causing_fighter_classes = ''[]''::jsonb AND causing_fighter_class IS NOT NULL)
-           OR (injured_fighter_classes = ''[]''::jsonb AND injured_fighter_class IS NOT NULL)'
+        WHERE (causing_fighter_classes = ''[]''::jsonb AND NULLIF(causing_fighter_class, '''') IS NOT NULL)
+           OR (injured_fighter_classes = ''[]''::jsonb AND NULLIF(injured_fighter_class, '''') IS NOT NULL)'
       INTO v_n;
 
     IF v_n > 0 THEN
@@ -70,7 +74,26 @@ END $$;
 -- supabase/functions/, has no callers (get_fighter_types_with_cost supersedes
 -- it), and INNER JOINs fighter_classes on ft.fighter_class_id — so it would be
 -- permanently broken by the drops below. Recoverable from the schema snapshot.
-DROP FUNCTION IF EXISTS public.get_add_fighter_details(uuid, uuid);
+--
+-- The signature is resolved from pg_proc rather than written out. Because the
+-- function is untracked, its argument list is only known from the schema
+-- snapshot; hardcoding it would mean a drifted signature silently matched
+-- nothing under IF EXISTS, leaving the broken function behind. This drops
+-- whatever overloads actually exist, and no-ops cleanly when there are none.
+DO $$
+DECLARE
+  r record;
+BEGIN
+  FOR r IN
+    SELECT oid::regprocedure AS signature
+    FROM pg_proc
+    WHERE pronamespace = 'public'::regnamespace
+      AND proname = 'get_add_fighter_details'
+  LOOP
+    EXECUTE format('DROP FUNCTION %s', r.signature);
+    RAISE NOTICE 'Dropped function %', r.signature::text;
+  END LOOP;
+END $$;
 
 -- 3. Drop the legacy class columns.
 -- Each column's own index and FK go with it; that is not a cascade and removes
