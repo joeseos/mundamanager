@@ -1086,6 +1086,7 @@ export const getGangFightersList = async (
                 strength,
                 ap,
                 damage,
+                lethality,
                 ammo,
                 traits,
                 sort_order
@@ -1107,6 +1108,7 @@ export const getGangFightersList = async (
                 strength,
                 ap,
                 damage,
+                lethality,
                 ammo,
                 traits,
                 sort_order
@@ -1343,6 +1345,7 @@ export const getGangFightersList = async (
                     strength,
                     ap,
                     damage,
+                    lethality,
                     ammo,
                     traits,
                     sort_order
@@ -1364,6 +1367,7 @@ export const getGangFightersList = async (
                     strength,
                     ap,
                     damage,
+                    lethality,
                     ammo,
                     traits,
                     sort_order

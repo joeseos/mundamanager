@@ -32,12 +32,19 @@ export interface EditionCapabilities {
   multipleFighterClasses: boolean;
   /** Gang-level Trade Points resource */
   tradePoints: boolean;
+  /**
+   * Weapon profiles use the N26 statline (SR, LR, Str, AP, Lethality) rather
+   * than the N23 one (Rng S/L, Acc S/L, Str, AP, D, Am). Ammo and Damage are
+   * written into Traits on N26 profiles.
+   */
+  lethalityStatline: boolean;
 }
 
 const N26_CAPABILITIES: EditionCapabilities = {
   saveCharacteristic: true,
   multipleFighterClasses: true,
   tradePoints: true,
+  lethalityStatline: true,
 };
 
 /**
@@ -57,6 +64,7 @@ const EDITION_CAPABILITIES: Record<EditionSlug, EditionCapabilities> = {
     saveCharacteristic: false,
     multipleFighterClasses: false,
     tradePoints: false,
+    lethalityStatline: false,
   },
   n26: N26_CAPABILITIES,
 };
@@ -71,6 +79,7 @@ const NO_CAPABILITIES: EditionCapabilities = {
   saveCharacteristic: false,
   multipleFighterClasses: false,
   tradePoints: false,
+  lethalityStatline: false,
 };
 
 function capabilitiesFor(editionSlug?: string | null): EditionCapabilities {
@@ -104,6 +113,9 @@ export const allowsMultipleClasses = (editionSlug?: string | null): boolean =>
 
 export const hasTradePoints = (editionSlug?: string | null): boolean =>
   capabilitiesFor(editionSlug).tradePoints;
+
+export const hasLethalityStatline = (editionSlug?: string | null): boolean =>
+  capabilitiesFor(editionSlug).lethalityStatline;
 
 export interface Edition {
   id: string;

@@ -402,6 +402,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
             acc_long,
             strength,
             damage,
+            lethality,
             ap,
             ammo,
             traits,

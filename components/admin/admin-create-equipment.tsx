@@ -8,7 +8,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { AvailabilityPicker, combineAvailability } from '@/components/ui/availability-picker';
 import { toast } from 'sonner';
 import { WeaponProfileInput, EquipmentAvailability, GangAdjustedCost } from "@/types/equipment";
-import { EditionSelect } from '@/components/edition-select';
+import { EditionSelect, useEditions } from '@/components/edition-select';
+import { hasLethalityStatline } from '@/types/edition';
 import { HiX } from "react-icons/hi";
 import { LuTrash2 } from 'react-icons/lu'
 
@@ -41,6 +42,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
     strength: '',
     ap: '',
     damage: '',
+    lethality: '',
     ammo: '',
     traits: '',
     weapon_group_id: null,
@@ -92,6 +94,11 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
     staleTime: 5 * 60 * 1000,
   });
 
+  // N26 weapons are described with SR/LR/Str/AP/Lethality; N23 with Rng, Acc,
+  // Str, AP, D and Am. Only the stats the selected edition uses are offered.
+  const { data: editions = [] } = useEditions();
+  const usesLethality = hasLethalityStatline(editions.find(edition => edition.id === editionId)?.slug);
+
   const handleProfileChange = (index: number, field: keyof WeaponProfileInput, value: string | number | boolean) => {
     const newProfiles = [...weaponProfiles];
     newProfiles[index] = {
@@ -113,6 +120,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         strength: '',
         ap: '',
         damage: '',
+        lethality: '',
         ammo: '',
         traits: '',
         weapon_group_id: null,
@@ -145,6 +153,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         strength: profile.strength || null,
         ap: profile.ap || null,
         damage: profile.damage || null,
+        lethality: profile.lethality || null,
         ammo: profile.ammo || null,
         traits: profile.traits || null
       })) : undefined;
@@ -692,10 +701,10 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                       </div>
 
                       {/* Weapon Characteristics */}
-                      <div className="grid grid-cols-4 md:grid-cols-8 gap-2 md:gap-4">
+                      <div className={`grid grid-cols-4 ${usesLethality ? 'md:grid-cols-5' : 'md:grid-cols-8'} gap-2 md:gap-4`}>
                         <div>
                           <label className="block text-sm font-medium text-muted-foreground mb-1">
-                            Rng S
+                            {usesLethality ? 'SR' : 'Rng S'}
                           </label>
                           <Input
                             value={profile.range_short}
@@ -706,7 +715,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
 
                         <div>
                           <label className="block text-sm font-medium text-muted-foreground mb-1">
-                            Rng L
+                            {usesLethality ? 'LR' : 'Rng L'}
                           </label>
                           <Input
                             value={profile.range_long}
@@ -715,27 +724,31 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           />
                         </div>
 
-                        <div>
-                          <label className="block text-sm font-medium text-muted-foreground mb-1">
-                            Acc S
-                          </label>
-                          <Input
-                            value={profile.acc_short}
-                            onChange={(e) => handleProfileChange(index, 'acc_short', e.target.value)}
-                            placeholder='e.g. +1, -'
-                          />
-                        </div>
+                        {!usesLethality && (
+                          <>
+                            <div>
+                              <label className="block text-sm font-medium text-muted-foreground mb-1">
+                                Acc S
+                              </label>
+                              <Input
+                                value={profile.acc_short}
+                                onChange={(e) => handleProfileChange(index, 'acc_short', e.target.value)}
+                                placeholder='e.g. +1, -'
+                              />
+                            </div>
 
-                        <div>
-                          <label className="block text-sm font-medium text-muted-foreground mb-1">
-                            Acc L
-                          </label>
-                          <Input
-                            value={profile.acc_long}
-                            onChange={(e) => handleProfileChange(index, 'acc_long', e.target.value)}
-                            placeholder='e.g. -1, -'
-                          />
-                        </div>
+                            <div>
+                              <label className="block text-sm font-medium text-muted-foreground mb-1">
+                                Acc L
+                              </label>
+                              <Input
+                                value={profile.acc_long}
+                                onChange={(e) => handleProfileChange(index, 'acc_long', e.target.value)}
+                                placeholder='e.g. -1, -'
+                              />
+                            </div>
+                          </>
+                        )}
 
                         <div>
                           <label className="block text-sm font-medium text-muted-foreground mb-1">
@@ -759,28 +772,43 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           />
                         </div>
 
-                        <div>
-                          <label className="block text-sm font-medium text-muted-foreground mb-1">
-                            Damage
-                          </label>
-                          <Input
-                            type="text"
-                            value={profile.damage}
-                            onChange={(e) => handleProfileChange(index, 'damage', e.target.value)}
-                            placeholder="e.g. 1, D3"
-                          />
-                        </div>
+                        {usesLethality ? (
+                          <div>
+                            <label className="block text-sm font-medium text-muted-foreground mb-1">
+                              Lethality
+                            </label>
+                            <Input
+                              value={profile.lethality}
+                              onChange={(e) => handleProfileChange(index, 'lethality', e.target.value)}
+                              placeholder="e.g. 1, 3"
+                            />
+                          </div>
+                        ) : (
+                          <>
+                            <div>
+                              <label className="block text-sm font-medium text-muted-foreground mb-1">
+                                Damage
+                              </label>
+                              <Input
+                                type="text"
+                                value={profile.damage}
+                                onChange={(e) => handleProfileChange(index, 'damage', e.target.value)}
+                                placeholder="e.g. 1, D3"
+                              />
+                            </div>
 
-                        <div>
-                          <label className="block text-sm font-medium text-muted-foreground mb-1">
-                            Am
-                          </label>
-                          <Input
-                            value={profile.ammo}
-                            onChange={(e) => handleProfileChange(index, 'ammo', e.target.value)}
-                            placeholder='e.g. 5+'
-                          />
-                        </div>
+                            <div>
+                              <label className="block text-sm font-medium text-muted-foreground mb-1">
+                                Am
+                              </label>
+                              <Input
+                                value={profile.ammo}
+                                onChange={(e) => handleProfileChange(index, 'ammo', e.target.value)}
+                                placeholder='e.g. 5+'
+                              />
+                            </div>
+                          </>
+                        )}
                       </div>
                       <div>
                         <div className="col-span-3">

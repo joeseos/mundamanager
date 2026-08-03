@@ -671,21 +671,21 @@ const FighterCard = memo(function FighterCard({
           {/* Show fighter weapons */}
           {!isCrew && weapons && weapons.length > 0 && (
             <div className={`${owner_name ? 'mt-0' : (isNormalView ? 'mt-2' : 'mt-0')}`}>
-              <WeaponTable weapons={weapons} viewMode={viewMode}/>
+              <WeaponTable weapons={weapons} viewMode={viewMode} editionSlug={edition_slug}/>
             </div>
           )}
 
           {/* Show crew weapons */}
           {isCrew && weapons && weapons.length > 0 && (
             <div className={`${owner_name ? 'mt-0' : (isNormalView ? 'mt-2' : 'mt-0')}`}>
-              <WeaponTable weapons={weapons} entity="crew" viewMode={viewMode} />
+              <WeaponTable weapons={weapons} entity="crew" viewMode={viewMode} editionSlug={edition_slug} />
             </div>
           )}
 
           {/* Add vehicle weapons section */}
           {isCrew && vehicleWeapons.length > 0 && (
             <div className={`${isNormalView ? 'mt-2' : 'mt-0'}`}>
-              <WeaponTable weapons={vehicleWeapons} entity="vehicle" viewMode={viewMode} />
+              <WeaponTable weapons={vehicleWeapons} entity="vehicle" viewMode={viewMode} editionSlug={edition_slug} />
             </div>
           )}
 

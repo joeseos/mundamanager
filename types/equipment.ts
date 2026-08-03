@@ -35,6 +35,8 @@ export interface WeaponProfile {
   strength?: number | string | null;
   ap?: number | string | null;
   damage?: number | string | null;
+  /** N26 replacement for damage. Null on pre-N26 profiles. */
+  lethality?: number | string | null;
   ammo?: number | string | null;
   traits?: string | null;
   weapon_group_id?: string | null;
@@ -55,6 +57,7 @@ export interface WeaponProfileInput {
   strength: string;
   ap: string;
   damage: string;
+  lethality: string;
   ammo: string;
   traits: string;
   weapon_group_id?: string | null;
