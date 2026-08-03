@@ -1343,6 +1343,8 @@ export default function PrintGang({ gang }: PrintGangProps) {
                         cool={fighter.cool}
                         willpower={fighter.willpower}
                         intelligence={fighter.intelligence}
+                        save={fighter.save}
+                        edition_slug={fighter.edition_slug}
                         xp={fighter.xp}
                         advancements={fighter.advancements}
                         weapons={fighter.weapons}
