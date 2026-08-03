@@ -67,6 +67,7 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
         alignment: sourceGang.alignment,
         credits: sourceGang.credits,
         reputation: sourceGang.reputation,
+        trade_points: sourceGang.trade_points ?? 0,
         gang_variants: sourceGang.gang_variants,
         note: sourceGang.note,
         note_backstory: sourceGang.note_backstory,

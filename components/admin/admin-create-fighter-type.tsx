@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { HiX } from "react-icons/hi";
 import { GangType, Equipment } from "@/types/gang";
 import { EditionSelect, useEditions } from '@/components/edition-select';
-import { isLegacyEdition } from '@/types/edition';
+import { hasSaveCharacteristic, allowsMultipleClasses } from '@/types/edition';
 import { skillSetRank } from "@/utils/skillSetRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 
@@ -105,9 +105,8 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   // the edition select only filters the gang type options
   const { data: editions = [] } = useEditions();
   const editionSlug = editions.find(edition => edition.id === editionId)?.slug;
-  const showSave = !isLegacyEdition(editionSlug);
-  // N26 onward a fighter can hold several classes at once; N23 has exactly one
-  const allowMultipleClasses = !isLegacyEdition(editionSlug);
+  const showSave = hasSaveCharacteristic(editionSlug);
+  const allowMultipleClasses = allowsMultipleClasses(editionSlug);
 
   const toggleFighterClass = (className: string, checked: boolean) => {
     const selected = new Set(selectedFighterClasses);
@@ -125,7 +124,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
     setEditionId(newEditionId);
     // A single-class edition must not leave extra classes selected but hidden
     // behind the dropdown, where they would still be submitted
-    if (isLegacyEdition(editions.find(edition => edition.id === newEditionId)?.slug)) {
+    if (!allowsMultipleClasses(editions.find(edition => edition.id === newEditionId)?.slug)) {
       setSelectedFighterClasses(prev => prev.slice(0, 1));
     }
     if (newEditionId && selectedGangType) {

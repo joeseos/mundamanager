@@ -30,6 +30,7 @@ import { fighterClassRank } from '@/utils/fighterClassRank';
 import { GangImageEditModal } from './gang-image-edit-modal';
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { hasTradePoints } from '@/types/edition';
 
 
 interface GangProps {
@@ -38,6 +39,7 @@ interface GangProps {
   gang_type_id?: string | null;
   custom_gang_type_id?: string | null;
   gang_type?: string;
+  edition_slug?: string | null;
   gang_type_image_url: string;
   image_url?: string;
   default_gang_image?: number | null;
@@ -45,6 +47,7 @@ interface GangProps {
   gang_colour: string | null;
   credits: number | null;
   reputation: number | null;
+  trade_points?: number | null;
   rating: number | null;
   wealth?: number | null;
   alignment: string;
@@ -113,12 +116,14 @@ export default function Gang({
   gang_type_id,
   custom_gang_type_id,
   gang_type,
+  edition_slug,
   image_url,
   default_gang_image,
   gang_type_default_image_urls,
   gang_colour: initialGangColour,
   credits: initialCredits,
   reputation: initialReputation,
+  trade_points: initialTradePoints,
   rating: initialRating,
   wealth: initialWealth,
   alignment: initialAlignment,
@@ -163,6 +168,7 @@ export default function Gang({
   const [name, setName] = useState(initialName)
   const [credits, setCredits] = useState(initialCredits ?? 0)
   const [reputation, setReputation] = useState(initialReputation ?? 0)
+  const [tradePoints, setTradePoints] = useState(initialTradePoints ?? 0)
   // Dynamic resources from normalised tables
   const [campaignResources, setCampaignResources] = useState<Array<{
     resource_id: string;
@@ -466,7 +472,7 @@ export default function Gang({
       const snapshot = {
         name, credits, wealth, alignment, allianceId, allianceName,
         gangAffiliationId, gangAffiliationName, gangOriginId, gangOriginName,
-        reputation,
+        reputation, tradePoints,
         gangVariants: [...gangVariants], gangIsVariant, gangColour, hidden,
         campaignResources: [...campaignResources]
       };
@@ -510,6 +516,10 @@ export default function Gang({
         setReputation(snapshot.reputation + (updates.reputation_operation === 'add' ? updates.reputation : -updates.reputation));
       }
 
+      if (updates.trade_points !== undefined && updates.trade_points_operation) {
+        setTradePoints(snapshot.tradePoints + (updates.trade_points_operation === 'add' ? updates.trade_points : -updates.trade_points));
+      }
+
       if (updates.gang_variants !== undefined) {
         const newVariants = updates.gang_variants.map((variantId: string) =>
           availableVariants.find(v => v.id === variantId) ||
@@ -538,6 +548,7 @@ export default function Gang({
         setGangOriginId(s.gangOriginId);
         setGangOriginName(s.gangOriginName);
         setReputation(s.reputation);
+        setTradePoints(s.tradePoints);
         setGangVariants(s.gangVariants);
         setGangIsVariant(s.gangIsVariant);
         setGangColour(s.gangColour);
@@ -1184,6 +1195,12 @@ export default function Gang({
                     <span className="text-muted-foreground">Reputation:</span>
                     <span className="font-semibold">{reputation != null ? reputation : 0}</span>
                   </div>
+                  {hasTradePoints(edition_slug) && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Trade Points:</span>
+                      <span className="font-semibold">{tradePoints != null ? tradePoints : 0}</span>
+                    </div>
+                  )}
                   {/* Dynamic Campaign Resources */}
                   {campaignResources.map((resource) => (
                     <div key={resource.resource_id} className="flex justify-between">
@@ -1243,6 +1260,8 @@ export default function Gang({
             gangName={name}
             credits={credits}
             reputation={reputation}
+            tradePoints={tradePoints}
+            editionSlug={edition_slug}
             isGangOwner={userPermissions?.isOwner}
             isAdmin={userPermissions?.isAdmin}
             alignment={alignment}

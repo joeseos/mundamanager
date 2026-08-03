@@ -14,6 +14,7 @@ import { gangVariantRank } from "@/utils/gangVariantRank";
 import { useQuery } from '@tanstack/react-query';
 import { ResourceUpdate } from '@/types/gang';
 import { deleteGang } from '@/app/actions/delete-gang';
+import { hasTradePoints } from '@/types/edition';
 
 interface GangUpdates {
   name?: string;
@@ -24,6 +25,8 @@ interface GangUpdates {
   alliance_name?: string;
   reputation?: number;
   reputation_operation?: 'add' | 'subtract';
+  trade_points?: number;
+  trade_points_operation?: 'add' | 'subtract';
   gang_variants?: string[];
   gang_colour?: string;
   gang_affiliation_id?: string | null;
@@ -66,6 +69,8 @@ interface GangEditModalProps {
   gangName: string;
   credits: number;
   reputation: number;
+  tradePoints: number;
+  editionSlug?: string | null;
   alignment: string;
   allianceId: string | null;
   allianceName: string;
@@ -110,6 +115,8 @@ export default function GangEditModal({
   gangName,
   credits,
   reputation,
+  tradePoints,
+  editionSlug,
   alignment,
   allianceId,
   allianceName,
@@ -130,7 +137,7 @@ export default function GangEditModal({
   onSave
 }: GangEditModalProps) {
   const router = useRouter();
-  
+
   // Get campaign ID and current allegiance if gang is in a campaign
   const campaignId = campaigns?.[0]?.campaign_id;
   const currentAllegianceFromCampaign = campaigns?.[0]?.allegiance;
@@ -154,6 +161,7 @@ export default function GangEditModal({
     name: gangName,
     credits: '',  // delta inputs start empty
     reputation: '',
+    trade_points: '',
     alignment: alignment,
     allianceId: allianceId || '',
     gangColour: gangColour,
@@ -229,6 +237,7 @@ export default function GangEditModal({
         name: gangName,
         credits: '',
         reputation: '',
+        trade_points: '',
         alignment: alignment,
         allianceId: allianceId || '',
         gangColour: gangColour,
@@ -458,6 +467,14 @@ export default function GangEditModal({
       updates.reputation_operation = reputationDifference >= 0 ? 'add' : 'subtract';
     }
 
+    if (hasTradePoints(editionSlug)) {
+      const tradePointsDifference = parseInt(formState.trade_points) || 0;
+      if (tradePointsDifference !== 0) {
+        updates.trade_points = Math.abs(tradePointsDifference);
+        updates.trade_points_operation = tradePointsDifference >= 0 ? 'add' : 'subtract';
+      }
+    }
+
     // Handle dynamic resource deltas from normalised tables
     const resourceUpdatesList: ResourceUpdate[] = [];
     const campaignResources = campaigns?.[0]?.resources || [];
@@ -602,6 +619,24 @@ export default function GangEditModal({
               placeholder="0"
             />
           </div>
+
+          {hasTradePoints(editionSlug) && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium">
+                Trade Points
+                <span className="text-xs text-muted-foreground"> (Current: {tradePoints})</span>
+              </p>
+              <Input
+                type="tel"
+                inputMode="url"
+                pattern="-?[0-9]+"
+                value={formState.trade_points}
+                onChange={(e) => setFormState(prev => ({ ...prev, trade_points: e.target.value }))}
+                className="flex-1"
+                placeholder="0"
+              />
+            </div>
+          )}
 
           {/* Dynamic Campaign Resources */}
           {campaigns?.[0]?.resources?.map((resource) => (
