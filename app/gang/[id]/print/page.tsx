@@ -109,6 +109,8 @@ export default async function PrintGangPage(props: {
       gang_colour: gangBasic.gang_colour,
       credits: gangCredits,
       reputation: gangBasic.reputation,
+      trade_points: gangBasic.trade_points,
+      edition_slug: gangBasic.edition_slug ?? null,
       rating: gangRatingAndWealth.rating,
       wealth: gangRatingAndWealth.wealth,
       alignment: gangBasic.alignment,

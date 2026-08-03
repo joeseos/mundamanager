@@ -10,7 +10,7 @@ import { sortFightersByPositioning } from "@/utils/fighter-positioning";
 import { injuryAggregationLabel } from "@/utils/bitterEnmityDisplay";
 import WeaponTable from "./fighter-card-weapon-table";
 import { StatsTable, StatsType } from "../ui/fighter-card-stats-table";
-import { hasSaveCharacteristic } from "@/types/edition";
+import { hasSaveCharacteristic, hasTradePoints } from "@/types/edition";
 import { MdCheckBoxOutlineBlank } from "react-icons/md";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,8 @@ interface PrintGangProps {
     gang_colour: string | null;
     credits: number | null;
     reputation: number | null;
+    trade_points?: number | null;
+    edition_slug?: string | null;
     rating: number | null;
     wealth: number | null;
     alignment: string;
@@ -136,6 +138,8 @@ export default function PrintGang({ gang }: PrintGangProps) {
     rating,
     wealth,
     reputation,
+    trade_points,
+    edition_slug,
     alignment,
     alliance_name,
     gang_affiliation_name,
@@ -461,6 +465,12 @@ export default function PrintGang({ gang }: PrintGangProps) {
                   <span className="font-semibold">Reputation:</span>
                   <span>{reputation ?? 0}</span>
                 </div>
+                {hasTradePoints(edition_slug) && (
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">Trade Points:</span>
+                    <span>{trade_points ?? 0}</span>
+                  </div>
+                )}
               </div>
             </div>
             {alliance_name && (
@@ -1159,6 +1169,12 @@ export default function PrintGang({ gang }: PrintGangProps) {
                               <span className="text-muted-foreground">Reputation:</span>
                               <span className="font-semibold">{reputation ?? 0}</span>
                             </div>
+                            {hasTradePoints(edition_slug) && (
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Trade Points:</span>
+                                <span className="font-semibold">{trade_points ?? 0}</span>
+                              </div>
+                            )}
                             {/* Dynamic Campaign Resources */}
                             {campaignResources.map((resource: { resource_id: string; resource_name: string; quantity: number }) => (
                               <div key={resource.resource_id} className="flex justify-between">
@@ -1605,6 +1621,12 @@ export default function PrintGang({ gang }: PrintGangProps) {
                           <span className="text-muted-foreground">Reputation:</span>
                           <span className="font-semibold">{reputation ?? 0}</span>
                         </div>
+                        {hasTradePoints(edition_slug) && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Trade Points:</span>
+                            <span className="font-semibold">{trade_points ?? 0}</span>
+                          </div>
+                        )}
                         {/* Dynamic Campaign Resources */}
                         {campaignResources.map((resource: { resource_id: string; resource_name: string; quantity: number }) => (
                           <div key={resource.resource_id} className="flex justify-between">
