@@ -26,6 +26,7 @@ interface FighterSubType {
 
 interface EquipmentWithId extends Equipment {
   id: string;
+  edition_id?: string | null;
 }
 
 interface AdminEditFighterTypeModalProps {
@@ -36,11 +37,13 @@ interface AdminEditFighterTypeModalProps {
 interface FighterClass {
   id: string;
   class_name: string;
+  edition_id?: string | null;
 }
 
 interface SkillType {
   id: string;
   skill_type: string;
+  edition_id?: string | null;
 }
 
 interface Skill {
@@ -215,34 +218,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     return skills.filter(skill => !selectedSkills.includes(skill.id));
   }, [skills, selectedSkills]);
 
-  // Memoize grouped skill types to avoid expensive computation on every render
-  const groupedSkillTypes = useMemo(() => {
-    return Object.entries(
-      skillTypes
-        .sort((a, b) => {
-          const rankA = skillSetRank[a.skill_type.toLowerCase()] ?? Infinity;
-          const rankB = skillSetRank[b.skill_type.toLowerCase()] ?? Infinity;
-          return rankA - rankB;
-        })
-        .reduce((groups, type) => {
-          const rank = skillSetRank[type.skill_type.toLowerCase()] ?? Infinity;
-          let groupLabel = "Misc.";
-
-          if (rank <= 19) groupLabel = "Universal Skills";
-          else if (rank <= 39) groupLabel = "Gang-specific Skills";
-          else if (rank <= 59) groupLabel = "Wyrd Powers";
-          else if (rank <= 69) groupLabel = "Cult Wyrd Powers";
-          else if (rank <= 79) groupLabel = "Psychoteric Whispers";
-          else if (rank <= 89) groupLabel = "Legendary Names";
-          else if (rank <= 99) groupLabel = "Ironhead Squat Mining Clans";
-
-          if (!groups[groupLabel]) groups[groupLabel] = [];
-          groups[groupLabel].push(type);
-          return groups;
-        }, {} as Record<string, typeof skillTypes>)
-    );
-  }, [skillTypes]);
-
   const fetchEquipmentByCategory = async () => {
     if (hasLoadedEquipmentCategoriesRef.current && equipment.length > 0) {
       return;
@@ -315,41 +290,12 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     staleTime: 5 * 60 * 1000,
   });
 
-  // Edition only filters the gang-type dropdown; the fighter type's edition is
-  // derived server-side from its gang type
+  // Edition filters gang types, fighter classes, equipment, and skill sets;
+  // the fighter type's edition is still derived server-side from its gang type
   const { data: editions = [] } = useEditions();
   const editionSlug = editions.find(edition => edition.id === editionId)?.slug;
   const showSave = hasSaveCharacteristic(editionSlug);
   const allowMultipleClasses = allowsMultipleClasses(editionSlug);
-
-  const toggleFighterClass = (className: string, checked: boolean) => {
-    const selected = new Set(selectedFighterClasses);
-    if (checked) selected.add(className); else selected.delete(className);
-    // Keep the reference-list order so the stored array doesn't depend on the
-    // order the boxes happened to be ticked in
-    setSelectedFighterClasses(fighterClasses.map(fc => fc.class_name).filter(name => selected.has(name)));
-  };
-
-  const filteredGangTypes = editionId
-    ? gangTypes.filter(type => type.edition_id === editionId)
-    : gangTypes;
-
-  const handleEditionChange = (newEditionId: string) => {
-    setEditionId(newEditionId);
-    // A single-class edition must not leave extra classes selected but hidden
-    // behind the dropdown, where they would still be submitted
-    if (!allowsMultipleClasses(editions.find(edition => edition.id === newEditionId)?.slug)) {
-      setSelectedFighterClasses(prev => prev.slice(0, 1));
-    }
-    if (newEditionId && gangTypeFilter) {
-      const gangType = gangTypes.find(type => type.gang_type_id === gangTypeFilter);
-      if (gangType && gangType.edition_id !== newEditionId) {
-        setGangTypeFilter('');
-        setSelectedFighterTypeId('');
-        setSelectedSubTypeId('');
-      }
-    }
-  };
 
   const { data: gangAffiliations = [] } = useQuery<GangAffiliation[]>({
     queryKey: ['admin-lineages', 'affiliation'],
@@ -370,6 +316,117 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     },
     staleTime: 5 * 60 * 1000,
   });
+
+  const filteredGangTypes = editionId
+    ? gangTypes.filter(type => type.edition_id === editionId)
+    : gangTypes;
+
+  const filteredFighterClasses = editionId
+    ? fighterClasses.filter(fc => fc.edition_id === editionId)
+    : fighterClasses;
+
+  const filteredSkillTypes = editionId
+    ? skillTypes.filter(type => type.edition_id === editionId)
+    : skillTypes;
+
+  const filteredEquipment = editionId
+    ? equipment.filter(item => item.edition_id === editionId)
+    : equipment;
+
+  // Memoize grouped skill types to avoid expensive computation on every render
+  const groupedSkillTypes = useMemo(() => {
+    return Object.entries(
+      filteredSkillTypes
+        .sort((a, b) => {
+          const rankA = skillSetRank[a.skill_type.toLowerCase()] ?? Infinity;
+          const rankB = skillSetRank[b.skill_type.toLowerCase()] ?? Infinity;
+          return rankA - rankB;
+        })
+        .reduce((groups, type) => {
+          const rank = skillSetRank[type.skill_type.toLowerCase()] ?? Infinity;
+          let groupLabel = "Misc.";
+
+          if (rank <= 19) groupLabel = "Universal Skills";
+          else if (rank <= 39) groupLabel = "Gang-specific Skills";
+          else if (rank <= 59) groupLabel = "Wyrd Powers";
+          else if (rank <= 69) groupLabel = "Cult Wyrd Powers";
+          else if (rank <= 79) groupLabel = "Psychoteric Whispers";
+          else if (rank <= 89) groupLabel = "Legendary Names";
+          else if (rank <= 99) groupLabel = "Ironhead Squat Mining Clans";
+
+          if (!groups[groupLabel]) groups[groupLabel] = [];
+          groups[groupLabel].push(type);
+          return groups;
+        }, {} as Record<string, typeof filteredSkillTypes>)
+    );
+  }, [filteredSkillTypes]);
+
+  const toggleFighterClass = (className: string, checked: boolean) => {
+    const selected = new Set(selectedFighterClasses);
+    if (checked) selected.add(className); else selected.delete(className);
+    // Keep the reference-list order so the stored array doesn't depend on the
+    // order the boxes happened to be ticked in
+    setSelectedFighterClasses(filteredFighterClasses.map(fc => fc.class_name).filter(name => selected.has(name)));
+  };
+
+  const handleEditionChange = (newEditionId: string) => {
+    setEditionId(newEditionId);
+
+    const classesForEdition = newEditionId
+      ? fighterClasses.filter(fc => fc.edition_id === newEditionId)
+      : fighterClasses;
+    const classNames = new Set(classesForEdition.map(fc => fc.class_name));
+    let nextClasses = selectedFighterClasses.filter(name => classNames.has(name));
+    // A single-class edition must not leave extra classes selected but hidden
+    // behind the dropdown, where they would still be submitted
+    if (!allowsMultipleClasses(editions.find(edition => edition.id === newEditionId)?.slug)) {
+      nextClasses = nextClasses.slice(0, 1);
+    }
+    setSelectedFighterClasses(nextClasses);
+
+    if (newEditionId && gangTypeFilter) {
+      const gangType = gangTypes.find(type => type.gang_type_id === gangTypeFilter);
+      if (gangType && gangType.edition_id !== newEditionId) {
+        setGangTypeFilter('');
+        setSelectedFighterTypeId('');
+        setSelectedSubTypeId('');
+      }
+    }
+
+    const equipmentIds = new Set(
+      (newEditionId
+        ? equipment.filter(item => item.edition_id === newEditionId)
+        : equipment
+      ).map(item => item.id)
+    );
+    setSelectedEquipment(prev => prev.filter(id => equipmentIds.has(id)));
+    setEquipmentListSelections(prev => prev.filter(id => equipmentIds.has(id)));
+    setEquipmentDiscounts(prev => prev.filter(d => equipmentIds.has(d.equipment_id)));
+    if (selectedAdjustedCostEquipment && !equipmentIds.has(selectedAdjustedCostEquipment)) {
+      setSelectedAdjustedCostEquipment('');
+    }
+
+    if (selectedSkillType) {
+      const skillType = skillTypes.find(type => type.id === selectedSkillType);
+      if (skillType && newEditionId && skillType.edition_id !== newEditionId) {
+        setSelectedSkillType('');
+      }
+    }
+
+    if (skillTypeToAdd) {
+      const skillType = skillTypes.find(type => type.id === skillTypeToAdd);
+      if (skillType && newEditionId && skillType.edition_id !== newEditionId) {
+        setSkillTypeToAdd('');
+      }
+    }
+
+    setSkillAccess(prev =>
+      prev.filter(row => {
+        const skillType = skillTypes.find(type => type.id === row.skill_type_id);
+        return !newEditionId || !skillType || skillType.edition_id === newEditionId;
+      })
+    );
+  };
 
   const { data: fighterTypes = [] } = useQuery<FighterType[]>({
     queryKey: ['admin-fighter-types', gangTypeFilter],
@@ -513,6 +570,9 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       setFighterType(data.fighter_type || '');
       setBaseCost(data.cost?.toString() || '0');
       setDelegationCost(data.delegation_cost?.toString() || '');
+      if (data.edition_id) {
+        setEditionId(data.edition_id);
+      }
       setSelectedFighterClasses(Array.isArray(data.fighter_classes) ? data.fighter_classes : []);
       setMovement(data.movement?.toString() || '0');
       setWeaponSkill(data.weapon_skill?.toString() || '0');
@@ -1494,7 +1554,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   </label>
                   {allowMultipleClasses ? (
                     <div className="border rounded-md p-2 grid grid-cols-2 gap-x-4 gap-y-2">
-                      {fighterClasses.map((fighterClass) => (
+                      {filteredFighterClasses.map((fighterClass) => (
                         <label key={fighterClass.id} className="flex items-center gap-2 text-sm cursor-pointer">
                           <Checkbox
                             checked={selectedFighterClasses.includes(fighterClass.class_name)}
@@ -1511,7 +1571,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                       className="w-full p-2 border rounded-md"
                     >
                       <option value="">Select fighter class</option>
-                      {fighterClasses.map((fighterClass) => (
+                      {filteredFighterClasses.map((fighterClass) => (
                         <option key={fighterClass.id} value={fighterClass.class_name}>
                           {fighterClass.class_name}
                         </option>
@@ -1938,7 +1998,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                     className="p-1 border rounded-sm"
                   >
                     <option value="">Add Skill Set</option>
-                    {skillTypes
+                    {filteredSkillTypes
                       .filter(st => !skillAccess.some(sa => sa.skill_type_id === st.id))
                       .map(st => (
                         <option key={st.id} value={st.id}>
@@ -1985,7 +2045,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   disabled={!selectedFighterTypeId}
                 >
                   <option value="">Select equipment to add</option>
-                  {equipment
+                  {filteredEquipment
                     .map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.equipment_name}
@@ -2037,7 +2097,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   disabled={!selectedFighterTypeId}
                 >
                   <option value="">Available equipment</option>
-                  {equipment
+                  {filteredEquipment
                     .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name))
                     .map((item) => (
                       <option key={item.id} value={item.id}>
@@ -2177,7 +2237,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                             className="w-full p-2 border rounded-md"
                           >
                             <option value="">Select equipment</option>
-                            {equipment
+                            {filteredEquipment
                               .filter(item => !equipmentDiscounts.some(
                                 adjusted_cost => adjusted_cost.equipment_id === item.id
                               ))
