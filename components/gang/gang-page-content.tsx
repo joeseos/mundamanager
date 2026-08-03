@@ -900,6 +900,7 @@ export default function GangPageContent({
           {...gangCampaignProps}
           gangReputation={gangData.processedData.reputation}
           positioning={gangData.processedData.positioning}
+          editionSlug={gangData.processedData.edition_slug ?? null}
         />
         <GangVehicles
           vehicles={gangData.processedData.vehicles || []}
