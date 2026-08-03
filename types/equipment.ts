@@ -65,6 +65,26 @@ export interface WeaponProfileInput {
 }
 
 /**
+ * A blank profile for the admin equipment forms. Defined once so a new stat
+ * column lands in one place rather than in every form literal.
+ */
+export const emptyWeaponProfile = (sortOrder = 1): WeaponProfileInput => ({
+  profile_name: '',
+  range_short: '',
+  range_long: '',
+  acc_short: '',
+  acc_long: '',
+  strength: '',
+  ap: '',
+  damage: '',
+  lethality: '',
+  ammo: '',
+  traits: '',
+  weapon_group_id: null,
+  sort_order: sortOrder,
+});
+
+/**
  * Weapon - simplified weapon type used in fighter cards and roster views
  */
 export interface Weapon {
