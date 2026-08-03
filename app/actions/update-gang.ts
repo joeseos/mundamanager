@@ -7,7 +7,6 @@ import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { logGangResourceChanges } from './logs/gang-resource-logs';
 import { hasTradePoints } from '@/types/edition';
-import { fetchGangEditionSlug } from '@/utils/gang-edition';
 
 interface UpdateGangParams {
   gang_id: string;
@@ -78,7 +77,11 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     // Get gang information (RLS will handle permissions)
     const { data: gang, error: gangError } = await supabase
       .from('gangs')
-      .select('id, user_id, credits, reputation, trade_points, rating, wealth, gang_type_id, custom_gang_type_id')
+      .select(`
+        id, user_id, credits, reputation, trade_points, rating, wealth,
+        gang_types!gang_type_id ( editions:edition_id ( slug ) ),
+        custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
+      `)
       .eq('id', params.gang_id)
       .single();
 
@@ -152,12 +155,16 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         : (gang.reputation || 0) - params.reputation;
     }
 
-    // Trade Points is an N26-only resource. Gate the write on the gang's edition
-    // (derived via its gang type) so it can never be set for other editions,
-    // even if a client sends the field.
+    // Gate the write on the gang's own edition, derived server-side via its gang
+    // type, so the resource can never be set for an edition that lacks it even if
+    // a client sends the field.
     let tradePointsChanged = false;
     if (params.trade_points !== undefined && params.trade_points_operation) {
-      const editionSlug = await fetchGangEditionSlug(supabase, gang);
+      // Embeds come back as objects for these many-to-one FKs; the untyped
+      // client infers arrays, hence the casts (same pattern as add-fighter.ts).
+      const editionSlug = (gang.gang_types as any)?.editions?.slug
+        ?? (gang.custom_gang_types as any)?.editions?.slug
+        ?? null;
       if (!hasTradePoints(editionSlug)) {
         throw new Error('Trade Points is not available for this gang edition');
       }

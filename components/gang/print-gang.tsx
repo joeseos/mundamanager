@@ -10,7 +10,7 @@ import { sortFightersByPositioning } from "@/utils/fighter-positioning";
 import { injuryAggregationLabel } from "@/utils/bitterEnmityDisplay";
 import WeaponTable from "./fighter-card-weapon-table";
 import { StatsTable, StatsType } from "../ui/fighter-card-stats-table";
-import { isLegacyEdition } from "@/types/edition";
+import { hasSaveCharacteristic } from "@/types/edition";
 import { MdCheckBoxOutlineBlank } from "react-icons/md";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
@@ -667,7 +667,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                       'W': adjustedStats.wounds,
                       'I': `${adjustedStats.initiative}+`,
                       'A': adjustedStats.attacks,
-                      ...(!isLegacyEdition(fighter.edition_slug) && {
+                      ...(hasSaveCharacteristic(fighter.edition_slug) && {
                         'Sv': adjustedStats.save != null ? `${adjustedStats.save}+` : '-'
                       }),
                       'Ld': `${adjustedStats.leadership}+`,

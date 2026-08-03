@@ -77,7 +77,6 @@ export interface Database {
           gang_type_id: string
           credits: number
           reputation: number
-          trade_points: number
           user_id: string
           created_at: string
           updated_at: string | null
@@ -88,7 +87,6 @@ export interface Database {
           gang_type_id: string
           credits?: number
           reputation?: number
-          trade_points?: number
           user_id: string
           created_at?: string
           updated_at?: string | null
@@ -99,7 +97,6 @@ export interface Database {
           gang_type_id?: string
           credits?: number
           reputation?: number
-          trade_points?: number
           user_id?: string
           created_at?: string
           updated_at?: string | null

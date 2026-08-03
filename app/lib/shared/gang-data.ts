@@ -5,7 +5,6 @@ import { WeaponProps, WargearItem } from '@/types/fighter';
 import { WeaponProfile } from '@/types/equipment';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang';
-import { resolveGangEditionSlug } from '@/utils/gang-edition';
 
 // =============================================================================
 // TYPES - Shared interfaces for gang data
@@ -253,11 +252,11 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
       if (!data) return null;
 
       // Flatten the edition slug from whichever gang type applies (official or
-      // custom) so consumers can gate edition-specific resources like Trade Points.
-      const edition_slug = resolveGangEditionSlug({
-        gangTypeEditionSlug: data.gang_types?.editions?.slug,
-        customGangTypeEditionSlug: data.custom_gang_type_edition?.editions?.slug
-      });
+      // custom) so consumers can gate edition-specific behaviour. Gangs have no
+      // edition_id of their own — it is always derived via the gang type.
+      const edition_slug = data.gang_types?.editions?.slug
+        ?? data.custom_gang_type_edition?.editions?.slug
+        ?? null;
 
       return { ...data, edition_slug };
     },
