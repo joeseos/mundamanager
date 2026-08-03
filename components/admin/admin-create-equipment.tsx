@@ -99,6 +99,19 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   const { data: editions = [] } = useEditions();
   const usesLethality = hasLethalityStatline(editions.find(edition => edition.id === editionId)?.slug);
 
+  const handleEditionChange = (newEditionId: string) => {
+    setEditionId(newEditionId);
+    // Stats the new edition does not use are no longer rendered, but anything
+    // already typed would stay in state and still be submitted -- an N26 weapon
+    // saved with a Damage and an Accuracy. Blank them on the way across.
+    const nowUsesLethality = hasLethalityStatline(editions.find(edition => edition.id === newEditionId)?.slug);
+    setWeaponProfiles(profiles => profiles.map(profile => (
+      nowUsesLethality
+        ? { ...profile, acc_short: '', acc_long: '', damage: '', ammo: '' }
+        : { ...profile, lethality: '' }
+    )));
+  };
+
   const handleProfileChange = (index: number, field: keyof WeaponProfileInput, value: string | number | boolean) => {
     const newProfiles = [...weaponProfiles];
     newProfiles[index] = {
@@ -291,7 +304,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
               </select>
             </div>
 
-            <EditionSelect value={editionId} onChange={setEditionId} defaultToCurrent />
+            <EditionSelect value={editionId} onChange={handleEditionChange} defaultToCurrent />
 
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
