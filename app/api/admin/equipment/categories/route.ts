@@ -11,14 +11,15 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Categories are edition-scoped; clients filter by edition_id
     const { data, error } = await supabase
       .from('equipment_categories')
-      .select('id, category_name')
+      .select('id, category_name, edition_id')
       .order('category_name');
 
     if (error) throw error;
 
-    return NextResponse.json(data);
+    return NextResponse.json(data ?? []);
   } catch (error) {
     console.error('Error fetching categories:', error);
     return NextResponse.json(
@@ -26,4 +27,4 @@ export async function GET() {
       { status: 500 }
     );
   }
-} 
+}
