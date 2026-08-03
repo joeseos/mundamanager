@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -146,21 +146,25 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
     staleTime: 5 * 60 * 1000,
   });
 
-  const filteredGangTypes = editionId
-    ? gangTypes.filter(type => type.edition_id === editionId)
-    : gangTypes;
+  const filteredGangTypes = useMemo(
+    () => editionId ? gangTypes.filter(type => type.edition_id === editionId) : gangTypes,
+    [gangTypes, editionId]
+  );
 
-  const filteredFighterClasses = editionId
-    ? fighterClasses.filter(fc => fc.edition_id === editionId)
-    : fighterClasses;
+  const filteredFighterClasses = useMemo(
+    () => editionId ? fighterClasses.filter(fc => fc.edition_id === editionId) : fighterClasses,
+    [fighterClasses, editionId]
+  );
 
-  const filteredSkillTypes = editionId
-    ? skillTypes.filter(type => type.edition_id === editionId)
-    : skillTypes;
+  const filteredSkillTypes = useMemo(
+    () => editionId ? skillTypes.filter(type => type.edition_id === editionId) : skillTypes,
+    [skillTypes, editionId]
+  );
 
-  const filteredEquipment = editionId
-    ? equipment.filter(item => item.edition_id === editionId)
-    : equipment;
+  const filteredEquipment = useMemo(
+    () => editionId ? equipment.filter(item => item.edition_id === editionId) : equipment,
+    [equipment, editionId]
+  );
 
   const toggleFighterClass = (className: string, checked: boolean) => {
     const selected = new Set(selectedFighterClasses);
@@ -753,7 +757,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                   <option value="">Select a skill set</option>
 
                   {Object.entries(
-                    filteredSkillTypes
+                    [...filteredSkillTypes]
                       .sort((a, b) => {
                         const rankA = skillSetRank[a.skill_type.toLowerCase()] ?? Infinity;
                         const rankB = skillSetRank[b.skill_type.toLowerCase()] ?? Infinity;
@@ -774,7 +778,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                         if (!groups[groupLabel]) groups[groupLabel] = [];
                         groups[groupLabel].push(type);
                         return groups;
-                      }, {} as Record<string, typeof filteredSkillTypes>)
+                      }, {} as Record<string, SkillType[]>)
                   ).map(([groupLabel, skillList]) => (
                     <optgroup key={groupLabel} label={groupLabel}>
                       {skillList.map((type) => (
@@ -908,7 +912,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                 className="w-full p-2 border rounded-md"
               >
                 <option value="">Available equipment</option>
-                {filteredEquipment
+                {[...filteredEquipment]
                   .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name))
                   .map((item) => (
                     <option key={item.id} value={item.id}>

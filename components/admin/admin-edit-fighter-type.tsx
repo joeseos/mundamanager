@@ -2101,7 +2101,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   disabled={!selectedFighterTypeId}
                 >
                   <option value="">Available equipment</option>
-                  {filteredEquipment
+                  {[...filteredEquipment]
                     .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name))
                     .map((item) => (
                       <option key={item.id} value={item.id}>
