@@ -16,7 +16,7 @@ import { gangVariantRank } from "@/utils/gangVariantRank";
 import { AdminFighterEffects } from "./admin-fighter-effects";
 import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
 import { hasLethalityStatline } from '@/types/edition';
-import { WeaponProfileFields } from '@/components/admin/weapon-profile-fields';
+import { WeaponProfileFields } from '@/components/ui/weapon-profile-fields';
 import { AdminTradingPost } from "./admin-trading-post";
 import { LuTrash2 } from 'react-icons/lu';
 import Modal from "@/components/ui/modal";
