@@ -1074,6 +1074,7 @@ export const getGangFightersList = async (
               equipment_name,
               equipment_type,
               equipment_category,
+              editions:edition_id ( slug ),
               weapon_profiles (
                 id,
                 weapon_id,
@@ -1096,6 +1097,7 @@ export const getGangFightersList = async (
               equipment_name,
               equipment_type,
               equipment_category,
+              editions:edition_id ( slug ),
               custom_weapon_profiles (
                 id,
                 custom_equipment_id,
@@ -1333,6 +1335,7 @@ export const getGangFightersList = async (
                   equipment_name,
                   equipment_type,
                   equipment_category,
+                  editions:edition_id ( slug ),
                   weapon_profiles (
                     id,
                     weapon_id,
@@ -1355,6 +1358,7 @@ export const getGangFightersList = async (
                   equipment_name,
                   equipment_type,
                   equipment_category,
+                  editions:edition_id ( slug ),
                   custom_weapon_profiles (
                     id,
                     custom_equipment_id,
@@ -1761,6 +1765,7 @@ export const getGangFightersList = async (
             equipment_name: (item.equipment as any)?.equipment_name || (item.custom_equipment as any)?.equipment_name || 'Unknown',
             equipment_type: equipmentType || 'unknown',
             equipment_category: (item.equipment as any)?.equipment_category || (item.custom_equipment as any)?.equipment_category || 'unknown',
+            edition_slug: (item.equipment as any)?.editions?.slug ?? (item.custom_equipment as any)?.editions?.slug ?? null,
             purchase_cost: item.purchase_cost || 0,
             is_master_crafted: item.is_master_crafted || false,
             weapon_profiles: weaponProfiles,
@@ -1853,6 +1858,7 @@ export const getGangFightersList = async (
               equipment_name: item.equipment?.equipment_name || item.custom_equipment?.equipment_name || 'Unknown',
               equipment_type: equipmentType || 'unknown',
               equipment_category: item.equipment?.equipment_category || item.custom_equipment?.equipment_category || 'unknown',
+              edition_slug: (item.equipment as any)?.editions?.slug ?? (item.custom_equipment as any)?.editions?.slug ?? null,
               purchase_cost: item.purchase_cost || 0,
               weapon_profiles: weaponProfiles
             };
@@ -2214,6 +2220,7 @@ const getVehicleEquipment = async (vehicleId: string, supabase: any): Promise<an
         equipment_name: (item.equipment as any)?.equipment_name || (item.custom_equipment as any)?.equipment_name || 'Unknown',
         equipment_type: equipmentType || 'unknown',
         equipment_category: (item.equipment as any)?.equipment_category || (item.custom_equipment as any)?.equipment_category || 'unknown',
+        edition_slug: (item.equipment as any)?.editions?.slug ?? (item.custom_equipment as any)?.editions?.slug ?? null,
         cost: item.purchase_cost || 0,
         weapon_profiles: weaponProfiles
       };
