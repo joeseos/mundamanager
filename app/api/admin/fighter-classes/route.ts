@@ -13,10 +13,11 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Simple direct query with error logging
+    // fighter_classes holds one row per class per edition; clients filter by
+    // edition_id so same-named classes across editions stay distinguishable
     const { data: fighterClasses, error } = await supabase
       .from('fighter_classes')
-      .select('id, class_name')
+      .select('id, class_name, edition_id')
       .order('class_name');
 
     if (error) {
@@ -27,14 +28,8 @@ export async function GET() {
       }, { status: 500 });
     }
 
-    if (!fighterClasses || fighterClasses.length === 0) {
-      return NextResponse.json({ 
-        error: 'No data found', 
-        details: 'Check RLS policies and table data' 
-      }, { status: 404 });
-    }
-
-    return NextResponse.json(fighterClasses);
+    // An empty list is a valid answer, not an error
+    return NextResponse.json(fighterClasses ?? []);
 
   } catch (error) {
     console.error('Error in GET fighter classes:', error);
@@ -46,4 +41,4 @@ export async function GET() {
       { status: 500 }
     );
   }
-} 
+}
