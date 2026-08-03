@@ -318,7 +318,7 @@ export default function Gang({
     );
   }, [fighters]);
 
-  // Fighters composition for tooltip: group by fighter_type and fighter_class
+  // Fighters composition for tooltip: group by fighter_type and fighter_classes
   const fighterTypeClassCounts = useMemo(() => {
     const counts = new Map<string, { label: string; count: number; classKey: string }>();
     for (const fighter of activeFighters) {
