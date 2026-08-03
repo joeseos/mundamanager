@@ -89,12 +89,6 @@ export interface Equipment {
   adjusted_cost?: number;
   availability?: string | null;
   equipment_category?: string;
-  /**
-   * Edition the equipment row itself belongs to, resolved from
-   * equipment.edition_id / custom_equipment.edition_id. Null when the row
-   * predates editions; callers fall back to the gang's or fighter's edition.
-   */
-  edition_slug?: string | null;
   created_at?: string;
   weapon_profiles?: WeaponProfile[] | null;
   base_weapon_profiles?: WeaponProfile[] | null; // Original profiles before effects applied (for optimistic updates)

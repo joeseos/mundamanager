@@ -227,14 +227,12 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
             equipment_name,
             equipment_type,
             equipment_category,
-            editions:edition_id ( slug ),
             is_consumable
           ),
           custom_equipment:custom_equipment_id (
             equipment_name,
             equipment_type,
             equipment_category,
-            editions:edition_id ( slug ),
             is_consumable
           )
         `)
@@ -491,7 +489,6 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
             equipment_name: (item.equipment as any)?.equipment_name || (item.custom_equipment as any)?.equipment_name || 'Unknown',
             equipment_type: equipmentType || 'unknown',
             equipment_category: (item.equipment as any)?.equipment_category || (item.custom_equipment as any)?.equipment_category || 'unknown',
-            edition_slug: (item.equipment as any)?.editions?.slug ?? (item.custom_equipment as any)?.editions?.slug ?? null,
             purchase_cost: item.purchase_cost || 0,
             original_cost: item.original_cost,
             is_master_crafted: item.is_master_crafted || false,
@@ -723,14 +720,12 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
               equipment_name,
               equipment_type,
               equipment_category,
-              editions:edition_id ( slug ),
               is_consumable
             ),
             custom_equipment:custom_equipment_id (
               equipment_name,
               equipment_type,
               equipment_category,
-              editions:edition_id ( slug ),
               is_consumable
             )
           `)
@@ -912,7 +907,6 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
           equipment_name: (item.equipment as any)?.equipment_name || (item.custom_equipment as any)?.equipment_name || 'Unknown',
           equipment_type: equipmentType || 'unknown',
           equipment_category: (item.equipment as any)?.equipment_category || (item.custom_equipment as any)?.equipment_category || 'unknown',
-          edition_slug: (item.equipment as any)?.editions?.slug ?? (item.custom_equipment as any)?.editions?.slug ?? null,
           purchase_cost: item.purchase_cost || 0,
           is_editable: item.is_editable || false,
           weapon_profiles: weaponProfiles,

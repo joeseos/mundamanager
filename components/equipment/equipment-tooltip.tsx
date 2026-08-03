@@ -101,13 +101,7 @@ function EquipmentTooltipContent({ item, options, editionSlug }: { item: Equipme
   const hasAnyProfileData = sortedProfiles.some(profile => hasProfileData(profile));
   // Mirrors the fighter card's weapon table: N26 drops Acc, D and Am and adds
   // Lethality. Same predicate, so the two tables cannot drift apart.
-  //
-  // A tooltip shows exactly one item, so it can key off that item's own
-  // edition -- unlike the card's table, which has a single header for all of a
-  // fighter's weapons and must pick one. Falls back to the page's edition:
-  // edition_id is nullable, and the trading post's equipment still arrives
-  // without one.
-  const usesLethality = hasLethalityStatline(item.edition_slug ?? editionSlug);
+  const usesLethality = hasLethalityStatline(editionSlug);
 
   return (
     <div className="text-xs">
