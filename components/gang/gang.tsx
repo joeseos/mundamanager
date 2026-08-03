@@ -30,7 +30,7 @@ import { fighterClassRank } from '@/utils/fighterClassRank';
 import { GangImageEditModal } from './gang-image-edit-modal';
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { hasTradePoints } from '@/types/edition';
+import { hasTradePoints } from '@/utils/edition';
 
 
 interface GangProps {
