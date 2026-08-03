@@ -317,26 +317,30 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     staleTime: 5 * 60 * 1000,
   });
 
-  const filteredGangTypes = editionId
-    ? gangTypes.filter(type => type.edition_id === editionId)
-    : gangTypes;
+  const filteredGangTypes = useMemo(
+    () => editionId ? gangTypes.filter(type => type.edition_id === editionId) : gangTypes,
+    [gangTypes, editionId]
+  );
 
-  const filteredFighterClasses = editionId
-    ? fighterClasses.filter(fc => fc.edition_id === editionId)
-    : fighterClasses;
+  const filteredFighterClasses = useMemo(
+    () => editionId ? fighterClasses.filter(fc => fc.edition_id === editionId) : fighterClasses,
+    [fighterClasses, editionId]
+  );
 
-  const filteredSkillTypes = editionId
-    ? skillTypes.filter(type => type.edition_id === editionId)
-    : skillTypes;
+  const filteredSkillTypes = useMemo(
+    () => editionId ? skillTypes.filter(type => type.edition_id === editionId) : skillTypes,
+    [skillTypes, editionId]
+  );
 
-  const filteredEquipment = editionId
-    ? equipment.filter(item => item.edition_id === editionId)
-    : equipment;
+  const filteredEquipment = useMemo(
+    () => editionId ? equipment.filter(item => item.edition_id === editionId) : equipment,
+    [equipment, editionId]
+  );
 
   // Memoize grouped skill types to avoid expensive computation on every render
   const groupedSkillTypes = useMemo(() => {
     return Object.entries(
-      filteredSkillTypes
+      [...filteredSkillTypes]
         .sort((a, b) => {
           const rankA = skillSetRank[a.skill_type.toLowerCase()] ?? Infinity;
           const rankB = skillSetRank[b.skill_type.toLowerCase()] ?? Infinity;
@@ -357,7 +361,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
           if (!groups[groupLabel]) groups[groupLabel] = [];
           groups[groupLabel].push(type);
           return groups;
-        }, {} as Record<string, typeof filteredSkillTypes>)
+        }, {} as Record<string, SkillType[]>)
     );
   }, [filteredSkillTypes]);
 
