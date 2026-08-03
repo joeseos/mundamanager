@@ -17,4 +17,4 @@ COMMENT ON COLUMN public.custom_equipment.trade_points IS
   'N26 Trade Points cost for this custom equipment. Surfaced/charged only for N26 gangs.';
 
 COMMENT ON COLUMN public.equipment_availability.trade_points IS
-  'Per-scope N26 Trade Points cost override. Surfaced/charged only for N26 gangs.';
+  'N26 Trade Points cost override. Surfaced/charged only for N26 gangs.';
