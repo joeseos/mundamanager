@@ -6,7 +6,7 @@ import { CACHE_TAGS, invalidateGangCredits, invalidateUserGangsList } from '@/ut
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { logGangResourceChanges } from './logs/gang-resource-logs';
-import { hasTradePoints } from '@/types/edition';
+import { hasTradePoints } from '@/utils/edition';
 
 interface UpdateGangParams {
   gang_id: string;

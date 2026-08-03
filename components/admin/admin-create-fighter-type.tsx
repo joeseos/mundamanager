@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { HiX } from "react-icons/hi";
 import { GangType, Equipment } from "@/types/gang";
 import { EditionSelect, useEditions } from '@/components/edition-select';
-import { hasSaveCharacteristic, allowsMultipleClasses } from '@/types/edition';
+import { hasSaveCharacteristic, allowsMultipleClasses } from '@/utils/edition';
 import { skillSetRank } from "@/utils/skillSetRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 

@@ -4,7 +4,7 @@ import { StatsTable, StatsType } from '../ui/fighter-card-stats-table';
 import WeaponTable from './fighter-card-weapon-table';
 import { Equipment } from '@/types/equipment';
 import { FighterProps, FighterEffect, Vehicle, VehicleEquipment, FighterSkills } from '@/types/fighter';
-import { hasSaveCharacteristic } from '@/types/edition';
+import { hasSaveCharacteristic } from '@/utils/edition';
 import { calculateAdjustedStats, applySpecialRulesModifiers } from '@/utils/effect-modifiers';
 import { injuryAggregationLabel } from '@/utils/bitterEnmityDisplay';
 import { TbMeatOff } from "react-icons/tb";

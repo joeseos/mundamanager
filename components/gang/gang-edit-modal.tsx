@@ -14,7 +14,7 @@ import { gangVariantRank } from "@/utils/gangVariantRank";
 import { useQuery } from '@tanstack/react-query';
 import { ResourceUpdate } from '@/types/gang';
 import { deleteGang } from '@/app/actions/delete-gang';
-import { hasTradePoints } from '@/types/edition';
+import { hasTradePoints } from '@/utils/edition';
 
 interface GangUpdates {
   name?: string;

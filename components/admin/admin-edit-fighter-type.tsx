@@ -15,7 +15,7 @@ import { skillSetRank } from "@/utils/skillSetRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { AdminFighterEquipmentSelection, EquipmentSelection, guiToDataModel, dataModelToGui } from "@/components/admin/admin-fighter-equipment-selection";
 import { EditionSelect, useEditions } from '@/components/edition-select';
-import { hasSaveCharacteristic, allowsMultipleClasses } from '@/types/edition';
+import { hasSaveCharacteristic, allowsMultipleClasses } from '@/utils/edition';
 import Modal from '@/components/ui/modal';
 
 interface FighterSubType {

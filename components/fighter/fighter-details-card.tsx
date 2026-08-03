@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { FighterDetailsStatsTable } from '../ui/fighter-details-stats-table';
-import { hasSaveCharacteristic } from '@/types/edition';
+import { hasSaveCharacteristic } from '@/utils/edition';
 import { memo } from 'react';
 import { calculateAdjustedStats } from '@/utils/effect-modifiers';
 import { FighterProps, FighterEffect, Vehicle } from '@/types/fighter';
