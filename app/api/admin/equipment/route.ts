@@ -436,7 +436,9 @@ export async function POST(request: Request) {
         equipment_name: equipment_name.trimEnd(),
         availability: availability.trimEnd(),
         cost,
-        trade_points: trade_points != null ? Number(trade_points) : 0,
+        trade_points: trade_points != null && trade_points !== ''
+          ? String(trade_points).trim().toUpperCase()
+          : '0',
         variants,
         equipment_category: categoryData.category_name,
         equipment_category_id,
@@ -587,7 +589,9 @@ export async function PATCH(request: Request) {
         equipment_name,
         availability,
         cost,
-        trade_points: trade_points != null ? Number(trade_points) : 0,
+        trade_points: trade_points != null && trade_points !== ''
+          ? String(trade_points).trim().toUpperCase()
+          : '0',
         variants,
         equipment_category,
         equipment_category_id,

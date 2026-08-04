@@ -3,6 +3,7 @@
 import { buyEquipmentForFighter } from '@/app/actions/equipment';
 import { Equipment, ResourceCost } from '@/types/equipment';
 import { toast } from 'sonner';
+import { parseTradePointsCost } from '@/utils/campaigns/resources';
 
 // This is for the wrapper function to inject dependencies from the parent component.
 export interface PurchaseEquipmentContext {
@@ -19,7 +20,8 @@ export interface PurchaseEquipmentContext {
     newGangCredits: number,
     boughtEquipment: Equipment,
     newGangRating?: number,
-    newGangWealth?: number
+    newGangWealth?: number,
+    newGangTradePoints?: number
   ) => void;
   onPurchaseRequest?: (payload: { params: BuyEquipmentPayload; item: Equipment }) => void;
   closePurchaseModal?: () => void;
@@ -36,6 +38,7 @@ export interface PurchaseEquipmentInput {
   equipmentTarget?: EquipmentTarget;
   selectedGrantEquipmentIds?: string[];
   resourceCost?: ResourceCost;
+  tradePoints?: string;
 }
 
 export interface BuyEquipmentPayload {
@@ -54,6 +57,7 @@ export interface BuyEquipmentPayload {
   selected_grant_equipment_ids?: string[];
   resourceCost?: ResourceCost;
   campaign_gang_id?: string;
+  manual_trade_points?: string;
 }
 
 export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
@@ -68,6 +72,7 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
     equipmentTarget,
     selectedGrantEquipmentIds = [],
     resourceCost,
+    tradePoints,
   }: PurchaseEquipmentInput) => {
     const {
       session,
@@ -115,6 +120,10 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
         resourceCost,
         campaign_gang_id: campaignGangId,
       }),
+
+      ...(tradePoints !== undefined && {
+        manual_trade_points: tradePoints,
+      }),
     };
 
     // Optimistic path: delegate to parent (no server call here)
@@ -132,6 +141,7 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
       const newGangCredits = data.updategangsCollection?.records?.[0]?.credits;
       const newGangRating = data.updategangsCollection?.records?.[0]?.rating;
       const newGangWealth = data.updategangsCollection?.records?.[0]?.wealth;
+      const newGangTradePoints = data.newGangTradePoints ?? data.updategangsCollection?.records?.[0]?.trade_points;
 
       const equipmentRecord = data.insertIntofighter_equipmentCollection?.records?.[0];
       if (!equipmentRecord) throw new Error('Failed to get equipment ID from response');
@@ -155,15 +165,20 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
               : item.equipment_name,
         },
         newGangRating,
-        newGangWealth
+        newGangWealth,
+        newGangTradePoints
       );
 
       const displayName = equipmentRecord.is_master_crafted && item.equipment_type === 'weapon'
         ? `${item.equipment_name} (Master-crafted)`
         : item.equipment_name;
-      const costDescription = resourceCost
+      const baseCostDescription = resourceCost
         ? `${resourceCost.amount} ${resourceCost.resourceName}`
         : `${serverPurchaseCost} credits`;
+      const tradePointsCost = parseTradePointsCost(tradePoints ?? item.trade_points);
+      const costDescription = tradePointsCost > 0
+        ? `${baseCostDescription} and ${tradePointsCost} TP`
+        : baseCostDescription;
       toast.success('Equipment purchased', {
         description: `Successfully bought ${displayName} for ${costDescription}`,
       });

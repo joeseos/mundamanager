@@ -39,7 +39,7 @@ interface Equipment {
   equipment_name: string;
   availability: string;
   cost: number;
-  trade_points?: number;
+  trade_points?: string;
   variants: string;
   equipment_category: string;
   equipment_type: EquipmentType;
@@ -431,9 +431,12 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       return;
     }
 
-    if (showTradePoints && tradePoints === '') {
-      toast.error("Please fill in all required fields");
-      return;
+    if (showTradePoints) {
+      const trimmedTp = tradePoints.trim();
+      if (!trimmedTp || !/^(E|\d+)$/i.test(trimmedTp)) {
+        toast.error("Trade Points must be a number or E");
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -458,7 +461,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           ? combineAvailability(availLetter, availNumber)
           : (equipmentDetails?.availability ?? 'C'),
         cost: parseInt(cost),
-        trade_points: showTradePoints ? Number(tradePoints) : 0,
+        trade_points: showTradePoints ? tradePoints.trim().toUpperCase() : '0',
         variants,
         equipment_category: selectedCategory.category_name,
         equipment_category_id: equipmentCategory,
@@ -709,13 +712,11 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                     Trade Points *
                   </label>
                   <Input
-                    type="number"
+                    type="text"
                     value={tradePoints}
                     onChange={(e) => setTradePoints(e.target.value)}
-                    placeholder="E.g. 2"
+                    placeholder="2 or E"
                     disabled={!selectedEquipmentId}
-                    min="0"
-                    step="any"
                   />
                 </div>
               )}

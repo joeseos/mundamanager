@@ -235,3 +235,51 @@ export async function returnGangReputation(
 
   if (error) throw new Error(`Failed to return reputation: ${error.message}`);
 }
+
+/**
+ * Parse catalog Trade Points cost. "E" (and empty/null) means 0 TP.
+ */
+export function parseTradePointsCost(value: string | null | undefined): number {
+  if (value == null) return 0;
+  const trimmed = String(value).trim();
+  if (!trimmed || trimmed.toUpperCase() === 'E') return 0;
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed) || parsed < 0) return 0;
+  return Math.floor(parsed);
+}
+
+export async function deductGangTradePoints(
+  supabase: SupabaseClient,
+  gangId: string,
+  amount: number
+): Promise<number> {
+  if (amount <= 0) throw new Error('Trade Points amount must be greater than 0');
+
+  const { data: gang, error: fetchError } = await supabase
+    .from('gangs')
+    .select('trade_points')
+    .eq('id', gangId)
+    .single();
+
+  if (fetchError) throw new Error(`Failed to fetch gang: ${fetchError.message}`);
+  if (!gang) throw new Error('Gang not found');
+
+  const current = Number(gang.trade_points ?? 0);
+  if (current < amount) {
+    throw new Error(`Not enough Trade Points. Required: ${amount}, Available: ${current}`);
+  }
+
+  const next = current - amount;
+  const { data, error } = await supabase
+    .from('gangs')
+    .update({ trade_points: next })
+    .eq('id', gangId)
+    .gte('trade_points', amount)
+    .select('trade_points');
+
+  if (error) throw new Error(`Failed to deduct Trade Points: ${error.message}`);
+  if (!data || data.length === 0) {
+    throw new Error('Not enough Trade Points (concurrent modification)');
+  }
+  return Number(data[0].trade_points ?? next);
+}

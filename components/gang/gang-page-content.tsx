@@ -144,6 +144,16 @@ export default function GangPageContent({
     }));
   }, []);
 
+  const handleGangTradePointsUpdate = useCallback((newTradePoints: number) => {
+    setGangData((prev: GangDataState) => ({
+      ...prev,
+      processedData: {
+        ...prev.processedData,
+        trade_points: newTradePoints
+      }
+    }));
+  }, []);
+
   const handleFighterUpdate = useCallback((updatedFighter: FighterProps, skipRatingUpdate?: boolean) => {
     setGangData((prev: GangDataState) => {
       // If server provided updated rating, use that instead of calculating
@@ -899,6 +909,9 @@ export default function GangPageContent({
           userPermissions={userPermissions}
           {...gangCampaignProps}
           gangReputation={gangData.processedData.reputation}
+          editionSlug={gangData.processedData.edition_slug}
+          gangTradePoints={gangData.processedData.trade_points}
+          onGangTradePointsUpdate={handleGangTradePointsUpdate}
           positioning={gangData.processedData.positioning}
         />
         <GangVehicles
