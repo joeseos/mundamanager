@@ -323,7 +323,10 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   );
 
   const filteredFighterClasses = useMemo(
-    () => editionId ? fighterClasses.filter(fc => fc.edition_id === editionId) : fighterClasses,
+    () => {
+      const filtered = editionId ? fighterClasses.filter(fc => fc.edition_id === editionId) : fighterClasses;
+      return [...filtered].sort((a, b) => a.class_name.localeCompare(b.class_name));
+    },
     [fighterClasses, editionId]
   );
 
@@ -1550,25 +1553,33 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 </div>
               </div>
 
-              {/* Third row: Fighter Class and Base Cost */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div>
+              {/* Fighter Class — full width when multi-select (n26) */}
+              {allowMultipleClasses ? (
+                <div className="mb-4">
                   <label className="block text-sm font-medium text-muted-foreground mb-1">
                     Fighter Class *
                   </label>
-                  {allowMultipleClasses ? (
-                    <div className="border rounded-md p-2 grid grid-cols-2 gap-x-4 gap-y-2">
-                      {filteredFighterClasses.map((fighterClass) => (
-                        <label key={fighterClass.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                          <Checkbox
-                            checked={selectedFighterClasses.includes(fighterClass.class_name)}
-                            onCheckedChange={(checked) => toggleFighterClass(fighterClass.class_name, checked === true)}
-                          />
-                          <span>{fighterClass.class_name}</span>
-                        </label>
-                      ))}
-                    </div>
-                  ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-2">
+                    {filteredFighterClasses.map((fighterClass) => (
+                      <label key={fighterClass.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <Checkbox
+                          checked={selectedFighterClasses.includes(fighterClass.class_name)}
+                          onCheckedChange={(checked) => toggleFighterClass(fighterClass.class_name, checked === true)}
+                        />
+                        <span>{fighterClass.class_name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Base Cost, Alignment, Delegation Cost (+ single-select class) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                {!allowMultipleClasses && (
+                  <div>
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">
+                      Fighter Class *
+                    </label>
                     <select
                       value={selectedFighterClasses[0] ?? ''}
                       onChange={(e) => setSelectedFighterClasses(e.target.value ? [e.target.value] : [])}
@@ -1581,8 +1592,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                         </option>
                       ))}
                     </select>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-muted-foreground mb-1">
