@@ -21,16 +21,21 @@ export type EditionSlug = typeof EDITION_N23 | typeof EDITION_N26;
  *
  * Add a field per DECISION, not per feature. Where editions answer the same
  * question differently, that is one union-typed field, not several booleans —
- * separate booleans would admit illegal states (both on, both off). Buy
- * Equipment is the coming example: N23 governs it with Availability and N26
- * with Trade Points, which is one `equipmentResource` field, not two flags.
+ * separate booleans would admit illegal states (both on, both off).
+ *
+ * `tradePoints` is one such decision: when true, the edition uses Trade Points
+ * (gang resource and equipment catalog cost); when false, equipment uses
+ * Availability instead. Callers invert `hasTradePoints` for the Availability UI.
  */
 export interface EditionCapabilities {
   /** Sv on the fighter profile */
   saveCharacteristic: boolean;
   /** A fighter may hold several classes at once */
   multipleFighterClasses: boolean;
-  /** Gang-level Trade Points resource */
+  /**
+   * Trade Points: gang-level resource and equipment catalog cost.
+   * When false, equipment uses Availability (Trading Post rarity) instead.
+   */
   tradePoints: boolean;
 }
 

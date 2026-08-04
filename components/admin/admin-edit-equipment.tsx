@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,10 +14,17 @@ import { fighterClassRank } from "@/utils/fighterClassRank";
 import { gangOriginRank } from "@/utils/gangOriginRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
 import { AdminFighterEffects } from "./admin-fighter-effects";
-import { EditionSelect } from '@/components/edition-select';
+import { EditionSelect, useEditions } from '@/components/edition-select';
+import { hasTradePoints } from '@/types/edition';
 import { AdminTradingPost } from "./admin-trading-post";
 import { LuTrash2 } from 'react-icons/lu';
 import Modal from "@/components/ui/modal";
+
+interface EquipmentCategory {
+  id: string;
+  category_name: string;
+  edition_id?: string | null;
+}
 
 interface AdminEditEquipmentModalProps {
   onClose: () => void;
@@ -32,6 +39,7 @@ interface Equipment {
   equipment_name: string;
   availability: string;
   cost: number;
+  trade_points?: number;
   variants: string;
   equipment_category: string;
   equipment_type: EquipmentType;
@@ -50,6 +58,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [availLetter, setAvailLetter] = useState<'C' | 'R' | 'E' | 'I' | 'S'>('C');
   const [availNumber, setAvailNumber] = useState(6);
   const [cost, setCost] = useState('');
+  const [tradePoints, setTradePoints] = useState('0');
   const [variants, setVariants] = useState('');
   const [equipmentCategory, setEquipmentCategory] = useState('');
   const [equipmentType, setEquipmentType] = useState<EquipmentType | ''>('');
@@ -119,7 +128,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: categories = [] } = useQuery<Array<{id: string, category_name: string}>>({
+  const { data: categories = [] } = useQuery<EquipmentCategory[]>({
     queryKey: ['admin-equipment-categories'],
     queryFn: async () => {
       const response = await fetch('/api/admin/equipment/categories');
@@ -129,11 +138,22 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     staleTime: 5 * 60 * 1000,
   });
 
-  // Edition is the top-level filter: only equipment of the chosen edition is
-  // offered for editing, and the saved row keeps that edition
-  const filteredEquipmentList = editionId
-    ? equipmentList.filter(item => item.edition_id === editionId)
-    : equipmentList;
+  // Edition is the top-level filter: only equipment/categories of the chosen
+  // edition are offered for editing, and the saved row keeps that edition
+  const filteredCategories = useMemo(
+    () => editionId ? categories.filter(category => category.edition_id === editionId) : categories,
+    [categories, editionId]
+  );
+
+  const filteredEquipmentList = useMemo(
+    () => editionId ? equipmentList.filter(item => item.edition_id === editionId) : equipmentList,
+    [equipmentList, editionId]
+  );
+
+  const { data: editions = [] } = useEditions();
+  const editionSlug = editions.find(edition => edition.id === editionId)?.slug;
+  const showTradePoints = hasTradePoints(editionSlug);
+  const showAvailability = !showTradePoints;
 
   const handleEditionChange = (newEditionId: string) => {
     setEditionId(newEditionId);
@@ -141,6 +161,22 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       const selected = equipmentList.find(item => item.id === selectedEquipmentId);
       if (selected && selected.edition_id !== newEditionId) {
         setSelectedEquipmentId('');
+      }
+    }
+    if (categoryFilter && newEditionId) {
+      // categoryFilter is a name; the same name can exist per edition
+      const stillValid = categories.some(
+        category => category.category_name === categoryFilter && category.edition_id === newEditionId
+      );
+      if (!stillValid) {
+        setCategoryFilter('');
+        setSelectedEquipmentId('');
+      }
+    }
+    if (equipmentCategory) {
+      const selected = categories.find(category => category.id === equipmentCategory);
+      if (selected && newEditionId && selected.edition_id !== newEditionId) {
+        setEquipmentCategory('');
       }
     }
   };
@@ -170,6 +206,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       setAvailLetter('C');
       setAvailNumber(6);
       setCost('');
+      setTradePoints('0');
       setVariants('');
       setEquipmentType('');
       setCoreEquipment(false);
@@ -202,6 +239,11 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       setAvailLetter((parsed.letter || 'C') as 'C' | 'R' | 'E' | 'I' | 'S');
       setAvailNumber(parsed.number);
       setCost(equipmentDetails.cost?.toString() || '');
+      setTradePoints(
+        equipmentDetails.trade_points != null
+          ? String(equipmentDetails.trade_points)
+          : '0'
+      );
       setVariants(equipmentDetails.variants || '');
       setEquipmentCategory(equipmentDetails.equipment_category_id);
       setEquipmentType(equipmentDetails.equipment_type);
@@ -389,6 +431,11 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       return;
     }
 
+    if (showTradePoints && tradePoints === '') {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       // First get the category name
@@ -406,8 +453,12 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
 
       const requestBody = {
         equipment_name: equipmentName,
-        availability: combineAvailability(availLetter, availNumber),
+        // When Availability is hidden (N26), keep the loaded value — do not clear it.
+        availability: showAvailability
+          ? combineAvailability(availLetter, availNumber)
+          : (equipmentDetails?.availability ?? 'C'),
         cost: parseInt(cost),
+        trade_points: showTradePoints ? Number(tradePoints) : 0,
         variants,
         equipment_category: selectedCategory.category_name,
         equipment_category_id: equipmentCategory,
@@ -541,7 +592,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                 className="w-full p-2 border rounded-md"
               >
                 <option value="">Select a category</option>
-                {categories.map((category) => (
+                {filteredCategories.map((category) => (
                   <option key={category.id} value={category.category_name}>
                     {category.category_name}
                   </option>
@@ -560,7 +611,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                 disabled={!categoryFilter}
               >
                 <option value="">Select equipment</option>
-                {filteredEquipmentList
+                {[...filteredEquipmentList]
                   .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name))
                   .map((item: Equipment) => (
                     <option key={item.id} value={item.id}>
@@ -596,7 +647,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                   disabled={!selectedEquipmentId}
                 >
                   <option value="">Select category</option>
-                  {categories.map((category) => (
+                  {filteredCategories.map((category) => (
                     <option key={category.id} value={category.id}>
                       {category.category_name}
                     </option>
@@ -641,14 +692,33 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                 />
               </div>
 
-              <AvailabilityPicker
-                label="Availability (TP default) *"
-                letter={availLetter}
-                number={availNumber}
-                onLetterChange={(v) => setAvailLetter(v as 'C' | 'R' | 'E' | 'I' | 'S')}
-                onNumberChange={setAvailNumber}
-                disabled={!selectedEquipmentId}
-              />
+              {showAvailability && (
+                <AvailabilityPicker
+                  label="Availability (TP default) *"
+                  letter={availLetter}
+                  number={availNumber}
+                  onLetterChange={(v) => setAvailLetter(v as 'C' | 'R' | 'E' | 'I' | 'S')}
+                  onNumberChange={setAvailNumber}
+                  disabled={!selectedEquipmentId}
+                />
+              )}
+
+              {showTradePoints && (
+                <div>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    Trade Points *
+                  </label>
+                  <Input
+                    type="number"
+                    value={tradePoints}
+                    onChange={(e) => setTradePoints(e.target.value)}
+                    placeholder="E.g. 2"
+                    disabled={!selectedEquipmentId}
+                    min="0"
+                    step="any"
+                  />
+                </div>
+              )}
 
               {equipmentType !== 'vehicle_upgrade' && (
                 <div className="col-span-1">
