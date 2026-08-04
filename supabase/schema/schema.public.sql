@@ -1178,7 +1178,7 @@ $$;
 -- Name: get_equipment_detailed_data(uuid, text, uuid, boolean, boolean, uuid, uuid, uuid, uuid[], uuid[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NULL::uuid, equipment_category text DEFAULT NULL::text, fighter_type_id uuid DEFAULT NULL::uuid, fighter_type_equipment boolean DEFAULT NULL::boolean, equipment_tradingpost boolean DEFAULT NULL::boolean, fighter_id uuid DEFAULT NULL::uuid, only_equipment_id uuid DEFAULT NULL::uuid, gang_id uuid DEFAULT NULL::uuid, campaign_trading_post_type_ids uuid[] DEFAULT NULL::uuid[], campaign_custom_trading_post_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(id uuid, equipment_name text, availability text, base_cost numeric, adjusted_cost numeric, equipment_category text, equipment_type text, created_at timestamp with time zone, fighter_type_equipment boolean, equipment_tradingpost boolean, is_custom boolean, weapon_profiles jsonb, vehicle_upgrade_slot text, grants_equipment jsonb, is_editable boolean, trading_post_names text[], cost_resource_name text, cost_resource_amount numeric, cost_type_resource_id uuid, cost_campaign_resource_id uuid, banned boolean)
+CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NULL::uuid, equipment_category text DEFAULT NULL::text, fighter_type_id uuid DEFAULT NULL::uuid, fighter_type_equipment boolean DEFAULT NULL::boolean, equipment_tradingpost boolean DEFAULT NULL::boolean, fighter_id uuid DEFAULT NULL::uuid, only_equipment_id uuid DEFAULT NULL::uuid, gang_id uuid DEFAULT NULL::uuid, campaign_trading_post_type_ids uuid[] DEFAULT NULL::uuid[], campaign_custom_trading_post_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(id uuid, equipment_name text, availability text, base_cost numeric, adjusted_cost numeric, trade_points text, equipment_category text, equipment_type text, created_at timestamp with time zone, fighter_type_equipment boolean, equipment_tradingpost boolean, is_custom boolean, weapon_profiles jsonb, vehicle_upgrade_slot text, grants_equipment jsonb, is_editable boolean, trading_post_names text[], cost_resource_name text, cost_resource_amount numeric, cost_type_resource_id uuid, cost_campaign_resource_id uuid, banned boolean)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $_$
@@ -1194,9 +1194,12 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             g.custom_gang_type_id,
             cg.campaign_type_allegiance_id,
             fgl.fighter_type_id AS legacy_ft_id,
-            ga.fighter_type_id  AS affiliation_ft_id
+            ga.fighter_type_id  AS affiliation_ft_id,
+            COALESCE(gt.edition_id, cgt.edition_id) AS edition_id
         FROM (SELECT 1) AS _dummy
         LEFT JOIN gangs g ON g.id = $8
+        LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+        LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
         LEFT JOIN LATERAL (
             SELECT cg2.campaign_type_allegiance_id
             FROM campaign_gangs cg2
@@ -1298,7 +1301,11 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         SELECT
             ed.equipment_id,
             MIN(ed.adjusted_cost::numeric)
-                FILTER (WHERE ed.adjusted_cost IS NOT NULL) AS best_adjusted_cost
+                FILTER (WHERE ed.adjusted_cost IS NOT NULL) AS best_adjusted_cost,
+            -- Prefer any non-null trade_points override in the same discount scope.
+            -- Tie-break with MIN so the pick is deterministic when several apply.
+            MIN(ed.trade_points)
+                FILTER (WHERE ed.trade_points IS NOT NULL) AS best_trade_points
         FROM equipment_discounts ed
         CROSS JOIN gang_data gd
         WHERE
@@ -1402,6 +1409,8 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             WHEN $5 = true THEN e.cost::numeric
             ELSE COALESCE(bac.best_adjusted_cost, e.cost::numeric)
         END AS adjusted_cost,
+
+        COALESCE(bac.best_trade_points, e.trade_points) AS trade_points,
 
         e.equipment_category,
         e.equipment_type,
@@ -1585,6 +1594,12 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             -- Trading post only
             ($4 IS NULL AND $5 IS NOT NULL AND COALESCE(tp.has_access, false) = $5)
         )
+        -- Unrestricted: only equipment from the gang's edition
+        AND (
+            NOT ($4 IS NULL AND $5 IS NULL)
+            OR gd.edition_id IS NULL
+            OR e.edition_id = gd.edition_id
+        )
 
     UNION ALL
 
@@ -1607,6 +1622,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
               OR custom_tp.cost_reputation THEN ce.cost::numeric
             ELSE COALESCE(custom_tp.adjusted_cost, custom_tp.cost_override, ce.cost::numeric)
         END AS adjusted_cost,
+        ce.trade_points,
         ce.equipment_category,
         ce.equipment_type,
         ce.created_at,
@@ -1650,6 +1666,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         custom_tp.cost_campaign_resource_id,
         COALESCE(custom_tp.banned, false) AS banned
     FROM custom_equipment ce
+    CROSS JOIN gang_data gd
     LEFT JOIN (
         SELECT cs.custom_equipment_id
         FROM custom_shared cs
@@ -1715,6 +1732,12 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             ($4 IS NULL AND $5 IS NULL)                              -- no filter
             OR ($4 IS NOT NULL AND COALESCE(ftl.is_ftl, false) = $4) -- fighter's list requested
             OR ($5 IS NOT NULL AND true = $5)                        -- trading post requested
+        )
+        -- Unrestricted: only custom equipment from the gang's edition
+        AND (
+            NOT ($4 IS NULL AND $5 IS NULL)
+            OR gd.edition_id IS NULL
+            OR ce.edition_id = gd.edition_id
         )
 $_$;
 
@@ -4332,7 +4355,7 @@ CREATE TABLE public.custom_equipment (
     is_consumable boolean DEFAULT false,
     description text,
     edition_id uuid,
-    trade_points numeric DEFAULT 0 NOT NULL
+    trade_points text DEFAULT '0'::text NOT NULL
 );
 
 
@@ -4340,7 +4363,7 @@ CREATE TABLE public.custom_equipment (
 -- Name: COLUMN custom_equipment.trade_points; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.custom_equipment.trade_points IS 'N26 Trade Points cost for this custom equipment. Surfaced/charged only for N26 gangs.';
+COMMENT ON COLUMN public.custom_equipment.trade_points IS 'N26 Trade Points cost (text: numeric string or E). Surfaced/charged only for N26 gangs.';
 
 
 --
@@ -4389,8 +4412,16 @@ CREATE TABLE public.custom_fighter_types (
     description text,
     edition_id uuid,
     save numeric,
-    fighter_classes jsonb DEFAULT '[]'::jsonb NOT NULL
+    fighter_classes jsonb DEFAULT '[]'::jsonb NOT NULL,
+    starting_xp numeric DEFAULT 0 NOT NULL
 );
+
+
+--
+-- Name: COLUMN custom_fighter_types.starting_xp; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.custom_fighter_types.starting_xp IS 'XP a fighter of this custom type starts with at recruitment. Copied to fighters.xp when the fighter is added.';
 
 
 --
@@ -4622,10 +4653,8 @@ COMMENT ON COLUMN public.editions.is_current IS 'Picks the default edition for p
 CREATE TABLE public.equipment (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     equipment_name text,
-    "OLDtrading_post_category" text,
     availability text,
     cost numeric,
-    "OLDfaction" text,
     variants text,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     equipment_category text NOT NULL,
@@ -4637,7 +4666,7 @@ CREATE TABLE public.equipment (
     grants_equipment jsonb,
     is_consumable boolean DEFAULT false,
     edition_id uuid,
-    trade_points numeric DEFAULT 0 NOT NULL
+    trade_points text DEFAULT '0'::text NOT NULL
 );
 
 
@@ -4659,7 +4688,7 @@ COMMENT ON COLUMN public.equipment.core_equipment IS 'If the equipment is a weap
 -- Name: COLUMN equipment.trade_points; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.equipment.trade_points IS 'N26 Trade Points cost for this equipment. Surfaced/charged only for N26 gangs.';
+COMMENT ON COLUMN public.equipment.trade_points IS 'N26 Trade Points cost (text: numeric string or E). Surfaced/charged only for N26 gangs.';
 
 
 --
@@ -4704,7 +4733,7 @@ CREATE TABLE public.equipment_discounts (
     fighter_type_id uuid,
     adjusted_cost numeric,
     gang_origin_id uuid,
-    trade_points numeric DEFAULT 0 NOT NULL
+    trade_points text
 );
 
 
@@ -4712,7 +4741,7 @@ CREATE TABLE public.equipment_discounts (
 -- Name: COLUMN equipment_discounts.trade_points; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.equipment_discounts.trade_points IS 'N26 Trade Points cost override (alongside adjusted_cost). Surfaced/charged only for N26 gangs.';
+COMMENT ON COLUMN public.equipment_discounts.trade_points IS 'N26 Trade Points override (text: numeric string or E). NULL falls back to equipment.trade_points.';
 
 
 --
@@ -5177,7 +5206,8 @@ CREATE TABLE public.fighter_types (
     is_dramatis_personae boolean DEFAULT false NOT NULL,
     edition_id uuid,
     save numeric,
-    fighter_classes jsonb DEFAULT '[]'::jsonb NOT NULL
+    fighter_classes jsonb DEFAULT '[]'::jsonb NOT NULL,
+    starting_xp numeric DEFAULT 0 NOT NULL
 );
 
 
@@ -5186,6 +5216,13 @@ CREATE TABLE public.fighter_types (
 --
 
 COMMENT ON COLUMN public.fighter_types.edition_id IS 'Denormalized from gang_types via the composite FK on (gang_type_id, edition_id); derived server-side from the chosen gang type, never accepted from clients.';
+
+
+--
+-- Name: COLUMN fighter_types.starting_xp; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighter_types.starting_xp IS 'XP a fighter of this type starts with at recruitment. Copied to fighters.xp when the fighter is added.';
 
 
 --
@@ -6746,6 +6783,13 @@ CREATE INDEX custom_equipment_equipment_name_idx ON public.custom_equipment USIN
 
 
 --
+-- Name: custom_equipment_is_editable_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_equipment_is_editable_idx ON public.custom_equipment USING btree (is_editable);
+
+
+--
 -- Name: custom_equipment_user_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6907,6 +6951,13 @@ CREATE INDEX equipment_equipment_name_idx ON public.equipment USING btree (equip
 
 
 --
+-- Name: equipment_is_editable_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX equipment_is_editable_idx ON public.equipment USING btree (is_editable);
+
+
+--
 -- Name: exotic_beasts_fighter_type_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6998,10 +7049,24 @@ CREATE INDEX fighter_effects_fighter_equipment_id_idx ON public.fighter_effects 
 
 
 --
+-- Name: fighter_equipment_custom_equipment_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_equipment_custom_equipment_id_idx ON public.fighter_equipment USING btree (custom_equipment_id);
+
+
+--
 -- Name: fighter_equipment_equipment_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX fighter_equipment_equipment_id_idx ON public.fighter_equipment USING btree (equipment_id);
+
+
+--
+-- Name: fighter_equipment_is_editable_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_equipment_is_editable_idx ON public.fighter_equipment USING btree (is_editable);
 
 
 --
