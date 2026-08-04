@@ -152,11 +152,13 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   );
 
   const filteredFighterClasses = useMemo(
-    () => {
-      const filtered = editionId ? fighterClasses.filter(fc => fc.edition_id === editionId) : fighterClasses;
-      return [...filtered].sort((a, b) => a.class_name.localeCompare(b.class_name));
-    },
+    () => editionId ? fighterClasses.filter(fc => fc.edition_id === editionId) : fighterClasses,
     [fighterClasses, editionId]
+  );
+
+  const fighterClassesForDisplay = useMemo(
+    () => [...filteredFighterClasses].sort((a, b) => a.class_name.localeCompare(b.class_name)),
+    [filteredFighterClasses]
   );
 
   const filteredSkillTypes = useMemo(
@@ -437,7 +439,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                     className="w-full p-2 border rounded-md"
                   >
                     <option value="">Select fighter class</option>
-                    {filteredFighterClasses.map((fighterClass) => (
+                    {fighterClassesForDisplay.map((fighterClass) => (
                       <option key={fighterClass.id} value={fighterClass.class_name}>
                         {fighterClass.class_name}
                       </option>
@@ -453,7 +455,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                   Fighter Class *
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-2">
-                  {filteredFighterClasses.map((fighterClass) => (
+                  {fighterClassesForDisplay.map((fighterClass) => (
                     <label key={fighterClass.id} className="flex items-center gap-2 text-sm cursor-pointer">
                       <Checkbox
                         checked={selectedFighterClasses.includes(fighterClass.class_name)}
