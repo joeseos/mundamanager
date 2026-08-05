@@ -265,8 +265,6 @@ export async function POST(request: Request) {
     const formattedData = {
       name: body.name,
       skill_type_id: body.skill_type_id,
-      xp_cost: parseInt(body.xp_cost) || 0,
-      credit_cost: parseInt(body.credit_cost) || 0,
       gang_origin_id: body.gang_origin_id || null
     };
 
