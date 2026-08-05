@@ -79,12 +79,12 @@ INSERT INTO public.gang_types (gang_type_id, gang_type, alignment, affiliation, 
 ON CONFLICT (gang_type_id) DO NOTHING;
 
 -- ============================================================================
--- 6. FIGHTER CLASSES
+-- 6. FIGHTER SUBTYPES
 -- ============================================================================
--- Reference list of valid class names; fighters/fighter_types store the names
--- themselves in their fighter_classes JSONB array. class_name is the identity,
+-- Reference list of valid subtype names; fighters/fighter_types store the names
+-- themselves in their fighter_subtypes JSONB array. subtype_name is the identity,
 -- unique per edition.
-INSERT INTO public.fighter_classes (id, class_name, edition_id, created_at) VALUES
+INSERT INTO public.fighter_subtypes (id, subtype_name, edition_id, created_at) VALUES
 ('e4988356-d580-4f85-8d27-ec604d917d53', 'Leader', '00000000-0000-0000-0000-000000000023', now()),
 ('fe93ecdb-390b-4b31-8650-a25a90d427a5', 'Champion', '00000000-0000-0000-0000-000000000023', now()),
 ('d53f7381-09c2-48f3-b324-2199c5128684', 'Ganger', '00000000-0000-0000-0000-000000000023', now()),
@@ -94,14 +94,14 @@ INSERT INTO public.fighter_classes (id, class_name, edition_id, created_at) VALU
 ('9e310c58-5276-4758-bc9f-be010ac69457', 'Bounty Hunter', '00000000-0000-0000-0000-000000000023', now())
 ON CONFLICT (id) DO NOTHING;
 
--- Beast and Pet are N26 classes, so they are scoped to that edition rather than
--- left edition-less: fighter_classes holds one row per class per edition.
-INSERT INTO public.fighter_classes (class_name, edition_id)
-SELECT v.class_name, '00000000-0000-0000-0000-000000000026'
-FROM (VALUES ('Beast'), ('Pet')) AS v(class_name)
+-- Beast and Pet are N26 subtypes, so they are scoped to that edition rather than
+-- left edition-less: fighter_subtypes holds one row per subtype per edition.
+INSERT INTO public.fighter_subtypes (subtype_name, edition_id)
+SELECT v.subtype_name, '00000000-0000-0000-0000-000000000026'
+FROM (VALUES ('Beast'), ('Pet')) AS v(subtype_name)
 WHERE NOT EXISTS (
-    SELECT 1 FROM public.fighter_classes fc
-    WHERE fc.class_name = v.class_name
+    SELECT 1 FROM public.fighter_subtypes fc
+    WHERE fc.subtype_name = v.subtype_name
       AND fc.edition_id = '00000000-0000-0000-0000-000000000026'
   );
 
@@ -242,7 +242,7 @@ ON CONFLICT (id) DO NOTHING;
 -- 16. FIGHTER TYPES CONFIGURATION (ORLOCK AND CAWDOR)
 -- ============================================================================
 -- House Orlock Fighter Types
-INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, fighter_classes, free_skill, is_gang_addition, edition_id, created_at) VALUES
+INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, fighter_subtypes, free_skill, is_gang_addition, edition_id, created_at) VALUES
 ('01111111-1111-1111-1111-111111111111', 'b86a0a06-4f47-4c78-8d04-fb7b7042c14e', 'House Orlock', 'Road Boss', 120, 5, 3, 3, 3, 4, 2, 4, 4, 5, 5, 5, 2, '["Leader"]', true, false, '00000000-0000-0000-0000-000000000023', now()),
 ('02222222-2222-2222-2222-222222222222', 'b86a0a06-4f47-4c78-8d04-fb7b7042c14e', 'House Orlock', 'Road Captain', 95, 5, 3, 3, 3, 4, 2, 4, 5, 6, 6, 6, 2, '["Champion"]', true, false, '00000000-0000-0000-0000-000000000023', now()),
 ('03333333-3333-3333-3333-333333333333', 'b86a0a06-4f47-4c78-8d04-fb7b7042c14e', 'House Orlock', 'Wrecker', 60, 5, 4, 4, 3, 3, 1, 4, 6, 7, 7, 7, 1, '["Specialist"]', false, false, '00000000-0000-0000-0000-000000000023', now()),
@@ -251,7 +251,7 @@ INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cos
 ON CONFLICT (id) DO NOTHING;
 
 -- House Cawdor Fighter Types
-INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, fighter_classes, free_skill, is_gang_addition, edition_id, created_at) VALUES
+INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, fighter_subtypes, free_skill, is_gang_addition, edition_id, created_at) VALUES
 ('c1111111-1111-1111-1111-111111111111', 'c0a579a9-ac5e-4289-96db-43f87537847b', 'House Cawdor', 'Word Keeper', 120, 5, 3, 3, 3, 4, 2, 4, 4, 5, 5, 5, 2, '["Leader"]', true, false, '00000000-0000-0000-0000-000000000023', now()),
 ('c2222222-2222-2222-2222-222222222222', 'c0a579a9-ac5e-4289-96db-43f87537847b', 'House Cawdor', 'Priest/Deacon', 95, 5, 3, 3, 3, 4, 2, 4, 5, 6, 6, 6, 2, '["Champion"]', true, false, '00000000-0000-0000-0000-000000000023', now()),
 ('c3333333-3333-3333-3333-333333333333', 'c0a579a9-ac5e-4289-96db-43f87537847b', 'House Cawdor', 'Firebrand', 60, 5, 4, 4, 3, 3, 1, 4, 6, 7, 7, 7, 1, '["Specialist"]', false, false, '00000000-0000-0000-0000-000000000023', now()),
@@ -261,7 +261,7 @@ INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cos
 ON CONFLICT (id) DO NOTHING;
 
 -- House Delaque Fighter Types
-INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, fighter_classes, free_skill, is_gang_addition, edition_id, created_at) VALUES
+INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, fighter_subtypes, free_skill, is_gang_addition, edition_id, created_at) VALUES
 ('d1111111-1111-1111-1111-111111111111', '2c67ccbc-e103-433c-9535-bc6f9435fa38', 'House Delaque', 'Master of Shadows', 120, 5, 3, 3, 3, 3, 2, 3, 4, 5, 5, 5, 2, '["Leader"]', true, false, '00000000-0000-0000-0000-000000000023', now()),
 ('d2222222-2222-2222-2222-222222222222', '2c67ccbc-e103-433c-9535-bc6f9435fa38', 'House Delaque', 'Phantom', 95, 5, 3, 3, 3, 3, 2, 3, 5, 6, 6, 6, 2, '["Champion"]', true, false, '00000000-0000-0000-0000-000000000023', now()),
 ('d3333333-3333-3333-3333-333333333333', '2c67ccbc-e103-433c-9535-bc6f9435fa38', 'House Delaque', 'Ghost (Specialist)', 50, 5, 4, 4, 3, 3, 1, 4, 6, 7, 7, 7, 1, '["Specialist"]', false, false, '00000000-0000-0000-0000-000000000023', now()),
@@ -270,7 +270,7 @@ INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cos
 ON CONFLICT (id) DO NOTHING;
 
 -- House Escher Fighter Types
-INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, fighter_classes, free_skill, is_gang_addition, edition_id, created_at) VALUES
+INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, fighter_subtypes, free_skill, is_gang_addition, edition_id, created_at) VALUES
 ('e1111111-1111-1111-1111-111111111111', 'd66feb66-7a3b-4306-9d0b-58725b72ee0d', 'House Escher', 'Gang Queen', 120, 5, 3, 3, 3, 3, 2, 3, 4, 5, 6, 6, 2, '["Leader"]', true, false, '00000000-0000-0000-0000-000000000023', now()),
 ('e2222222-2222-2222-2222-222222222222', 'd66feb66-7a3b-4306-9d0b-58725b72ee0d', 'House Escher', 'Matriarch', 95, 5, 3, 3, 3, 3, 2, 3, 5, 6, 7, 7, 2, '["Champion"]', true, false, '00000000-0000-0000-0000-000000000023', now()),
 ('e3333333-3333-3333-3333-333333333333', 'd66feb66-7a3b-4306-9d0b-58725b72ee0d', 'House Escher', 'Sister (Specialist)', 50, 5, 4, 4, 3, 3, 1, 3, 6, 7, 8, 7, 1, '["Specialist"]', false, false, '00000000-0000-0000-0000-000000000023', now()),
@@ -279,7 +279,7 @@ INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cos
 ON CONFLICT (id) DO NOTHING;
 
 -- House Goliath Fighter Types
-INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, fighter_classes, free_skill, is_gang_addition, edition_id, created_at) VALUES
+INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, fighter_subtypes, free_skill, is_gang_addition, edition_id, created_at) VALUES
 ('81111111-1111-1111-1111-111111111111', 'ad325025-d293-4078-b14b-4306be45f1c8', 'House Goliath', 'Forge Tyrant', 120, 4, 3, 3, 4, 4, 2, 4, 4, 5, 6, 6, 2, '["Leader"]', true, false, '00000000-0000-0000-0000-000000000023', now()),
 ('82222222-2222-2222-2222-222222222222', 'ad325025-d293-4078-b14b-4306be45f1c8', 'House Goliath', 'Forge Boss', 95, 4, 3, 3, 4, 4, 2, 4, 5, 6, 7, 7, 2, '["Champion"]', true, false, '00000000-0000-0000-0000-000000000023', now()),
 ('83333333-3333-3333-3333-333333333333', 'ad325025-d293-4078-b14b-4306be45f1c8', 'House Goliath', 'Bully (Specialist)', 60, 4, 4, 4, 4, 4, 1, 4, 6, 7, 8, 7, 1, '["Specialist"]', false, false, '00000000-0000-0000-0000-000000000023', now()),
@@ -291,7 +291,7 @@ ON CONFLICT (id) DO NOTHING;
 -- is_gang_addition = true is what surfaces her in every gang's "Gang Additions" tab:
 -- get_fighter_types_with_cost filters gang additions on that flag alone and ignores
 -- gang_type_id. Needs four columns the house rows above don't use.
-INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, fighter_classes, free_skill, is_gang_addition, special_rules, limitation, alignment, is_dramatis_personae, edition_id, created_at) VALUES
+INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, fighter_subtypes, free_skill, is_gang_addition, special_rules, limitation, alignment, is_dramatis_personae, edition_id, created_at) VALUES
 ('7eaf0b51-6e82-4b8d-861c-e870927f665e', '6145eb6e-84a6-4fbd-b1d3-87348505db42', 'Hired Guns', 'Arbelesta Raen Catallus', 250, 5, 6, 2, 3, 3, 2, 3, 7, 7, 6, 6, 1, '["Bounty Hunter"]', false, true, ARRAY['"Unique Partnership"', '"Bounty Hunter"', '"Slotted"']::jsonb[], 1, 'Law Abiding', true, '00000000-0000-0000-0000-000000000023', now())
 ON CONFLICT (id) DO NOTHING;
 
@@ -345,28 +345,28 @@ WHERE e.equipment_name IN ('Flak Armour', 'Stub Gun')
 INSERT INTO public.fighter_type_equipment (fighter_type_id, equipment_id)
 SELECT ft.id, e.id
 FROM public.fighter_types ft, public.equipment e
-WHERE ft.fighter_classes ?| array['Leader', 'Champion', 'Specialist', 'Ganger']
+WHERE ft.fighter_subtypes ?| array['Leader', 'Champion', 'Specialist', 'Ganger']
   AND e.equipment_name IN ('Autogun', 'Lasgun', 'Fighting Knife');
 
 -- Leaders and Champions can have Mesh Armour and Boltguns
 INSERT INTO public.fighter_type_equipment (fighter_type_id, equipment_id)
 SELECT ft.id, e.id
 FROM public.fighter_types ft, public.equipment e
-WHERE ft.fighter_classes ?| array['Leader', 'Champion']
+WHERE ft.fighter_subtypes ?| array['Leader', 'Champion']
   AND e.equipment_name IN ('Mesh Armour', 'Boltgun');
 
 -- Juves can have Fighting Knives
 INSERT INTO public.fighter_type_equipment (fighter_type_id, equipment_id)
 SELECT ft.id, e.id
 FROM public.fighter_types ft, public.equipment e
-WHERE ft.fighter_classes ? 'Juve'
+WHERE ft.fighter_subtypes ? 'Juve'
   AND e.equipment_name = 'Fighting Knife';
 
 -- Cawdor Leaders and Champions can have Sheenbird (Exotic Beast)
 INSERT INTO public.fighter_type_equipment (fighter_type_id, equipment_id)
 SELECT ft.id, 'e8888888-8888-8888-8888-888888888888'
 FROM public.fighter_types ft
-WHERE ft.gang_type = 'House Cawdor' AND ft.fighter_classes ?| array['Leader', 'Champion'];
+WHERE ft.gang_type = 'House Cawdor' AND ft.fighter_subtypes ?| array['Leader', 'Champion'];
 
 -- ============================================================================
 -- 24. EXOTIC BEAST MAPPINGS (EQUIPMENT TO FIGHTER TYPE)

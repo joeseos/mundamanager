@@ -2,15 +2,28 @@ import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
 import { WeaponProfileInput, EquipmentAvailability, EquipmentOriginAvailability, EquipmentVariantAvailability, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
-import { 
-  FighterEffectType, 
-  FighterEffectTypeModifier, 
-  FighterEffectCategory 
+import {
+  FighterEffectType,
+  FighterEffectTypeModifier,
+  FighterEffectCategory
 } from "@/types/fighter-effect";
+import { isValidTradePoints } from "@/utils/campaigns/resources";
 
 interface FighterTypeEquipment {
   fighter_type_id: string;
   equipment_id: string;
+}
+
+/** Normalize admin Trade Points input: "E" or non-negative integer digits. */
+function normalizeAdminTradePoints(value: unknown): { ok: true; value: string } | { ok: false; error: string } {
+  if (value == null || value === '') {
+    return { ok: true, value: '0' };
+  }
+  const trimmed = String(value).trim().toUpperCase();
+  if (!isValidTradePoints(trimmed)) {
+    return { ok: false, error: 'Trade Points must be a non-negative integer or E' };
+  }
+  return { ok: true, value: trimmed };
 }
 
 export async function GET(request: Request) {
@@ -311,10 +324,10 @@ export async function GET(request: Request) {
             id,
             fighter_type,
             gang_type,
-            fighter_classes,
-            fighter_sub_type_id,
-            fighter_sub_types(
-              sub_type_name
+            fighter_subtypes,
+            fighter_specialisation_id,
+            fighter_specialisations(
+              specialisation_name
             )
           `)
           .order('gang_type')
@@ -408,6 +421,7 @@ export async function POST(request: Request) {
       equipment_name,
       availability,
       cost,
+      trade_points,
       variants,
       equipment_category_id,
       equipment_type,
@@ -428,6 +442,11 @@ export async function POST(request: Request) {
 
     if (categoryError) throw categoryError;
 
+    const normalizedTradePoints = normalizeAdminTradePoints(trade_points);
+    if (!normalizedTradePoints.ok) {
+      return NextResponse.json({ error: normalizedTradePoints.error }, { status: 400 });
+    }
+
     // Create the equipment
     const { data: equipment, error: equipmentError } = await supabase
       .from('equipment')
@@ -435,6 +454,7 @@ export async function POST(request: Request) {
         equipment_name: equipment_name.trimEnd(),
         availability: availability.trimEnd(),
         cost,
+        trade_points: normalizedTradePoints.value,
         variants,
         equipment_category: categoryData.category_name,
         equipment_category_id,
@@ -464,6 +484,9 @@ export async function POST(request: Request) {
         strength: profile.strength === null ? '' : profile.strength || '',
         ap: profile.ap === null ? '' : profile.ap || '',
         damage: profile.damage === null ? '' : profile.damage || '',
+        // Nullable, unlike the columns above: NULL means the edition has no
+        // Lethality characteristic rather than an unfilled one
+        lethality: profile.lethality || null,
         ammo: profile.ammo === null ? '' : profile.ammo || '',
         traits: profile.traits === null ? '' : profile.traits || ''
       }));
@@ -558,6 +581,7 @@ export async function PATCH(request: Request) {
       equipment_name,
       availability,
       cost,
+      trade_points,
       variants,
       equipment_category,
       equipment_category_id,
@@ -577,6 +601,11 @@ export async function PATCH(request: Request) {
       edition_id
     } = data;
 
+    const normalizedTradePoints = normalizeAdminTradePoints(trade_points);
+    if (!normalizedTradePoints.ok) {
+      return NextResponse.json({ error: normalizedTradePoints.error }, { status: 400 });
+    }
+
     // Update equipment
     const { error: equipmentError } = await supabase
       .from('equipment')
@@ -584,6 +613,7 @@ export async function PATCH(request: Request) {
         equipment_name,
         availability,
         cost,
+        trade_points: normalizedTradePoints.value,
         variants,
         equipment_category,
         equipment_category_id,
@@ -624,6 +654,7 @@ export async function PATCH(request: Request) {
               strength: profile.strength,
               ap: profile.ap,
               damage: profile.damage,
+              lethality: profile.lethality || null,
               ammo: profile.ammo,
               traits: profile.traits,
               weapon_group_id: profile.weapon_group_id || id,

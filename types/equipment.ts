@@ -35,6 +35,8 @@ export interface WeaponProfile {
   strength?: number | string | null;
   ap?: number | string | null;
   damage?: number | string | null;
+  /** N26 replacement for damage. Null on pre-N26 profiles. */
+  lethality?: number | string | null;
   ammo?: number | string | null;
   traits?: string | null;
   weapon_group_id?: string | null;
@@ -55,11 +57,32 @@ export interface WeaponProfileInput {
   strength: string;
   ap: string;
   damage: string;
+  lethality: string;
   ammo: string;
   traits: string;
   weapon_group_id?: string | null;
   sort_order: number;
 }
+
+/**
+ * A blank profile for the admin equipment forms. Defined once so a new stat
+ * column lands in one place rather than in every form literal.
+ */
+export const emptyWeaponProfile = (sortOrder = 1): WeaponProfileInput => ({
+  profile_name: '',
+  range_short: '',
+  range_long: '',
+  acc_short: '',
+  acc_long: '',
+  strength: '',
+  ap: '',
+  damage: '',
+  lethality: '',
+  ammo: '',
+  traits: '',
+  weapon_group_id: null,
+  sort_order: sortOrder,
+});
 
 /**
  * Weapon - simplified weapon type used in fighter cards and roster views
@@ -84,6 +107,8 @@ export interface Equipment {
   cost: number;
   base_cost?: number;
   adjusted_cost?: number;
+  /** N26 Trade Points cost (text: numeric string or E); surfaced when edition uses trade points */
+  trade_points?: string;
   availability?: string | null;
   equipment_category?: string;
   created_at?: string;
@@ -148,6 +173,8 @@ export interface CustomEquipment {
   equipment_name: string;
   availability: string;
   cost: number;
+  /** N26 Trade Points cost (text: numeric string or E); surfaced when edition uses trade points */
+  trade_points?: string;
   variant?: string;
   equipment_category?: string;
   equipment_category_id?: string;
@@ -171,6 +198,8 @@ export interface CustomWeaponProfileData {
   strength: string;
   ap: string;
   damage: string;
+  /** N26 replacement for damage. Optional until the customise form offers it. */
+  lethality?: string;
   ammo: string;
   traits?: string;
   sort_order?: number;

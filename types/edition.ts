@@ -21,23 +21,38 @@ export type EditionSlug = typeof EDITION_N23 | typeof EDITION_N26;
  *
  * Add a field per DECISION, not per feature. Where editions answer the same
  * question differently, that is one union-typed field, not several booleans —
- * separate booleans would admit illegal states (both on, both off). Buy
- * Equipment is the coming example: N23 governs it with Availability and N26
- * with Trade Points, which is one `equipmentResource` field, not two flags.
+ * separate booleans would admit illegal states (both on, both off).
+ *
+ * `tradePoints` is one such decision: when true, the edition uses Trade Points
+ * (gang resource and equipment catalog cost); when false, equipment uses
+ * Availability instead. Callers invert `hasTradePoints` for the Availability UI.
  */
 export interface EditionCapabilities {
   /** Sv on the fighter profile */
   saveCharacteristic: boolean;
-  /** A fighter may hold several classes at once */
-  multipleFighterClasses: boolean;
-  /** Gang-level Trade Points resource */
+  /** A fighter may hold several subtypes at once */
+  multipleFighterSubtypes: boolean;
+  /**
+   * Trade Points: gang-level resource and equipment catalog cost.
+   * When false, equipment uses Availability (Trading Post rarity) instead.
+   */
   tradePoints: boolean;
+  /** Fighter types carry a Starting XP value (feeds N26 advancement ranks) */
+  startingXp: boolean;
+  /**
+   * Weapon profiles use the N26 statline (SR, LR, Str, AP, Lethality) rather
+   * than the N23 one (Rng S/L, Acc S/L, Str, AP, D, Am). Ammo and Damage are
+   * written into Traits on N26 profiles.
+   */
+  lethalityStatline: boolean;
 }
 
 const N26_CAPABILITIES: EditionCapabilities = {
   saveCharacteristic: true,
-  multipleFighterClasses: true,
+  multipleFighterSubtypes: true,
   tradePoints: true,
+  startingXp: true,
+  lethalityStatline: true,
 };
 
 /**
@@ -55,8 +70,10 @@ const N26_CAPABILITIES: EditionCapabilities = {
 const EDITION_CAPABILITIES: Record<EditionSlug, EditionCapabilities> = {
   n23: {
     saveCharacteristic: false,
-    multipleFighterClasses: false,
+    multipleFighterSubtypes: false,
     tradePoints: false,
+    startingXp: false,
+    lethalityStatline: false,
   },
   n26: N26_CAPABILITIES,
 };
@@ -69,8 +86,10 @@ const EDITION_CAPABILITIES: Record<EditionSlug, EditionCapabilities> = {
  */
 const NO_CAPABILITIES: EditionCapabilities = {
   saveCharacteristic: false,
-  multipleFighterClasses: false,
+  multipleFighterSubtypes: false,
   tradePoints: false,
+  startingXp: false,
+  lethalityStatline: false,
 };
 
 function capabilitiesFor(editionSlug?: string | null): EditionCapabilities {
@@ -99,11 +118,17 @@ function capabilitiesFor(editionSlug?: string | null): EditionCapabilities {
 export const hasSaveCharacteristic = (editionSlug?: string | null): boolean =>
   capabilitiesFor(editionSlug).saveCharacteristic;
 
-export const allowsMultipleClasses = (editionSlug?: string | null): boolean =>
-  capabilitiesFor(editionSlug).multipleFighterClasses;
+export const allowsMultipleSubtypes = (editionSlug?: string | null): boolean =>
+  capabilitiesFor(editionSlug).multipleFighterSubtypes;
 
 export const hasTradePoints = (editionSlug?: string | null): boolean =>
   capabilitiesFor(editionSlug).tradePoints;
+
+export const hasStartingXp = (editionSlug?: string | null): boolean =>
+  capabilitiesFor(editionSlug).startingXp;
+
+export const hasLethalityStatline = (editionSlug?: string | null): boolean =>
+  capabilitiesFor(editionSlug).lethalityStatline;
 
 export interface Edition {
   id: string;

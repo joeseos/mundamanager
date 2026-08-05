@@ -149,11 +149,11 @@ BEGIN
   FROM public.custom_equipment ce WHERE ce.id = ANY(v_eq);
 
   INSERT INTO public.custom_weapon_profiles (id, custom_equipment_id, created_at, profile_name, range_short,
-                                             range_long, acc_short, acc_long, strength, ap, damage, ammo,
-                                             traits, weapon_group_id, sort_order, user_id)
+                                             range_long, acc_short, acc_long, strength, ap, damage, lethality,
+                                             ammo, traits, weapon_group_id, sort_order, user_id)
   SELECT gen_random_uuid(), (v_map_eq ->> wp.custom_equipment_id::text)::uuid, now(), wp.profile_name, wp.range_short,
-         wp.range_long, wp.acc_short, wp.acc_long, wp.strength, wp.ap, wp.damage, wp.ammo,
-         wp.traits, (v_map_eq ->> wp.weapon_group_id::text)::uuid, wp.sort_order, v_user
+         wp.range_long, wp.acc_short, wp.acc_long, wp.strength, wp.ap, wp.damage, wp.lethality,
+         wp.ammo, wp.traits, (v_map_eq ->> wp.weapon_group_id::text)::uuid, wp.sort_order, v_user
   FROM public.custom_weapon_profiles wp WHERE wp.custom_equipment_id = ANY(v_eq);
 
   INSERT INTO public.custom_gang_types (id, created_at, user_id, gang_type, alignment, trading_post_type_id,
@@ -166,12 +166,12 @@ BEGIN
                                            weapon_skill, ballistic_skill, strength, toughness, wounds, initiative,
                                            attacks, leadership, cool, willpower, intelligence, gang_type_id,
                                            special_rules, free_skill,
-                                           fighter_classes, custom_gang_type_id, description)
+                                           fighter_subtypes, custom_gang_type_id, description)
   SELECT (v_map_ft ->> cft.id::text)::uuid, now(), v_user, cft.fighter_type, cft.gang_type, cft.cost, cft.movement,
          cft.weapon_skill, cft.ballistic_skill, cft.strength, cft.toughness, cft.wounds, cft.initiative,
          cft.attacks, cft.leadership, cft.cool, cft.willpower, cft.intelligence, cft.gang_type_id,
          cft.special_rules, cft.free_skill,
-         cft.fighter_classes, (v_map_gt ->> cft.custom_gang_type_id::text)::uuid, cft.description
+         cft.fighter_subtypes, (v_map_gt ->> cft.custom_gang_type_id::text)::uuid, cft.description
   FROM public.custom_fighter_types cft WHERE cft.id = ANY(v_ft);
 
   INSERT INTO public.fighter_type_skill_access (id, fighter_type_id, skill_type_id, access_level,

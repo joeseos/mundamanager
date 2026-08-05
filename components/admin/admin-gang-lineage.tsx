@@ -34,8 +34,8 @@ interface FighterType {
   fighter_type: string;
   gang_type: string;
   gang_type_id: string;
-  fighter_classes?: string[];
-  fighter_sub_type?: string | null;
+  fighter_subtypes?: string[];
+  fighter_specialisation?: string | null;
 }
 
 interface GangType {
@@ -349,15 +349,15 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
   const getFighterTypeDisplayName = (fighterType: FighterType) => {
     let displayName = fighterType.fighter_type;
     
-    // Add fighter class in parentheses
-    const classDisplay = fighterType.fighter_classes?.join(', ');
-    if (classDisplay) {
-      displayName += ` (${classDisplay})`;
+    // Add fighter subtype in parentheses
+    const subtypeDisplay = fighterType.fighter_subtypes?.join(', ');
+    if (subtypeDisplay) {
+      displayName += ` (${subtypeDisplay})`;
     }
     
-    // Add sub-type with dash if it exists
-    if (fighterType.fighter_sub_type) {
-      displayName += ` - ${fighterType.fighter_sub_type}`;
+    // Add specialisation with dash if it exists
+    if (fighterType.fighter_specialisation) {
+      displayName += ` - ${fighterType.fighter_specialisation}`;
     }
     
     return displayName;

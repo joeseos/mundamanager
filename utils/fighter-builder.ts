@@ -83,8 +83,8 @@ export interface AddFighterServerData {
   fighter_id: string;
   fighter_name: string;
   fighter_type: string;
-  fighter_classes?: string[];
-  fighter_sub_type_id?: string;
+  fighter_subtypes?: string[];
+  fighter_specialisation_id?: string;
   free_skill: boolean;
   rating_cost?: number;
   cost: number;
@@ -126,7 +126,7 @@ export interface ExoticBeastServerData {
   id: string;
   fighter_name: string;
   fighter_type: string;
-  fighter_classes?: string[];
+  fighter_subtypes?: string[];
   fighter_type_id: string;
   credits: number;
   owner?: { fighter_name: string };
@@ -248,7 +248,7 @@ function buildEffectsFromAppliedEffects(
 export function buildFighterFromServerData(
   data: AddFighterServerData,
   fighterTypeId: string,
-  subTypeName?: string
+  specialisationName?: string
 ): FighterProps {
   const displayCost = data.rating_cost ?? data.cost;
 
@@ -257,10 +257,10 @@ export function buildFighterFromServerData(
     fighter_name: data.fighter_name,
     fighter_type_id: fighterTypeId,
     fighter_type: data.fighter_type,
-    fighter_classes: data.fighter_classes ?? [],
-    fighter_sub_type: data.fighter_sub_type_id ? {
-      fighter_sub_type_id: data.fighter_sub_type_id,
-      fighter_sub_type: subTypeName || ''
+    fighter_subtypes: data.fighter_subtypes ?? [],
+    fighter_specialisation: data.fighter_specialisation_id ? {
+      fighter_specialisation_id: data.fighter_specialisation_id,
+      fighter_specialisation: specialisationName || ''
     } : undefined,
     credits: displayCost,
     movement: data.base_stats.movement,
@@ -317,7 +317,7 @@ export function buildBeastFromServerData(beast: ExoticBeastServerData): FighterP
     id: beast.id,
     fighter_name: beast.fighter_name,
     fighter_type: beast.fighter_type,
-    fighter_classes: beast.fighter_classes ?? [],
+    fighter_subtypes: beast.fighter_subtypes ?? [],
     fighter_type_id: beast.fighter_type_id,
     credits: beast.credits,
     owner_name: beast.owner?.fighter_name,

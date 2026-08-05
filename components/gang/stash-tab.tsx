@@ -56,6 +56,9 @@ interface GangInventoryProps {
   campaignGangId?: string;
   gangCampaignResources?: GangCampaignResource[];
   gangReputation?: number;
+  editionSlug?: string | null;
+  gangTradePoints?: number;
+  onGangTradePointsUpdate?: (newTradePoints: number) => void;
   positioning?: Record<number, string>;
 }
 
@@ -81,6 +84,9 @@ export default function GangInventory({
   campaignGangId,
   gangCampaignResources,
   gangReputation,
+  editionSlug,
+  gangTradePoints,
+  onGangTradePointsUpdate,
   positioning
 }: GangInventoryProps) {
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
@@ -211,7 +217,7 @@ export default function GangInventory({
   
   // Update isCrew to handle undefined
   const isCrew = (fighter: FighterProps | undefined): boolean =>
-    fighter?.fighter_classes?.includes('Crew') || false;
+    fighter?.fighter_subtypes?.includes('Crew') || false;
 
   const findFighter = (id: string): FighterProps | undefined => 
     fighters.find(f => f.id === id);
@@ -646,7 +652,7 @@ export default function GangInventory({
       if (result.affected_beast_ids && result.affected_beast_ids.length > 0) {
         const updatedBeasts: FighterProps[] = [];
         setFighters(prev => prev.map(f => {
-          if (result.affected_beast_ids!.includes(f.id) && f.fighter_classes?.some(c => c.toLowerCase().startsWith('exotic beast'))) {
+          if (result.affected_beast_ids!.includes(f.id) && f.fighter_subtypes?.some(c => c.toLowerCase().startsWith('exotic beast'))) {
             const updatedBeast = { ...f, beast_equipment_stashed: false };
             updatedBeasts.push(updatedBeast);
             return updatedBeast;
@@ -756,7 +762,7 @@ export default function GangInventory({
         if (fighter.starved) statusIcons.push(<TbMeatOff className="text-red-500 w-4 h-4" key="starved" />);
         if (fighter.recovery) statusIcons.push(<FaMedkit className="text-blue-500 w-4 h-4" key="recovery" />);
         if (fighter.captured) statusIcons.push(<GiHandcuffs className="text-red-600 w-4 h-4" key="captured" />);
-        const displayText = `${fighter.fighter_name} (${fighter.fighter_classes?.join(', ')}) - ${fighter.credits} credits`;
+        const displayText = `${fighter.fighter_name} (${fighter.fighter_subtypes?.join(', ')}) - ${fighter.credits} credits`;
         options.push({
           value: fighter.id,
           displayValue: displayText,
@@ -1000,7 +1006,9 @@ export default function GangInventory({
           campaignGangId={campaignGangId}
           gangCampaignResources={gangCampaignResources}
           gangReputation={gangReputation}
-          onEquipmentBought={(_newFighterCredits, newGangCredits, boughtEquipment, newGangRating, newGangWealth) => {
+          editionSlug={editionSlug}
+          gangTradePoints={gangTradePoints}
+          onEquipmentBought={({ newGangCredits, boughtEquipment, newGangRating, newGangWealth, newGangTradePoints }) => {
             // Handle equipment bought for stash - perform optimistic updates
 
             // Create new stash item from the purchased equipment
@@ -1041,6 +1049,10 @@ export default function GangInventory({
             // Update gang wealth if provided
             if (onGangWealthUpdate && newGangWealth !== undefined) {
               onGangWealthUpdate(newGangWealth);
+            }
+
+            if (onGangTradePointsUpdate && newGangTradePoints !== undefined) {
+              onGangTradePointsUpdate(newGangTradePoints);
             }
 
             const costDescription = boughtEquipment.cost_resource_name

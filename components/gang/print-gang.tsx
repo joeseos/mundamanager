@@ -517,7 +517,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
             <tbody>
               {sortedFighters.map((fighter, index) => {
                 const adjustedStats = calculateAdjustedStats(fighter);
-                const isCrew = fighter.fighter_classes?.includes('Crew') || false;
+                const isCrew = fighter.fighter_subtypes?.includes('Crew') || false;
                 const vehicle = fighter.vehicles && fighter.vehicles.length > 0
                   ? (fighter.vehicles[0] as unknown as Vehicle)
                   : undefined;
@@ -707,8 +707,8 @@ export default function PrintGang({ gang }: PrintGangProps) {
                        <div className="text-[9px] mt-[1px] flex items-center justify-between gap-2">
                          <div>
                            {fighter.fighter_type}
-                           {fighter.fighter_classes?.join(', ')
-                             ? ` • ${fighter.fighter_classes.join(', ')}`
+                           {fighter.fighter_subtypes?.join(', ')
+                             ? ` • ${fighter.fighter_subtypes.join(', ')}`
                              : ""}
                          </div>
                          {/* W/FW boxes */}
@@ -827,7 +827,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                         if (!isCrew && fighter.weapons && fighter.weapons.length > 0) {
                           return (
                             <div className="roster-weapons-table [&_table]:text-[9px] [&_th]:text-[9px] [&_td]:text-[9px]">
-                              <WeaponTable weapons={fighter.weapons} viewMode={PRINT_GANG_VIEW_MODE} />
+                              <WeaponTable weapons={fighter.weapons} viewMode={PRINT_GANG_VIEW_MODE} editionSlug={fighter.edition_slug} />
                             </div>
                           );
                         }
@@ -845,12 +845,12 @@ export default function PrintGang({ gang }: PrintGangProps) {
                             <div className="space-y-1">
                               {hasCrewWeapons && (
                                 <div className="roster-weapons-table [&_table]:text-[9px] [&_th]:text-[9px] [&_td]:text-[9px]">
-                                  <WeaponTable weapons={fighter.weapons} entity="crew" viewMode={PRINT_GANG_VIEW_MODE} />
+                                  <WeaponTable weapons={fighter.weapons} entity="crew" viewMode={PRINT_GANG_VIEW_MODE} editionSlug={fighter.edition_slug} />
                                 </div>
                               )}
                               {hasVehicleWeapons && (
                                 <div className="roster-weapons-table [&_table]:text-[9px] [&_th]:text-[9px] [&_td]:text-[9px]">
-                                  <WeaponTable weapons={vehicleWeapons} entity="vehicle" viewMode={PRINT_GANG_VIEW_MODE} />
+                                  <WeaponTable weapons={vehicleWeapons} entity="vehicle" viewMode={PRINT_GANG_VIEW_MODE} editionSlug={fighter.edition_slug} />
                                 </div>
                               )}
                             </div>
@@ -1288,7 +1288,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                     : undefined;
 
                   const adjustedStats = calculateAdjustedStats(fighter);
-                  const isCrew = fighter.fighter_classes?.includes('Crew') || false;
+                  const isCrew = fighter.fighter_subtypes?.includes('Crew') || false;
                   const vehicleStats = isCrew
                     ? calculateVehicleStats(vehicle)
                     : null;
@@ -1325,8 +1325,8 @@ export default function PrintGang({ gang }: PrintGangProps) {
                         id={fighter.id}
                         name={fighter.fighter_name}
                         type={fighter.fighter_type}
-                        fighter_classes={fighter.fighter_classes}
-                        fighter_sub_type={fighter.fighter_sub_type}
+                        fighter_subtypes={fighter.fighter_subtypes}
+                        fighter_specialisation={fighter.fighter_specialisation}
                         label={fighter.label}
                         credits={fighter.credits}
                         loadout_cost={fighter.loadout_cost}
@@ -1343,6 +1343,8 @@ export default function PrintGang({ gang }: PrintGangProps) {
                         cool={fighter.cool}
                         willpower={fighter.willpower}
                         intelligence={fighter.intelligence}
+                        save={fighter.save}
+                        edition_slug={fighter.edition_slug}
                         xp={fighter.xp}
                         advancements={fighter.advancements}
                         weapons={fighter.weapons}

@@ -1,16 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AvailabilityPicker, combineAvailability } from '@/components/ui/availability-picker';
 import { toast } from 'sonner';
-import { WeaponProfileInput, EquipmentAvailability, GangAdjustedCost } from "@/types/equipment";
-import { EditionSelect } from '@/components/edition-select';
+import { WeaponProfileInput, EquipmentAvailability, GangAdjustedCost, emptyWeaponProfile } from "@/types/equipment";
+import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
+import { hasLethalityStatline, hasTradePoints } from '@/types/edition';
+import { isValidTradePoints } from '@/utils/campaigns/resources';
+import { WeaponProfileFields } from '@/components/ui/weapon-profile-fields';
 import { HiX } from "react-icons/hi";
 import { LuTrash2 } from 'react-icons/lu'
+
+interface EquipmentCategory {
+  id: string;
+  category_name: string;
+  edition_id?: string | null;
+}
 
 interface AdminCreateEquipmentModalProps {
   onClose: () => void;
@@ -26,26 +35,14 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   const [availLetter, setAvailLetter] = useState<'C' | 'R' | 'E' | 'I' | 'S'>('C');
   const [availNumber, setAvailNumber] = useState(6);
   const [cost, setCost] = useState('');
+  const [tradePoints, setTradePoints] = useState('0');
   const [variants] = useState('');
   const [equipmentCategory, setEquipmentCategory] = useState('');
   const [equipmentType, setEquipmentType] = useState<EquipmentType | ''>('');
   const [editionId, setEditionId] = useState('');
   const [coreEquipment, setCoreEquipment] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [weaponProfiles, setWeaponProfiles] = useState<WeaponProfileInput[]>([{
-    profile_name: '',
-    range_short: '',
-    range_long: '',
-    acc_short: '',
-    acc_long: '',
-    strength: '',
-    ap: '',
-    damage: '',
-    ammo: '',
-    traits: '',
-    weapon_group_id: null,
-    sort_order: 1
-  }]);
+  const [weaponProfiles, setWeaponProfiles] = useState<WeaponProfileInput[]>([emptyWeaponProfile()]);
   const [showAdjustedCostDialog, setShowAdjustedCostDialog] = useState(false);
   const [selectedGangType, setSelectedGangType] = useState("");
   const [adjustedCostValue, setAdjustedCostValue] = useState("");
@@ -60,7 +57,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   
   
 
-  const { data: categories = [] } = useQuery<Array<{id: string, category_name: string}>>({
+  const { data: categories = [] } = useQuery<EquipmentCategory[]>({
     queryKey: ['admin-equipment-categories'],
     queryFn: async () => {
       const response = await fetch('/api/admin/equipment/categories');
@@ -69,6 +66,38 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
     },
     staleTime: 5 * 60 * 1000,
   });
+
+  const filteredCategories = useMemo(
+    () => editionId ? categories.filter(category => category.edition_id === editionId) : categories,
+    [categories, editionId]
+  );
+
+  const { data: editions = [] } = useEditions();
+  const editionSlug = editionSlugOf(editions, editionId);
+  const showTradePoints = hasTradePoints(editionSlug);
+  const showAvailability = !showTradePoints;
+  // N26 weapons are described with SR/LR/Str/AP/Lethality; N23 with Rng, Acc,
+  // Str, AP, D and Am. Only the stats the selected edition uses are offered.
+  const usesLethality = hasLethalityStatline(editionSlug);
+
+  const handleEditionChange = (newEditionId: string) => {
+    setEditionId(newEditionId);
+    if (equipmentCategory) {
+      const selected = categories.find(category => category.id === equipmentCategory);
+      if (selected && newEditionId && selected.edition_id !== newEditionId) {
+        setEquipmentCategory('');
+      }
+    }
+    // Stats the new edition does not use are no longer rendered, but anything
+    // already typed would stay in state and still be submitted -- an N26 weapon
+    // saved with a Damage and an Accuracy. Blank them on the way across.
+    const nowUsesLethality = hasLethalityStatline(editionSlugOf(editions, newEditionId));
+    setWeaponProfiles(profiles => profiles.map(profile => (
+      nowUsesLethality
+        ? { ...profile, acc_short: '', acc_long: '', damage: '', ammo: '' }
+        : { ...profile, lethality: '' }
+    )));
+  };
 
   const { data: weapons = [] } = useQuery<Array<{id: string, equipment_name: string}>>({
     queryKey: ['admin-weapons'],
@@ -102,23 +131,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   };
 
   const addProfile = () => {
-    setWeaponProfiles([
-      ...weaponProfiles,
-      {
-        profile_name: '',
-        range_short: '',
-        range_long: '',
-        acc_short: '',
-        acc_long: '',
-        strength: '',
-        ap: '',
-        damage: '',
-        ammo: '',
-        traits: '',
-        weapon_group_id: null,
-        sort_order: weaponProfiles.length + 1
-      }
-    ]);
+    setWeaponProfiles([...weaponProfiles, emptyWeaponProfile(weaponProfiles.length + 1)]);
   };
 
   const removeProfile = (index: number) => {
@@ -130,6 +143,11 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   const handleSubmit = async () => {
     if (!equipmentName || !cost || !equipmentCategory || !equipmentType) {
       toast.error("Please fill in all required fields");
+      return;
+    }
+
+    if (showTradePoints && !isValidTradePoints(tradePoints)) {
+      toast.error("Trade Points must be a number or E");
       return;
     }
 
@@ -145,6 +163,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         strength: profile.strength || null,
         ap: profile.ap || null,
         damage: profile.damage || null,
+        lethality: profile.lethality || null,
         ammo: profile.ammo || null,
         traits: profile.traits || null
       })) : undefined;
@@ -158,8 +177,12 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         },
         body: JSON.stringify({
           equipment_name: equipmentName,
-          availability: combineAvailability(availLetter, availNumber),
+          // N26 has no Availability UI; column is NOT NULL so send a safe default.
+          availability: showAvailability
+            ? combineAvailability(availLetter, availNumber)
+            : 'C',
           cost: parseInt(cost),
+          trade_points: showTradePoints ? tradePoints.trim().toUpperCase() : '0',
           variants: variants || null,
           equipment_category_id: equipmentCategory,
           equipment_type: equipmentType,
@@ -247,7 +270,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                 className="w-full p-2 border rounded-md"
               >
                 <option value="">Select category</option>
-                {categories.map((category) => (
+                {filteredCategories.map((category) => (
                   <option key={category.id} value={category.id}>
                     {category.category_name}
                   </option>
@@ -282,7 +305,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
               </select>
             </div>
 
-            <EditionSelect value={editionId} onChange={setEditionId} defaultToCurrent />
+            <EditionSelect value={editionId} onChange={handleEditionChange} defaultToCurrent />
 
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
@@ -298,13 +321,30 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
               />
             </div>
 
-            <AvailabilityPicker
-              label="Availability (TP default) *"
-              letter={availLetter}
-              number={availNumber}
-              onLetterChange={(v) => setAvailLetter(v as 'C' | 'R' | 'E' | 'I' | 'S')}
-              onNumberChange={setAvailNumber}
-            />
+            {showAvailability && (
+              <AvailabilityPicker
+                label="Availability (TP default) *"
+                letter={availLetter}
+                number={availNumber}
+                onLetterChange={(v) => setAvailLetter(v as 'C' | 'R' | 'E' | 'I' | 'S')}
+                onNumberChange={setAvailNumber}
+              />
+            )}
+
+            {showTradePoints && (
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
+                  Trade Points *
+                </label>
+                <Input
+                  type="text"
+                  value={tradePoints}
+                  onChange={(e) => setTradePoints(e.target.value)}
+                  placeholder="2 or E"
+                  className="w-full"
+                />
+              </div>
+            )}
 
             {equipmentType && equipmentType !== 'vehicle_upgrade' ? (
               <div className="col-span-1">
@@ -692,96 +732,12 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                       </div>
 
                       {/* Weapon Characteristics */}
-                      <div className="grid grid-cols-4 md:grid-cols-8 gap-2 md:gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-muted-foreground mb-1">
-                            Rng S
-                          </label>
-                          <Input
-                            value={profile.range_short}
-                            onChange={(e) => handleProfileChange(index, 'range_short', e.target.value)}
-                            placeholder='e.g. 4", -'
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-muted-foreground mb-1">
-                            Rng L
-                          </label>
-                          <Input
-                            value={profile.range_long}
-                            onChange={(e) => handleProfileChange(index, 'range_long', e.target.value)}
-                            placeholder='e.g. 8", E'
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-muted-foreground mb-1">
-                            Acc S
-                          </label>
-                          <Input
-                            value={profile.acc_short}
-                            onChange={(e) => handleProfileChange(index, 'acc_short', e.target.value)}
-                            placeholder='e.g. +1, -'
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-muted-foreground mb-1">
-                            Acc L
-                          </label>
-                          <Input
-                            value={profile.acc_long}
-                            onChange={(e) => handleProfileChange(index, 'acc_long', e.target.value)}
-                            placeholder='e.g. -1, -'
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-muted-foreground mb-1">
-                            Strength
-                          </label>
-                          <Input
-                            value={profile.strength}
-                            onChange={(e) => handleProfileChange(index, 'strength', e.target.value)}
-                            placeholder="e.g. 3, S+1"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-muted-foreground mb-1">
-                            AP
-                          </label>
-                          <Input
-                            value={profile.ap}
-                            onChange={(e) => handleProfileChange(index, 'ap', e.target.value)}
-                            placeholder='e.g. -1, -'
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-muted-foreground mb-1">
-                            Damage
-                          </label>
-                          <Input
-                            type="text"
-                            value={profile.damage}
-                            onChange={(e) => handleProfileChange(index, 'damage', e.target.value)}
-                            placeholder="e.g. 1, D3"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-muted-foreground mb-1">
-                            Am
-                          </label>
-                          <Input
-                            value={profile.ammo}
-                            onChange={(e) => handleProfileChange(index, 'ammo', e.target.value)}
-                            placeholder='e.g. 5+'
-                          />
-                        </div>
-                      </div>
+                      <WeaponProfileFields
+                        profile={profile}
+                        index={index}
+                        onChange={handleProfileChange}
+                        usesLethality={usesLethality}
+                      />
                       <div>
                         <div className="col-span-3">
                           <label className="block text-sm font-medium text-muted-foreground mb-1">

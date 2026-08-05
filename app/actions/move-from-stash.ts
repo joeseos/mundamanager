@@ -155,12 +155,12 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
     if (params.fighter_id) {
       const { data: fighter } = await supabase
         .from('fighters')
-        .select('killed, retired, enslaved, captured, fighter_classes')
+        .select('killed, retired, enslaved, captured, fighter_subtypes')
         .eq('id', params.fighter_id)
         .single();
       fighterIsActive = countsTowardRating(fighter);
 
-      if (fighterIsActive && fighter?.fighter_classes?.some((c: string) => c.toLowerCase().startsWith('exotic beast'))) {
+      if (fighterIsActive && fighter?.fighter_subtypes?.some((c: string) => c.toLowerCase().startsWith('exotic beast'))) {
         const { data: beastOwnership } = await supabase
           .from('fighter_exotic_beasts')
           .select('fighter_owner_id, fighters!fighter_owner_id (killed, retired, enslaved, captured)')
@@ -402,6 +402,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
             acc_long,
             strength,
             damage,
+            lethality,
             ap,
             ammo,
             traits,
