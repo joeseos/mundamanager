@@ -735,13 +735,10 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
 
     if (!financialResult.success) {
       // Nothing has been paid for, so unwind the purchase rather than leaving the gang
-      // holding free equipment. Deleting the fighter_equipment row cascades to granted
-      // equipment, fighter effects, beast links and loadout entries; the beasts' own
-      // fighter rows have no cascade, so remove those explicitly first.
+      // holding free equipment. Deleting the fighter_equipment row is enough: it cascades
+      // to granted equipment, fighter effects, loadout entries and fighter_exotic_beasts,
+      // and each beast's own fighters row cascades from there via fighter_pet_id.
       try {
-        if (createdBeasts.length > 0) {
-          await supabase.from('fighters').delete().in('id', createdBeasts.map(b => b.id));
-        }
         await supabase.from('fighter_equipment').delete().eq('id', newEquipmentId);
         if (isResourcePurchase) {
           if (params.resourceCost!.resourceName === REPUTATION_RESOURCE_NAME) {
