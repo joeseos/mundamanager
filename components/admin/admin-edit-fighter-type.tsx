@@ -329,6 +329,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     [fighterSubtypes, editionId]
   );
 
+  const fighterSubtypesForDisplay = useMemo(
+    () => [...filteredFighterSubtypes].sort((a, b) => a.subtype_name.localeCompare(b.subtype_name)),
+    [filteredFighterSubtypes]
+  );
+
   const filteredSkillTypes = useMemo(
     () => editionId ? skillTypes.filter(type => type.edition_id === editionId) : skillTypes,
     [skillTypes, editionId]
@@ -1554,39 +1559,51 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 </div>
               </div>
 
-              {/* Third row: Fighter Subtype and Base Cost */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div>
+              {/* Fighter Subtype — full width when multi-select (n26) */}
+              {allowMultipleSubtypes ? (
+                <div className="mb-4">
                   <label className="block text-sm font-medium text-muted-foreground mb-1">
                     Fighter Subtype *
                   </label>
-                  {allowMultipleSubtypes ? (
-                    <div className="border rounded-md p-2 grid grid-cols-2 gap-x-4 gap-y-2">
-                      {filteredFighterSubtypes.map((fighterSubtype) => (
-                        <label key={fighterSubtype.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                          <Checkbox
-                            checked={selectedFighterSubtypes.includes(fighterSubtype.subtype_name)}
-                            onCheckedChange={(checked) => toggleFighterSubtype(fighterSubtype.subtype_name, checked === true)}
-                          />
-                          <span>{fighterSubtype.subtype_name}</span>
-                        </label>
-                      ))}
-                    </div>
-                  ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-2">
+                    {fighterSubtypesForDisplay.map((fighterSubtype) => (
+                      <label key={fighterSubtype.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <Checkbox
+                          checked={selectedFighterSubtypes.includes(fighterSubtype.subtype_name)}
+                          onCheckedChange={(checked) => toggleFighterSubtype(fighterSubtype.subtype_name, checked === true)}
+                        />
+                        <span>{fighterSubtype.subtype_name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Base Cost, Alignment, Delegation Cost, Starting XP (+ single-select
+                  subtype). Always 2 columns: single-select editions show 4 items
+                  (subtype, base cost, alignment, delegation cost), multi-select
+                  editions show 4 items too (subtype moved above, but Starting XP
+                  fills the slot) -- either way the grid fills evenly. */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                {!allowMultipleSubtypes && (
+                  <div>
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">
+                      Fighter Subtype *
+                    </label>
                     <select
                       value={selectedFighterSubtypes[0] ?? ''}
                       onChange={(e) => setSelectedFighterSubtypes(e.target.value ? [e.target.value] : [])}
                       className="w-full p-2 border rounded-md"
                     >
                       <option value="">Select fighter subtype</option>
-                      {filteredFighterSubtypes.map((fighterSubtype) => (
+                      {fighterSubtypesForDisplay.map((fighterSubtype) => (
                         <option key={fighterSubtype.id} value={fighterSubtype.subtype_name}>
                           {fighterSubtype.subtype_name}
                         </option>
                       ))}
                     </select>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-muted-foreground mb-1">

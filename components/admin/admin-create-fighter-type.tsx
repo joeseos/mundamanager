@@ -158,6 +158,11 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
     [fighterSubtypes, editionId]
   );
 
+  const fighterSubtypesForDisplay = useMemo(
+    () => [...filteredFighterSubtypes].sort((a, b) => a.subtype_name.localeCompare(b.subtype_name)),
+    [filteredFighterSubtypes]
+  );
+
   const filteredSkillTypes = useMemo(
     () => editionId ? skillTypes.filter(type => type.edition_id === editionId) : skillTypes,
     [skillTypes, editionId]
@@ -412,8 +417,8 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
               </select>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-1">
+            <div className={`grid grid-cols-1 ${allowMultipleSubtypes ? '' : 'md:grid-cols-2'} gap-4`}>
+              <div className={allowMultipleSubtypes ? '' : 'md:col-span-1'}>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Fighter Type *
                 </label>
@@ -426,38 +431,45 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                 />
               </div>
 
-              <div className="md:col-span-1">
-                <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Fighter Subtype *
-                </label>
-                {allowMultipleSubtypes ? (
-                  <div className="border rounded-md p-2 grid grid-cols-2 gap-x-4 gap-y-2">
-                    {filteredFighterSubtypes.map((fighterSubtype) => (
-                      <label key={fighterSubtype.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                        <Checkbox
-                          checked={selectedFighterSubtypes.includes(fighterSubtype.subtype_name)}
-                          onCheckedChange={(checked) => toggleFighterSubtype(fighterSubtype.subtype_name, checked === true)}
-                        />
-                        <span>{fighterSubtype.subtype_name}</span>
-                      </label>
-                    ))}
-                  </div>
-                ) : (
+              {!allowMultipleSubtypes && (
+                <div className="md:col-span-1">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    Fighter Subtype *
+                  </label>
                   <select
                     value={selectedFighterSubtypes[0] ?? ''}
                     onChange={(e) => setSelectedFighterSubtypes(e.target.value ? [e.target.value] : [])}
                     className="w-full p-2 border rounded-md"
                   >
                     <option value="">Select fighter subtype</option>
-                    {filteredFighterSubtypes.map((fighterSubtype) => (
+                    {fighterSubtypesForDisplay.map((fighterSubtype) => (
                       <option key={fighterSubtype.id} value={fighterSubtype.subtype_name}>
                         {fighterSubtype.subtype_name}
                       </option>
                     ))}
                   </select>
-                )}
-              </div>
+                </div>
+              )}
             </div>
+
+            {allowMultipleSubtypes && (
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
+                  Fighter Subtype *
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-2">
+                  {fighterSubtypesForDisplay.map((fighterSubtype) => (
+                    <label key={fighterSubtype.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <Checkbox
+                        checked={selectedFighterSubtypes.includes(fighterSubtype.subtype_name)}
+                        onCheckedChange={(checked) => toggleFighterSubtype(fighterSubtype.subtype_name, checked === true)}
+                      />
+                      <span>{fighterSubtype.subtype_name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
               <div className="md:col-span-1">
