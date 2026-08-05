@@ -1,5 +1,5 @@
 import React from 'react';
-import { fighterCharacteristicLimits, crewCharacteristicLimits } from '@/utils/characteristicLimits';
+import { characteristicLimitsFor } from '@/utils/characteristicLimits';
 
 const formatStatValue = (key: string, value: number | string) => {
   if (key === 'BS' && value === '0+') return '-';
@@ -9,12 +9,15 @@ const formatStatValue = (key: string, value: number | string) => {
 interface FighterDetailsStatsTableProps {
   data?: Record<string, number | string>;
   isCrew?: boolean;
+  editionSlug?: string | null;
 }
 
-export function FighterDetailsStatsTable({ data, isCrew }: FighterDetailsStatsTableProps) {
+export function FighterDetailsStatsTable({ data, isCrew, editionSlug }: FighterDetailsStatsTableProps) {
   if (!data || Object.keys(data).length === 0) {
     return <p>No characteristics available</p>;
   }
+
+  const characteristicLimits = characteristicLimitsFor(editionSlug, !!isCrew);
 
   // Define the order of stats based on fighter type
   const statOrder = isCrew
@@ -60,7 +63,7 @@ export function FighterDetailsStatsTable({ data, isCrew }: FighterDetailsStatsTa
   };
 
   const isStatOutOfRange = (key: string, value: number | string): boolean => {
-    const limits = (isCrew ? crewCharacteristicLimits : fighterCharacteristicLimits)[key];
+    const limits = characteristicLimits[key];
     if (!limits) return false;
 
     const valNum = parseValue(value);
