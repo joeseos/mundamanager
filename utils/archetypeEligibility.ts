@@ -1,5 +1,5 @@
 export const UNDERHIVE_OUTCASTS_GANG_TYPE_ID = '77fc520f-b453-46ef-9ef0-6a12872934f8';
-export const ARCHETYPE_ELIGIBLE_FIGHTER_CLASSES = ['Leader', 'Champion'];
+export const ARCHETYPE_ELIGIBLE_FIGHTER_SUBTYPES = ['Leader', 'Champion'];
 
 const ARCHETYPE_OVERRIDE_ACCESS_LEVELS = new Set(['primary', 'secondary', 'allowed']);
 
@@ -10,15 +10,15 @@ export type ArchetypeSkillAccessOverride = {
 
 /**
  * Returns true when a fighter belongs to an Underhive Outcasts gang
- * and holds a class that can be assigned a skill archetype.
+ * and holds a subtype that can be assigned a skill archetype.
  */
 export function isArchetypeEligible(params: {
   gangTypeId?: string | null;
-  fighterClass?: string | null;
+  fighterSubtype?: string | null;
 }): boolean {
   return (
     params.gangTypeId === UNDERHIVE_OUTCASTS_GANG_TYPE_ID &&
-    ARCHETYPE_ELIGIBLE_FIGHTER_CLASSES.includes(params.fighterClass || '')
+    ARCHETYPE_ELIGIBLE_FIGHTER_SUBTYPES.includes(params.fighterSubtype || '')
   );
 }
 

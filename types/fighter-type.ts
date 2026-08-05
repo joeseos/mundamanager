@@ -53,7 +53,7 @@ export interface FighterType {
   id: string;
   fighter_type_id: string;
   fighter_type: string;
-  fighter_classes: string[];
+  fighter_subtypes: string[];
   gang_type: string;
   cost: number;
   gang_type_id: string;
@@ -80,15 +80,16 @@ export interface FighterType {
   alliance_id: string;
   alliance_crew_name: string;
   equipment_selection?: EquipmentSelection;
-  sub_type?: {
+  specialisation?: {
     id: string;
-    sub_type_name: string;
+    specialisation_name: string;
   };
-  fighter_sub_type_id?: string;
+  fighter_specialisation_id?: string;
   available_legacies?: Array<{id: string, name: string}>;
   is_spyrer?: boolean;
   free_skill?: boolean;
   delegation_cost?: number | null;
   is_dramatis_personae?: boolean;
   is_custom_fighter?: boolean;
+  starting_xp?: number;
 }

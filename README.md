@@ -608,7 +608,7 @@ interface FighterProps {
   id: string
   fighter_name: string
   fighter_type: string
-  fighter_class: string
+  fighter_subtype: string
   credits: number
   // Stats and equipment
   movement: number

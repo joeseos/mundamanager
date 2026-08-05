@@ -8,20 +8,20 @@ export interface CampaignFighterComboboxOption {
 }
 
 /**
- * Builds a Combobox option for a fighter, styling type/class like the gang
+ * Builds a Combobox option for a fighter, styling type/subtype like the gang
  * owner's muted suffix in {@link buildGangComboboxOption}.
  */
 export function buildFighterComboboxOption(fighter: {
   id: string;
   fighter_name?: string | null;
   fighter_type?: string | null;
-  fighter_classes?: string[];
+  fighter_subtypes?: string[];
 }): CampaignFighterComboboxOption {
   const displayName = fighter.fighter_name || 'Unnamed';
   const typePart = fighter.fighter_type?.trim() || '';
-  const classDisplay = fighter.fighter_classes?.join(', ') || '';
-  const classPart = classDisplay ? `(${classDisplay})` : '';
-  const details = [typePart, classPart].filter(Boolean).join(' ');
+  const subtypeDisplay = fighter.fighter_subtypes?.join(', ') || '';
+  const subtypePart = subtypeDisplay ? `(${subtypeDisplay})` : '';
+  const details = [typePart, subtypePart].filter(Boolean).join(' ');
   const detailsSuffix = details ? ` \u2022 ${details}` : '';
 
   return {
@@ -50,7 +50,7 @@ export function useCampaignGangFighterOptions(campaignGangs: CampaignGangWithFig
       const gang = campaignGangs.find((g) => g.gang_id === selectedGangId);
       if (!gang) return [];
       return gang.fighters
-        .filter((f) => !crewOnly || f.fighter_classes?.includes('Crew'))
+        .filter((f) => !crewOnly || f.fighter_subtypes?.includes('Crew'))
         .map((f) => buildFighterComboboxOption(f));
     };
   }, [campaignGangs]);

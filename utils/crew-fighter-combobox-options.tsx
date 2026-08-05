@@ -29,7 +29,7 @@ export function useCrewFighterOptions(
   return useMemo(() => {
     const crewFighters = fighters.filter(
       (f) =>
-        f.fighter_classes?.includes('Crew') &&
+        f.fighter_subtypes?.includes('Crew') &&
         (!f.vehicles || f.vehicles.length === 0)
     );
     return sortFightersByPositioning(crewFighters, positioning)

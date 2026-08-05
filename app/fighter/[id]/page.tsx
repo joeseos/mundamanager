@@ -32,7 +32,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       getFighterVehicles,
       getFighterOwnedBeastsCost,
       getFighterTypeInfo,
-      getFighterSubTypeInfo,
+      getFighterSpecialisationInfo,
       getFighterOwnedBeastsData,
       getFighterOwnershipInfo,
       getFighterLoadouts
@@ -41,7 +41,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     const {
       getGangBasic,
       getGangPositioning,
-      getGangCredits,
+      getGangResources,
       getGangCampaigns
     } = await import('@/app/lib/shared/gang-data');
 
@@ -56,14 +56,14 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     const [
       gangBasic,
       gangPositioning,
-      gangCredits,
+      gangResources,
       equipment,
       skills,
       effects,
       vehicles,
       beastCosts,
       fighterTypeData,
-      fighterSubTypeData,
+      fighterSpecialisationData,
       gangCampaigns,
       beastDataResult,
       ownershipDataResult,
@@ -73,7 +73,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       // Gang data
       getGangBasic(fighterBasic.gang_id, supabase),
       getGangPositioning(fighterBasic.gang_id, supabase),
-      getGangCredits(fighterBasic.gang_id, supabase),
+      getGangResources(fighterBasic.gang_id, supabase),
       // Fighter data
       getFighterEquipment(id, supabase),
       getFighterSkills(id, supabase),
@@ -82,8 +82,8 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       getFighterOwnedBeastsCost(id, supabase),
       // Fighter type data (using cached helpers)
       getFighterTypeInfo(fighterBasic.fighter_type_id, supabase),
-      fighterBasic.fighter_sub_type_id ?
-        getFighterSubTypeInfo(fighterBasic.fighter_sub_type_id, supabase) :
+      fighterBasic.fighter_specialisation_id ?
+        getFighterSpecialisationInfo(fighterBasic.fighter_specialisation_id, supabase) :
         Promise.resolve(null),
       // Campaign data (gang-level cache using COMPOSITE_GANG_CAMPAIGNS)
       getGangCampaigns(fighterBasic.gang_id, supabase),
@@ -130,7 +130,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
               id,
               fighter_name,
               fighter_type,
-              fighter_classes,
+              fighter_subtypes,
               credits,
               created_at,
               retired
@@ -174,7 +174,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
             id: beast.id,
             fighter_name: beast.fighter_name,
             fighter_type: beast.fighter_type,
-            fighter_classes: beast.fighter_classes,
+            fighter_subtypes: beast.fighter_subtypes,
             credits: beast.credits,
             equipment_source: 'Granted by equipment',
             equipment_name: equipment?.equipment_name || 'Unknown Equipment',
@@ -293,10 +293,10 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
             || gangBasic.custom_gang_type_id
             || null,
         },
-        fighter_sub_type: fighterSubTypeData ? {
-          id: fighterSubTypeData.fighter_sub_type_id,
-          sub_type_name: fighterSubTypeData.fighter_sub_type,
-          fighter_sub_type: fighterSubTypeData.fighter_sub_type
+        fighter_specialisation: fighterSpecialisationData ? {
+          id: fighterSpecialisationData.fighter_specialisation_id,
+          specialisation_name: fighterSpecialisationData.fighter_specialisation,
+          fighter_specialisation: fighterSpecialisationData.fighter_specialisation
         } : undefined,
         skills,
         effects,
@@ -309,8 +309,10 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       },
       gang: {
         id: gangBasic.id,
-        credits: gangCredits,
-        reputation: gangBasic.reputation,
+        credits: gangResources.credits,
+        reputation: gangResources.reputation,
+        trade_points: gangResources.trade_points,
+        edition_slug: gangBasic.edition_slug ?? null,
         gang_type_id: gangBasic.gang_type_id,
         custom_gang_type_id: gangBasic.custom_gang_type_id,
         gang_affiliation_id: gangBasic.gang_affiliation_id,

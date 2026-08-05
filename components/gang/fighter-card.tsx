@@ -38,7 +38,7 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   name: string;  // maps to fighter_name
   type: string;  // maps to fighter_type
   label?: string;
-  fighter_sub_type?: { fighter_sub_type: string; fighter_sub_type_id: string } | null;
+  fighter_specialisation?: { fighter_specialisation: string; fighter_specialisation_id: string } | null;
   alliance_crew_name?: string;
   killed?: boolean;
   retired?: boolean;
@@ -132,8 +132,8 @@ const FighterCard = memo(function FighterCard({
   name,
   type,
   label,
-  fighter_classes,
-  fighter_sub_type,
+  fighter_subtypes,
+  fighter_specialisation,
   alliance_crew_name,
   credits,
   loadout_cost,
@@ -184,7 +184,7 @@ const FighterCard = memo(function FighterCard({
 }: FighterCardProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [isMultiline, setIsMultiline] = useState(false);
-  const isCrew = fighter_classes?.includes('Crew') ?? false;
+  const isCrew = fighter_subtypes?.includes('Crew') ?? false;
   const isLoading = id.startsWith('temp-');
 
   const isNormalView = viewMode === 'normal' || viewMode === undefined;
@@ -325,8 +325,8 @@ const FighterCard = memo(function FighterCard({
       id,
       fighter_name: name,
       fighter_type: type,
-      fighter_classes,
-      fighter_sub_type,
+      fighter_subtypes,
+      fighter_specialisation,
       credits,
       movement,
       weapon_skill,
@@ -394,7 +394,7 @@ const FighterCard = memo(function FighterCard({
       }
     };
   }, [
-    id, name, type, fighter_classes, fighter_sub_type, credits, movement, weapon_skill,
+    id, name, type, fighter_subtypes, fighter_specialisation, credits, movement, weapon_skill,
     ballistic_skill, strength, toughness, wounds, initiative,
     attacks, leadership, cool, willpower, intelligence, save, xp,
     kills, advancements, weapons, wargear, special_rules, effects, skills
@@ -590,8 +590,8 @@ const FighterCard = memo(function FighterCard({
                 <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden text-ellipsis whitespace-nowrap w-full print:text-muted-foreground fancy-print-keep-color-subtitle">
                   {type}
                   {alliance_crew_name && ` - ${alliance_crew_name}`}
-                  {fighter_classes?.join(', ') && ` (${fighter_classes.join(', ')})`}
-                  {fighter_sub_type && fighter_sub_type.fighter_sub_type ? `, ${fighter_sub_type.fighter_sub_type}` : ''}
+                  {fighter_subtypes?.join(', ') && ` (${fighter_subtypes.join(', ')})`}
+                  {fighter_specialisation && fighter_specialisation.fighter_specialisation ? `, ${fighter_specialisation.fighter_specialisation}` : ''}
                 </div>
               </div>
             </div>
@@ -671,21 +671,21 @@ const FighterCard = memo(function FighterCard({
           {/* Show fighter weapons */}
           {!isCrew && weapons && weapons.length > 0 && (
             <div className={`${owner_name ? 'mt-0' : (isNormalView ? 'mt-2' : 'mt-0')}`}>
-              <WeaponTable weapons={weapons} viewMode={viewMode}/>
+              <WeaponTable weapons={weapons} viewMode={viewMode} editionSlug={edition_slug}/>
             </div>
           )}
 
           {/* Show crew weapons */}
           {isCrew && weapons && weapons.length > 0 && (
             <div className={`${owner_name ? 'mt-0' : (isNormalView ? 'mt-2' : 'mt-0')}`}>
-              <WeaponTable weapons={weapons} entity="crew" viewMode={viewMode} />
+              <WeaponTable weapons={weapons} entity="crew" viewMode={viewMode} editionSlug={edition_slug} />
             </div>
           )}
 
           {/* Add vehicle weapons section */}
           {isCrew && vehicleWeapons.length > 0 && (
             <div className={`${isNormalView ? 'mt-2' : 'mt-0'}`}>
-              <WeaponTable weapons={vehicleWeapons} entity="vehicle" viewMode={viewMode} />
+              <WeaponTable weapons={vehicleWeapons} entity="vehicle" viewMode={viewMode} editionSlug={edition_slug} />
             </div>
           )}
 

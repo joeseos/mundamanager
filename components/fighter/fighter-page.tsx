@@ -59,11 +59,11 @@ interface Fighter {
     gang_type_id?: string | null;
     custom_gang_type_id?: string | null;
   };
-  fighter_sub_type?: {
-    fighter_sub_type: string;
-    fighter_sub_type_id: string;
+  fighter_specialisation?: {
+    fighter_specialisation: string;
+    fighter_specialisation_id: string;
   };
-  fighter_classes: string[];
+  fighter_subtypes: string[];
   alliance_crew_name?: string;
   label?: string;
   credits: number;
@@ -135,6 +135,8 @@ interface Gang {
   id: string;
   credits: number;
   reputation?: number;
+  trade_points?: number;
+  edition_slug?: string | null;
   positioning?: Record<number, string>;
   gang_type_id?: string | null;
   custom_gang_type_id?: string | null;
@@ -320,16 +322,16 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
   return {
     fighter: {
       ...fighterData.fighter,
-      fighter_classes: fighterData.fighter.fighter_classes || [],
+      fighter_subtypes: fighterData.fighter.fighter_subtypes || [],
       fighter_type: {
         fighter_type: fighterData.fighter.fighter_type.fighter_type,
         fighter_type_id: fighterData.fighter.fighter_type.fighter_type_id,
         gang_type_id: fighterData.fighter.fighter_type.gang_type_id ?? null,
         custom_gang_type_id: fighterData.fighter.fighter_type.custom_gang_type_id ?? null,
       },
-      fighter_sub_type: fighterData.fighter.fighter_sub_type ? {
-        fighter_sub_type: fighterData.fighter.fighter_sub_type.fighter_sub_type,
-        fighter_sub_type_id: fighterData.fighter.fighter_sub_type.id
+      fighter_specialisation: fighterData.fighter.fighter_specialisation ? {
+        fighter_specialisation: fighterData.fighter.fighter_specialisation.fighter_specialisation,
+        fighter_specialisation_id: fighterData.fighter.fighter_specialisation.id
       } : undefined,
       base_credits: baseCost,
       base_copy_cost: baseCopyCost,
@@ -344,6 +346,8 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
       id: fighterData.gang.id,
       credits: fighterData.gang.credits,
       reputation: fighterData.gang.reputation,
+      trade_points: fighterData.gang.trade_points,
+      edition_slug: fighterData.gang.edition_slug,
       gang_type_id: fighterData.gang.gang_type_id,
       custom_gang_type_id: fighterData.gang.custom_gang_type_id,
       gang_affiliation_id: fighterData.gang.gang_affiliation_id,
@@ -637,7 +641,7 @@ export default function FighterPage({
             id={fighterData.fighter?.id || ''}
             name={fighterData.fighter?.fighter_name || ''}
             type={fighterData.fighter?.fighter_type?.fighter_type || ''}
-            sub_type={fighterData.fighter?.fighter_sub_type}
+            specialisation={fighterData.fighter?.fighter_specialisation}
             label={fighterData.fighter?.label}
             alliance_crew_name={fighterData.fighter?.alliance_crew_name || ''}
             credits={fighterData.fighter?.credits || 0}
@@ -667,7 +671,7 @@ export default function FighterPage({
             starved={fighterData.fighter?.starved}
             recovery={fighterData.fighter?.recovery}
             captured={fighterData.fighter?.captured}
-            fighter_classes={fighterData.fighter?.fighter_classes || []}
+            fighter_subtypes={fighterData.fighter?.fighter_subtypes || []}
             kills={fighterData.fighter?.kills || 0}
             kill_count={fighterData.fighter?.kill_count}
             is_spyrer={fighterData.fighter?.is_spyrer}
@@ -699,6 +703,7 @@ export default function FighterPage({
           {/* Vehicle Equipment Section - only show if fighter has a vehicle */}
           {vehicle && (
             <VehicleEquipmentList
+              editionSlug={fighterData.fighter?.edition_slug ?? null}
               fighterId={fighterId}
               gangId={fighterData.gang?.id || ''}
               gangCredits={fighterData.gang?.credits || 0}
@@ -748,6 +753,7 @@ export default function FighterPage({
           )}
 
           <WeaponList
+            editionSlug={fighterData.fighter?.edition_slug ?? null}
             fighterId={fighterId}
             gangId={fighterData.gang?.id || ''}
             gangCredits={fighterData.gang?.credits || 0}
@@ -815,7 +821,7 @@ export default function FighterPage({
           <AdvancementsList
             fighterXp={fighterData.fighter?.xp || 0}
             fighterId={fighterData.fighter?.id || ''}
-            fighterClasses={fighterData.fighter?.fighter_classes || []}
+            fighterSubtypes={fighterData.fighter?.fighter_subtypes || []}
             advancements={fighterData.fighter?.effects?.advancements || []}
             skills={fighterData.fighter?.skills || {}}
             userPermissions={userPermissions}
@@ -825,14 +831,14 @@ export default function FighterPage({
             fighterSpecialRules={fighterData.fighter?.special_rules || []}
             fighterTypeName={fighterData.fighter?.fighter_type?.fighter_type || ''}
             fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
-            fighterSubTypeId={fighterData.fighter?.fighter_sub_type?.fighter_sub_type_id || ''}
+            fighterSpecialisationId={fighterData.fighter?.fighter_specialisation?.fighter_specialisation_id || ''}
             onFighterDetailsUpdate={(patch) => {
               setFighterData((prev) => ({
                 ...prev,
                 fighter: prev.fighter
                   ? {
                       ...prev.fighter,
-                      fighter_classes: patch.fighter_classes ?? prev.fighter.fighter_classes,
+                      fighter_subtypes: patch.fighter_subtypes ?? prev.fighter.fighter_subtypes,
                       special_rules: patch.special_rules ?? prev.fighter.special_rules,
                       fighter_type:
                         patch.fighter_type !== undefined && patch.fighter_type_id !== undefined
@@ -843,15 +849,15 @@ export default function FighterPage({
                               custom_gang_type_id: prev.fighter.fighter_type?.custom_gang_type_id ?? null,
                             }
                           : prev.fighter.fighter_type,
-                      fighter_sub_type:
-                        patch.fighter_sub_type !== undefined || patch.fighter_sub_type_id !== undefined
-                          ? patch.fighter_sub_type_id
+                      fighter_specialisation:
+                        patch.fighter_specialisation !== undefined || patch.fighter_specialisation_id !== undefined
+                          ? patch.fighter_specialisation_id
                             ? {
-                                fighter_sub_type: patch.fighter_sub_type ?? '',
-                                fighter_sub_type_id: patch.fighter_sub_type_id,
+                                fighter_specialisation: patch.fighter_specialisation ?? '',
+                                fighter_specialisation_id: patch.fighter_specialisation_id,
                               }
                             : undefined
-                          : prev.fighter.fighter_sub_type
+                          : prev.fighter.fighter_specialisation
                     }
                   : null
               }));
@@ -943,7 +949,7 @@ export default function FighterPage({
             fighterCaptured={fighterData.fighter?.captured}
             fighterCapturedByGangId={fighterData.fighter?.captured_by_gang_id ?? null}
             userPermissions={userPermissions}
-            fighter_classes={fighterData.fighter?.fighter_classes || []}
+            fighter_subtypes={fighterData.fighter?.fighter_subtypes || []}
             is_spyrer={fighterData.fighter?.is_spyrer}
             kill_count={fighterData.fighter?.kill_count ?? 0}
             gangCredits={fighterData.gang?.credits ?? 0}
@@ -1294,7 +1300,7 @@ export default function FighterPage({
                     ...optimistic,
                     // Ensure type shape matches `Fighter` interface
                     fighter_type: optimistic?.fighter_type ? (optimistic.fighter_type as any) : prev.fighter.fighter_type,
-                    fighter_sub_type: optimistic?.fighter_sub_type ? (optimistic.fighter_sub_type as any) : prev.fighter.fighter_sub_type,
+                    fighter_specialisation: optimistic?.fighter_specialisation ? (optimistic.fighter_specialisation as any) : prev.fighter.fighter_specialisation,
                     // Optimistically adjust credits if cost_adjustment changes
                     credits: (() => {
                       const newAdj = (optimistic as any)?.cost_adjustment;
@@ -1342,6 +1348,8 @@ export default function FighterPage({
               fighterWeapons={(fighterData.equipment || []).filter(eq => eq.equipment_type === 'weapon').map(eq => ({ id: eq.fighter_equipment_id, name: eq.equipment_name, equipment_category: eq.equipment_category, effect_names: eq.effect_names }))}
               {...campaignProps}
               gangReputation={fighterData.gang?.reputation}
+              editionSlug={fighterData.gang?.edition_slug ?? fighterData.fighter?.edition_slug ?? null}
+              gangTradePoints={fighterData.gang?.trade_points}
               onPurchaseRequest={(payload) => { purchaseHandlerRef.current?.(payload); }}
             />
           )}
@@ -1363,6 +1371,8 @@ export default function FighterPage({
               allowedCategories={VEHICLE_EQUIPMENT_CATEGORIES}
               {...campaignProps}
               gangReputation={fighterData.gang?.reputation}
+              editionSlug={fighterData.gang?.edition_slug ?? fighterData.fighter?.edition_slug ?? null}
+              gangTradePoints={fighterData.gang?.trade_points}
               onPurchaseRequest={(payload) => { vehiclePurchaseHandlerRef.current?.(payload); }}
             />
           )}

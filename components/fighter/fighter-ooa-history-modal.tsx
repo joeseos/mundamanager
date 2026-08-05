@@ -234,7 +234,7 @@ export function FighterOoaHistoryModal({
     ) {
       return options;
     }
-    if (crewOnly && !editingRecord.injured_fighter_classes?.includes('Crew')) {
+    if (crewOnly && !editingRecord.injured_fighter_subtypes?.includes('Crew')) {
       return options;
     }
     if (options.some((o) => o.value === editingRecord.injured_fighter_id)) {
@@ -245,7 +245,7 @@ export function FighterOoaHistoryModal({
         id: editingRecord.injured_fighter_id,
         fighter_name: editingRecord.injured_fighter_name,
         fighter_type: editingRecord.injured_fighter_type,
-        fighter_classes: editingRecord.injured_fighter_classes,
+        fighter_subtypes: editingRecord.injured_fighter_subtypes,
       }),
       ...options,
     ];
@@ -498,8 +498,8 @@ export function FighterOoaHistoryModal({
                 {currentRecords.map((record) => {
                   const isEditing = !isSustained && editingId === record.id && !!editForm;
                   const crewOnly = (isEditing ? editForm!.eventType : record.event_type) === 'vehicle_wrecked';
-                  const causingClasses = record.causing_fighter_classes?.join(', ') || '';
-                  const injuredClasses = record.injured_fighter_classes?.join(', ') || '';
+                  const causingSubtypes = record.causing_fighter_subtypes?.join(', ') || '';
+                  const injuredSubtypes = record.injured_fighter_subtypes?.join(', ') || '';
 
                   return (
                     <li
@@ -521,22 +521,22 @@ export function FighterOoaHistoryModal({
 
                           <div className="mt-1 text-xs text-muted-foreground space-y-1">
                             {isSustained ? (
-                              (record.causing_fighter_type || causingClasses || record.causing_fighter_gang_name) && (
+                              (record.causing_fighter_type || causingSubtypes || record.causing_fighter_gang_name) && (
                                 <div>
                                   {record.causing_fighter_type}
-                                  {record.causing_fighter_type && causingClasses ? ' ' : ''}
-                                  {causingClasses ? `(${causingClasses})` : ''}
-                                  {(record.causing_fighter_type || causingClasses) && record.causing_fighter_gang_name ? ' • ' : ''}
+                                  {record.causing_fighter_type && causingSubtypes ? ' ' : ''}
+                                  {causingSubtypes ? `(${causingSubtypes})` : ''}
+                                  {(record.causing_fighter_type || causingSubtypes) && record.causing_fighter_gang_name ? ' • ' : ''}
                                   {record.causing_fighter_gang_name}
                                 </div>
                               )
                             ) : (
-                              (record.injured_fighter_type || injuredClasses || record.injured_gang_name) && (
+                              (record.injured_fighter_type || injuredSubtypes || record.injured_gang_name) && (
                                 <div>
                                   {record.injured_fighter_type}
-                                  {record.injured_fighter_type && injuredClasses ? ' ' : ''}
-                                  {injuredClasses ? `(${injuredClasses})` : ''}
-                                  {(record.injured_fighter_type || injuredClasses) && record.injured_gang_name ? ' • ' : ''}
+                                  {record.injured_fighter_type && injuredSubtypes ? ' ' : ''}
+                                  {injuredSubtypes ? `(${injuredSubtypes})` : ''}
+                                  {(record.injured_fighter_type || injuredSubtypes) && record.injured_gang_name ? ' • ' : ''}
                                   {record.injured_gang_name}
                                 </div>
                               )

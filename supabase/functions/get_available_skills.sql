@@ -8,16 +8,16 @@ SET search_path = public
 AS $$
 DECLARE
     v_result jsonb;
-    v_fighter_classes jsonb;
+    v_fighter_subtypes jsonb;
     v_gang_origin_id uuid;
     v_gang_id uuid;
     v_fighter_type_id uuid;
     v_custom_fighter_type_id uuid;
     v_origin_skill_type_id uuid;
 BEGIN
-    -- Get fighter classes, gang origin ID, gang ID, fighter type IDs, and verify fighter exists
-    SELECT f.fighter_classes, g.gang_origin_id, f.gang_id, f.fighter_type_id, f.custom_fighter_type_id
-    INTO v_fighter_classes, v_gang_origin_id, v_gang_id, v_fighter_type_id, v_custom_fighter_type_id
+    -- Get fighter subtypes, gang origin ID, gang ID, fighter type IDs, and verify fighter exists
+    SELECT f.fighter_subtypes, g.gang_origin_id, f.gang_id, f.fighter_type_id, f.custom_fighter_type_id
+    INTO v_fighter_subtypes, v_gang_origin_id, v_gang_id, v_fighter_type_id, v_custom_fighter_type_id
     FROM fighters f
     JOIN gangs g ON g.id = f.gang_id
     WHERE f.id = get_available_skills.fighter_id;
@@ -145,7 +145,7 @@ BEGIN
     )
     SELECT jsonb_build_object(
         'fighter_id', get_available_skills.fighter_id,
-        'fighter_classes', v_fighter_classes,
+        'fighter_subtypes', v_fighter_subtypes,
         'skills', COALESCE(
             jsonb_agg(
                 jsonb_build_object(
@@ -175,7 +175,7 @@ BEGIN
                                 )
                             )
                         -- Regular skill costs
-                        WHEN v_fighter_classes ?| array['Leader', 'Champion', 'Juve', 'Specialist', 'Crew', 'Prospect', 'Brute', 'Exotic Beast Specialist']
+                        WHEN v_fighter_subtypes ?| array['Leader', 'Champion', 'Juve', 'Specialist', 'Crew', 'Prospect', 'Brute', 'Exotic Beast Specialist']
                         THEN jsonb_build_array(
                             jsonb_build_object(
                                 'type_id', 'primary_selected',

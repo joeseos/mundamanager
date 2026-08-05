@@ -25,6 +25,7 @@ RETURNS TABLE (
     availability text,
     base_cost numeric,
     adjusted_cost numeric,
+    trade_points text,
     equipment_category text,
     equipment_type text,
     created_at timestamptz,
@@ -59,9 +60,12 @@ AS $$
             g.custom_gang_type_id,
             cg.campaign_type_allegiance_id,
             fgl.fighter_type_id AS legacy_ft_id,
-            ga.fighter_type_id  AS affiliation_ft_id
+            ga.fighter_type_id  AS affiliation_ft_id,
+            COALESCE(gt.edition_id, cgt.edition_id) AS edition_id
         FROM (SELECT 1) AS _dummy
         LEFT JOIN gangs g ON g.id = $8
+        LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+        LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
         LEFT JOIN LATERAL (
             SELECT cg2.campaign_type_allegiance_id
             FROM campaign_gangs cg2
@@ -163,7 +167,19 @@ AS $$
         SELECT
             ed.equipment_id,
             MIN(ed.adjusted_cost::numeric)
-                FILTER (WHERE ed.adjusted_cost IS NOT NULL) AS best_adjusted_cost
+                FILTER (WHERE ed.adjusted_cost IS NOT NULL) AS best_adjusted_cost,
+            -- Prefer any non-null trade_points override in the same discount scope.
+            -- Cheapest numerically ("E"/non-numeric → 0); text ASC as stable tie-break.
+            (ARRAY_AGG(
+                ed.trade_points
+                ORDER BY
+                    CASE
+                        WHEN upper(btrim(ed.trade_points)) = 'E' OR btrim(ed.trade_points) = '' THEN 0::numeric
+                        WHEN ed.trade_points ~ '^[0-9]+$' THEN ed.trade_points::numeric
+                        ELSE 0::numeric
+                    END ASC,
+                    ed.trade_points ASC
+            ) FILTER (WHERE ed.trade_points IS NOT NULL))[1] AS best_trade_points
         FROM equipment_discounts ed
         CROSS JOIN gang_data gd
         WHERE
@@ -267,6 +283,8 @@ AS $$
             WHEN $5 = true THEN e.cost::numeric
             ELSE COALESCE(bac.best_adjusted_cost, e.cost::numeric)
         END AS adjusted_cost,
+
+        COALESCE(bac.best_trade_points, e.trade_points) AS trade_points,
 
         e.equipment_category,
         e.equipment_type,
@@ -450,6 +468,12 @@ AS $$
             -- Trading post only
             ($4 IS NULL AND $5 IS NOT NULL AND COALESCE(tp.has_access, false) = $5)
         )
+        -- Unrestricted: only equipment from the gang's edition
+        AND (
+            NOT ($4 IS NULL AND $5 IS NULL)
+            OR gd.edition_id IS NULL
+            OR e.edition_id = gd.edition_id
+        )
 
     UNION ALL
 
@@ -472,6 +496,7 @@ AS $$
               OR custom_tp.cost_reputation THEN ce.cost::numeric
             ELSE COALESCE(custom_tp.adjusted_cost, custom_tp.cost_override, ce.cost::numeric)
         END AS adjusted_cost,
+        ce.trade_points,
         ce.equipment_category,
         ce.equipment_type,
         ce.created_at,
@@ -515,6 +540,7 @@ AS $$
         custom_tp.cost_campaign_resource_id,
         COALESCE(custom_tp.banned, false) AS banned
     FROM custom_equipment ce
+    CROSS JOIN gang_data gd
     LEFT JOIN (
         SELECT cs.custom_equipment_id
         FROM custom_shared cs
@@ -580,6 +606,12 @@ AS $$
             ($4 IS NULL AND $5 IS NULL)                              -- no filter
             OR ($4 IS NOT NULL AND COALESCE(ftl.is_ftl, false) = $4) -- fighter's list requested
             OR ($5 IS NOT NULL AND true = $5)                        -- trading post requested
+        )
+        -- Unrestricted: only custom equipment from the gang's edition
+        AND (
+            NOT ($4 IS NULL AND $5 IS NULL)
+            OR gd.edition_id IS NULL
+            OR ce.edition_id = gd.edition_id
         )
 $$;
 

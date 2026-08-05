@@ -10,6 +10,13 @@ import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang';
 // TYPES - Shared interfaces for gang data
 // =============================================================================
 
+/** The gang's spendable resources, all stored on the gangs row. */
+export interface GangResources {
+  credits: number;
+  reputation: number;
+  trade_points: number;
+}
+
 export interface GangBasic {
   id: string;
   name: string;
@@ -17,8 +24,6 @@ export interface GangBasic {
   gang_type_id: string;
   edition_slug?: string | null;
   gang_colour: string;
-  reputation: number;
-  trade_points: number;
   alignment: string;
   note?: string;
   note_backstory?: string;
@@ -127,10 +132,10 @@ export interface GangFighter {
   fighter_name: string;
   label?: string;
   fighter_type: string;
-  fighter_classes: string[];
-  fighter_sub_type?: {
-    fighter_sub_type: string;
-    fighter_sub_type_id: string;
+  fighter_subtypes: string[];
+  fighter_specialisation?: {
+    fighter_specialisation: string;
+    fighter_specialisation_id: string;
   };
   alliance_crew_name?: string;
   position?: string;
@@ -196,8 +201,6 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
           gang_type,
           gang_type_id,
           gang_colour,
-          reputation,
-          trade_points,
           alignment,
           note,
           note_backstory,
@@ -269,20 +272,26 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
 };
 
 /**
- * Get gang credits only
+ * Get the gang's spendable resources: credits, reputation and Trade Points. All three
+ * live on the gangs row and a purchase may be paid in any of them, so they share one
+ * cache entry and one tag rather than splitting across BASE_GANG_BASIC.
  * Cache: BASE_GANG_CREDITS
  */
-export const getGangCredits = async (gangId: string, supabase: any): Promise<number> => {
+export const getGangResources = async (gangId: string, supabase: any): Promise<GangResources> => {
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
         .from('gangs')
-        .select('credits')
+        .select('credits, reputation, trade_points')
         .eq('id', gangId)
         .single();
 
       if (error) throw error;
-      return data.credits;
+      return {
+        credits: data.credits,
+        reputation: data.reputation,
+        trade_points: data.trade_points
+      };
     },
     [`gang-credits-${gangId}`],
     {
@@ -900,7 +909,7 @@ export const getGangBeastCount = async (gangId: string, supabase: any): Promise<
         .from('fighters')
         .select('*', { count: 'exact', head: true })
         .eq('gang_id', gangId)
-        .contains('fighter_classes', '["Exotic Beast"]')
+        .contains('fighter_subtypes', '["Exotic Beast"]')
         .eq('killed', false)
         .eq('retired', false)
         .eq('enslaved', false)
@@ -925,7 +934,7 @@ export const getGangBeastCount = async (gangId: string, supabase: any): Promise<
  * Get all fighters in a gang with complete data (BATCHED QUERIES)
  *
  * Uses batched database queries to minimize round trips:
- * - Single query for all fighters with joins for types/sub-types
+ * - Single query for all fighters with joins for types/specialisations
  * - Batch query for all equipment (WHERE fighter_id IN (...))
  * - Batch query for all skills
  * - Batch query for all effects
@@ -974,7 +983,7 @@ export const getGangFightersList = async (
           save,
           xp,
           special_rules,
-          fighter_classes,
+          fighter_subtypes,
           fighter_type,
           fighter_type_id,
           custom_fighter_type_id,
@@ -984,7 +993,7 @@ export const getGangFightersList = async (
             fighter_type_id,
             name
           ),
-          fighter_sub_type_id,
+          fighter_specialisation_id,
           killed,
           starved,
           retired,
@@ -1009,9 +1018,9 @@ export const getGangFightersList = async (
               slug
             )
           ),
-          fighter_sub_types!fighter_sub_type_id (
+          fighter_specialisations!fighter_specialisation_id (
             id,
-            sub_type_name
+            specialisation_name
           )
         `)
         .eq('gang_id', gangId);
@@ -1086,6 +1095,7 @@ export const getGangFightersList = async (
                 strength,
                 ap,
                 damage,
+                lethality,
                 ammo,
                 traits,
                 sort_order
@@ -1107,6 +1117,7 @@ export const getGangFightersList = async (
                 strength,
                 ap,
                 damage,
+                lethality,
                 ammo,
                 traits,
                 sort_order
@@ -1343,6 +1354,7 @@ export const getGangFightersList = async (
                     strength,
                     ap,
                     damage,
+                    lethality,
                     ammo,
                     traits,
                     sort_order
@@ -1364,6 +1376,7 @@ export const getGangFightersList = async (
                     strength,
                     ap,
                     damage,
+                    lethality,
                     ammo,
                     traits,
                     sort_order
@@ -1949,7 +1962,7 @@ export const getGangFightersList = async (
 
         // Get fighter type info from the join
         const fighterTypeInfo = fighter.fighter_types || {};
-        const fighterSubTypeInfo = fighter.fighter_sub_types || null;
+        const fighterSpecialisationInfo = fighter.fighter_specialisations || null;
 
         // Calculate loadout cost for display: base cost + loadout equipment + skills + effects
         // This shows what the fighter costs with the current loadout
@@ -1980,10 +1993,10 @@ export const getGangFightersList = async (
           fighter_name: fighter.fighter_name,
           label: fighter.label,
           fighter_type: fighter.fighter_type || fighterTypeInfo.fighter_type || 'Unknown',
-          fighter_classes: fighter.fighter_classes || [],
-          fighter_sub_type: fighterSubTypeInfo ? {
-            fighter_sub_type: fighterSubTypeInfo.sub_type_name,
-            fighter_sub_type_id: fighterSubTypeInfo.id
+          fighter_subtypes: fighter.fighter_subtypes || [],
+          fighter_specialisation: fighterSpecialisationInfo ? {
+            fighter_specialisation: fighterSpecialisationInfo.specialisation_name,
+            fighter_specialisation_id: fighterSpecialisationInfo.id
           } : undefined,
           alliance_crew_name: fighterTypeInfo.alliance_crew_name,
           is_spyrer: fighterTypeInfo.is_spyrer ?? false,
@@ -2309,14 +2322,14 @@ export const getUserProfile = async (userId: string, supabase: any): Promise<{
 export interface OoaBreakdownItem {
   fighter_name: string;
   fighter_type: string;
-  fighter_classes: string[];
+  fighter_subtypes: string[];
   kills: number;
 }
 
 export interface DeathsBreakdownItem {
   fighter_name: string;
   fighter_type: string;
-  fighter_classes: string[];
+  fighter_subtypes: string[];
 }
 
 export interface GangFighterStats {
@@ -2334,7 +2347,7 @@ export const getGangFighterStats = async (
     async () => {
       const { data: fighters, error } = await supabase
         .from('fighters')
-        .select('fighter_name, fighter_type, fighter_classes, kills, killed')
+        .select('fighter_name, fighter_type, fighter_subtypes, kills, killed')
         .eq('gang_id', gangId);
 
       if (error) throw error;
@@ -2350,20 +2363,20 @@ export const getGangFighterStats = async (
 
       const ooaBreakdown: OoaBreakdownItem[] = fighterList
         .filter((f: { kills: number }) => (Number(f.kills) || 0) > 0)
-        .map((f: { fighter_name: string; fighter_type?: string; fighter_classes?: string[]; kills: number }) => ({
+        .map((f: { fighter_name: string; fighter_type?: string; fighter_subtypes?: string[]; kills: number }) => ({
           fighter_name: f.fighter_name || 'Unknown',
           fighter_type: f.fighter_type || '—',
-          fighter_classes: f.fighter_classes || [],
+          fighter_subtypes: f.fighter_subtypes || [],
           kills: Number(f.kills) || 0
         }))
         .sort((a: OoaBreakdownItem, b: OoaBreakdownItem) => b.kills - a.kills);
 
       const deathsBreakdown: DeathsBreakdownItem[] = fighterList
         .filter((f: { killed: boolean }) => f.killed === true)
-        .map((f: { fighter_name: string; fighter_type?: string; fighter_classes?: string[] }) => ({
+        .map((f: { fighter_name: string; fighter_type?: string; fighter_subtypes?: string[] }) => ({
           fighter_name: f.fighter_name || 'Unknown',
           fighter_type: f.fighter_type || '—',
-          fighter_classes: f.fighter_classes || []
+          fighter_subtypes: f.fighter_subtypes || []
         }));
 
       return {

@@ -7,9 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AvailabilityPicker, combineAvailability } from '@/components/ui/availability-picker';
 import { toast } from 'sonner';
-import { WeaponProfileInput, EquipmentAvailability, GangAdjustedCost } from "@/types/equipment";
-import { EditionSelect, useEditions } from '@/components/edition-select';
-import { hasTradePoints } from '@/types/edition';
+import { WeaponProfileInput, EquipmentAvailability, GangAdjustedCost, emptyWeaponProfile } from "@/types/equipment";
+import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
+import { hasLethalityStatline, hasTradePoints } from '@/types/edition';
+import { isValidTradePoints } from '@/utils/campaigns/resources';
+import { WeaponProfileFields } from '@/components/ui/weapon-profile-fields';
 import { HiX } from "react-icons/hi";
 import { LuTrash2 } from 'react-icons/lu'
 
@@ -40,20 +42,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   const [editionId, setEditionId] = useState('');
   const [coreEquipment, setCoreEquipment] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [weaponProfiles, setWeaponProfiles] = useState<WeaponProfileInput[]>([{
-    profile_name: '',
-    range_short: '',
-    range_long: '',
-    acc_short: '',
-    acc_long: '',
-    strength: '',
-    ap: '',
-    damage: '',
-    ammo: '',
-    traits: '',
-    weapon_group_id: null,
-    sort_order: 1
-  }]);
+  const [weaponProfiles, setWeaponProfiles] = useState<WeaponProfileInput[]>([emptyWeaponProfile()]);
   const [showAdjustedCostDialog, setShowAdjustedCostDialog] = useState(false);
   const [selectedGangType, setSelectedGangType] = useState("");
   const [adjustedCostValue, setAdjustedCostValue] = useState("");
@@ -84,9 +73,12 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   );
 
   const { data: editions = [] } = useEditions();
-  const editionSlug = editions.find(edition => edition.id === editionId)?.slug;
+  const editionSlug = editionSlugOf(editions, editionId);
   const showTradePoints = hasTradePoints(editionSlug);
   const showAvailability = !showTradePoints;
+  // N26 weapons are described with SR/LR/Str/AP/Lethality; N23 with Rng, Acc,
+  // Str, AP, D and Am. Only the stats the selected edition uses are offered.
+  const usesLethality = hasLethalityStatline(editionSlug);
 
   const handleEditionChange = (newEditionId: string) => {
     setEditionId(newEditionId);
@@ -96,6 +88,15 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         setEquipmentCategory('');
       }
     }
+    // Stats the new edition does not use are no longer rendered, but anything
+    // already typed would stay in state and still be submitted -- an N26 weapon
+    // saved with a Damage and an Accuracy. Blank them on the way across.
+    const nowUsesLethality = hasLethalityStatline(editionSlugOf(editions, newEditionId));
+    setWeaponProfiles(profiles => profiles.map(profile => (
+      nowUsesLethality
+        ? { ...profile, acc_short: '', acc_long: '', damage: '', ammo: '' }
+        : { ...profile, lethality: '' }
+    )));
   };
 
   const { data: weapons = [] } = useQuery<Array<{id: string, equipment_name: string}>>({
@@ -130,23 +131,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   };
 
   const addProfile = () => {
-    setWeaponProfiles([
-      ...weaponProfiles,
-      {
-        profile_name: '',
-        range_short: '',
-        range_long: '',
-        acc_short: '',
-        acc_long: '',
-        strength: '',
-        ap: '',
-        damage: '',
-        ammo: '',
-        traits: '',
-        weapon_group_id: null,
-        sort_order: weaponProfiles.length + 1
-      }
-    ]);
+    setWeaponProfiles([...weaponProfiles, emptyWeaponProfile(weaponProfiles.length + 1)]);
   };
 
   const removeProfile = (index: number) => {
@@ -161,8 +146,8 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
       return;
     }
 
-    if (showTradePoints && tradePoints === '') {
-      toast.error("Please fill in all required fields");
+    if (showTradePoints && !isValidTradePoints(tradePoints)) {
+      toast.error("Trade Points must be a number or E");
       return;
     }
 
@@ -178,6 +163,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         strength: profile.strength || null,
         ap: profile.ap || null,
         damage: profile.damage || null,
+        lethality: profile.lethality || null,
         ammo: profile.ammo || null,
         traits: profile.traits || null
       })) : undefined;
@@ -196,7 +182,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
             ? combineAvailability(availLetter, availNumber)
             : 'C',
           cost: parseInt(cost),
-          trade_points: showTradePoints ? Number(tradePoints) : 0,
+          trade_points: showTradePoints ? tradePoints.trim().toUpperCase() : '0',
           variants: variants || null,
           equipment_category_id: equipmentCategory,
           equipment_type: equipmentType,
@@ -351,13 +337,11 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                   Trade Points *
                 </label>
                 <Input
-                  type="number"
+                  type="text"
                   value={tradePoints}
                   onChange={(e) => setTradePoints(e.target.value)}
-                  placeholder="E.g. 2"
+                  placeholder="2 or E"
                   className="w-full"
-                  min="0"
-                  step="any"
                 />
               </div>
             )}
@@ -748,96 +732,12 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                       </div>
 
                       {/* Weapon Characteristics */}
-                      <div className="grid grid-cols-4 md:grid-cols-8 gap-2 md:gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-muted-foreground mb-1">
-                            Rng S
-                          </label>
-                          <Input
-                            value={profile.range_short}
-                            onChange={(e) => handleProfileChange(index, 'range_short', e.target.value)}
-                            placeholder='e.g. 4", -'
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-muted-foreground mb-1">
-                            Rng L
-                          </label>
-                          <Input
-                            value={profile.range_long}
-                            onChange={(e) => handleProfileChange(index, 'range_long', e.target.value)}
-                            placeholder='e.g. 8", E'
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-muted-foreground mb-1">
-                            Acc S
-                          </label>
-                          <Input
-                            value={profile.acc_short}
-                            onChange={(e) => handleProfileChange(index, 'acc_short', e.target.value)}
-                            placeholder='e.g. +1, -'
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-muted-foreground mb-1">
-                            Acc L
-                          </label>
-                          <Input
-                            value={profile.acc_long}
-                            onChange={(e) => handleProfileChange(index, 'acc_long', e.target.value)}
-                            placeholder='e.g. -1, -'
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-muted-foreground mb-1">
-                            Strength
-                          </label>
-                          <Input
-                            value={profile.strength}
-                            onChange={(e) => handleProfileChange(index, 'strength', e.target.value)}
-                            placeholder="e.g. 3, S+1"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-muted-foreground mb-1">
-                            AP
-                          </label>
-                          <Input
-                            value={profile.ap}
-                            onChange={(e) => handleProfileChange(index, 'ap', e.target.value)}
-                            placeholder='e.g. -1, -'
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-muted-foreground mb-1">
-                            Damage
-                          </label>
-                          <Input
-                            type="text"
-                            value={profile.damage}
-                            onChange={(e) => handleProfileChange(index, 'damage', e.target.value)}
-                            placeholder="e.g. 1, D3"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-muted-foreground mb-1">
-                            Am
-                          </label>
-                          <Input
-                            value={profile.ammo}
-                            onChange={(e) => handleProfileChange(index, 'ammo', e.target.value)}
-                            placeholder='e.g. 5+'
-                          />
-                        </div>
-                      </div>
+                      <WeaponProfileFields
+                        profile={profile}
+                        index={index}
+                        onChange={handleProfileChange}
+                        usesLethality={usesLethality}
+                      />
                       <div>
                         <div className="col-span-3">
                           <label className="block text-sm font-medium text-muted-foreground mb-1">

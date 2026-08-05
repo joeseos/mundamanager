@@ -10,6 +10,7 @@ import { UserPermissions } from '@/types/user-permissions';
 import { sellEquipmentFromFighter } from '@/app/actions/sell-equipment';
 import { buyEquipmentForFighter } from '@/app/actions/equipment';
 import { deleteEquipmentFromFighter } from '@/app/actions/equipment';
+import { parseTradePointsCost } from '@/utils/campaigns/resources';
 import { moveEquipmentToStash } from '@/app/actions/move-to-stash';
 import { fitWeaponToHardpoint, updateVehicleHardpoint } from '@/app/actions/vehicle-hardpoints';
 import { MdCurrencyExchange, MdOutlineLinkOff } from 'react-icons/md';
@@ -34,6 +35,7 @@ interface VehicleEquipmentListProps {
   vehicleEffects?: any;
   vehicleId: string;
   onRegisterPurchase?: (fn: (payload: { params: any; item: any }) => void) => void;
+  editionSlug?: string | null;
 }
 
 
@@ -498,7 +500,8 @@ export function VehicleEquipmentList({
   userPermissions,
   vehicleEffects,
   vehicleId,
-  onRegisterPurchase
+  onRegisterPurchase,
+  editionSlug
 }: VehicleEquipmentListProps) {
   const [isLoading, setIsLoading] = useState(false);
   
@@ -565,9 +568,13 @@ export function VehicleEquipmentList({
 
           onEquipmentUpdate(updated, previousFighterCredits + serverRatingCost, newGangCredits);
 
-          const costText = item.cost_resource_name
+          const baseCostText = item.cost_resource_name
             ? `${item.cost_resource_amount} ${item.cost_resource_name}`
             : `${serverPurchaseCost} credits`;
+          const tradePointsCost = parseTradePointsCost(params.manual_trade_points ?? item.trade_points);
+          const costText = tradePointsCost > 0
+            ? `${baseCostText} and ${tradePointsCost} TP`
+            : baseCostText;
           toast.success('Equipment purchased', { description: `Successfully bought ${item.equipment_name} for ${costText}` });
         } catch (err) {
           onEquipmentUpdate(previousEquipment, previousFighterCredits, previousGangCredits);
@@ -852,7 +859,7 @@ export function VehicleEquipmentList({
 
               if (!equipment) return displayName;
               return (
-                <EquipmentTooltipTrigger item={equipment} className="block w-full">
+                <EquipmentTooltipTrigger item={equipment} className="block w-full" editionSlug={editionSlug}>
                   {displayName}
                 </EquipmentTooltipTrigger>
               );

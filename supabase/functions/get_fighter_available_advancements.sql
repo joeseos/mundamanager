@@ -10,12 +10,12 @@ DECLARE
   v_result jsonb;
   v_fighter_xp integer;
   v_advancements_category_id UUID;
-  v_fighter_classes jsonb;
+  v_fighter_subtypes jsonb;
   v_uses_flat_cost boolean; -- Flag for fighters that use flat costs (Ganger and Exotic Beast)
 BEGIN
-  -- Get fighter's current XP and fighter classes
-  SELECT f.xp, f.fighter_classes
-  INTO v_fighter_xp, v_fighter_classes
+  -- Get fighter's current XP and fighter subtypes
+  SELECT f.xp, f.fighter_subtypes
+  INTO v_fighter_xp, v_fighter_subtypes
   FROM fighters f
   WHERE f.id = get_fighter_available_advancements.fighter_id;
 
@@ -23,10 +23,10 @@ BEGIN
     RAISE EXCEPTION 'Fighter not found with ID %', get_fighter_available_advancements.fighter_id;
   END IF;
   
-  -- Determine if the fighter uses flat costs based on their classes
+  -- Determine if the fighter uses flat costs based on their subtypes
   -- Only Gangers and Exotic Beasts use flat costs
   v_uses_flat_cost :=
-    v_fighter_classes ?| array['Ganger', 'Exotic Beast'];
+    v_fighter_subtypes ?| array['Ganger', 'Exotic Beast'];
   
   -- Get the advancements category ID
   SELECT id INTO v_advancements_category_id
@@ -66,17 +66,17 @@ BEGIN
       etc.effect_name as characteristic_name,
       LOWER(REPLACE(etc.effect_name, ' ', '_')) as characteristic_code,
       etc.base_xp_cost,
-      -- Calculate XP cost based on fighter class and characteristic
+      -- Calculate XP cost based on fighter subtype and characteristic
       CASE
         -- For Gangers and Exotic Beasts: fixed 6 XP cost
         WHEN v_uses_flat_cost THEN 6
         -- For Juves and Prospects: base cost only (no escalating penalty)
-        WHEN v_fighter_classes ?| array['Juve', 'Prospect'] THEN etc.base_xp_cost
+        WHEN v_fighter_subtypes ?| array['Juve', 'Prospect'] THEN etc.base_xp_cost
         -- For other fighters: base cost + (2 * times increased)
         WHEN COALESCE(ac.times_increased, 0) = 0 THEN etc.base_xp_cost
         ELSE etc.base_xp_cost + (2 * ac.times_increased)
       END as xp_cost,
-      -- Calculate credits increase based on fighter class and characteristic
+      -- Calculate credits increase based on fighter subtype and characteristic
       CASE
         -- For Gangers and Exotic Beasts: credits based on advancement table
         WHEN v_uses_flat_cost THEN
@@ -101,7 +101,7 @@ BEGIN
       -- Check if fighter has enough XP based on the calculated cost
       CASE
         WHEN v_uses_flat_cost THEN v_fighter_xp >= 6
-        WHEN v_fighter_classes ?| array['Juve', 'Prospect'] THEN v_fighter_xp >= etc.base_xp_cost
+        WHEN v_fighter_subtypes ?| array['Juve', 'Prospect'] THEN v_fighter_xp >= etc.base_xp_cost
         WHEN COALESCE(ac.times_increased, 0) = 0 THEN v_fighter_xp >= etc.base_xp_cost
         ELSE v_fighter_xp >= (etc.base_xp_cost + (2 * ac.times_increased))
       END as has_enough_xp
@@ -128,7 +128,7 @@ BEGIN
   SELECT jsonb_build_object(
     'fighter_id', get_fighter_available_advancements.fighter_id,
     'current_xp', v_fighter_xp,
-    'fighter_classes', v_fighter_classes,
+    'fighter_subtypes', v_fighter_subtypes,
     'uses_flat_cost', v_uses_flat_cost,
     -- Ganger/Exotic Beast: Specialist table row (random Primary skill) — same flat costs as other ganger advances
     'ganger_to_specialist_advancement', CASE WHEN v_uses_flat_cost THEN jsonb_build_object(
