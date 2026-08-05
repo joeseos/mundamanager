@@ -90,6 +90,7 @@ function mapFighterType(type: any): FighterType {
     is_custom_fighter: type.is_custom_fighter || false,
     free_skill: type.free_skill || false,
     is_dramatis_personae: type.is_dramatis_personae || false,
+    starting_xp: type.starting_xp ?? 0,
   } as FighterType;
 }
 
@@ -358,7 +359,7 @@ export default function FighterAddModal({
       credits: displayCost,
       ...stats,
       edition_slug: selectedType?.edition_slug ?? null,
-      xp: 0,
+      xp: selectedType?.starting_xp ?? 0,
       kills: 0,
       weapons: optimisticWeapons,
       wargear: optimisticWargear,

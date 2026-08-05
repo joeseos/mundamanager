@@ -466,7 +466,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       willpower: effectiveFighterData.willpower,
       intelligence: effectiveFighterData.intelligence,
       save: effectiveFighterData.save ?? null,
-      xp: 0,
+      xp: effectiveFighterData.starting_xp ?? 0,
       kills: 0,
       special_rules: effectiveFighterData.special_rules,
       fighter_gang_legacy_id: params.fighter_gang_legacy_id || null,

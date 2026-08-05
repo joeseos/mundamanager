@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { HiX } from "react-icons/hi";
 import { GangType, Equipment } from "@/types/gang";
 import { EditionSelect, useEditions } from '@/components/edition-select';
-import { hasSaveCharacteristic, allowsMultipleClasses } from '@/types/edition';
+import { hasSaveCharacteristic, allowsMultipleClasses, hasStartingXp } from '@/types/edition';
 import { skillSetRank } from "@/utils/skillSetRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 
@@ -53,6 +53,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   const [fighterType, setFighterType] = useState('');
   const [baseCost, setBaseCost] = useState('');
   const [delegationCost, setDelegationCost] = useState('');
+  const [startingXp, setStartingXp] = useState('');
   const [selectedGangType, setSelectedGangType] = useState('');
   const [editionId, setEditionId] = useState('');
   const [selectedFighterClasses, setSelectedFighterClasses] = useState<string[]>([]);
@@ -110,6 +111,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   const editionSlug = editions.find(edition => edition.id === editionId)?.slug;
   const showSave = hasSaveCharacteristic(editionSlug);
   const allowMultipleClasses = allowsMultipleClasses(editionSlug);
+  const showStartingXp = hasStartingXp(editionSlug);
 
   const { data: equipment = [] } = useQuery<EquipmentWithId[]>({
     queryKey: ['admin-equipment-list'],
@@ -323,6 +325,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         is_spyrer: isSpyrer,
         alignment: alignment || null,
         delegation_cost: delegationCost ? parseInt(delegationCost) : null,
+        starting_xp: showStartingXp && startingXp ? parseInt(startingXp) : 0,
         default_equipment: selectedEquipment,
         default_skills: selectedSkills,
         equipment_list: equipmentListSelections,
@@ -516,6 +519,22 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                   min="0"
                 />
               </div>
+
+              {showStartingXp && (
+                <div>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    Starting XP
+                  </label>
+                  <Input
+                    type="number"
+                    value={startingXp}
+                    onChange={(e) => setStartingXp(e.target.value)}
+                    placeholder="e.g. 0"
+                    className="w-full"
+                    min="0"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-2 md:gap-4">

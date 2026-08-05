@@ -15,7 +15,7 @@ import { skillSetRank } from "@/utils/skillSetRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { AdminFighterEquipmentSelection, EquipmentSelection, guiToDataModel, dataModelToGui } from "@/components/admin/admin-fighter-equipment-selection";
 import { EditionSelect, useEditions } from '@/components/edition-select';
-import { hasSaveCharacteristic, allowsMultipleClasses } from '@/types/edition';
+import { hasSaveCharacteristic, allowsMultipleClasses, hasStartingXp } from '@/types/edition';
 import Modal from '@/components/ui/modal';
 
 interface FighterSubType {
@@ -118,6 +118,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [intelligence, setIntelligence] = useState('');
   const [attacks, setAttacks] = useState('');
   const [save, setSave] = useState('');
+  const [startingXp, setStartingXp] = useState('');
   const [specialSkills, setSpecialSkills] = useState('');
   const [freeSkill, setFreeSkill] = useState(false);
   const [isGangAddition, setIsGangAddition] = useState(false);
@@ -296,6 +297,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const editionSlug = editions.find(edition => edition.id === editionId)?.slug;
   const showSave = hasSaveCharacteristic(editionSlug);
   const allowMultipleClasses = allowsMultipleClasses(editionSlug);
+  const showStartingXp = hasStartingXp(editionSlug);
 
   const { data: gangAffiliations = [] } = useQuery<GangAffiliation[]>({
     queryKey: ['admin-lineages', 'affiliation'],
@@ -591,6 +593,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       setIntelligence(data.intelligence?.toString() || '0');
       setAttacks(data.attacks?.toString() || '0');
       setSave(data.save != null ? data.save.toString() : '');
+      setStartingXp(data.starting_xp?.toString() || '0');
       setSpecialSkills(data.special_rules?.join(', ') || '');
       setFreeSkill(!!data.free_skill);
       setIsGangAddition(!!data.is_gang_addition);
@@ -1171,6 +1174,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         intelligence: parseInt(intelligence),
         attacks: parseInt(attacks),
         save: showSave && save ? parseInt(save) : null,
+        starting_xp: showStartingXp && startingXp ? parseInt(startingXp) : 0,
         special_rules: specialRulesArray,
         free_skill: freeSkill,
         is_gang_addition: isGangAddition,
@@ -1627,6 +1631,22 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                     min="0"
                   />
                 </div>
+
+                {showStartingXp && (
+                  <div>
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">
+                      Starting XP
+                    </label>
+                    <Input
+                      type="number"
+                      value={startingXp}
+                      onChange={(e) => setStartingXp(e.target.value)}
+                      placeholder="e.g. 0"
+                      className="w-full"
+                      min="0"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-2 md:gap-4">
