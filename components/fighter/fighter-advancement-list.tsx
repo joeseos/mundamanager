@@ -38,7 +38,7 @@ import {
 interface AdvancementModalProps {
   fighterId: string;
   currentXp: number;
-  fighterClasses: string[];
+  fighterSubtypes: string[];
   advancements: Array<FighterEffectType>;
   skills: Record<string, any>;
   onClose: () => void;
@@ -56,7 +56,7 @@ interface AdvancementModalProps {
   fighterTypeId?: string;
   fighterSpecialisationId?: string;
   onFighterDetailsUpdate?: (patch: {
-    fighter_classes?: string[];
+    fighter_subtypes?: string[];
     fighter_type?: string;
     fighter_type_id?: string;
     fighter_specialisation?: string | null;
@@ -110,7 +110,7 @@ interface SkillResponse {
     is_custom: boolean;
   }[];
   fighter_id: string;
-  fighter_classes: string[];
+  fighter_subtypes: string[];
 }
 
 interface SkillAcquisitionType {
@@ -168,7 +168,7 @@ interface AdvancementsListProps {
   fighterXp: number;
   fighterChanges?: FighterChanges;
   fighterId: string;
-  fighterClasses: string[];
+  fighterSubtypes: string[];
   advancements: Array<FighterEffectType>;
   skills: FighterSkills;
   userPermissions: UserPermissions;
@@ -184,7 +184,7 @@ interface AdvancementsListProps {
   fighterTypeId?: string;
   fighterSpecialisationId?: string;
   onFighterDetailsUpdate?: (patch: {
-    fighter_classes?: string[];
+    fighter_subtypes?: string[];
     fighter_type?: string;
     fighter_type_id?: string;
     fighter_specialisation?: string | null;
@@ -435,7 +435,7 @@ type ChampionPendingPromotion = FighterPromotionResult;
 export function AdvancementModal({
   fighterId,
   currentXp,
-  fighterClasses,
+  fighterSubtypes,
   advancements,
   skills,
   onClose,
@@ -671,11 +671,11 @@ export function AdvancementModal({
     [gangerSelectedRowId]
   );
 
-  const isGangerOrExoticBeastClass =
-    fighterClasses.includes('Ganger') || fighterClasses.includes('Exotic Beast');
+  const isGangerOrExoticBeastSubtype =
+    fighterSubtypes.includes('Ganger') || fighterSubtypes.includes('Exotic Beast');
 
   const gangerModalRollBuy =
-    isGangerOrExoticBeastClass &&
+    isGangerOrExoticBeastSubtype &&
     !!userPermissions &&
     !!onFighterDetailsUpdate;
 
@@ -698,7 +698,7 @@ export function AdvancementModal({
   });
 
   useEffect(() => {
-    if (!isGangerOrExoticBeastClass || !fighterId) return;
+    if (!isGangerOrExoticBeastSubtype || !fighterId) return;
     let cancelled = false;
     const run = async () => {
       try {
@@ -738,7 +738,7 @@ export function AdvancementModal({
     return () => {
       cancelled = true;
     };
-  }, [fighterId, isGangerOrExoticBeastClass]);
+  }, [fighterId, isGangerOrExoticBeastSubtype]);
 
   const gangerPromotionTypeId = gangerPendingPromotion?.fighter_type_id;
   const shouldFetchPreviewSkillAccess = gangerSelectedRow?.kind === 'specialist' && !!gangerPromotionTypeId;
@@ -1010,7 +1010,7 @@ export function AdvancementModal({
     },
     onSuccess: (_data, vars) => {
       onFighterDetailsUpdate?.({
-        fighter_classes: vars.promotion.fighter_classes,
+        fighter_subtypes: vars.promotion.fighter_subtypes,
         fighter_type: vars.promotion.fighter_type,
         fighter_type_id: vars.promotion.fighter_type_id,
         fighter_specialisation: vars.promotion.fighter_specialisation ?? null,
@@ -1065,7 +1065,7 @@ export function AdvancementModal({
     },
     onSuccess: (_data, vars) => {
       onFighterDetailsUpdate?.({
-        fighter_classes: vars.promotion.fighter_classes,
+        fighter_subtypes: vars.promotion.fighter_subtypes,
         fighter_type: vars.promotion.fighter_type,
         fighter_type_id: vars.promotion.fighter_type_id,
         fighter_specialisation: vars.promotion.fighter_specialisation ?? null,
@@ -1494,11 +1494,11 @@ export function AdvancementModal({
 
   const advancementTypeComboboxOptions = useMemo(() => {
     const options: Array<{ value: string; label: string }> = [...ADVANCEMENT_TYPE_COMBOBOX_OPTIONS];
-    if (fighterClasses.includes('Specialist') || fighterClasses.includes('Exotic Beast Specialist')) {
+    if (fighterSubtypes.includes('Specialist') || fighterSubtypes.includes('Exotic Beast Specialist')) {
       options.push({ value: 'promotion_to_champion', label: 'Promotion to Champion' });
     }
     return options;
-  }, [fighterClasses]);
+  }, [fighterSubtypes]);
 
   const isSkillLikeAdvancementType =
     advancementType === 'skill' || advancementType === 'promotion_to_champion';
@@ -1986,7 +1986,7 @@ export function AdvancementModal({
   };
 
   const isGangerOrExoticBeastRestricted =
-    fighterClasses.includes('Ganger') || fighterClasses.includes('Exotic Beast');
+    fighterSubtypes.includes('Ganger') || fighterSubtypes.includes('Exotic Beast');
 
   const handleAdvancementPurchase = async () => {
     if (gangerModalRollBuy) {
@@ -2135,7 +2135,7 @@ export function AdvancementModal({
 
           {userPermissions &&
             onFighterDetailsUpdate &&
-            (fighterClasses.includes('Ganger') || fighterClasses.includes('Exotic Beast')) && (
+            (fighterSubtypes.includes('Ganger') || fighterSubtypes.includes('Exotic Beast')) && (
               <div className="mb-4 space-y-4">
                 <div>
                   <h4 className="font-semibold">Ganger / Exotic Beast</h4>
@@ -2242,7 +2242,7 @@ export function AdvancementModal({
                       <p className="text-xs text-green-600 dark:text-green-400">
                         Promotion to{' '}
                         <strong>
-                          {gangerPendingPromotion.fighter_type} ({gangerPendingPromotion.fighter_classes.join(', ')})
+                          {gangerPendingPromotion.fighter_type} ({gangerPendingPromotion.fighter_subtypes.join(', ')})
                         </strong>{' '}
                         confirmed. Once the advancement is applied, this promotion cannot be undone.
                       </p>
@@ -2322,8 +2322,8 @@ export function AdvancementModal({
                 )}
 
                 <FighterPromotionModal
-                  currentClass={fighterClasses[0] || ''}
-                  currentClasses={fighterClasses}
+                  currentSubtype={fighterSubtypes[0] || ''}
+                  currentSubtypes={fighterSubtypes}
                   currentSpecialRules={fighterSpecialRules}
                   currentFighterType={fighterTypeName}
                   currentFighterTypeId={fighterTypeId}
@@ -2382,7 +2382,7 @@ export function AdvancementModal({
                   <p className="text-xs text-green-600 dark:text-green-400">
                     Promotion to{' '}
                     <strong>
-                      {championPendingPromotion.fighter_type} ({championPendingPromotion.fighter_classes.join(', ')})
+                      {championPendingPromotion.fighter_type} ({championPendingPromotion.fighter_subtypes.join(', ')})
                     </strong>{' '}
                     confirmed. Once the advancement is applied, this promotion cannot be undone.
                   </p>
@@ -2463,8 +2463,8 @@ export function AdvancementModal({
 
                 {onFighterDetailsUpdate && (
                   <FighterPromotionModal
-                    currentClass={fighterClasses[0] || ''}
-                    currentClasses={fighterClasses}
+                    currentSubtype={fighterSubtypes[0] || ''}
+                    currentSubtypes={fighterSubtypes}
                     currentSpecialRules={fighterSpecialRules}
                     currentFighterType={fighterTypeName}
                     currentFighterTypeId={fighterTypeId}
@@ -2666,7 +2666,7 @@ export function AdvancementsList({
   fighterXp,
   fighterChanges = { advancement: [], characteristics: [], skills: [] },
   fighterId,
-  fighterClasses,
+  fighterSubtypes,
   advancements = [],
   skills = {},
   userPermissions,
@@ -2687,7 +2687,7 @@ export function AdvancementsList({
   const [isStandalonePromotionOpen, setIsStandalonePromotionOpen] = useState(false);
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string; type: string } | null>(null);
 
-  const showPromoteButton = fighterClasses.some(c => ['Ganger', 'Juve', 'Prospect', 'Champion', 'Specialist', 'Exotic Beast', 'Exotic Beast Specialist'].includes(c));
+  const showPromoteButton = fighterSubtypes.some(c => ['Ganger', 'Juve', 'Prospect', 'Champion', 'Specialist', 'Exotic Beast', 'Exotic Beast Specialist'].includes(c));
 
   const { data: preFetchedFighterTypes = [] } = useQuery({
     queryKey: ['fighter-types-edit', gangId, gangTypeId, customGangTypeId],
@@ -2719,7 +2719,7 @@ export function AdvancementsList({
     mutationFn: async (promotion: FighterPromotionResult) => {
       const result = await updateFighterDetails({
         fighter_id: fighterId,
-        fighter_classes: promotion.fighter_classes,
+        fighter_subtypes: promotion.fighter_subtypes,
         fighter_type: promotion.fighter_type,
         fighter_type_id: promotion.fighter_type_id,
         fighter_specialisation: promotion.fighter_specialisation ?? null,
@@ -2733,7 +2733,7 @@ export function AdvancementsList({
     },
     onMutate: async (promotion) => {
       const previousPatch = {
-        fighter_classes: fighterClasses,
+        fighter_subtypes: fighterSubtypes,
         fighter_type: fighterTypeName,
         fighter_type_id: fighterTypeId,
         special_rules: fighterSpecialRules,
@@ -3034,8 +3034,8 @@ export function AdvancementsList({
 
       {/* Modals */}
       <FighterPromotionModal
-        currentClass={fighterClasses[0] || ''}
-        currentClasses={fighterClasses}
+        currentSubtype={fighterSubtypes[0] || ''}
+        currentSubtypes={fighterSubtypes}
         currentSpecialRules={fighterSpecialRules}
         currentFighterType={fighterTypeName}
         currentFighterTypeId={fighterTypeId}
@@ -3053,7 +3053,7 @@ export function AdvancementsList({
         <AdvancementModal
           fighterId={fighterId}
           currentXp={fighterXp}
-          fighterClasses={fighterClasses}
+          fighterSubtypes={fighterSubtypes}
           advancements={advancements}
           skills={skills}
           onClose={() => setIsAdvancementModalOpen(false)}

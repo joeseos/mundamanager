@@ -53,7 +53,7 @@ BEGIN
            f.label,
            f.fighter_type,
            f.fighter_type_id,
-           f.fighter_classes,
+           f.fighter_subtypes,
            f.fighter_specialisation_id,
            f.xp,
            f.kills,
@@ -584,7 +584,7 @@ BEGIN
            f.label,
            f.fighter_type,
            f.fighter_type_id,
-           f.fighter_classes,
+           f.fighter_subtypes,
            json_build_object(
              'fighter_specialisation', fspec.specialisation_name,
              'fighter_specialisation_id', fspec.id
@@ -730,7 +730,7 @@ BEGIN
                'fighter_name', cf.fighter_name,
                'label', cf.label,
                'fighter_type', cf.fighter_type,
-               'fighter_classes', cf.fighter_classes,
+               'fighter_subtypes', cf.fighter_subtypes,
                'fighter_specialisation', cf.fighter_specialisation,
                'alliance_crew_name', cf.alliance_crew_name,
                'position', cf.position,

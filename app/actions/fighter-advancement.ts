@@ -68,7 +68,7 @@ export interface PromotionWithSkillAdvancementParams {
   promotion: {
     fighter_type: string;
     fighter_type_id: string;
-    fighter_classes: string[];
+    fighter_subtypes: string[];
     special_rules: string[];
     fighter_specialisation?: string | null;
     fighter_specialisation_id?: string | null;
@@ -558,7 +558,7 @@ export async function addSkillAdvancement(
 
 /**
  * Promotes a fighter and adds a skill advancement as one logical operation.
- * If the skill step fails after promotion succeeds, the fighter's class/type is reverted.
+ * If the skill step fails after promotion succeeds, the fighter's subtype/type is reverted.
  */
 export async function applyPromotionWithSkillAdvancement(
   params: PromotionWithSkillAdvancementParams
@@ -567,7 +567,7 @@ export async function applyPromotionWithSkillAdvancement(
     const supabase = await createClient();
     const { data: before, error: beforeError } = await supabase
       .from('fighters')
-      .select('fighter_classes, fighter_type, fighter_type_id, fighter_specialisation, fighter_specialisation_id, special_rules')
+      .select('fighter_subtypes, fighter_type, fighter_type_id, fighter_specialisation, fighter_specialisation_id, special_rules')
       .eq('id', params.fighter_id)
       .single();
 
@@ -577,7 +577,7 @@ export async function applyPromotionWithSkillAdvancement(
 
     const promotionResult = await updateFighterDetails({
       fighter_id: params.fighter_id,
-      fighter_classes: params.promotion.fighter_classes,
+      fighter_subtypes: params.promotion.fighter_subtypes,
       fighter_type: params.promotion.fighter_type,
       fighter_type_id: params.promotion.fighter_type_id,
       fighter_specialisation: params.promotion.fighter_specialisation ?? null,
@@ -600,7 +600,7 @@ export async function applyPromotionWithSkillAdvancement(
     if (!skillResult.success) {
       const revertResult = await updateFighterDetails({
         fighter_id: params.fighter_id,
-        fighter_classes: before.fighter_classes ?? undefined,
+        fighter_subtypes: before.fighter_subtypes ?? undefined,
         fighter_type: before.fighter_type ?? undefined,
         fighter_type_id: before.fighter_type_id ?? undefined,
         fighter_specialisation: before.fighter_specialisation ?? null,
@@ -611,7 +611,7 @@ export async function applyPromotionWithSkillAdvancement(
       if (!revertResult.success) {
         return {
           success: false,
-          error: `${skillResult.error}. Promotion could not be reverted automatically — please check this fighter's class and type in Edit Fighter.`
+          error: `${skillResult.error}. Promotion could not be reverted automatically — please check this fighter's subtype and type in Edit Fighter.`
         };
       }
 
@@ -1312,7 +1312,7 @@ export interface VerifyAndLogRolledGangerAdvancementRollParams {
   dice_data: Record<string, unknown>;
 }
 
-const GANGER_ELIGIBLE_CLASSES = new Set(['Ganger', 'Exotic Beast']);
+const GANGER_ELIGIBLE_SUBTYPES = new Set(['Ganger', 'Exotic Beast']);
 
 export async function verifyAndLogRolledGangerAdvancementRoll(
   params: VerifyAndLogRolledGangerAdvancementRollParams
@@ -1323,7 +1323,7 @@ export async function verifyAndLogRolledGangerAdvancementRoll(
 
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, fighter_name, fighter_classes')
+      .select('id, gang_id, fighter_name, fighter_subtypes')
       .eq('id', params.fighter_id)
       .single();
 
@@ -1331,7 +1331,7 @@ export async function verifyAndLogRolledGangerAdvancementRoll(
       throw new Error('Fighter not found');
     }
 
-    if (!fighter.fighter_classes?.some((c: string) => GANGER_ELIGIBLE_CLASSES.has(c))) {
+    if (!fighter.fighter_subtypes?.some((c: string) => GANGER_ELIGIBLE_SUBTYPES.has(c))) {
       throw new Error('Advancement roll is only for Gangers and Exotic Beasts');
     }
 
@@ -1386,7 +1386,7 @@ export async function verifyAndLogRolledSkillAdvancementRoll(
 
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, fighter_name, fighter_classes')
+      .select('id, gang_id, fighter_name, fighter_subtypes')
       .eq('id', params.fighter_id)
       .single();
 
@@ -1394,8 +1394,8 @@ export async function verifyAndLogRolledSkillAdvancementRoll(
       throw new Error('Fighter not found');
     }
 
-    if (fighter.fighter_classes?.some((c: string) => GANGER_ELIGIBLE_CLASSES.has(c))) {
-      throw new Error('Use the Ganger / Exotic Beast advancement roll logger for this fighter class');
+    if (fighter.fighter_subtypes?.some((c: string) => GANGER_ELIGIBLE_SUBTYPES.has(c))) {
+      throw new Error('Use the Ganger / Exotic Beast advancement roll logger for this fighter subtype');
     }
 
     return await logRolledSkillAdvancement({

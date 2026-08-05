@@ -63,7 +63,7 @@ interface Fighter {
     fighter_specialisation: string;
     fighter_specialisation_id: string;
   };
-  fighter_classes: string[];
+  fighter_subtypes: string[];
   alliance_crew_name?: string;
   label?: string;
   credits: number;
@@ -320,7 +320,7 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
   return {
     fighter: {
       ...fighterData.fighter,
-      fighter_classes: fighterData.fighter.fighter_classes || [],
+      fighter_subtypes: fighterData.fighter.fighter_subtypes || [],
       fighter_type: {
         fighter_type: fighterData.fighter.fighter_type.fighter_type,
         fighter_type_id: fighterData.fighter.fighter_type.fighter_type_id,
@@ -667,7 +667,7 @@ export default function FighterPage({
             starved={fighterData.fighter?.starved}
             recovery={fighterData.fighter?.recovery}
             captured={fighterData.fighter?.captured}
-            fighter_classes={fighterData.fighter?.fighter_classes || []}
+            fighter_subtypes={fighterData.fighter?.fighter_subtypes || []}
             kills={fighterData.fighter?.kills || 0}
             kill_count={fighterData.fighter?.kill_count}
             is_spyrer={fighterData.fighter?.is_spyrer}
@@ -817,7 +817,7 @@ export default function FighterPage({
           <AdvancementsList
             fighterXp={fighterData.fighter?.xp || 0}
             fighterId={fighterData.fighter?.id || ''}
-            fighterClasses={fighterData.fighter?.fighter_classes || []}
+            fighterSubtypes={fighterData.fighter?.fighter_subtypes || []}
             advancements={fighterData.fighter?.effects?.advancements || []}
             skills={fighterData.fighter?.skills || {}}
             userPermissions={userPermissions}
@@ -834,7 +834,7 @@ export default function FighterPage({
                 fighter: prev.fighter
                   ? {
                       ...prev.fighter,
-                      fighter_classes: patch.fighter_classes ?? prev.fighter.fighter_classes,
+                      fighter_subtypes: patch.fighter_subtypes ?? prev.fighter.fighter_subtypes,
                       special_rules: patch.special_rules ?? prev.fighter.special_rules,
                       fighter_type:
                         patch.fighter_type !== undefined && patch.fighter_type_id !== undefined
@@ -945,7 +945,7 @@ export default function FighterPage({
             fighterCaptured={fighterData.fighter?.captured}
             fighterCapturedByGangId={fighterData.fighter?.captured_by_gang_id ?? null}
             userPermissions={userPermissions}
-            fighter_classes={fighterData.fighter?.fighter_classes || []}
+            fighter_subtypes={fighterData.fighter?.fighter_subtypes || []}
             is_spyrer={fighterData.fighter?.is_spyrer}
             kill_count={fighterData.fighter?.kill_count ?? 0}
             gangCredits={fighterData.gang?.credits ?? 0}

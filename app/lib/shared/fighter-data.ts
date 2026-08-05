@@ -32,7 +32,7 @@ export interface FighterBasic {
   save?: number | null;
   xp: number;
   special_rules?: string[];
-  fighter_classes: string[];
+  fighter_subtypes: string[];
   fighter_type?: string;
   fighter_type_id: string;
   custom_fighter_type_id?: string | null;
@@ -151,7 +151,7 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
           save,
           xp,
           special_rules,
-          fighter_classes,
+          fighter_subtypes,
           fighter_type,
           fighter_type_id,
           custom_fighter_type_id,

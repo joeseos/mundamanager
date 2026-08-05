@@ -132,7 +132,7 @@ const FighterCard = memo(function FighterCard({
   name,
   type,
   label,
-  fighter_classes,
+  fighter_subtypes,
   fighter_specialisation,
   alliance_crew_name,
   credits,
@@ -184,7 +184,7 @@ const FighterCard = memo(function FighterCard({
 }: FighterCardProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [isMultiline, setIsMultiline] = useState(false);
-  const isCrew = fighter_classes?.includes('Crew') ?? false;
+  const isCrew = fighter_subtypes?.includes('Crew') ?? false;
   const isLoading = id.startsWith('temp-');
 
   const isNormalView = viewMode === 'normal' || viewMode === undefined;
@@ -325,7 +325,7 @@ const FighterCard = memo(function FighterCard({
       id,
       fighter_name: name,
       fighter_type: type,
-      fighter_classes,
+      fighter_subtypes,
       fighter_specialisation,
       credits,
       movement,
@@ -394,7 +394,7 @@ const FighterCard = memo(function FighterCard({
       }
     };
   }, [
-    id, name, type, fighter_classes, fighter_specialisation, credits, movement, weapon_skill,
+    id, name, type, fighter_subtypes, fighter_specialisation, credits, movement, weapon_skill,
     ballistic_skill, strength, toughness, wounds, initiative,
     attacks, leadership, cool, willpower, intelligence, save, xp,
     kills, advancements, weapons, wargear, special_rules, effects, skills
@@ -590,7 +590,7 @@ const FighterCard = memo(function FighterCard({
                 <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden text-ellipsis whitespace-nowrap w-full print:text-muted-foreground fancy-print-keep-color-subtitle">
                   {type}
                   {alliance_crew_name && ` - ${alliance_crew_name}`}
-                  {fighter_classes?.join(', ') && ` (${fighter_classes.join(', ')})`}
+                  {fighter_subtypes?.join(', ') && ` (${fighter_subtypes.join(', ')})`}
                   {fighter_specialisation && fighter_specialisation.fighter_specialisation ? `, ${fighter_specialisation.fighter_specialisation}` : ''}
                 </div>
               </div>

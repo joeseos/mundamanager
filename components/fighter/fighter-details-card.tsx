@@ -65,7 +65,7 @@ interface FighterDetailsCardProps {
   starved?: boolean;
   recovery?: boolean;
   captured?: boolean;
-  fighter_classes: string[];
+  fighter_subtypes: string[];
   kills: number;
   kill_count?: number;
   is_spyrer?: boolean;
@@ -251,7 +251,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   starved,
   recovery,
   captured,
-  fighter_classes,
+  fighter_subtypes,
   kills,
   kill_count,
   is_spyrer,
@@ -314,7 +314,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       user: effects?.user || [],
       skills: effects?.skills || []
     },
-    fighter_classes,
+    fighter_subtypes,
     base_stats: {
       movement,
       weapon_skill,
@@ -347,10 +347,10 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
     id, name, type, specialisation, credits, movement, weapon_skill, ballistic_skill,
     strength, toughness, wounds, initiative, attacks, leadership,
     cool, willpower, intelligence, save, xp, kills, advancements, effects,
-    fighter_classes
+    fighter_subtypes
   ]);
   const canShowEditButtons = userPermissions.canEdit;
-  const isCrew = fighter_classes.includes('Crew');
+  const isCrew = fighter_subtypes.includes('Crew');
 
   const handleImageClick = () => {
     if (canShowEditButtons) {
@@ -435,7 +435,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
                 <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden text-ellipsis whitespace-nowrap w-full print:text-muted-foreground">
                   {type}
                   {alliance_crew_name && ` – ${alliance_crew_name}`}
-                  {fighter_classes.length > 0 && ` (${fighter_classes.join(', ')})`}
+                  {fighter_subtypes.length > 0 && ` (${fighter_subtypes.join(', ')})`}
                   {specialisation?.fighter_specialisation && `, ${specialisation.fighter_specialisation}`}
                 </div>
               </div>

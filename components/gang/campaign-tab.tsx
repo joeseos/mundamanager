@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { Tooltip } from 'react-tooltip';
 import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
-import { fighterClassRank } from '@/utils/fighterClassRank';
+import { fighterSubtypeRank } from '@/utils/fighterSubtypeRank';
 import { createClient } from "@/utils/supabase/client";
 import { Battle } from '@/types/campaign';
 import { getWinnerIds } from '@/utils/battle-winners';
@@ -19,16 +19,16 @@ import { LuSwords } from "react-icons/lu";
 import { MdFactory, MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md";
 import { GiHandcuffs } from "react-icons/gi";
 
-function getClassRank(fighterClass: string) {
-  return fighterClassRank[fighterClass.toLowerCase().trim()] ?? 99;
+function getSubtypeRank(fighterSubtype: string) {
+  return fighterSubtypeRank[fighterSubtype.toLowerCase().trim()] ?? 99;
 }
 
 function breakdownRowKey(
-  fighter: { fighter_name: string; fighter_type: string; fighter_classes?: string[] },
+  fighter: { fighter_name: string; fighter_type: string; fighter_subtypes?: string[] },
   index: number,
 ) {
-  const classKey = fighter.fighter_classes?.join(',') || '';
-  return `${fighter.fighter_name}-${fighter.fighter_type}-${classKey}-${index}`;
+  const subtypeKey = fighter.fighter_subtypes?.join(',') || '';
+  return `${fighter.fighter_name}-${fighter.fighter_type}-${subtypeKey}-${index}`;
 }
 
 interface Territory {
@@ -336,8 +336,8 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
       return response.json() as Promise<{
         ooa_caused: number;
         deaths_suffered: number;
-        ooa_breakdown?: Array<{ fighter_name: string; fighter_type: string; fighter_classes?: string[]; kills: number }>;
-        deaths_breakdown?: Array<{ fighter_name: string; fighter_type: string; fighter_classes?: string[] }>;
+        ooa_breakdown?: Array<{ fighter_name: string; fighter_type: string; fighter_subtypes?: string[]; kills: number }>;
+        deaths_breakdown?: Array<{ fighter_name: string; fighter_type: string; fighter_subtypes?: string[] }>;
       }>;
     },
     staleTime: 5 * 60 * 1000,
@@ -350,14 +350,14 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
   const ooaBreakdown = useMemo(() => {
     const breakdown = fighterStats?.ooa_breakdown ?? [];
     return [...breakdown].sort(
-      (a, b) => getClassRank(a.fighter_classes?.[0] || '') - getClassRank(b.fighter_classes?.[0] || '')
+      (a, b) => getSubtypeRank(a.fighter_subtypes?.[0] || '') - getSubtypeRank(b.fighter_subtypes?.[0] || '')
     );
   }, [fighterStats?.ooa_breakdown]);
 
   const deathsBreakdown = useMemo(() => {
     const breakdown = fighterStats?.deaths_breakdown ?? [];
     return [...breakdown].sort(
-      (a, b) => getClassRank(a.fighter_classes?.[0] || '') - getClassRank(b.fighter_classes?.[0] || '')
+      (a, b) => getSubtypeRank(a.fighter_subtypes?.[0] || '') - getSubtypeRank(b.fighter_subtypes?.[0] || '')
     );
   }, [fighterStats?.deaths_breakdown]);
 
@@ -819,7 +819,7 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
               {ooaBreakdown.map((fighter, index) => (
                 <div key={breakdownRowKey(fighter, index)} className="flex justify-between gap-3">
                   <span className="flex-1 truncate text-left">
-                    {fighter.fighter_name} - {fighter.fighter_type} ({fighter.fighter_classes?.join(', ')})
+                    {fighter.fighter_name} - {fighter.fighter_type} ({fighter.fighter_subtypes?.join(', ')})
                   </span>
                   <span className="shrink-0 text-right">{fighter.kills}</span>
                 </div>
@@ -852,7 +852,7 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
               {deathsBreakdown.map((fighter, index) => (
                 <div key={breakdownRowKey(fighter, index)} className="flex justify-between gap-3">
                   <span className="flex-1 truncate text-left">
-                    {fighter.fighter_name} - {fighter.fighter_type} ({fighter.fighter_classes?.join(', ')})
+                    {fighter.fighter_name} - {fighter.fighter_type} ({fighter.fighter_subtypes?.join(', ')})
                   </span>
                   <span className="shrink-0 text-right">1</span>
                 </div>

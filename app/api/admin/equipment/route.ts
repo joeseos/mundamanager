@@ -311,7 +311,7 @@ export async function GET(request: Request) {
             id,
             fighter_type,
             gang_type,
-            fighter_classes,
+            fighter_subtypes,
             fighter_specialisation_id,
             fighter_specialisations(
               specialisation_name

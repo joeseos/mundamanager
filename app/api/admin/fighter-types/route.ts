@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   const id = searchParams.get('id');
   const equipment_id = searchParams.get('equipment_id');
   const fighter_type = searchParams.get('fighter_type');
-  const fighter_class = searchParams.get('fighter_class');
+  const fighter_subtype = searchParams.get('fighter_subtype');
   const gang_type_id = searchParams.get('gang_type_id');
   const filter_by_gang = searchParams.get('filter_by_gang') === 'true';
 
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
           fighter_type,
           gang_type_id,
           gang_type,
-          fighter_classes,
+          fighter_subtypes,
           fighter_specialisation_id,
           cost,
           movement,
@@ -92,7 +92,7 @@ export async function GET(request: Request) {
           gang_type_id,
           gang_type,
           edition_id,
-          fighter_classes,
+          fighter_subtypes,
           fighter_specialisation_id,
           cost,
           movement,
@@ -221,10 +221,10 @@ export async function GET(request: Request) {
       return NextResponse.json(formattedFighterType);
     }
 
-    // If direct fighter_type and fighter_class are provided, use those instead of ID lookup
-    if (fighter_type && fighter_class) {
+    // If direct fighter_type and fighter_subtype are provided, use those instead of ID lookup
+    if (fighter_type && fighter_subtype) {
       
-      // Find all fighters with matching type and class with all details
+      // Find all fighters with matching type and subtype with all details
       const { data: relatedFighterTypes, error: relatedError } = await supabase
         .from('fighter_types')
         .select(`
@@ -232,7 +232,7 @@ export async function GET(request: Request) {
           fighter_type,
           gang_type_id,
           gang_type,
-          fighter_classes,
+          fighter_subtypes,
           fighter_specialisation_id,
           cost,
           movement,
@@ -262,7 +262,7 @@ export async function GET(request: Request) {
           )
         `)
         .eq('fighter_type', fighter_type)
-        .contains('fighter_classes', JSON.stringify([fighter_class]));
+        .contains('fighter_subtypes', JSON.stringify([fighter_subtype]));
 
       if (relatedError) {
         console.error('Error fetching related fighter types:', relatedError);
@@ -403,7 +403,7 @@ export async function GET(request: Request) {
         gang_type_id,
         gang_type,
         edition_id,
-        fighter_classes,
+        fighter_subtypes,
         fighter_specialisation_id,
         fighter_specialisations(
           specialisation_name
@@ -504,7 +504,7 @@ export async function PATCH(request: Request) {
         cost: data.cost,
         gang_type_id: data.gang_type_id,
         edition_id: gangType.edition_id ?? null,
-        fighter_classes: Array.isArray(data.fighter_classes) ? data.fighter_classes : [],
+        fighter_subtypes: Array.isArray(data.fighter_subtypes) ? data.fighter_subtypes : [],
         fighter_specialisation_id: data.fighter_specialisation_id,
         fighter_specialisation: data.fighter_specialisation,
         movement: data.movement,
@@ -803,7 +803,7 @@ export async function POST(request: Request) {
         gang_type_id: data.gangTypeId,
         gang_type: gangType.gang_type,
         edition_id: gangType.edition_id ?? null,
-        fighter_classes: Array.isArray(data.fighterClasses) ? data.fighterClasses : [],
+        fighter_subtypes: Array.isArray(data.fighterSubtypes) ? data.fighterSubtypes : [],
         fighter_specialisation_id: data.fighterSpecialisationId,
         fighter_specialisation: data.fighterSpecialisation,
         cost: data.baseCost,

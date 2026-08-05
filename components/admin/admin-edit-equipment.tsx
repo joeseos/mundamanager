@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { FighterType } from "@/types/fighter";
 import { WeaponProfileInput, emptyWeaponProfile, EquipmentGrants, EquipmentAvailability, EquipmentOriginAvailability, EquipmentVariantAvailability, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
 import { HiX } from "react-icons/hi";
-import { fighterClassRank } from "@/utils/fighterClassRank";
+import { fighterSubtypeRank } from "@/utils/fighterSubtypeRank";
 import { gangOriginRank } from "@/utils/gangOriginRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
 import { AdminFighterEffects } from "./admin-fighter-effects";
@@ -1550,10 +1550,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         // First sort by gang type
                         const gangCompare = a.gang_type.localeCompare(b.gang_type);
                         if (gangCompare !== 0) return gangCompare;
-                        // Then by fighter class priority
-                        const classCompare = (fighterClassRank[(a.fighter_classes?.[0] || '').toLowerCase() as keyof typeof fighterClassRank] || Infinity)
-                          - (fighterClassRank[(b.fighter_classes?.[0] || '').toLowerCase() as keyof typeof fighterClassRank] || Infinity);
-                        if (classCompare !== 0) return classCompare;
+                        // Then by fighter subtype priority
+                        const subtypeCompare = (fighterSubtypeRank[(a.fighter_subtypes?.[0] || '').toLowerCase() as keyof typeof fighterSubtypeRank] || Infinity)
+                          - (fighterSubtypeRank[(b.fighter_subtypes?.[0] || '').toLowerCase() as keyof typeof fighterSubtypeRank] || Infinity);
+                        if (subtypeCompare !== 0) return subtypeCompare;
                         // Finally by fighter type name
                         return a.fighter_type.localeCompare(b.fighter_type);
                       })
@@ -1561,7 +1561,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         const specialisationText = ft.fighter_specialisations?.specialisation_name ? ` - ${ft.fighter_specialisations.specialisation_name}` : '';
                         return (
                           <option key={ft.id} value={ft.id}>
-                            {`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_classes?.join(', ')})${specialisationText}`}
+                            {`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_subtypes?.join(', ')})${specialisationText}`}
                           </option>
                         );
                       })}
@@ -1577,7 +1577,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           key={ft.id}
                           className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                         >
-                          <span>{`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_classes?.join(', ')})${ft.fighter_specialisations?.specialisation_name ? ` - ${ft.fighter_specialisations.specialisation_name}` : ''}`}</span>
+                          <span>{`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_subtypes?.join(', ')})${ft.fighter_specialisations?.specialisation_name ? ` - ${ft.fighter_specialisations.specialisation_name}` : ''}`}</span>
                           <button
                             type="button"
                             onClick={() => setSelectedFighterTypes(selectedFighterTypes.filter(id => id !== ft.id))}

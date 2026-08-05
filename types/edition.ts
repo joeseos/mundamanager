@@ -30,8 +30,8 @@ export type EditionSlug = typeof EDITION_N23 | typeof EDITION_N26;
 export interface EditionCapabilities {
   /** Sv on the fighter profile */
   saveCharacteristic: boolean;
-  /** A fighter may hold several classes at once */
-  multipleFighterClasses: boolean;
+  /** A fighter may hold several subtypes at once */
+  multipleFighterSubtypes: boolean;
   /**
    * Trade Points: gang-level resource and equipment catalog cost.
    * When false, equipment uses Availability (Trading Post rarity) instead.
@@ -49,7 +49,7 @@ export interface EditionCapabilities {
 
 const N26_CAPABILITIES: EditionCapabilities = {
   saveCharacteristic: true,
-  multipleFighterClasses: true,
+  multipleFighterSubtypes: true,
   tradePoints: true,
   startingXp: true,
   lethalityStatline: true,
@@ -70,7 +70,7 @@ const N26_CAPABILITIES: EditionCapabilities = {
 const EDITION_CAPABILITIES: Record<EditionSlug, EditionCapabilities> = {
   n23: {
     saveCharacteristic: false,
-    multipleFighterClasses: false,
+    multipleFighterSubtypes: false,
     tradePoints: false,
     startingXp: false,
     lethalityStatline: false,
@@ -86,7 +86,7 @@ const EDITION_CAPABILITIES: Record<EditionSlug, EditionCapabilities> = {
  */
 const NO_CAPABILITIES: EditionCapabilities = {
   saveCharacteristic: false,
-  multipleFighterClasses: false,
+  multipleFighterSubtypes: false,
   tradePoints: false,
   startingXp: false,
   lethalityStatline: false,
@@ -118,8 +118,8 @@ function capabilitiesFor(editionSlug?: string | null): EditionCapabilities {
 export const hasSaveCharacteristic = (editionSlug?: string | null): boolean =>
   capabilitiesFor(editionSlug).saveCharacteristic;
 
-export const allowsMultipleClasses = (editionSlug?: string | null): boolean =>
-  capabilitiesFor(editionSlug).multipleFighterClasses;
+export const allowsMultipleSubtypes = (editionSlug?: string | null): boolean =>
+  capabilitiesFor(editionSlug).multipleFighterSubtypes;
 
 export const hasTradePoints = (editionSlug?: string | null): boolean =>
   capabilitiesFor(editionSlug).tradePoints;

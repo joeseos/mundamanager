@@ -517,7 +517,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
             <tbody>
               {sortedFighters.map((fighter, index) => {
                 const adjustedStats = calculateAdjustedStats(fighter);
-                const isCrew = fighter.fighter_classes?.includes('Crew') || false;
+                const isCrew = fighter.fighter_subtypes?.includes('Crew') || false;
                 const vehicle = fighter.vehicles && fighter.vehicles.length > 0
                   ? (fighter.vehicles[0] as unknown as Vehicle)
                   : undefined;
@@ -707,8 +707,8 @@ export default function PrintGang({ gang }: PrintGangProps) {
                        <div className="text-[9px] mt-[1px] flex items-center justify-between gap-2">
                          <div>
                            {fighter.fighter_type}
-                           {fighter.fighter_classes?.join(', ')
-                             ? ` • ${fighter.fighter_classes.join(', ')}`
+                           {fighter.fighter_subtypes?.join(', ')
+                             ? ` • ${fighter.fighter_subtypes.join(', ')}`
                              : ""}
                          </div>
                          {/* W/FW boxes */}
@@ -1288,7 +1288,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                     : undefined;
 
                   const adjustedStats = calculateAdjustedStats(fighter);
-                  const isCrew = fighter.fighter_classes?.includes('Crew') || false;
+                  const isCrew = fighter.fighter_subtypes?.includes('Crew') || false;
                   const vehicleStats = isCrew
                     ? calculateVehicleStats(vehicle)
                     : null;
@@ -1325,7 +1325,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                         id={fighter.id}
                         name={fighter.fighter_name}
                         type={fighter.fighter_type}
-                        fighter_classes={fighter.fighter_classes}
+                        fighter_subtypes={fighter.fighter_subtypes}
                         fighter_specialisation={fighter.fighter_specialisation}
                         label={fighter.label}
                         credits={fighter.credits}

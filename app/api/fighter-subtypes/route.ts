@@ -3,14 +3,14 @@ import { createClient } from "@/utils/supabase/server";
 import { getUserIdFromClaims } from "@/utils/auth";
 
 /**
- * Lists fighter classes.
+ * Lists fighter subtypes.
  *
- * fighter_classes holds one row per class per edition, so class_name is unique
- * only within an edition (enforced by fighter_classes_edition_class_name_idx).
- * Callers that resolve a class by name — e.g. to find the fighter_class_id for
+ * fighter_subtypes holds one row per subtype per edition, so subtype_name is unique
+ * only within an edition (enforced by fighter_subtypes_edition_subtype_name_idx).
+ * Callers that resolve a subtype by name — e.g. to find the fighter_subtype_id for
  * the skill-archetype lookup — must scope the request to an edition via
  * `edition_slug` or `edition_id`, otherwise two editions' rows with the same
- * class_name are indistinguishable.
+ * subtype_name are indistinguishable.
  *
  * Both filters are optional; omitting them returns every edition's rows.
  */
@@ -55,14 +55,14 @@ export async function GET(request: Request) {
     }
 
     let query = supabase
-      .from('fighter_classes')
-      .select('id, class_name, edition_id');
+      .from('fighter_subtypes')
+      .select('id, subtype_name, edition_id');
 
     if (resolvedEditionId) {
       query = query.eq('edition_id', resolvedEditionId);
     }
 
-    const { data: fighterClasses, error } = await query.order('class_name');
+    const { data: fighterSubtypes, error } = await query.order('subtype_name');
 
     if (error) {
       console.error('Database error:', error);
@@ -73,14 +73,14 @@ export async function GET(request: Request) {
     }
 
     // An empty list is a valid answer, not an error: an edition may legitimately
-    // have no classes defined yet.
-    return NextResponse.json(fighterClasses ?? []);
+    // have no subtypes defined yet.
+    return NextResponse.json(fighterSubtypes ?? []);
 
   } catch (error) {
-    console.error('Error in GET fighter classes:', error);
+    console.error('Error in GET fighter subtypes:', error);
     return NextResponse.json(
       {
-        error: 'Error fetching fighter classes',
+        error: 'Error fetching fighter subtypes',
         details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }

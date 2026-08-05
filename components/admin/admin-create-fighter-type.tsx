@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { HiX } from "react-icons/hi";
 import { GangType, Equipment } from "@/types/gang";
 import { EditionSelect, useEditions } from '@/components/edition-select';
-import { hasSaveCharacteristic, allowsMultipleClasses, hasStartingXp } from '@/types/edition';
+import { hasSaveCharacteristic, allowsMultipleSubtypes, hasStartingXp } from '@/types/edition';
 import { skillSetRank } from "@/utils/skillSetRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 
@@ -18,9 +18,9 @@ interface AdminCreateFighterTypeModalProps {
   onSubmit?: () => void;
 }
 
-interface FighterClass {
+interface FighterSubtype {
   id: string;
-  class_name: string;
+  subtype_name: string;
   edition_id?: string | null;
 }
 
@@ -56,7 +56,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   const [startingXp, setStartingXp] = useState('');
   const [selectedGangType, setSelectedGangType] = useState('');
   const [editionId, setEditionId] = useState('');
-  const [selectedFighterClasses, setSelectedFighterClasses] = useState<string[]>([]);
+  const [selectedFighterSubtypes, setSelectedFighterSubtypes] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   
   const [movement, setMovement] = useState('');
@@ -93,7 +93,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
 
   
 
-  const isCrew = selectedFighterClasses.includes('Crew');
+  const isCrew = selectedFighterSubtypes.includes('Crew');
 
   const { data: gangTypes = [] } = useQuery<GangType[]>({
     queryKey: ['admin-gang-types'],
@@ -105,12 +105,12 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
     staleTime: 5 * 60 * 1000,
   });
 
-  // Edition filters gang types, fighter classes, equipment, and skill sets;
+  // Edition filters gang types, fighter subtypes, equipment, and skill sets;
   // the fighter type's edition is still derived server-side from its gang type
   const { data: editions = [] } = useEditions();
   const editionSlug = editions.find(edition => edition.id === editionId)?.slug;
   const showSave = hasSaveCharacteristic(editionSlug);
-  const allowMultipleClasses = allowsMultipleClasses(editionSlug);
+  const allowMultipleSubtypes = allowsMultipleSubtypes(editionSlug);
   const showStartingXp = hasStartingXp(editionSlug);
 
   const { data: equipment = [] } = useQuery<EquipmentWithId[]>({
@@ -128,11 +128,11 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: fighterClasses = [] } = useQuery<FighterClass[]>({
-    queryKey: ['admin-fighter-classes'],
+  const { data: fighterSubtypes = [] } = useQuery<FighterSubtype[]>({
+    queryKey: ['admin-fighter-subtypes'],
     queryFn: async () => {
-      const response = await fetch('/api/admin/fighter-classes');
-      if (!response.ok) throw new Error('Failed to fetch fighter classes');
+      const response = await fetch('/api/admin/fighter-subtypes');
+      if (!response.ok) throw new Error('Failed to fetch fighter subtypes');
       return response.json();
     },
     staleTime: 5 * 60 * 1000,
@@ -153,9 +153,9 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
     [gangTypes, editionId]
   );
 
-  const filteredFighterClasses = useMemo(
-    () => editionId ? fighterClasses.filter(fc => fc.edition_id === editionId) : fighterClasses,
-    [fighterClasses, editionId]
+  const filteredFighterSubtypes = useMemo(
+    () => editionId ? fighterSubtypes.filter(fc => fc.edition_id === editionId) : fighterSubtypes,
+    [fighterSubtypes, editionId]
   );
 
   const filteredSkillTypes = useMemo(
@@ -168,28 +168,28 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
     [equipment, editionId]
   );
 
-  const toggleFighterClass = (className: string, checked: boolean) => {
-    const selected = new Set(selectedFighterClasses);
-    if (checked) selected.add(className); else selected.delete(className);
+  const toggleFighterSubtype = (subtypeName: string, checked: boolean) => {
+    const selected = new Set(selectedFighterSubtypes);
+    if (checked) selected.add(subtypeName); else selected.delete(subtypeName);
     // Keep the reference-list order so the stored array doesn't depend on the
     // order the boxes happened to be ticked in
-    setSelectedFighterClasses(filteredFighterClasses.map(fc => fc.class_name).filter(name => selected.has(name)));
+    setSelectedFighterSubtypes(filteredFighterSubtypes.map(fc => fc.subtype_name).filter(name => selected.has(name)));
   };
 
   const handleEditionChange = (newEditionId: string) => {
     setEditionId(newEditionId);
 
-    const classesForEdition = newEditionId
-      ? fighterClasses.filter(fc => fc.edition_id === newEditionId)
-      : fighterClasses;
-    const classNames = new Set(classesForEdition.map(fc => fc.class_name));
-    let nextClasses = selectedFighterClasses.filter(name => classNames.has(name));
-    // A single-class edition must not leave extra classes selected but hidden
+    const subtypesForEdition = newEditionId
+      ? fighterSubtypes.filter(fc => fc.edition_id === newEditionId)
+      : fighterSubtypes;
+    const subtypeNames = new Set(subtypesForEdition.map(fc => fc.subtype_name));
+    let nextSubtypes = selectedFighterSubtypes.filter(name => subtypeNames.has(name));
+    // A single-subtype edition must not leave extra subtypes selected but hidden
     // behind the dropdown, where they would still be submitted
-    if (!allowsMultipleClasses(editions.find(edition => edition.id === newEditionId)?.slug)) {
-      nextClasses = nextClasses.slice(0, 1);
+    if (!allowsMultipleSubtypes(editions.find(edition => edition.id === newEditionId)?.slug)) {
+      nextSubtypes = nextSubtypes.slice(0, 1);
     }
-    setSelectedFighterClasses(nextClasses);
+    setSelectedFighterSubtypes(nextSubtypes);
 
     if (newEditionId && selectedGangType) {
       const gangType = gangTypes.find(type => type.gang_type_id === selectedGangType);
@@ -232,11 +232,11 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   });
 
   const handleSubmit = async () => {
-    // Check if selected fighter class is Crew
-    const isCrew = selectedFighterClasses.includes('Crew');
+    // Check if selected fighter subtype is Crew
+    const isCrew = selectedFighterSubtypes.includes('Crew');
 
-    // Modify validation for Crew class
-    if (!selectedGangType || selectedFighterClasses.length === 0 || !fighterType) {
+    // Modify validation for Crew subtype
+    if (!selectedGangType || selectedFighterSubtypes.length === 0 || !fighterType) {
       toast.error("Please fill in all required fields");
       return false;
     }
@@ -302,7 +302,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         fighterType,
         baseCost: parseInt(baseCost),
         gangTypeId: selectedGangType,
-        fighterClasses: selectedFighterClasses,
+        fighterSubtypes: selectedFighterSubtypes,
         fighterSpecialisationId: specialisationId,
         fighterSpecialisation: specialisationName.trim() || null,
         movement: movement ? parseInt(movement) : null,
@@ -349,7 +349,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
 
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['admin-gang-types'] }),
-        queryClient.invalidateQueries({ queryKey: ['admin-fighter-classes'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-fighter-subtypes'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-skill-types'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-skills'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-equipment'] }),
@@ -428,30 +428,30 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
 
               <div className="md:col-span-1">
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Fighter Class *
+                  Fighter Subtype *
                 </label>
-                {allowMultipleClasses ? (
+                {allowMultipleSubtypes ? (
                   <div className="border rounded-md p-2 grid grid-cols-2 gap-x-4 gap-y-2">
-                    {filteredFighterClasses.map((fighterClass) => (
-                      <label key={fighterClass.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                    {filteredFighterSubtypes.map((fighterSubtype) => (
+                      <label key={fighterSubtype.id} className="flex items-center gap-2 text-sm cursor-pointer">
                         <Checkbox
-                          checked={selectedFighterClasses.includes(fighterClass.class_name)}
-                          onCheckedChange={(checked) => toggleFighterClass(fighterClass.class_name, checked === true)}
+                          checked={selectedFighterSubtypes.includes(fighterSubtype.subtype_name)}
+                          onCheckedChange={(checked) => toggleFighterSubtype(fighterSubtype.subtype_name, checked === true)}
                         />
-                        <span>{fighterClass.class_name}</span>
+                        <span>{fighterSubtype.subtype_name}</span>
                       </label>
                     ))}
                   </div>
                 ) : (
                   <select
-                    value={selectedFighterClasses[0] ?? ''}
-                    onChange={(e) => setSelectedFighterClasses(e.target.value ? [e.target.value] : [])}
+                    value={selectedFighterSubtypes[0] ?? ''}
+                    onChange={(e) => setSelectedFighterSubtypes(e.target.value ? [e.target.value] : [])}
                     className="w-full p-2 border rounded-md"
                   >
-                    <option value="">Select fighter class</option>
-                    {filteredFighterClasses.map((fighterClass) => (
-                      <option key={fighterClass.id} value={fighterClass.class_name}>
-                        {fighterClass.class_name}
+                    <option value="">Select fighter subtype</option>
+                    {filteredFighterSubtypes.map((fighterSubtype) => (
+                      <option key={fighterSubtype.id} value={fighterSubtype.subtype_name}>
+                        {fighterSubtype.subtype_name}
                       </option>
                     ))}
                   </select>
@@ -1149,7 +1149,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
             disabled={
               !baseCost ||
               !selectedGangType ||
-              selectedFighterClasses.length === 0 ||
+              selectedFighterSubtypes.length === 0 ||
               !fighterType ||
               !ballisticSkill ||
               !isCrew && (

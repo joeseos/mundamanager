@@ -15,7 +15,7 @@ import { skillSetRank } from "@/utils/skillSetRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { AdminFighterEquipmentSelection, EquipmentSelection, guiToDataModel, dataModelToGui } from "@/components/admin/admin-fighter-equipment-selection";
 import { EditionSelect, useEditions } from '@/components/edition-select';
-import { hasSaveCharacteristic, allowsMultipleClasses, hasStartingXp } from '@/types/edition';
+import { hasSaveCharacteristic, allowsMultipleSubtypes, hasStartingXp } from '@/types/edition';
 import Modal from '@/components/ui/modal';
 
 interface FighterSpecialisation {
@@ -34,9 +34,9 @@ interface AdminEditFighterTypeModalProps {
   onSubmit?: () => void;
 }
 
-interface FighterClass {
+interface FighterSubtype {
   id: string;
-  class_name: string;
+  subtype_name: string;
   edition_id?: string | null;
 }
 
@@ -57,22 +57,22 @@ interface Specialisation {
   specialisation_name: string;
 }
 
-// Add this interface to track fighter type+class combinations
+// Add this interface to track fighter type+subtype combinations
 interface FighterTypeCombo {
   type: string;
-  class: string;
+  subtype: string;
   gang_type_id: string;
 }
 
 /**
- * Renders a fighter type's classes as the single string that identifies it in
+ * Renders a fighter type's subtypes as the single string that identifies it in
  * the "Select Fighter Type to Edit" dropdown. Combos are packed into a
- * `type|class|gang_type_id` string, and "|" never appears in a class name, so
+ * `type|subtype|gang_type_id` string, and "|" never appears in a subtype name, so
  * joining on ", " keeps the combo parseable while distinguishing fighter types
- * that share a first class but differ later in the list.
+ * that share a first subtype but differ later in the list.
  */
-function formatFighterClasses(fighterClasses?: string[] | null): string {
-  return (fighterClasses ?? []).join(', ');
+function formatFighterSubtypes(fighterSubtypes?: string[] | null): string {
+  return (fighterSubtypes ?? []).join(', ');
 }
 
 interface FighterTypeGangCost {
@@ -91,7 +91,7 @@ interface GangAffiliation {
 
 export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighterTypeModalProps) {
   const queryClient = useQueryClient();
-  // Update state to track fighter type+class combinations
+  // Update state to track fighter type+subtype combinations
   const [selectedFighterTypeCombo, setSelectedFighterTypeCombo] = useState<string>('');
 
   // Keep existing state variables
@@ -99,7 +99,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [fighterType, setFighterType] = useState('');
   const [baseCost, setBaseCost] = useState('');
   const [delegationCost, setDelegationCost] = useState('');
-  const [selectedFighterClasses, setSelectedFighterClasses] = useState<string[]>([]);
+  const [selectedFighterSubtypes, setSelectedFighterSubtypes] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedSpecialisationId, setSelectedSpecialisationId] = useState<string>('');
   const [availableSpecialisations, setAvailableSpecialisations] = useState<FighterSpecialisation[]>([]);
@@ -291,12 +291,12 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     staleTime: 5 * 60 * 1000,
   });
 
-  // Edition filters gang types, fighter classes, equipment, and skill sets;
+  // Edition filters gang types, fighter subtypes, equipment, and skill sets;
   // the fighter type's edition is still derived server-side from its gang type
   const { data: editions = [] } = useEditions();
   const editionSlug = editions.find(edition => edition.id === editionId)?.slug;
   const showSave = hasSaveCharacteristic(editionSlug);
-  const allowMultipleClasses = allowsMultipleClasses(editionSlug);
+  const allowMultipleSubtypes = allowsMultipleSubtypes(editionSlug);
   const showStartingXp = hasStartingXp(editionSlug);
 
   const { data: gangAffiliations = [] } = useQuery<GangAffiliation[]>({
@@ -309,11 +309,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: fighterClasses = [] } = useQuery<FighterClass[]>({
-    queryKey: ['admin-fighter-classes'],
+  const { data: fighterSubtypes = [] } = useQuery<FighterSubtype[]>({
+    queryKey: ['admin-fighter-subtypes'],
     queryFn: async () => {
-      const response = await fetch('/api/admin/fighter-classes');
-      if (!response.ok) throw new Error('Failed to fetch fighter classes');
+      const response = await fetch('/api/admin/fighter-subtypes');
+      if (!response.ok) throw new Error('Failed to fetch fighter subtypes');
       return response.json();
     },
     staleTime: 5 * 60 * 1000,
@@ -324,9 +324,9 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     [gangTypes, editionId]
   );
 
-  const filteredFighterClasses = useMemo(
-    () => editionId ? fighterClasses.filter(fc => fc.edition_id === editionId) : fighterClasses,
-    [fighterClasses, editionId]
+  const filteredFighterSubtypes = useMemo(
+    () => editionId ? fighterSubtypes.filter(fc => fc.edition_id === editionId) : fighterSubtypes,
+    [fighterSubtypes, editionId]
   );
 
   const filteredSkillTypes = useMemo(
@@ -367,28 +367,28 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     );
   }, [filteredSkillTypes]);
 
-  const toggleFighterClass = (className: string, checked: boolean) => {
-    const selected = new Set(selectedFighterClasses);
-    if (checked) selected.add(className); else selected.delete(className);
+  const toggleFighterSubtype = (subtypeName: string, checked: boolean) => {
+    const selected = new Set(selectedFighterSubtypes);
+    if (checked) selected.add(subtypeName); else selected.delete(subtypeName);
     // Keep the reference-list order so the stored array doesn't depend on the
     // order the boxes happened to be ticked in
-    setSelectedFighterClasses(filteredFighterClasses.map(fc => fc.class_name).filter(name => selected.has(name)));
+    setSelectedFighterSubtypes(filteredFighterSubtypes.map(fc => fc.subtype_name).filter(name => selected.has(name)));
   };
 
   const handleEditionChange = (newEditionId: string) => {
     setEditionId(newEditionId);
 
-    const classesForEdition = newEditionId
-      ? fighterClasses.filter(fc => fc.edition_id === newEditionId)
-      : fighterClasses;
-    const classNames = new Set(classesForEdition.map(fc => fc.class_name));
-    let nextClasses = selectedFighterClasses.filter(name => classNames.has(name));
-    // A single-class edition must not leave extra classes selected but hidden
+    const subtypesForEdition = newEditionId
+      ? fighterSubtypes.filter(fc => fc.edition_id === newEditionId)
+      : fighterSubtypes;
+    const subtypeNames = new Set(subtypesForEdition.map(fc => fc.subtype_name));
+    let nextSubtypes = selectedFighterSubtypes.filter(name => subtypeNames.has(name));
+    // A single-subtype edition must not leave extra subtypes selected but hidden
     // behind the dropdown, where they would still be submitted
-    if (!allowsMultipleClasses(editions.find(edition => edition.id === newEditionId)?.slug)) {
-      nextClasses = nextClasses.slice(0, 1);
+    if (!allowsMultipleSubtypes(editions.find(edition => edition.id === newEditionId)?.slug)) {
+      nextSubtypes = nextSubtypes.slice(0, 1);
     }
-    setSelectedFighterClasses(nextClasses);
+    setSelectedFighterSubtypes(nextSubtypes);
 
     if (newEditionId && gangTypeFilter) {
       const gangType = gangTypes.find(type => type.gang_type_id === gangTypeFilter);
@@ -449,16 +449,16 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const fighterTypeCombos = useMemo(() => {
     const uniqueCombinations: FighterTypeCombo[] = [];
     fighterTypes.forEach(fighter => {
-      const classLabel = formatFighterClasses(fighter.fighter_classes);
+      const subtypeLabel = formatFighterSubtypes(fighter.fighter_subtypes);
       const existingCombo = uniqueCombinations.find(
         combo => combo.type === fighter.fighter_type &&
-                combo.class === classLabel &&
+                combo.subtype === subtypeLabel &&
                 combo.gang_type_id === fighter.gang_type_id
       );
       if (!existingCombo) {
         uniqueCombinations.push({
           type: fighter.fighter_type,
-          class: classLabel,
+          subtype: subtypeLabel,
           gang_type_id: fighter.gang_type_id
         });
       }
@@ -466,7 +466,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     uniqueCombinations.sort((a, b) => {
       const typeCompare = a.type.localeCompare(b.type);
       if (typeCompare !== 0) return typeCompare;
-      return a.class.localeCompare(b.class);
+      return a.subtype.localeCompare(b.subtype);
     });
     return uniqueCombinations;
   }, [fighterTypes]);
@@ -579,7 +579,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       if (data.edition_id) {
         setEditionId(data.edition_id);
       }
-      setSelectedFighterClasses(Array.isArray(data.fighter_classes) ? data.fighter_classes : []);
+      setSelectedFighterSubtypes(Array.isArray(data.fighter_subtypes) ? data.fighter_subtypes : []);
       setMovement(data.movement?.toString() || '0');
       setWeaponSkill(data.weapon_skill?.toString() || '0');
       setBallisticSkill(data.ballistic_skill?.toString() || '0');
@@ -712,25 +712,25 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     if (!comboString) return;
     
     try {
-      // Parse the combo string to get type, class, and gang_type_id
-      const [fighterType, fighterClass, gangTypeId] = comboString.split('|');
+      // Parse the combo string to get type, subtype, and gang_type_id
+      const [fighterType, fighterSubtype, gangTypeId] = comboString.split('|');
       
-      if (!fighterType || !fighterClass || !gangTypeId) {
+      if (!fighterType || !fighterSubtype || !gangTypeId) {
         console.error('Invalid fighter type combo string:', comboString);
         return;
       }
       
-      // Find all fighters that match this type+class+gang_type. The whole class
-      // list has to match, not just contain the first one: with multi-class
+      // Find all fighters that match this type+subtype+gang_type. The whole subtype
+      // list has to match, not just contain the first one: with multi-subtype
       // fighter types a "Ganger" combo would otherwise also swallow every
       // "Ganger, Specialist" type and mix their specialisations together.
       const matchingFighters = fighterTypes.filter(f =>
         f.fighter_type === fighterType &&
-        formatFighterClasses(f.fighter_classes) === fighterClass &&
+        formatFighterSubtypes(f.fighter_subtypes) === fighterSubtype &&
         f.gang_type_id === gangTypeId
       );
       
-      console.log(`Found ${matchingFighters.length} fighters matching ${fighterType} (${fighterClass})`);
+      console.log(`Found ${matchingFighters.length} fighters matching ${fighterType} (${fighterSubtype})`);
       
       // Prepare specialisation options, including a "Default" option
       const specialisationOptions: FighterSpecialisation[] = [];
@@ -807,7 +807,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         // Use any fighter from the matching set to get basic type info
         const fighter = matchingFighters[0];
         setFighterType(fighter.fighter_type);
-        setSelectedFighterClasses(fighter.fighter_classes ?? []);
+        setSelectedFighterSubtypes(fighter.fighter_subtypes ?? []);
       }
     } catch (error) {
       console.error('Error processing fighter type combo:', error);
@@ -981,10 +981,10 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       }
 
       // Nothing downstream rejects an empty array — the column defaults to '[]'
-      // and the API passes it straight through — so a classless fighter type
-      // would silently reach the SQL functions that branch on class name.
-      if (selectedFighterClasses.length === 0) {
-        throw new Error('Please select at least one fighter class');
+      // and the API passes it straight through — so a subtypeless fighter type
+      // would silently reach the SQL functions that branch on subtype name.
+      if (selectedFighterSubtypes.length === 0) {
+        throw new Error('Please select at least one fighter subtype');
       }
 
       // Special handling for specialisationId and specialisationName
@@ -1158,7 +1158,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         fighter_type: fighterType,
         cost: parseInt(baseCost),
         gang_type_id: fighterToUpdate.gang_type_id,
-        fighter_classes: selectedFighterClasses,
+        fighter_subtypes: selectedFighterSubtypes,
         fighter_specialisation_id: finalSpecialisationId,
         fighter_specialisation: finalSpecialisationName,
         movement: parseInt(movement),
@@ -1242,7 +1242,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['admin-fighter-types'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-gang-types'] }),
-        queryClient.invalidateQueries({ queryKey: ['admin-fighter-classes'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-fighter-subtypes'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-skill-types'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-lineages'] }),
       ]);
@@ -1464,8 +1464,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                     }
                   </option>
                   {fighterTypeCombos.map((combo) => (
-                    <option key={`${combo.type}-${combo.class}-${combo.gang_type_id}`} value={`${combo.type}|${combo.class}|${combo.gang_type_id}`}>
-                      {`${combo.type} (${combo.class || "Unknown Class"})`}
+                    <option key={`${combo.type}-${combo.subtype}-${combo.gang_type_id}`} value={`${combo.type}|${combo.subtype}|${combo.gang_type_id}`}>
+                      {`${combo.type} (${combo.subtype || "Unknown Subtype"})`}
                     </option>
                   ))}
                 </select>
@@ -1554,34 +1554,34 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 </div>
               </div>
 
-              {/* Third row: Fighter Class and Base Cost */}
+              {/* Third row: Fighter Subtype and Base Cost */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
                   <label className="block text-sm font-medium text-muted-foreground mb-1">
-                    Fighter Class *
+                    Fighter Subtype *
                   </label>
-                  {allowMultipleClasses ? (
+                  {allowMultipleSubtypes ? (
                     <div className="border rounded-md p-2 grid grid-cols-2 gap-x-4 gap-y-2">
-                      {filteredFighterClasses.map((fighterClass) => (
-                        <label key={fighterClass.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                      {filteredFighterSubtypes.map((fighterSubtype) => (
+                        <label key={fighterSubtype.id} className="flex items-center gap-2 text-sm cursor-pointer">
                           <Checkbox
-                            checked={selectedFighterClasses.includes(fighterClass.class_name)}
-                            onCheckedChange={(checked) => toggleFighterClass(fighterClass.class_name, checked === true)}
+                            checked={selectedFighterSubtypes.includes(fighterSubtype.subtype_name)}
+                            onCheckedChange={(checked) => toggleFighterSubtype(fighterSubtype.subtype_name, checked === true)}
                           />
-                          <span>{fighterClass.class_name}</span>
+                          <span>{fighterSubtype.subtype_name}</span>
                         </label>
                       ))}
                     </div>
                   ) : (
                     <select
-                      value={selectedFighterClasses[0] ?? ''}
-                      onChange={(e) => setSelectedFighterClasses(e.target.value ? [e.target.value] : [])}
+                      value={selectedFighterSubtypes[0] ?? ''}
+                      onChange={(e) => setSelectedFighterSubtypes(e.target.value ? [e.target.value] : [])}
                       className="w-full p-2 border rounded-md"
                     >
-                      <option value="">Select fighter class</option>
-                      {filteredFighterClasses.map((fighterClass) => (
-                        <option key={fighterClass.id} value={fighterClass.class_name}>
-                          {fighterClass.class_name}
+                      <option value="">Select fighter subtype</option>
+                      {filteredFighterSubtypes.map((fighterSubtype) => (
+                        <option key={fighterSubtype.id} value={fighterSubtype.subtype_name}>
+                          {fighterSubtype.subtype_name}
                         </option>
                       ))}
                     </select>
@@ -2436,7 +2436,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!selectedSpecialisationId || selectedFighterClasses.length === 0 || isLoading}
+            disabled={!selectedSpecialisationId || selectedFighterSubtypes.length === 0 || isLoading}
             className="px-4 py-2 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
           >
             {isLoading ? 'Updating...' : 'Update Fighter Type'}

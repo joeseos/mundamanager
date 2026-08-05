@@ -1,4 +1,4 @@
-export const fighterClassRank: { [key: string]: number } = {
+export const fighterSubtypeRank: { [key: string]: number } = {
   "leader": 1,
   "champion": 2,
   "prospect": 3,

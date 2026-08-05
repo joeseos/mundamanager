@@ -12,13 +12,13 @@ export interface FighterOoaRecord {
   causing_gang_id: string | null;
   causing_fighter_name: string | null;
   causing_fighter_type: string | null;
-  causing_fighter_classes: string[];
+  causing_fighter_subtypes: string[];
   causing_fighter_gang_name: string | null;
   injured_fighter_id: string | null;
   injured_gang_id: string | null;
   injured_fighter_name: string | null;
   injured_fighter_type: string | null;
-  injured_fighter_classes: string[];
+  injured_fighter_subtypes: string[];
   injured_gang_name: string | null;
   event_type: 'out_of_action' | 'vehicle_wrecked';
   vehicle_type: string | null;
@@ -35,7 +35,7 @@ export interface CampaignGangWithFighters {
     id: string;
     fighter_name: string;
     fighter_type: string | null;
-    fighter_classes?: string[];
+    fighter_subtypes?: string[];
     gang_id: string;
   }>;
 }
