@@ -4,6 +4,9 @@ import { invalidateGangFinancials } from './cache-tags';
 /** How many times to re-read and retry when a concurrent write beats us to the row. */
 const MAX_FINANCIAL_ATTEMPTS = 3;
 
+/** Backoff before a retry, multiplied by attempt number, so the winning write can commit. */
+const RETRY_BACKOFF_MS = 25;
+
 /**
  * Pin one column to the value we read. Nullable columns need .is() — .eq(col, null)
  * does not match NULL in PostgREST, which would make the compare-and-swap never succeed.
@@ -168,8 +171,20 @@ export async function updateGangFinancials(
           }
         };
       }
-      // 0 rows matched: another write landed between our read and write. Loop re-reads.
+      // 0 rows matched: another write landed between our read and write. Back off briefly
+      // so the competing write can commit, then re-read and recompute.
+      if (attempt < MAX_FINANCIAL_ATTEMPTS) {
+        await new Promise(resolve => setTimeout(resolve, RETRY_BACKOFF_MS * attempt));
+      }
     }
+
+    // Not every caller inspects the result — some fire-and-forget rating or wealth
+    // adjustments — so log here rather than relying on them to surface it.
+    console.error(
+      `Gang financials update for ${gangId} gave up after ${MAX_FINANCIAL_ATTEMPTS} attempts ` +
+      `(concurrent modification); deltas:`,
+      { creditsDelta, tradePointsDelta, ratingDelta: effectiveRatingDelta, stashValueDelta }
+    );
 
     return {
       success: false,
