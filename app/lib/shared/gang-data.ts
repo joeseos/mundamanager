@@ -127,7 +127,7 @@ export interface GangFighter {
   fighter_name: string;
   label?: string;
   fighter_type: string;
-  fighter_classes: string[];
+  fighter_subtypes: string[];
   fighter_specialisation?: {
     fighter_specialisation: string;
     fighter_specialisation_id: string;
@@ -900,7 +900,7 @@ export const getGangBeastCount = async (gangId: string, supabase: any): Promise<
         .from('fighters')
         .select('*', { count: 'exact', head: true })
         .eq('gang_id', gangId)
-        .contains('fighter_classes', '["Exotic Beast"]')
+        .contains('fighter_subtypes', '["Exotic Beast"]')
         .eq('killed', false)
         .eq('retired', false)
         .eq('enslaved', false)
@@ -974,7 +974,7 @@ export const getGangFightersList = async (
           save,
           xp,
           special_rules,
-          fighter_classes,
+          fighter_subtypes,
           fighter_type,
           fighter_type_id,
           custom_fighter_type_id,
@@ -1984,7 +1984,7 @@ export const getGangFightersList = async (
           fighter_name: fighter.fighter_name,
           label: fighter.label,
           fighter_type: fighter.fighter_type || fighterTypeInfo.fighter_type || 'Unknown',
-          fighter_classes: fighter.fighter_classes || [],
+          fighter_subtypes: fighter.fighter_subtypes || [],
           fighter_specialisation: fighterSpecialisationInfo ? {
             fighter_specialisation: fighterSpecialisationInfo.specialisation_name,
             fighter_specialisation_id: fighterSpecialisationInfo.id
@@ -2313,14 +2313,14 @@ export const getUserProfile = async (userId: string, supabase: any): Promise<{
 export interface OoaBreakdownItem {
   fighter_name: string;
   fighter_type: string;
-  fighter_classes: string[];
+  fighter_subtypes: string[];
   kills: number;
 }
 
 export interface DeathsBreakdownItem {
   fighter_name: string;
   fighter_type: string;
-  fighter_classes: string[];
+  fighter_subtypes: string[];
 }
 
 export interface GangFighterStats {
@@ -2338,7 +2338,7 @@ export const getGangFighterStats = async (
     async () => {
       const { data: fighters, error } = await supabase
         .from('fighters')
-        .select('fighter_name, fighter_type, fighter_classes, kills, killed')
+        .select('fighter_name, fighter_type, fighter_subtypes, kills, killed')
         .eq('gang_id', gangId);
 
       if (error) throw error;
@@ -2354,20 +2354,20 @@ export const getGangFighterStats = async (
 
       const ooaBreakdown: OoaBreakdownItem[] = fighterList
         .filter((f: { kills: number }) => (Number(f.kills) || 0) > 0)
-        .map((f: { fighter_name: string; fighter_type?: string; fighter_classes?: string[]; kills: number }) => ({
+        .map((f: { fighter_name: string; fighter_type?: string; fighter_subtypes?: string[]; kills: number }) => ({
           fighter_name: f.fighter_name || 'Unknown',
           fighter_type: f.fighter_type || '—',
-          fighter_classes: f.fighter_classes || [],
+          fighter_subtypes: f.fighter_subtypes || [],
           kills: Number(f.kills) || 0
         }))
         .sort((a: OoaBreakdownItem, b: OoaBreakdownItem) => b.kills - a.kills);
 
       const deathsBreakdown: DeathsBreakdownItem[] = fighterList
         .filter((f: { killed: boolean }) => f.killed === true)
-        .map((f: { fighter_name: string; fighter_type?: string; fighter_classes?: string[] }) => ({
+        .map((f: { fighter_name: string; fighter_type?: string; fighter_subtypes?: string[] }) => ({
           fighter_name: f.fighter_name || 'Unknown',
           fighter_type: f.fighter_type || '—',
-          fighter_classes: f.fighter_classes || []
+          fighter_subtypes: f.fighter_subtypes || []
         }));
 
       return {

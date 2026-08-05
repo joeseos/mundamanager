@@ -98,7 +98,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       // Get gang_id and status from fighter
       const { data: fighter, error: fighterError } = await supabase
         .from('fighters')
-        .select('gang_id, user_id, killed, retired, enslaved, captured, fighter_classes')
+        .select('gang_id, user_id, killed, retired, enslaved, captured, fighter_subtypes')
         .eq('id', equipmentData.fighter_id)
         .single();
 
@@ -111,7 +111,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
 
       // Exotic beasts derive their rating contribution from the owner, not themselves.
       // Check the owner's active status instead.
-      if (fighterIsActive && fighter.fighter_classes?.some((c: string) => c.toLowerCase().startsWith('exotic beast'))) {
+      if (fighterIsActive && fighter.fighter_subtypes?.some((c: string) => c.toLowerCase().startsWith('exotic beast'))) {
         const { data: beastOwnership } = await supabase
           .from('fighter_exotic_beasts')
           .select('fighter_owner_id, fighters!fighter_owner_id (killed, retired, enslaved, captured)')

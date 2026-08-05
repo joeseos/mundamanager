@@ -6,9 +6,9 @@ import { Combobox } from "@/components/ui/combobox";
 import { Checkbox } from "@/components/ui/checkbox";
 import { HiX } from "react-icons/hi";
 import { ImInfo } from "react-icons/im";
-import { fighterClassRank } from '@/utils/fighterClassRank';
+import { fighterSubtypeRank } from '@/utils/fighterSubtypeRank';
 
-// Determines the target class for promotion based on current class
+// Determines the target subtype for promotion based on current subtype
 const PROMOTION_MAP: Record<string, string> = {
   'Ganger': 'Specialist',
   'Juve': 'Specialist',
@@ -19,7 +19,7 @@ const PROMOTION_MAP: Record<string, string> = {
   'Exotic Beast Specialist': 'Champion',
 };
 
-const EXOTIC_BEAST_SPECIALIST_CLASS_NAME = 'Exotic Beast Specialist';
+const EXOTIC_BEAST_SPECIALIST_SUBTYPE_NAME = 'Exotic Beast Specialist';
 
 const normalizeSpecialRule = (rule: string) => rule.replace(/^"|"$/g, '');
 
@@ -33,9 +33,9 @@ type PromotionFighterType = FighterPromotionModalProps['fighterTypes'][number];
 
 function sortPromotionFighterTypes(types: PromotionFighterType[]): PromotionFighterType[] {
   return [...types].sort((a, b) => {
-    const classRankA = fighterClassRank[(a.fighter_classes[0] || '').toLowerCase()] ?? Infinity;
-    const classRankB = fighterClassRank[(b.fighter_classes[0] || '').toLowerCase()] ?? Infinity;
-    if (classRankA !== classRankB) return classRankA - classRankB;
+    const subtypeRankA = fighterSubtypeRank[(a.fighter_subtypes[0] || '').toLowerCase()] ?? Infinity;
+    const subtypeRankB = fighterSubtypeRank[(b.fighter_subtypes[0] || '').toLowerCase()] ?? Infinity;
+    if (subtypeRankA !== subtypeRankB) return subtypeRankA - subtypeRankB;
 
     const typeCompare = a.fighter_type.localeCompare(b.fighter_type);
     if (typeCompare !== 0) return typeCompare;
@@ -45,14 +45,14 @@ function sortPromotionFighterTypes(types: PromotionFighterType[]): PromotionFigh
 }
 
 function formatPromotionFighterTypeLabel(ft: PromotionFighterType): string {
-  const base = `${ft.fighter_type} (${ft.fighter_classes.join(', ')})`;
+  const base = `${ft.fighter_type} (${ft.fighter_subtypes.join(', ')})`;
   return ft.specialisation?.specialisation_name ? `${base}, ${ft.specialisation.specialisation_name}` : base;
 }
 
 export type FighterPromotionResult = {
   fighter_type: string;
   fighter_type_id: string;
-  fighter_classes: string[];
+  fighter_subtypes: string[];
   special_rules: string[];
   fighter_specialisation?: string | null;
   fighter_specialisation_id?: string | null;
@@ -68,8 +68,8 @@ function promotionSpecialisationFields(
 }
 
 interface FighterPromotionModalProps {
-  currentClass: string;
-  currentClasses?: string[];
+  currentSubtype: string;
+  currentSubtypes?: string[];
   currentSpecialRules: string[];
   currentFighterType?: string;
   currentFighterTypeId?: string;
@@ -78,7 +78,7 @@ interface FighterPromotionModalProps {
     id: string;
     fighter_type: string;
     special_rules?: string[];
-    fighter_classes: string[];
+    fighter_subtypes: string[];
     total_cost: number;
     specialisation?: { id: string; specialisation_name: string } | null;
   }>;
@@ -90,8 +90,8 @@ interface FighterPromotionModalProps {
 }
 
 export function FighterPromotionModal({
-  currentClass,
-  currentClasses,
+  currentSubtype,
+  currentSubtypes,
   currentSpecialRules,
   currentFighterType,
   currentFighterTypeId,
@@ -107,16 +107,16 @@ export function FighterPromotionModal({
   const [newRuleInput, setNewRuleInput] = useState('');
   const [includeAllGangFighterTypes, setIncludeAllGangFighterTypes] = useState(false);
 
-  const targetClass = PROMOTION_MAP[currentClasses?.[0] || currentClass] || '';
-  const isExoticBeast = currentClasses?.includes('Exotic Beast') || currentClass === 'Exotic Beast';
+  const targetSubtype = PROMOTION_MAP[currentSubtypes?.[0] || currentSubtype] || '';
+  const isExoticBeast = currentSubtypes?.includes('Exotic Beast') || currentSubtype === 'Exotic Beast';
 
-  // Fighter types matching the standard promotion target class
+  // Fighter types matching the standard promotion target subtype
   const eligibleTypes = useMemo(() => {
-    if (isExoticBeast || !targetClass) return [];
+    if (isExoticBeast || !targetSubtype) return [];
     return sortPromotionFighterTypes(
-      fighterTypes.filter(ft => ft.fighter_classes.includes(targetClass))
+      fighterTypes.filter(ft => ft.fighter_subtypes.includes(targetSubtype))
     );
-  }, [fighterTypes, targetClass, isExoticBeast]);
+  }, [fighterTypes, targetSubtype, isExoticBeast]);
 
   // Types shown in the combobox: eligible only, or all gang types when expanded
   const displayTypes = useMemo(() => {
@@ -143,7 +143,7 @@ export function FighterPromotionModal({
         const isDifferentSpecialisation =
           Boolean(resolvedCurrentSpecialisationId) && optionSpecialisationId !== resolvedCurrentSpecialisationId;
         const isIneligibleForPromotion =
-          includeAllGangFighterTypes && Boolean(targetClass) && !ft.fighter_classes.includes(targetClass);
+          includeAllGangFighterTypes && Boolean(targetSubtype) && !ft.fighter_subtypes.includes(targetSubtype);
         const useMutedStyle = isDifferentSpecialisation || isIneligibleForPromotion;
 
         return {
@@ -156,7 +156,7 @@ export function FighterPromotionModal({
           displayValue: labelText,
         };
       }),
-    [displayTypes, resolvedCurrentSpecialisationId, includeAllGangFighterTypes, targetClass]
+    [displayTypes, resolvedCurrentSpecialisationId, includeAllGangFighterTypes, targetSubtype]
   );
 
   const normalizedCurrentSpecialRules = useMemo(
@@ -217,7 +217,7 @@ export function FighterPromotionModal({
       onPromoted({
         fighter_type: currentFighterType || '',
         fighter_type_id: currentFighterTypeId || '',
-        fighter_classes: [EXOTIC_BEAST_SPECIALIST_CLASS_NAME],
+        fighter_subtypes: [EXOTIC_BEAST_SPECIALIST_SUBTYPE_NAME],
         special_rules: newSpecialRules,
         ...promotionSpecialisationFields(currentType),
       });
@@ -227,7 +227,7 @@ export function FighterPromotionModal({
     onPromoted({
       fighter_type: selectedType.fighter_type,
       fighter_type_id: selectedType.id,
-      fighter_classes: selectedType.fighter_classes,
+      fighter_subtypes: selectedType.fighter_subtypes,
       special_rules: newSpecialRules,
       ...promotionSpecialisationFields(selectedType),
     });
@@ -249,7 +249,7 @@ export function FighterPromotionModal({
             /* Exotic Beast simplified promotion UI */
             <div>
               <p className="text-sm">
-                This fighter will be promoted to <strong>{EXOTIC_BEAST_SPECIALIST_CLASS_NAME}</strong>.
+                This fighter will be promoted to <strong>{EXOTIC_BEAST_SPECIALIST_SUBTYPE_NAME}</strong>.
               </p>
             </div>
           ) : (
@@ -270,7 +270,7 @@ export function FighterPromotionModal({
                   <p className="text-sm text-muted-foreground">
                     {includeAllGangFighterTypes
                       ? 'No Fighter Types available for this gang.'
-                      : `No eligible ${targetClass || 'promotion'} Fighter Types available.`}
+                      : `No eligible ${targetSubtype || 'promotion'} Fighter Types available.`}
                   </p>
                 ) : (
                   <Combobox

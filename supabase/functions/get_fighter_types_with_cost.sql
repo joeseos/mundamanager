@@ -13,7 +13,7 @@ CREATE OR REPLACE FUNCTION get_fighter_types_with_cost(
 RETURNS TABLE (
     id uuid,
     fighter_type text,
-    fighter_classes jsonb,
+    fighter_subtypes jsonb,
     gang_type text,
     cost numeric,
     gang_type_id uuid,
@@ -52,7 +52,7 @@ BEGIN
     SELECT
         ft.id,
         ft.fighter_type,
-        ft.fighter_classes,
+        ft.fighter_subtypes,
         ft.gang_type,
         -- Use adjusted_cost if available, otherwise use original cost
         COALESCE(ftgc.adjusted_cost, ft.cost) as cost,

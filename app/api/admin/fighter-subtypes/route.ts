@@ -13,12 +13,12 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // fighter_classes holds one row per class per edition; clients filter by
-    // edition_id so same-named classes across editions stay distinguishable
-    const { data: fighterClasses, error } = await supabase
-      .from('fighter_classes')
-      .select('id, class_name, edition_id')
-      .order('class_name');
+    // fighter_subtypes holds one row per subtype per edition; clients filter by
+    // edition_id so same-named subtypes across editions stay distinguishable
+    const { data: fighterSubtypes, error } = await supabase
+      .from('fighter_subtypes')
+      .select('id, subtype_name, edition_id')
+      .order('subtype_name');
 
     if (error) {
       console.error('Database error:', error);
@@ -29,13 +29,13 @@ export async function GET() {
     }
 
     // An empty list is a valid answer, not an error
-    return NextResponse.json(fighterClasses ?? []);
+    return NextResponse.json(fighterSubtypes ?? []);
 
   } catch (error) {
-    console.error('Error in GET fighter classes:', error);
+    console.error('Error in GET fighter subtypes:', error);
     return NextResponse.json(
       { 
-        error: 'Error fetching fighter classes',
+        error: 'Error fetching fighter subtypes',
         details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }

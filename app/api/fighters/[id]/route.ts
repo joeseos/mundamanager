@@ -87,7 +87,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     label, 
     kills, 
     cost_adjustment, 
-    fighter_classes,
+    fighter_subtypes,
     fighter_type,
     fighter_type_id,
     fighter_specialisation,
@@ -218,7 +218,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
     // If updating fighter data including type, specialisation, etc.
     if (fighter_name !== undefined || label !== undefined || kills !== undefined ||
-        cost_adjustment !== undefined || note !== undefined || fighter_classes !== undefined ||
+        cost_adjustment !== undefined || note !== undefined || fighter_subtypes !== undefined ||
         special_rules !== undefined || fighter_type !== undefined || fighter_type_id !== undefined ||
         fighter_specialisation !== undefined || fighter_specialisation_id !== undefined) {
       
@@ -231,8 +231,8 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       if (kills !== undefined) updateData.kills = kills;
       if (cost_adjustment !== undefined) updateData.cost_adjustment = cost_adjustment;
       if (note !== undefined) updateData.note = note;
-      if (fighter_classes !== undefined) {
-        updateData.fighter_classes = fighter_classes;
+      if (fighter_subtypes !== undefined) {
+        updateData.fighter_subtypes = fighter_subtypes;
       }
       if (special_rules !== undefined) updateData.special_rules = special_rules;
       if (fighter_type !== undefined) updateData.fighter_type = fighter_type;

@@ -336,12 +336,12 @@ export default function UserGuidePage() {
                 </a>
               </h3>
                 <p className="text-muted-foreground mb-2">
-                To promote a fighter to leader, first add the fighter using either the Add Fighter or Gang Addition buttons on the gang page. Once created, navigate to the fighters page and click the Edit Fighter button. There, you can change the fighter’s class to Leader.
+                To promote a fighter to leader, first add the fighter using either the Add Fighter or Gang Addition buttons on the gang page. Once created, navigate to the fighters page and click the Edit Fighter button. There, you can change the fighter’s subtype to Leader.
                 </p>
                 <div className="my-4 flex justify-center">
                   <img
                     src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/elevate-to-leader.webp"
-                    alt="Edit Fighter menu showing fighter class selection used to promote a fighter to Leader"
+                    alt="Edit Fighter menu showing fighter subtype selection used to promote a fighter to Leader"
                     className="rounded-lg"
                     style={{ maxWidth: '450px', width: '100%', height: 'auto' }}
                   />
