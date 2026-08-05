@@ -22,9 +22,27 @@ import { countsTowardRating } from '@/utils/fighter-status';
 import { EquipmentGrants, ResourceCost, CostResourcePayload } from '@/types/equipment';
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
 import { clearHardpointReference } from './vehicle-hardpoints';
-import { deductGangResource, deductGangReputation, deductGangTradePoints, parseTradePointsCost, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
+import { deductGangResource, deductGangReputation, deductGangTradePoints, parseTradePointsCost, returnGangResource, returnGangReputation, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
 import { fetchGangEditionSlug } from '@/utils/gang-edition';
 import { hasTradePoints } from '@/types/edition';
+
+/** Numeric sort key for catalog Trade Points text ("E"/empty → 0). */
+function tradePointsNumericKey(value: string): number {
+  return parseTradePointsCost(value);
+}
+
+/**
+ * Among candidate TP strings, pick the cheapest numerically (then text for stability).
+ * Mirrors the RPC ARRAY_AGG(... ORDER BY numeric key) tie-break.
+ */
+function pickCheapestTradePoints(values: string[]): string | undefined {
+  if (values.length === 0) return undefined;
+  return [...values].sort((a, b) => {
+    const diff = tradePointsNumericKey(a) - tradePointsNumericKey(b);
+    if (diff !== 0) return diff;
+    return a.localeCompare(b);
+  })[0];
+}
 
 /**
  * Resolve effective Trade Points cost string for a piece of official equipment,
@@ -44,11 +62,12 @@ async function resolveEquipmentTradePoints(
 ): Promise<string> {
   const base = params.baseTradePoints ?? '0';
 
+  // Fetch all discount rows (including cost-only) so origin-branch detection
+  // matches get_equipment_detailed_data's origin_discount_equip CTE.
   const { data: discounts } = await supabase
     .from('equipment_discounts')
     .select('trade_points, gang_type_id, gang_origin_id, fighter_type_id')
-    .eq('equipment_id', params.equipmentId)
-    .not('trade_points', 'is', null);
+    .eq('equipment_id', params.equipmentId);
 
   if (!discounts || discounts.length === 0) return base;
 
@@ -73,9 +92,12 @@ async function resolveEquipmentTradePoints(
     );
   });
 
-  if (matching.length === 0) return base;
-  // Deterministic pick (matches RPC MIN tie-break on text)
-  return matching.map((d: any) => d.trade_points as string).sort()[0] ?? base;
+  const withTradePoints = matching
+    .map((d: any) => d.trade_points as string | null)
+    .filter((tp: string | null): tp is string => tp != null);
+
+  if (withTradePoints.length === 0) return base;
+  return pickCheapestTradePoints(withTradePoints) ?? base;
 }
 
 // Helper function to invalidate owner's cache when beast fighter is updated
@@ -541,39 +563,42 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       gang_type_id: gang.gang_type_id,
       custom_gang_type_id: gang.custom_gang_type_id
     });
+
     if (hasTradePoints(editionSlug)) {
       let effectiveTradePoints: string;
 
       if (params.manual_trade_points !== undefined) {
         effectiveTradePoints = params.manual_trade_points;
       } else if (params.equipment_id) {
-        let fighterTypeId: string | null = null;
-        let legacyFighterTypeId: string | null = null;
-        let affiliationFighterTypeId: string | null = null;
+        const [fighterLookup, affiliationLookup] = await Promise.all([
+          params.fighter_id
+            ? supabase
+                .from('fighters')
+                .select('fighter_type_id, fighter_gang_legacy_id')
+                .eq('id', params.fighter_id)
+                .maybeSingle()
+            : Promise.resolve({ data: null as { fighter_type_id: string; fighter_gang_legacy_id: string | null } | null }),
+          gang.gang_affiliation_id
+            ? supabase
+                .from('gang_affiliation')
+                .select('fighter_type_id')
+                .eq('id', gang.gang_affiliation_id)
+                .maybeSingle()
+            : Promise.resolve({ data: null as { fighter_type_id: string } | null }),
+        ]);
 
-        if (params.fighter_id) {
-          const { data: fighterRow } = await supabase
-            .from('fighters')
-            .select('fighter_type_id, fighter_gang_legacy_id')
-            .eq('id', params.fighter_id)
-            .maybeSingle();
-          fighterTypeId = fighterRow?.fighter_type_id ?? null;
-          if (fighterRow?.fighter_gang_legacy_id) {
-            const { data: legacy } = await supabase
-              .from('fighter_gang_legacy')
-              .select('fighter_type_id')
-              .eq('id', fighterRow.fighter_gang_legacy_id)
-              .maybeSingle();
-            legacyFighterTypeId = legacy?.fighter_type_id ?? null;
-          }
-        }
-        if (gang.gang_affiliation_id) {
-          const { data: affiliation } = await supabase
-            .from('gang_affiliation')
+        const fighterRow = fighterLookup.data;
+        const fighterTypeId: string | null = fighterRow?.fighter_type_id ?? null;
+        let legacyFighterTypeId: string | null = null;
+        const affiliationFighterTypeId: string | null = affiliationLookup.data?.fighter_type_id ?? null;
+
+        if (fighterRow?.fighter_gang_legacy_id) {
+          const { data: legacy } = await supabase
+            .from('fighter_gang_legacy')
             .select('fighter_type_id')
-            .eq('id', gang.gang_affiliation_id)
+            .eq('id', fighterRow.fighter_gang_legacy_id)
             .maybeSingle();
-          affiliationFighterTypeId = affiliation?.fighter_type_id ?? null;
+          legacyFighterTypeId = legacy?.fighter_type_id ?? null;
         }
 
         effectiveTradePoints = await resolveEquipmentTradePoints(supabase, {
@@ -596,6 +621,24 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.gang_id), { expire: 0 });
         } catch (err) {
           await supabase.from('fighter_equipment').delete().eq('id', newEquipmentId);
+          // Restore resource/reputation already deducted earlier in this purchase
+          if (isResourcePurchase) {
+            try {
+              if (params.resourceCost!.resourceName === REPUTATION_RESOURCE_NAME) {
+                await returnGangReputation(supabase, params.gang_id, params.resourceCost!.amount);
+              } else {
+                await returnGangResource(
+                  supabase,
+                  params.campaign_gang_id!,
+                  params.resourceCost!.amount,
+                  params.resourceCost!.typeResourceId,
+                  params.resourceCost!.campaignResourceId
+                );
+              }
+            } catch (restoreErr) {
+              console.error('Failed to restore resource after Trade Points deduction failure:', restoreErr);
+            }
+          }
           throw err;
         }
       }

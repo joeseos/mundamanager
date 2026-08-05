@@ -13,6 +13,18 @@ interface FighterTypeEquipment {
   equipment_id: string;
 }
 
+/** Normalize admin Trade Points input: "E" or non-negative integer digits. */
+function normalizeAdminTradePoints(value: unknown): { ok: true; value: string } | { ok: false; error: string } {
+  if (value == null || value === '') {
+    return { ok: true, value: '0' };
+  }
+  const trimmed = String(value).trim().toUpperCase();
+  if (!/^(E|\d+)$/.test(trimmed)) {
+    return { ok: false, error: 'Trade Points must be a non-negative integer or E' };
+  }
+  return { ok: true, value: trimmed };
+}
+
 export async function GET(request: Request) {
   const supabase = await createClient();
   const { searchParams } = new URL(request.url);
@@ -429,6 +441,11 @@ export async function POST(request: Request) {
 
     if (categoryError) throw categoryError;
 
+    const normalizedTradePoints = normalizeAdminTradePoints(trade_points);
+    if (!normalizedTradePoints.ok) {
+      return NextResponse.json({ error: normalizedTradePoints.error }, { status: 400 });
+    }
+
     // Create the equipment
     const { data: equipment, error: equipmentError } = await supabase
       .from('equipment')
@@ -436,9 +453,7 @@ export async function POST(request: Request) {
         equipment_name: equipment_name.trimEnd(),
         availability: availability.trimEnd(),
         cost,
-        trade_points: trade_points != null && trade_points !== ''
-          ? String(trade_points).trim().toUpperCase()
-          : '0',
+        trade_points: normalizedTradePoints.value,
         variants,
         equipment_category: categoryData.category_name,
         equipment_category_id,
@@ -582,6 +597,11 @@ export async function PATCH(request: Request) {
       edition_id
     } = data;
 
+    const normalizedTradePoints = normalizeAdminTradePoints(trade_points);
+    if (!normalizedTradePoints.ok) {
+      return NextResponse.json({ error: normalizedTradePoints.error }, { status: 400 });
+    }
+
     // Update equipment
     const { error: equipmentError } = await supabase
       .from('equipment')
@@ -589,9 +609,7 @@ export async function PATCH(request: Request) {
         equipment_name,
         availability,
         cost,
-        trade_points: trade_points != null && trade_points !== ''
-          ? String(trade_points).trim().toUpperCase()
-          : '0',
+        trade_points: normalizedTradePoints.value,
         variants,
         equipment_category,
         equipment_category_id,
