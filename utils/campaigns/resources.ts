@@ -261,39 +261,5 @@ export function parseTradePointsCost(value: string | null | undefined): number {
   return Math.floor(parsed);
 }
 
-/**
- * Deduct Trade Points from a gang, following the same read-modify-write shape as
- * deductGangReputation. The read sits immediately before the update so the window a
- * concurrent purchase could slip into stays as small as possible, and the `.gte()`
- * guard stops the balance going negative.
- */
-export async function deductGangTradePoints(
-  supabase: SupabaseClient,
-  gangId: string,
-  amount: number
-): Promise<number> {
-  const { data: gang, error: fetchError } = await supabase
-    .from('gangs')
-    .select('trade_points')
-    .eq('id', gangId)
-    .single();
-
-  if (fetchError) throw new Error(`Failed to fetch gang: ${fetchError.message}`);
-  if (!gang) throw new Error('Gang not found');
-
-  const current = Number(gang.trade_points ?? 0);
-  if (current < amount) {
-    throw new Error(`Not enough Trade Points. Required: ${amount}, Available: ${current}`);
-  }
-
-  const { data, error } = await supabase
-    .from('gangs')
-    .update({ trade_points: current - amount })
-    .eq('id', gangId)
-    .gte('trade_points', amount)
-    .select('trade_points');
-
-  if (error) throw new Error(`Failed to deduct Trade Points: ${error.message}`);
-  if (!data?.length) throw new Error('Not enough Trade Points (concurrent modification)');
-  return Number(data[0].trade_points);
-}
+// Trade Points are deducted by updateGangFinancials, alongside credits, so a purchase
+// paid in both moves them in a single UPDATE.

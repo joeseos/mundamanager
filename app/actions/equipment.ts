@@ -22,7 +22,7 @@ import { countsTowardRating } from '@/utils/fighter-status';
 import { EquipmentGrants, ResourceCost, CostResourcePayload } from '@/types/equipment';
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
 import { clearHardpointReference } from './vehicle-hardpoints';
-import { deductGangResource, deductGangReputation, deductGangTradePoints, parseTradePointsCost, returnGangResource, returnGangReputation, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
+import { deductGangResource, deductGangReputation, parseTradePointsCost, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
 import { hasTradePoints } from '@/types/edition';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
@@ -505,26 +505,6 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       }
     }
 
-    // Deduct Trade Points last, after the insert, for the same reason as the resource
-    // above. Affordability was already checked pre-write, so the guarded update can only
-    // fail on a concurrent purchase — hence the compensating restore.
-    let newGangTradePoints: number | undefined;
-    if (tradePointsCost > 0) {
-      try {
-        newGangTradePoints = await deductGangTradePoints(supabase, params.gang_id, tradePointsCost);
-      } catch (err) {
-        await supabase.from('fighter_equipment').delete().eq('id', newEquipmentId);
-        if (isResourcePurchase) {
-          const restore = params.resourceCost!.resourceName === REPUTATION_RESOURCE_NAME
-            ? returnGangReputation(supabase, params.gang_id, params.resourceCost!.amount)
-            : returnGangResource(supabase, params.campaign_gang_id!, params.resourceCost!.amount, params.resourceCost!.typeResourceId, params.resourceCost!.campaignResourceId);
-          await restore.catch((restoreErr: unknown) =>
-            console.error('Failed to restore resource after Trade Points deduction failure:', restoreErr));
-        }
-        throw err;
-      }
-    }
-
     // Initialize rating deltas
     let ratingDelta = 0;
     let grantsRatingDelta = 0;
@@ -742,17 +722,22 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     const totalRatingDelta = ratingDelta + createdBeastsRatingDelta + grantsRatingDelta;
     const stashValueDelta = params.buy_for_gang_stash ? ratingCost : 0;
 
-    // Update gang credits, rating and wealth using centralized helper
+    // Update gang credits, rating, wealth and Trade Points using centralized helper.
+    // Credits and Trade Points move in the same UPDATE, so an N26 purchase paid in both
+    // can never end up with one spent and the other not.
     const financialResult = await updateGangFinancials(supabase, {
       gangId: params.gang_id,
       ratingDelta: totalRatingDelta,
       creditsDelta: isResourcePurchase ? 0 : -finalPurchaseCost - grantsRatingDelta,
+      tradePointsDelta: -tradePointsCost,
       stashValueDelta
     });
 
     if (!financialResult.success) {
       throw new Error(financialResult.error || 'Failed to update gang financials');
     }
+
+    const newGangTradePoints = financialResult.newValues?.trade_points;
 
     // Home page gangs list cache (server-side, user-scoped)
     invalidateUserGangsList(gang.user_id);

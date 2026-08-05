@@ -3,24 +3,30 @@ import { invalidateGangFinancials } from './cache-tags';
 
 export interface GangFinancialUpdateOptions {
   gangId: string;
-  ratingDelta?: number;      // Change to rating
-  creditsDelta?: number;     // Credits gained (positive) or spent (negative)
-  stashValueDelta?: number;  // Stash value change (affects wealth only)
-  applyToRating?: boolean;   // false = skip rating update (inactive fighter)
+  ratingDelta?: number;         // Change to rating
+  creditsDelta?: number;        // Credits gained (positive) or spent (negative)
+  tradePointsDelta?: number;    // N26 Trade Points gained (positive) or spent (negative)
+  stashValueDelta?: number;     // Stash value change (affects wealth only)
+  applyToRating?: boolean;      // false = skip rating update (inactive fighter)
 }
 
 export interface GangFinancialUpdateResult {
   success: boolean;
   error?: string;
-  oldValues?: { credits: number; rating: number; wealth: number };
-  newValues?: { credits: number; rating: number; wealth: number };
+  oldValues?: { credits: number; rating: number; wealth: number; trade_points: number };
+  newValues?: { credits: number; rating: number; wealth: number; trade_points: number };
 }
 
 /**
- * Updates gang credits, rating, and wealth in a single operation.
+ * Updates gang credits, rating, wealth and Trade Points in a single operation.
+ *
+ * All four live on the gangs row, and an N26 purchase may spend credits and Trade Points
+ * at once — so they move together in one UPDATE rather than as separate deductions that
+ * could leave one spent and the other not.
  *
  * Wealth formula: newWealth = currentWealth + effectiveRatingDelta + creditsDelta + stashValueDelta
  * Where effectiveRatingDelta = ratingDelta if applyToRating is true (default), else 0.
+ * Trade Points are a separate currency and deliberately do not feed wealth.
  *
  * @param supabase - Supabase client instance
  * @param options - Update options
@@ -34,6 +40,7 @@ export async function updateGangFinancials(
     gangId,
     ratingDelta = 0,
     creditsDelta = 0,
+    tradePointsDelta = 0,
     stashValueDelta = 0,
     applyToRating = true
   } = options;
@@ -42,29 +49,23 @@ export async function updateGangFinancials(
   const effectiveRatingDelta = applyToRating ? ratingDelta : 0;
 
   // Skip if nothing to update
-  if (effectiveRatingDelta === 0 && creditsDelta === 0 && stashValueDelta === 0) {
+  if (effectiveRatingDelta === 0 && creditsDelta === 0 && tradePointsDelta === 0 && stashValueDelta === 0) {
     // Still fetch current values for logging
     try {
       const { data: gangRow } = await supabase
         .from('gangs')
-        .select('credits, rating, wealth')
+        .select('credits, rating, wealth, trade_points')
         .eq('id', gangId)
         .single();
-      
+
       if (gangRow) {
-        return {
-          success: true,
-          oldValues: {
-            credits: (gangRow.credits ?? 0) as number,
-            rating: (gangRow.rating ?? 0) as number,
-            wealth: (gangRow.wealth ?? 0) as number
-          },
-          newValues: {
-            credits: (gangRow.credits ?? 0) as number,
-            rating: (gangRow.rating ?? 0) as number,
-            wealth: (gangRow.wealth ?? 0) as number
-          }
+        const unchanged = {
+          credits: (gangRow.credits ?? 0) as number,
+          rating: (gangRow.rating ?? 0) as number,
+          wealth: (gangRow.wealth ?? 0) as number,
+          trade_points: (gangRow.trade_points ?? 0) as number
         };
+        return { success: true, oldValues: unchanged, newValues: unchanged };
       }
     } catch (e) {
       // Fall through to return success: true
@@ -76,7 +77,7 @@ export async function updateGangFinancials(
     // Get current gang values (old values)
     const { data: gangRow, error: selectError } = await supabase
       .from('gangs')
-      .select('credits, rating, wealth')
+      .select('credits, rating, wealth, trade_points')
       .eq('id', gangId)
       .single();
 
@@ -87,22 +88,35 @@ export async function updateGangFinancials(
     const currentCredits = (gangRow.credits ?? 0) as number;
     const currentRating = (gangRow.rating ?? 0) as number;
     const currentWealth = (gangRow.wealth ?? 0) as number;
+    const currentTradePoints = (gangRow.trade_points ?? 0) as number;
 
     if (currentCredits + creditsDelta < 0) {
       return { success: false, error: 'Insufficient credits' };
     }
 
+    if (currentTradePoints + tradePointsDelta < 0) {
+      return { success: false, error: 'Insufficient Trade Points' };
+    }
+
     // Calculate new values
-    // Wealth = rating change + credits change + stash value change
+    // Wealth = rating change + credits change + stash value change (Trade Points excluded)
     const wealthDelta = effectiveRatingDelta + creditsDelta + stashValueDelta;
+    const expectedValues = {
+      credits: Math.max(0, currentCredits + creditsDelta),
+      rating: Math.max(0, currentRating + effectiveRatingDelta),
+      wealth: Math.max(0, currentWealth + wealthDelta),
+      trade_points: Math.max(0, currentTradePoints + tradePointsDelta)
+    };
+    const oldValues = {
+      credits: currentCredits,
+      rating: currentRating,
+      wealth: currentWealth,
+      trade_points: currentTradePoints
+    };
 
     const { error: updateError } = await supabase
       .from('gangs')
-      .update({
-        credits: Math.max(0, currentCredits + creditsDelta),
-        rating: Math.max(0, currentRating + effectiveRatingDelta),
-        wealth: Math.max(0, currentWealth + wealthDelta)
-      })
+      .update(expectedValues)
       .eq('id', gangId);
 
     if (updateError) {
@@ -112,39 +126,24 @@ export async function updateGangFinancials(
     // Fetch new values after update
     const { data: updatedGangRow, error: fetchError } = await supabase
       .from('gangs')
-      .select('credits, rating, wealth')
+      .select('credits, rating, wealth, trade_points')
       .eq('id', gangId)
       .single();
 
     if (fetchError) {
       // Update succeeded but fetch failed - calculate expected values
-      return {
-        success: true,
-        oldValues: {
-          credits: currentCredits,
-          rating: currentRating,
-          wealth: currentWealth
-        },
-        newValues: {
-          credits: Math.max(0, currentCredits + creditsDelta),
-          rating: Math.max(0, currentRating + effectiveRatingDelta),
-          wealth: Math.max(0, currentWealth + wealthDelta)
-        }
-      };
+      return { success: true, oldValues, newValues: expectedValues };
     }
 
     invalidateGangFinancials(gangId);
     return {
       success: true,
-      oldValues: {
-        credits: currentCredits,
-        rating: currentRating,
-        wealth: currentWealth
-      },
+      oldValues,
       newValues: {
         credits: (updatedGangRow.credits ?? 0) as number,
         rating: (updatedGangRow.rating ?? 0) as number,
-        wealth: (updatedGangRow.wealth ?? 0) as number
+        wealth: (updatedGangRow.wealth ?? 0) as number,
+        trade_points: (updatedGangRow.trade_points ?? 0) as number
       }
     };
   } catch (e) {
