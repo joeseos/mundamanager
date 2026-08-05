@@ -8,14 +8,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
 import { toast } from 'sonner';
 import { FighterType } from "@/types/fighter";
-import { WeaponProfileInput, EquipmentGrants, EquipmentAvailability, EquipmentOriginAvailability, EquipmentVariantAvailability, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
+import { WeaponProfileInput, emptyWeaponProfile, EquipmentGrants, EquipmentAvailability, EquipmentOriginAvailability, EquipmentVariantAvailability, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
 import { HiX } from "react-icons/hi";
 import { fighterClassRank } from "@/utils/fighterClassRank";
 import { gangOriginRank } from "@/utils/gangOriginRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
 import { AdminFighterEffects } from "./admin-fighter-effects";
-import { EditionSelect, useEditions } from '@/components/edition-select';
-import { hasTradePoints } from '@/types/edition';
+import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
+import { hasLethalityStatline, hasTradePoints } from '@/types/edition';
+import { WeaponProfileFields } from '@/components/ui/weapon-profile-fields';
 import { AdminTradingPost } from "./admin-trading-post";
 import { LuTrash2 } from 'react-icons/lu';
 import Modal from "@/components/ui/modal";
@@ -69,20 +70,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [grantsEquipment, setGrantsEquipment] = useState<EquipmentGrants | null>(null);
   const [allEquipment, setAllEquipment] = useState<Array<{id: string, equipment_name: string, cost?: number}>>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [weaponProfiles, setWeaponProfiles] = useState<WeaponProfileInput[]>([{
-    profile_name: '',
-    range_short: '',
-    range_long: '',
-    acc_short: '',
-    acc_long: '',
-    strength: '',
-    ap: '',
-    damage: '',
-    ammo: '',
-    traits: '',
-    weapon_group_id: null,
-    sort_order: 1
-  }]);
+  const [weaponProfiles, setWeaponProfiles] = useState<WeaponProfileInput[]>([emptyWeaponProfile(1)]);
   const [categoryFilter, setCategoryFilter] = useState('');
   const [fighterTypes, setFighterTypes] = useState<FighterType[]>([]);
   const [selectedFighterTypes, setSelectedFighterTypes] = useState<string[]>([]);
@@ -151,9 +139,12 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   );
 
   const { data: editions = [] } = useEditions();
-  const editionSlug = editions.find(edition => edition.id === editionId)?.slug;
+  const editionSlug = editionSlugOf(editions, editionId);
   const showTradePoints = hasTradePoints(editionSlug);
   const showAvailability = !showTradePoints;
+  // N26 weapons are described with SR/LR/Str/AP/Lethality; N23 with Rng, Acc,
+  // Str, AP, D and Am. Only the stats the selected edition uses are offered.
+  const usesLethality = hasLethalityStatline(editionSlug);
 
   const handleEditionChange = (newEditionId: string) => {
     setEditionId(newEditionId);
@@ -213,20 +204,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       setIsEditable(false);
       setIsConsumable(false);
       setGrantsEquipment(null);
-      setWeaponProfiles([{
-        profile_name: '',
-        range_short: '',
-        range_long: '',
-        acc_short: '',
-        acc_long: '',
-        strength: '',
-        ap: '',
-        damage: '',
-        ammo: '',
-        traits: '',
-        weapon_group_id: null,
-        sort_order: 1
-      }]);
+      setWeaponProfiles([emptyWeaponProfile(1)]);
       setGangAdjustedCosts([]);
       setGangOriginAdjustedCosts([]);
       setEquipmentAvailabilities([]);
@@ -326,22 +304,13 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       }
 
       if (equipmentDetails.weapon_profiles && equipmentDetails.weapon_profiles.length > 0) {
-        setWeaponProfiles(equipmentDetails.weapon_profiles);
+        // lethality is NULL on every pre-N26 profile; the inputs are controlled
+        setWeaponProfiles(equipmentDetails.weapon_profiles.map((profile: WeaponProfileInput) => ({
+          ...profile,
+          lethality: profile.lethality ?? ''
+        })));
       } else if (equipmentDetails.equipment_type === 'weapon') {
-        setWeaponProfiles([{
-          profile_name: '',
-          range_short: '',
-          range_long: '',
-          acc_short: '',
-          acc_long: '',
-          strength: '',
-          ap: '',
-          damage: '',
-          ammo: '',
-          traits: '',
-          weapon_group_id: null,
-          sort_order: 1
-        }]);
+        setWeaponProfiles([emptyWeaponProfile(1)]);
       }
     }
   }
@@ -404,20 +373,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const addProfile = () => {
     setWeaponProfiles([
       ...weaponProfiles,
-      {
-        profile_name: '',
-        range_short: '',
-        range_long: '',
-        acc_short: '',
-        acc_long: '',
-        strength: '',
-        ap: '',
-        damage: '',
-        ammo: '',
-        traits: '',
-        weapon_group_id: null,
-        sort_order: weaponProfiles.length + 1
-      }
+      emptyWeaponProfile(weaponProfiles.length + 1)
     ]);
   };
 
@@ -1755,111 +1711,13 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         </div>
 
                         {/* Weapon Characteristics */}
-                        <div className="grid grid-cols-4 md:grid-cols-8 gap-2 md:gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-muted-foreground mb-1">
-                              Rng S
-                            </label>
-                            <Input
-                              type="text"
-                              value={profile.range_short}
-                              onChange={(e) => handleProfileChange(index, 'range_short', e.target.value)}
-                              placeholder='e.g. 4", -'
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-muted-foreground mb-1">
-                              Rng L
-                            </label>
-                            <Input
-                              type="text"
-                              value={profile.range_long}
-                              onChange={(e) => handleProfileChange(index, 'range_long', e.target.value)}
-                              placeholder='e.g. 8", E'
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-muted-foreground mb-1">
-                              Acc S
-                            </label>
-                            <Input
-                              type="text"
-                              value={profile.acc_short}
-                              onChange={(e) => handleProfileChange(index, 'acc_short', e.target.value)}
-                              placeholder='e.g. +1, -'
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-muted-foreground mb-1">
-                              Acc L
-                            </label>
-                            <Input
-                              type="text"
-                              value={profile.acc_long}
-                              onChange={(e) => handleProfileChange(index, 'acc_long', e.target.value)}
-                              placeholder='e.g. -1, -'
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-muted-foreground mb-1">
-                              Strength
-                            </label>
-                            <Input
-                              type="text"
-                              value={profile.strength}
-                              onChange={(e) => handleProfileChange(index, 'strength', e.target.value)}
-                              placeholder="e.g. 3, S+1"
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-muted-foreground mb-1">
-                              AP
-                            </label>
-                            <Input
-                              type="text"
-                              value={profile.ap}
-                              onChange={(e) => handleProfileChange(index, 'ap', e.target.value)}
-                              placeholder="e.g. -1, -"
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-muted-foreground mb-1">
-                              Damage
-                            </label>
-                            <Input
-                              type="text"
-                              value={profile.damage}
-                              onChange={(e) => handleProfileChange(index, 'damage', e.target.value)}
-                              placeholder="e.g. 1, D3"
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-muted-foreground mb-1">
-                              Am
-                            </label>
-                            <Input
-                              type="text"
-                              value={profile.ammo}
-                              onChange={(e) => handleProfileChange(index, 'ammo', e.target.value)}
-                              placeholder='e.g. 5+'
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-                        </div>
+                        <WeaponProfileFields
+                          profile={profile}
+                          index={index}
+                          onChange={handleProfileChange}
+                          usesLethality={usesLethality}
+                          disabled={!selectedEquipmentId}
+                        />
                         <div>
                           <div className="col-span-3">
                             <label className="block text-sm font-medium text-muted-foreground mb-1">

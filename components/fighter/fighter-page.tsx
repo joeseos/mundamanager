@@ -699,6 +699,7 @@ export default function FighterPage({
           {/* Vehicle Equipment Section - only show if fighter has a vehicle */}
           {vehicle && (
             <VehicleEquipmentList
+              editionSlug={fighterData.fighter?.edition_slug ?? null}
               fighterId={fighterId}
               gangId={fighterData.gang?.id || ''}
               gangCredits={fighterData.gang?.credits || 0}
@@ -748,6 +749,7 @@ export default function FighterPage({
           )}
 
           <WeaponList
+            editionSlug={fighterData.fighter?.edition_slug ?? null}
             fighterId={fighterId}
             gangId={fighterData.gang?.id || ''}
             gangCredits={fighterData.gang?.credits || 0}
@@ -1327,6 +1329,7 @@ export default function FighterPage({
 
           {uiState.modals.addWeapon && fighterData.fighter && fighterData.gang && (
             <ItemModal
+              editionSlug={fighterData.fighter?.edition_slug ?? null}
               title="Equipment"
               onClose={() => handleModalToggle('addWeapon', false)}
               gangCredits={fighterData.gang.credits}
@@ -1348,6 +1351,7 @@ export default function FighterPage({
 
           {uiState.modals.addVehicleEquipment && fighterData.fighter && fighterData.gang && vehicle && (
             <ItemModal
+              editionSlug={fighterData.fighter?.edition_slug ?? null}
               title="Add Vehicle Equipment"
               onClose={() => handleModalToggle('addVehicleEquipment', false)}
               gangCredits={fighterData.gang.credits}

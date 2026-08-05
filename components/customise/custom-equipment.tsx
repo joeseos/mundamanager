@@ -528,6 +528,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
             strength: profile.strength,
             ap: profile.ap,
             damage: profile.damage,
+            lethality: profile.lethality,
             ammo: profile.ammo,
             traits: profile.traits,
             sort_order: profile.sort_order,

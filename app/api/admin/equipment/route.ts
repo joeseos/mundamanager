@@ -466,6 +466,9 @@ export async function POST(request: Request) {
         strength: profile.strength === null ? '' : profile.strength || '',
         ap: profile.ap === null ? '' : profile.ap || '',
         damage: profile.damage === null ? '' : profile.damage || '',
+        // Nullable, unlike the columns above: NULL means the edition has no
+        // Lethality characteristic rather than an unfilled one
+        lethality: profile.lethality || null,
         ammo: profile.ammo === null ? '' : profile.ammo || '',
         traits: profile.traits === null ? '' : profile.traits || ''
       }));
@@ -628,6 +631,7 @@ export async function PATCH(request: Request) {
               strength: profile.strength,
               ap: profile.ap,
               damage: profile.damage,
+              lethality: profile.lethality || null,
               ammo: profile.ammo,
               traits: profile.traits,
               weapon_group_id: profile.weapon_group_id || id,

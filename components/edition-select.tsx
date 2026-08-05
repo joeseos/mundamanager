@@ -24,6 +24,16 @@ export function useEditions() {
   });
 }
 
+/**
+ * Resolve an edition id to its slug. Callers gate behaviour on the slug via the
+ * predicates in @/types/edition, never on the id itself.
+ *
+ * A plain function rather than a hook so it also works inside change handlers,
+ * which resolve the incoming id rather than the one currently in state.
+ */
+export const editionSlugOf = (editions: Edition[], editionId?: string | null): string | null =>
+  editionId ? editions.find(edition => edition.id === editionId)?.slug ?? null : null;
+
 export function EditionSelect({ value, onChange, defaultToCurrent = false, label = 'Edition' }: EditionSelectProps) {
   const { data: editions = [] } = useEditions();
 

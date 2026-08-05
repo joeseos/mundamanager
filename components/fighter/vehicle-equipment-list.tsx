@@ -34,6 +34,7 @@ interface VehicleEquipmentListProps {
   vehicleEffects?: any;
   vehicleId: string;
   onRegisterPurchase?: (fn: (payload: { params: any; item: any }) => void) => void;
+  editionSlug?: string | null;
 }
 
 
@@ -498,7 +499,8 @@ export function VehicleEquipmentList({
   userPermissions,
   vehicleEffects,
   vehicleId,
-  onRegisterPurchase
+  onRegisterPurchase,
+  editionSlug
 }: VehicleEquipmentListProps) {
   const [isLoading, setIsLoading] = useState(false);
   
@@ -852,7 +854,7 @@ export function VehicleEquipmentList({
 
               if (!equipment) return displayName;
               return (
-                <EquipmentTooltipTrigger item={equipment} className="block w-full">
+                <EquipmentTooltipTrigger item={equipment} className="block w-full" editionSlug={editionSlug}>
                   {displayName}
                 </EquipmentTooltipTrigger>
               );

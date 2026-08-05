@@ -39,6 +39,12 @@ export interface EditionCapabilities {
   tradePoints: boolean;
   /** Fighter types carry a Starting XP value (feeds N26 advancement ranks) */
   startingXp: boolean;
+  /**
+   * Weapon profiles use the N26 statline (SR, LR, Str, AP, Lethality) rather
+   * than the N23 one (Rng S/L, Acc S/L, Str, AP, D, Am). Ammo and Damage are
+   * written into Traits on N26 profiles.
+   */
+  lethalityStatline: boolean;
 }
 
 const N26_CAPABILITIES: EditionCapabilities = {
@@ -46,6 +52,7 @@ const N26_CAPABILITIES: EditionCapabilities = {
   multipleFighterClasses: true,
   tradePoints: true,
   startingXp: true,
+  lethalityStatline: true,
 };
 
 /**
@@ -66,6 +73,7 @@ const EDITION_CAPABILITIES: Record<EditionSlug, EditionCapabilities> = {
     multipleFighterClasses: false,
     tradePoints: false,
     startingXp: false,
+    lethalityStatline: false,
   },
   n26: N26_CAPABILITIES,
 };
@@ -81,6 +89,7 @@ const NO_CAPABILITIES: EditionCapabilities = {
   multipleFighterClasses: false,
   tradePoints: false,
   startingXp: false,
+  lethalityStatline: false,
 };
 
 function capabilitiesFor(editionSlug?: string | null): EditionCapabilities {
@@ -117,6 +126,9 @@ export const hasTradePoints = (editionSlug?: string | null): boolean =>
 
 export const hasStartingXp = (editionSlug?: string | null): boolean =>
   capabilitiesFor(editionSlug).startingXp;
+
+export const hasLethalityStatline = (editionSlug?: string | null): boolean =>
+  capabilitiesFor(editionSlug).lethalityStatline;
 
 export interface Edition {
   id: string;

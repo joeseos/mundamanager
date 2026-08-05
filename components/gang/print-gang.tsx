@@ -827,7 +827,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                         if (!isCrew && fighter.weapons && fighter.weapons.length > 0) {
                           return (
                             <div className="roster-weapons-table [&_table]:text-[9px] [&_th]:text-[9px] [&_td]:text-[9px]">
-                              <WeaponTable weapons={fighter.weapons} viewMode={PRINT_GANG_VIEW_MODE} />
+                              <WeaponTable weapons={fighter.weapons} viewMode={PRINT_GANG_VIEW_MODE} editionSlug={fighter.edition_slug} />
                             </div>
                           );
                         }
@@ -845,12 +845,12 @@ export default function PrintGang({ gang }: PrintGangProps) {
                             <div className="space-y-1">
                               {hasCrewWeapons && (
                                 <div className="roster-weapons-table [&_table]:text-[9px] [&_th]:text-[9px] [&_td]:text-[9px]">
-                                  <WeaponTable weapons={fighter.weapons} entity="crew" viewMode={PRINT_GANG_VIEW_MODE} />
+                                  <WeaponTable weapons={fighter.weapons} entity="crew" viewMode={PRINT_GANG_VIEW_MODE} editionSlug={fighter.edition_slug} />
                                 </div>
                               )}
                               {hasVehicleWeapons && (
                                 <div className="roster-weapons-table [&_table]:text-[9px] [&_th]:text-[9px] [&_td]:text-[9px]">
-                                  <WeaponTable weapons={vehicleWeapons} entity="vehicle" viewMode={PRINT_GANG_VIEW_MODE} />
+                                  <WeaponTable weapons={vehicleWeapons} entity="vehicle" viewMode={PRINT_GANG_VIEW_MODE} editionSlug={fighter.edition_slug} />
                                 </div>
                               )}
                             </div>
@@ -1343,6 +1343,8 @@ export default function PrintGang({ gang }: PrintGangProps) {
                         cool={fighter.cool}
                         willpower={fighter.willpower}
                         intelligence={fighter.intelligence}
+                        save={fighter.save}
+                        edition_slug={fighter.edition_slug}
                         xp={fighter.xp}
                         advancements={fighter.advancements}
                         weapons={fighter.weapons}

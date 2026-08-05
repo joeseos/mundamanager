@@ -57,6 +57,7 @@ interface GangInventoryProps {
   gangCampaignResources?: GangCampaignResource[];
   gangReputation?: number;
   positioning?: Record<number, string>;
+  editionSlug?: string | null;
 }
 
 export default function GangInventory({
@@ -81,7 +82,8 @@ export default function GangInventory({
   campaignGangId,
   gangCampaignResources,
   gangReputation,
-  positioning
+  positioning,
+  editionSlug
 }: GangInventoryProps) {
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [selectedFighter, setSelectedFighter] = useState<string>('');
@@ -984,6 +986,7 @@ export default function GangInventory({
 
       {showTradingPost && (
         <ItemModal
+          editionSlug={editionSlug}
           title="Trading Post"
           onClose={() => setShowTradingPost(false)}
           gangCredits={gangCredits}
