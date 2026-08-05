@@ -262,16 +262,30 @@ export function parseTradePointsCost(value: string | null | undefined): number {
 }
 
 /**
- * Deduct Trade Points from a gang. `current` is the value the caller already read, so
- * this costs a single round-trip; the `.gte()` guard is what makes it safe against a
- * concurrent purchase spending the same points.
+ * Deduct Trade Points from a gang, following the same read-modify-write shape as
+ * deductGangReputation. The read sits immediately before the update so the window a
+ * concurrent purchase could slip into stays as small as possible, and the `.gte()`
+ * guard stops the balance going negative.
  */
 export async function deductGangTradePoints(
   supabase: SupabaseClient,
   gangId: string,
-  current: number,
   amount: number
 ): Promise<number> {
+  const { data: gang, error: fetchError } = await supabase
+    .from('gangs')
+    .select('trade_points')
+    .eq('id', gangId)
+    .single();
+
+  if (fetchError) throw new Error(`Failed to fetch gang: ${fetchError.message}`);
+  if (!gang) throw new Error('Gang not found');
+
+  const current = Number(gang.trade_points ?? 0);
+  if (current < amount) {
+    throw new Error(`Not enough Trade Points. Required: ${amount}, Available: ${current}`);
+  }
+
   const { data, error } = await supabase
     .from('gangs')
     .update({ trade_points: current - amount })

@@ -511,7 +511,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     let newGangTradePoints: number | undefined;
     if (tradePointsCost > 0) {
       try {
-        newGangTradePoints = await deductGangTradePoints(supabase, params.gang_id, currentTradePoints, tradePointsCost);
+        newGangTradePoints = await deductGangTradePoints(supabase, params.gang_id, tradePointsCost);
       } catch (err) {
         await supabase.from('fighter_equipment').delete().eq('id', newEquipmentId);
         if (isResourcePurchase) {
