@@ -913,7 +913,6 @@ export default function GangPageContent({
           gangTradePoints={gangData.processedData.trade_points}
           onGangTradePointsUpdate={handleGangTradePointsUpdate}
           positioning={gangData.processedData.positioning}
-          editionSlug={gangData.processedData.edition_slug ?? null}
         />
         <GangVehicles
           vehicles={gangData.processedData.vehicles || []}

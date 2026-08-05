@@ -17,7 +17,7 @@ import { PurchaseModal } from './purchase-modal';
 import { usePurchaseEquipment } from '@/hooks/use-purchase-equipment';
 import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
 import { hasTradePoints } from '@/types/edition';
-import { parseTradePointsCost } from '@/utils/campaigns/resources';
+import { isExclusiveTradePoints, parseTradePointsCost } from '@/utils/campaigns/resources';
 
 interface ItemModalProps {
   title: string;
@@ -51,7 +51,6 @@ interface ItemModalProps {
   onPurchaseRequest?: (payload: { params: any; item: Equipment }) => void;
   // Optional: pass fighter weapons to avoid client fetch in target selection
   fighterWeapons?: { id: string; name: string; equipment_category?: string; effect_names?: string[] }[];
-  editionSlug?: string | null;
 }
 
 interface RawEquipmentData {
@@ -116,8 +115,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   gangTradePoints,
   onEquipmentBought,
   onPurchaseRequest,
-  fighterWeapons,
-  editionSlug
+  fighterWeapons
 }) => {
   const showTradePoints = hasTradePoints(editionSlug);
   const [equipment, setEquipment] = useState<Record<string, Equipment[]>>({});
@@ -145,6 +143,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const [availabilityRange, setAvailabilityRange] = useState<[number, number]>([6, 12]);
   const [tradePointsRange, setTradePointsRange] = useState<[number, number]>([0, 5]);
   const [includeLegacy, setIncludeLegacy] = useState<boolean>(false);
+
+  // Which rarity axis this list filters on: N26 gates equipment by Trade Points where
+  // earlier editions use Availability, and a fighter's own list has neither.
+  const rarityFilter: 'none' | 'tradePoints' | 'availability' =
+    equipmentListType === 'fighters-list' ? 'none' : showTradePoints ? 'tradePoints' : 'availability';
 
   const { purchaseEquipment } = usePurchaseEquipment({
     session,
@@ -578,15 +581,13 @@ const ItemModal: React.FC<ItemModalProps> = ({
       }
 
       const costInRange = cost >= costRange[0] && cost <= costRange[1];
-      const availabilityInRange = showTradePoints || equipmentListType === 'fighters-list'
-        ? true
-        : availability >= availabilityRange[0] && availability <= availabilityRange[1];
       const tradePoints = parseTradePointsCost(item.trade_points);
-      const tradePointsInRange = !showTradePoints || equipmentListType === 'fighters-list'
-        ? true
-        : tradePoints >= tradePointsRange[0] && tradePoints <= tradePointsRange[1];
+      const rarityInRange =
+        rarityFilter === 'tradePoints' ? tradePoints >= tradePointsRange[0] && tradePoints <= tradePointsRange[1] :
+        rarityFilter === 'availability' ? availability >= availabilityRange[0] && availability <= availabilityRange[1] :
+        true;
 
-      return costInRange && availabilityInRange && tradePointsInRange &&
+      return costInRange && rarityInRange &&
         item.equipment_name.toLowerCase().includes(searchQuery);
     });
   };
@@ -730,7 +731,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 </label>
               )}
               
-              {equipmentListType !== 'fighters-list' && !showTradePoints && (
+              {rarityFilter === 'availability' && (
                 <RangeSlider
                   label="Availability"
                   value={availabilityRange}
@@ -743,7 +744,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 />
               )}
 
-              {equipmentListType !== 'fighters-list' && showTradePoints && (
+              {rarityFilter === 'tradePoints' && (
                 <RangeSlider
                   label="Trade Points"
                   value={tradePointsRange}
@@ -874,13 +875,13 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                         <span className="text-[10px] font-medium">{item.cost}</span>
                                       </div>
                                     )}
-                                    {equipmentListType !== 'fighters-list' && showTradePoints && (() => {
-                                      const tradePointsCost = parseTradePointsCost(item.trade_points);
-                                      const canAffordTradePoints = tradePointsCost <= (gangTradePoints ?? 0);
+                                    {rarityFilter === 'tradePoints' && (() => {
+                                      const isExclusive = isExclusiveTradePoints(item.trade_points);
+                                      const canAffordTradePoints = parseTradePointsCost(item.trade_points) <= (gangTradePoints ?? 0);
                                       return (
                                         <div
                                           className={`min-w-6 h-6 rounded-full flex items-center justify-center text-white px-1.5 ${
-                                            item.trade_points === 'E'
+                                            isExclusive
                                               ? 'bg-rose-500'
                                               : canAffordTradePoints
                                                 ? 'bg-sky-500'
@@ -889,12 +890,12 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                           title="Trade Points"
                                         >
                                           <span className="text-[10px] font-medium">
-                                            {item.trade_points === 'E' ? 'E' : `TP ${item.trade_points ?? '0'}`}
+                                            {isExclusive ? 'E' : `TP ${parseTradePointsCost(item.trade_points)}`}
                                           </span>
                                         </div>
                                       );
                                     })()}
-                                    {equipmentListType !== 'fighters-list' && !showTradePoints && (
+                                    {rarityFilter === 'availability' && (
                                       <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white ${
                                         item.availability?.startsWith('R') ? 'bg-sky-500' :
                                         item.availability?.startsWith('I') ? 'bg-orange-500' :

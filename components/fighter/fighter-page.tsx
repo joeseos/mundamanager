@@ -1333,7 +1333,6 @@ export default function FighterPage({
 
           {uiState.modals.addWeapon && fighterData.fighter && fighterData.gang && (
             <ItemModal
-              editionSlug={fighterData.fighter?.edition_slug ?? null}
               title="Equipment"
               onClose={() => handleModalToggle('addWeapon', false)}
               gangCredits={fighterData.gang.credits}
@@ -1357,7 +1356,6 @@ export default function FighterPage({
 
           {uiState.modals.addVehicleEquipment && fighterData.fighter && fighterData.gang && vehicle && (
             <ItemModal
-              editionSlug={fighterData.fighter?.edition_slug ?? null}
               title="Add Vehicle Equipment"
               onClose={() => handleModalToggle('addVehicleEquipment', false)}
               gangCredits={fighterData.gang.credits}

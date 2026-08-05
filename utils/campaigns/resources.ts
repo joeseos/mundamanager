@@ -237,49 +237,49 @@ export async function returnGangReputation(
 }
 
 /**
+ * Catalog Trade Points are stored as text so "E" (Exclusive) is representable alongside
+ * numeric costs. Accepts a non-negative integer or "E", case-insensitively.
+ */
+export function isValidTradePoints(value: string): boolean {
+  return /^(E|\d+)$/i.test(value.trim());
+}
+
+/** True when a Trade Points value is Exclusive rather than a numeric cost. */
+export function isExclusiveTradePoints(value: string | null | undefined): boolean {
+  return value?.trim().toUpperCase() === 'E';
+}
+
+/**
  * Parse catalog Trade Points cost. "E" (and empty/null) means 0 TP.
  */
 export function parseTradePointsCost(value: string | null | undefined): number {
   if (value == null) return 0;
   const trimmed = String(value).trim();
-  if (!trimmed || trimmed.toUpperCase() === 'E') return 0;
+  if (!trimmed || isExclusiveTradePoints(trimmed)) return 0;
   const parsed = Number(trimmed);
   if (!Number.isFinite(parsed) || parsed < 0) return 0;
   return Math.floor(parsed);
 }
 
+/**
+ * Deduct Trade Points from a gang. `current` is the value the caller already read, so
+ * this costs a single round-trip; the `.gte()` guard is what makes it safe against a
+ * concurrent purchase spending the same points.
+ */
 export async function deductGangTradePoints(
   supabase: SupabaseClient,
   gangId: string,
+  current: number,
   amount: number
 ): Promise<number> {
-  if (amount <= 0) throw new Error('Trade Points amount must be greater than 0');
-
-  const { data: gang, error: fetchError } = await supabase
-    .from('gangs')
-    .select('trade_points')
-    .eq('id', gangId)
-    .single();
-
-  if (fetchError) throw new Error(`Failed to fetch gang: ${fetchError.message}`);
-  if (!gang) throw new Error('Gang not found');
-
-  const current = Number(gang.trade_points ?? 0);
-  if (current < amount) {
-    throw new Error(`Not enough Trade Points. Required: ${amount}, Available: ${current}`);
-  }
-
-  const next = current - amount;
   const { data, error } = await supabase
     .from('gangs')
-    .update({ trade_points: next })
+    .update({ trade_points: current - amount })
     .eq('id', gangId)
     .gte('trade_points', amount)
     .select('trade_points');
 
   if (error) throw new Error(`Failed to deduct Trade Points: ${error.message}`);
-  if (!data || data.length === 0) {
-    throw new Error('Not enough Trade Points (concurrent modification)');
-  }
-  return Number(data[0].trade_points ?? next);
+  if (!data?.length) throw new Error('Not enough Trade Points (concurrent modification)');
+  return Number(data[0].trade_points);
 }

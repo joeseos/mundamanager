@@ -250,11 +250,10 @@ export function invalidateGangCreation(params: {
   gangId: string;
   userId: string;
 }) {
-  // Base data changes
-  revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.gangId), { expire: 0 });
+  // Base data changes (invalidateGangCredits covers BASE_GANG_BASIC, and with it
+  // reputation and trade points)
   invalidateGangCredits(params.gangId);
-  // Note: Reputation is in BASE_GANG_BASIC, no separate cache needed
-  
+
   // User-scoped changes
   revalidateTag(CACHE_TAGS.USER_GANGS(params.userId), { expire: 0 });
   revalidateTag(CACHE_TAGS.USER_DASHBOARD(params.userId), { expire: 0 });
@@ -404,8 +403,16 @@ export const invalidateFighterData = (fighterId: string, gangId: string) => {
   revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_STATS(gangId), { expire: 0 });
 };
 
+/**
+ * Credits are their own tag because they change on nearly every mutation. Reputation and
+ * Trade Points are also spendable, but live in BASE_GANG_BASIC — and anything that moves
+ * credits (equipment, fighters, advancements) can move those too, since a purchase may be
+ * paid in any of the three. Invalidating them together keeps callers from having to know
+ * which currency a given purchase used.
+ */
 export const invalidateGangCredits = (gangId: string) => {
   revalidateTag(CACHE_TAGS.BASE_GANG_CREDITS(gangId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(gangId), { expire: 0 });
 };
 
 export const invalidateGangRating = (gangId: string) => {

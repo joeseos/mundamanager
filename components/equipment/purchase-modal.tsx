@@ -9,7 +9,7 @@ import { Equipment, EquipmentGrants, ResourceCost } from '@/types/equipment';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
 import { hasTradePoints } from '@/types/edition';
-import { parseTradePointsCost } from '@/utils/campaigns/resources';
+import { isValidTradePoints, parseTradePointsCost } from '@/utils/campaigns/resources';
 
 export interface PurchaseConfirmOptions {
   cost: number;
@@ -86,14 +86,6 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
   );
   const tradePointsCost = showTradePoints ? parseTradePointsCost(manualTradePoints) : 0;
   const availableTradePoints = gangTradePoints ?? 0;
-
-  const isValidTradePointsInput = (value: string): boolean => {
-    const trimmed = value.trim();
-    if (!trimmed) return false;
-    if (trimmed.toUpperCase() === 'E') return true;
-    const parsed = Number(trimmed);
-    return Number.isFinite(parsed) && parsed >= 0;
-  };
 
   const buildConfirmOptions = (
     overrides: Partial<PurchaseConfirmOptions> & { cost: number }
@@ -173,7 +165,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
     } else if (!hasResourceCost && parsedCost > 0 && parsedCost > gangCredits) {
       setCreditError(`Not enough credits. Gang Credits: ${gangCredits}`);
       return false;
-    } else if (showTradePoints && !isValidTradePointsInput(manualTradePoints)) {
+    } else if (showTradePoints && !isValidTradePoints(manualTradePoints)) {
       setCreditError('Trade Points must be a non-negative number or E');
       return false;
     } else if (showTradePoints && tradePointsCost > 0 && tradePointsCost > availableTradePoints) {

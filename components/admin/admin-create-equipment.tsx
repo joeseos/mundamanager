@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { WeaponProfileInput, EquipmentAvailability, GangAdjustedCost, emptyWeaponProfile } from "@/types/equipment";
 import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
 import { hasLethalityStatline, hasTradePoints } from '@/types/edition';
+import { isValidTradePoints } from '@/utils/campaigns/resources';
 import { WeaponProfileFields } from '@/components/ui/weapon-profile-fields';
 import { HiX } from "react-icons/hi";
 import { LuTrash2 } from 'react-icons/lu'
@@ -145,12 +146,9 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
       return;
     }
 
-    if (showTradePoints) {
-      const trimmedTp = tradePoints.trim();
-      if (!trimmedTp || !/^(E|\d+)$/i.test(trimmedTp)) {
-        toast.error("Trade Points must be a number or E");
-        return;
-      }
+    if (showTradePoints && !isValidTradePoints(tradePoints)) {
+      toast.error("Trade Points must be a number or E");
+      return;
     }
 
     setIsLoading(true);

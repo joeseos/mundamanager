@@ -16,6 +16,7 @@ import { gangVariantRank } from "@/utils/gangVariantRank";
 import { AdminFighterEffects } from "./admin-fighter-effects";
 import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
 import { hasLethalityStatline, hasTradePoints } from '@/types/edition';
+import { isValidTradePoints } from '@/utils/campaigns/resources';
 import { WeaponProfileFields } from '@/components/ui/weapon-profile-fields';
 import { AdminTradingPost } from "./admin-trading-post";
 import { LuTrash2 } from 'react-icons/lu';
@@ -387,12 +388,9 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       return;
     }
 
-    if (showTradePoints) {
-      const trimmedTp = tradePoints.trim();
-      if (!trimmedTp || !/^(E|\d+)$/i.test(trimmedTp)) {
-        toast.error("Trade Points must be a number or E");
-        return;
-      }
+    if (showTradePoints && !isValidTradePoints(tradePoints)) {
+      toast.error("Trade Points must be a number or E");
+      return;
     }
 
     setIsSubmitting(true);

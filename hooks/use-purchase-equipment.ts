@@ -141,7 +141,7 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
       const newGangCredits = data.updategangsCollection?.records?.[0]?.credits;
       const newGangRating = data.updategangsCollection?.records?.[0]?.rating;
       const newGangWealth = data.updategangsCollection?.records?.[0]?.wealth;
-      const newGangTradePoints = data.newGangTradePoints ?? data.updategangsCollection?.records?.[0]?.trade_points;
+      const newGangTradePoints = data.updategangsCollection?.records?.[0]?.trade_points;
 
       const equipmentRecord = data.insertIntofighter_equipmentCollection?.records?.[0];
       if (!equipmentRecord) throw new Error('Failed to get equipment ID from response');

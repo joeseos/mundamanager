@@ -2,11 +2,12 @@ import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
 import { WeaponProfileInput, EquipmentAvailability, EquipmentOriginAvailability, EquipmentVariantAvailability, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
-import { 
-  FighterEffectType, 
-  FighterEffectTypeModifier, 
-  FighterEffectCategory 
+import {
+  FighterEffectType,
+  FighterEffectTypeModifier,
+  FighterEffectCategory
 } from "@/types/fighter-effect";
+import { isValidTradePoints } from "@/utils/campaigns/resources";
 
 interface FighterTypeEquipment {
   fighter_type_id: string;
@@ -19,7 +20,7 @@ function normalizeAdminTradePoints(value: unknown): { ok: true; value: string } 
     return { ok: true, value: '0' };
   }
   const trimmed = String(value).trim().toUpperCase();
-  if (!/^(E|\d+)$/.test(trimmed)) {
+  if (!isValidTradePoints(trimmed)) {
     return { ok: false, error: 'Trade Points must be a non-negative integer or E' };
   }
   return { ok: true, value: trimmed };
