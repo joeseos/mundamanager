@@ -90,8 +90,8 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     fighter_classes,
     fighter_type,
     fighter_type_id,
-    fighter_sub_type,
-    fighter_sub_type_id,
+    fighter_specialisation,
+    fighter_specialisation_id,
     xp_to_add, 
     operation, 
     note, 
@@ -216,11 +216,11 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       return NextResponse.json(updatedFighter);
     }
 
-    // If updating fighter data including type, sub-type, etc.
+    // If updating fighter data including type, specialisation, etc.
     if (fighter_name !== undefined || label !== undefined || kills !== undefined ||
         cost_adjustment !== undefined || note !== undefined || fighter_classes !== undefined ||
         special_rules !== undefined || fighter_type !== undefined || fighter_type_id !== undefined ||
-        fighter_sub_type !== undefined || fighter_sub_type_id !== undefined) {
+        fighter_specialisation !== undefined || fighter_specialisation_id !== undefined) {
       
       const updateData: Record<string, any> = {
         updated_at: new Date().toISOString()
@@ -241,10 +241,10 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       if (fighter_type_id !== undefined) {
         updateData.fighter_type_id = fighter_type_id === "" ? null : fighter_type_id;
       }
-      if (fighter_sub_type_id !== undefined) {
-        updateData.fighter_sub_type_id = fighter_sub_type_id === "" ? null : fighter_sub_type_id;
+      if (fighter_specialisation_id !== undefined) {
+        updateData.fighter_specialisation_id = fighter_specialisation_id === "" ? null : fighter_specialisation_id;
       }
-      if (fighter_sub_type !== undefined) updateData.fighter_sub_type = fighter_sub_type;
+      if (fighter_specialisation !== undefined) updateData.fighter_specialisation = fighter_specialisation;
 
       const { data: updatedFighter, error: fighterUpdateError } = await supabase
         .from("fighters")
@@ -255,26 +255,26 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
       if (fighterUpdateError) throw fighterUpdateError;
 
-      // Fetch the joined sub_type for nested response
+      // Fetch the joined specialisation for nested response
       const { data: joinedFighter, error: joinError } = await supabase
         .from('fighters')
-        .select(`*, fighter_sub_types: fighter_sub_type_id (id, sub_type_name)`)
+        .select(`*, fighter_specialisations: fighter_specialisation_id (id, specialisation_name)`)
         .eq('id', params.id)
         .single();
 
       if (joinError) throw joinError;
 
-      // Normalize the sub_type as nested
+      // Normalize the specialisation as nested
       const nestedFighter = {
         ...joinedFighter,
-        fighter_sub_type: joinedFighter.fighter_sub_types
+        fighter_specialisation: joinedFighter.fighter_specialisations
           ? {
-              fighter_sub_type: joinedFighter.fighter_sub_types.sub_type_name,
-              fighter_sub_type_id: joinedFighter.fighter_sub_types.id
+              fighter_specialisation: joinedFighter.fighter_specialisations.specialisation_name,
+              fighter_specialisation_id: joinedFighter.fighter_specialisations.id
             }
           : null
       };
-      delete nestedFighter.fighter_sub_types;
+      delete nestedFighter.fighter_specialisations;
 
       return NextResponse.json(nestedFighter);
     }

@@ -1797,7 +1797,7 @@ type PricingRuleFighterType = {
   fighter_classes: string[];
   gang_type?: string;
   gang_type_id?: string;
-  sub_type?: { id?: string; sub_type_name?: string } | null;
+  specialisation?: { id?: string; specialisation_name?: string } | null;
 };
 
 function getPricingRuleFighterTypeClassKey(ft: PricingRuleFighterType): string {
@@ -1824,8 +1824,8 @@ function formatPricingRuleFighterTypeLabel(
   const fighterClass = ft.fighter_classes.join(', ') || 'Unknown';
   const base = `${ft.fighter_type} (${fighterClass})`;
   if (!multiProfileKeys.has(getPricingRuleFighterTypeClassKey(ft))) return base;
-  if (!ft.sub_type?.sub_type_name) return base;
-  return `${base} - ${ft.sub_type.sub_type_name}`;
+  if (!ft.specialisation?.specialisation_name) return base;
+  return `${base} - ${ft.specialisation.specialisation_name}`;
 }
 
 function AddPricingRuleModal({

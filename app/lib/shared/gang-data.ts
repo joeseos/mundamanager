@@ -128,9 +128,9 @@ export interface GangFighter {
   label?: string;
   fighter_type: string;
   fighter_classes: string[];
-  fighter_sub_type?: {
-    fighter_sub_type: string;
-    fighter_sub_type_id: string;
+  fighter_specialisation?: {
+    fighter_specialisation: string;
+    fighter_specialisation_id: string;
   };
   alliance_crew_name?: string;
   position?: string;
@@ -925,7 +925,7 @@ export const getGangBeastCount = async (gangId: string, supabase: any): Promise<
  * Get all fighters in a gang with complete data (BATCHED QUERIES)
  *
  * Uses batched database queries to minimize round trips:
- * - Single query for all fighters with joins for types/sub-types
+ * - Single query for all fighters with joins for types/specialisations
  * - Batch query for all equipment (WHERE fighter_id IN (...))
  * - Batch query for all skills
  * - Batch query for all effects
@@ -984,7 +984,7 @@ export const getGangFightersList = async (
             fighter_type_id,
             name
           ),
-          fighter_sub_type_id,
+          fighter_specialisation_id,
           killed,
           starved,
           retired,
@@ -1009,9 +1009,9 @@ export const getGangFightersList = async (
               slug
             )
           ),
-          fighter_sub_types!fighter_sub_type_id (
+          fighter_specialisations!fighter_specialisation_id (
             id,
-            sub_type_name
+            specialisation_name
           )
         `)
         .eq('gang_id', gangId);
@@ -1953,7 +1953,7 @@ export const getGangFightersList = async (
 
         // Get fighter type info from the join
         const fighterTypeInfo = fighter.fighter_types || {};
-        const fighterSubTypeInfo = fighter.fighter_sub_types || null;
+        const fighterSpecialisationInfo = fighter.fighter_specialisations || null;
 
         // Calculate loadout cost for display: base cost + loadout equipment + skills + effects
         // This shows what the fighter costs with the current loadout
@@ -1985,9 +1985,9 @@ export const getGangFightersList = async (
           label: fighter.label,
           fighter_type: fighter.fighter_type || fighterTypeInfo.fighter_type || 'Unknown',
           fighter_classes: fighter.fighter_classes || [],
-          fighter_sub_type: fighterSubTypeInfo ? {
-            fighter_sub_type: fighterSubTypeInfo.sub_type_name,
-            fighter_sub_type_id: fighterSubTypeInfo.id
+          fighter_specialisation: fighterSpecialisationInfo ? {
+            fighter_specialisation: fighterSpecialisationInfo.specialisation_name,
+            fighter_specialisation_id: fighterSpecialisationInfo.id
           } : undefined,
           alliance_crew_name: fighterTypeInfo.alliance_crew_name,
           is_spyrer: fighterTypeInfo.is_spyrer ?? false,

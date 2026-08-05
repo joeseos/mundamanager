@@ -59,9 +59,9 @@ interface Fighter {
     gang_type_id?: string | null;
     custom_gang_type_id?: string | null;
   };
-  fighter_sub_type?: {
-    fighter_sub_type: string;
-    fighter_sub_type_id: string;
+  fighter_specialisation?: {
+    fighter_specialisation: string;
+    fighter_specialisation_id: string;
   };
   fighter_classes: string[];
   alliance_crew_name?: string;
@@ -327,9 +327,9 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
         gang_type_id: fighterData.fighter.fighter_type.gang_type_id ?? null,
         custom_gang_type_id: fighterData.fighter.fighter_type.custom_gang_type_id ?? null,
       },
-      fighter_sub_type: fighterData.fighter.fighter_sub_type ? {
-        fighter_sub_type: fighterData.fighter.fighter_sub_type.fighter_sub_type,
-        fighter_sub_type_id: fighterData.fighter.fighter_sub_type.id
+      fighter_specialisation: fighterData.fighter.fighter_specialisation ? {
+        fighter_specialisation: fighterData.fighter.fighter_specialisation.fighter_specialisation,
+        fighter_specialisation_id: fighterData.fighter.fighter_specialisation.id
       } : undefined,
       base_credits: baseCost,
       base_copy_cost: baseCopyCost,
@@ -637,7 +637,7 @@ export default function FighterPage({
             id={fighterData.fighter?.id || ''}
             name={fighterData.fighter?.fighter_name || ''}
             type={fighterData.fighter?.fighter_type?.fighter_type || ''}
-            sub_type={fighterData.fighter?.fighter_sub_type}
+            specialisation={fighterData.fighter?.fighter_specialisation}
             label={fighterData.fighter?.label}
             alliance_crew_name={fighterData.fighter?.alliance_crew_name || ''}
             credits={fighterData.fighter?.credits || 0}
@@ -827,7 +827,7 @@ export default function FighterPage({
             fighterSpecialRules={fighterData.fighter?.special_rules || []}
             fighterTypeName={fighterData.fighter?.fighter_type?.fighter_type || ''}
             fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
-            fighterSubTypeId={fighterData.fighter?.fighter_sub_type?.fighter_sub_type_id || ''}
+            fighterSpecialisationId={fighterData.fighter?.fighter_specialisation?.fighter_specialisation_id || ''}
             onFighterDetailsUpdate={(patch) => {
               setFighterData((prev) => ({
                 ...prev,
@@ -845,15 +845,15 @@ export default function FighterPage({
                               custom_gang_type_id: prev.fighter.fighter_type?.custom_gang_type_id ?? null,
                             }
                           : prev.fighter.fighter_type,
-                      fighter_sub_type:
-                        patch.fighter_sub_type !== undefined || patch.fighter_sub_type_id !== undefined
-                          ? patch.fighter_sub_type_id
+                      fighter_specialisation:
+                        patch.fighter_specialisation !== undefined || patch.fighter_specialisation_id !== undefined
+                          ? patch.fighter_specialisation_id
                             ? {
-                                fighter_sub_type: patch.fighter_sub_type ?? '',
-                                fighter_sub_type_id: patch.fighter_sub_type_id,
+                                fighter_specialisation: patch.fighter_specialisation ?? '',
+                                fighter_specialisation_id: patch.fighter_specialisation_id,
                               }
                             : undefined
-                          : prev.fighter.fighter_sub_type
+                          : prev.fighter.fighter_specialisation
                     }
                   : null
               }));
@@ -1296,7 +1296,7 @@ export default function FighterPage({
                     ...optimistic,
                     // Ensure type shape matches `Fighter` interface
                     fighter_type: optimistic?.fighter_type ? (optimistic.fighter_type as any) : prev.fighter.fighter_type,
-                    fighter_sub_type: optimistic?.fighter_sub_type ? (optimistic.fighter_sub_type as any) : prev.fighter.fighter_sub_type,
+                    fighter_specialisation: optimistic?.fighter_specialisation ? (optimistic.fighter_specialisation as any) : prev.fighter.fighter_specialisation,
                     // Optimistically adjust credits if cost_adjustment changes
                     credits: (() => {
                       const newAdj = (optimistic as any)?.cost_adjustment;

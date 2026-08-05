@@ -32,7 +32,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       getFighterVehicles,
       getFighterOwnedBeastsCost,
       getFighterTypeInfo,
-      getFighterSubTypeInfo,
+      getFighterSpecialisationInfo,
       getFighterOwnedBeastsData,
       getFighterOwnershipInfo,
       getFighterLoadouts
@@ -63,7 +63,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       vehicles,
       beastCosts,
       fighterTypeData,
-      fighterSubTypeData,
+      fighterSpecialisationData,
       gangCampaigns,
       beastDataResult,
       ownershipDataResult,
@@ -82,8 +82,8 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       getFighterOwnedBeastsCost(id, supabase),
       // Fighter type data (using cached helpers)
       getFighterTypeInfo(fighterBasic.fighter_type_id, supabase),
-      fighterBasic.fighter_sub_type_id ?
-        getFighterSubTypeInfo(fighterBasic.fighter_sub_type_id, supabase) :
+      fighterBasic.fighter_specialisation_id ?
+        getFighterSpecialisationInfo(fighterBasic.fighter_specialisation_id, supabase) :
         Promise.resolve(null),
       // Campaign data (gang-level cache using COMPOSITE_GANG_CAMPAIGNS)
       getGangCampaigns(fighterBasic.gang_id, supabase),
@@ -293,10 +293,10 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
             || gangBasic.custom_gang_type_id
             || null,
         },
-        fighter_sub_type: fighterSubTypeData ? {
-          id: fighterSubTypeData.fighter_sub_type_id,
-          sub_type_name: fighterSubTypeData.fighter_sub_type,
-          fighter_sub_type: fighterSubTypeData.fighter_sub_type
+        fighter_specialisation: fighterSpecialisationData ? {
+          id: fighterSpecialisationData.fighter_specialisation_id,
+          specialisation_name: fighterSpecialisationData.fighter_specialisation,
+          fighter_specialisation: fighterSpecialisationData.fighter_specialisation
         } : undefined,
         skills,
         effects,

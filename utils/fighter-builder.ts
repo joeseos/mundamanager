@@ -84,7 +84,7 @@ export interface AddFighterServerData {
   fighter_name: string;
   fighter_type: string;
   fighter_classes?: string[];
-  fighter_sub_type_id?: string;
+  fighter_specialisation_id?: string;
   free_skill: boolean;
   rating_cost?: number;
   cost: number;
@@ -248,7 +248,7 @@ function buildEffectsFromAppliedEffects(
 export function buildFighterFromServerData(
   data: AddFighterServerData,
   fighterTypeId: string,
-  subTypeName?: string
+  specialisationName?: string
 ): FighterProps {
   const displayCost = data.rating_cost ?? data.cost;
 
@@ -258,9 +258,9 @@ export function buildFighterFromServerData(
     fighter_type_id: fighterTypeId,
     fighter_type: data.fighter_type,
     fighter_classes: data.fighter_classes ?? [],
-    fighter_sub_type: data.fighter_sub_type_id ? {
-      fighter_sub_type_id: data.fighter_sub_type_id,
-      fighter_sub_type: subTypeName || ''
+    fighter_specialisation: data.fighter_specialisation_id ? {
+      fighter_specialisation_id: data.fighter_specialisation_id,
+      fighter_specialisation: specialisationName || ''
     } : undefined,
     credits: displayCost,
     movement: data.base_stats.movement,

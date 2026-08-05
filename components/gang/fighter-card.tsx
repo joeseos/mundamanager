@@ -38,7 +38,7 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   name: string;  // maps to fighter_name
   type: string;  // maps to fighter_type
   label?: string;
-  fighter_sub_type?: { fighter_sub_type: string; fighter_sub_type_id: string } | null;
+  fighter_specialisation?: { fighter_specialisation: string; fighter_specialisation_id: string } | null;
   alliance_crew_name?: string;
   killed?: boolean;
   retired?: boolean;
@@ -133,7 +133,7 @@ const FighterCard = memo(function FighterCard({
   type,
   label,
   fighter_classes,
-  fighter_sub_type,
+  fighter_specialisation,
   alliance_crew_name,
   credits,
   loadout_cost,
@@ -326,7 +326,7 @@ const FighterCard = memo(function FighterCard({
       fighter_name: name,
       fighter_type: type,
       fighter_classes,
-      fighter_sub_type,
+      fighter_specialisation,
       credits,
       movement,
       weapon_skill,
@@ -394,7 +394,7 @@ const FighterCard = memo(function FighterCard({
       }
     };
   }, [
-    id, name, type, fighter_classes, fighter_sub_type, credits, movement, weapon_skill,
+    id, name, type, fighter_classes, fighter_specialisation, credits, movement, weapon_skill,
     ballistic_skill, strength, toughness, wounds, initiative,
     attacks, leadership, cool, willpower, intelligence, save, xp,
     kills, advancements, weapons, wargear, special_rules, effects, skills
@@ -591,7 +591,7 @@ const FighterCard = memo(function FighterCard({
                   {type}
                   {alliance_crew_name && ` - ${alliance_crew_name}`}
                   {fighter_classes?.join(', ') && ` (${fighter_classes.join(', ')})`}
-                  {fighter_sub_type && fighter_sub_type.fighter_sub_type ? `, ${fighter_sub_type.fighter_sub_type}` : ''}
+                  {fighter_specialisation && fighter_specialisation.fighter_specialisation ? `, ${fighter_specialisation.fighter_specialisation}` : ''}
                 </div>
               </div>
             </div>

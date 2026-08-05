@@ -57,7 +57,7 @@ interface AddFighterResult {
     fighter_name: string;
     fighter_type: string;
     fighter_classes: string[];
-    fighter_sub_type_id?: string;
+    fighter_specialisation_id?: string;
     free_skill: boolean;
     cost: number;
     rating_cost: number;
@@ -478,10 +478,10 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     if (isCustomFighter) {
       fighterInsertData.custom_fighter_type_id = params.fighter_type_id;
       fighterInsertData.fighter_type_id = null;
-      fighterInsertData.fighter_sub_type_id = null;
+      fighterInsertData.fighter_specialisation_id = null;
     } else {
       fighterInsertData.fighter_type_id = params.fighter_type_id;
-      fighterInsertData.fighter_sub_type_id = fighterTypeData.fighter_sub_type_id;
+      fighterInsertData.fighter_specialisation_id = fighterTypeData.fighter_specialisation_id;
       fighterInsertData.custom_fighter_type_id = null;
     }
 
@@ -1200,7 +1200,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         fighter_name: insertedFighter.fighter_name,
         fighter_type: effectiveFighterData.fighter_type,
         fighter_classes: effectiveFighterData.fighter_classes?.length ? effectiveFighterData.fighter_classes : ['Custom'],
-        fighter_sub_type_id: isCustomFighter ? null : fighterTypeData.fighter_sub_type_id,
+        fighter_specialisation_id: isCustomFighter ? null : fighterTypeData.fighter_specialisation_id,
         free_skill: effectiveFighterData.free_skill || false,
         cost: fighterCost,
         rating_cost: ratingCost,

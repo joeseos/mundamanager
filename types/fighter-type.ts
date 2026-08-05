@@ -80,11 +80,11 @@ export interface FighterType {
   alliance_id: string;
   alliance_crew_name: string;
   equipment_selection?: EquipmentSelection;
-  sub_type?: {
+  specialisation?: {
     id: string;
-    sub_type_name: string;
+    specialisation_name: string;
   };
-  fighter_sub_type_id?: string;
+  fighter_specialisation_id?: string;
   available_legacies?: Array<{id: string, name: string}>;
   is_spyrer?: boolean;
   free_skill?: boolean;

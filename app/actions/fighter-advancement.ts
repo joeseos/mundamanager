@@ -70,8 +70,8 @@ export interface PromotionWithSkillAdvancementParams {
     fighter_type_id: string;
     fighter_classes: string[];
     special_rules: string[];
-    fighter_sub_type?: string | null;
-    fighter_sub_type_id?: string | null;
+    fighter_specialisation?: string | null;
+    fighter_specialisation_id?: string | null;
   };
 }
 
@@ -567,7 +567,7 @@ export async function applyPromotionWithSkillAdvancement(
     const supabase = await createClient();
     const { data: before, error: beforeError } = await supabase
       .from('fighters')
-      .select('fighter_classes, fighter_type, fighter_type_id, fighter_sub_type, fighter_sub_type_id, special_rules')
+      .select('fighter_classes, fighter_type, fighter_type_id, fighter_specialisation, fighter_specialisation_id, special_rules')
       .eq('id', params.fighter_id)
       .single();
 
@@ -580,8 +580,8 @@ export async function applyPromotionWithSkillAdvancement(
       fighter_classes: params.promotion.fighter_classes,
       fighter_type: params.promotion.fighter_type,
       fighter_type_id: params.promotion.fighter_type_id,
-      fighter_sub_type: params.promotion.fighter_sub_type ?? null,
-      fighter_sub_type_id: params.promotion.fighter_sub_type_id ?? null,
+      fighter_specialisation: params.promotion.fighter_specialisation ?? null,
+      fighter_specialisation_id: params.promotion.fighter_specialisation_id ?? null,
       special_rules: params.promotion.special_rules
     });
 
@@ -603,8 +603,8 @@ export async function applyPromotionWithSkillAdvancement(
         fighter_classes: before.fighter_classes ?? undefined,
         fighter_type: before.fighter_type ?? undefined,
         fighter_type_id: before.fighter_type_id ?? undefined,
-        fighter_sub_type: before.fighter_sub_type ?? null,
-        fighter_sub_type_id: before.fighter_sub_type_id ?? null,
+        fighter_specialisation: before.fighter_specialisation ?? null,
+        fighter_specialisation_id: before.fighter_specialisation_id ?? null,
         special_rules: before.special_rules ?? []
       });
 
