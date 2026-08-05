@@ -114,37 +114,32 @@ export async function updateGangFinancials(
       trade_points: currentTradePoints
     };
 
-    const { error: updateError } = await supabase
+    // Return the updated row from the UPDATE itself rather than re-reading it: one
+    // statement instead of two, and the values are guaranteed to be the ones this
+    // update wrote rather than whatever a concurrent writer left behind.
+    const { data: updatedGangRow, error: updateError } = await supabase
       .from('gangs')
       .update(expectedValues)
-      .eq('id', gangId);
+      .eq('id', gangId)
+      .select('credits, rating, wealth, trade_points')
+      .single();
 
     if (updateError) {
       return { success: false, error: updateError.message };
-    }
-
-    // Fetch new values after update
-    const { data: updatedGangRow, error: fetchError } = await supabase
-      .from('gangs')
-      .select('credits, rating, wealth, trade_points')
-      .eq('id', gangId)
-      .single();
-
-    if (fetchError) {
-      // Update succeeded but fetch failed - calculate expected values
-      return { success: true, oldValues, newValues: expectedValues };
     }
 
     invalidateGangFinancials(gangId);
     return {
       success: true,
       oldValues,
-      newValues: {
-        credits: (updatedGangRow.credits ?? 0) as number,
-        rating: (updatedGangRow.rating ?? 0) as number,
-        wealth: (updatedGangRow.wealth ?? 0) as number,
-        trade_points: (updatedGangRow.trade_points ?? 0) as number
-      }
+      newValues: updatedGangRow
+        ? {
+            credits: (updatedGangRow.credits ?? 0) as number,
+            rating: (updatedGangRow.rating ?? 0) as number,
+            wealth: (updatedGangRow.wealth ?? 0) as number,
+            trade_points: (updatedGangRow.trade_points ?? 0) as number
+          }
+        : expectedValues
     };
   } catch (e) {
     const errorMessage = e instanceof Error ? e.message : 'Unknown error';
