@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,10 +9,16 @@ import { AvailabilityPicker, combineAvailability } from '@/components/ui/availab
 import { toast } from 'sonner';
 import { WeaponProfileInput, EquipmentAvailability, GangAdjustedCost, emptyWeaponProfile } from "@/types/equipment";
 import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
-import { hasLethalityStatline } from '@/types/edition';
+import { hasLethalityStatline, hasTradePoints } from '@/types/edition';
 import { WeaponProfileFields } from '@/components/ui/weapon-profile-fields';
 import { HiX } from "react-icons/hi";
 import { LuTrash2 } from 'react-icons/lu'
+
+interface EquipmentCategory {
+  id: string;
+  category_name: string;
+  edition_id?: string | null;
+}
 
 interface AdminCreateEquipmentModalProps {
   onClose: () => void;
@@ -28,6 +34,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   const [availLetter, setAvailLetter] = useState<'C' | 'R' | 'E' | 'I' | 'S'>('C');
   const [availNumber, setAvailNumber] = useState(6);
   const [cost, setCost] = useState('');
+  const [tradePoints, setTradePoints] = useState('0');
   const [variants] = useState('');
   const [equipmentCategory, setEquipmentCategory] = useState('');
   const [equipmentType, setEquipmentType] = useState<EquipmentType | ''>('');
@@ -49,7 +56,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   
   
 
-  const { data: categories = [] } = useQuery<Array<{id: string, category_name: string}>>({
+  const { data: categories = [] } = useQuery<EquipmentCategory[]>({
     queryKey: ['admin-equipment-categories'],
     queryFn: async () => {
       const response = await fetch('/api/admin/equipment/categories');
@@ -58,6 +65,38 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
     },
     staleTime: 5 * 60 * 1000,
   });
+
+  const filteredCategories = useMemo(
+    () => editionId ? categories.filter(category => category.edition_id === editionId) : categories,
+    [categories, editionId]
+  );
+
+  const { data: editions = [] } = useEditions();
+  const editionSlug = editionSlugOf(editions, editionId);
+  const showTradePoints = hasTradePoints(editionSlug);
+  const showAvailability = !showTradePoints;
+  // N26 weapons are described with SR/LR/Str/AP/Lethality; N23 with Rng, Acc,
+  // Str, AP, D and Am. Only the stats the selected edition uses are offered.
+  const usesLethality = hasLethalityStatline(editionSlug);
+
+  const handleEditionChange = (newEditionId: string) => {
+    setEditionId(newEditionId);
+    if (equipmentCategory) {
+      const selected = categories.find(category => category.id === equipmentCategory);
+      if (selected && newEditionId && selected.edition_id !== newEditionId) {
+        setEquipmentCategory('');
+      }
+    }
+    // Stats the new edition does not use are no longer rendered, but anything
+    // already typed would stay in state and still be submitted -- an N26 weapon
+    // saved with a Damage and an Accuracy. Blank them on the way across.
+    const nowUsesLethality = hasLethalityStatline(editionSlugOf(editions, newEditionId));
+    setWeaponProfiles(profiles => profiles.map(profile => (
+      nowUsesLethality
+        ? { ...profile, acc_short: '', acc_long: '', damage: '', ammo: '' }
+        : { ...profile, lethality: '' }
+    )));
+  };
 
   const { data: weapons = [] } = useQuery<Array<{id: string, equipment_name: string}>>({
     queryKey: ['admin-weapons'],
@@ -81,24 +120,6 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
     staleTime: 5 * 60 * 1000,
   });
 
-  // N26 weapons are described with SR/LR/Str/AP/Lethality; N23 with Rng, Acc,
-  // Str, AP, D and Am. Only the stats the selected edition uses are offered.
-  const { data: editions = [] } = useEditions();
-  const usesLethality = hasLethalityStatline(editionSlugOf(editions, editionId));
-
-  const handleEditionChange = (newEditionId: string) => {
-    setEditionId(newEditionId);
-    // Stats the new edition does not use are no longer rendered, but anything
-    // already typed would stay in state and still be submitted -- an N26 weapon
-    // saved with a Damage and an Accuracy. Blank them on the way across.
-    const nowUsesLethality = hasLethalityStatline(editionSlugOf(editions, newEditionId));
-    setWeaponProfiles(profiles => profiles.map(profile => (
-      nowUsesLethality
-        ? { ...profile, acc_short: '', acc_long: '', damage: '', ammo: '' }
-        : { ...profile, lethality: '' }
-    )));
-  };
-
   const handleProfileChange = (index: number, field: keyof WeaponProfileInput, value: string | number | boolean) => {
     const newProfiles = [...weaponProfiles];
     newProfiles[index] = {
@@ -120,6 +141,11 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
 
   const handleSubmit = async () => {
     if (!equipmentName || !cost || !equipmentCategory || !equipmentType) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    if (showTradePoints && tradePoints === '') {
       toast.error("Please fill in all required fields");
       return;
     }
@@ -150,8 +176,12 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         },
         body: JSON.stringify({
           equipment_name: equipmentName,
-          availability: combineAvailability(availLetter, availNumber),
+          // N26 has no Availability UI; column is NOT NULL so send a safe default.
+          availability: showAvailability
+            ? combineAvailability(availLetter, availNumber)
+            : 'C',
           cost: parseInt(cost),
+          trade_points: showTradePoints ? Number(tradePoints) : 0,
           variants: variants || null,
           equipment_category_id: equipmentCategory,
           equipment_type: equipmentType,
@@ -239,7 +269,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                 className="w-full p-2 border rounded-md"
               >
                 <option value="">Select category</option>
-                {categories.map((category) => (
+                {filteredCategories.map((category) => (
                   <option key={category.id} value={category.id}>
                     {category.category_name}
                   </option>
@@ -290,13 +320,32 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
               />
             </div>
 
-            <AvailabilityPicker
-              label="Availability (TP default) *"
-              letter={availLetter}
-              number={availNumber}
-              onLetterChange={(v) => setAvailLetter(v as 'C' | 'R' | 'E' | 'I' | 'S')}
-              onNumberChange={setAvailNumber}
-            />
+            {showAvailability && (
+              <AvailabilityPicker
+                label="Availability (TP default) *"
+                letter={availLetter}
+                number={availNumber}
+                onLetterChange={(v) => setAvailLetter(v as 'C' | 'R' | 'E' | 'I' | 'S')}
+                onNumberChange={setAvailNumber}
+              />
+            )}
+
+            {showTradePoints && (
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
+                  Trade Points *
+                </label>
+                <Input
+                  type="number"
+                  value={tradePoints}
+                  onChange={(e) => setTradePoints(e.target.value)}
+                  placeholder="E.g. 2"
+                  className="w-full"
+                  min="0"
+                  step="any"
+                />
+              </div>
+            )}
 
             {equipmentType && equipmentType !== 'vehicle_upgrade' ? (
               <div className="col-span-1">

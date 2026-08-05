@@ -90,6 +90,7 @@ export async function GET(request: Request) {
           fighter_type,
           gang_type_id,
           gang_type,
+          edition_id,
           fighter_classes,
           fighter_sub_type_id,
           cost,

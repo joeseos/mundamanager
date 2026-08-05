@@ -949,675 +949,6 @@ $$;
 
 
 --
--- Name: get_add_fighter_details(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.get_add_fighter_details(p_gang_type_id uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid) RETURNS TABLE(id uuid, fighter_type text, fighter_class text, fighter_class_id uuid, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, limitation numeric, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, sub_type jsonb, available_legacies jsonb, free_skill boolean, delegation_cost numeric)
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-BEGIN
-    RETURN QUERY
-    SELECT 
-        ft.id,
-        ft.fighter_type,
-        fc.class_name,
-        ft.fighter_class_id,  -- Added fighter_class_id field
-        ft.gang_type,
-        COALESCE(ftgc.adjusted_cost, ft.cost) as cost,
-        ft.gang_type_id,
-        ft.special_rules::text[],
-        ft.movement,
-        ft.weapon_skill,
-        ft.ballistic_skill,
-        ft.strength,
-        ft.toughness,
-        ft.wounds,
-        ft.initiative,
-        ft.leadership,
-        ft.cool,
-        ft.willpower,
-        ft.intelligence,
-        ft.attacks,
-        ft.limitation,
-        COALESCE(
-            (
-                SELECT jsonb_agg(
-                    jsonb_build_object(
-                        'id', e.id,
-                        'equipment_name', e.equipment_name,
-                        'equipment_type', e.equipment_type,
-                        'equipment_category', e.equipment_category,
-                        'cost', 0,  -- Always show 0 for default equipment
-                        'availability', e.availability,
-                        'is_editable', COALESCE(e.is_editable, false),
-                        'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END
-                    )
-                )
-                FROM fighter_defaults fd
-                JOIN equipment e ON e.id = fd.equipment_id
-                WHERE fd.fighter_type_id = ft.id
-            ),
-            '[]'::jsonb
-        ) AS default_equipment,
-        (
-            SELECT 
-                CASE 
-                    WHEN fes.equipment_selection IS NOT NULL THEN
-                        jsonb_build_object(
-                            'single', jsonb_build_object(
-                                'wargear', COALESCE(
-                                    CASE 
-                                        WHEN jsonb_typeof(fes.equipment_selection->'single'->'wargear') = 'array' 
-                                             AND jsonb_array_length(fes.equipment_selection->'single'->'wargear') > 0
-                                             AND jsonb_typeof(fes.equipment_selection->'single'->'wargear'->0) = 'array'
-                                        THEN (
-                                            SELECT jsonb_agg(
-                                                (
-                                                    SELECT jsonb_agg(
-                                                        jsonb_build_object(
-                                                            'id', (item_data->>'id')::uuid,
-                                                            'equipment_name', e.equipment_name,
-                                                            'equipment_type', e.equipment_type,
-                                                            'equipment_category', e.equipment_category,
-                                                            'cost', (item_data->>'cost')::numeric,
-                                                            'quantity', (item_data->>'quantity')::integer,
-                                                            'is_default', (item_data->>'is_default')::boolean,
-                                                            'is_editable', COALESCE(e.is_editable, false),
-                                                            'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
-                                                            'replacement_mode', item_data->>'replacement_mode',
-                                                            'replacements', COALESCE(
-                                                                (
-                                                                    SELECT jsonb_agg(
-                                                                        jsonb_build_object(
-                                                                            'id', (repl->>'id')::uuid,
-                                                                            'equipment_name', re.equipment_name,
-                                                                            'equipment_type', re.equipment_type,
-                                                                            'equipment_category', re.equipment_category,
-                                                                            'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer,
-                                                                            'is_editable', COALESCE(re.is_editable, false)
-                                                                        )
-                                                                    )
-                                                                    FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                                    LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                                    WHERE re.id IS NOT NULL
-                                                                ),
-                                                                '[]'::jsonb
-                                                            )
-                                                        )
-                                                    )
-                                                    FROM jsonb_array_elements(group_data) AS item_data
-                                                    LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                                    WHERE e.id IS NOT NULL
-                                                )
-                                            )
-                                            FROM jsonb_array_elements(fes.equipment_selection->'single'->'wargear') AS group_data
-                                            WHERE jsonb_array_length(group_data) > 0
-                                        )
-                                        ELSE (
-                                            SELECT CASE 
-                                                WHEN COUNT(*) > 0 THEN jsonb_build_array(jsonb_agg(
-                                                    jsonb_build_object(
-                                                        'id', (item_data->>'id')::uuid,
-                                                        'equipment_name', e.equipment_name,
-                                                        'equipment_type', e.equipment_type,
-                                                        'equipment_category', e.equipment_category,
-                                                        'cost', (item_data->>'cost')::numeric,
-                                                        'quantity', (item_data->>'quantity')::integer,
-                                                        'is_default', (item_data->>'is_default')::boolean,
-                                                        'is_editable', COALESCE(e.is_editable, false),
-                                                        'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
-                                                        'replacement_mode', item_data->>'replacement_mode',
-                                                        'replacements', COALESCE(
-                                                            (
-                                                                SELECT jsonb_agg(
-                                                                    jsonb_build_object(
-                                                                        'id', (repl->>'id')::uuid,
-                                                                        'equipment_name', re.equipment_name,
-                                                                        'equipment_type', re.equipment_type,
-                                                                        'equipment_category', re.equipment_category,
-                                                                        'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer,
-                                                                        'is_editable', COALESCE(re.is_editable, false)
-                                                                    )
-                                                                )
-                                                                FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                                LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                                WHERE re.id IS NOT NULL
-                                                            ),
-                                                            '[]'::jsonb
-                                                        )
-                                                    )
-                                                ))
-                                                ELSE '[]'::jsonb
-                                            END
-                                            FROM jsonb_array_elements(fes.equipment_selection->'single'->'wargear') AS item_data
-                                            LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                            WHERE e.id IS NOT NULL
-                                        )
-                                    END,
-                                    '[]'::jsonb
-                                ),
-                                'weapons', COALESCE(
-                                    CASE 
-                                        WHEN jsonb_typeof(fes.equipment_selection->'single'->'weapons') = 'array' 
-                                             AND jsonb_array_length(fes.equipment_selection->'single'->'weapons') > 0
-                                             AND jsonb_typeof(fes.equipment_selection->'single'->'weapons'->0) = 'array'
-                                        THEN (
-                                            SELECT jsonb_agg(
-                                                (
-                                                    SELECT jsonb_agg(
-                                                        jsonb_build_object(
-                                                            'id', (item_data->>'id')::uuid,
-                                                            'equipment_name', e.equipment_name,
-                                                            'equipment_type', e.equipment_type,
-                                                            'equipment_category', e.equipment_category,
-                                                            'cost', (item_data->>'cost')::numeric,
-                                                            'quantity', (item_data->>'quantity')::integer,
-                                                            'is_default', (item_data->>'is_default')::boolean,
-                                                            'is_editable', COALESCE(e.is_editable, false),
-                                                            'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
-                                                            'replacement_mode', item_data->>'replacement_mode',
-                                                            'replacements', COALESCE(
-                                                                (
-                                                                    SELECT jsonb_agg(
-                                                                        jsonb_build_object(
-                                                                            'id', (repl->>'id')::uuid,
-                                                                            'equipment_name', re.equipment_name,
-                                                                            'equipment_type', re.equipment_type,
-                                                                            'equipment_category', re.equipment_category,
-                                                                            'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer,
-                                                                            'is_editable', COALESCE(re.is_editable, false)
-                                                                        )
-                                                                    )
-                                                                    FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                                    LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                                    WHERE re.id IS NOT NULL
-                                                                ),
-                                                                '[]'::jsonb
-                                                            )
-                                                        )
-                                                    )
-                                                    FROM jsonb_array_elements(group_data) AS item_data
-                                                    LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                                    WHERE e.id IS NOT NULL
-                                                )
-                                            )
-                                            FROM jsonb_array_elements(fes.equipment_selection->'single'->'weapons') AS group_data
-                                            WHERE jsonb_array_length(group_data) > 0
-                                        )
-                                        ELSE (
-                                            SELECT CASE 
-                                                WHEN COUNT(*) > 0 THEN jsonb_build_array(jsonb_agg(
-                                                    jsonb_build_object(
-                                                        'id', (item_data->>'id')::uuid,
-                                                        'equipment_name', e.equipment_name,
-                                                        'equipment_type', e.equipment_type,
-                                                        'equipment_category', e.equipment_category,
-                                                        'cost', (item_data->>'cost')::numeric,
-                                                        'quantity', (item_data->>'quantity')::integer,
-                                                        'is_default', (item_data->>'is_default')::boolean,
-                                                        'is_editable', COALESCE(e.is_editable, false),
-                                                        'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
-                                                        'replacement_mode', item_data->>'replacement_mode',
-                                                        'replacements', COALESCE(
-                                                            (
-                                                                SELECT jsonb_agg(
-                                                                    jsonb_build_object(
-                                                                        'id', (repl->>'id')::uuid,
-                                                                        'equipment_name', re.equipment_name,
-                                                                        'equipment_type', re.equipment_type,
-                                                                        'equipment_category', re.equipment_category,
-                                                                        'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer,
-                                                                        'is_editable', COALESCE(re.is_editable, false)
-                                                                    )
-                                                                )
-                                                                FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                                LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                                WHERE re.id IS NOT NULL
-                                                            ),
-                                                            '[]'::jsonb
-                                                        )
-                                                    )
-                                                ))
-                                                ELSE '[]'::jsonb
-                                            END
-                                            FROM jsonb_array_elements(fes.equipment_selection->'single'->'weapons') AS item_data
-                                            LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                            WHERE e.id IS NOT NULL
-                                        )
-                                    END,
-                                    '[]'::jsonb
-                                )
-                            ),
-                            'multiple', jsonb_build_object(
-                                'wargear', COALESCE(
-                                    CASE 
-                                        WHEN jsonb_typeof(fes.equipment_selection->'multiple'->'wargear') = 'array' 
-                                             AND jsonb_array_length(fes.equipment_selection->'multiple'->'wargear') > 0
-                                             AND jsonb_typeof(fes.equipment_selection->'multiple'->'wargear'->0) = 'array'
-                                        THEN (
-                                            SELECT jsonb_agg(
-                                                (
-                                                    SELECT jsonb_agg(
-                                                        jsonb_build_object(
-                                                            'id', (item_data->>'id')::uuid,
-                                                            'equipment_name', e.equipment_name,
-                                                            'equipment_type', e.equipment_type,
-                                                            'equipment_category', e.equipment_category,
-                                                            'cost', (item_data->>'cost')::numeric,
-                                                            'quantity', (item_data->>'quantity')::integer,
-                                                            'is_default', (item_data->>'is_default')::boolean,
-                                                            'is_editable', COALESCE(e.is_editable, false),
-                                                            'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
-                                                            'replacement_mode', item_data->>'replacement_mode',
-                                                            'replacements', COALESCE(
-                                                                (
-                                                                    SELECT jsonb_agg(
-                                                                        jsonb_build_object(
-                                                                            'id', (repl->>'id')::uuid,
-                                                                            'equipment_name', re.equipment_name,
-                                                                            'equipment_type', re.equipment_type,
-                                                                            'equipment_category', re.equipment_category,
-                                                                            'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer,
-                                                                            'is_editable', COALESCE(re.is_editable, false)
-                                                                        )
-                                                                    )
-                                                                    FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                                    LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                                    WHERE re.id IS NOT NULL
-                                                                ),
-                                                                '[]'::jsonb
-                                                            )
-                                                        )
-                                                    )
-                                                    FROM jsonb_array_elements(group_data) AS item_data
-                                                    LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                                    WHERE e.id IS NOT NULL
-                                                )
-                                            )
-                                            FROM jsonb_array_elements(fes.equipment_selection->'multiple'->'wargear') AS group_data
-                                            WHERE jsonb_array_length(group_data) > 0
-                                        )
-                                        ELSE (
-                                            SELECT CASE 
-                                                WHEN COUNT(*) > 0 THEN jsonb_build_array(jsonb_agg(
-                                                    jsonb_build_object(
-                                                        'id', (item_data->>'id')::uuid,
-                                                        'equipment_name', e.equipment_name,
-                                                        'equipment_type', e.equipment_type,
-                                                        'equipment_category', e.equipment_category,
-                                                        'cost', (item_data->>'cost')::numeric,
-                                                        'quantity', (item_data->>'quantity')::integer,
-                                                        'is_default', (item_data->>'is_default')::boolean,
-                                                        'is_editable', COALESCE(e.is_editable, false),
-                                                        'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
-                                                        'replacement_mode', item_data->>'replacement_mode',
-                                                        'replacements', COALESCE(
-                                                            (
-                                                                SELECT jsonb_agg(
-                                                                    jsonb_build_object(
-                                                                        'id', (repl->>'id')::uuid,
-                                                                        'equipment_name', re.equipment_name,
-                                                                        'equipment_type', re.equipment_type,
-                                                                        'equipment_category', re.equipment_category,
-                                                                        'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer,
-                                                                        'is_editable', COALESCE(re.is_editable, false)
-                                                                    )
-                                                                )
-                                                                FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                                LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                                WHERE re.id IS NOT NULL
-                                                            ),
-                                                            '[]'::jsonb
-                                                        )
-                                                    )
-                                                ))
-                                                ELSE '[]'::jsonb
-                                            END
-                                            FROM jsonb_array_elements(fes.equipment_selection->'multiple'->'wargear') AS item_data
-                                            LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                            WHERE e.id IS NOT NULL
-                                        )
-                                    END,
-                                    '[]'::jsonb
-                                ),
-                                'weapons', COALESCE(
-                                    CASE 
-                                        WHEN jsonb_typeof(fes.equipment_selection->'multiple'->'weapons') = 'array' 
-                                             AND jsonb_array_length(fes.equipment_selection->'multiple'->'weapons') > 0
-                                             AND jsonb_typeof(fes.equipment_selection->'multiple'->'weapons'->0) = 'array'
-                                        THEN (
-                                            SELECT jsonb_agg(
-                                                (
-                                                    SELECT jsonb_agg(
-                                                        jsonb_build_object(
-                                                            'id', (item_data->>'id')::uuid,
-                                                            'equipment_name', e.equipment_name,
-                                                            'equipment_type', e.equipment_type,
-                                                            'equipment_category', e.equipment_category,
-                                                            'cost', (item_data->>'cost')::numeric,
-                                                            'quantity', (item_data->>'quantity')::integer,
-                                                            'is_default', (item_data->>'is_default')::boolean,
-                                                            'is_editable', COALESCE(e.is_editable, false),
-                                                            'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
-                                                            'replacement_mode', item_data->>'replacement_mode',
-                                                            'replacements', COALESCE(
-                                                                (
-                                                                    SELECT jsonb_agg(
-                                                                        jsonb_build_object(
-                                                                            'id', (repl->>'id')::uuid,
-                                                                            'equipment_name', re.equipment_name,
-                                                                            'equipment_type', re.equipment_type,
-                                                                            'equipment_category', re.equipment_category,
-                                                                            'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer,
-                                                                            'is_editable', COALESCE(re.is_editable, false)
-                                                                        )
-                                                                    )
-                                                                    FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                                    LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                                    WHERE re.id IS NOT NULL
-                                                                ),
-                                                                '[]'::jsonb
-                                                            )
-                                                        )
-                                                    )
-                                                    FROM jsonb_array_elements(group_data) AS item_data
-                                                    LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                                    WHERE e.id IS NOT NULL
-                                                )
-                                            )
-                                            FROM jsonb_array_elements(fes.equipment_selection->'multiple'->'weapons') AS group_data
-                                            WHERE jsonb_array_length(group_data) > 0
-                                        )
-                                        ELSE (
-                                            SELECT CASE 
-                                                WHEN COUNT(*) > 0 THEN jsonb_build_array(jsonb_agg(
-                                                    jsonb_build_object(
-                                                        'id', (item_data->>'id')::uuid,
-                                                        'equipment_name', e.equipment_name,
-                                                        'equipment_type', e.equipment_type,
-                                                        'equipment_category', e.equipment_category,
-                                                        'cost', (item_data->>'cost')::numeric,
-                                                        'quantity', (item_data->>'quantity')::integer,
-                                                        'is_default', (item_data->>'is_default')::boolean,
-                                                        'is_editable', COALESCE(e.is_editable, false),
-                                                        'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
-                                                        'replacement_mode', item_data->>'replacement_mode',
-                                                        'replacements', COALESCE(
-                                                            (
-                                                                SELECT jsonb_agg(
-                                                                    jsonb_build_object(
-                                                                        'id', (repl->>'id')::uuid,
-                                                                        'equipment_name', re.equipment_name,
-                                                                        'equipment_type', re.equipment_type,
-                                                                        'equipment_category', re.equipment_category,
-                                                                        'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer,
-                                                                        'is_editable', COALESCE(re.is_editable, false)
-                                                                    )
-                                                                )
-                                                                FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                                LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                                WHERE re.id IS NOT NULL
-                                                            ),
-                                                            '[]'::jsonb
-                                                        )
-                                                    )
-                                                ))
-                                                ELSE '[]'::jsonb
-                                            END
-                                            FROM jsonb_array_elements(fes.equipment_selection->'multiple'->'weapons') AS item_data
-                                            LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                            WHERE e.id IS NOT NULL
-                                        )
-                                    END,
-                                    '[]'::jsonb
-                                )
-                            ),
-                            'optional', jsonb_build_object(
-                                'wargear', COALESCE(
-                                    CASE 
-                                        WHEN jsonb_typeof(fes.equipment_selection->'optional'->'wargear') = 'array' 
-                                             AND jsonb_array_length(fes.equipment_selection->'optional'->'wargear') > 0
-                                             AND jsonb_typeof(fes.equipment_selection->'optional'->'wargear'->0) = 'array'
-                                        THEN (
-                                            SELECT jsonb_agg(
-                                                (
-                                                    SELECT jsonb_agg(
-                                                        jsonb_build_object(
-                                                            'id', (item_data->>'id')::uuid,
-                                                            'equipment_name', e.equipment_name,
-                                                            'equipment_type', e.equipment_type,
-                                                            'equipment_category', e.equipment_category,
-                                                            'cost', (item_data->>'cost')::numeric,
-                                                            'quantity', (item_data->>'quantity')::integer,
-                                                            'is_default', (item_data->>'is_default')::boolean,
-                                                            'is_editable', COALESCE(e.is_editable, false),
-                                                            'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
-                                                            'replacement_mode', item_data->>'replacement_mode',
-                                                            'replacements', COALESCE(
-                                                                (
-                                                                    SELECT jsonb_agg(
-                                                                        jsonb_build_object(
-                                                                            'id', (repl->>'id')::uuid,
-                                                                            'equipment_name', re.equipment_name,
-                                                                            'equipment_type', re.equipment_type,
-                                                                            'equipment_category', re.equipment_category,
-                                                                            'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer,
-                                                                            'is_editable', COALESCE(re.is_editable, false)
-                                                                        )
-                                                                    )
-                                                                    FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                                    LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                                    WHERE re.id IS NOT NULL
-                                                                ),
-                                                                '[]'::jsonb
-                                                            )
-                                                        )
-                                                    )
-                                                    FROM jsonb_array_elements(group_data) AS item_data
-                                                    LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                                    WHERE e.id IS NOT NULL
-                                                )
-                                            )
-                                            FROM jsonb_array_elements(fes.equipment_selection->'optional'->'wargear') AS group_data
-                                            WHERE jsonb_array_length(group_data) > 0
-                                        )
-                                        ELSE (
-                                            SELECT CASE 
-                                                WHEN COUNT(*) > 0 THEN jsonb_build_array(jsonb_agg(
-                                                    jsonb_build_object(
-                                                        'id', (item_data->>'id')::uuid,
-                                                        'equipment_name', e.equipment_name,
-                                                        'equipment_type', e.equipment_type,
-                                                        'equipment_category', e.equipment_category,
-                                                        'cost', (item_data->>'cost')::numeric,
-                                                        'quantity', (item_data->>'quantity')::integer,
-                                                        'is_default', (item_data->>'is_default')::boolean,
-                                                        'is_editable', COALESCE(e.is_editable, false),
-                                                        'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
-                                                        'replacement_mode', item_data->>'replacement_mode',
-                                                        'replacements', COALESCE(
-                                                            (
-                                                                SELECT jsonb_agg(
-                                                                    jsonb_build_object(
-                                                                        'id', (repl->>'id')::uuid,
-                                                                        'equipment_name', re.equipment_name,
-                                                                        'equipment_type', re.equipment_type,
-                                                                        'equipment_category', re.equipment_category,
-                                                                        'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer,
-                                                                        'is_editable', COALESCE(re.is_editable, false)
-                                                                    )
-                                                                )
-                                                                FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                                LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                                WHERE re.id IS NOT NULL
-                                                            ),
-                                                            '[]'::jsonb
-                                                        )
-                                                    )
-                                                ))
-                                                ELSE '[]'::jsonb
-                                            END
-                                            FROM jsonb_array_elements(fes.equipment_selection->'optional'->'wargear') AS item_data
-                                            LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                            WHERE e.id IS NOT NULL
-                                        )
-                                    END,
-                                    '[]'::jsonb
-                                ),
-                                'weapons', COALESCE(
-                                    CASE 
-                                        WHEN jsonb_typeof(fes.equipment_selection->'optional'->'weapons') = 'array' 
-                                             AND jsonb_array_length(fes.equipment_selection->'optional'->'weapons') > 0
-                                             AND jsonb_typeof(fes.equipment_selection->'optional'->'weapons'->0) = 'array'
-                                        THEN (
-                                            SELECT jsonb_agg(
-                                                (
-                                                    SELECT jsonb_agg(
-                                                        jsonb_build_object(
-                                                            'id', (item_data->>'id')::uuid,
-                                                            'equipment_name', e.equipment_name,
-                                                            'equipment_type', e.equipment_type,
-                                                            'equipment_category', e.equipment_category,
-                                                            'cost', (item_data->>'cost')::numeric,
-                                                            'quantity', (item_data->>'quantity')::integer,
-                                                            'is_default', (item_data->>'is_default')::boolean,
-                                                            'is_editable', COALESCE(e.is_editable, false),
-                                                            'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
-                                                            'replacement_mode', item_data->>'replacement_mode',
-                                                            'replacements', COALESCE(
-                                                                (
-                                                                    SELECT jsonb_agg(
-                                                                        jsonb_build_object(
-                                                                            'id', (repl->>'id')::uuid,
-                                                                            'equipment_name', re.equipment_name,
-                                                                            'equipment_type', re.equipment_type,
-                                                                            'equipment_category', re.equipment_category,
-                                                                            'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer,
-                                                                            'is_editable', COALESCE(re.is_editable, false)
-                                                                        )
-                                                                    )
-                                                                    FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                                    LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                                    WHERE re.id IS NOT NULL
-                                                                ),
-                                                                '[]'::jsonb
-                                                            )
-                                                        )
-                                                    )
-                                                    FROM jsonb_array_elements(group_data) AS item_data
-                                                    LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                                    WHERE e.id IS NOT NULL
-                                                )
-                                            )
-                                            FROM jsonb_array_elements(fes.equipment_selection->'optional'->'weapons') AS group_data
-                                            WHERE jsonb_array_length(group_data) > 0
-                                        )
-                                        ELSE (
-                                            SELECT CASE 
-                                                WHEN COUNT(*) > 0 THEN jsonb_build_array(jsonb_agg(
-                                                    jsonb_build_object(
-                                                        'id', (item_data->>'id')::uuid,
-                                                        'equipment_name', e.equipment_name,
-                                                        'equipment_type', e.equipment_type,
-                                                        'equipment_category', e.equipment_category,
-                                                        'cost', (item_data->>'cost')::numeric,
-                                                        'quantity', (item_data->>'quantity')::integer,
-                                                        'is_default', (item_data->>'is_default')::boolean,
-                                                        'is_editable', COALESCE(e.is_editable, false),
-                                                        'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
-                                                        'replacement_mode', item_data->>'replacement_mode',
-                                                        'replacements', COALESCE(
-                                                            (
-                                                                SELECT jsonb_agg(
-                                                                    jsonb_build_object(
-                                                                        'id', (repl->>'id')::uuid,
-                                                                        'equipment_name', re.equipment_name,
-                                                                        'equipment_type', re.equipment_type,
-                                                                        'equipment_category', re.equipment_category,
-                                                                        'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer,
-                                                                        'is_editable', COALESCE(re.is_editable, false)
-                                                                    )
-                                                                )
-                                                                FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                                LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                                WHERE re.id IS NOT NULL
-                                                            ),
-                                                            '[]'::jsonb
-                                                        )
-                                                    )
-                                                ))
-                                                ELSE '[]'::jsonb
-                                            END
-                                            FROM jsonb_array_elements(fes.equipment_selection->'optional'->'weapons') AS item_data
-                                            LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                            WHERE e.id IS NOT NULL
-                                        )
-                                    END,
-                                    '[]'::jsonb
-                                )
-                            )
-                        )
-                    ELSE NULL
-                END
-            FROM fighter_equipment_selections fes
-            WHERE fes.fighter_type_id = ft.id
-            LIMIT 1
-        ) AS equipment_selection,
-        COALESCE(ftgc.adjusted_cost, ft.cost) AS total_cost,
-        COALESCE(
-            (
-                SELECT jsonb_build_object(
-                    'id', fst.id,
-                    'sub_type_name', fst.sub_type_name
-                )
-                FROM fighter_sub_types fst
-                WHERE fst.id = ft.fighter_sub_type_id
-            ),
-            '{}'::jsonb
-        ) AS sub_type,
-        COALESCE(
-            (
-                SELECT jsonb_agg(
-                    jsonb_build_object(
-                        'id', fgl.id,
-                        'name', fgl.name
-                    )
-                )
-                FROM fighter_type_gang_legacies ftgl
-                JOIN fighter_gang_legacy fgl ON fgl.id = ftgl.fighter_gang_legacy_id
-                WHERE ftgl.fighter_type_id = ft.id
-            ),
-            '[]'::jsonb
-        ) AS available_legacies,
-        ft.free_skill,
-        ft.delegation_cost
-    FROM fighter_types ft
-    JOIN fighter_classes fc ON fc.id = ft.fighter_class_id
-    LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id 
-        AND ftgc.gang_type_id = p_gang_type_id
-        AND (ftgc.gang_affiliation_id IS NULL OR ftgc.gang_affiliation_id = p_gang_affiliation_id)
-    WHERE ft.gang_type_id = p_gang_type_id
-        OR (ftgc.fighter_type_id IS NOT NULL 
-            AND ftgc.gang_affiliation_id IS NOT NULL 
-            AND ftgc.gang_affiliation_id = p_gang_affiliation_id);
-END;
-$$;
-
-
---
 -- Name: get_available_skills(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1764,7 +1095,6 @@ BEGIN
     )
     SELECT jsonb_build_object(
         'fighter_id', get_available_skills.fighter_id,
-        'fighter_class', v_fighter_classes->>0,
         'fighter_classes', v_fighter_classes,
         'skills', COALESCE(
             jsonb_agg(
@@ -1772,7 +1102,6 @@ BEGIN
                     'skill_id', a.skill_id,
                     'skill_name', a.skill_name,
                     'is_custom', a.is_custom,
-                    'fighter_class', v_fighter_classes->>0,
                     'skill_type_id', a.skill_type_id,
                     'skill_type_name', a.skill_type_name,
                     'effective_access_level', a.effective_access_level,
@@ -1849,7 +1178,7 @@ $$;
 -- Name: get_equipment_detailed_data(uuid, text, uuid, boolean, boolean, uuid, uuid, uuid, uuid[], uuid[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NULL::uuid, equipment_category text DEFAULT NULL::text, fighter_type_id uuid DEFAULT NULL::uuid, fighter_type_equipment boolean DEFAULT NULL::boolean, equipment_tradingpost boolean DEFAULT NULL::boolean, fighter_id uuid DEFAULT NULL::uuid, only_equipment_id uuid DEFAULT NULL::uuid, gang_id uuid DEFAULT NULL::uuid, campaign_trading_post_type_ids uuid[] DEFAULT NULL::uuid[], campaign_custom_trading_post_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(id uuid, equipment_name text, availability text, base_cost numeric, adjusted_cost numeric, equipment_category text, equipment_type text, created_at timestamp with time zone, fighter_type_equipment boolean, equipment_tradingpost boolean, is_custom boolean, weapon_profiles jsonb, vehicle_upgrade_slot text, grants_equipment jsonb, is_editable boolean, trading_post_names text[], cost_resource_name text, cost_resource_amount numeric, cost_type_resource_id uuid, cost_campaign_resource_id uuid, banned boolean)
+CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NULL::uuid, equipment_category text DEFAULT NULL::text, fighter_type_id uuid DEFAULT NULL::uuid, fighter_type_equipment boolean DEFAULT NULL::boolean, equipment_tradingpost boolean DEFAULT NULL::boolean, fighter_id uuid DEFAULT NULL::uuid, only_equipment_id uuid DEFAULT NULL::uuid, gang_id uuid DEFAULT NULL::uuid, campaign_trading_post_type_ids uuid[] DEFAULT NULL::uuid[], campaign_custom_trading_post_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(id uuid, equipment_name text, availability text, base_cost numeric, adjusted_cost numeric, trade_points text, equipment_category text, equipment_type text, created_at timestamp with time zone, fighter_type_equipment boolean, equipment_tradingpost boolean, is_custom boolean, weapon_profiles jsonb, vehicle_upgrade_slot text, grants_equipment jsonb, is_editable boolean, trading_post_names text[], cost_resource_name text, cost_resource_amount numeric, cost_type_resource_id uuid, cost_campaign_resource_id uuid, banned boolean)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $_$
@@ -1865,9 +1194,12 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             g.custom_gang_type_id,
             cg.campaign_type_allegiance_id,
             fgl.fighter_type_id AS legacy_ft_id,
-            ga.fighter_type_id  AS affiliation_ft_id
+            ga.fighter_type_id  AS affiliation_ft_id,
+            COALESCE(gt.edition_id, cgt.edition_id) AS edition_id
         FROM (SELECT 1) AS _dummy
         LEFT JOIN gangs g ON g.id = $8
+        LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+        LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
         LEFT JOIN LATERAL (
             SELECT cg2.campaign_type_allegiance_id
             FROM campaign_gangs cg2
@@ -1969,7 +1301,11 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         SELECT
             ed.equipment_id,
             MIN(ed.adjusted_cost::numeric)
-                FILTER (WHERE ed.adjusted_cost IS NOT NULL) AS best_adjusted_cost
+                FILTER (WHERE ed.adjusted_cost IS NOT NULL) AS best_adjusted_cost,
+            -- Prefer any non-null trade_points override in the same discount scope.
+            -- Tie-break with MIN so the pick is deterministic when several apply.
+            MIN(ed.trade_points)
+                FILTER (WHERE ed.trade_points IS NOT NULL) AS best_trade_points
         FROM equipment_discounts ed
         CROSS JOIN gang_data gd
         WHERE
@@ -2073,6 +1409,8 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             WHEN $5 = true THEN e.cost::numeric
             ELSE COALESCE(bac.best_adjusted_cost, e.cost::numeric)
         END AS adjusted_cost,
+
+        COALESCE(bac.best_trade_points, e.trade_points) AS trade_points,
 
         e.equipment_category,
         e.equipment_type,
@@ -2256,6 +1594,12 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             -- Trading post only
             ($4 IS NULL AND $5 IS NOT NULL AND COALESCE(tp.has_access, false) = $5)
         )
+        -- Unrestricted: only equipment from the gang's edition
+        AND (
+            NOT ($4 IS NULL AND $5 IS NULL)
+            OR gd.edition_id IS NULL
+            OR e.edition_id = gd.edition_id
+        )
 
     UNION ALL
 
@@ -2278,6 +1622,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
               OR custom_tp.cost_reputation THEN ce.cost::numeric
             ELSE COALESCE(custom_tp.adjusted_cost, custom_tp.cost_override, ce.cost::numeric)
         END AS adjusted_cost,
+        ce.trade_points,
         ce.equipment_category,
         ce.equipment_type,
         ce.created_at,
@@ -2321,6 +1666,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         custom_tp.cost_campaign_resource_id,
         COALESCE(custom_tp.banned, false) AS banned
     FROM custom_equipment ce
+    CROSS JOIN gang_data gd
     LEFT JOIN (
         SELECT cs.custom_equipment_id
         FROM custom_shared cs
@@ -2386,6 +1732,12 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             ($4 IS NULL AND $5 IS NULL)                              -- no filter
             OR ($4 IS NOT NULL AND COALESCE(ftl.is_ftl, false) = $4) -- fighter's list requested
             OR ($5 IS NOT NULL AND true = $5)                        -- trading post requested
+        )
+        -- Unrestricted: only custom equipment from the gang's edition
+        AND (
+            NOT ($4 IS NULL AND $5 IS NULL)
+            OR gd.edition_id IS NULL
+            OR ce.edition_id = gd.edition_id
         )
 $_$;
 
@@ -2456,7 +1808,7 @@ BEGIN
     RAISE EXCEPTION 'Fighter not found with ID %', get_fighter_available_advancements.fighter_id;
   END IF;
   
-  -- Determine if the fighter uses flat costs based on fighter_class
+  -- Determine if the fighter uses flat costs based on their classes
   -- Only Gangers and Exotic Beasts use flat costs
   v_uses_flat_cost :=
     v_fighter_classes ?| array['Ganger', 'Exotic Beast'];
@@ -2561,7 +1913,6 @@ BEGIN
   SELECT jsonb_build_object(
     'fighter_id', get_fighter_available_advancements.fighter_id,
     'current_xp', v_fighter_xp,
-    'fighter_class', v_fighter_classes->>0,
     'fighter_classes', v_fighter_classes,
     'uses_flat_cost', v_uses_flat_cost,
     -- Ganger/Exotic Beast: Specialist table row (random Primary skill) — same flat costs as other ganger advances
@@ -2589,7 +1940,7 @@ $$;
 -- Name: get_fighter_types_with_cost(uuid, uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_fighter_types_with_cost(p_gang_type_id uuid DEFAULT NULL::uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid, p_is_gang_addition boolean DEFAULT NULL::boolean) RETURNS TABLE(id uuid, fighter_type text, fighter_class text, fighter_class_id uuid, fighter_classes jsonb, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, save numeric, limitation numeric, alignment public.alignment, is_gang_addition boolean, alliance_id uuid, alliance_crew_name text, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, sub_type jsonb, available_legacies jsonb, free_skill boolean, delegation_cost numeric, is_dramatis_personae boolean, edition_slug text)
+CREATE FUNCTION public.get_fighter_types_with_cost(p_gang_type_id uuid DEFAULT NULL::uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid, p_is_gang_addition boolean DEFAULT NULL::boolean) RETURNS TABLE(id uuid, fighter_type text, fighter_classes jsonb, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, save numeric, limitation numeric, alignment public.alignment, is_gang_addition boolean, alliance_id uuid, alliance_crew_name text, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, sub_type jsonb, available_legacies jsonb, free_skill boolean, delegation_cost numeric, is_dramatis_personae boolean, edition_slug text)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -2598,11 +1949,6 @@ BEGIN
     SELECT
         ft.id,
         ft.fighter_type,
-        -- COALESCE to '' so the previous build's unguarded
-        -- fighter_class.toLowerCase() cannot throw on a row with an empty
-        -- fighter_classes array (such rows were hidden by the old INNER JOIN).
-        COALESCE(ft.fighter_classes->>0, '') AS fighter_class,
-        ft.fighter_class_id,
         ft.fighter_classes,
         ft.gang_type,
         -- Use adjusted_cost if available, otherwise use original cost
@@ -3474,7 +2820,6 @@ BEGIN
            f.label,
            f.fighter_type,
            f.fighter_type_id,
-           f.fighter_class,
            f.fighter_classes,
            f.fighter_sub_type_id,
            f.xp,
@@ -4006,7 +3351,6 @@ BEGIN
            f.label,
            f.fighter_type,
            f.fighter_type_id,
-           f.fighter_class,
            f.fighter_classes,
            json_build_object(
              'fighter_sub_type', fst.sub_type_name,
@@ -4153,7 +3497,6 @@ BEGIN
                'fighter_name', cf.fighter_name,
                'label', cf.label,
                'fighter_type', cf.fighter_type,
-               'fighter_class', cf.fighter_class,
                'fighter_classes', cf.fighter_classes,
                'fighter_sub_type', cf.fighter_sub_type,
                'alliance_crew_name', cf.alliance_crew_name,
@@ -5011,8 +4354,16 @@ CREATE TABLE public.custom_equipment (
     is_editable boolean DEFAULT false,
     is_consumable boolean DEFAULT false,
     description text,
-    edition_id uuid
+    edition_id uuid,
+    trade_points text DEFAULT '0'::text NOT NULL
 );
+
+
+--
+-- Name: COLUMN custom_equipment.trade_points; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.custom_equipment.trade_points IS 'N26 Trade Points cost (text: numeric string or E). Surfaced/charged only for N26 gangs.';
 
 
 --
@@ -5056,15 +4407,21 @@ CREATE TABLE public.custom_fighter_types (
     gang_type_id uuid,
     special_rules jsonb,
     free_skill boolean,
-    fighter_class text,
-    fighter_class_id uuid,
     user_id uuid,
     custom_gang_type_id uuid,
     description text,
     edition_id uuid,
     save numeric,
-    fighter_classes jsonb DEFAULT '[]'::jsonb NOT NULL
+    fighter_classes jsonb DEFAULT '[]'::jsonb NOT NULL,
+    starting_xp numeric DEFAULT 0 NOT NULL
 );
+
+
+--
+-- Name: COLUMN custom_fighter_types.starting_xp; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.custom_fighter_types.starting_xp IS 'XP a fighter of this custom type starts with at recruitment. Copied to fighters.xp when the fighter is added.';
 
 
 --
@@ -5296,10 +4653,8 @@ COMMENT ON COLUMN public.editions.is_current IS 'Picks the default edition for p
 CREATE TABLE public.equipment (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     equipment_name text,
-    "OLDtrading_post_category" text,
     availability text,
     cost numeric,
-    "OLDfaction" text,
     variants text,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     equipment_category text NOT NULL,
@@ -5310,7 +4665,8 @@ CREATE TABLE public.equipment (
     is_editable boolean DEFAULT false,
     grants_equipment jsonb,
     is_consumable boolean DEFAULT false,
-    edition_id uuid
+    edition_id uuid,
+    trade_points text DEFAULT '0'::text NOT NULL
 );
 
 
@@ -5326,6 +4682,13 @@ COMMENT ON COLUMN public.equipment.equipment_category IS 'Category of equipment'
 --
 
 COMMENT ON COLUMN public.equipment.core_equipment IS 'If the equipment is a weapon or wargear that is not available in the TP or deletable';
+
+
+--
+-- Name: COLUMN equipment.trade_points; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.equipment.trade_points IS 'N26 Trade Points cost (text: numeric string or E). Surfaced/charged only for N26 gangs.';
 
 
 --
@@ -5353,7 +4716,8 @@ CREATE TABLE public.equipment_availability (
 CREATE TABLE public.equipment_categories (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    category_name text
+    category_name text,
+    edition_id uuid
 );
 
 
@@ -5365,12 +4729,19 @@ CREATE TABLE public.equipment_discounts (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     equipment_id uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    "OLDdiscount" numeric DEFAULT '0'::numeric NOT NULL,
     gang_type_id uuid,
     fighter_type_id uuid,
     adjusted_cost numeric,
-    gang_origin_id uuid
+    gang_origin_id uuid,
+    trade_points text
 );
+
+
+--
+-- Name: COLUMN equipment_discounts.trade_points; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.equipment_discounts.trade_points IS 'N26 Trade Points override (text: numeric string or E). NULL falls back to equipment.trade_points.';
 
 
 --
@@ -5395,9 +4766,7 @@ CREATE TABLE public.fighter_classes (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     class_name text,
     standard_class boolean DEFAULT false,
-    edition_id uuid,
-    slug text NOT NULL,
-    CONSTRAINT fighter_classes_slug_format_chk CHECK ((slug ~ '^[a-z][a-z0-9_]*$'::text))
+    edition_id uuid
 );
 
 
@@ -5409,10 +4778,10 @@ COMMENT ON TABLE public.fighter_classes IS 'Fighter roles (Leader, Champion, Gan
 
 
 --
--- Name: COLUMN fighter_classes.slug; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN fighter_classes.class_name; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.fighter_classes.slug IS 'Stable identifier shared across editions; match on this, never on class_name or id. Not user-editable.';
+COMMENT ON COLUMN public.fighter_classes.class_name IS 'Class identity. Unique per edition (fighter_classes_edition_class_name_idx) and the value stored in fighters/fighter_types.fighter_classes; match on this across editions.';
 
 
 --
@@ -5658,12 +5027,10 @@ CREATE TABLE public.fighter_ooa_records (
     causing_fighter_id uuid,
     causing_gang_id uuid,
     causing_fighter_name text,
-    causing_fighter_class text,
     causing_fighter_gang_name text,
     injured_fighter_id uuid,
     injured_gang_id uuid,
     injured_fighter_name text,
-    injured_fighter_class text,
     injured_gang_name text,
     event_type text NOT NULL,
     vehicle_type text,
@@ -5826,8 +5193,6 @@ CREATE TABLE public.fighter_types (
     gang_type_id uuid NOT NULL,
     special_rules jsonb[],
     free_skill boolean,
-    fighter_class text,
-    fighter_class_id uuid,
     is_gang_addition boolean DEFAULT false,
     limitation numeric,
     alignment public.alignment,
@@ -5841,7 +5206,8 @@ CREATE TABLE public.fighter_types (
     is_dramatis_personae boolean DEFAULT false NOT NULL,
     edition_id uuid,
     save numeric,
-    fighter_classes jsonb DEFAULT '[]'::jsonb NOT NULL
+    fighter_classes jsonb DEFAULT '[]'::jsonb NOT NULL,
+    starting_xp numeric DEFAULT 0 NOT NULL
 );
 
 
@@ -5850,6 +5216,13 @@ CREATE TABLE public.fighter_types (
 --
 
 COMMENT ON COLUMN public.fighter_types.edition_id IS 'Denormalized from gang_types via the composite FK on (gang_type_id, edition_id); derived server-side from the chosen gang type, never accepted from clients.';
+
+
+--
+-- Name: COLUMN fighter_types.starting_xp; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighter_types.starting_xp IS 'XP a fighter of this type starts with at recruitment. Copied to fighters.xp when the fighter is added.';
 
 
 --
@@ -5887,10 +5260,8 @@ CREATE TABLE public.fighters (
     killed boolean DEFAULT false NOT NULL,
     retired boolean DEFAULT false NOT NULL,
     enslaved boolean DEFAULT false NOT NULL,
-    fighter_class text,
     note text,
     cost_adjustment numeric DEFAULT '0'::numeric,
-    fighter_class_id uuid,
     label text,
     recovery boolean DEFAULT false,
     user_id uuid DEFAULT auth.uid(),
@@ -7412,6 +6783,13 @@ CREATE INDEX custom_equipment_equipment_name_idx ON public.custom_equipment USIN
 
 
 --
+-- Name: custom_equipment_is_editable_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_equipment_is_editable_idx ON public.custom_equipment USING btree (is_editable);
+
+
+--
 -- Name: custom_equipment_user_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7423,6 +6801,13 @@ CREATE INDEX custom_equipment_user_id_idx ON public.custom_equipment USING btree
 --
 
 CREATE INDEX custom_fighter_types_edition_id_idx ON public.custom_fighter_types USING btree (edition_id);
+
+
+--
+-- Name: custom_fighter_types_save_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_fighter_types_save_idx ON public.custom_fighter_types USING btree (save);
 
 
 --
@@ -7482,6 +6867,13 @@ CREATE INDEX custom_weapon_profiles_weapon_group_id_idx ON public.custom_weapon_
 
 
 --
+-- Name: editions_created_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX editions_created_at_idx ON public.editions USING btree (created_at);
+
+
+--
 -- Name: editions_single_current_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7514,6 +6906,13 @@ CREATE INDEX equipment_availability_equipment_id_idx ON public.equipment_availab
 --
 
 CREATE INDEX equipment_availability_gang_origin_id_idx ON public.equipment_availability USING btree (gang_origin_id);
+
+
+--
+-- Name: equipment_categories_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX equipment_categories_edition_id_idx ON public.equipment_categories USING btree (edition_id);
 
 
 --
@@ -7552,6 +6951,13 @@ CREATE INDEX equipment_equipment_name_idx ON public.equipment USING btree (equip
 
 
 --
+-- Name: equipment_is_editable_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX equipment_is_editable_idx ON public.equipment USING btree (is_editable);
+
+
+--
 -- Name: exotic_beasts_fighter_type_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7577,13 +6983,6 @@ CREATE UNIQUE INDEX fighter_classes_edition_class_name_idx ON public.fighter_cla
 --
 
 CREATE INDEX fighter_classes_edition_id_idx ON public.fighter_classes USING btree (edition_id);
-
-
---
--- Name: fighter_classes_edition_slug_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX fighter_classes_edition_slug_idx ON public.fighter_classes USING btree (edition_id, slug) WHERE (edition_id IS NOT NULL);
 
 
 --
@@ -7650,10 +7049,24 @@ CREATE INDEX fighter_effects_fighter_equipment_id_idx ON public.fighter_effects 
 
 
 --
+-- Name: fighter_equipment_custom_equipment_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_equipment_custom_equipment_id_idx ON public.fighter_equipment USING btree (custom_equipment_id);
+
+
+--
 -- Name: fighter_equipment_equipment_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX fighter_equipment_equipment_id_idx ON public.fighter_equipment USING btree (equipment_id);
+
+
+--
+-- Name: fighter_equipment_is_editable_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_equipment_is_editable_idx ON public.fighter_equipment USING btree (is_editable);
 
 
 --
@@ -7734,10 +7147,10 @@ CREATE INDEX fighter_types_gang_type_idx ON public.fighter_types USING btree (ga
 
 
 --
--- Name: fighters_fighter_class_id_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: fighter_types_save_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX fighters_fighter_class_id_idx ON public.fighters USING btree (fighter_class_id);
+CREATE INDEX fighter_types_save_idx ON public.fighter_types USING btree (save);
 
 
 --
@@ -9093,6 +8506,14 @@ ALTER TABLE ONLY public.equipment_availability
 
 
 --
+-- Name: equipment_categories equipment_categories_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.equipment_categories
+    ADD CONSTRAINT equipment_categories_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: equipment_discounts equipment_discounts_equipment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9661,14 +9082,6 @@ ALTER TABLE ONLY public.fighters
 
 
 --
--- Name: fighters fighters_fighter_class_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.fighters
-    ADD CONSTRAINT fighters_fighter_class_id_fkey FOREIGN KEY (fighter_class_id) REFERENCES public.fighter_classes(id) ON DELETE SET NULL;
-
-
---
 -- Name: fighters fighters_fighter_gang_legacy_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9818,6 +9231,14 @@ ALTER TABLE ONLY public.gang_types
 
 ALTER TABLE ONLY public.gang_types
     ADD CONSTRAINT gang_types_gang_origin_category_id_fkey FOREIGN KEY (gang_origin_category_id) REFERENCES public.gang_origin_categories(id) ON DELETE SET NULL;
+
+
+--
+-- Name: gang_types gang_types_trading_post_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_types
+    ADD CONSTRAINT gang_types_trading_post_type_id_fkey FOREIGN KEY (trading_post_type_id) REFERENCES public.trading_post_types(id) ON DELETE SET NULL;
 
 
 --
