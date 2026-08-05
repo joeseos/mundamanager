@@ -1575,8 +1575,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 </div>
               ) : null}
 
-              {/* Base Cost, Alignment, Delegation Cost (+ single-select class) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              {/* Base Cost, Alignment, Delegation Cost (+ single-select class).
+                  3 columns when multi-class (class field moved above, 3 items
+                  left); 2 columns otherwise (4 items) -- either way the grid
+                  fills evenly instead of leaving a gap. */}
+              <div className={`grid grid-cols-1 gap-4 mb-4 ${allowMultipleClasses ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
                 {!allowMultipleClasses && (
                   <div>
                     <label className="block text-sm font-medium text-muted-foreground mb-1">
