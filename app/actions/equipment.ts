@@ -22,7 +22,7 @@ import { countsTowardRating } from '@/utils/fighter-status';
 import { EquipmentGrants, ResourceCost, CostResourcePayload } from '@/types/equipment';
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
 import { clearHardpointReference } from './vehicle-hardpoints';
-import { deductGangResource, deductGangReputation, parseTradePointsCost, returnGangResource, returnGangReputation, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
+import { deductGangResource, returnGangResource, parseTradePointsCost, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
 import { hasTradePoints } from '@/types/edition';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
@@ -367,8 +367,11 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       ratingCost = Math.ceil((ratingCost * 1.25) / 5) * 5;
     }
 
-    // Resource-based purchase validation
+    // Resource-based purchase validation. Reputation lives on the gangs row; every other
+    // resource lives in campaign_gang_resources and is deducted separately.
     const isResourcePurchase = Boolean(params.resourceCost && params.resourceCost.amount > 0);
+    const isReputationPurchase = isResourcePurchase && params.resourceCost!.resourceName === REPUTATION_RESOURCE_NAME;
+    const isCampaignResourcePurchase = isResourcePurchase && !isReputationPurchase;
     if (!isResourcePurchase) {
       if (finalPurchaseCost > 0 && gang.credits < finalPurchaseCost) {
         throw new Error(`Gang has insufficient credits. Required: ${finalPurchaseCost}, Available: ${gang.credits}`);
@@ -491,14 +494,12 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       newEquipmentId = fighterEquip.id;
     }
 
-    // Deduct resource after successful insert to avoid losing resources on insert failure
-    if (isResourcePurchase) {
+    // Deduct the campaign resource after a successful insert so a failed insert never costs
+    // the gang anything. Reputation is not handled here — it lives on the gangs row, so it
+    // rides the single updateGangFinancials write below alongside credits and Trade Points.
+    if (isCampaignResourcePurchase) {
       try {
-        if (params.resourceCost!.resourceName === REPUTATION_RESOURCE_NAME) {
-          await deductGangReputation(supabase, params.gang_id, params.resourceCost!.amount);
-        } else {
-          await deductGangResource(supabase, params.campaign_gang_id!, params.resourceCost!.amount, params.resourceCost!.typeResourceId, params.resourceCost!.campaignResourceId);
-        }
+        await deductGangResource(supabase, params.campaign_gang_id!, params.resourceCost!.amount, params.resourceCost!.typeResourceId, params.resourceCost!.campaignResourceId);
       } catch (err) {
         await supabase.from('fighter_equipment').delete().eq('id', newEquipmentId);
         throw err;
@@ -723,13 +724,15 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     const stashValueDelta = params.buy_for_gang_stash ? ratingCost : 0;
 
     // Update gang credits, rating, wealth and Trade Points using centralized helper.
-    // Credits and Trade Points move in the same UPDATE, so an N26 purchase paid in both
-    // can never end up with one spent and the other not.
+    // Credits, Trade Points and reputation all live on the gangs row and move in this one
+    // UPDATE, so a purchase paid in more than one of them can never end up with one spent
+    // and another not.
     const financialResult = await updateGangFinancials(supabase, {
       gangId: params.gang_id,
       ratingDelta: totalRatingDelta,
       creditsDelta: isResourcePurchase ? 0 : -finalPurchaseCost - grantsRatingDelta,
       tradePointsDelta: -tradePointsCost,
+      reputationDelta: isReputationPurchase ? -params.resourceCost!.amount : 0,
       stashValueDelta
     });
 
@@ -740,12 +743,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       // and each beast's own fighters row cascades from there via fighter_pet_id.
       try {
         await supabase.from('fighter_equipment').delete().eq('id', newEquipmentId);
-        if (isResourcePurchase) {
-          if (params.resourceCost!.resourceName === REPUTATION_RESOURCE_NAME) {
-            await returnGangReputation(supabase, params.gang_id, params.resourceCost!.amount);
-          } else {
-            await returnGangResource(supabase, params.campaign_gang_id!, params.resourceCost!.amount, params.resourceCost!.typeResourceId, params.resourceCost!.campaignResourceId);
-          }
+        if (isCampaignResourcePurchase) {
+          await returnGangResource(supabase, params.campaign_gang_id!, params.resourceCost!.amount, params.resourceCost!.typeResourceId, params.resourceCost!.campaignResourceId);
         }
       } catch (unwindErr) {
         console.error('Failed to unwind purchase after gang financials update failed:', unwindErr);
