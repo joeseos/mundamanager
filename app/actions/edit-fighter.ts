@@ -115,8 +115,8 @@ export interface UpdateFighterDetailsParams {
   fighter_type?: string;
   fighter_type_id?: string | null;
   custom_fighter_type_id?: string | null;
-  fighter_sub_type?: string | null;
-  fighter_sub_type_id?: string | null;
+  fighter_specialisation?: string | null;
+  fighter_specialisation_id?: string | null;
   note?: string;
   note_backstory?: string;
   fighter_gang_legacy_id?: string | null;
@@ -1334,8 +1334,8 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (params.fighter_type !== undefined) updateData.fighter_type = params.fighter_type;
     if (params.fighter_type_id !== undefined) updateData.fighter_type_id = params.fighter_type_id;
     if (params.custom_fighter_type_id !== undefined) updateData.custom_fighter_type_id = params.custom_fighter_type_id;
-    if (params.fighter_sub_type !== undefined) updateData.fighter_sub_type = params.fighter_sub_type;
-    if (params.fighter_sub_type_id !== undefined) updateData.fighter_sub_type_id = params.fighter_sub_type_id;
+    if (params.fighter_specialisation !== undefined) updateData.fighter_specialisation = params.fighter_specialisation;
+    if (params.fighter_specialisation_id !== undefined) updateData.fighter_specialisation_id = params.fighter_specialisation_id;
     if (params.note !== undefined) updateData.note = params.note;
     if (params.note_backstory !== undefined) updateData.note_backstory = params.note_backstory;
     if (params.fighter_gang_legacy_id !== undefined) updateData.fighter_gang_legacy_id = params.fighter_gang_legacy_id;

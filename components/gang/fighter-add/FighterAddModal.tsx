@@ -84,8 +84,8 @@ function mapFighterType(type: any): FighterType {
     alliance_crew_name: type.alliance_crew_name || '',
     delegation_cost: type.delegation_cost ?? null,
     equipment_selection: type.equipment_selection,
-    sub_type: type.sub_type,
-    fighter_sub_type_id: type.sub_type?.id,
+    specialisation: type.specialisation,
+    fighter_specialisation_id: type.specialisation?.id,
     available_legacies: type.available_legacies || [],
     is_custom_fighter: type.is_custom_fighter || false,
     free_skill: type.free_skill || false,
@@ -113,8 +113,8 @@ export default function FighterAddModal({
   const tempIdCounter = useRef(0);
   const [selectedFighterTypeId, setSelectedFighterTypeId] = useState('');
   const [selectedClass, setSelectedClass] = useState(''); // additions: fighter-class navigation
-  const [selectedSubTypeId, setSelectedSubTypeId] = useState('');
-  const [availableSubTypes, setAvailableSubTypes] = useState<Array<{ id: string; sub_type_name: string }>>([]);
+  const [selectedSpecialisationId, setSelectedSpecialisationId] = useState('');
+  const [availableSpecialisations, setAvailableSpecialisations] = useState<Array<{ id: string; specialisation_name: string }>>([]);
   const [fighterName, setFighterName] = useState('');
   const [fighterCost, setFighterCost] = useState('');
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
@@ -170,7 +170,7 @@ export default function FighterAddModal({
       )
     : fighterTypes;
 
-  const currentFighterTypeId = selectedSubTypeId || selectedFighterTypeId;
+  const currentFighterTypeId = selectedSpecialisationId || selectedFighterTypeId;
   const currentFighterType = fighterTypes.find(t => t.id === currentFighterTypeId);
 
   const canUseArchetypes = isArchetypeEligible({
@@ -217,7 +217,7 @@ export default function FighterAddModal({
 
   const optimisticUpdatesEnabled = !!(onFighterRollback && onFighterReconcile);
 
-  // Set default equipment + cost for a fighter type/sub-type (delegation-aware base cost).
+  // Set default equipment + cost for a fighter type/specialisation (delegation-aware base cost).
   const applyDefaultEquipmentAndCost = (typeId: string, delegation: boolean) => {
     const selectedType = fighterTypes.find(t => t.id === typeId);
     if (!selectedType) return;
@@ -237,7 +237,7 @@ export default function FighterAddModal({
 
   const handleSelectFighterType = (typeId: string) => {
     setSelectedFighterTypeId(typeId);
-    setSelectedSubTypeId('');
+    setSelectedSpecialisationId('');
     setSelectedLegacyId('');
     setSelectedArchetypeId('');
     setSelectedEquipmentIds([]);
@@ -246,7 +246,7 @@ export default function FighterAddModal({
 
     if (!typeId) {
       setFighterCost('');
-      setAvailableSubTypes([]);
+      setAvailableSpecialisations([]);
       return;
     }
 
@@ -268,42 +268,42 @@ export default function FighterAddModal({
     );
 
     if (fighterTypeGroup.length > 1) {
-      const subTypes = fighterTypeGroup.map(ft => ({
+      const specialisations = fighterTypeGroup.map(ft => ({
         id: ft.id,
-        sub_type_name: ft.sub_type?.sub_type_name || 'Default',
+        specialisation_name: ft.specialisation?.specialisation_name || 'Default',
         cost: ft.total_cost,
       }));
-      setAvailableSubTypes(subTypes);
+      setAvailableSpecialisations(specialisations);
 
-      const defaultSubType = subTypes.find(sub => !sub.sub_type_name || sub.sub_type_name === 'Default');
-      const autoSelectedId = defaultSubType
-        ? defaultSubType.id
-        : subTypes.reduce((lowest, current) => {
+      const defaultSpecialisation = specialisations.find(sub => !sub.specialisation_name || sub.specialisation_name === 'Default');
+      const autoSelectedId = defaultSpecialisation
+        ? defaultSpecialisation.id
+        : specialisations.reduce((lowest, current) => {
             const lowestCost = fighterTypes.find(ft => ft.id === lowest.id)?.total_cost ?? Infinity;
             const currentCost = fighterTypes.find(ft => ft.id === current.id)?.total_cost ?? Infinity;
             return currentCost < lowestCost ? current : lowest;
-          }, subTypes[0]).id;
-      setSelectedSubTypeId(autoSelectedId);
+          }, specialisations[0]).id;
+      setSelectedSpecialisationId(autoSelectedId);
       applyDefaultEquipmentAndCost(autoSelectedId, false);
     } else {
-      setAvailableSubTypes([]);
+      setAvailableSpecialisations([]);
       applyDefaultEquipmentAndCost(typeId, false);
     }
   };
 
-  const handleSelectSubType = (subTypeId: string) => {
-    setSelectedSubTypeId(subTypeId);
+  const handleSelectSpecialisation = (specialisationId: string) => {
+    setSelectedSpecialisationId(specialisationId);
     setSelectedLegacyId('');
     setSelectedArchetypeId('');
     setSelectedEquipmentIds([]);
     setSelectedEquipment([]);
-    // Preserve the user's delegation-cost choice across sub-type switches (a
-    // sub-type is a variant of the same fighter type); recompute cost with it.
-    applyDefaultEquipmentAndCost(subTypeId || selectedFighterTypeId, useDelegationCost);
+    // Preserve the user's delegation-cost choice across specialisation switches (a
+    // specialisation is a variant of the same fighter type); recompute cost with it.
+    applyDefaultEquipmentAndCost(specialisationId || selectedFighterTypeId, useDelegationCost);
   };
 
   const buildOptimisticFighter = (tempId: string): FighterProps => {
-    const fighterTypeIdToUse = selectedSubTypeId || selectedFighterTypeId;
+    const fighterTypeIdToUse = selectedSpecialisationId || selectedFighterTypeId;
     const selectedType = fighterTypes.find(t => t.id === fighterTypeIdToUse);
     const enteredCost = parseInt(fighterCost);
     const actualBaseCost = getBaseCost(selectedType, useDelegationCost);
@@ -352,9 +352,9 @@ export default function FighterAddModal({
       fighter_type_id: fighterTypeIdToUse,
       fighter_type: selectedType?.fighter_type || '',
       fighter_classes: selectedType?.fighter_classes || [],
-      fighter_sub_type: selectedType?.sub_type ? {
-        fighter_sub_type_id: selectedType.sub_type.id || '',
-        fighter_sub_type: selectedType.sub_type.sub_type_name || '',
+      fighter_specialisation: selectedType?.specialisation ? {
+        fighter_specialisation_id: selectedType.specialisation.id || '',
+        fighter_specialisation: selectedType.specialisation.specialisation_name || '',
       } : undefined,
       credits: displayCost,
       ...stats,
@@ -428,7 +428,7 @@ export default function FighterAddModal({
         ...buildFighterFromServerData(
           data as AddFighterServerData,
           variables.fighter_type_id,
-          selectedType?.sub_type?.sub_type_name
+          selectedType?.specialisation?.specialisation_name
         ),
         edition_slug: selectedType?.edition_slug ?? null
       };
@@ -461,7 +461,7 @@ export default function FighterAddModal({
       return false;
     }
 
-    const fighterTypeIdToUse = selectedSubTypeId || selectedFighterTypeId;
+    const fighterTypeIdToUse = selectedSpecialisationId || selectedFighterTypeId;
     if (!fighterTypeIdToUse) {
       setFetchError('Please select a fighter type');
       return false;
@@ -502,8 +502,8 @@ export default function FighterAddModal({
     setFighterName('');
     setSelectedFighterTypeId('');
     setSelectedClass('');
-    setSelectedSubTypeId('');
-    setAvailableSubTypes([]);
+    setSelectedSpecialisationId('');
+    setAvailableSpecialisations([]);
     setFighterCost('');
     setSelectedEquipmentIds([]);
     setSelectedEquipment([]);
@@ -517,7 +517,7 @@ export default function FighterAddModal({
   };
 
   const availableLegacies = currentFighterType?.available_legacies || [];
-  const delegationType = fighterTypes.find(t => t.id === (selectedSubTypeId || selectedFighterTypeId));
+  const delegationType = fighterTypes.find(t => t.id === (selectedSpecialisationId || selectedFighterTypeId));
   const selectedEquipmentCost = selectedEquipment.reduce((sum, item) => sum + item.cost * item.quantity, 0);
 
   // A `single` category with no default requires an explicit selection.
@@ -623,7 +623,7 @@ export default function FighterAddModal({
         typeClassMap.set(key, { fighter, cost: fighter.total_cost });
       } else {
         const current = typeClassMap.get(key)!;
-        if (!fighter.sub_type && current.fighter.sub_type) {
+        if (!fighter.specialisation && current.fighter.specialisation) {
           typeClassMap.set(key, { fighter, cost: fighter.total_cost });
         } else if (fighter.total_cost < current.cost) {
           typeClassMap.set(key, { fighter, cost: fighter.total_cost });
@@ -735,14 +735,14 @@ export default function FighterAddModal({
     return options;
   };
 
-  const buildSubTypeOptions = () => {
-    const lowestSubTypeCost = Math.min(
-      ...availableSubTypes.map(sub => fighterTypes.find(ft => ft.id === sub.id)?.total_cost ?? Infinity)
+  const buildSpecialisationOptions = () => {
+    const lowestSpecialisationCost = Math.min(
+      ...availableSpecialisations.map(sub => fighterTypes.find(ft => ft.id === sub.id)?.total_cost ?? Infinity)
     );
-    return [...availableSubTypes]
+    return [...availableSpecialisations]
       .sort((a, b) => {
-        const aName = a.sub_type_name.toLowerCase();
-        const bName = b.sub_type_name.toLowerCase();
+        const aName = a.specialisation_name.toLowerCase();
+        const bName = b.specialisation_name.toLowerCase();
         if (aName === 'default') return -1;
         if (bName === 'default') return 1;
         const aCost = fighterTypes.find(ft => ft.id === a.id)?.total_cost ?? 0;
@@ -750,12 +750,12 @@ export default function FighterAddModal({
         if (aCost !== bCost) return aCost - bCost;
         return aName.localeCompare(bName);
       })
-      .map(subType => {
-        const subTypeCost = fighterTypes.find(ft => ft.id === subType.id)?.total_cost ?? 0;
-        const diff = subTypeCost - lowestSubTypeCost;
+      .map(specialisation => {
+        const specialisationCost = fighterTypes.find(ft => ft.id === specialisation.id)?.total_cost ?? 0;
+        const diff = specialisationCost - lowestSpecialisationCost;
         const costLabel = diff === 0 ? '(+0 credits)' : (diff > 0 ? `(+${diff} credits)` : `(${diff} credits)`);
-        const displayName = subType.sub_type_name === 'Default' ? 'Default' : subType.sub_type_name;
-        return { value: subType.id, label: `${displayName} ${costLabel}` };
+        const displayName = specialisation.specialisation_name === 'Default' ? 'Default' : specialisation.specialisation_name;
+        return { value: specialisation.id, label: `${displayName} ${costLabel}` };
       });
   };
 
@@ -770,8 +770,8 @@ export default function FighterAddModal({
             onValueChange={(value) => {
               setSelectedClass(value);
               setSelectedFighterTypeId('');
-              setSelectedSubTypeId('');
-              setAvailableSubTypes([]);
+              setSelectedSpecialisationId('');
+              setAvailableSpecialisations([]);
               setSelectedEquipmentIds([]);
               setSelectedEquipment([]);
               setFighterCost('');
@@ -808,8 +808,8 @@ export default function FighterAddModal({
               if (isAdditions) {
                 setSelectedClass('');
                 setSelectedFighterTypeId('');
-                setSelectedSubTypeId('');
-                setAvailableSubTypes([]);
+                setSelectedSpecialisationId('');
+                setAvailableSpecialisations([]);
                 setSelectedEquipmentIds([]);
                 setSelectedEquipment([]);
               }
@@ -835,7 +835,7 @@ export default function FighterAddModal({
               onCheckedChange={(checked) => {
                 setIncludeAllFighterTypes(checked as boolean);
                 setSelectedFighterTypeId('');
-                setSelectedSubTypeId('');
+                setSelectedSpecialisationId('');
                 setSelectedEquipmentIds([]);
                 setSelectedEquipment([]);
                 setFighterCost('');
@@ -854,15 +854,15 @@ export default function FighterAddModal({
         )}
       </div>
 
-      {/* Fighter sub-type */}
-      {availableSubTypes.length > 0 && (
+      {/* Fighter specialisation */}
+      {availableSpecialisations.length > 0 && (
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-muted-foreground">Fighter Sub-type *</label>
+          <label className="block text-sm font-medium text-muted-foreground">Fighter Specialisation *</label>
           <Combobox
-            value={selectedSubTypeId}
-            onValueChange={handleSelectSubType}
-            placeholder="Select fighter sub-type"
-            options={buildSubTypeOptions()}
+            value={selectedSpecialisationId}
+            onValueChange={handleSelectSpecialisation}
+            placeholder="Select fighter specialisation"
+            options={buildSpecialisationOptions()}
           />
         </div>
       )}
@@ -1000,7 +1000,7 @@ export default function FighterAddModal({
       confirmDisabled={
         addFighterMutation.isPending ||
         !selectedFighterTypeId || !fighterName || !fighterCost ||
-        (availableSubTypes.length > 0 && !selectedSubTypeId) ||
+        (availableSpecialisations.length > 0 && !selectedSpecialisationId) ||
         requiredSelectionMissing
       }
     />

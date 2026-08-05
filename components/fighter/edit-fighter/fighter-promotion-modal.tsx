@@ -40,13 +40,13 @@ function sortPromotionFighterTypes(types: PromotionFighterType[]): PromotionFigh
     const typeCompare = a.fighter_type.localeCompare(b.fighter_type);
     if (typeCompare !== 0) return typeCompare;
 
-    return (a.sub_type?.sub_type_name || '').localeCompare(b.sub_type?.sub_type_name || '');
+    return (a.specialisation?.specialisation_name || '').localeCompare(b.specialisation?.specialisation_name || '');
   });
 }
 
 function formatPromotionFighterTypeLabel(ft: PromotionFighterType): string {
   const base = `${ft.fighter_type} (${ft.fighter_classes.join(', ')})`;
-  return ft.sub_type?.sub_type_name ? `${base}, ${ft.sub_type.sub_type_name}` : base;
+  return ft.specialisation?.specialisation_name ? `${base}, ${ft.specialisation.specialisation_name}` : base;
 }
 
 export type FighterPromotionResult = {
@@ -54,16 +54,16 @@ export type FighterPromotionResult = {
   fighter_type_id: string;
   fighter_classes: string[];
   special_rules: string[];
-  fighter_sub_type?: string | null;
-  fighter_sub_type_id?: string | null;
+  fighter_specialisation?: string | null;
+  fighter_specialisation_id?: string | null;
 };
 
-function promotionSubTypeFields(
-  type?: { sub_type?: { id: string; sub_type_name: string } | null } | null
-): Pick<FighterPromotionResult, 'fighter_sub_type' | 'fighter_sub_type_id'> {
+function promotionSpecialisationFields(
+  type?: { specialisation?: { id: string; specialisation_name: string } | null } | null
+): Pick<FighterPromotionResult, 'fighter_specialisation' | 'fighter_specialisation_id'> {
   return {
-    fighter_sub_type: type?.sub_type?.sub_type_name ?? null,
-    fighter_sub_type_id: type?.sub_type?.id ?? null,
+    fighter_specialisation: type?.specialisation?.specialisation_name ?? null,
+    fighter_specialisation_id: type?.specialisation?.id ?? null,
   };
 }
 
@@ -73,14 +73,14 @@ interface FighterPromotionModalProps {
   currentSpecialRules: string[];
   currentFighterType?: string;
   currentFighterTypeId?: string;
-  currentFighterSubTypeId?: string;
+  currentFighterSpecialisationId?: string;
   fighterTypes: Array<{
     id: string;
     fighter_type: string;
     special_rules?: string[];
     fighter_classes: string[];
     total_cost: number;
-    sub_type?: { id: string; sub_type_name: string } | null;
+    specialisation?: { id: string; specialisation_name: string } | null;
   }>;
   isOpen: boolean;
   onClose: () => void;
@@ -95,7 +95,7 @@ export function FighterPromotionModal({
   currentSpecialRules,
   currentFighterType,
   currentFighterTypeId,
-  currentFighterSubTypeId,
+  currentFighterSpecialisationId,
   fighterTypes,
   isOpen,
   onClose,
@@ -129,22 +129,22 @@ export function FighterPromotionModal({
 
   const selectedType = displayTypes.find(ft => ft.id === selectedTypeId);
 
-  const resolvedCurrentSubTypeId = useMemo(() => {
-    if (currentFighterSubTypeId) return currentFighterSubTypeId;
+  const resolvedCurrentSpecialisationId = useMemo(() => {
+    if (currentFighterSpecialisationId) return currentFighterSpecialisationId;
     if (!currentFighterTypeId) return '';
-    return fighterTypes.find(ft => ft.id === currentFighterTypeId)?.sub_type?.id ?? '';
-  }, [currentFighterSubTypeId, currentFighterTypeId, fighterTypes]);
+    return fighterTypes.find(ft => ft.id === currentFighterTypeId)?.specialisation?.id ?? '';
+  }, [currentFighterSpecialisationId, currentFighterTypeId, fighterTypes]);
 
   const fighterTypeComboboxOptions = useMemo(
     () =>
       displayTypes.map((ft) => {
         const labelText = formatPromotionFighterTypeLabel(ft);
-        const optionSubTypeId = ft.sub_type?.id ?? '';
-        const isDifferentSubType =
-          Boolean(resolvedCurrentSubTypeId) && optionSubTypeId !== resolvedCurrentSubTypeId;
+        const optionSpecialisationId = ft.specialisation?.id ?? '';
+        const isDifferentSpecialisation =
+          Boolean(resolvedCurrentSpecialisationId) && optionSpecialisationId !== resolvedCurrentSpecialisationId;
         const isIneligibleForPromotion =
           includeAllGangFighterTypes && Boolean(targetClass) && !ft.fighter_classes.includes(targetClass);
-        const useMutedStyle = isDifferentSubType || isIneligibleForPromotion;
+        const useMutedStyle = isDifferentSpecialisation || isIneligibleForPromotion;
 
         return {
           value: ft.id,
@@ -156,7 +156,7 @@ export function FighterPromotionModal({
           displayValue: labelText,
         };
       }),
-    [displayTypes, resolvedCurrentSubTypeId, includeAllGangFighterTypes, targetClass]
+    [displayTypes, resolvedCurrentSpecialisationId, includeAllGangFighterTypes, targetClass]
   );
 
   const normalizedCurrentSpecialRules = useMemo(
@@ -219,7 +219,7 @@ export function FighterPromotionModal({
         fighter_type_id: currentFighterTypeId || '',
         fighter_classes: [EXOTIC_BEAST_SPECIALIST_CLASS_NAME],
         special_rules: newSpecialRules,
-        ...promotionSubTypeFields(currentType),
+        ...promotionSpecialisationFields(currentType),
       });
       return;
     }
@@ -229,7 +229,7 @@ export function FighterPromotionModal({
       fighter_type_id: selectedType.id,
       fighter_classes: selectedType.fighter_classes,
       special_rules: newSpecialRules,
-      ...promotionSubTypeFields(selectedType),
+      ...promotionSpecialisationFields(selectedType),
     });
   };
 

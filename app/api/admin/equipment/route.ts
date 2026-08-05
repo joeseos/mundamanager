@@ -312,9 +312,9 @@ export async function GET(request: Request) {
             fighter_type,
             gang_type,
             fighter_classes,
-            fighter_sub_type_id,
-            fighter_sub_types(
-              sub_type_name
+            fighter_specialisation_id,
+            fighter_specialisations(
+              specialisation_name
             )
           `)
           .order('gang_type')

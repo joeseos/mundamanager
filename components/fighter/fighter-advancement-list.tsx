@@ -54,13 +54,13 @@ interface AdvancementModalProps {
   fighterSpecialRules?: string[];
   fighterTypeName?: string;
   fighterTypeId?: string;
-  fighterSubTypeId?: string;
+  fighterSpecialisationId?: string;
   onFighterDetailsUpdate?: (patch: {
     fighter_classes?: string[];
     fighter_type?: string;
     fighter_type_id?: string;
-    fighter_sub_type?: string | null;
-    fighter_sub_type_id?: string | null;
+    fighter_specialisation?: string | null;
+    fighter_specialisation_id?: string | null;
     special_rules?: string[];
   }) => void;
 }
@@ -182,13 +182,13 @@ interface AdvancementsListProps {
   fighterSpecialRules?: string[];
   fighterTypeName?: string;
   fighterTypeId?: string;
-  fighterSubTypeId?: string;
+  fighterSpecialisationId?: string;
   onFighterDetailsUpdate?: (patch: {
     fighter_classes?: string[];
     fighter_type?: string;
     fighter_type_id?: string;
-    fighter_sub_type?: string | null;
-    fighter_sub_type_id?: string | null;
+    fighter_specialisation?: string | null;
+    fighter_specialisation_id?: string | null;
     special_rules?: string[];
   }) => void;
 }
@@ -451,7 +451,7 @@ export function AdvancementModal({
   fighterSpecialRules = [],
   fighterTypeName = '',
   fighterTypeId = '',
-  fighterSubTypeId = '',
+  fighterSpecialisationId = '',
   onFighterDetailsUpdate
 }: AdvancementModalProps) {
   
@@ -1013,8 +1013,8 @@ export function AdvancementModal({
         fighter_classes: vars.promotion.fighter_classes,
         fighter_type: vars.promotion.fighter_type,
         fighter_type_id: vars.promotion.fighter_type_id,
-        fighter_sub_type: vars.promotion.fighter_sub_type ?? null,
-        fighter_sub_type_id: vars.promotion.fighter_sub_type_id ?? null,
+        fighter_specialisation: vars.promotion.fighter_specialisation ?? null,
+        fighter_specialisation_id: vars.promotion.fighter_specialisation_id ?? null,
         special_rules: vars.promotion.special_rules
       });
       toast.success('Advancement purchased');
@@ -1068,8 +1068,8 @@ export function AdvancementModal({
         fighter_classes: vars.promotion.fighter_classes,
         fighter_type: vars.promotion.fighter_type,
         fighter_type_id: vars.promotion.fighter_type_id,
-        fighter_sub_type: vars.promotion.fighter_sub_type ?? null,
-        fighter_sub_type_id: vars.promotion.fighter_sub_type_id ?? null,
+        fighter_specialisation: vars.promotion.fighter_specialisation ?? null,
+        fighter_specialisation_id: vars.promotion.fighter_specialisation_id ?? null,
         special_rules: vars.promotion.special_rules
       });
       toast.success('Advancement purchased');
@@ -2327,7 +2327,7 @@ export function AdvancementModal({
                   currentSpecialRules={fighterSpecialRules}
                   currentFighterType={fighterTypeName}
                   currentFighterTypeId={fighterTypeId}
-                  currentFighterSubTypeId={fighterSubTypeId || undefined}
+                  currentFighterSpecialisationId={fighterSpecialisationId || undefined}
                   fighterTypes={preFetchedFighterTypes}
                   isOpen={gangerPromotionOpen}
                   onClose={() => setGangerPromotionOpen(false)}
@@ -2468,7 +2468,7 @@ export function AdvancementModal({
                     currentSpecialRules={fighterSpecialRules}
                     currentFighterType={fighterTypeName}
                     currentFighterTypeId={fighterTypeId}
-                    currentFighterSubTypeId={fighterSubTypeId || undefined}
+                    currentFighterSpecialisationId={fighterSpecialisationId || undefined}
                     fighterTypes={preFetchedFighterTypes}
                     isOpen={championPromotionOpen}
                     onClose={() => setChampionPromotionOpen(false)}
@@ -2680,7 +2680,7 @@ export function AdvancementsList({
   fighterSpecialRules = [],
   fighterTypeName = '',
   fighterTypeId = '',
-  fighterSubTypeId = '',
+  fighterSpecialisationId = '',
   onFighterDetailsUpdate
 }: AdvancementsListProps) {
   const [isAdvancementModalOpen, setIsAdvancementModalOpen] = useState(false);
@@ -2707,13 +2707,13 @@ export function AdvancementsList({
     staleTime: 10 * 60 * 1000,
   });
 
-  const currentPromotionSubType = useMemo(() => {
+  const currentPromotionSpecialisation = useMemo(() => {
     const match = preFetchedFighterTypes.find((ft: any) => ft.id === fighterTypeId);
     return {
-      fighter_sub_type: match?.sub_type?.sub_type_name ?? null,
-      fighter_sub_type_id: fighterSubTypeId || (match?.sub_type?.id ?? null),
+      fighter_specialisation: match?.specialisation?.specialisation_name ?? null,
+      fighter_specialisation_id: fighterSpecialisationId || (match?.specialisation?.id ?? null),
     };
-  }, [preFetchedFighterTypes, fighterTypeId, fighterSubTypeId]);
+  }, [preFetchedFighterTypes, fighterTypeId, fighterSpecialisationId]);
 
   const standalonePromotionMutation = useMutation({
     mutationFn: async (promotion: FighterPromotionResult) => {
@@ -2722,8 +2722,8 @@ export function AdvancementsList({
         fighter_classes: promotion.fighter_classes,
         fighter_type: promotion.fighter_type,
         fighter_type_id: promotion.fighter_type_id,
-        fighter_sub_type: promotion.fighter_sub_type ?? null,
-        fighter_sub_type_id: promotion.fighter_sub_type_id ?? null,
+        fighter_specialisation: promotion.fighter_specialisation ?? null,
+        fighter_specialisation_id: promotion.fighter_specialisation_id ?? null,
         special_rules: promotion.special_rules,
       });
       if (!result.success) {
@@ -2737,7 +2737,7 @@ export function AdvancementsList({
         fighter_type: fighterTypeName,
         fighter_type_id: fighterTypeId,
         special_rules: fighterSpecialRules,
-        ...currentPromotionSubType,
+        ...currentPromotionSpecialisation,
       };
       onFighterDetailsUpdate?.(promotion);
       return { previousPatch };
@@ -3039,7 +3039,7 @@ export function AdvancementsList({
         currentSpecialRules={fighterSpecialRules}
         currentFighterType={fighterTypeName}
         currentFighterTypeId={fighterTypeId}
-        currentFighterSubTypeId={fighterSubTypeId || undefined}
+        currentFighterSpecialisationId={fighterSpecialisationId || undefined}
         fighterTypes={preFetchedFighterTypes}
         isOpen={isStandalonePromotionOpen}
         onClose={() => setIsStandalonePromotionOpen(false)}
@@ -3069,7 +3069,7 @@ export function AdvancementsList({
           fighterSpecialRules={fighterSpecialRules}
           fighterTypeName={fighterTypeName}
           fighterTypeId={fighterTypeId}
-          fighterSubTypeId={fighterSubTypeId}
+          fighterSpecialisationId={fighterSpecialisationId}
           onFighterDetailsUpdate={onFighterDetailsUpdate}
         />
       )}

@@ -29,9 +29,9 @@ interface FighterDetailsCardProps {
   id: string;
   name: string;
   type: string;
-  sub_type?: {
-    fighter_sub_type: string;
-    fighter_sub_type_id: string;
+  specialisation?: {
+    fighter_specialisation: string;
+    fighter_specialisation_id: string;
   };
   alliance_crew_name?: string;
   label?: string;
@@ -223,7 +223,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   id,
   name,
   type,
-  sub_type,
+  specialisation,
   label,
   alliance_crew_name,
   credits,
@@ -277,7 +277,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
     id,
     fighter_name: name,
     fighter_type: type,
-    fighter_sub_type: sub_type,
+    fighter_specialisation: specialisation,
     credits,
     movement,
     weapon_skill,
@@ -344,7 +344,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       intelligence
     }
   }), [
-    id, name, type, sub_type, credits, movement, weapon_skill, ballistic_skill,
+    id, name, type, specialisation, credits, movement, weapon_skill, ballistic_skill,
     strength, toughness, wounds, initiative, attacks, leadership,
     cool, willpower, intelligence, save, xp, kills, advancements, effects,
     fighter_classes
@@ -436,7 +436,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
                   {type}
                   {alliance_crew_name && ` – ${alliance_crew_name}`}
                   {fighter_classes.length > 0 && ` (${fighter_classes.join(', ')})`}
-                  {sub_type?.fighter_sub_type && `, ${sub_type.fighter_sub_type}`}
+                  {specialisation?.fighter_specialisation && `, ${specialisation.fighter_specialisation}`}
                 </div>
               </div>
             </div>

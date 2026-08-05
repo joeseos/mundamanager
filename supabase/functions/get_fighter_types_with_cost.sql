@@ -39,7 +39,7 @@ RETURNS TABLE (
     default_equipment jsonb,
     equipment_selection jsonb,
     total_cost numeric,
-    sub_type jsonb,
+    specialisation jsonb,
     available_legacies jsonb,
     free_skill boolean,
     delegation_cost numeric,
@@ -842,15 +842,15 @@ BEGIN
         ) AS equipment_selection,
         -- Use adjusted_cost for total_cost if available, otherwise use original cost
         COALESCE(ftgc.adjusted_cost, ft.cost) AS total_cost,
-        -- Add sub_type information
-        CASE 
-            WHEN fsub.id IS NOT NULL THEN
+        -- Add specialisation information
+        CASE
+            WHEN fspec.id IS NOT NULL THEN
                 jsonb_build_object(
-                    'id', fsub.id,
-                    'sub_type_name', fsub.sub_type_name
+                    'id', fspec.id,
+                    'specialisation_name', fspec.specialisation_name
                 )
             ELSE NULL
-        END AS sub_type,
+        END AS specialisation,
         COALESCE(
             (
                 SELECT jsonb_agg(
@@ -874,7 +874,7 @@ BEGIN
     LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id
         AND ftgc.gang_type_id = p_gang_type_id
         AND (ftgc.gang_affiliation_id IS NULL OR ftgc.gang_affiliation_id = p_gang_affiliation_id)
-    LEFT JOIN fighter_sub_types fsub ON fsub.id = ft.fighter_sub_type_id
+    LEFT JOIN fighter_specialisations fspec ON fspec.id = ft.fighter_specialisation_id
     LEFT JOIN editions ed ON ed.id = ft.edition_id
     WHERE
         CASE

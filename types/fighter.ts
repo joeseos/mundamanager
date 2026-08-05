@@ -27,10 +27,10 @@ export interface FighterType {
   fighter_classes: string[];
   gang_type_id: string;
   gang_type: string;
-  fighter_sub_type: string;
-  fighter_sub_type_id?: string;
-  fighter_sub_types?: {
-    sub_type_name: string;
+  fighter_specialisation: string;
+  fighter_specialisation_id?: string;
+  fighter_specialisations?: {
+    specialisation_name: string;
   } | null;
   alliance_crew_name?: string;
   cost: number;
@@ -226,9 +226,9 @@ export interface FighterProps {
 
   skills?: FighterSkills; // Use the standardized type
 
-  fighter_sub_type?: {
-    fighter_sub_type: string;
-    fighter_sub_type_id: string;
+  fighter_specialisation?: {
+    fighter_specialisation: string;
+    fighter_specialisation_id: string;
   } | null;
   
   owner_name?: string; // Name of the fighter who owns this fighter (for exotic beasts)

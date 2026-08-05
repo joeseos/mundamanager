@@ -18,9 +18,9 @@ import { EditionSelect, useEditions } from '@/components/edition-select';
 import { hasSaveCharacteristic, allowsMultipleClasses, hasStartingXp } from '@/types/edition';
 import Modal from '@/components/ui/modal';
 
-interface FighterSubType {
+interface FighterSpecialisation {
   id: string;
-  sub_type_name: string;
+  specialisation_name: string;
   fighterId?: string;
 }
 
@@ -52,9 +52,9 @@ interface Skill {
   skill_type_id: string;
 }
 
-interface SubType {
+interface Specialisation {
   id: string;
-  sub_type_name: string;
+  specialisation_name: string;
 }
 
 // Add this interface to track fighter type+class combinations
@@ -101,8 +101,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [delegationCost, setDelegationCost] = useState('');
   const [selectedFighterClasses, setSelectedFighterClasses] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedSubTypeId, setSelectedSubTypeId] = useState<string>('');
-  const [availableSubTypes, setAvailableSubTypes] = useState<FighterSubType[]>([]);
+  const [selectedSpecialisationId, setSelectedSpecialisationId] = useState<string>('');
+  const [availableSpecialisations, setAvailableSpecialisations] = useState<FighterSpecialisation[]>([]);
   const [, startTransition] = useTransition();
 
   const [movement, setMovement] = useState('');
@@ -144,8 +144,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [equipmentSelection, setEquipmentSelection] = useState<EquipmentSelection>({});
   const [, setIsEquipmentLoaded] = useState(false);
 
-  // Add a new state variable to track the sub-type name
-  const [subTypeName, setSubTypeName] = useState('');
+  // Add a new state variable to track the specialisation name
+  const [specialisationName, setSpecialisationName] = useState('');
 
   // Add new state for gang-specific costs
   const [showGangCostDialog, setShowGangCostDialog] = useState(false);
@@ -167,7 +167,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
   // Add refs for the problematic input fields
   const fighterTypeInputRef = useRef<HTMLInputElement>(null);
-  const subTypeNameInputRef = useRef<HTMLInputElement>(null);
+  const specialisationNameInputRef = useRef<HTMLInputElement>(null);
   const specialSkillsInputRef = useRef<HTMLInputElement>(null);
   const gangAdjustedCostInputRef = useRef<HTMLInputElement>(null);
   
@@ -184,7 +184,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   // Track which skill IDs we've already fetched details for
   const fetchedSkillDetailsRef = useRef<Set<string>>(new Set());
 
-  // When fighter type or subtype values change from API, update the refs
+  // When fighter type or specialisation values change from API, update the refs
   useEffect(() => {
     if (fighterTypeInputRef.current) {
       fighterTypeInputRef.current.value = fighterType;
@@ -192,10 +192,10 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   }, [fighterType]);
 
   useEffect(() => {
-    if (subTypeNameInputRef.current) {
-      subTypeNameInputRef.current.value = subTypeName;
+    if (specialisationNameInputRef.current) {
+      specialisationNameInputRef.current.value = specialisationName;
     }
-  }, [subTypeName]);
+  }, [specialisationName]);
 
   useEffect(() => {
     if (specialSkillsInputRef.current) {
@@ -395,7 +395,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       if (gangType && gangType.edition_id !== newEditionId) {
         setGangTypeFilter('');
         setSelectedFighterTypeId('');
-        setSelectedSubTypeId('');
+        setSelectedSpecialisationId('');
       }
     }
 
@@ -530,11 +530,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     fetchSelectedSkillDetails();
   }, [selectedSkills, selectedFighterTypeId]);
 
-  const { data: fighterSubTypes = [] } = useQuery<FighterSubType[]>({
-    queryKey: ['admin-fighter-sub-types'],
+  const { data: fighterSpecialisations = [] } = useQuery<FighterSpecialisation[]>({
+    queryKey: ['admin-fighter-specialisations'],
     queryFn: async () => {
-      const response = await fetch('/api/admin/fighter-sub-types');
-      if (!response.ok) throw new Error('Failed to fetch fighter sub-types');
+      const response = await fetch('/api/admin/fighter-specialisations');
+      if (!response.ok) throw new Error('Failed to fetch fighter specialisations');
       return response.json();
     },
     enabled: !!selectedFighterTypeId,
@@ -566,10 +566,10 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         throw new Error('No data received from server');
       }
 
-      // Force override fighter_sub_type_id to null if we're in "default" mode
-      if (selectedSubTypeId === "default") {
-        console.log('Forcing fighter_sub_type_id to null since Default is selected');
-        data = { ...data, fighter_sub_type_id: null };
+      // Force override fighter_specialisation_id to null if we're in "default" mode
+      if (selectedSpecialisationId === "default") {
+        console.log('Forcing fighter_specialisation_id to null since Default is selected');
+        data = { ...data, fighter_specialisation_id: null };
       }
 
       // Set the form data
@@ -613,53 +613,53 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         setGangTypeCosts([]);
       }
 
-      // Only set subTypeName if NOT explicitly handling a "default" selection
-      // and there's a fighter_sub_type_id in the response
-      if (selectedSubTypeId !== "default" && data.fighter_sub_type_id) {
-        // First look in our available sub-types
-        let subType = availableSubTypes.find(st => st.id === data.fighter_sub_type_id);
+      // Only set specialisationName if NOT explicitly handling a "default" selection
+      // and there's a fighter_specialisation_id in the response
+      if (selectedSpecialisationId !== "default" && data.fighter_specialisation_id) {
+        // First look in our available specialisations
+        let specialisation = availableSpecialisations.find(st => st.id === data.fighter_specialisation_id);
         
-        // If we couldn't find it there, look in the full fighterSubTypes array
-        if (!subType && fighterSubTypes.length > 0) {
-          subType = fighterSubTypes.find(st => st.id === data.fighter_sub_type_id);
+        // If we couldn't find it there, look in the full fighterSpecialisations array
+        if (!specialisation && fighterSpecialisations.length > 0) {
+          specialisation = fighterSpecialisations.find(st => st.id === data.fighter_specialisation_id);
         }
         
-        // If we found the sub-type, set its name
-        if (subType) {
-          console.log(`Found sub-type name: ${subType.sub_type_name} for ID: ${data.fighter_sub_type_id}`);
-          setSubTypeName(subType.sub_type_name);
+        // If we found the specialisation, set its name
+        if (specialisation) {
+          console.log(`Found specialisation name: ${specialisation.specialisation_name} for ID: ${data.fighter_specialisation_id}`);
+          setSpecialisationName(specialisation.specialisation_name);
           
           // Update the input field directly as well for immediate feedback
-          if (subTypeNameInputRef.current) {
-            subTypeNameInputRef.current.value = subType.sub_type_name;
+          if (specialisationNameInputRef.current) {
+            specialisationNameInputRef.current.value = specialisation.specialisation_name;
           }
         } else {
-          // If we couldn't find the sub-type info, fetch it directly
+          // If we couldn't find the specialisation info, fetch it directly
           try {
-            const subTypeResponse = await fetch(`/api/admin/fighter-sub-types?id=${data.fighter_sub_type_id}`);
-            if (subTypeResponse.ok) {
-              const subTypeData = await subTypeResponse.json();
-              console.log(`Fetched sub-type data:`, subTypeData);
-              if (subTypeData && subTypeData.sub_type_name) {
-                setSubTypeName(subTypeData.sub_type_name);
+            const specialisationResponse = await fetch(`/api/admin/fighter-specialisations?id=${data.fighter_specialisation_id}`);
+            if (specialisationResponse.ok) {
+              const specialisationData = await specialisationResponse.json();
+              console.log(`Fetched specialisation data:`, specialisationData);
+              if (specialisationData && specialisationData.specialisation_name) {
+                setSpecialisationName(specialisationData.specialisation_name);
                 
                 // Update the input field directly as well
-                if (subTypeNameInputRef.current) {
-                  subTypeNameInputRef.current.value = subTypeData.sub_type_name;
+                if (specialisationNameInputRef.current) {
+                  specialisationNameInputRef.current.value = specialisationData.specialisation_name;
                 }
               }
             }
           } catch (error) {
-            console.error('Error fetching sub-type details:', error);
+            console.error('Error fetching specialisation details:', error);
           }
         }
       } 
       // Remove the problematic code block starting here
-      else if (selectedSubTypeId === "default") {
-        // Just clear the subtype name field when "Default" is selected
-        setSubTypeName('');
-        if (subTypeNameInputRef.current) {
-          subTypeNameInputRef.current.value = '';
+      else if (selectedSpecialisationId === "default") {
+        // Just clear the specialisation name field when "Default" is selected
+        setSpecialisationName('');
+        if (specialisationNameInputRef.current) {
+          specialisationNameInputRef.current.value = '';
         }
       }
       // End of removing problematic code
@@ -700,13 +700,13 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     
     setSelectedFighterTypeCombo(comboString);
     setSelectedFighterTypeId('');
-    setSelectedSubTypeId('');
-    setAvailableSubTypes([]);
-    setSubTypeName('');
+    setSelectedSpecialisationId('');
+    setAvailableSpecialisations([]);
+    setSpecialisationName('');
     
-    // Clear the sub-type input field directly
-    if (subTypeNameInputRef.current) {
-      subTypeNameInputRef.current.value = '';
+    // Clear the specialisation input field directly
+    if (specialisationNameInputRef.current) {
+      specialisationNameInputRef.current.value = '';
     }
     
     if (!comboString) return;
@@ -723,7 +723,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       // Find all fighters that match this type+class+gang_type. The whole class
       // list has to match, not just contain the first one: with multi-class
       // fighter types a "Ganger" combo would otherwise also swallow every
-      // "Ganger, Specialist" type and mix their sub-types together.
+      // "Ganger, Specialist" type and mix their specialisations together.
       const matchingFighters = fighterTypes.filter(f =>
         f.fighter_type === fighterType &&
         formatFighterClasses(f.fighter_classes) === fighterClass &&
@@ -732,75 +732,75 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       
       console.log(`Found ${matchingFighters.length} fighters matching ${fighterType} (${fighterClass})`);
       
-      // Prepare sub-type options, including a "Default" option
-      const subTypeOptions: FighterSubType[] = [];
+      // Prepare specialisation options, including a "Default" option
+      const specialisationOptions: FighterSpecialisation[] = [];
       
-      // First add default option (fighters without sub-type)
+      // First add default option (fighters without specialisation)
       const defaultFighters = matchingFighters.filter(f => 
-        !f.fighter_sub_type_id || 
-        f.fighter_sub_type_id === null || 
-        f.fighter_sub_type_id === "" || 
-        f.fighter_sub_type_id === "null"
+        !f.fighter_specialisation_id || 
+        f.fighter_specialisation_id === null || 
+        f.fighter_specialisation_id === "" || 
+        f.fighter_specialisation_id === "null"
       );
       
       if (defaultFighters.length > 0) {
         // Use the first default fighter's ID
         const defaultFighter = defaultFighters[0];
-        subTypeOptions.push({
+        specialisationOptions.push({
           id: "default",
-          sub_type_name: "Default",
+          specialisation_name: "Default",
           fighterId: defaultFighter.id
         });
       }
       
-      // Get all fighters with sub-types
-      const subtypedFighters = matchingFighters.filter(f => 
-        f.fighter_sub_type_id && 
-        f.fighter_sub_type_id !== null && 
-        f.fighter_sub_type_id !== "" && 
-        f.fighter_sub_type_id !== "null"
+      // Get all fighters with specialisations
+      const specialisedFighters = matchingFighters.filter(f => 
+        f.fighter_specialisation_id && 
+        f.fighter_specialisation_id !== null && 
+        f.fighter_specialisation_id !== "" && 
+        f.fighter_specialisation_id !== "null"
       );
       
-      // We need to fetch sub-type names for these fighters
-      if (subtypedFighters.length > 0) {
-        // Collect unique sub-type IDs - using Array.from for broader compatibility
-        const subTypeIds = Array.from(
+      // We need to fetch specialisation names for these fighters
+      if (specialisedFighters.length > 0) {
+        // Collect unique specialisation IDs - using Array.from for broader compatibility
+        const specialisationIds = Array.from(
           new Set(
-            subtypedFighters
-              .map(f => f.fighter_sub_type_id)
+            specialisedFighters
+              .map(f => f.fighter_specialisation_id)
               .filter(id => id !== null && id !== undefined)
           )
         ) as string[];
         
-        if (subTypeIds.length > 0) {
-          // For each fighter with a sub-type, create an option
-          subtypedFighters.forEach(fighter => {
-            if (!fighter.fighter_sub_type_id) return;
+        if (specialisationIds.length > 0) {
+          // For each fighter with a specialisation, create an option
+          specialisedFighters.forEach(fighter => {
+            if (!fighter.fighter_specialisation_id) return;
             
             // Just use a placeholder name for now, it will be updated later
             const placeholderName = "Loading...";
             
-            subTypeOptions.push({
-              id: fighter.fighter_sub_type_id,
-              sub_type_name: placeholderName,
+            specialisationOptions.push({
+              id: fighter.fighter_specialisation_id,
+              specialisation_name: placeholderName,
               fighterId: fighter.id
             });
           });
           
-          // Fetch the actual sub-type names
-          fetchSubTypeNames(subTypeOptions);
+          // Fetch the actual specialisation names
+          fetchSpecialisationNames(specialisationOptions);
         }
       }
       
-      // Sort sub-types by name (keeping Default first)
-      subTypeOptions.sort((a, b) => {
+      // Sort specialisations by name (keeping Default first)
+      specialisationOptions.sort((a, b) => {
         if (a.id === "default") return -1;
         if (b.id === "default") return 1;
-        return a.sub_type_name.localeCompare(b.sub_type_name);
+        return a.specialisation_name.localeCompare(b.specialisation_name);
       });
       
-      // Update available sub-types
-      setAvailableSubTypes(subTypeOptions);
+      // Update available specialisations
+      setAvailableSpecialisations(specialisationOptions);
       
       // Setup basic fighter type info
       if (matchingFighters.length > 0) {
@@ -814,22 +814,22 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     }
   };
   
-  // Add a new function to fetch sub-type names
-  const fetchSubTypeNames = async (subTypeOptions: FighterSubType[]) => {
+  // Add a new function to fetch specialisation names
+  const fetchSpecialisationNames = async (specialisationOptions: FighterSpecialisation[]) => {
     try {
-      const response = await fetch('/api/admin/fighter-sub-types');
-      if (!response.ok) throw new Error('Failed to fetch fighter sub-types');
-      const subTypesData = await response.json();
+      const response = await fetch('/api/admin/fighter-specialisations');
+      if (!response.ok) throw new Error('Failed to fetch fighter specialisations');
+      const specialisationsData = await response.json();
       
-      // Update the sub-type names in our options
-      const updatedOptions = subTypeOptions.map(option => {
+      // Update the specialisation names in our options
+      const updatedOptions = specialisationOptions.map(option => {
         if (option.id === "default") return option;
         
-        const subType = subTypesData.find((st: SubType) => st.id === option.id);
-        if (subType) {
+        const specialisation = specialisationsData.find((st: Specialisation) => st.id === option.id);
+        if (specialisation) {
           return {
             ...option,
-            sub_type_name: subType.sub_type_name
+            specialisation_name: specialisation.specialisation_name
           };
         }
         return option;
@@ -839,26 +839,26 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       updatedOptions.sort((a, b) => {
         if (a.id === "default") return -1;
         if (b.id === "default") return 1;
-        return a.sub_type_name.localeCompare(b.sub_type_name);
+        return a.specialisation_name.localeCompare(b.specialisation_name);
       });
       
-      setAvailableSubTypes(updatedOptions);
+      setAvailableSpecialisations(updatedOptions);
     } catch (error) {
-      console.error('Error fetching sub-type names:', error);
+      console.error('Error fetching specialisation names:', error);
     }
   };
 
-  const handleSubTypeChange = async (subTypeId: string) => {
-    console.log('handleSubTypeChange called with subTypeId:', subTypeId);
+  const handleSpecialisationChange = async (specialisationId: string) => {
+    console.log('handleSpecialisationChange called with specialisationId:', specialisationId);
     
-    // Update selected sub-type ID
-    setSelectedSubTypeId(subTypeId);
+    // Update selected specialisation ID
+    setSelectedSpecialisationId(specialisationId);
     
-    if (!subTypeId) {
-      // Clear sub-type name when no selection
-      setSubTypeName('');
-      if (subTypeNameInputRef.current) {
-        subTypeNameInputRef.current.value = '';
+    if (!specialisationId) {
+      // Clear specialisation name when no selection
+      setSpecialisationName('');
+      if (specialisationNameInputRef.current) {
+        specialisationNameInputRef.current.value = '';
       }
       return;
     }
@@ -878,23 +878,23 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         await fetchEquipmentByCategory();
       }
       
-      // Find the option in available sub-types
-      const selectedOption = availableSubTypes.find(st => st.id === subTypeId);
+      // Find the option in available specialisations
+      const selectedOption = availableSpecialisations.find(st => st.id === specialisationId);
       
       // If we have an option and it has a fighterId, fetch details
       if (selectedOption && selectedOption.fighterId) {
         setSelectedFighterTypeId(selectedOption.fighterId);
-        // Set sub-type name if it's not the default option, otherwise clear it
-        if (subTypeId !== "default") {
-          setSubTypeName(selectedOption.sub_type_name);
-          if (subTypeNameInputRef.current) {
-            subTypeNameInputRef.current.value = selectedOption.sub_type_name;
+        // Set specialisation name if it's not the default option, otherwise clear it
+        if (specialisationId !== "default") {
+          setSpecialisationName(selectedOption.specialisation_name);
+          if (specialisationNameInputRef.current) {
+            specialisationNameInputRef.current.value = selectedOption.specialisation_name;
           }
         } else {
           // For default, start with an empty field that can be edited
-          setSubTypeName('');
-          if (subTypeNameInputRef.current) {
-            subTypeNameInputRef.current.value = '';
+          setSpecialisationName('');
+          if (specialisationNameInputRef.current) {
+            specialisationNameInputRef.current.value = '';
           }
         }
         
@@ -902,11 +902,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         console.log(`Fetching details for fighter ID: ${selectedOption.fighterId}`);
         await fetchFighterTypeDetails(selectedOption.fighterId);
       } else {
-        toast.error('Could not find fighter data for the selected sub-type');
+        toast.error('Could not find fighter data for the selected specialisation');
       }
     } catch (error) {
-      console.error('Error in handleSubTypeChange:', error);
-      toast.error('Failed to load fighter sub-type details');
+      console.error('Error in handleSpecialisationChange:', error);
+      toast.error('Failed to load fighter specialisation details');
     } finally {
       setIsLoading(false);
     }
@@ -942,19 +942,19 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
-      // Check if we have a valid sub-type selection
-      if (!selectedSubTypeId) {
-        throw new Error('Please select a fighter sub-type to edit');
+      // Check if we have a valid specialisation selection
+      if (!selectedSpecialisationId) {
+        throw new Error('Please select a fighter specialisation to edit');
       }
       
-      // Get the fighter ID associated with the selected sub-type
-      const selectedSubType = availableSubTypes.find(st => st.id === selectedSubTypeId);
-      if (!selectedSubType || !selectedSubType.fighterId) {
-        throw new Error('Could not find the fighter ID for the selected sub-type');
+      // Get the fighter ID associated with the selected specialisation
+      const selectedSpecialisation = availableSpecialisations.find(st => st.id === selectedSpecialisationId);
+      if (!selectedSpecialisation || !selectedSpecialisation.fighterId) {
+        throw new Error('Could not find the fighter ID for the selected specialisation');
       }
       
-      // The actual fighter ID we need to update comes from the sub-type selection
-      const fighterIdToUpdate = selectedSubType.fighterId;
+      // The actual fighter ID we need to update comes from the specialisation selection
+      const fighterIdToUpdate = selectedSpecialisation.fighterId;
       console.log(`Updating fighter ID: ${fighterIdToUpdate}`);
       
       // Get the base fighter to determine gang type
@@ -965,8 +965,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       
       console.log('Current selection state:', {
         selectedFighterTypeCombo,
-        selectedSubTypeId,
-        subTypeName,
+        selectedSpecialisationId,
+        specialisationName,
         fighterIdToUpdate
       });
       
@@ -987,116 +987,116 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         throw new Error('Please select at least one fighter class');
       }
 
-      // Special handling for subTypeId and subTypeName
-      let finalSubTypeId: string | null = null;
-      let finalSubTypeName: string | null = null;
+      // Special handling for specialisationId and specialisationName
+      let finalSpecialisationId: string | null = null;
+      let finalSpecialisationName: string | null = null;
       
-      // Get the original fighter data to see what subtype it currently has
+      // Get the original fighter data to see what specialisation it currently has
       const originalFighter = fighterTypes.find(f => f.id === fighterIdToUpdate);
-      const originalSubTypeId = originalFighter?.fighter_sub_type_id;
+      const originalSpecialisationId = originalFighter?.fighter_specialisation_id;
       
-      // Get the current subtype name from the input field (might be more up-to-date than state)
-      const currentSubTypeName = subTypeNameInputRef.current?.value || subTypeName;
+      // Get the current specialisation name from the input field (might be more up-to-date than state)
+      const currentSpecialisationName = specialisationNameInputRef.current?.value || specialisationName;
       
-      // Get the original subtype name if we need to preserve it
-      let originalSubTypeName: string | null = null;
-      if (originalSubTypeId) {
-        const originalSubType = fighterSubTypes.find(st => st.id === originalSubTypeId);
-        originalSubTypeName = originalSubType?.sub_type_name || null;
+      // Get the original specialisation name if we need to preserve it
+      let originalSpecialisationName: string | null = null;
+      if (originalSpecialisationId) {
+        const originalSpecialisation = fighterSpecialisations.find(st => st.id === originalSpecialisationId);
+        originalSpecialisationName = originalSpecialisation?.specialisation_name || null;
       }
       
-      console.log('Subtype logic - Current state:', {
-        selectedSubTypeId,
-        subTypeName,
-        currentSubTypeName,
-        originalSubTypeId,
-        originalSubTypeName,
-        originalFighterSubTypeId: originalFighter?.fighter_sub_type_id
+      console.log('Specialisation logic - Current state:', {
+        selectedSpecialisationId,
+        specialisationName,
+        currentSpecialisationName,
+        originalSpecialisationId,
+        originalSpecialisationName,
+        originalFighterSpecialisationId: originalFighter?.fighter_specialisation_id
       });
       
       // Case 1: User selected "default" - Convert to default fighter
-      if (selectedSubTypeId === "default") {
-        // Check if user added a name to create a new subtype
-        if (currentSubTypeName && currentSubTypeName.trim()) {
+      if (selectedSpecialisationId === "default") {
+        // Check if user added a name to create a new specialisation
+        if (currentSpecialisationName && currentSpecialisationName.trim()) {
           try {
-            const formattedName = currentSubTypeName.trim().charAt(0).toUpperCase() + currentSubTypeName.trim().slice(1);
-            console.log(`Creating new sub-type: "${formattedName}" from default fighter`);
+            const formattedName = currentSpecialisationName.trim().charAt(0).toUpperCase() + currentSpecialisationName.trim().slice(1);
+            console.log(`Creating new specialisation: "${formattedName}" from default fighter`);
               
-            const createResponse = await fetch('/api/admin/fighter-sub-types', {
+            const createResponse = await fetch('/api/admin/fighter-specialisations', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ sub_type_name: formattedName }),
+              body: JSON.stringify({ specialisation_name: formattedName }),
             });
               
             if (createResponse.ok) {
-              const newSubType = await createResponse.json();
-              finalSubTypeId = newSubType.id;
-              finalSubTypeName = newSubType.sub_type_name;
-              console.log(`Created new sub-type with ID: ${finalSubTypeId}`);
+              const newSpecialisation = await createResponse.json();
+              finalSpecialisationId = newSpecialisation.id;
+              finalSpecialisationName = newSpecialisation.specialisation_name;
+              console.log(`Created new specialisation with ID: ${finalSpecialisationId}`);
             } else {
-              console.error('Failed to create sub-type:', await createResponse.text());
-              throw new Error('Failed to create new sub-type');
+              console.error('Failed to create specialisation:', await createResponse.text());
+              throw new Error('Failed to create new specialisation');
             }
           } catch (error) {
-            console.error('Error creating sub-type:', error);
-            throw new Error('Failed to create new sub-type');
+            console.error('Error creating specialisation:', error);
+            throw new Error('Failed to create new specialisation');
           }
         } else {
           // No name provided, keep as default fighter
-          finalSubTypeId = null;
-          finalSubTypeName = null;
-          console.log(`Converting fighter ${fighterIdToUpdate} to default (null sub-type)`);
+          finalSpecialisationId = null;
+          finalSpecialisationName = null;
+          console.log(`Converting fighter ${fighterIdToUpdate} to default (null specialisation)`);
         }
       }
-      // Case 2: User selected an existing subtype - Use that subtype
-      else if (selectedSubTypeId && selectedSubTypeId !== "default") {
-        finalSubTypeId = selectedSubTypeId;
+      // Case 2: User selected an existing specialisation - Use that specialisation
+      else if (selectedSpecialisationId && selectedSpecialisationId !== "default") {
+        finalSpecialisationId = selectedSpecialisationId;
         
         // If user provided a name in the input, use that; otherwise preserve the original name
-        if (currentSubTypeName && currentSubTypeName.trim()) {
-          finalSubTypeName = currentSubTypeName.trim();
+        if (currentSpecialisationName && currentSpecialisationName.trim()) {
+          finalSpecialisationName = currentSpecialisationName.trim();
         } else {
-          // No input provided, find and preserve the original subtype name
-          const selectedSubType = fighterSubTypes.find(st => st.id === selectedSubTypeId);
-          finalSubTypeName = selectedSubType?.sub_type_name || null;
+          // No input provided, find and preserve the original specialisation name
+          const selectedSpecialisation = fighterSpecialisations.find(st => st.id === selectedSpecialisationId);
+          finalSpecialisationName = selectedSpecialisation?.specialisation_name || null;
         }
         
-        console.log(`Using selected sub-type with ID: ${finalSubTypeId}, name: ${finalSubTypeName}`);
+        console.log(`Using selected specialisation with ID: ${finalSpecialisationId}, name: ${finalSpecialisationName}`);
         
-        // If user changed the subtype name, update it
-        if (currentSubTypeName && currentSubTypeName.trim()) {
-          const existingSubType = fighterSubTypes.find(st => st.id === finalSubTypeId);
-          if (existingSubType && existingSubType.sub_type_name !== currentSubTypeName.trim()) {
+        // If user changed the specialisation name, update it
+        if (currentSpecialisationName && currentSpecialisationName.trim()) {
+          const existingSpecialisation = fighterSpecialisations.find(st => st.id === finalSpecialisationId);
+          if (existingSpecialisation && existingSpecialisation.specialisation_name !== currentSpecialisationName.trim()) {
             try {
-              console.log(`Updating sub-type name from "${existingSubType.sub_type_name}" to "${currentSubTypeName.trim()}"`);
-              const updateResponse = await fetch(`/api/admin/fighter-sub-types?id=${finalSubTypeId}`, {
+              console.log(`Updating specialisation name from "${existingSpecialisation.specialisation_name}" to "${currentSpecialisationName.trim()}"`);
+              const updateResponse = await fetch(`/api/admin/fighter-specialisations?id=${finalSpecialisationId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sub_type_name: currentSubTypeName.trim() }),
+                body: JSON.stringify({ specialisation_name: currentSpecialisationName.trim() }),
               });
               
               if (!updateResponse.ok) {
-                console.error('Failed to update sub-type name:', await updateResponse.text());
+                console.error('Failed to update specialisation name:', await updateResponse.text());
               } else {
-                finalSubTypeName = currentSubTypeName.trim();
+                finalSpecialisationName = currentSpecialisationName.trim();
               }
             } catch (error) {
-              console.error('Error updating sub-type name:', error);
+              console.error('Error updating specialisation name:', error);
             }
           }
         }
       }
-      // Case 3: No subtype selected but fighter originally had one - preserve original
-      else if (!selectedSubTypeId && originalSubTypeId) {
-        finalSubTypeId = originalSubTypeId;
-        finalSubTypeName = originalSubTypeName;
-        console.log(`No subtype selection made, preserving original sub-type ID: ${finalSubTypeId} with name: ${finalSubTypeName}`);
+      // Case 3: No specialisation selected but fighter originally had one - preserve original
+      else if (!selectedSpecialisationId && originalSpecialisationId) {
+        finalSpecialisationId = originalSpecialisationId;
+        finalSpecialisationName = originalSpecialisationName;
+        console.log(`No specialisation selection made, preserving original specialisation ID: ${finalSpecialisationId} with name: ${finalSpecialisationName}`);
       }
-      // Case 4: No subtype selected and fighter was originally default - keep as default
+      // Case 4: No specialisation selected and fighter was originally default - keep as default
       else {
-        finalSubTypeId = null;
-        finalSubTypeName = null;
-        console.log(`No subtype selection made and fighter was originally default, keeping as default`);
+        finalSpecialisationId = null;
+        finalSpecialisationName = null;
+        console.log(`No specialisation selection made and fighter was originally default, keeping as default`);
       }
 
       // Log equipment selection state before preparing update data
@@ -1159,8 +1159,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         cost: parseInt(baseCost),
         gang_type_id: fighterToUpdate.gang_type_id,
         fighter_classes: selectedFighterClasses,
-        fighter_sub_type_id: finalSubTypeId,
-        fighter_sub_type: finalSubTypeName,
+        fighter_specialisation_id: finalSpecialisationId,
+        fighter_specialisation: finalSpecialisationName,
         movement: parseInt(movement),
         weapon_skill: parseInt(weaponSkill),
         ballistic_skill: parseInt(ballisticSkill),
@@ -1194,10 +1194,10 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
       console.log('Sending update data:', updateData);
       console.log('Equipment selection in update data:', updateData.equipment_selection);
-      console.log('Selected sub-type and final fighter_sub_type_id:', {
-        selectedSubTypeId,
-        submittingSubTypeId: updateData.fighter_sub_type_id,
-        originalSubTypeId: finalSubTypeId
+      console.log('Selected specialisation and final fighter_specialisation_id:', {
+        selectedSpecialisationId,
+        submittingSpecialisationId: updateData.fighter_specialisation_id,
+        originalSpecialisationId: finalSpecialisationId
       });
 
       // Check if equipment selection is being properly included
@@ -1432,7 +1432,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   setGangTypeFilter(e.target.value);
                   // Reset downstream selections when gang type changes
                   setSelectedFighterTypeId('');
-                  setSelectedSubTypeId('');
+                  setSelectedSpecialisationId('');
                 }}
                 className="w-full p-2 border rounded-md"
               >
@@ -1445,7 +1445,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
               </select>
             </div>
 
-            {/* First row: Fighter Type selection and Sub-type selection */}
+            {/* First row: Fighter Type selection and Specialisation selection */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
@@ -1473,33 +1473,33 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Select Fighter Sub-type to Edit
+                  Select Fighter Specialisation to Edit
                 </label>
                 <select
-                  value={selectedSubTypeId}
-                  onChange={(e) => handleSubTypeChange(e.target.value)}
+                  value={selectedSpecialisationId}
+                  onChange={(e) => handleSpecialisationChange(e.target.value)}
                   className="w-full p-2 border rounded-md"
-                  disabled={!selectedFighterTypeCombo || availableSubTypes.length === 0}
+                  disabled={!selectedFighterTypeCombo || availableSpecialisations.length === 0}
                 >
                   <option value="">
                     {!selectedFighterTypeCombo 
                       ? "Select a fighter type first" 
-                      : availableSubTypes.length === 0 
-                        ? "Loading sub-types..." 
-                        : "Select a sub-type"
+                      : availableSpecialisations.length === 0 
+                        ? "Loading specialisations..." 
+                        : "Select a specialisation"
                     }
                   </option>
-                  {availableSubTypes.map((subType) => (
-                    <option key={subType.id} value={subType.id}>
-                      {subType.sub_type_name}
+                  {availableSpecialisations.map((specialisation) => (
+                    <option key={specialisation.id} value={specialisation.id}>
+                      {specialisation.specialisation_name}
                     </option>
                   ))}
                 </select>
               </div>
             </div>
 
-            {/* Second row: Fighter Type name and Fighter Sub-type input */}
-            {selectedSubTypeId && !isLoading && (
+            {/* Second row: Fighter Type name and Fighter Specialisation input */}
+            {selectedSpecialisationId && !isLoading && (
               <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
@@ -1520,23 +1520,23 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
                 <div>
                   <label className="block text-sm font-medium text-muted-foreground mb-1">
-                    Fighter Sub-type
+                    Fighter Specialisation
                   </label>
                   <Input
-                    ref={subTypeNameInputRef}
+                    ref={specialisationNameInputRef}
                     type="text"
-                    defaultValue={subTypeName}
+                    defaultValue={specialisationName}
                     onChange={handleInputTyping}
                     onBlur={(e) => {
                       const newName = e.target.value;
-                      setSubTypeName(newName);
+                      setSpecialisationName(newName);
                       
-                      // Also update the name in our availableSubTypes array
-                      if (selectedSubTypeId && selectedSubTypeId !== "default") {
-                        setAvailableSubTypes(prev => 
+                      // Also update the name in our availableSpecialisations array
+                      if (selectedSpecialisationId && selectedSpecialisationId !== "default") {
+                        setAvailableSpecialisations(prev => 
                           prev.map(st => 
-                            st.id === selectedSubTypeId 
-                              ? { ...st, sub_type_name: newName } 
+                            st.id === selectedSpecialisationId 
+                              ? { ...st, specialisation_name: newName } 
                               : st
                           )
                         );
@@ -1544,11 +1544,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                     }}
                     placeholder="e.g. Subjugator"
                     className="w-full"
-                    disabled={!selectedSubTypeId}
+                    disabled={!selectedSpecialisationId}
                   />
-                  {selectedSubTypeId === "default" && (
+                  {selectedSpecialisationId === "default" && (
                     <p className="text-xs text-muted-foreground mt-1">
-                      You can add a sub-type name to create a new variant of this fighter.
+                      You can add a specialisation name to create a new variant of this fighter.
                     </p>
                   )}
                 </div>
@@ -2436,7 +2436,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!selectedSubTypeId || selectedFighterClasses.length === 0 || isLoading}
+            disabled={!selectedSpecialisationId || selectedFighterClasses.length === 0 || isLoading}
             className="px-4 py-2 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
           >
             {isLoading ? 'Updating...' : 'Update Fighter Type'}

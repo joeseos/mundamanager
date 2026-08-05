@@ -1326,7 +1326,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                         name={fighter.fighter_name}
                         type={fighter.fighter_type}
                         fighter_classes={fighter.fighter_classes}
-                        fighter_sub_type={fighter.fighter_sub_type}
+                        fighter_specialisation={fighter.fighter_specialisation}
                         label={fighter.label}
                         credits={fighter.credits}
                         loadout_cost={fighter.loadout_cost}

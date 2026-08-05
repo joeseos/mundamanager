@@ -1558,10 +1558,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         return a.fighter_type.localeCompare(b.fighter_type);
                       })
                       .map((ft) => {
-                        const subTypeText = ft.fighter_sub_types?.sub_type_name ? ` - ${ft.fighter_sub_types.sub_type_name}` : '';
+                        const specialisationText = ft.fighter_specialisations?.specialisation_name ? ` - ${ft.fighter_specialisations.specialisation_name}` : '';
                         return (
                           <option key={ft.id} value={ft.id}>
-                            {`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_classes?.join(', ')})${subTypeText}`}
+                            {`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_classes?.join(', ')})${specialisationText}`}
                           </option>
                         );
                       })}
@@ -1577,7 +1577,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           key={ft.id}
                           className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                         >
-                          <span>{`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_classes?.join(', ')})${ft.fighter_sub_types?.sub_type_name ? ` - ${ft.fighter_sub_types.sub_type_name}` : ''}`}</span>
+                          <span>{`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_classes?.join(', ')})${ft.fighter_specialisations?.specialisation_name ? ` - ${ft.fighter_specialisations.specialisation_name}` : ''}`}</span>
                           <button
                             type="button"
                             onClick={() => setSelectedFighterTypes(selectedFighterTypes.filter(id => id !== ft.id))}
