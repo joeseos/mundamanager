@@ -1,6 +1,17 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { invalidateGangFinancials } from './cache-tags';
 
+/** How many times to re-read and retry when a concurrent write beats us to the row. */
+const MAX_FINANCIAL_ATTEMPTS = 3;
+
+/**
+ * Pin one column to the value we read. Nullable columns need .is() — .eq(col, null)
+ * does not match NULL in PostgREST, which would make the compare-and-swap never succeed.
+ */
+function matchCurrentValue(query: any, column: string, value: number | null) {
+  return value === null ? query.is(column, null) : query.eq(column, value);
+}
+
 export interface GangFinancialUpdateOptions {
   gangId: string;
   ratingDelta?: number;         // Change to rating
@@ -74,72 +85,95 @@ export async function updateGangFinancials(
   }
 
   try {
-    // Get current gang values (old values)
-    const { data: gangRow, error: selectError } = await supabase
-      .from('gangs')
-      .select('credits, rating, wealth, trade_points')
-      .eq('id', gangId)
-      .single();
+    // The new values are computed in JS from the current ones, so the write has to be
+    // conditional on the row still holding what we read — otherwise two concurrent
+    // purchases both read the same balance and the second silently clobbers the first's
+    // deduction. Matching every column we write turns this into a compare-and-swap: a
+    // conflicting write makes the UPDATE match 0 rows, and we re-read and try again.
+    for (let attempt = 1; attempt <= MAX_FINANCIAL_ATTEMPTS; attempt++) {
+      const { data: gangRow, error: selectError } = await supabase
+        .from('gangs')
+        .select('credits, rating, wealth, trade_points')
+        .eq('id', gangId)
+        .single();
 
-    if (selectError || !gangRow) {
-      return { success: false, error: selectError?.message || 'Gang not found' };
-    }
+      if (selectError || !gangRow) {
+        return { success: false, error: selectError?.message || 'Gang not found' };
+      }
 
-    const currentCredits = (gangRow.credits ?? 0) as number;
-    const currentRating = (gangRow.rating ?? 0) as number;
-    const currentWealth = (gangRow.wealth ?? 0) as number;
-    const currentTradePoints = (gangRow.trade_points ?? 0) as number;
+      // Keep the raw values too: credits/rating/wealth are nullable, and a NULL has to be
+      // matched with .is() rather than .eq() for the compare-and-swap to hold.
+      const rawCredits = (gangRow.credits ?? null) as number | null;
+      const rawRating = (gangRow.rating ?? null) as number | null;
+      const rawWealth = (gangRow.wealth ?? null) as number | null;
+      const rawTradePoints = (gangRow.trade_points ?? null) as number | null;
 
-    if (currentCredits + creditsDelta < 0) {
-      return { success: false, error: 'Insufficient credits' };
-    }
+      const currentCredits = rawCredits ?? 0;
+      const currentRating = rawRating ?? 0;
+      const currentWealth = rawWealth ?? 0;
+      const currentTradePoints = rawTradePoints ?? 0;
 
-    if (currentTradePoints + tradePointsDelta < 0) {
-      return { success: false, error: 'Insufficient Trade Points' };
-    }
+      if (currentCredits + creditsDelta < 0) {
+        return { success: false, error: 'Insufficient credits' };
+      }
 
-    // Calculate new values
-    // Wealth = rating change + credits change + stash value change (Trade Points excluded)
-    const wealthDelta = effectiveRatingDelta + creditsDelta + stashValueDelta;
-    const expectedValues = {
-      credits: Math.max(0, currentCredits + creditsDelta),
-      rating: Math.max(0, currentRating + effectiveRatingDelta),
-      wealth: Math.max(0, currentWealth + wealthDelta),
-      trade_points: Math.max(0, currentTradePoints + tradePointsDelta)
-    };
-    const oldValues = {
-      credits: currentCredits,
-      rating: currentRating,
-      wealth: currentWealth,
-      trade_points: currentTradePoints
-    };
+      if (currentTradePoints + tradePointsDelta < 0) {
+        return { success: false, error: 'Insufficient Trade Points' };
+      }
 
-    // Return the updated row from the UPDATE itself rather than re-reading it: one
-    // statement instead of two, and the values are guaranteed to be the ones this
-    // update wrote rather than whatever a concurrent writer left behind.
-    const { data: updatedGangRow, error: updateError } = await supabase
-      .from('gangs')
-      .update(expectedValues)
-      .eq('id', gangId)
-      .select('credits, rating, wealth, trade_points')
-      .single();
+      // Calculate new values
+      // Wealth = rating change + credits change + stash value change (Trade Points excluded)
+      const wealthDelta = effectiveRatingDelta + creditsDelta + stashValueDelta;
+      const expectedValues = {
+        credits: Math.max(0, currentCredits + creditsDelta),
+        rating: Math.max(0, currentRating + effectiveRatingDelta),
+        wealth: Math.max(0, currentWealth + wealthDelta),
+        trade_points: Math.max(0, currentTradePoints + tradePointsDelta)
+      };
+      const oldValues = {
+        credits: currentCredits,
+        rating: currentRating,
+        wealth: currentWealth,
+        trade_points: currentTradePoints
+      };
 
-    if (updateError) {
-      return { success: false, error: updateError.message };
-    }
+      // Returning the row from the UPDATE also saves a follow-up SELECT.
+      let query = supabase
+        .from('gangs')
+        .update(expectedValues)
+        .eq('id', gangId);
+      query = matchCurrentValue(query, 'credits', rawCredits);
+      query = matchCurrentValue(query, 'rating', rawRating);
+      query = matchCurrentValue(query, 'wealth', rawWealth);
+      query = matchCurrentValue(query, 'trade_points', rawTradePoints);
 
-    invalidateGangFinancials(gangId);
-    return {
-      success: true,
-      oldValues,
-      newValues: updatedGangRow
-        ? {
+      const { data: updatedRows, error: updateError } = await query
+        .select('credits, rating, wealth, trade_points');
+
+      if (updateError) {
+        return { success: false, error: updateError.message };
+      }
+
+      const updatedGangRow = updatedRows?.[0];
+      if (updatedGangRow) {
+        invalidateGangFinancials(gangId);
+        return {
+          success: true,
+          oldValues,
+          newValues: {
             credits: (updatedGangRow.credits ?? 0) as number,
             rating: (updatedGangRow.rating ?? 0) as number,
             wealth: (updatedGangRow.wealth ?? 0) as number,
             trade_points: (updatedGangRow.trade_points ?? 0) as number
           }
-        : expectedValues
+        };
+      }
+      // 0 rows matched: another write landed between our read and write. Loop re-reads.
+    }
+
+    return {
+      success: false,
+      error: 'Gang financials were modified concurrently; please retry'
     };
   } catch (e) {
     const errorMessage = e instanceof Error ? e.message : 'Unknown error';

@@ -22,7 +22,7 @@ import { countsTowardRating } from '@/utils/fighter-status';
 import { EquipmentGrants, ResourceCost, CostResourcePayload } from '@/types/equipment';
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
 import { clearHardpointReference } from './vehicle-hardpoints';
-import { deductGangResource, deductGangReputation, parseTradePointsCost, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
+import { deductGangResource, deductGangReputation, parseTradePointsCost, returnGangResource, returnGangReputation, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
 import { hasTradePoints } from '@/types/edition';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
@@ -734,6 +734,25 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     });
 
     if (!financialResult.success) {
+      // Nothing has been paid for, so unwind the purchase rather than leaving the gang
+      // holding free equipment. Deleting the fighter_equipment row cascades to granted
+      // equipment, fighter effects, beast links and loadout entries; the beasts' own
+      // fighter rows have no cascade, so remove those explicitly first.
+      try {
+        if (createdBeasts.length > 0) {
+          await supabase.from('fighters').delete().in('id', createdBeasts.map(b => b.id));
+        }
+        await supabase.from('fighter_equipment').delete().eq('id', newEquipmentId);
+        if (isResourcePurchase) {
+          if (params.resourceCost!.resourceName === REPUTATION_RESOURCE_NAME) {
+            await returnGangReputation(supabase, params.gang_id, params.resourceCost!.amount);
+          } else {
+            await returnGangResource(supabase, params.campaign_gang_id!, params.resourceCost!.amount, params.resourceCost!.typeResourceId, params.resourceCost!.campaignResourceId);
+          }
+        }
+      } catch (unwindErr) {
+        console.error('Failed to unwind purchase after gang financials update failed:', unwindErr);
+      }
       throw new Error(financialResult.error || 'Failed to update gang financials');
     }
 
