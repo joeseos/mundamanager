@@ -524,7 +524,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
         </div>
       </div> 
       <div className="mt-2">
-        <FighterDetailsStatsTable data={stats} isCrew={isCrew} />
+        <FighterDetailsStatsTable data={stats} isCrew={isCrew} editionSlug={edition_slug} />
       </div>
       
       {/* Show owner information for owned fighters */}
