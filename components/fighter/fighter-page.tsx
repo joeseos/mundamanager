@@ -135,6 +135,8 @@ interface Gang {
   id: string;
   credits: number;
   reputation?: number;
+  trade_points?: number;
+  edition_slug?: string | null;
   positioning?: Record<number, string>;
   gang_type_id?: string | null;
   custom_gang_type_id?: string | null;
@@ -344,6 +346,8 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
       id: fighterData.gang.id,
       credits: fighterData.gang.credits,
       reputation: fighterData.gang.reputation,
+      trade_points: fighterData.gang.trade_points,
+      edition_slug: fighterData.gang.edition_slug,
       gang_type_id: fighterData.gang.gang_type_id,
       custom_gang_type_id: fighterData.gang.custom_gang_type_id,
       gang_affiliation_id: fighterData.gang.gang_affiliation_id,
@@ -1329,7 +1333,6 @@ export default function FighterPage({
 
           {uiState.modals.addWeapon && fighterData.fighter && fighterData.gang && (
             <ItemModal
-              editionSlug={fighterData.fighter?.edition_slug ?? null}
               title="Equipment"
               onClose={() => handleModalToggle('addWeapon', false)}
               gangCredits={fighterData.gang.credits}
@@ -1345,13 +1348,14 @@ export default function FighterPage({
               fighterWeapons={(fighterData.equipment || []).filter(eq => eq.equipment_type === 'weapon').map(eq => ({ id: eq.fighter_equipment_id, name: eq.equipment_name, equipment_category: eq.equipment_category, effect_names: eq.effect_names }))}
               {...campaignProps}
               gangReputation={fighterData.gang?.reputation}
+              editionSlug={fighterData.gang?.edition_slug ?? fighterData.fighter?.edition_slug ?? null}
+              gangTradePoints={fighterData.gang?.trade_points}
               onPurchaseRequest={(payload) => { purchaseHandlerRef.current?.(payload); }}
             />
           )}
 
           {uiState.modals.addVehicleEquipment && fighterData.fighter && fighterData.gang && vehicle && (
             <ItemModal
-              editionSlug={fighterData.fighter?.edition_slug ?? null}
               title="Add Vehicle Equipment"
               onClose={() => handleModalToggle('addVehicleEquipment', false)}
               gangCredits={fighterData.gang.credits}
@@ -1367,6 +1371,8 @@ export default function FighterPage({
               allowedCategories={VEHICLE_EQUIPMENT_CATEGORIES}
               {...campaignProps}
               gangReputation={fighterData.gang?.reputation}
+              editionSlug={fighterData.gang?.edition_slug ?? fighterData.fighter?.edition_slug ?? null}
+              gangTradePoints={fighterData.gang?.trade_points}
               onPurchaseRequest={(payload) => { vehiclePurchaseHandlerRef.current?.(payload); }}
             />
           )}

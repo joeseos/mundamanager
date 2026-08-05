@@ -107,8 +107,8 @@ export interface Equipment {
   cost: number;
   base_cost?: number;
   adjusted_cost?: number;
-  /** N26 Trade Points cost; surfaced only when the edition uses trade points */
-  trade_points?: number;
+  /** N26 Trade Points cost (text: numeric string or E); surfaced when edition uses trade points */
+  trade_points?: string;
   availability?: string | null;
   equipment_category?: string;
   created_at?: string;
@@ -173,8 +173,8 @@ export interface CustomEquipment {
   equipment_name: string;
   availability: string;
   cost: number;
-  /** N26 Trade Points cost; surfaced only when the edition uses trade points */
-  trade_points?: number;
+  /** N26 Trade Points cost (text: numeric string or E); surfaced when edition uses trade points */
+  trade_points?: string;
   variant?: string;
   equipment_category?: string;
   equipment_category_id?: string;

@@ -56,8 +56,10 @@ interface GangInventoryProps {
   campaignGangId?: string;
   gangCampaignResources?: GangCampaignResource[];
   gangReputation?: number;
-  positioning?: Record<number, string>;
   editionSlug?: string | null;
+  gangTradePoints?: number;
+  onGangTradePointsUpdate?: (newTradePoints: number) => void;
+  positioning?: Record<number, string>;
 }
 
 export default function GangInventory({
@@ -82,8 +84,10 @@ export default function GangInventory({
   campaignGangId,
   gangCampaignResources,
   gangReputation,
-  positioning,
-  editionSlug
+  editionSlug,
+  gangTradePoints,
+  onGangTradePointsUpdate,
+  positioning
 }: GangInventoryProps) {
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [selectedFighter, setSelectedFighter] = useState<string>('');
@@ -986,7 +990,6 @@ export default function GangInventory({
 
       {showTradingPost && (
         <ItemModal
-          editionSlug={editionSlug}
           title="Trading Post"
           onClose={() => setShowTradingPost(false)}
           gangCredits={gangCredits}
@@ -1003,7 +1006,9 @@ export default function GangInventory({
           campaignGangId={campaignGangId}
           gangCampaignResources={gangCampaignResources}
           gangReputation={gangReputation}
-          onEquipmentBought={(_newFighterCredits, newGangCredits, boughtEquipment, newGangRating, newGangWealth) => {
+          editionSlug={editionSlug}
+          gangTradePoints={gangTradePoints}
+          onEquipmentBought={({ newGangCredits, boughtEquipment, newGangRating, newGangWealth, newGangTradePoints }) => {
             // Handle equipment bought for stash - perform optimistic updates
 
             // Create new stash item from the purchased equipment
@@ -1044,6 +1049,10 @@ export default function GangInventory({
             // Update gang wealth if provided
             if (onGangWealthUpdate && newGangWealth !== undefined) {
               onGangWealthUpdate(newGangWealth);
+            }
+
+            if (onGangTradePointsUpdate && newGangTradePoints !== undefined) {
+              onGangTradePointsUpdate(newGangTradePoints);
             }
 
             const costDescription = boughtEquipment.cost_resource_name

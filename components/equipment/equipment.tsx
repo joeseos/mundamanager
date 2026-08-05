@@ -14,8 +14,10 @@ import { LuX } from "react-icons/lu";
 import { RangeSlider } from "@/components/ui/range-slider";
 import { EquipmentTooltipTrigger } from './equipment-tooltip';
 import { PurchaseModal } from './purchase-modal';
-import { usePurchaseEquipment } from '@/hooks/use-purchase-equipment';
+import { usePurchaseEquipment, type EquipmentBoughtResult } from '@/hooks/use-purchase-equipment';
 import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
+import { hasTradePoints } from '@/types/edition';
+import { isExclusiveTradePoints, parseTradePointsCost } from '@/utils/campaigns/resources';
 
 interface ItemModalProps {
   title: string;
@@ -43,11 +45,12 @@ interface ItemModalProps {
   campaignGangId?: string;
   gangCampaignResources?: GangCampaignResource[];
   gangReputation?: number;
-  onEquipmentBought?: (newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment, newGangRating?: number, newGangWealth?: number) => void;
+  editionSlug?: string | null;
+  gangTradePoints?: number;
+  onEquipmentBought?: (result: EquipmentBoughtResult) => void;
   onPurchaseRequest?: (payload: { params: any; item: Equipment }) => void;
   // Optional: pass fighter weapons to avoid client fetch in target selection
   fighterWeapons?: { id: string; name: string; equipment_category?: string; effect_names?: string[] }[];
-  editionSlug?: string | null;
 }
 
 interface RawEquipmentData {
@@ -56,6 +59,7 @@ interface RawEquipmentData {
   availability: string | null;
   base_cost: number;
   adjusted_cost: number;
+  trade_points?: string | null;
   equipment_category: string;
   equipment_type: 'weapon' | 'wargear' | 'vehicle_upgrade';
   created_at: string;
@@ -107,11 +111,13 @@ const ItemModal: React.FC<ItemModalProps> = ({
   campaignGangId,
   gangCampaignResources,
   gangReputation,
+  editionSlug,
+  gangTradePoints,
   onEquipmentBought,
   onPurchaseRequest,
-  fighterWeapons,
-  editionSlug
+  fighterWeapons
 }) => {
+  const showTradePoints = hasTradePoints(editionSlug);
   const [equipment, setEquipment] = useState<Record<string, Equipment[]>>({});
   const [categoryLoadingStates] = useState<Record<string, boolean>>({});
   const [searchQuery, setSearchQuery] = useState('');
@@ -135,7 +141,13 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const [isLoadingAllEquipment, setIsLoadingAllEquipment] = useState(false);
   const [costRange, setCostRange] = useState<[number, number]>([10, 160]);
   const [availabilityRange, setAvailabilityRange] = useState<[number, number]>([6, 12]);
+  const [tradePointsRange, setTradePointsRange] = useState<[number, number]>([0, 5]);
   const [includeLegacy, setIncludeLegacy] = useState<boolean>(false);
+
+  // Which rarity axis this list filters on: N26 gates equipment by Trade Points where
+  // earlier editions use Availability, and a fighter's own list has neither.
+  const rarityFilter: 'none' | 'tradePoints' | 'availability' =
+    equipmentListType === 'fighters-list' ? 'none' : showTradePoints ? 'tradePoints' : 'availability';
 
   const { purchaseEquipment } = usePurchaseEquipment({
     session,
@@ -322,6 +334,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
           cost: item.adjusted_cost,
           base_cost: item.base_cost,
           adjusted_cost: item.adjusted_cost,
+          trade_points: item.trade_points ?? undefined,
           equipment_type: item.equipment_type as 'weapon' | 'wargear' | 'vehicle_upgrade',
           fighter_weapon_id: item.fighter_weapon_id || undefined,
           master_crafted: item.master_crafted || false,
@@ -460,7 +473,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
   }, [onClose]);
 
   const canAffordEquipment = (item: Equipment) => {
-    return gangCredits >= (item.adjusted_cost ?? item.cost);
+    const canAffordCredits = gangCredits >= (item.adjusted_cost ?? item.cost);
+    if (!showTradePoints) return canAffordCredits;
+    const tradePointsCost = parseTradePointsCost(item.trade_points);
+    return canAffordCredits && tradePointsCost <= (gangTradePoints ?? 0);
   };
 
   const cacheRestorationKey = `${equipmentListType}:${cachedAllCategories.length}:${cachedFighterCategories.length}:${cachedFighterTPCategories.length}:${campaignTradingPostIds === undefined ? 'no-campaign' : 'campaign'}`;
@@ -498,9 +514,18 @@ const ItemModal: React.FC<ItemModalProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, equipmentListType, cachedAllCategories.length, cachedFighterCategories.length, cachedFighterTPCategories.length, isLoadingAllEquipment, campaignTPKey]);
 
-  const { computedMinCost, computedMaxCost, computedMinAvailability, computedMaxAvailability } = useMemo(() => {
+  const { computedMinCost, computedMaxCost, computedMinAvailability, computedMaxAvailability, computedMinTradePoints, computedMaxTradePoints } = useMemo(() => {
     const allEquipment = Object.values(equipment).flat();
-    if (allEquipment.length === 0) return { computedMinCost: 10, computedMaxCost: 160, computedMinAvailability: 6, computedMaxAvailability: 12 };
+    if (allEquipment.length === 0) {
+      return {
+        computedMinCost: 10,
+        computedMaxCost: 160,
+        computedMinAvailability: 6,
+        computedMaxAvailability: 12,
+        computedMinTradePoints: 0,
+        computedMaxTradePoints: 5,
+      };
+    }
 
     const costs = allEquipment.map(item => item.adjusted_cost ?? item.cost);
     const availabilities = allEquipment
@@ -511,12 +536,15 @@ const ItemModal: React.FC<ItemModalProps> = ({
         return 0;
       })
       .filter(val => !isNaN(val));
+    const tradePointsValues = allEquipment.map(item => parseTradePointsCost(item.trade_points));
 
     return {
       computedMinCost: costs.length > 0 ? Math.min(...costs) : 10,
       computedMaxCost: costs.length > 0 ? Math.max(...costs) : 160,
       computedMinAvailability: availabilities.length > 0 ? Math.min(...availabilities) : 6,
       computedMaxAvailability: availabilities.length > 0 ? Math.max(...availabilities) : 12,
+      computedMinTradePoints: tradePointsValues.length > 0 ? Math.min(...tradePointsValues) : 0,
+      computedMaxTradePoints: tradePointsValues.length > 0 ? Math.max(...tradePointsValues) : 5,
     };
   }, [equipment]);
 
@@ -529,10 +557,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
     if (equipmentCount > 0) {
       setCostRange([computedMinCost, computedMaxCost]);
       setAvailabilityRange([computedMinAvailability, computedMaxAvailability]);
+      setTradePointsRange([computedMinTradePoints, computedMaxTradePoints]);
     }
   }
 
-  // Filter equipment based on cost and availability ranges
+  // Filter equipment based on cost and availability / trade points ranges
   const filterEquipment = (items: Equipment[]) => {
     return items.filter(item => {
       const cost = item.adjusted_cost ?? item.cost;
@@ -552,10 +581,13 @@ const ItemModal: React.FC<ItemModalProps> = ({
       }
 
       const costInRange = cost >= costRange[0] && cost <= costRange[1];
-      const availabilityInRange = availability >= availabilityRange[0] &&
-        availability <= availabilityRange[1];
+      const tradePoints = parseTradePointsCost(item.trade_points);
+      const rarityInRange =
+        rarityFilter === 'tradePoints' ? tradePoints >= tradePointsRange[0] && tradePoints <= tradePointsRange[1] :
+        rarityFilter === 'availability' ? availability >= availabilityRange[0] && availability <= availabilityRange[1] :
+        true;
 
-      return costInRange && availabilityInRange &&
+      return costInRange && rarityInRange &&
         item.equipment_name.toLowerCase().includes(searchQuery);
     });
   };
@@ -587,10 +619,20 @@ const ItemModal: React.FC<ItemModalProps> = ({
             <div className="flex flex-row gap-3 pr-8">
               <h2 className="text-xl font-semibold">{title}</h2>
               <div className="ml-auto flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Gang Credits</span>
-                <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
-                  {gangCredits}
-                </span>
+                <div className="flex items-center gap-0.5">
+                  <span className="text-xs text-muted-foreground">Credits</span>
+                  <span className="bg-green-500 text-white px-3 py-1 rounded-full text-xs">
+                    {gangCredits}
+                  </span>
+                </div>
+                {showTradePoints && (
+                  <div className="flex items-center gap-0.5">
+                    <span className="text-xs text-muted-foreground">TP</span>
+                    <span className="bg-sky-500 text-white px-3 py-1 rounded-full text-xs">
+                      {gangTradePoints ?? 0}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-3 justify-center">
@@ -689,13 +731,26 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 </label>
               )}
               
-              {equipmentListType !== 'fighters-list' && (
+              {rarityFilter === 'availability' && (
                 <RangeSlider
                   label="Availability"
                   value={availabilityRange}
                   onValueChange={setAvailabilityRange}
                   min={computedMinAvailability}
                   max={computedMaxAvailability}
+                  step={1}
+                  formatValue={(val) => `${val}`}
+                  className="flex-1"
+                />
+              )}
+
+              {rarityFilter === 'tradePoints' && (
+                <RangeSlider
+                  label="Trade Points"
+                  value={tradePointsRange}
+                  onValueChange={setTradePointsRange}
+                  min={computedMinTradePoints}
+                  max={computedMaxTradePoints}
                   step={1}
                   formatValue={(val) => `${val}`}
                   className="flex-1"
@@ -820,7 +875,27 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                         <span className="text-[10px] font-medium">{item.cost}</span>
                                       </div>
                                     )}
-                                    {equipmentListType !== 'fighters-list' && (
+                                    {rarityFilter === 'tradePoints' && (() => {
+                                      const isExclusive = isExclusiveTradePoints(item.trade_points);
+                                      const canAffordTradePoints = parseTradePointsCost(item.trade_points) <= (gangTradePoints ?? 0);
+                                      return (
+                                        <div
+                                          className={`min-w-6 h-6 rounded-full flex items-center justify-center text-white px-1.5 ${
+                                            isExclusive
+                                              ? 'bg-rose-500'
+                                              : canAffordTradePoints
+                                                ? 'bg-sky-500'
+                                                : 'bg-gray-500'
+                                          }`}
+                                          title="Trade Points"
+                                        >
+                                          <span className="text-[10px] font-medium">
+                                            {isExclusive ? 'E' : `TP ${parseTradePointsCost(item.trade_points)}`}
+                                          </span>
+                                        </div>
+                                      );
+                                    })()}
+                                    {rarityFilter === 'availability' && (
                                       <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white ${
                                         item.availability?.startsWith('R') ? 'bg-sky-500' :
                                         item.availability?.startsWith('I') ? 'bg-orange-500' :
@@ -867,7 +942,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 item={buyModalData}
                 gangCredits={gangCredits}
                 onClose={() => setBuyModalData(null)}
-                onConfirm={({ cost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, equipmentTarget, selectedGrantEquipmentIds, resourceCost }) => {
+                onConfirm={({ cost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, equipmentTarget, selectedGrantEquipmentIds, resourceCost, tradePoints }) => {
                   purchaseEquipment({
                     item: buyModalData,
                     manualCost: cost,
@@ -877,6 +952,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                     equipmentTarget,
                     selectedGrantEquipmentIds: selectedGrantEquipmentIds || [],
                     resourceCost,
+                    tradePoints,
                   })
                 }}
                 isStashPurchase={Boolean(isStashMode || (!fighterId && !vehicleId))}
@@ -885,6 +961,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 equipmentListType={equipmentListType}
                 gangCampaignResources={gangCampaignResources}
                 gangReputation={gangReputation}
+                editionSlug={editionSlug}
+                gangTradePoints={gangTradePoints}
               />
             )}
           </div>

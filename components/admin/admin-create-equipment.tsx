@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { WeaponProfileInput, EquipmentAvailability, GangAdjustedCost, emptyWeaponProfile } from "@/types/equipment";
 import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
 import { hasLethalityStatline, hasTradePoints } from '@/types/edition';
+import { isValidTradePoints } from '@/utils/campaigns/resources';
 import { WeaponProfileFields } from '@/components/ui/weapon-profile-fields';
 import { HiX } from "react-icons/hi";
 import { LuTrash2 } from 'react-icons/lu'
@@ -145,8 +146,8 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
       return;
     }
 
-    if (showTradePoints && tradePoints === '') {
-      toast.error("Please fill in all required fields");
+    if (showTradePoints && !isValidTradePoints(tradePoints)) {
+      toast.error("Trade Points must be a number or E");
       return;
     }
 
@@ -181,7 +182,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
             ? combineAvailability(availLetter, availNumber)
             : 'C',
           cost: parseInt(cost),
-          trade_points: showTradePoints ? Number(tradePoints) : 0,
+          trade_points: showTradePoints ? tradePoints.trim().toUpperCase() : '0',
           variants: variants || null,
           equipment_category_id: equipmentCategory,
           equipment_type: equipmentType,
@@ -336,13 +337,11 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                   Trade Points *
                 </label>
                 <Input
-                  type="number"
+                  type="text"
                   value={tradePoints}
                   onChange={(e) => setTradePoints(e.target.value)}
-                  placeholder="E.g. 2"
+                  placeholder="2 or E"
                   className="w-full"
-                  min="0"
-                  step="any"
                 />
               </div>
             )}

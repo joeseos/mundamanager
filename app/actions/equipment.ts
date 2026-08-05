@@ -22,7 +22,8 @@ import { countsTowardRating } from '@/utils/fighter-status';
 import { EquipmentGrants, ResourceCost, CostResourcePayload } from '@/types/equipment';
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
 import { clearHardpointReference } from './vehicle-hardpoints';
-import { deductGangResource, deductGangReputation, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
+import { deductGangResource, returnGangResource, parseTradePointsCost, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
+import { hasTradePoints } from '@/types/edition';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -55,6 +56,8 @@ interface BuyEquipmentParams {
   selected_grant_equipment_ids?: string[];
   resourceCost?: ResourceCost;
   campaign_gang_id?: string;
+  /** Manual Trade Points override (numeric string or "E"). */
+  manual_trade_points?: string;
 }
 
 interface DeleteEquipmentParams {
@@ -230,7 +233,11 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       // Gang info
       supabase
         .from('gangs')
-        .select('id, credits, gang_type_id, user_id, rating, wealth')
+        .select(`
+          id, credits, gang_type_id, custom_gang_type_id, user_id, rating, wealth, trade_points,
+          gang_types ( editions:edition_id ( slug ) ),
+          custom_gang_types ( editions:edition_id ( slug ) )
+        `)
         .eq('id', params.gang_id)
         .single(),
 
@@ -267,6 +274,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           equipment_name,
           equipment_type,
           cost,
+          trade_points,
           is_editable,
           weapon_profiles (
             id,
@@ -300,7 +308,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         // Custom equipment details
         supabase
           .from('custom_equipment')
-          .select('id, equipment_name, equipment_type, cost, is_editable')
+          .select('id, equipment_name, equipment_type, cost, trade_points, is_editable')
           .eq('id', params.custom_equipment_id)
           .single(),
         
@@ -359,8 +367,11 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       ratingCost = Math.ceil((ratingCost * 1.25) / 5) * 5;
     }
 
-    // Resource-based purchase validation
+    // Resource-based purchase validation. Reputation lives on the gangs row; every other
+    // resource lives in campaign_gang_resources and is deducted separately.
     const isResourcePurchase = Boolean(params.resourceCost && params.resourceCost.amount > 0);
+    const isReputationPurchase = isResourcePurchase && params.resourceCost!.resourceName === REPUTATION_RESOURCE_NAME;
+    const isCampaignResourcePurchase = isResourcePurchase && !isReputationPurchase;
     if (!isResourcePurchase) {
       if (finalPurchaseCost > 0 && gang.credits < finalPurchaseCost) {
         throw new Error(`Gang has insufficient credits. Required: ${finalPurchaseCost}, Available: ${gang.credits}`);
@@ -402,6 +413,23 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           params.resourceCost!.amount !== Number(tpItem.cost_resource_amount)) {
         throw new Error('Resource amount does not match configured cost');
       }
+    }
+
+    // Trade Points (N26). The cost comes from the client alongside manual_cost — the
+    // modal already resolved the discounted catalog value via get_equipment_detailed_data.
+    // Embeds come back as objects for these many-to-one FKs; the untyped client infers
+    // arrays, hence the casts (same pattern as update-gang.ts).
+    const editionSlug = (gang.gang_types as any)?.editions?.slug
+      ?? (gang.custom_gang_types as any)?.editions?.slug
+      ?? null;
+    const tradePointsCost = hasTradePoints(editionSlug)
+      ? parseTradePointsCost(params.manual_trade_points ?? equipmentDetails.trade_points)
+      : 0;
+
+    // Validate before any write so the ordinary "can't afford it" case never has to unwind.
+    const currentTradePoints = Number(gang.trade_points ?? 0);
+    if (tradePointsCost > currentTradePoints) {
+      throw new Error(`Gang has insufficient Trade Points. Required: ${tradePointsCost}, Available: ${currentTradePoints}`);
     }
 
     const costResourcePayload: { cost_resource?: CostResourcePayload } = isResourcePurchase
@@ -466,14 +494,12 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       newEquipmentId = fighterEquip.id;
     }
 
-    // Deduct resource after successful insert to avoid losing resources on insert failure
-    if (isResourcePurchase) {
+    // Deduct the campaign resource after a successful insert so a failed insert never costs
+    // the gang anything. Reputation is not handled here — it lives on the gangs row, so it
+    // rides the single updateGangFinancials write below alongside credits and Trade Points.
+    if (isCampaignResourcePurchase) {
       try {
-        if (params.resourceCost!.resourceName === REPUTATION_RESOURCE_NAME) {
-          await deductGangReputation(supabase, params.gang_id, params.resourceCost!.amount);
-        } else {
-          await deductGangResource(supabase, params.campaign_gang_id!, params.resourceCost!.amount, params.resourceCost!.typeResourceId, params.resourceCost!.campaignResourceId);
-        }
+        await deductGangResource(supabase, params.campaign_gang_id!, params.resourceCost!.amount, params.resourceCost!.typeResourceId, params.resourceCost!.campaignResourceId);
       } catch (err) {
         await supabase.from('fighter_equipment').delete().eq('id', newEquipmentId);
         throw err;
@@ -697,17 +723,36 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     const totalRatingDelta = ratingDelta + createdBeastsRatingDelta + grantsRatingDelta;
     const stashValueDelta = params.buy_for_gang_stash ? ratingCost : 0;
 
-    // Update gang credits, rating and wealth using centralized helper
+    // Update gang credits, rating, wealth and Trade Points using centralized helper.
+    // Credits, Trade Points and reputation all live on the gangs row and move in this one
+    // UPDATE, so a purchase paid in more than one of them can never end up with one spent
+    // and another not.
     const financialResult = await updateGangFinancials(supabase, {
       gangId: params.gang_id,
       ratingDelta: totalRatingDelta,
       creditsDelta: isResourcePurchase ? 0 : -finalPurchaseCost - grantsRatingDelta,
+      tradePointsDelta: -tradePointsCost,
+      reputationDelta: isReputationPurchase ? -params.resourceCost!.amount : 0,
       stashValueDelta
     });
 
     if (!financialResult.success) {
+      // Nothing has been paid for, so unwind the purchase rather than leaving the gang
+      // holding free equipment. Deleting the fighter_equipment row is enough: it cascades
+      // to granted equipment, fighter effects, loadout entries and fighter_exotic_beasts,
+      // and each beast's own fighters row cascades from there via fighter_pet_id.
+      try {
+        await supabase.from('fighter_equipment').delete().eq('id', newEquipmentId);
+        if (isCampaignResourcePurchase) {
+          await returnGangResource(supabase, params.campaign_gang_id!, params.resourceCost!.amount, params.resourceCost!.typeResourceId, params.resourceCost!.campaignResourceId);
+        }
+      } catch (unwindErr) {
+        console.error('Failed to unwind purchase after gang financials update failed:', unwindErr);
+      }
       throw new Error(financialResult.error || 'Failed to update gang financials');
     }
+
+    const newGangTradePoints = financialResult.newValues?.trade_points;
 
     // Home page gangs list cache (server-side, user-scoped)
     invalidateUserGangsList(gang.user_id);
@@ -819,7 +864,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
             id: params.gang_id,
             credits: financialResult.newValues?.credits ?? (gang.credits - finalPurchaseCost),
             rating: financialResult.newValues?.rating ?? Math.max(0, (gang.rating || 0) + totalRatingDelta),
-            wealth: financialResult.newValues?.wealth ?? Math.max(0, (gang.wealth || 0) + totalRatingDelta + (-finalPurchaseCost) + stashValueDelta)
+            wealth: financialResult.newValues?.wealth ?? Math.max(0, (gang.wealth || 0) + totalRatingDelta + (-finalPurchaseCost) + stashValueDelta),
+            trade_points: newGangTradePoints ?? gang.trade_points
           }]
         },
         insertIntofighter_equipmentCollection: {
@@ -985,8 +1031,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       };
     }
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       data: responseData
     };
   } catch (error) {

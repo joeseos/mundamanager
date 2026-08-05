@@ -41,7 +41,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     const {
       getGangBasic,
       getGangPositioning,
-      getGangCredits,
+      getGangResources,
       getGangCampaigns
     } = await import('@/app/lib/shared/gang-data');
 
@@ -56,7 +56,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     const [
       gangBasic,
       gangPositioning,
-      gangCredits,
+      gangResources,
       equipment,
       skills,
       effects,
@@ -73,7 +73,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       // Gang data
       getGangBasic(fighterBasic.gang_id, supabase),
       getGangPositioning(fighterBasic.gang_id, supabase),
-      getGangCredits(fighterBasic.gang_id, supabase),
+      getGangResources(fighterBasic.gang_id, supabase),
       // Fighter data
       getFighterEquipment(id, supabase),
       getFighterSkills(id, supabase),
@@ -309,8 +309,10 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       },
       gang: {
         id: gangBasic.id,
-        credits: gangCredits,
-        reputation: gangBasic.reputation,
+        credits: gangResources.credits,
+        reputation: gangResources.reputation,
+        trade_points: gangResources.trade_points,
+        edition_slug: gangBasic.edition_slug ?? null,
         gang_type_id: gangBasic.gang_type_id,
         custom_gang_type_id: gangBasic.custom_gang_type_id,
         gang_affiliation_id: gangBasic.gang_affiliation_id,

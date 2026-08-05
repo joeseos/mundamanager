@@ -389,9 +389,9 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       invalidateGangCredits(params.gang_id);
     }
     
-    // Invalidate reputation/trade points cache if changed (both live on gangs)
+    // Reputation and trade points share the credits cache entry (all spendable resources)
     if ((params.reputation !== undefined && params.reputation_operation) || tradePointsChanged) {
-      revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.gang_id), { expire: 0 });
+      invalidateGangCredits(params.gang_id);
     }
 
     // Invalidate campaign resources cache if resources were updated

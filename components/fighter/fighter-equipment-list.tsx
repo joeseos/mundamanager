@@ -9,6 +9,7 @@ import { UserPermissions } from '@/types/user-permissions';
 import { sellEquipmentFromFighter } from '@/app/actions/sell-equipment';
 import { moveEquipmentToStash } from '@/app/actions/move-to-stash';
 import { deleteEquipmentFromFighter, buyEquipmentForFighter, deleteEquipmentEffect } from '@/app/actions/equipment';
+import { parseTradePointsCost } from '@/utils/campaigns/resources';
 import { Button } from "@/components/ui/button";
 import { MdCurrencyExchange } from 'react-icons/md';
 import { FaBox } from 'react-icons/fa';
@@ -167,9 +168,13 @@ export function WeaponList({
 
           onEquipmentUpdate(updated, previousFighterCredits + serverRatingCost, newGangCredits);
 
-          const costText = item.cost_resource_name
+          const baseCostText = item.cost_resource_name
             ? `${item.cost_resource_amount} ${item.cost_resource_name}`
             : `${serverPurchaseCost} credits`;
+          const tradePointsCost = parseTradePointsCost(params.manual_trade_points ?? item.trade_points);
+          const costText = tradePointsCost > 0
+            ? `${baseCostText} and ${tradePointsCost} TP`
+            : baseCostText;
           toast.success('Equipment purchased', { description: `Successfully bought ${item.equipment_name} for ${costText}` });
         } catch (err) {
           onEquipmentUpdate(previousEquipment, previousFighterCredits, previousGangCredits);
