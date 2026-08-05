@@ -198,6 +198,8 @@ export interface CustomWeaponProfileData {
   strength: string;
   ap: string;
   damage: string;
+  /** N26 replacement for damage. Optional until the customise form offers it. */
+  lethality?: string;
   ammo: string;
   traits?: string;
   sort_order?: number;

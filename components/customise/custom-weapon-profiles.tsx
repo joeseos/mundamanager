@@ -16,6 +16,7 @@ export interface CustomWeaponProfile {
   strength: string;
   ap: string;
   damage: string;
+  lethality?: string;
   ammo: string;
   traits?: string;
   sort_order?: number;

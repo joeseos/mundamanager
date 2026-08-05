@@ -54,6 +54,7 @@ export async function saveCustomWeaponProfiles(
           strength: profile.strength,
           ap: profile.ap,
           damage: profile.damage,
+          lethality: profile.lethality || null,
           ammo: profile.ammo,
           traits: profile.traits || null, // Explicitly preserve traits
           sort_order: profile.sort_order !== undefined ? profile.sort_order : index,
