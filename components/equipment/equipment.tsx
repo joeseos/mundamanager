@@ -14,7 +14,7 @@ import { LuX } from "react-icons/lu";
 import { RangeSlider } from "@/components/ui/range-slider";
 import { EquipmentTooltipTrigger } from './equipment-tooltip';
 import { PurchaseModal } from './purchase-modal';
-import { usePurchaseEquipment } from '@/hooks/use-purchase-equipment';
+import { usePurchaseEquipment, type EquipmentBoughtResult } from '@/hooks/use-purchase-equipment';
 import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
 import { hasTradePoints } from '@/types/edition';
 import { isExclusiveTradePoints, parseTradePointsCost } from '@/utils/campaigns/resources';
@@ -47,7 +47,7 @@ interface ItemModalProps {
   gangReputation?: number;
   editionSlug?: string | null;
   gangTradePoints?: number;
-  onEquipmentBought?: (newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment, newGangRating?: number, newGangWealth?: number, newGangTradePoints?: number) => void;
+  onEquipmentBought?: (result: EquipmentBoughtResult) => void;
   onPurchaseRequest?: (payload: { params: any; item: Equipment }) => void;
   // Optional: pass fighter weapons to avoid client fetch in target selection
   fighterWeapons?: { id: string; name: string; equipment_category?: string; effect_names?: string[] }[];

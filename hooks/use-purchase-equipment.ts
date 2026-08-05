@@ -15,16 +15,19 @@ export interface PurchaseEquipmentContext {
   isStashMode?: boolean;
   fighterCredits: number;
   campaignGangId?: string;
-  onEquipmentBought?: (
-    newFighterCredits: number,
-    newGangCredits: number,
-    boughtEquipment: Equipment,
-    newGangRating?: number,
-    newGangWealth?: number,
-    newGangTradePoints?: number
-  ) => void;
+  onEquipmentBought?: (result: EquipmentBoughtResult) => void;
   onPurchaseRequest?: (payload: { params: BuyEquipmentPayload; item: Equipment }) => void;
   closePurchaseModal?: () => void;
+}
+
+/** Outcome of a completed purchase, handed to the parent for optimistic updates. */
+export interface EquipmentBoughtResult {
+  newFighterCredits: number;
+  newGangCredits: number;
+  boughtEquipment: Equipment;
+  newGangRating?: number;
+  newGangWealth?: number;
+  newGangTradePoints?: number;
 }
 
 export type EquipmentTarget = { target_equipment_id: string; effect_type_id: string };
@@ -151,10 +154,10 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
 
       const newFighterCredits = isGangStashPurchase ? fighterCredits : fighterCredits + ratingCost;
 
-      onEquipmentBought?.(
+      onEquipmentBought?.({
         newFighterCredits,
         newGangCredits,
-        {
+        boughtEquipment: {
           ...item,
           fighter_equipment_id: equipmentRecord.id,
           cost: ratingCost,
@@ -167,7 +170,7 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
         newGangRating,
         newGangWealth,
         newGangTradePoints
-      );
+      });
 
       const displayName = equipmentRecord.is_master_crafted && item.equipment_type === 'weapon'
         ? `${item.equipment_name} (Master-crafted)`

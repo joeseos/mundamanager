@@ -1008,7 +1008,7 @@ export default function GangInventory({
           gangReputation={gangReputation}
           editionSlug={editionSlug}
           gangTradePoints={gangTradePoints}
-          onEquipmentBought={(_newFighterCredits, newGangCredits, boughtEquipment, newGangRating, newGangWealth, newGangTradePoints) => {
+          onEquipmentBought={({ newGangCredits, boughtEquipment, newGangRating, newGangWealth, newGangTradePoints }) => {
             // Handle equipment bought for stash - perform optimistic updates
 
             // Create new stash item from the purchased equipment
