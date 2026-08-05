@@ -357,6 +357,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
             strength,
             ap,
             damage,
+            lethality,
             ammo,
             traits,
             sort_order
@@ -395,6 +396,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
             strength,
             ap,
             damage,
+            lethality,
             ammo,
             traits,
             sort_order

@@ -28,6 +28,7 @@ export async function GET(request: Request) {
         strength,
         ap,
         damage,
+        lethality,
         ammo,
         traits,
         weapon_group_id,

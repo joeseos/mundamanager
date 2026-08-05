@@ -21,7 +21,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createCustomFighter, deleteCustomFighter, updateCustomFighter } from '@/app/actions/customise/custom-fighters';
 import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants';
-import { filterAllowedFighterClasses } from '@/utils/allowedFighterClasses';
+import { filterAllowedFighterSubtypes } from '@/utils/allowedFighterSubtypes';
 import { ShareCustomFighterModal } from '@/components/customise/custom-shared';
 import { skillSetRank } from '@/utils/skillSetRank';
 import type { UserCampaign } from '@/types/campaign';
@@ -103,9 +103,9 @@ interface GangType {
   is_custom?: boolean;
 }
 
-interface FighterClass {
+interface FighterSubtype {
   id: string;
-  class_name: string;
+  subtype_name: string;
 }
 
 export function CustomiseFighters({ className, initialFighters, userId, userCampaigns = [], readOnly = false }: CustomiseFightersProps) {
@@ -159,7 +159,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         intelligence: newFighterData.intelligence,
         special_rules: newFighterData.special_rules,
         free_skill: newFighterData.free_skill,
-        fighter_classes: newFighterData.fighter_classes,
+        fighter_subtypes: newFighterData.fighter_subtypes,
         description: newFighterData.description,
         skill_access: newFighterData.skill_access,
         created_at: new Date().toISOString(),
@@ -272,7 +272,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         intelligence: data.intelligence,
         special_rules: data.special_rules,
         free_skill: data.free_skill,
-        fighter_classes: data.fighter_classes,
+        fighter_subtypes: data.fighter_subtypes,
         description: data.description,
         skill_access: data.skill_access,
         updated_at: new Date().toISOString(),
@@ -315,9 +315,9 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
   const [fighterType, setFighterType] = useState('');
   const [cost, setCost] = useState('');
   const [selectedGangType, setSelectedGangType] = useState('');
-  const [selectedFighterClass, setSelectedFighterClass] = useState<FighterClass | ''>('');
+  const [selectedFighterSubtype, setSelectedFighterSubtype] = useState<FighterSubtype | ''>('');
   const [gangTypes, setGangTypes] = useState<GangType[]>([]);
-  const [fighterClasses, setFighterClasses] = useState<FighterClass[]>([]);
+  const [fighterSubtypes, setFighterSubtypes] = useState<FighterSubtype[]>([]);
 
   // Combat stats
   const [movement, setMovement] = useState('');
@@ -366,8 +366,8 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
   const [selectedEquipmentListCategory, setSelectedEquipmentListCategory] = useState('');
   const [selectedEquipmentList, setSelectedEquipmentList] = useState<string[]>([]);
 
-  // Check if selected fighter class is Crew (simplified stats)
-  const isCrew = Boolean(selectedFighterClass && selectedFighterClass.class_name === 'Crew');
+  // Check if selected fighter subtype is Crew (simplified stats)
+  const isCrew = Boolean(selectedFighterSubtype && selectedFighterSubtype.subtype_name === 'Crew');
 
   const [prevIsCrew, setPrevIsCrew] = useState(isCrew);
   if (isCrew !== prevIsCrew) {
@@ -383,16 +383,16 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     }
   }
 
-  const [prevEditClassKey, setPrevEditClassKey] = useState('');
-  const editClassKey = `${editModalData?.id}:${fighterClasses.length}`;
-  if (editClassKey !== prevEditClassKey) {
-    setPrevEditClassKey(editClassKey);
-    if (editModalData && fighterClasses.length > 0 && !selectedFighterClass) {
-      const fighterClass = fighterClasses.find(fc =>
-        editModalData.fighter_classes?.includes(fc.class_name)
+  const [prevEditSubtypeKey, setPrevEditSubtypeKey] = useState('');
+  const editSubtypeKey = `${editModalData?.id}:${fighterSubtypes.length}`;
+  if (editSubtypeKey !== prevEditSubtypeKey) {
+    setPrevEditSubtypeKey(editSubtypeKey);
+    if (editModalData && fighterSubtypes.length > 0 && !selectedFighterSubtype) {
+      const fighterSubtype = fighterSubtypes.find(fc =>
+        editModalData.fighter_subtypes?.includes(fc.subtype_name)
       );
-      if (fighterClass) {
-        setSelectedFighterClass(fighterClass);
+      if (fighterSubtype) {
+        setSelectedFighterSubtype(fighterSubtype);
       }
     }
   }
@@ -405,8 +405,8 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       width: '40%'
     },
     {
-      key: 'fighter_classes',
-      label: 'Class',
+      key: 'fighter_subtypes',
+      label: 'Subtype',
       align: 'left',
       width: '20%',
       cellClassName: 'text-sm text-muted-foreground'
@@ -547,19 +547,19 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
   }, [isAddModalOpen, editModalData, gangTypes.length]);
 
   useEffect(() => {
-    if ((isAddModalOpen || editModalData) && !isLoadingDropdownData && (fighterClasses.length === 0 || skillTypes.length === 0 || equipment.length === 0)) {
+    if ((isAddModalOpen || editModalData) && !isLoadingDropdownData && (fighterSubtypes.length === 0 || skillTypes.length === 0 || equipment.length === 0)) {
       const fetchData = async () => {
         setIsLoadingDropdownData(true);
         try {
           const promises = [];
 
-          // Fetch fighter classes if not loaded
-          if (fighterClasses.length === 0) {
+          // Fetch fighter subtypes if not loaded
+          if (fighterSubtypes.length === 0) {
             promises.push(
-              fetch('/api/fighter-classes').then(async (response) => {
+              fetch('/api/fighter-subtypes').then(async (response) => {
                 if (response.ok) {
-                  const classData = await response.json();
-                  setFighterClasses(filterAllowedFighterClasses(classData));
+                  const subtypeData = await response.json();
+                  setFighterSubtypes(filterAllowedFighterSubtypes(subtypeData));
                 }
               })
             );
@@ -606,7 +606,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
 
       fetchData();
     }
-  }, [isAddModalOpen, editModalData, fighterClasses.length, skillTypes.length, equipment.length, isLoadingDropdownData]);
+  }, [isAddModalOpen, editModalData, fighterSubtypes.length, skillTypes.length, equipment.length, isLoadingDropdownData]);
 
   // useEffect to fetch skills based on selected skill type
   useEffect(() => {
@@ -650,7 +650,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     setFighterType('');
     setCost('');
     setSelectedGangType('');
-    setSelectedFighterClass('');
+    setSelectedFighterSubtype('');
     setMovement('');
     setWeaponSkill('');
     setBallisticSkill('');
@@ -745,7 +745,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     }
     setSelectedEquipmentListCategory('');
 
-    // Fighter class will be set by useEffect when fighterClasses are loaded
+    // Fighter subtype will be set by useEffect when fighterSubtypes are loaded
   };
 
   const handleView = async (fighter: CustomFighterType) => {
@@ -787,7 +787,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       setEquipment(existingEquipment);
     }
 
-    // Load gang types and fighter classes if not already loaded
+    // Load gang types and fighter subtypes if not already loaded
     if (gangTypes.length === 0) {
       const fetchGangTypes = async () => {
         try {
@@ -803,19 +803,19 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       fetchGangTypes();
     }
 
-    if (fighterClasses.length === 0) {
-      const fetchFighterClasses = async () => {
+    if (fighterSubtypes.length === 0) {
+      const fetchFighterSubtypes = async () => {
         try {
-          const response = await fetch('/api/fighter-classes');
+          const response = await fetch('/api/fighter-subtypes');
           if (response.ok) {
             const data = await response.json();
-            setFighterClasses(data);
+            setFighterSubtypes(data);
           }
         } catch (error) {
-          console.error('Error fetching fighter classes:', error);
+          console.error('Error fetching fighter subtypes:', error);
         }
       };
-      fetchFighterClasses();
+      fetchFighterSubtypes();
     }
   };
 
@@ -868,7 +868,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         gang_type: copyModalData.gang_type || '',
         gang_type_id: copyModalData.custom_gang_type_id ? undefined : (copyModalData.gang_type_id || ''),
         custom_gang_type_id: copyModalData.custom_gang_type_id || undefined,
-        fighter_classes: copyModalData.fighter_classes || [],
+        fighter_subtypes: copyModalData.fighter_subtypes || [],
         skill_access: copyModalData.skill_access || [],
         default_skills: copyModalData.default_skills?.map(skill => skill.skill_id) || [],
         default_equipment: copyModalData.default_equipment?.map(eq => eq.equipment_id) || [],
@@ -903,7 +903,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
 
   const handleSubmit = () => {
     // Validation
-    if (!selectedGangType || !selectedFighterClass || !fighterType || !cost) {
+    if (!selectedGangType || !selectedFighterSubtype || !fighterType || !cost) {
       toast.error('Please fill in all required fields');
       return false;
     }
@@ -935,7 +935,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       gang_type_id: isCustomGangType ? undefined : selectedGangType,
       custom_gang_type_id: isCustomGangType ? selectedGangType : undefined,
       gang_type: selectedGang?.gang_type || '',
-      fighter_classes: [selectedFighterClass.class_name],
+      fighter_subtypes: [selectedFighterSubtype.subtype_name],
       movement: isCrew ? 0 : (movement ? parseInt(movement) : undefined),
       weapon_skill: isCrew ? 0 : (weaponSkill ? parseInt(weaponSkill) : undefined),
       ballistic_skill: ballisticSkill ? parseInt(ballisticSkill) : undefined,
@@ -1144,7 +1144,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
           width="xl"
         >
           <div className="space-y-4">
-            {/* Fighter Type and Class */}
+            {/* Fighter Type and Subtype */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
@@ -1161,20 +1161,20 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
 
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Fighter Class *
+                  Fighter Subtype *
                 </label>
                 <select
-                  value={selectedFighterClass ? selectedFighterClass.id : ''}
+                  value={selectedFighterSubtype ? selectedFighterSubtype.id : ''}
                   onChange={(e) => {
-                    const selectedClass = fighterClasses.find(fc => fc.id === e.target.value);
-                    setSelectedFighterClass(selectedClass || '');
+                    const selectedSubtype = fighterSubtypes.find(fc => fc.id === e.target.value);
+                    setSelectedFighterSubtype(selectedSubtype || '');
                   }}
                   className="w-full p-2 border rounded-md"
                 >
-                  <option value="">Select fighter class</option>
-                  {fighterClasses.map((fighterClass) => (
-                    <option key={fighterClass.id} value={fighterClass.id}>
-                      {fighterClass.class_name}
+                  <option value="">Select fighter subtype</option>
+                  {fighterSubtypes.map((fighterSubtype) => (
+                    <option key={fighterSubtype.id} value={fighterSubtype.id}>
+                      {fighterSubtype.subtype_name}
                     </option>
                   ))}
                 </select>
@@ -1530,7 +1530,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
           width="xl"
         >
           <div className="space-y-4">
-            {/* Fighter Type and Class */}
+            {/* Fighter Type and Subtype */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
@@ -1547,20 +1547,20 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
 
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Fighter Class *
+                  Fighter Subtype *
                 </label>
                 <select
-                  value={selectedFighterClass ? selectedFighterClass.id : ''}
+                  value={selectedFighterSubtype ? selectedFighterSubtype.id : ''}
                   onChange={(e) => {
-                    const selectedClass = fighterClasses.find(fc => fc.id === e.target.value);
-                    setSelectedFighterClass(selectedClass || '');
+                    const selectedSubtype = fighterSubtypes.find(fc => fc.id === e.target.value);
+                    setSelectedFighterSubtype(selectedSubtype || '');
                   }}
                   className="w-full p-2 border rounded-md"
                 >
-                  <option value="">Select fighter class</option>
-                  {fighterClasses.map((fighterClass) => (
-                    <option key={fighterClass.id} value={fighterClass.id}>
-                      {fighterClass.class_name}
+                  <option value="">Select fighter subtype</option>
+                  {fighterSubtypes.map((fighterSubtype) => (
+                    <option key={fighterSubtype.id} value={fighterSubtype.id}>
+                      {fighterSubtype.subtype_name}
                     </option>
                   ))}
                 </select>
@@ -1913,7 +1913,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
           width="xl"
         >
           <div className="space-y-4">
-            {/* Fighter Type and Class */}
+            {/* Fighter Type and Subtype */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
@@ -1926,10 +1926,10 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
               
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Fighter Class
+                  Fighter Subtype
                 </label>
                 <div className="w-full p-2 border rounded-md bg-muted">
-                  {viewModalData.fighter_classes?.join(', ')}
+                  {viewModalData.fighter_subtypes?.join(', ')}
                 </div>
               </div>
             </div>

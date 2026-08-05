@@ -32,7 +32,7 @@ export interface FighterBasic {
   save?: number | null;
   xp: number;
   special_rules?: string[];
-  fighter_classes: string[];
+  fighter_subtypes: string[];
   fighter_type?: string;
   fighter_type_id: string;
   custom_fighter_type_id?: string | null;
@@ -46,7 +46,7 @@ export interface FighterBasic {
     fighter_type_id: string;
     name?: string;
   } | null;
-  fighter_sub_type_id?: string;
+  fighter_specialisation_id?: string;
   killed?: boolean;
   starved?: boolean;
   retired?: boolean;
@@ -75,10 +75,10 @@ export interface FighterType {
   alliance_crew_name?: string;
 }
 
-export interface FighterSubType {
+export interface FighterSpecialisation {
   id: string;
-  sub_type_name: string;
-  fighter_sub_type: string;
+  specialisation_name: string;
+  fighter_specialisation: string;
 }
 
 export interface FighterEquipment {
@@ -151,7 +151,7 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
           save,
           xp,
           special_rules,
-          fighter_classes,
+          fighter_subtypes,
           fighter_type,
           fighter_type_id,
           custom_fighter_type_id,
@@ -165,7 +165,7 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
             fighter_type_id,
             name
           ),
-          fighter_sub_type_id,
+          fighter_specialisation_id,
           killed,
           starved,
           retired,
@@ -273,6 +273,7 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
                   strength,
                   ap,
                   damage,
+                  lethality,
                   ammo,
                   traits,
                   weapon_group_id,
@@ -294,6 +295,7 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
                   strength,
                   ap,
                   damage,
+                  lethality,
                   ammo,
                   traits,
                   weapon_group_id,
@@ -329,6 +331,7 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
                 strength,
                 ap,
                 damage,
+                lethality,
                 ammo,
                 traits,
                 weapon_group_id,
@@ -1212,29 +1215,29 @@ export const getFighterTypeInfo = async (fighterTypeId: string | null, supabase:
 };
 
 /**
- * Get fighter sub-type information (cached globally)
+ * Get fighter specialisation information (cached globally)
  * Cache: GLOBAL_FIGHTER_TYPES
  */
-export const getFighterSubTypeInfo = async (fighterSubTypeId: string, supabase: any): Promise<{
-  fighter_sub_type: string;
-  fighter_sub_type_id: string;
+export const getFighterSpecialisationInfo = async (fighterSpecialisationId: string, supabase: any): Promise<{
+  fighter_specialisation: string;
+  fighter_specialisation_id: string;
 } | null> => {
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
-        .from('fighter_sub_types')
-        .select('id, sub_type_name')
-        .eq('id', fighterSubTypeId)
+        .from('fighter_specialisations')
+        .select('id, specialisation_name')
+        .eq('id', fighterSpecialisationId)
         .single();
 
       if (error) return null;
 
       return {
-        fighter_sub_type: data.sub_type_name,
-        fighter_sub_type_id: data.id
+        fighter_specialisation: data.specialisation_name,
+        fighter_specialisation_id: data.id
       };
     },
-    [`fighter-sub-type-${fighterSubTypeId}`],
+    [`fighter-specialisation-${fighterSpecialisationId}`],
     {
       tags: [CACHE_TAGS.GLOBAL_FIGHTER_TYPES()],
       revalidate: 3600

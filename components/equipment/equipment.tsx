@@ -51,6 +51,7 @@ interface ItemModalProps {
   onPurchaseRequest?: (payload: { params: any; item: Equipment }) => void;
   // Optional: pass fighter weapons to avoid client fetch in target selection
   fighterWeapons?: { id: string; name: string; equipment_category?: string; effect_names?: string[] }[];
+  editionSlug?: string | null;
 }
 
 interface RawEquipmentData {
@@ -115,7 +116,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
   gangTradePoints,
   onEquipmentBought,
   onPurchaseRequest,
-  fighterWeapons
+  fighterWeapons,
+  editionSlug
 }) => {
   const showTradePoints = hasTradePoints(editionSlug);
   const [equipment, setEquipment] = useState<Record<string, Equipment[]>>({});
@@ -826,6 +828,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                     item={item}
                                     className="flex-1 pl-4 leading-none"
                                     options={{ equipmentListType, isVehicleEquipment }}
+                                    editionSlug={editionSlug}
                                   >
                                     <div className="flex items-center gap-2 flex-wrap">
                                       <span className="text-sm font-medium">

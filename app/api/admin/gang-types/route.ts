@@ -32,8 +32,8 @@ interface FighterTypeData {
   fighterType: string;
   baseCost: number;
   gangTypeId: string;
-  fighterClass: string;
-  fighterClasses?: string[];
+  fighterSubtype: string;
+  fighterSubtypes?: string[];
   movement: number;
   weapon_skill: number;
   ballistic_skill: number;
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
         cost: data.baseCost,
         gang_type_id: data.gangTypeId,
         gang_type: gangType.gang_type,
-        fighter_classes: Array.isArray(data.fighterClasses) ? data.fighterClasses : [],
+        fighter_subtypes: Array.isArray(data.fighterSubtypes) ? data.fighterSubtypes : [],
         movement: data.movement,
         weapon_skill: data.weapon_skill,
         ballistic_skill: data.ballistic_skill,

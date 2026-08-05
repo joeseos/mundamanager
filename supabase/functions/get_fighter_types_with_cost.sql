@@ -13,7 +13,7 @@ CREATE OR REPLACE FUNCTION get_fighter_types_with_cost(
 RETURNS TABLE (
     id uuid,
     fighter_type text,
-    fighter_classes jsonb,
+    fighter_subtypes jsonb,
     gang_type text,
     cost numeric,
     gang_type_id uuid,
@@ -39,19 +39,20 @@ RETURNS TABLE (
     default_equipment jsonb,
     equipment_selection jsonb,
     total_cost numeric,
-    sub_type jsonb,
+    specialisation jsonb,
     available_legacies jsonb,
     free_skill boolean,
     delegation_cost numeric,
     is_dramatis_personae boolean,
-    edition_slug text
+    edition_slug text,
+    starting_xp numeric
 ) LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
     RETURN QUERY
     SELECT
         ft.id,
         ft.fighter_type,
-        ft.fighter_classes,
+        ft.fighter_subtypes,
         ft.gang_type,
         -- Use adjusted_cost if available, otherwise use original cost
         COALESCE(ftgc.adjusted_cost, ft.cost) as cost,
@@ -841,15 +842,15 @@ BEGIN
         ) AS equipment_selection,
         -- Use adjusted_cost for total_cost if available, otherwise use original cost
         COALESCE(ftgc.adjusted_cost, ft.cost) AS total_cost,
-        -- Add sub_type information
-        CASE 
-            WHEN fsub.id IS NOT NULL THEN
+        -- Add specialisation information
+        CASE
+            WHEN fspec.id IS NOT NULL THEN
                 jsonb_build_object(
-                    'id', fsub.id,
-                    'sub_type_name', fsub.sub_type_name
+                    'id', fspec.id,
+                    'specialisation_name', fspec.specialisation_name
                 )
             ELSE NULL
-        END AS sub_type,
+        END AS specialisation,
         COALESCE(
             (
                 SELECT jsonb_agg(
@@ -867,12 +868,13 @@ BEGIN
         ft.free_skill,
         ft.delegation_cost,
         ft.is_dramatis_personae,
-        ed.slug AS edition_slug
+        ed.slug AS edition_slug,
+        ft.starting_xp
     FROM fighter_types ft
     LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id
         AND ftgc.gang_type_id = p_gang_type_id
         AND (ftgc.gang_affiliation_id IS NULL OR ftgc.gang_affiliation_id = p_gang_affiliation_id)
-    LEFT JOIN fighter_sub_types fsub ON fsub.id = ft.fighter_sub_type_id
+    LEFT JOIN fighter_specialisations fspec ON fspec.id = ft.fighter_specialisation_id
     LEFT JOIN editions ed ON ed.id = ft.edition_id
     WHERE
         CASE

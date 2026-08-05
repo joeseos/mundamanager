@@ -24,13 +24,13 @@ export type { WeaponProfile, Weapon };
 export interface FighterType {
   id: string;
   fighter_type: string;
-  fighter_classes: string[];
+  fighter_subtypes: string[];
   gang_type_id: string;
   gang_type: string;
-  fighter_sub_type: string;
-  fighter_sub_type_id?: string;
-  fighter_sub_types?: {
-    sub_type_name: string;
+  fighter_specialisation: string;
+  fighter_specialisation_id?: string;
+  fighter_specialisations?: {
+    specialisation_name: string;
   } | null;
   alliance_crew_name?: string;
   cost: number;
@@ -174,7 +174,7 @@ export interface FighterProps {
   captured_by_gang_id?: string | null;
   captured_by_gang_name?: string;
   free_skill?: boolean;
-  fighter_classes: string[];
+  fighter_subtypes: string[];
   note?: string;
   effects: {
     injuries: FighterEffect[];
@@ -226,9 +226,9 @@ export interface FighterProps {
 
   skills?: FighterSkills; // Use the standardized type
 
-  fighter_sub_type?: {
-    fighter_sub_type: string;
-    fighter_sub_type_id: string;
+  fighter_specialisation?: {
+    fighter_specialisation: string;
+    fighter_specialisation_id: string;
   } | null;
   
   owner_name?: string; // Name of the fighter who owns this fighter (for exotic beasts)
@@ -239,8 +239,8 @@ export interface FighterProps {
   selected_archetype_id?: string | null; // ID of the selected skill archetype (for Underhive Outcasts)
 }
 
-// Update the FIGHTER_CLASSES to include all classes from fighterClassRank
-export const FIGHTER_CLASSES = [
+// Update the FIGHTER_SUBTYPES to include all subtypes from fighterSubtypeRank
+export const FIGHTER_SUBTYPES = [
   'Leader',
   'Champion',
   'Prospect',
@@ -255,14 +255,14 @@ export const FIGHTER_CLASSES = [
   'Pet'
 ] as const;
 
-export type FighterClass = typeof FIGHTER_CLASSES[number];
+export type FighterSubtype = typeof FIGHTER_SUBTYPES[number];
 
 // Archetype interface for Underhive Outcasts skill access
 export interface Archetype {
   id: string;
   name: string;
   description: string | null;
-  fighter_class_id: string | null;
+  fighter_subtype_id: string | null;
   skill_access: Array<{
     skill_type_id: string;
     access_level: 'primary' | 'secondary';
@@ -293,7 +293,7 @@ export interface CustomFighterType {
   special_rules?: string[];
   free_skill?: boolean;
   delegation_cost?: number | null;
-  fighter_classes: string[];
+  fighter_subtypes: string[];
   description?: string | null;
   skill_access?: {
     skill_type_id: string;

@@ -712,7 +712,7 @@ export default function GangPageContent({
               fighterCaptured={currentFighter.captured}
               fighterCapturedByGangId={currentFighter.captured_by_gang_id ?? null}
               userPermissions={userPermissions}
-              fighter_classes={currentFighter.fighter_classes}
+              fighter_subtypes={currentFighter.fighter_subtypes}
               is_spyrer={currentFighter.is_spyrer}
               kill_count={currentFighter.kill_count ?? 0}
               skills={currentFighter.skills || {}}
@@ -913,6 +913,7 @@ export default function GangPageContent({
           gangTradePoints={gangData.processedData.trade_points}
           onGangTradePointsUpdate={handleGangTradePointsUpdate}
           positioning={gangData.processedData.positioning}
+          editionSlug={gangData.processedData.edition_slug ?? null}
         />
         <GangVehicles
           vehicles={gangData.processedData.vehicles || []}

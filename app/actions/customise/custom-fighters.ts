@@ -29,7 +29,7 @@ export interface CreateCustomFighterData {
   save?: number | null;
   special_rules: string[];
   free_skill: boolean;
-  fighter_classes: string[];
+  fighter_subtypes: string[];
   skill_access: {
     skill_type_id: string;
     access_level: 'primary' | 'secondary' | 'allowed';
@@ -192,7 +192,7 @@ export async function createCustomFighter(data: CreateCustomFighterData): Promis
         save: data.save ?? null,
         special_rules: data.special_rules,
         free_skill: data.free_skill,
-        fighter_classes: data.fighter_classes,
+        fighter_subtypes: data.fighter_subtypes,
         created_at: new Date().toISOString()
       })
       .select()
@@ -402,7 +402,7 @@ export async function updateCustomFighter(id: string, data: CreateCustomFighterD
         save: data.save ?? null,
         special_rules: data.special_rules,
         free_skill: data.free_skill,
-        fighter_classes: data.fighter_classes,
+        fighter_subtypes: data.fighter_subtypes,
         updated_at: new Date().toISOString()
       })
       .eq('id', id)

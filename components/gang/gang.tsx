@@ -26,7 +26,7 @@ import { updateGangPositioning } from '@/app/actions/update-gang-positioning';
 import { FaRegCopy } from 'react-icons/fa';
 import CopyGangModal from './copy-gang-modal';
 import { Tooltip } from 'react-tooltip';
-import { fighterClassRank } from '@/utils/fighterClassRank';
+import { fighterSubtypeRank } from '@/utils/fighterSubtypeRank';
 import { GangImageEditModal } from './gang-image-edit-modal';
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -318,32 +318,32 @@ export default function Gang({
     );
   }, [fighters]);
 
-  // Fighters composition for tooltip: group by fighter_type and fighter_classes
-  const fighterTypeClassCounts = useMemo(() => {
-    const counts = new Map<string, { label: string; count: number; classKey: string }>();
+  // Fighters composition for tooltip: group by fighter_type and fighter_subtypes
+  const fighterTypeSubtypeCounts = useMemo(() => {
+    const counts = new Map<string, { label: string; count: number; subtypeKey: string }>();
     for (const fighter of activeFighters) {
       const typeLabel = fighter.fighter_type || 'Unknown Type';
-      const classLabel = fighter.fighter_classes?.join(', ') || 'Unknown Class';
-      const key = `${typeLabel} (${classLabel})`;
-      const classKey = (fighter.fighter_classes?.[0] || 'unknown').toLowerCase();
+      const subtypeLabel = fighter.fighter_subtypes?.join(', ') || 'Unknown Subtype';
+      const key = `${typeLabel} (${subtypeLabel})`;
+      const subtypeKey = (fighter.fighter_subtypes?.[0] || 'unknown').toLowerCase();
       const existing = counts.get(key);
       if (existing) {
         existing.count += 1;
       } else {
-        counts.set(key, { label: key, count: 1, classKey });
+        counts.set(key, { label: key, count: 1, subtypeKey });
       }
     }
     return Array.from(counts.values()).sort((a, b) => {
-      const rankA = fighterClassRank[a.classKey] ?? Infinity;
-      const rankB = fighterClassRank[b.classKey] ?? Infinity;
+      const rankA = fighterSubtypeRank[a.subtypeKey] ?? Infinity;
+      const rankB = fighterSubtypeRank[b.subtypeKey] ?? Infinity;
       if (rankA !== rankB) return rankA - rankB;
       return a.label.localeCompare(b.label);
     });
   }, [activeFighters]);
 
-  const fighterTypeClassTotal = useMemo(() => {
-    return fighterTypeClassCounts.reduce((sum, item) => sum + item.count, 0);
-  }, [fighterTypeClassCounts]);
+  const fighterTypeSubtypeTotal = useMemo(() => {
+    return fighterTypeSubtypeCounts.reduce((sum, item) => sum + item.count, 0);
+  }, [fighterTypeSubtypeCounts]);
 
   const wealthBreakdownRows = useMemo(() => {
     return [
@@ -852,7 +852,7 @@ export default function Gang({
 
   const visibleFighters = useMemo(() => {
     return fighters.filter(fighter => {
-      if (fighter.fighter_classes?.some(c => c.toLowerCase().startsWith('exotic beast')) && fighter.beast_equipment_stashed) {
+      if (fighter.fighter_subtypes?.some(c => c.toLowerCase().startsWith('exotic beast')) && fighter.beast_equipment_stashed) {
         return false;
       }
       return true;
@@ -1366,11 +1366,11 @@ export default function Gang({
           >
             <div>
               <div className="mb-1.5 text-sm font-semibold">Gang Composition</div>
-              {fighterTypeClassCounts.length === 0 ? (
+              {fighterTypeSubtypeCounts.length === 0 ? (
                 <div>No fighters</div>
               ) : (
                 <>
-                  {fighterTypeClassCounts.map(({ label, count }) => (
+                  {fighterTypeSubtypeCounts.map(({ label, count }) => (
                     <div key={label} className="flex justify-between gap-3">
                       <span>{label}</span>
                       <span>{count}</span>
@@ -1378,7 +1378,7 @@ export default function Gang({
                   ))}
                   <div className="mt-1 flex justify-between gap-3 border-t border-neutral-700 pt-1">
                     <span>Total :</span>
-                    <span>{fighterTypeClassTotal}</span>
+                    <span>{fighterTypeSubtypeTotal}</span>
                   </div>
                 </>
               )}

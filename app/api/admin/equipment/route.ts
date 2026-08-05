@@ -323,10 +323,10 @@ export async function GET(request: Request) {
             id,
             fighter_type,
             gang_type,
-            fighter_classes,
-            fighter_sub_type_id,
-            fighter_sub_types(
-              sub_type_name
+            fighter_subtypes,
+            fighter_specialisation_id,
+            fighter_specialisations(
+              specialisation_name
             )
           `)
           .order('gang_type')
@@ -483,6 +483,9 @@ export async function POST(request: Request) {
         strength: profile.strength === null ? '' : profile.strength || '',
         ap: profile.ap === null ? '' : profile.ap || '',
         damage: profile.damage === null ? '' : profile.damage || '',
+        // Nullable, unlike the columns above: NULL means the edition has no
+        // Lethality characteristic rather than an unfilled one
+        lethality: profile.lethality || null,
         ammo: profile.ammo === null ? '' : profile.ammo || '',
         traits: profile.traits === null ? '' : profile.traits || ''
       }));
@@ -650,6 +653,7 @@ export async function PATCH(request: Request) {
               strength: profile.strength,
               ap: profile.ap,
               damage: profile.damage,
+              lethality: profile.lethality || null,
               ammo: profile.ammo,
               traits: profile.traits,
               weapon_group_id: profile.weapon_group_id || id,

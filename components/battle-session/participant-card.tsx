@@ -631,11 +631,11 @@ function FighterRow({
 
   const iconColor = activations >= 2 ? 'text-orange-500' : activations === 1 ? 'text-green-500' : 'text-muted-foreground/30';
   const fighterType = gangFighter?.fighter_type;
-  const fighterClassDisplay = gangFighter?.fighter_classes?.join(', ');
-  // Second row format: type (class)
+  const fighterSubtypeDisplay = gangFighter?.fighter_subtypes?.join(', ');
+  // Second row format: type (subtype)
   const fighterDetails = [
     fighterType,
-    fighterClassDisplay ? `(${fighterClassDisplay})` : '',
+    fighterSubtypeDisplay ? `(${fighterSubtypeDisplay})` : '',
   ].filter(Boolean).join(' ');
 
   return (
@@ -929,8 +929,8 @@ function BattleParticipationModal({
     >
       <div className="space-y-3">
         {uniqueFighters.map((gf) => {
-          const classDisplay = gf.fighter_classes?.join(', ');
-          const details = [gf.fighter_type, classDisplay ? `(${classDisplay})` : ''].filter(Boolean).join(' ');
+          const subtypeDisplay = gf.fighter_subtypes?.join(', ');
+          const details = [gf.fighter_type, subtypeDisplay ? `(${subtypeDisplay})` : ''].filter(Boolean).join(' ');
           return (
             <div key={gf.id} className="flex items-center justify-between">
               <div>
@@ -1054,7 +1054,7 @@ export default function ParticipantCard({
       starved: gf.starved,
       recovery: gf.recovery,
       captured: gf.captured,
-      fighter_classes: gf.fighter_classes,
+      fighter_subtypes: gf.fighter_subtypes,
       owner_id: gf.owner_id,
       owner_name: gf.owner_name,
     }));
@@ -1434,7 +1434,7 @@ export default function ParticipantCard({
               {(() => {
                 const exoticBeastCount = localFighters.filter((f) => {
                   const gf = gangFightersList.find((gf) => gf.id === f.fighter_id);
-                  return gf?.fighter_classes?.some(c => c.toLowerCase() === 'exotic beast' || c.toLowerCase() === 'exotic beast specialist') || false;
+                  return gf?.fighter_subtypes?.some(c => c.toLowerCase() === 'exotic beast' || c.toLowerCase() === 'exotic beast specialist') || false;
                 }).length;
                 const crewCount = localFighters.length - exoticBeastCount;
                 return (
@@ -1638,7 +1638,7 @@ export default function ParticipantCard({
                     ) ?? gangFightersList.find((gf) => gf.id === f.fighter_id);
                     const rawName = match?.fighter_name ?? f.fighter?.fighter_name ?? 'Unknown Fighter';
                     const isAssociatedExoticBeast =
-                      fullMatch?.fighter_classes?.some(c => c.toLowerCase() === 'exotic beast' || c.toLowerCase() === 'exotic beast specialist') &&
+                      fullMatch?.fighter_subtypes?.some(c => c.toLowerCase() === 'exotic beast' || c.toLowerCase() === 'exotic beast specialist') &&
                       Boolean(fullMatch?.owner_id);
                     const name = isAssociatedExoticBeast ? `— ${rawName}` : rawName;
                     const cost = match?.credits ?? f.fighter?.credits;

@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   const id = searchParams.get('id');
   const equipment_id = searchParams.get('equipment_id');
   const fighter_type = searchParams.get('fighter_type');
-  const fighter_class = searchParams.get('fighter_class');
+  const fighter_subtype = searchParams.get('fighter_subtype');
   const gang_type_id = searchParams.get('gang_type_id');
   const filter_by_gang = searchParams.get('filter_by_gang') === 'true';
 
@@ -46,8 +46,8 @@ export async function GET(request: Request) {
           fighter_type,
           gang_type_id,
           gang_type,
-          fighter_classes,
-          fighter_sub_type_id,
+          fighter_subtypes,
+          fighter_specialisation_id,
           cost,
           movement,
           weapon_skill,
@@ -62,6 +62,7 @@ export async function GET(request: Request) {
           intelligence,
           attacks,
           save,
+          starting_xp,
           special_rules,
           free_skill,
           is_gang_addition,
@@ -91,8 +92,8 @@ export async function GET(request: Request) {
           gang_type_id,
           gang_type,
           edition_id,
-          fighter_classes,
-          fighter_sub_type_id,
+          fighter_subtypes,
+          fighter_specialisation_id,
           cost,
           movement,
           weapon_skill,
@@ -107,6 +108,7 @@ export async function GET(request: Request) {
           intelligence,
           attacks,
           save,
+          starting_xp,
           special_rules,
           free_skill,
           is_gang_addition,
@@ -219,10 +221,10 @@ export async function GET(request: Request) {
       return NextResponse.json(formattedFighterType);
     }
 
-    // If direct fighter_type and fighter_class are provided, use those instead of ID lookup
-    if (fighter_type && fighter_class) {
+    // If direct fighter_type and fighter_subtype are provided, use those instead of ID lookup
+    if (fighter_type && fighter_subtype) {
       
-      // Find all fighters with matching type and class with all details
+      // Find all fighters with matching type and subtype with all details
       const { data: relatedFighterTypes, error: relatedError } = await supabase
         .from('fighter_types')
         .select(`
@@ -230,8 +232,8 @@ export async function GET(request: Request) {
           fighter_type,
           gang_type_id,
           gang_type,
-          fighter_classes,
-          fighter_sub_type_id,
+          fighter_subtypes,
+          fighter_specialisation_id,
           cost,
           movement,
           weapon_skill,
@@ -246,6 +248,7 @@ export async function GET(request: Request) {
           intelligence,
           attacks,
           save,
+          starting_xp,
           special_rules,
           free_skill,
           is_gang_addition,
@@ -259,7 +262,7 @@ export async function GET(request: Request) {
           )
         `)
         .eq('fighter_type', fighter_type)
-        .contains('fighter_classes', JSON.stringify([fighter_class]));
+        .contains('fighter_subtypes', JSON.stringify([fighter_subtype]));
 
       if (relatedError) {
         console.error('Error fetching related fighter types:', relatedError);
@@ -273,23 +276,23 @@ export async function GET(request: Request) {
         );
       }
       
-      // Get the fighter sub-types for these fighters
-      const subTypeIds = relatedFighterTypes
-        .map(ft => ft.fighter_sub_type_id)
+      // Get the fighter specialisations for these fighters
+      const specialisationIds = relatedFighterTypes
+        .map(ft => ft.fighter_specialisation_id)
         .filter(id => id !== null && id !== undefined) as string[];
       
-      let subTypes: { id: string; sub_type_name: string; }[] = [];
-      if (subTypeIds.length > 0) {
-        const { data: subTypeData, error: subTypeError } = await supabase
-          .from('fighter_sub_types')
+      let specialisations: { id: string; specialisation_name: string; }[] = [];
+      if (specialisationIds.length > 0) {
+        const { data: specialisationData, error: specialisationError } = await supabase
+          .from('fighter_specialisations')
           .select('*')
-          .in('id', subTypeIds);
+          .in('id', specialisationIds);
 
-        if (subTypeError) {
-          console.error('Error fetching sub-types:', subTypeError);
-          throw subTypeError;
+        if (specialisationError) {
+          console.error('Error fetching specialisations:', specialisationError);
+          throw specialisationError;
         } else {
-          subTypes = subTypeData || [];
+          specialisations = specialisationData || [];
         }
       }
       
@@ -355,7 +358,7 @@ export async function GET(request: Request) {
                 adjusted_cost: d.adjusted_cost
               })) || [],
               equipment_selection: equipmentSelectionData?.equipment_selection || null,
-              is_default: !fighter.fighter_sub_type_id || fighter.fighter_sub_type_id === null
+              is_default: !fighter.fighter_specialisation_id || fighter.fighter_specialisation_id === null
             };
           } catch (error) {
             console.error(`Error getting details for fighter ${fighter.id}:`, error);
@@ -367,27 +370,27 @@ export async function GET(request: Request) {
               equipment_list: [],
               equipment_discounts: [],
               equipment_selection: null,
-              is_default: !fighter.fighter_sub_type_id || fighter.fighter_sub_type_id === null
+              is_default: !fighter.fighter_specialisation_id || fighter.fighter_specialisation_id === null
             };
           }
         })
       );
       
-      // Sort fighters: Default first, then by sub-type name
+      // Sort fighters: Default first, then by specialisation name
       fighterDetails.sort((a, b) => {
         if (a.is_default && !b.is_default) return -1;
         if (!a.is_default && b.is_default) return 1;
         
-        const aSubType = subTypes.find(st => st.id === a.fighter_sub_type_id);
-        const bSubType = subTypes.find(st => st.id === b.fighter_sub_type_id);
+        const aSpecialisation = specialisations.find(st => st.id === a.fighter_specialisation_id);
+        const bSpecialisation = specialisations.find(st => st.id === b.fighter_specialisation_id);
         
-        return (aSubType?.sub_type_name || '').localeCompare(bSubType?.sub_type_name || '');
+        return (aSpecialisation?.specialisation_name || '').localeCompare(bSpecialisation?.specialisation_name || '');
       });
       
       return NextResponse.json({
         fighter_type,
         fighters: fighterDetails,
-        sub_types: subTypes
+        specialisations: specialisations
       });
     }
 
@@ -400,10 +403,10 @@ export async function GET(request: Request) {
         gang_type_id,
         gang_type,
         edition_id,
-        fighter_classes,
-        fighter_sub_type_id,
-        fighter_sub_types(
-          sub_type_name
+        fighter_subtypes,
+        fighter_specialisation_id,
+        fighter_specialisations(
+          specialisation_name
         ),
         cost,
         movement,
@@ -419,6 +422,7 @@ export async function GET(request: Request) {
         intelligence,
         attacks,
         save,
+        starting_xp,
         special_rules,
         free_skill,
         is_gang_addition,
@@ -443,11 +447,11 @@ export async function GET(request: Request) {
 
     if (error) throw error;
     
-    // Process the data to flatten the fighter_sub_types relation
+    // Process the data to flatten the fighter_specialisations relation
     const processedFighterTypes = fighterTypes?.map((fighter: any) => ({
       ...fighter,
-      fighter_sub_type: fighter.fighter_sub_types?.sub_type_name || null,
-      fighter_sub_types: undefined // Remove the nested object
+      fighter_specialisation: fighter.fighter_specialisations?.specialisation_name || null,
+      fighter_specialisations: undefined // Remove the nested object
     }));
     
     return NextResponse.json(processedFighterTypes);
@@ -500,9 +504,9 @@ export async function PATCH(request: Request) {
         cost: data.cost,
         gang_type_id: data.gang_type_id,
         edition_id: gangType.edition_id ?? null,
-        fighter_classes: Array.isArray(data.fighter_classes) ? data.fighter_classes : [],
-        fighter_sub_type_id: data.fighter_sub_type_id,
-        fighter_sub_type: data.fighter_sub_type,
+        fighter_subtypes: Array.isArray(data.fighter_subtypes) ? data.fighter_subtypes : [],
+        fighter_specialisation_id: data.fighter_specialisation_id,
+        fighter_specialisation: data.fighter_specialisation,
         movement: data.movement,
         weapon_skill: data.weapon_skill,
         ballistic_skill: data.ballistic_skill,
@@ -516,6 +520,7 @@ export async function PATCH(request: Request) {
         willpower: data.willpower,
         intelligence: data.intelligence,
         save: data.save ?? null,
+        starting_xp: data.starting_xp ?? 0,
         special_rules: data.special_rules,
         free_skill: data.free_skill,
         is_gang_addition: data.is_gang_addition,
@@ -798,9 +803,9 @@ export async function POST(request: Request) {
         gang_type_id: data.gangTypeId,
         gang_type: gangType.gang_type,
         edition_id: gangType.edition_id ?? null,
-        fighter_classes: Array.isArray(data.fighterClasses) ? data.fighterClasses : [],
-        fighter_sub_type_id: data.fighterSubTypeId,
-        fighter_sub_type: data.fighterSubType,
+        fighter_subtypes: Array.isArray(data.fighterSubtypes) ? data.fighterSubtypes : [],
+        fighter_specialisation_id: data.fighterSpecialisationId,
+        fighter_specialisation: data.fighterSpecialisation,
         cost: data.baseCost,
         movement: data.movement,
         weapon_skill: data.weapon_skill,
@@ -815,6 +820,7 @@ export async function POST(request: Request) {
         intelligence: data.intelligence,
         attacks: data.attacks,
         save: data.save ?? null,
+        starting_xp: data.starting_xp ?? 0,
         special_rules: data.special_rules,
         free_skill: data.free_skill,
         is_gang_addition: data.is_gang_addition,

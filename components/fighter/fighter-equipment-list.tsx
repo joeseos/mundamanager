@@ -81,6 +81,7 @@ interface WeaponListProps {
   loadouts?: FighterLoadout[];
   activeLoadoutId?: string | null;
   onLoadoutsUpdate?: (loadouts: FighterLoadout[], activeLoadoutId: string | null) => void;
+  editionSlug?: string | null;
 }
 
 
@@ -98,7 +99,8 @@ export function WeaponList({
   onEffectsUpdate,
   loadouts = [],
   activeLoadoutId,
-  onLoadoutsUpdate
+  onLoadoutsUpdate,
+  editionSlug
 }: WeaponListProps) {
   const [showLoadoutsModal, setShowLoadoutsModal] = useState(false);
   
@@ -664,7 +666,7 @@ export function WeaponList({
         className={isChild ? "border-b bg-muted/20" : "border-b"}
       >
         <td className="px-1 py-1">
-          <EquipmentTooltipTrigger item={item} className="block w-full">
+          <EquipmentTooltipTrigger item={item} className="block w-full" editionSlug={editionSlug}>
             <>
               {isChild && <span className="text-muted-foreground mr-1" style={{ position: 'relative', top: '-4px' }}><TbCornerLeftUp className="inline" /></span>}
               <span className={`${isChild ? "text-sm" : ""} ${mutedClass}`}>{item.equipment_name}</span>

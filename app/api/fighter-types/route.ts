@@ -54,7 +54,7 @@ function transformCustomFighter(cf: any) {
   return {
     id: cf.id,
     fighter_type: cf.fighter_type,
-    fighter_classes: cf.fighter_classes || ['Custom'],
+    fighter_subtypes: cf.fighter_subtypes || ['Custom'],
     gang_type: cf.gang_type,
     cost: cf.cost,
     gang_type_id: cf.gang_type_id,
@@ -82,8 +82,8 @@ function transformCustomFighter(cf: any) {
     alliance_id: '',
     alliance_crew_name: '',
     equipment_selection: null,
-    sub_type: null,
-    fighter_sub_type_id: null,
+    specialisation: null,
+    fighter_specialisation_id: null,
     available_legacies: [],
     is_custom_fighter: true,
     free_skill: cf.free_skill || false,
@@ -255,7 +255,7 @@ export async function GET(request: Request) {
 
           // Apply variant rules (like removing Leaders)
           if (variantModifier.removeLeaders) {
-            data = data.filter((type: any) => !(type.fighter_classes ?? []).includes('Leader'));
+            data = data.filter((type: any) => !(type.fighter_subtypes ?? []).includes('Leader'));
           }
 
           // Fetch variant-specific fighter types and merge
