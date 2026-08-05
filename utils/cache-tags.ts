@@ -19,8 +19,8 @@ export const CACHE_TAGS = {
   // =============================================================================
   
   // Gang base data
-  BASE_GANG_BASIC: (id: string) => `base-gang-basic-${id}`,           // name, type, color, alignment, reputation, etc.
-  BASE_GANG_CREDITS: (id: string) => `base-gang-credits-${id}`,       // credits only
+  BASE_GANG_BASIC: (id: string) => `base-gang-basic-${id}`,           // name, type, color, alignment, notes, etc.
+  BASE_GANG_CREDITS: (id: string) => `base-gang-credits-${id}`,       // spendable resources: credits, reputation, trade points
   BASE_GANG_STASH: (id: string) => `base-gang-stash-${id}`,           // gang stash equipment
   BASE_GANG_VEHICLES: (id: string) => `base-gang-vehicles-${id}`,     // gang-owned vehicles
   BASE_GANG_POSITIONING: (id: string) => `base-gang-positioning-${id}`, // gang positioning data
@@ -250,8 +250,8 @@ export function invalidateGangCreation(params: {
   gangId: string;
   userId: string;
 }) {
-  // Base data changes (invalidateGangCredits covers BASE_GANG_BASIC, and with it
-  // reputation and trade points)
+  // Base data changes
+  revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.gangId), { expire: 0 });
   invalidateGangCredits(params.gangId);
 
   // User-scoped changes
@@ -404,15 +404,12 @@ export const invalidateFighterData = (fighterId: string, gangId: string) => {
 };
 
 /**
- * Credits are their own tag because they change on nearly every mutation. Reputation and
- * Trade Points are also spendable, but live in BASE_GANG_BASIC — and anything that moves
- * credits (equipment, fighters, advancements) can move those too, since a purchase may be
- * paid in any of the three. Invalidating them together keeps callers from having to know
- * which currency a given purchase used.
+ * Covers every spendable gang resource — credits, reputation and Trade Points — since a
+ * purchase may be paid in any of them and they share one cache entry. Callers do not
+ * need to know which currency a given mutation used.
  */
 export const invalidateGangCredits = (gangId: string) => {
   revalidateTag(CACHE_TAGS.BASE_GANG_CREDITS(gangId), { expire: 0 });
-  revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(gangId), { expire: 0 });
 };
 
 export const invalidateGangRating = (gangId: string) => {

@@ -10,6 +10,13 @@ import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang';
 // TYPES - Shared interfaces for gang data
 // =============================================================================
 
+/** The gang's spendable resources, all stored on the gangs row. */
+export interface GangResources {
+  credits: number;
+  reputation: number;
+  trade_points: number;
+}
+
 export interface GangBasic {
   id: string;
   name: string;
@@ -17,8 +24,6 @@ export interface GangBasic {
   gang_type_id: string;
   edition_slug?: string | null;
   gang_colour: string;
-  reputation: number;
-  trade_points: number;
   alignment: string;
   note?: string;
   note_backstory?: string;
@@ -196,8 +201,6 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
           gang_type,
           gang_type_id,
           gang_colour,
-          reputation,
-          trade_points,
           alignment,
           note,
           note_backstory,
@@ -269,20 +272,26 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
 };
 
 /**
- * Get gang credits only
+ * Get the gang's spendable resources: credits, reputation and Trade Points. All three
+ * live on the gangs row and a purchase may be paid in any of them, so they share one
+ * cache entry and one tag rather than splitting across BASE_GANG_BASIC.
  * Cache: BASE_GANG_CREDITS
  */
-export const getGangCredits = async (gangId: string, supabase: any): Promise<number> => {
+export const getGangResources = async (gangId: string, supabase: any): Promise<GangResources> => {
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
         .from('gangs')
-        .select('credits')
+        .select('credits, reputation, trade_points')
         .eq('id', gangId)
         .single();
 
       if (error) throw error;
-      return data.credits;
+      return {
+        credits: data.credits,
+        reputation: data.reputation,
+        trade_points: data.trade_points
+      };
     },
     [`gang-credits-${gangId}`],
     {
