@@ -37,12 +37,15 @@ export interface EditionCapabilities {
    * When false, equipment uses Availability (Trading Post rarity) instead.
    */
   tradePoints: boolean;
+  /** Fighter types carry a Starting XP value (feeds N26 advancement ranks) */
+  startingXp: boolean;
 }
 
 const N26_CAPABILITIES: EditionCapabilities = {
   saveCharacteristic: true,
   multipleFighterClasses: true,
   tradePoints: true,
+  startingXp: true,
 };
 
 /**
@@ -62,6 +65,7 @@ const EDITION_CAPABILITIES: Record<EditionSlug, EditionCapabilities> = {
     saveCharacteristic: false,
     multipleFighterClasses: false,
     tradePoints: false,
+    startingXp: false,
   },
   n26: N26_CAPABILITIES,
 };
@@ -76,6 +80,7 @@ const NO_CAPABILITIES: EditionCapabilities = {
   saveCharacteristic: false,
   multipleFighterClasses: false,
   tradePoints: false,
+  startingXp: false,
 };
 
 function capabilitiesFor(editionSlug?: string | null): EditionCapabilities {
@@ -109,6 +114,9 @@ export const allowsMultipleClasses = (editionSlug?: string | null): boolean =>
 
 export const hasTradePoints = (editionSlug?: string | null): boolean =>
   capabilitiesFor(editionSlug).tradePoints;
+
+export const hasStartingXp = (editionSlug?: string | null): boolean =>
+  capabilitiesFor(editionSlug).startingXp;
 
 export interface Edition {
   id: string;
