@@ -1,7 +1,7 @@
 // Dice utilities and roll tables (injuries, vehicles, ganger advancement, etc.)
 
 import type { EditionSlug } from '@/types/edition';
-import { BITTER_ENMITY_EFFECT_NAME } from '@/utils/bitterEnmityDisplay';
+import { BITTER_ENMITY_EFFECT_NAME } from '@/utils/injuryTarget';
 
 export const roll = (sides: number): number => Math.floor(Math.random() * sides) + 1;
 

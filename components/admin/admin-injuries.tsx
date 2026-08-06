@@ -165,14 +165,30 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
       let method: string;
       let body: string | undefined;
 
-      // Build type_specific_data
+      // Spread the existing value first: the PATCH route replaces this column
+      // wholesale, and this form knows only five of its keys. Without it,
+      // saving silently dropped skill_id, hatred_target, special_rules_to_add
+      // and the d66 ranges.
+      const existingTypeSpecificData =
+        (operation === OperationType.UPDATE ? fighterEffects[0]?.type_specific_data : null) ?? {};
+
       const typeSpecificData: TypeSpecificData = {
+        ...existingTypeSpecificData,
         recovery: recovery ? 'true' : 'false',
         convalescence: convalescence ? 'true' : 'false',
         effect_selection: effectSelection,
-        ...(appliesToEquipment && { applies_to: 'equipment' as const }),
-        ...(addsToGlitchCount && { adds_to_glitch_count: true })
+        ...(appliesToEquipment
+          ? { applies_to: 'equipment' as const }
+          : { applies_to: undefined }),
+        ...(addsToGlitchCount
+          ? { adds_to_glitch_count: true }
+          : { adds_to_glitch_count: undefined })
       };
+
+      // Unchecking a box must clear the key, not leave the spread value behind.
+      (Object.keys(typeSpecificData) as Array<keyof TypeSpecificData>).forEach((key) => {
+        if (typeSpecificData[key] === undefined) delete typeSpecificData[key];
+      });
 
       switch (operation) {
         case OperationType.POST:
@@ -271,7 +287,30 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
       mod => !mod.id?.startsWith('temp-') && !updatedEffect.modifiers.some(um => um.id === mod.id)
     );
 
+    // The sub-panel reports type_specific_data changes upward but never saves
+    // them, so they were lost on close. Modifiers already save immediately.
+    const typeSpecificDataChanged =
+      JSON.stringify(currentEffect.type_specific_data ?? {}) !==
+      JSON.stringify(updatedEffect.type_specific_data ?? {});
+
     try {
+      if (typeSpecificDataChanged) {
+        const response = await fetch(`/api/admin/fighter-effects?id=${selectedEffectId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            effect_name: updatedEffect.effect_name,
+            fighter_effect_category_id: updatedEffect.fighter_effect_category_id,
+            type_specific_data: updatedEffect.type_specific_data ?? {},
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to save effect details');
+        }
+      }
+
       // Save new modifiers to the API
       for (const modifier of newModifiers) {
         const response = await fetch('/api/admin/fighter-effects', {
@@ -308,6 +347,8 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
       // If any changes were made, show success and refresh
       if (newModifiers.length > 0 || deletedModifiers.length > 0) {
         toast.success('Modifiers updated successfully');
+      } else if (typeSpecificDataChanged) {
+        toast.success('Effect updated successfully');
       }
 
       // Refresh the effects list to get the real IDs from the database

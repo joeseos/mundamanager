@@ -29,7 +29,21 @@ export interface TypeSpecificData extends TraitModificationData {
   recovery?: 'true' | 'false' | string | boolean;
   convalescence?: 'true' | 'false' | string | boolean;
   captured?: 'true' | 'false' | string;
-  /** {@link import('@/utils/bitterEnmityDisplay').BITTER_ENMITY_EFFECT_NAME}: user-selected enemy gang (stored on fighter_effects instance) */
+  /**
+   * On an effect TYPE: which kind of Hatred (X) target the injury requires.
+   * On an effect INSTANCE: the target the user picked, denormalised.
+   * Read both via utils/injuryTarget.ts rather than touching these directly.
+   */
+  hatred_target?: 'gang' | 'gang_type' | 'fighter';
+  hatred_target_kind?: 'gang' | 'gang_type' | 'fighter';
+  hatred_target_id?: string;
+  hatred_target_name?: string;
+  hatred_target_colour?: string | null;
+  /**
+   * Pre-N26 shape, gang targets only. Historical instances were deliberately
+   * never backfilled, so readHatredTarget() still falls back to these. Nothing
+   * writes them any more.
+   */
   bitter_enmity_target_gang_id?: string;
   bitter_enmity_target_gang_name?: string;
   bitter_enmity_target_gang_colour?: string | null;

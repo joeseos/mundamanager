@@ -125,9 +125,11 @@ export type FighterSkills = Record<string, {
   fighter_injury_id?: string | null;
   injury_name?: string;
   custom_skill_id?: string | null;
-  bitter_enmity_target_gang_id?: string;
-  bitter_enmity_target_gang_name?: string;
-  bitter_enmity_target_gang_colour?: string | null;
+  /** Hatred (X) target of the injury that granted this skill, if any. See utils/injuryTarget.ts. */
+  hatred_target_kind?: 'gang' | 'gang_type' | 'fighter';
+  hatred_target_id?: string;
+  hatred_target_name?: string;
+  hatred_target_colour?: string | null;
 }>;
 
 export interface FighterProps {

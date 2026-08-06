@@ -1,6 +1,6 @@
 import { unstable_cache } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
-import { BITTER_ENMITY_EFFECT_NAME } from '@/utils/bitterEnmityDisplay';
+import { readHatredTarget } from '@/utils/injuryTarget';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { FighterEffect } from '@/types/fighter';
 import { FighterLoadout } from '@/types/equipment';
@@ -110,9 +110,11 @@ export interface FighterSkill {
   injury_name?: string;
   acquired_at: string;
   custom_skill_id?: string;
-  bitter_enmity_target_gang_id?: string;
-  bitter_enmity_target_gang_name?: string;
-  bitter_enmity_target_gang_colour?: string | null;
+  /** Hatred (X) target of the granting injury. See utils/injuryTarget.ts. */
+  hatred_target_kind?: 'gang' | 'gang_type' | 'fighter';
+  hatred_target_id?: string;
+  hatred_target_name?: string;
+  hatred_target_colour?: string | null;
 }
 
 // =============================================================================
@@ -560,19 +562,10 @@ export const getFighterSkills = async (fighterId: string, supabase: any): Promis
             fe?.type_specific_data && typeof fe.type_specific_data === 'object'
               ? (fe.type_specific_data as Record<string, unknown>)
               : null;
-          const isBitterEnmity = injuryName === BITTER_ENMITY_EFFECT_NAME;
-          const bitterId =
-            isBitterEnmity && typeof tsd?.bitter_enmity_target_gang_id === 'string'
-              ? tsd.bitter_enmity_target_gang_id
-              : undefined;
-          const bitterName =
-            isBitterEnmity && typeof tsd?.bitter_enmity_target_gang_name === 'string'
-              ? tsd.bitter_enmity_target_gang_name
-              : undefined;
-          const bitterColour =
-            isBitterEnmity && tsd && 'bitter_enmity_target_gang_colour' in tsd
-              ? (tsd.bitter_enmity_target_gang_colour as string | null)
-              : undefined;
+          // Hatred (X) target of the granting injury, for the badge on the
+          // skills list. readHatredTarget also understands the pre-N26
+          // bitter_enmity_* keys, which were deliberately never backfilled.
+          const hatredTarget = readHatredTarget(tsd);
 
           skills[skillName] = {
             id: skillData.id,
@@ -584,11 +577,12 @@ export const getFighterSkills = async (fighterId: string, supabase: any): Promis
             injury_name: injuryName || undefined,
             acquired_at: skillData.created_at,
             custom_skill_id: skillData.custom_skill_id || undefined,
-            ...(bitterId
+            ...(hatredTarget
               ? {
-                  bitter_enmity_target_gang_id: bitterId,
-                  bitter_enmity_target_gang_name: bitterName,
-                  bitter_enmity_target_gang_colour: bitterColour ?? null
+                  hatred_target_kind: hatredTarget.kind,
+                  hatred_target_id: hatredTarget.id,
+                  hatred_target_name: hatredTarget.name,
+                  hatred_target_colour: hatredTarget.colour
                 }
               : {})
           };

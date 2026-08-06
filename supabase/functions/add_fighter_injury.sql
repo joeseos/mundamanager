@@ -10,12 +10,18 @@ DROP FUNCTION IF EXISTS public.add_fighter_injury(UUID, UUID) CASCADE;
 DROP FUNCTION IF EXISTS add_fighter_injury(UUID, UUID, UUID, BOOLEAN) CASCADE;
 DROP FUNCTION IF EXISTS public.add_fighter_injury(UUID, UUID, UUID, BOOLEAN) CASCADE;
 
+-- in_hatred_target_id: one param for all three Hatred (X) kinds. Which kind is
+-- expected comes from the effect type's type_specific_data->>'hatred_target',
+-- not from the caller.
+--
+-- NB: renamed from in_bitter_enmity_target_gang_id. CREATE OR REPLACE cannot
+-- rename a parameter, so the DROP above must run first.
 CREATE OR REPLACE FUNCTION add_fighter_injury(
     in_fighter_id UUID,
     in_injury_type_id UUID,
     in_user_id UUID,
     in_target_equipment_id UUID DEFAULT NULL,
-    in_bitter_enmity_target_gang_id UUID DEFAULT NULL
+    in_hatred_target_id UUID DEFAULT NULL
 )
 RETURNS TABLE (result JSON) AS $$
 DECLARE
@@ -32,8 +38,11 @@ DECLARE
     injury_count INTEGER;
     is_partially_deafened BOOLEAN;
     v_merged_tsd JSONB;
-    v_enemy_gang_name TEXT;
-    v_enemy_gang_colour TEXT;
+    v_hatred_target TEXT;
+    v_target_name TEXT;
+    v_target_colour TEXT;
+    v_target_gang_id UUID;
+    v_fighter_edition_id UUID;
     v_shares_campaign BOOLEAN;
 BEGIN
     -- Set user context for is_admin check
@@ -84,40 +93,107 @@ BEGIN
     -- Check if this is "Partially Deafened"
     is_partially_deafened := effect_type_record.effect_name = 'Partially Deafened';
     
-    -- Base type_specific_data for the new effect row (template + optional Bitter Enmity gang fields)
+    -- Base type_specific_data for the new effect row (template + optional Hatred (X) target)
     v_merged_tsd := COALESCE(effect_type_record.type_specific_data, '{}'::jsonb);
-    
-    -- Optional Bitter Enmity: validate enemy gang and merge id / name / colour into instance jsonb
-    IF in_bitter_enmity_target_gang_id IS NOT NULL THEN
-        IF effect_type_record.effect_name <> 'Bitter Enmity' THEN
-            RAISE EXCEPTION 'Enemy gang can only be set for Bitter Enmity lasting injuries';
+
+    v_hatred_target := effect_type_record.type_specific_data->>'hatred_target';
+
+    -- Always optional: skirmish play has no opponent to name.
+    IF in_hatred_target_id IS NOT NULL THEN
+        IF v_hatred_target IS NULL THEN
+            RAISE EXCEPTION 'This lasting injury does not take a Hatred target';
         END IF;
 
-        IF in_bitter_enmity_target_gang_id = v_gang_id THEN
-            RAISE EXCEPTION 'Bitter Enmity enemy gang cannot be the fighter''s own gang';
+        -- Membership must be ACCEPTED, matching the permission check above: this
+        -- function is SECURITY DEFINER and directly callable, so it is the
+        -- enforcement boundary, not the UI's candidate list.
+        IF v_hatred_target = 'gang' THEN
+            IF in_hatred_target_id = v_gang_id THEN
+                RAISE EXCEPTION 'Hatred target gang cannot be the fighter''s own gang';
+            END IF;
+
+            SELECT EXISTS (
+                SELECT 1
+                FROM campaign_gangs cg1
+                INNER JOIN campaign_gangs cg2 ON cg1.campaign_id = cg2.campaign_id
+                WHERE cg1.gang_id = v_gang_id
+                  AND cg2.gang_id = in_hatred_target_id
+                  AND cg1.status = 'ACCEPTED'
+                  AND cg2.status = 'ACCEPTED'
+            ) INTO v_shares_campaign;
+
+            IF NOT COALESCE(v_shares_campaign, false) THEN
+                RAISE EXCEPTION 'Hatred target gang must share a campaign with the fighter''s gang';
+            END IF;
+
+            SELECT g.name, g.gang_colour::text
+            INTO STRICT v_target_name, v_target_colour
+            FROM gangs g
+            WHERE g.id = in_hatred_target_id;
+
+        ELSIF v_hatred_target = 'gang_type' THEN
+            -- Global catalog, so no campaign constraint (works in skirmish).
+            -- Edition must match, or an N23 type could land on an N26 fighter.
+            -- Official types only.
+            SELECT COALESCE(gt.edition_id, cgt.edition_id)
+            INTO v_fighter_edition_id
+            FROM gangs g
+            LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+            LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
+            WHERE g.id = v_gang_id;
+
+            SELECT gt.gang_type
+            INTO v_target_name
+            FROM gang_types gt
+            WHERE gt.gang_type_id = in_hatred_target_id
+              AND gt.edition_id IS NOT DISTINCT FROM v_fighter_edition_id;
+
+            IF v_target_name IS NULL THEN
+                RAISE EXCEPTION 'Hatred target gang type does not exist in the fighter''s edition';
+            END IF;
+
+            v_target_colour := NULL;
+
+        ELSIF v_hatred_target = 'fighter' THEN
+            SELECT f.fighter_name, f.gang_id
+            INTO v_target_name, v_target_gang_id
+            FROM fighters f
+            WHERE f.id = in_hatred_target_id;
+
+            IF v_target_gang_id IS NULL THEN
+                RAISE EXCEPTION 'Hatred target fighter does not exist';
+            END IF;
+
+            IF v_target_gang_id = v_gang_id THEN
+                RAISE EXCEPTION 'Hatred target fighter cannot belong to the fighter''s own gang';
+            END IF;
+
+            SELECT EXISTS (
+                SELECT 1
+                FROM campaign_gangs cg1
+                INNER JOIN campaign_gangs cg2 ON cg1.campaign_id = cg2.campaign_id
+                WHERE cg1.gang_id = v_gang_id
+                  AND cg2.gang_id = v_target_gang_id
+                  AND cg1.status = 'ACCEPTED'
+                  AND cg2.status = 'ACCEPTED'
+            ) INTO v_shares_campaign;
+
+            IF NOT COALESCE(v_shares_campaign, false) THEN
+                RAISE EXCEPTION 'Hatred target fighter must belong to a gang sharing a campaign with the fighter''s gang';
+            END IF;
+
+            v_target_colour := NULL;
+
+        ELSE
+            RAISE EXCEPTION 'Unknown Hatred target kind: %', v_hatred_target;
         END IF;
 
-        SELECT EXISTS (
-            SELECT 1
-            FROM campaign_gangs cg1
-            INNER JOIN campaign_gangs cg2 ON cg1.campaign_id = cg2.campaign_id
-            WHERE cg1.gang_id = v_gang_id
-              AND cg2.gang_id = in_bitter_enmity_target_gang_id
-        ) INTO v_shares_campaign;
-
-        IF NOT COALESCE(v_shares_campaign, false) THEN
-            RAISE EXCEPTION 'Enemy gang must share a campaign with the fighter''s gang';
-        END IF;
-
-        SELECT g.name, g.gang_colour::text
-        INTO STRICT v_enemy_gang_name, v_enemy_gang_colour
-        FROM gangs g
-        WHERE g.id = in_bitter_enmity_target_gang_id;
-
+        -- Denormalised snapshots; deliberately not kept in sync on rename.
         v_merged_tsd := v_merged_tsd || jsonb_build_object(
-            'bitter_enmity_target_gang_id', in_bitter_enmity_target_gang_id::text,
-            'bitter_enmity_target_gang_name', v_enemy_gang_name,
-            'bitter_enmity_target_gang_colour', v_enemy_gang_colour
+            'hatred_target_kind', v_hatred_target,
+            'hatred_target_id', in_hatred_target_id::text,
+            'hatred_target_name', v_target_name,
+            'hatred_target_colour', v_target_colour
         );
     END IF;
 

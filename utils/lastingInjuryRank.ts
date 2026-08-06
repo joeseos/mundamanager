@@ -1,6 +1,6 @@
 import type { EditionSlug } from '@/types/edition';
 import { lastingInjuryCrewRank } from '@/utils/lastingInjuryCrewRank';
-import { BITTER_ENMITY_EFFECT_NAME } from '@/utils/bitterEnmityDisplay';
+import { BITTER_ENMITY_EFFECT_NAME } from '@/utils/injuryTarget';
 
 export const lastingInjuryRank: { [key: string]: number } = {
   // Lasting Injuries
