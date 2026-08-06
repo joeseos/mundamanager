@@ -1,14 +1,48 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from 'next/server';
 
+/**
+ * Lists the lasting injury (or rig glitch) catalog.
+ *
+ * fighter_effect_types holds one row per injury per edition, and effect_name is
+ * reused across editions — N23 and N26 both have a 'Captured' and an 'Eye
+ * Injury', with different D66 positions and different modifiers. Callers must
+ * scope the request to an edition via `edition_slug` or `edition_id`, otherwise
+ * a fighter is offered another ruleset's injuries.
+ *
+ * Both filters are optional; omitting them returns every edition's rows.
+ */
 export async function GET(request: Request) {
   const supabase = await createClient();
   try {
     const url = new URL(request.url);
     const isSpyrer = url.searchParams.get('is_spyrer') === 'true';
     const categoryName = isSpyrer ? 'rig-glitches' : 'injuries';
+    const editionSlug = url.searchParams.get('edition_slug');
+    const editionId = url.searchParams.get('edition_id');
 
-    const { data: effects, error: effectsError } = await supabase
+    let resolvedEditionId = editionId;
+
+    if (!resolvedEditionId && editionSlug) {
+      const { data: edition, error: editionError } = await supabase
+        .from('editions')
+        .select('id')
+        .eq('slug', editionSlug)
+        .maybeSingle();
+
+      if (editionError) throw editionError;
+
+      if (!edition) {
+        return NextResponse.json({
+          error: 'Unknown edition',
+          details: `No edition with slug '${editionSlug}'`
+        }, { status: 400 });
+      }
+
+      resolvedEditionId = edition.id;
+    }
+
+    let query = supabase
       .from('fighter_effect_types')
       .select(`
         *,
@@ -18,6 +52,14 @@ export async function GET(request: Request) {
         )
       `)
       .eq('fighter_effect_categories.category_name', categoryName);
+
+    if (resolvedEditionId) {
+      query = query.eq('edition_id', resolvedEditionId);
+    }
+
+    // An empty list is a valid answer, not an error: an edition may legitimately
+    // have no injuries of this category defined yet (e.g. N26 rig glitches).
+    const { data: effects, error: effectsError } = await query;
 
     if (effectsError) throw effectsError;
 

@@ -711,6 +711,7 @@ export default function GangPageContent({
               fighterKilled={currentFighter.killed}
               fighterCaptured={currentFighter.captured}
               fighterCapturedByGangId={currentFighter.captured_by_gang_id ?? null}
+              editionSlug={gangData.processedData.edition_slug ?? null}
               userPermissions={userPermissions}
               fighter_subtypes={currentFighter.fighter_subtypes}
               is_spyrer={currentFighter.is_spyrer}

@@ -941,6 +941,7 @@ export default function FighterPage({
               ...(fighterData.fighter?.effects?.injuries || []),
               ...(fighterData.fighter?.effects?.['rig-glitches'] || [])
             ]}
+            editionSlug={fighterData.gang?.edition_slug ?? fighterData.fighter?.edition_slug ?? null}
             fighterId={fighterData.fighter?.id || ''}
             fighterGangId={fighterData.gang?.id}
             fighterCampaigns={fighterData.fighter?.campaigns}
