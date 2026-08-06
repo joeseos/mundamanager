@@ -18,13 +18,15 @@ export function matchesHomeEdition(
   return sameEditionSlug(editionSlug, selected)
 }
 
-/** Null / missing edition_id is treated as the N23 edition id when available. */
+/** Null / missing edition_id is treated as the N23 edition id when available.
+ *  When `selectedEditionId` is still unresolved (editions query not loaded),
+ *  returns false so lists stay empty instead of flashing every edition. */
 export function matchesHomeEditionId(
   editionId: string | null | undefined,
   selectedEditionId: string | null | undefined,
   n23EditionId: string | null | undefined
 ): boolean {
-  if (!selectedEditionId) return true
+  if (!selectedEditionId) return false
   return (editionId ?? n23EditionId ?? null) === selectedEditionId
 }
 

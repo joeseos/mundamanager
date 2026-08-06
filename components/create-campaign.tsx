@@ -16,6 +16,7 @@ import React from "react"
 import type { CampaignType } from '@/types/campaign'
 import { EditionToggle } from '@/components/home/edition-toggle'
 import { matchesHomeEditionId, useHomeEdition } from '@/hooks/use-home-edition'
+import { useEditionChangeReset } from '@/hooks/use-edition-change-reset'
 
 interface TradingPostType {
   id: string;
@@ -86,9 +87,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
   const isFormValid = campaignName.trim() !== "" && campaignType !== ""
 
   // Clear campaign type / trading posts that no longer belong to the active edition
-  const [prevEditionId, setPrevEditionId] = useState(editionId);
-  if (editionId !== prevEditionId) {
-    setPrevEditionId(editionId);
+  useEditionChangeReset(editionId, () => {
     if (campaignType && !editionCampaignTypes.some(type => type.id === campaignType)) {
       setCampaignType("");
       setSelectedTradingPosts([]);
@@ -97,7 +96,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
         prev.filter(id => editionTradingPostTypes.some(type => type.id === id))
       );
     }
-  }
+  });
 
   // Auto-select default trading posts when campaign type changes
   const [prevCampaignType, setPrevCampaignType] = useState(campaignType);

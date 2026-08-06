@@ -19,6 +19,7 @@ import { LuChevronLeft, LuChevronRight } from "react-icons/lu"
 import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang'
 import { EditionToggle } from '@/components/home/edition-toggle'
 import { matchesHomeEditionId, useHomeEdition } from '@/hooks/use-home-edition'
+import { useEditionChangeReset } from '@/hooks/use-edition-change-reset'
 
 type Gang = {
   id: string;
@@ -129,9 +130,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
   );
 
   // Clear selections that no longer belong to the active edition
-  const [prevEditionId, setPrevEditionId] = useState(editionId);
-  if (editionId !== prevEditionId) {
-    setPrevEditionId(editionId);
+  useEditionChangeReset(editionId, () => {
     if (gangType && !editionGangTypes.some(type => type.gang_type_id === gangType)) {
       setGangType("");
       setSelectedAffiliation("");
@@ -140,7 +139,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
     setSelectedVariants(prev =>
       prev.filter(variant => matchesHomeEditionId(variant.edition_id, editionId, n23EditionId))
     );
-  }
+  });
 
   useEffect(() => {
     const fetchGangTypes = async () => {
