@@ -21,6 +21,7 @@ import { GangsTab } from '@/components/home/gangs-tab'
 import { CampaignsTab } from '@/components/home/campaigns-tab'
 import { EditionToggle } from '@/components/home/edition-toggle'
 import { matchesHomeEditionId, useHomeEdition } from '@/hooks/use-home-edition'
+import { EDITION_N23 } from '@/types/edition'
 
 type TabKey = 'gangs' | 'campaigns' | 'customassets'
 const TAB_KEYS: TabKey[] = ['gangs', 'campaigns', 'customassets']
@@ -134,6 +135,14 @@ export default function HomeTabs({
     };
   }, [handleTabChange]);
 
+  // Custom Assets authoring is N23-only until skill-type and fighter-authoring
+  // pickers are edition-filtered (see comment on the Custom Assets toggle below).
+  useEffect(() => {
+    if (activeTab === 2 && editionSlug !== EDITION_N23) {
+      setEditionSlug(EDITION_N23);
+    }
+  }, [activeTab, editionSlug, setEditionSlug]);
+
   const tabParam = searchParams.get('tab') as TabKey | null;
   const [prevTabParam, setPrevTabParam] = useState(tabParam);
   if (tabParam !== prevTabParam) {
@@ -179,7 +188,23 @@ export default function HomeTabs({
             <div>
               <div className="flex items-center justify-between gap-2 mb-2">
                 <h2 className="text-xl md:text-2xl font-bold">Custom Assets</h2>
-                <EditionToggle value={editionSlug} onChange={setEditionSlug} />
+                {/*
+                  Custom Assets edition switching is locked to N23 for now.
+                  Re-enable (remove disabled + stop forcing N23 on tab enter) once:
+                  1. Custom Skills — fetchSkillTypes selects edition_id on
+                     skill_types / custom_skill_types and filters the Skill Type
+                     picker with matchesHomeEditionId / sameEditionSlug so a
+                     skill's derived edition matches the active home edition.
+                  2. Custom Fighters — filter the gang-type, skill-type, and
+                     equipment authoring pickers the same way CreateGangModal
+                     filters gang types (matchesHomeEditionId on lists from
+                     /api/gang-types, /api/skill-types, /api/equipment).
+                */}
+                <EditionToggle
+                  value={EDITION_N23}
+                  onChange={setEditionSlug}
+                  disabled
+                />
               </div>
               <p className="text-muted-foreground">
                 Create your own Gang Types, Fighters, Equipment, Skills, Skill sets and Trading Posts and share them to campaigns you&apos;re an Arbitrator of. Bundle them into Asset Collections to apply a whole themed set to a campaign at once, or copy another arbitrator&apos;s asset collection into your account. Custom Territories and Scenarios are created in the campaign pages.
