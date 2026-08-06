@@ -1,4 +1,11 @@
-export const equipmentCategoryRank: { [key: string]: number } = {
+/**
+ * N23 equipment category sort order. Only apply for N23 equipment.
+ *
+ * Keep this list in sync with `equipment_categories` rows for the N23 edition.
+ * A category missing here still appears in the UI, but sorts to the end
+ * (see compareEquipmentCategories fallback).
+ */
+export const equipmentCategoryRankN23: { [key: string]: number } = {
   "ammunition": 0,
   "special ammunition": 1,
   //

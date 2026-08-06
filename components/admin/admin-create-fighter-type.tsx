@@ -11,7 +11,7 @@ import { GangType, Equipment } from "@/types/gang";
 import { EditionSelect, useEditions } from '@/components/edition-select';
 import { hasSaveCharacteristic, allowsMultipleSubtypes, hasStartingXp } from '@/types/edition';
 import { skillSetRank } from "@/utils/skillSetRank";
-import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
+import { compareEquipmentCategories } from "@/utils/getEquipmentCategoryRank";
 
 interface AdminCreateFighterTypeModalProps {
   onClose: () => void;
@@ -958,11 +958,12 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                     .map(equipId => equipment.find(e => e.id === equipId))
                     .filter(item => item !== undefined) // Remove null values
                     .sort((a, b) => {
-                      const rankA = equipmentCategoryRank[a!.equipment_category.toLowerCase()] ?? Infinity;
-                      const rankB = equipmentCategoryRank[b!.equipment_category.toLowerCase()] ?? Infinity;
-
-                      // First, sort by equipment category rank
-                      if (rankA !== rankB) return rankA - rankB;
+                      const categoryCompare = compareEquipmentCategories(
+                        a!.equipment_category,
+                        b!.equipment_category,
+                        editionSlug
+                      );
+                      if (categoryCompare !== 0) return categoryCompare;
 
                       // If same category, sort alphabetically by equipment name
                       return a!.equipment_name.localeCompare(b!.equipment_name);

@@ -3,7 +3,7 @@
 import React from 'react';
 import { EquipmentOption, DefaultEquipment } from '@/types/fighter-type';
 import { Checkbox } from '@/components/ui/checkbox';
-import { equipmentCategoryRank } from '@/utils/equipmentCategoryRank';
+import { compareEquipmentCategories } from '@/utils/getEquipmentCategoryRank';
 import {
   SelectedEquipmentItem,
   normalizeEquipmentSelection,
@@ -17,6 +17,7 @@ interface EquipmentSelectionProps {
   selectedEquipment: SelectedEquipmentItem[];
   setSelectedEquipment: React.Dispatch<React.SetStateAction<SelectedEquipmentItem[]>>;
   setFighterCost: React.Dispatch<React.SetStateAction<string>>;
+  editionSlug?: string | null;
 }
 
 /**
@@ -34,6 +35,7 @@ export function EquipmentSelection({
   selectedEquipment,
   setSelectedEquipment,
   setFighterCost,
+  editionSlug,
 }: EquipmentSelectionProps) {
   if (!equipmentSelection) return null;
 
@@ -72,11 +74,9 @@ export function EquipmentSelection({
           });
         }
 
-        const sortedCategories = Object.keys(categorizedOptions).sort((a, b) => {
-          const rankA = equipmentCategoryRank[a] ?? Infinity;
-          const rankB = equipmentCategoryRank[b] ?? Infinity;
-          return rankA - rankB;
-        });
+        const sortedCategories = Object.keys(categorizedOptions).sort((a, b) =>
+          compareEquipmentCategories(a, b, editionSlug)
+        );
 
         // Don't render anything if no options
         if ((!categoryData.default || categoryData.default.length === 0) &&

@@ -12,7 +12,7 @@ import { FighterType } from "@/types/fighter";
 import { GangType } from "@/types/gang";
 import { Equipment } from '@/types/equipment';
 import { skillSetRank } from "@/utils/skillSetRank";
-import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
+import { compareEquipmentCategories } from "@/utils/getEquipmentCategoryRank";
 import { AdminFighterEquipmentSelection, EquipmentSelection, guiToDataModel, dataModelToGui } from "@/components/admin/admin-fighter-equipment-selection";
 import { EditionSelect, useEditions } from '@/components/edition-select';
 import { hasSaveCharacteristic, allowsMultipleSubtypes, hasStartingXp } from '@/types/edition';
@@ -2155,14 +2155,15 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                       .sort((a, b) => {
                         if (!a || !b) return 0; // Handle undefined items
 
-                        const rankA = equipmentCategoryRank[(a!.equipment_category || '').toLowerCase()] ?? Infinity;
-                        const rankB = equipmentCategoryRank[(b!.equipment_category || '').toLowerCase()] ?? Infinity;
-
-                        // First, sort by equipment category rank
-                        if (rankA !== rankB) return rankA - rankB;
+                        const categoryCompare = compareEquipmentCategories(
+                          a.equipment_category || '',
+                          b.equipment_category || '',
+                          editionSlug
+                        );
+                        if (categoryCompare !== 0) return categoryCompare;
 
                         // If same category, sort alphabetically by equipment name
-                        return a!.equipment_name.localeCompare(b!.equipment_name);
+                        return a.equipment_name.localeCompare(b.equipment_name);
                       })
                       .reduce((groups, item) => {
                         if (!item || !item.equipment_category) return groups; // Ensure item is defined and has a category

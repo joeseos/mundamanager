@@ -9,7 +9,6 @@ import { Equipment, WeaponProfile, EquipmentGrants } from '@/types/equipment';
 import { LuChevronRight } from "react-icons/lu";
 import { HiX } from "react-icons/hi";
 import { Switch } from "@/components/ui/switch";
-import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { LuX } from "react-icons/lu";
 import { RangeSlider } from "@/components/ui/range-slider";
 import { EquipmentTooltipTrigger } from './equipment-tooltip';
@@ -18,6 +17,15 @@ import { usePurchaseEquipment, type EquipmentBoughtResult } from '@/hooks/use-pu
 import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
 import { hasTradePoints } from '@/types/edition';
 import { isExclusiveTradePoints, parseTradePointsCost } from '@/utils/campaigns/resources';
+import {
+  compareEquipmentCategories,
+  hasEquipmentSuperCategories,
+} from '@/utils/getEquipmentCategoryRank';
+import {
+  getEquipmentCategoryDisplayNameN26,
+  getEquipmentSuperCategoryN26,
+  equipmentSuperCategoryRankN26,
+} from '@/utils/equipmentCategoryRankN26';
 
 interface ItemModalProps {
   title: string;
@@ -598,6 +606,75 @@ const ItemModal: React.FC<ItemModalProps> = ({
     category_name: name
   }));
 
+  const useN26CategoryFormation = hasEquipmentSuperCategories(editionSlug);
+
+  const visibleCategories = useMemo(() => {
+    return categories
+      .filter(category => {
+        const isVehicleAllowed = isVehicleEquipment && allowedCategories
+          ? allowedCategories.includes(category.category_name)
+          : !isVehicleEquipment;
+
+        const isAvailable = availableCategories.includes(category.category_name);
+
+        const hasMatchingEquipment = !searchQuery ||
+          (equipment[category.category_name] &&
+           filterEquipment(equipment[category.category_name]).length > 0);
+
+        return isVehicleAllowed && isAvailable && hasMatchingEquipment;
+      })
+      .sort((a, b) => {
+        if (useN26CategoryFormation) {
+          const superA = getEquipmentSuperCategoryN26(a.category_name) ?? '';
+          const superB = getEquipmentSuperCategoryN26(b.category_name) ?? '';
+          const superRankA = equipmentSuperCategoryRankN26[superA.toLowerCase()];
+          const superRankB = equipmentSuperCategoryRankN26[superB.toLowerCase()];
+          if (superRankA !== undefined || superRankB !== undefined) {
+            if (superRankA === undefined) return 1;
+            if (superRankB === undefined) return -1;
+            if (superRankA !== superRankB) return superRankA - superRankB;
+          }
+        }
+        return compareEquipmentCategories(a.category_name, b.category_name, editionSlug);
+      });
+  }, [
+    categories,
+    isVehicleEquipment,
+    allowedCategories,
+    availableCategories,
+    searchQuery,
+    equipment,
+    costRange,
+    availabilityRange,
+    tradePointsRange,
+    rarityFilter,
+    useN26CategoryFormation,
+    editionSlug,
+  ]);
+
+  const categoryGroups = useMemo(() => {
+    if (!useN26CategoryFormation) {
+      return [{ superCategory: null as string | null, categories: visibleCategories }];
+    }
+
+    const groups: { superCategory: string | null; categories: Category[] }[] = [];
+    for (const category of visibleCategories) {
+      const superCategory = getEquipmentSuperCategoryN26(category.category_name) ?? null;
+      const last = groups[groups.length - 1];
+      if (last && last.superCategory === superCategory) {
+        last.categories.push(category);
+      } else {
+        groups.push({ superCategory, categories: [category] });
+      }
+    }
+    return groups;
+  }, [useN26CategoryFormation, visibleCategories]);
+
+  const getCategoryDisplayName = (categoryName: string) =>
+    useN26CategoryFormation
+      ? getEquipmentCategoryDisplayNameN26(categoryName)
+      : categoryName;
+
   const modalContent = (
     <>
       <div
@@ -775,34 +852,21 @@ const ItemModal: React.FC<ItemModalProps> = ({
             <div className="flex flex-col">
               {error && <p className="text-red-500 p-4">{error}</p>}
 
-              {categories
-                .filter(category => {
-                  const isVehicleAllowed = isVehicleEquipment && allowedCategories
-                    ? allowedCategories.includes(category.category_name)
-                    : !isVehicleEquipment;
-
-                  const isAvailable = availableCategories.includes(category.category_name);
-
-                  // When searching, only show categories that have matching equipment
-                  const hasMatchingEquipment = !searchQuery || 
-                    (equipment[category.category_name] && 
-                     filterEquipment(equipment[category.category_name]).length > 0);
-
-                  return isVehicleAllowed && isAvailable && hasMatchingEquipment;
-                })
-                .sort((a, b) => {
-                  const rankA = equipmentCategoryRank[a.category_name.toLowerCase()] ?? Infinity;
-                  const rankB = equipmentCategoryRank[b.category_name.toLowerCase()] ?? Infinity;
-                  return rankA - rankB;
-                })
-                .map((category) => (
+              {categoryGroups.map((group) => (
+                <div key={group.superCategory ?? '__ungrouped__'}>
+                  {group.superCategory && (
+                    <div className="px-2 py-2 text-sm font-bold uppercase tracking-wide text-muted-foreground bg-card border-b">
+                      {group.superCategory}
+                    </div>
+                  )}
+                  {group.categories.map((category) => (
                   <div key={category.id}>
                     <Button
                       variant="ghost"
                       className="relative flex w-full justify-between rounded-none px-4 py-4 text-base font-semibold bg-muted hover:bg-muted mb-[1px]"
                       onClick={() => toggleCategory(category)}
                     >
-                      <span>{category.category_name}</span>
+                      <span>{getCategoryDisplayName(category.category_name)}</span>
                       <LuChevronRight
                         className={`h-4 w-4 transition-transform duration-200 ${
                           expandedCategories.has(category.category_name) ? "rotate-90" : ""
@@ -935,7 +999,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
                     )}
                     <div className="h-[1px] w-full bg-secondary" />
                   </div>
-                ))}
+                  ))}
+                </div>
+              ))}
             </div>
             {buyModalData && (
               <PurchaseModal
