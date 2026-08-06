@@ -85,7 +85,7 @@ export function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
           {/* Injury row - only show if fighter has injuries */}
           {fighter.effects?.injuries && fighter.effects.injuries.length > 0 && (
             <tr className="bg-red-50 dark:bg-red-950">
-              <td className="px-1 py-1 font-medium text-xs">Injuries</td>
+              <td className="px-1 py-1 font-medium text-xs">Lasting Injuries</td>
               {stats.map(stat => (
                 <td key={stat.key} className="border-l border-border text-center text-xs">
                   {injuryEffects[stat.key] ? injuryEffects[stat.key] : '-'}

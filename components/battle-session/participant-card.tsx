@@ -1447,7 +1447,7 @@ export default function ParticipantCard({
                 );
               })()}
               {totalInjuries > 0 && (
-                <span className="text-red-500">{totalInjuries} injuries</span>
+                <span className="text-red-500">{totalInjuries} lasting injuries</span>
               )}
             </div>
           </div>

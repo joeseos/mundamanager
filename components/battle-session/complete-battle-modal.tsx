@@ -236,7 +236,7 @@ export default function CompleteBattleModal({
                     <span>{(p.fighters ?? []).length} fighters</span>
                     {totalXp > 0 && <span>+{totalXp} XP</span>}
                     {totalInjuries > 0 && (
-                      <span className="text-red-500">{totalInjuries} injuries</span>
+                      <span className="text-red-500">{totalInjuries} lasting injuries</span>
                     )}
                   </div>
                   {(p.reputation_change !== 0 || p.credits_earned !== 0 || (p.resource_changes ?? []).some((r) => r.quantity_delta !== 0)) && (
