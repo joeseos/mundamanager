@@ -13,9 +13,8 @@ export function sameEditionSlug(
   return (a ?? EDITION_N23) === (b ?? EDITION_N23);
 }
 
-/** Shape of an `editions:edition_id (slug)` embed. PostgREST returns a to-one
- *  embed as an object, but generated types sometimes widen it to an array, so
- *  both are accepted. */
+/** An `editions:edition_id (slug)` embed. PostgREST returns a to-one embed as
+ *  an object, but generated types sometimes widen it to an array. */
 type EditionJoin = { slug: string } | { slug: string }[] | null | undefined;
 
 export function editionSlugFromJoin(editions: EditionJoin): string | null {
@@ -24,12 +23,9 @@ export function editionSlugFromJoin(editions: EditionJoin): string | null {
 }
 
 /**
- * Flattens a row selected with `editions:edition_id (slug)` into a plain
- * `edition_slug`, dropping the nested embed.
- *
- * Every server fetcher that returns edition-scoped rows runs its rows through
- * this, so a row carries its edition as a slug and the browser never has to
- * resolve an edition uuid (see the note at the top of this file).
+ * Flattens an `editions:edition_id (slug)` embed into a plain `edition_slug`.
+ * Every server fetcher of edition-scoped rows runs its rows through this, so
+ * the browser never has to resolve an edition uuid.
  */
 export function withEditionSlug<T extends Record<string, any>>(
   row: T

@@ -22,7 +22,6 @@ export interface CustomTradingPost {
   description?: string | null;
   created_at: string;
   updated_at?: string | null;
-  /** Resolved server-side from edition_id; client code filters on the slug. */
   edition_slug?: string | null;
 }
 

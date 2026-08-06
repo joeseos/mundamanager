@@ -58,10 +58,7 @@ function setStoredEdition(slug: EditionSlug) {
  *
  * Deliberately network-free: the slug is available synchronously on first
  * render, so lists filter correctly on first paint and a failed request can
- * never make edition-scoped UI render empty. Rows carry their own
- * `edition_slug` (resolved server-side in app/lib), so nothing here needs the
- * editions table — callers compare with `sameEditionSlug`, never with an
- * edition uuid.
+ * never leave edition-scoped UI rendering empty.
  */
 export function useHomeEdition() {
   const editionSlug = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)

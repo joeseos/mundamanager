@@ -4,14 +4,9 @@ import { getUserIdFromClaims } from "@/utils/auth";
 import { getEditions } from "@/app/lib/editions";
 
 /**
- * The editions list for the admin authoring screens.
- *
- * App pages do NOT call this: rows carry their own `edition_slug`, resolved by
- * the server fetch that loads them (see app/lib/*), so ordinary pages never
- * need the editions table in the browser. Only components that genuinely need
- * to *choose* an edition — the admin EditionSelect dropdown — fetch it here.
- *
- * The body comes from the cached lib, so repeat calls cost no Supabase query.
+ * The editions list, for admin screens that need to *choose* an edition.
+ * App pages don't call this — their rows arrive with `edition_slug` already
+ * resolved by the server fetch that loaded them (see app/lib/*).
  */
 export async function GET() {
   const supabase = await createClient();

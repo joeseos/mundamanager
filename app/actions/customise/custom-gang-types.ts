@@ -26,7 +26,6 @@ export interface CustomGangType {
   default_image_urls?: any | null;
   created_at: string;
   updated_at?: string | null;
-  /** Resolved server-side from edition_id; client code filters on the slug. */
   edition_slug?: string | null;
   // Joined data
   trading_post_type_name?: string | null;

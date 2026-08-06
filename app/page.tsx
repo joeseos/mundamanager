@@ -64,8 +64,6 @@ export default async function Home() {
       .order('trading_post_name')
   ]);
 
-  // Rows carry their edition as a slug so the create modals can filter without
-  // fetching the editions table in the browser.
   const campaignTypes = (campaignTypesResult.data || []).map(withEditionSlug);
   const tradingPostTypes = (tradingPostTypesResult.data || []).map(withEditionSlug);
 

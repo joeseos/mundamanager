@@ -108,8 +108,6 @@ export default function CampaignEditModal({
 
   const router = useRouter();
 
-  // Both the campaign's edition and each trading post's are resolved server-side,
-  // so this filter is correct on first render — no loading state to guard against.
   const editionTradingPostTypes = useMemo(
     () => tradingPostTypes.filter(type =>
       sameEditionSlug(type.edition_slug, campaignData.edition_slug)
@@ -175,9 +173,8 @@ export default function CampaignEditModal({
 
   // Handler for form submission
   const handleSubmit = async () => {
-    // Saved as-is: the checkbox list is already edition-filtered, so form state
-    // cannot hold an out-of-edition id. Re-filtering here would silently clear
-    // every trading post if that filter ever evaluated empty.
+    // Saved as-is. The checkbox list is already edition-filtered, and
+    // re-filtering here would wipe every trading post if it evaluated empty.
     const saveData: Parameters<typeof onSave>[0] = {
       campaign_name: formValues.campaignName,
       description: formValues.description,

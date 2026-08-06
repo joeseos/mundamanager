@@ -183,7 +183,6 @@ export interface CustomEquipment {
   created_at: string;
   updated_at?: string;
   is_consumable?: boolean;
-  /** Resolved server-side from edition_id; client code filters on the slug. */
   edition_slug?: string | null;
 }
 

@@ -4,21 +4,11 @@ import { createServiceRoleClient } from '@/utils/supabase/server';
 import { EDITION_N23, type Edition } from '@/types/edition';
 
 /**
- * The editions table, cached process-wide.
+ * The editions table. Service role because every user reads the same rows.
  *
- * Every authenticated user reads the same rows (see the blanket SELECT policy
- * in 20260630095837_add_editions_and_root_edition_ids.sql), so this is read
- * with the service role rather than once per user per request.
- *
- * Revalidation is time-based because editions are seeded by migration and the
- * app has no write path to the table — nothing can call revalidateTag for us,
- * so caching indefinitely would hide a newly seeded edition until the next
- * deploy. One hour matches the other rarely-changing reference data
- * (gang variants, alliances, fighter types in app/lib/shared/*).
- *
- * The tag is still there for the impatient case: after running a migration,
- * `revalidateTag(CACHE_TAGS.GLOBAL_EDITIONS(), { expire: 0 })` picks the new
- * edition up immediately instead of waiting out the hour.
+ * Revalidation has to be time-based: editions are seeded by migration and the
+ * app has no write path to the table, so nothing can call revalidateTag and
+ * caching indefinitely would hide a new edition until the next deploy.
  */
 const getCachedEditions = unstable_cache(
   async (): Promise<Edition[]> => {
@@ -49,14 +39,9 @@ export async function getEditions(): Promise<Edition[]> {
 }
 
 /**
- * Resolve an edition slug to its uuid, server-side.
- *
- * Rows are written with an edition uuid but the app reasons in slugs
- * (see @/types/edition), so this translation belongs on the write path — never
- * in the browser, which would have to fetch the editions table to do it.
- *
- * Returns null for a slug that is not in the table, which callers store as a
- * null edition_id (read back as N23 by `sameEditionSlug`).
+ * Rows are written with an edition uuid but the app reasons in slugs, so this
+ * translation belongs on the write path — never in the browser, which would
+ * have to fetch the editions table to do it.
  */
 export async function getEditionIdBySlug(
   slug: string = EDITION_N23
