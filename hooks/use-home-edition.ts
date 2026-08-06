@@ -1,8 +1,7 @@
 "use client"
 
-import { useCallback, useMemo, useSyncExternalStore } from 'react'
+import { useCallback, useSyncExternalStore } from 'react'
 import { EDITION_N23, EDITION_N26, sameEditionSlug, type EditionSlug } from '@/types/edition'
-import { useEditions } from '@/components/edition-select'
 
 export const HOME_EDITION_STORAGE_KEY = 'home_edition'
 
@@ -16,18 +15,6 @@ export function matchesHomeEdition(
   selected: EditionSlug
 ): boolean {
   return sameEditionSlug(editionSlug, selected)
-}
-
-/** Null / missing edition_id is treated as the N23 edition id when available.
- *  When `selectedEditionId` is still unresolved (editions query not loaded),
- *  returns false so lists stay empty instead of flashing every edition. */
-export function matchesHomeEditionId(
-  editionId: string | null | undefined,
-  selectedEditionId: string | null | undefined,
-  n23EditionId: string | null | undefined
-): boolean {
-  if (!selectedEditionId) return false
-  return (editionId ?? n23EditionId ?? null) === selectedEditionId
 }
 
 function readStoredEdition(): EditionSlug {
@@ -74,23 +61,22 @@ function setStoredEdition(slug: EditionSlug) {
   listeners.forEach(listener => listener())
 }
 
+/**
+ * The edition selected by the home toggle, backed by localStorage.
+ *
+ * Deliberately network-free: the slug is available synchronously on first
+ * render, so lists filter correctly on first paint and a failed request can
+ * never make edition-scoped UI render empty. Rows carry their own
+ * `edition_slug` (resolved server-side in app/lib), so nothing here needs the
+ * editions table — comparisons go through `matchesHomeEdition` /
+ * `sameEditionSlug`, never through an edition uuid.
+ */
 export function useHomeEdition() {
   const editionSlug = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
-  const { data: editions = [] } = useEditions()
 
   const setEditionSlug = useCallback((slug: EditionSlug) => {
     setStoredEdition(slug)
   }, [])
 
-  const editionId = useMemo(
-    () => editions.find(edition => edition.slug === editionSlug)?.id ?? null,
-    [editions, editionSlug]
-  )
-
-  const n23EditionId = useMemo(
-    () => editions.find(edition => edition.slug === EDITION_N23)?.id ?? null,
-    [editions]
-  )
-
-  return { editionSlug, setEditionSlug, editionId, n23EditionId, editions }
+  return { editionSlug, setEditionSlug }
 }

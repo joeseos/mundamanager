@@ -171,6 +171,9 @@ export interface CampaignType {
   campaign_type_name: string;
   image_url?: string | null;
   trading_posts?: string[] | null;
+  /** Written by the admin campaign-type editor, which assigns the FK. */
   edition_id?: string | null;
+  /** Resolved server-side from edition_id; app code filters on the slug. */
+  edition_slug?: string | null;
   campaign_type_resources?: CampaignTypeResource[];
 }

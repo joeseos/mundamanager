@@ -1,5 +1,6 @@
 import { unstable_cache } from 'next/cache';
 import { CACHE_TAGS } from "@/utils/cache-tags";
+import { editionSlugFromJoin, withEditionSlug } from "@/types/edition";
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export interface CustomSkillType {
@@ -8,13 +9,13 @@ export interface CustomSkillType {
   name: string;
   created_at: string;
   updated_at?: string;
-  edition_id?: string | null;
+  edition_slug?: string | null;
 }
 
 export async function getUserCustomSkillTypes(userId: string, supabase: SupabaseClient): Promise<CustomSkillType[]> {
   const { data, error } = await supabase
     .from('custom_skill_types')
-    .select('id, user_id, name, created_at, updated_at, edition_id')
+    .select('id, user_id, name, created_at, updated_at, editions:edition_id (slug)')
     .eq('user_id', userId)
     .order('name', { ascending: true });
 
@@ -23,7 +24,7 @@ export async function getUserCustomSkillTypes(userId: string, supabase: Supabase
     throw new Error(`Failed to fetch custom skill types: ${error.message}`);
   }
 
-  return data || [];
+  return (data || []).map(withEditionSlug);
 }
 
 export interface CustomSkill {
@@ -37,7 +38,7 @@ export interface CustomSkill {
   created_at: string;
   updated_at?: string;
   /** Derived from skill_types / custom_skill_types edition. */
-  edition_id?: string | null;
+  edition_slug?: string | null;
 }
 
 export async function getUserCustomSkills(userId: string, supabase: SupabaseClient): Promise<CustomSkill[]> {
@@ -54,8 +55,8 @@ export async function getUserCustomSkills(userId: string, supabase: SupabaseClie
           description,
           created_at,
           updated_at,
-          skill_types (name, edition_id),
-          custom_skill_types (name, edition_id)
+          skill_types (name, editions:edition_id (slug)),
+          custom_skill_types (name, editions:edition_id (slug))
         `)
         .eq('user_id', userId)
         .order('skill_name', { ascending: true });
@@ -75,9 +76,8 @@ export async function getUserCustomSkills(userId: string, supabase: SupabaseClie
         description: skill.description,
         created_at: skill.created_at,
         updated_at: skill.updated_at,
-        edition_id: skill.custom_skill_types?.edition_id
-          ?? skill.skill_types?.edition_id
-          ?? null,
+        edition_slug: editionSlugFromJoin(skill.custom_skill_types?.editions)
+          ?? editionSlugFromJoin(skill.skill_types?.editions),
       }));
     },
     [`user-custom-skills-${userId}`],

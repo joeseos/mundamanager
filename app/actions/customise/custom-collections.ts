@@ -2,6 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
+import { getEditionIdBySlug } from '@/app/lib/editions';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { invalidateUserCustomCollections, invalidateAllUserCustomContent } from '@/utils/cache-tags';
 
@@ -20,13 +21,14 @@ export interface CustomCollection {
   items: CollectionItem[];
   created_at: string;
   updated_at?: string | null;
-  edition_id?: string | null;
+  /** Resolved server-side from edition_id; client code filters on the slug. */
+  edition_slug?: string | null;
 }
 
 export interface CustomCollectionData {
   name: string;
   description?: string | null;
-  edition_id?: string | null;
+  edition_slug?: string;
 }
 
 // Maps a collection item type to the custom table that owns it.
@@ -82,7 +84,7 @@ export async function createCustomCollection(
         name: data.name.trimEnd(),
         description: data.description || null,
         items: [],
-        edition_id: data.edition_id || null,
+        edition_id: await getEditionIdBySlug(data.edition_slug),
         created_at: new Date().toISOString(),
       })
       .select()

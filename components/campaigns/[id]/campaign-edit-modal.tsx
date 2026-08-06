@@ -16,14 +16,12 @@ import { tradingPostRank } from "@/utils/tradingPostRank";
 import CampaignAllegiancesActions from "@/components/campaigns/[id]/campaign-allegiances-actions";
 import CampaignResourcesActions from "@/components/campaigns/[id]/campaign-resources-actions";
 import { Badge } from "@/components/ui/badge";
-import { EDITION_N23 } from '@/types/edition';
-import { useEditions } from '@/components/edition-select';
-import { matchesHomeEditionId } from '@/hooks/use-home-edition';
+import { sameEditionSlug } from '@/types/edition';
 
 interface TradingPostType {
   id: string;
   trading_post_name: string;
-  edition_id?: string | null;
+  edition_slug?: string | null;
 }
 
 interface EditCampaignModalProps {
@@ -91,7 +89,6 @@ export default function CampaignEditModal({
   predefinedResources = [],
   onDiscordConnected,
 }: EditCampaignModalProps) {
-  const { data: editions = [] } = useEditions();
   // Local state for form values - initialized from props
   const [formValues, setFormValues] = useState({
     campaignName: campaignData.campaign_name,
@@ -111,27 +108,20 @@ export default function CampaignEditModal({
 
   const router = useRouter();
 
-  const n23EditionId = useMemo(
-    () => editions.find(edition => edition.slug === EDITION_N23)?.id ?? null,
-    [editions]
-  );
-  const campaignEditionId = useMemo(
-    () => editions.find(edition => edition.slug === (campaignData.edition_slug ?? EDITION_N23))?.id ?? null,
-    [editions, campaignData.edition_slug]
-  );
-
+  // Both the campaign's edition and each trading post's are resolved server-side,
+  // so this filter is correct on first render — no loading state to guard against.
   const editionTradingPostTypes = useMemo(
     () => tradingPostTypes.filter(type =>
-      matchesHomeEditionId(type.edition_id, campaignEditionId, n23EditionId)
+      sameEditionSlug(type.edition_slug, campaignData.edition_slug)
     ),
-    [tradingPostTypes, campaignEditionId, n23EditionId]
+    [tradingPostTypes, campaignData.edition_slug]
   );
 
   const editionCustomTradingPostTypes = useMemo(
     () => customTradingPostTypes.filter(type =>
-      matchesHomeEditionId(type.edition_id, campaignEditionId, n23EditionId)
+      sameEditionSlug(type.edition_slug, campaignData.edition_slug)
     ),
-    [customTradingPostTypes, campaignEditionId, n23EditionId]
+    [customTradingPostTypes, campaignData.edition_slug]
   );
 
   const [prevCampaignData, setPrevCampaignData] = useState(campaignData);
@@ -185,14 +175,14 @@ export default function CampaignEditModal({
 
   // Handler for form submission
   const handleSubmit = async () => {
-    const editionTradingPostIds = new Set(editionTradingPostTypes.map(type => type.id));
-    const editionCustomTradingPostIds = new Set(editionCustomTradingPostTypes.map(type => type.id));
-
+    // Saved as-is: the checkbox list is already edition-filtered, so form state
+    // cannot hold an out-of-edition id. Re-filtering here would silently clear
+    // every trading post if that filter ever evaluated empty.
     const saveData: Parameters<typeof onSave>[0] = {
       campaign_name: formValues.campaignName,
       description: formValues.description,
-      trading_posts: formValues.tradingPosts.filter(id => editionTradingPostIds.has(id)),
-      custom_trading_posts: formValues.customTradingPosts.filter(id => editionCustomTradingPostIds.has(id)),
+      trading_posts: formValues.tradingPosts,
+      custom_trading_posts: formValues.customTradingPosts,
       status: formValues.status,
       allow_join_requests: formValues.allowJoinRequests,
     };
@@ -230,14 +220,11 @@ export default function CampaignEditModal({
   };
 
   const handleDisconnectDiscord = async () => {
-    const editionTradingPostIds = new Set(editionTradingPostTypes.map(type => type.id));
-    const editionCustomTradingPostIds = new Set(editionCustomTradingPostTypes.map(type => type.id));
-
     const result = await onSave({
       campaign_name: formValues.campaignName,
       description: formValues.description,
-      trading_posts: formValues.tradingPosts.filter(id => editionTradingPostIds.has(id)),
-      custom_trading_posts: formValues.customTradingPosts.filter(id => editionCustomTradingPostIds.has(id)),
+      trading_posts: formValues.tradingPosts,
+      custom_trading_posts: formValues.customTradingPosts,
       status: formValues.status,
       allow_join_requests: formValues.allowJoinRequests,
       discord_guild_id: null,

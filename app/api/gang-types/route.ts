@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { getUserIdFromClaims } from "@/utils/auth";
+import { editionSlugFromJoin, withEditionSlug } from "@/types/edition";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -28,7 +29,7 @@ export async function GET(request: Request) {
     // Build query - include gang origin data
     let query = supabase
       .from('gang_types')
-      .select('gang_type_id, gang_type, alignment, image_url, default_image_urls, affiliation, gang_origin_category_id, edition_id')
+      .select('gang_type_id, gang_type, alignment, image_url, default_image_urls, affiliation, gang_origin_category_id, editions:edition_id (slug)')
       .order('gang_type');
 
     // Only filter out hidden types if user is not admin
@@ -104,7 +105,7 @@ export async function GET(request: Request) {
         : [];
 
       return {
-        ...gangType,
+        ...withEditionSlug(gangType),
         available_affiliations: gangType.affiliation ? allAffiliations : [],
         available_origins: availableOrigins
       };
@@ -113,7 +114,7 @@ export async function GET(request: Request) {
     // Fetch user's own custom gang types
     const { data: ownCustomGangTypes } = await supabase
       .from('custom_gang_types')
-      .select('id, gang_type, alignment, default_image_urls, edition_id')
+      .select('id, gang_type, alignment, default_image_urls, editions:edition_id (slug)')
       .eq('user_id', userId)
       .order('gang_type');
 
@@ -140,7 +141,7 @@ export async function GET(request: Request) {
       if (gangTypeIds.length > 0) {
         const { data: shared } = await supabase
           .from('custom_gang_types')
-          .select('id, gang_type, alignment, default_image_urls, edition_id')
+          .select('id, gang_type, alignment, default_image_urls, editions:edition_id (slug)')
           .in('id', gangTypeIds);
 
         sharedCustomGangTypes = shared || [];
@@ -163,7 +164,7 @@ export async function GET(request: Request) {
       default_image_urls: cgt.default_image_urls,
       affiliation: false,
       gang_origin_category_id: null,
-      edition_id: cgt.edition_id ?? null,
+      edition_slug: editionSlugFromJoin((cgt as any).editions),
       is_custom: true,
       available_affiliations: [],
       available_origins: []

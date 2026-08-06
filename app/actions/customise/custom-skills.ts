@@ -2,6 +2,8 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from '@/utils/auth';
+import { getEditionIdBySlug } from '@/app/lib/editions';
+import { withEditionSlug } from '@/types/edition';
 import { invalidateFighterAdvancement, invalidateUserCustomSkills, invalidateUserCustomCollections } from "@/utils/cache-tags";
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
 import { removeItemFromAllCollections } from './custom-collections';
@@ -174,7 +176,7 @@ export async function updateCustomSkill(
 
 export async function createCustomSkillType(data: {
   name: string;
-  edition_id?: string | null;
+  edition_slug?: string;
 }) {
   const supabase = await createClient();
   const user = await getAuthenticatedUser(supabase);
@@ -184,10 +186,10 @@ export async function createCustomSkillType(data: {
     .insert({
       user_id: user.id,
       name: data.name.trimEnd(),
-      edition_id: data.edition_id || null,
+      edition_id: await getEditionIdBySlug(data.edition_slug),
       created_at: new Date().toISOString()
     })
-    .select('id, user_id, name, created_at, updated_at, edition_id')
+    .select('id, user_id, name, created_at, updated_at, editions:edition_id (slug)')
     .single();
 
   if (error) {
@@ -197,7 +199,7 @@ export async function createCustomSkillType(data: {
 
   invalidateUserCustomSkills(user.id);
 
-  return newType;
+  return withEditionSlug(newType);
 }
 
 export async function updateCustomSkillType(

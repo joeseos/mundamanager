@@ -18,7 +18,7 @@ import Image from 'next/image'
 import { LuChevronLeft, LuChevronRight } from "react-icons/lu"
 import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang'
 import { EditionToggle } from '@/components/home/edition-toggle'
-import { matchesHomeEditionId, useHomeEdition } from '@/hooks/use-home-edition'
+import { matchesHomeEdition, useHomeEdition } from '@/hooks/use-home-edition'
 import { useEditionChangeReset } from '@/hooks/use-edition-change-reset'
 
 type Gang = {
@@ -54,13 +54,13 @@ type GangType = {
     category_name: string;
   }>;
   is_custom?: boolean;
-  edition_id?: string | null;
+  edition_slug?: string | null;
 };
 
 type GangVariant = {
   id: string;
   variant: string;
-  edition_id?: string | null;
+  edition_slug?: string | null;
 };
 
 interface CreateGangModalProps {
@@ -100,7 +100,7 @@ export function CreateGangButton() {
 export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { editionSlug, setEditionSlug, editionId, n23EditionId } = useHomeEdition();
+  const { editionSlug, setEditionSlug } = useHomeEdition();
   const [gangTypes, setGangTypes] = useState<GangType[]>([]);
   const [gangName, setGangName] = useState("")
   const [gangType, setGangType] = useState("")
@@ -120,24 +120,24 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(DEFAULT_IMAGE_INDEX);
 
   const editionGangTypes = useMemo(
-    () => gangTypes.filter(type => matchesHomeEditionId(type.edition_id, editionId, n23EditionId)),
-    [gangTypes, editionId, n23EditionId]
+    () => gangTypes.filter(type => matchesHomeEdition(type.edition_slug, editionSlug)),
+    [gangTypes, editionSlug]
   );
 
   const editionVariants = useMemo(
-    () => availableVariants.filter(variant => matchesHomeEditionId(variant.edition_id, editionId, n23EditionId)),
-    [availableVariants, editionId, n23EditionId]
+    () => availableVariants.filter(variant => matchesHomeEdition(variant.edition_slug, editionSlug)),
+    [availableVariants, editionSlug]
   );
 
   // Clear selections that no longer belong to the active edition
-  useEditionChangeReset(editionId, () => {
+  useEditionChangeReset(editionSlug, () => {
     if (gangType && !editionGangTypes.some(type => type.gang_type_id === gangType)) {
       setGangType("");
       setSelectedAffiliation("");
       setSelectedOrigin("");
     }
     setSelectedVariants(prev =>
-      prev.filter(variant => matchesHomeEditionId(variant.edition_id, editionId, n23EditionId))
+      prev.filter(variant => matchesHomeEdition(variant.edition_slug, editionSlug))
     );
   });
 

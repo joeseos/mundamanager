@@ -26,6 +26,7 @@ import { ShareCustomFighterModal } from '@/components/customise/custom-shared';
 import { skillSetRank } from '@/utils/skillSetRank';
 import type { UserCampaign } from '@/types/campaign';
 import type { EquipmentListItem } from '@/types/equipment';
+import { EDITION_N23 } from '@/types/edition';
 
 interface CustomiseFightersProps {
   className?: string;
@@ -33,7 +34,6 @@ interface CustomiseFightersProps {
   userId?: string;
   userCampaigns?: UserCampaign[];
   readOnly?: boolean;
-  editionId?: string | null;
 }
 
 type SkillTypeItem = { id: string; skill_type: string; is_custom?: boolean };
@@ -109,7 +109,7 @@ interface FighterSubtype {
   subtype_name: string;
 }
 
-export function CustomiseFighters({ className, initialFighters, userId, userCampaigns = [], readOnly = false, editionId = null }: CustomiseFightersProps) {
+export function CustomiseFighters({ className, initialFighters, userId, userCampaigns = [], readOnly = false }: CustomiseFightersProps) {
   const [fighters, setFighters] = useState<CustomFighterType[]>(initialFighters);
 
   const [prevInitialFighters, setPrevInitialFighters] = useState(initialFighters);
@@ -875,7 +875,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         default_equipment: copyModalData.default_equipment?.map(eq => eq.equipment_id) || [],
         equipment_list: copyModalData.equipment_list?.map(eq => eq.equipment_id) || [],
         description: copyModalData.description,
-        edition_id: editionId ?? copyModalData.edition_id ?? null,
+        edition_slug: EDITION_N23,
       };
 
       if (readOnly) {
@@ -957,7 +957,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       default_equipment: selectedEquipment,
       equipment_list: selectedEquipmentList,
       description,
-      edition_id: editionId,
+      edition_slug: EDITION_N23,
     };
 
     // Check if we're editing or creating

@@ -2,6 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
+import { getEditionIdBySlug } from '@/app/lib/editions';
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
 import { removeItemFromAllCollections } from './custom-collections';
 import { invalidateUserCustomGangTypes, invalidateUserCustomFighters, invalidateUserCustomCollections } from '@/utils/cache-tags';
@@ -10,7 +11,7 @@ export interface CustomGangTypeData {
   gang_type: string;
   alignment?: 'Outlaw' | 'Law Abiding' | 'Unaligned' | null;
   description?: string | null;
-  edition_id?: string | null;
+  edition_slug?: string;
 }
 
 const DEFAULT_TRADING_POST_TYPE_ID = 'cada4005-66e3-4e3c-8a77-146329bd1eda';
@@ -25,7 +26,8 @@ export interface CustomGangType {
   default_image_urls?: any | null;
   created_at: string;
   updated_at?: string | null;
-  edition_id?: string | null;
+  /** Resolved server-side from edition_id; client code filters on the slug. */
+  edition_slug?: string | null;
   // Joined data
   trading_post_type_name?: string | null;
 }
@@ -51,7 +53,7 @@ export async function createCustomGangType(
         alignment: data.alignment || null,
         description,
         trading_post_type_id: DEFAULT_TRADING_POST_TYPE_ID,
-        edition_id: data.edition_id || null,
+        edition_id: await getEditionIdBySlug(data.edition_slug),
         created_at: new Date().toISOString(),
       })
       .select()

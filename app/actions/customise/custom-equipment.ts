@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from '@/utils/auth';
+import { getEditionIdBySlug } from '@/app/lib/editions';
 import { getUserCustomEquipmentByCategory } from "@/app/lib/customise/custom-equipment";
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
 import { removeItemFromAllCollections } from './custom-collections';
@@ -133,7 +134,7 @@ export async function createCustomEquipment(data: {
   equipment_type: 'wargear' | 'weapon';
   is_consumable?: boolean;
   description?: string | null;
-  edition_id?: string | null;
+  edition_slug?: string;
 }) {
   const description = normalizeCustomDescription(data.description);
   const lengthError = getCustomDescriptionLengthError(description);
@@ -172,7 +173,7 @@ export async function createCustomEquipment(data: {
       equipment_type: data.equipment_type,
       is_consumable: data.is_consumable ?? false,
       description,
-      edition_id: data.edition_id || null,
+      edition_id: await getEditionIdBySlug(data.edition_slug),
       created_at: new Date().toISOString()
     })
     .select()
