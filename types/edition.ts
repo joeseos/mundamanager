@@ -130,6 +130,20 @@ export const hasStartingXp = (editionSlug?: string | null): boolean =>
 export const hasLethalityStatline = (editionSlug?: string | null): boolean =>
   capabilitiesFor(editionSlug).lethalityStatline;
 
+/**
+ * True when two editions are known to be different.
+ *
+ * Null is deliberately NOT aliased to n23, for the same reason NO_CAPABILITIES
+ * is not: an unknown edition is its own case, and quietly treating it as a real
+ * one would hide the fact that it failed to resolve. Here that means null makes
+ * no claim — it conflicts with nothing, so a guard built on this rejects only a
+ * definite mismatch and never blocks a user over data it could not read.
+ */
+export const editionsConflict = (
+  a?: string | null,
+  b?: string | null
+): boolean => a != null && b != null && a !== b;
+
 export interface Edition {
   id: string;
   name: string;

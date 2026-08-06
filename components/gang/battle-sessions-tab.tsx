@@ -16,6 +16,8 @@ interface BattleSessionsListProps {
   canAdd?: boolean;
   userId?: string;
   campaignGangs?: CampaignGang[];
+  /** Edition of the gang starting the battle; scopes the opponent pickers. */
+  editionSlug?: string | null;
   variant?: 'cards' | 'table';
   sessionUrl: (sessionId: string) => string;
   wrapper?: (children: ReactNode) => ReactNode;
@@ -29,6 +31,7 @@ export default function BattleSessionsList({
   canAdd,
   userId,
   campaignGangs,
+  editionSlug,
   variant = 'cards',
   sessionUrl,
   wrapper,
@@ -141,6 +144,7 @@ export default function BattleSessionsList({
           userId={userId}
           campaignId={campaignId}
           campaignGangs={campaignGangs}
+          editionSlug={editionSlug}
           onClose={() => setShowCreateModal(false)}
         />
       )}

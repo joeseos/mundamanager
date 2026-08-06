@@ -435,6 +435,7 @@ export default function ActiveSession({
           campaignId={session.campaign_id ?? undefined}
           existingSessionId={session.id}
           existingGangIds={session.participants.map((p) => p.gang_id)}
+          editionSlug={session.edition_slug}
           onClose={() => setShowAddPlayerModal(false)}
         />
       )}

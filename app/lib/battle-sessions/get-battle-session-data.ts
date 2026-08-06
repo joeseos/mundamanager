@@ -178,13 +178,20 @@ export const getGangBattleSessionsCached = async (
 
       if (sessionIds.length === 0) return [];
 
+      // Same embed + flatten as fetchBattleSessionDirect. BattleSession declares
+      // edition_slug, so a list loader that quietly omitted it would leave the
+      // field undefined here and populated there — the kind of inconsistency a
+      // future consumer only discovers at runtime.
       const { data: sessions } = await supabase
         .from('battle_sessions')
-        .select('*')
+        .select('*, editions:edition_id ( slug )')
         .in('id', sessionIds)
         .order('updated_at', { ascending: false });
 
-      return sessions || [];
+      return (sessions || []).map(({ editions, ...session }: any) => ({
+        ...session,
+        edition_slug: editions?.slug ?? null,
+      }));
     },
     [`gang-battle-sessions-${gangId}`],
     {
