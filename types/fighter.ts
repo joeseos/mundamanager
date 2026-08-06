@@ -50,6 +50,7 @@ export interface FighterType {
   free_skill: boolean;
   default_equipment?: string[];
   is_spyrer?: boolean;
+  is_vehicle?: boolean;
 }
 
 export interface WargearItem {
@@ -318,4 +319,3 @@ export interface CustomFighterType {
   updated_at?: string;
   edition_id?: string | null;
 }
-

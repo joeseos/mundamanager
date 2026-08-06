@@ -124,6 +124,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [isGangAddition, setIsGangAddition] = useState(false);
   const [isDramatisPersonae, setIsDramatisPersonae] = useState(false);
   const [isSpyrer, setIsSpyrer] = useState(false);
+  const [isVehicle, setIsVehicle] = useState(false);
   const [alignment, setAlignment] = useState<string>('');
   const [equipment, setEquipment] = useState<EquipmentWithId[]>([]);
   const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
@@ -383,6 +384,10 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const handleEditionChange = (newEditionId: string) => {
     setEditionId(newEditionId);
 
+    if (editions.find(edition => edition.id === newEditionId)?.slug !== 'n26') {
+      setIsVehicle(false);
+    }
+
     const subtypesForEdition = newEditionId
       ? fighterSubtypes.filter(fc => fc.edition_id === newEditionId)
       : fighterSubtypes;
@@ -604,6 +609,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       setIsGangAddition(!!data.is_gang_addition);
       setIsDramatisPersonae(!!data.is_dramatis_personae);
       setIsSpyrer(!!data.is_spyrer);
+      setIsVehicle(data.is_vehicle ?? false);
       setAlignment(data.alignment || '');
       setSelectedEquipment(data.default_equipment || []);
       setSelectedSkills(data.default_skills || []);
@@ -1185,6 +1191,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         is_gang_addition: isGangAddition,
         is_dramatis_personae: isDramatisPersonae,
         is_spyrer: isSpyrer,
+        is_vehicle: isVehicle,
         alignment: alignment || null,
         delegation_cost: delegationCost ? parseInt(delegationCost) : null,
         default_equipment: selectedEquipment,
@@ -1897,6 +1904,22 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                     Spyrer
                   </label>
                 </div>
+
+                {editionSlug === 'n26' && (
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="vehicle"
+                      checked={isVehicle}
+                      onCheckedChange={(checked) => setIsVehicle(checked === true)}
+                    />
+                    <label
+                      htmlFor="vehicle"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      Vehicle
+                    </label>
+                  </div>
+                )}
               </div>
 
               <div>

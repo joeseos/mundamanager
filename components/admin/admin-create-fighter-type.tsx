@@ -77,6 +77,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   const [isGangAddition, setIsGangAddition] = useState(false);
   const [isDramatisPersonae, setIsDramatisPersonae] = useState(false);
   const [isSpyrer, setIsSpyrer] = useState(false);
+  const [isVehicle, setIsVehicle] = useState(false);
   const [alignment, setAlignment] = useState<string>('');
   const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
   const [selectedSkillType, setSelectedSkillType] = useState('');
@@ -183,6 +184,10 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
 
   const handleEditionChange = (newEditionId: string) => {
     setEditionId(newEditionId);
+
+    if (editions.find(edition => edition.id === newEditionId)?.slug !== 'n26') {
+      setIsVehicle(false);
+    }
 
     const subtypesForEdition = newEditionId
       ? fighterSubtypes.filter(fc => fc.edition_id === newEditionId)
@@ -328,6 +333,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         is_gang_addition: isGangAddition,
         is_dramatis_personae: isDramatisPersonae,
         is_spyrer: isSpyrer,
+        is_vehicle: isVehicle,
         alignment: alignment || null,
         delegation_cost: delegationCost ? parseInt(delegationCost) : null,
         starting_xp: showStartingXp && startingXp ? parseInt(startingXp) : 0,
@@ -925,6 +931,22 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                   Spyrer
                 </label>
               </div>
+
+              {editionSlug === 'n26' && (
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="vehicle"
+                    checked={isVehicle}
+                    onCheckedChange={(checked) => setIsVehicle(checked === true)}
+                  />
+                  <label
+                    htmlFor="vehicle"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Vehicle
+                  </label>
+                </div>
+              )}
             </div>
 
             <div>
