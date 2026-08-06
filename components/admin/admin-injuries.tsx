@@ -333,8 +333,8 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
       <div className="bg-card rounded-lg shadow-xl w-full max-w-3xl min-h-0 max-h-svh overflow-y-auto flex flex-col">
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <div>
-            <h3 className="text-xl md:text-2xl font-bold text-foreground">Manage Injuries & Rig Glitches</h3>
-            <p className="text-sm text-muted-foreground">Create, edit, or delete injuries and rig glitches</p>
+            <h3 className="text-xl md:text-2xl font-bold text-foreground">Manage Lasting Injuries & Rig Glitches</h3>
+            <p className="text-sm text-muted-foreground">Create, edit, or delete lasting injuries and rig glitches</p>
           </div>
           <button
             onClick={onClose}

@@ -836,6 +836,7 @@ const FighterCard = memo(function FighterCard({
 
             {effects && effects.injuries && effects.injuries.length > 0 && (
               <>
+                {/* Abbreviated to fit the narrow column (4.5rem in multiline mode); checked on small screens — no clipping. */}
                 <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Last. Injuries</div>
                 <div className={detailValueClass}>
                   {Object.entries(
