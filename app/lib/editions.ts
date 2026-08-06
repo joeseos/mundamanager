@@ -6,14 +6,19 @@ import { EDITION_N23, type Edition } from '@/types/edition';
 /**
  * The editions table, cached process-wide.
  *
- * Editions are seeded by migration and never written at runtime, and every
- * authenticated user reads the same rows (see the blanket SELECT policy in
- * 20260630095837_add_editions_and_root_edition_ids.sql), so this is cached with
- * no time-based revalidation and read with the service role rather than per
- * request per user.
+ * Every authenticated user reads the same rows (see the blanket SELECT policy
+ * in 20260630095837_add_editions_and_root_edition_ids.sql), so this is read
+ * with the service role rather than once per user per request.
  *
- * Revalidation: `revalidateTag(CACHE_TAGS.GLOBAL_EDITIONS(), { expire: 0 })`
- * after a migration adds an edition.
+ * Revalidation is time-based because editions are seeded by migration and the
+ * app has no write path to the table — nothing can call revalidateTag for us,
+ * so caching indefinitely would hide a newly seeded edition until the next
+ * deploy. One hour matches the other rarely-changing reference data
+ * (gang variants, alliances, fighter types in app/lib/shared/*).
+ *
+ * The tag is still there for the impatient case: after running a migration,
+ * `revalidateTag(CACHE_TAGS.GLOBAL_EDITIONS(), { expire: 0 })` picks the new
+ * edition up immediately instead of waiting out the hour.
  */
 const getCachedEditions = unstable_cache(
   async (): Promise<Edition[]> => {
@@ -35,7 +40,7 @@ const getCachedEditions = unstable_cache(
   ['global-editions'],
   {
     tags: [CACHE_TAGS.GLOBAL_EDITIONS()],
-    revalidate: false,
+    revalidate: 3600, // 1 hour — editions only ever change via migration
   }
 );
 

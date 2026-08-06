@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from 'next/server';
+import { getEditionIdBySlug } from '@/app/lib/editions';
 
 /**
  * Lists the lasting injury (or rig glitch) catalog.
@@ -24,22 +25,14 @@ export async function GET(request: Request) {
     let resolvedEditionId = editionId;
 
     if (!resolvedEditionId && editionSlug) {
-      const { data: edition, error: editionError } = await supabase
-        .from('editions')
-        .select('id')
-        .eq('slug', editionSlug)
-        .maybeSingle();
+      resolvedEditionId = await getEditionIdBySlug(editionSlug);
 
-      if (editionError) throw editionError;
-
-      if (!edition) {
+      if (!resolvedEditionId) {
         return NextResponse.json({
           error: 'Unknown edition',
           details: `No edition with slug '${editionSlug}'`
         }, { status: 400 });
       }
-
-      resolvedEditionId = edition.id;
     }
 
     let query = supabase
