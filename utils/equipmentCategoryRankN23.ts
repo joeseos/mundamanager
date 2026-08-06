@@ -1,4 +1,5 @@
-export const equipmentCategoryRank: { [key: string]: number } = {
+/** N23 equipment category sort order. Only apply for N23 equipment. */
+export const equipmentCategoryRankN23: { [key: string]: number } = {
   "ammunition": 0,
   "special ammunition": 1,
   //

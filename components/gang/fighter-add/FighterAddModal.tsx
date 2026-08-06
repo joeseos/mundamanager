@@ -910,6 +910,7 @@ export default function FighterAddModal({
         selectedEquipment={selectedEquipment}
         setSelectedEquipment={setSelectedEquipment}
         setFighterCost={setFighterCost}
+        editionSlug={currentEditionSlug}
       />
 
       {/* Cost */}
