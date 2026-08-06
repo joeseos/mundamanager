@@ -55,7 +55,11 @@ WITH target AS (
     (SELECT id FROM public.fighter_effect_categories WHERE category_name = 'injuries') AS category_id,
     (SELECT id FROM public.editions WHERE slug = 'n26') AS edition_id
 ),
-rows(effect_name, type_specific_data) AS (
+-- Named seed_rows rather than rows: ROWS is a Postgres keyword, and the
+-- `name(col, col) AS (...)` CTE form reads like a CREATE TABLE column list to
+-- static analysers (Supabase's SQL editor flags it as creating a table without
+-- RLS). Postgres parses either form; this one doesn't set off the warning.
+seed_rows(effect_name, type_specific_data) AS (
   VALUES
     -- 11 — The fighter earns D3 XP (awarded manually).
     ('Lesson Learnt',    '{"recovery": "false", "convalescence": "false"}'::jsonb),
@@ -90,7 +94,7 @@ rows(effect_name, type_specific_data) AS (
 )
 INSERT INTO public.fighter_effect_types (effect_name, fighter_effect_category_id, edition_id, type_specific_data)
 SELECT r.effect_name, t.category_id, t.edition_id, r.type_specific_data
-FROM rows r
+FROM seed_rows r
 CROSS JOIN target t
 WHERE t.category_id IS NOT NULL
   AND t.edition_id IS NOT NULL
