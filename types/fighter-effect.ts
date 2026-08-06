@@ -32,7 +32,7 @@ export interface TypeSpecificData extends TraitModificationData {
   /**
    * On an effect TYPE: which kind of Hatred (X) target the injury requires.
    * On an effect INSTANCE: the target the user picked, denormalised.
-   * Read both via utils/hatredTarget.ts rather than touching these directly.
+   * Read both via utils/injuryTarget.ts rather than touching these directly.
    */
   hatred_target?: 'gang' | 'gang_type' | 'fighter';
   hatred_target_kind?: 'gang' | 'gang_type' | 'fighter';

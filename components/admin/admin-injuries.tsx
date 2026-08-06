@@ -165,16 +165,10 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
       let method: string;
       let body: string | undefined;
 
-      // Build type_specific_data.
-      //
-      // Spread the row's existing value first: the PATCH route replaces this
-      // column wholesale rather than merging (app/api/admin/fighter-effects/
-      // route.ts), and this form only knows five of its keys. Without the
-      // spread, saving any injury silently dropped everything else it carries —
-      // skill_id (the granted skill would stop being created), hatred_target
-      // (the Hatred picker would stop appearing), special_rules_to_add, d66
-      // ranges. The five fields below are the ones this form owns, so they are
-      // applied on top and always win.
+      // Spread the existing value first: the PATCH route replaces this column
+      // wholesale, and this form knows only five of its keys. Without it,
+      // saving silently dropped skill_id, hatred_target, special_rules_to_add
+      // and the d66 ranges.
       const existingTypeSpecificData =
         (operation === OperationType.UPDATE ? fighterEffects[0]?.type_specific_data : null) ?? {};
 
@@ -293,10 +287,8 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
       mod => !mod.id?.startsWith('temp-') && !updatedEffect.modifiers.some(um => um.id === mod.id)
     );
 
-    // The sub-panel also edits type_specific_data (special rules, traits). It
-    // only reports changes upward, so persist them here — otherwise they lived
-    // in local state and were lost on close. Modifiers already save
-    // immediately; this keeps both halves of the panel behaving the same.
+    // The sub-panel reports type_specific_data changes upward but never saves
+    // them, so they were lost on close. Modifiers already save immediately.
     const typeSpecificDataChanged =
       JSON.stringify(currentEffect.type_specific_data ?? {}) !==
       JSON.stringify(updatedEffect.type_specific_data ?? {});

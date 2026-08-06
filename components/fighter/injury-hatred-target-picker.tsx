@@ -20,10 +20,9 @@ export interface InjuryHatredTargetPickerProps {
   /** Which target the selected injury needs. Null renders nothing. */
   hatredTarget: HatredTargetKind | null;
   /**
-   * Candidate gangs, with the fighter's own gang already excluded. Supplied by
-   * the caller rather than fetched here, because the two entry points scope
-   * differently: the fighter page offers every gang in the fighter's campaigns,
-   * while a battle session offers only the gangs actually in that battle.
+   * Own gang already excluded. Supplied by the caller, not fetched here: the
+   * fighter page offers every gang in the campaign, a battle session only the
+   * gangs in that battle.
    */
   candidateGangs: CampaignGangWithFighters[];
   isLoadingCandidates?: boolean;
@@ -39,11 +38,8 @@ export interface InjuryHatredTargetPickerProps {
 }
 
 /**
- * Picks the Hatred (X) target for an Enmity lasting injury.
- *
- * N26 grants Hatred against three different kinds of thing, so which picker to
- * show is driven by the injury's declared `hatred_target` rather than by its
- * name. See utils/injuryTarget.ts.
+ * Picks the Hatred (X) target for an Enmity lasting injury. Which picker shows
+ * is driven by the injury's declared `hatred_target`, not by its name.
  */
 export function InjuryHatredTargetPicker({
   hatredTarget,
@@ -58,10 +54,9 @@ export function InjuryHatredTargetPicker({
 }: InjuryHatredTargetPickerProps) {
   const { getFighterOptions } = useCampaignGangFighterOptions(candidateGangs);
 
-  // Gang types are a global catalog with no caller-specific scoping, so unlike
-  // the gang and fighter candidates they are fetched here. Both queries are
-  // gated: this component mounts on every injury add, but only a gang-type
-  // target needs either of them.
+  // Gang types are global, so unlike the candidates they're fetched here. Both
+  // queries are gated: this mounts on every injury add, but only a gang-type
+  // target needs them.
   const needsGangTypes = hatredTarget === 'gang_type';
 
   const { data: editions = [] } = useEditions({ enabled: needsGangTypes });
@@ -99,8 +94,7 @@ export function InjuryHatredTargetPicker({
 
     return gangTypes
       .filter(row => !row.is_custom)
-      // Only offer the fighter's own ruleset. Until editions resolve we show
-      // nothing rather than every edition's types, matching matchesHomeEditionId.
+      // Own ruleset only; show nothing until editions resolve.
       .filter(row => (editionId ? row.edition_id === editionId : false))
       .sort((a, b) => a.gang_type.localeCompare(b.gang_type))
       .map(row => ({ value: row.gang_type_id, label: row.gang_type }));
@@ -108,8 +102,7 @@ export function InjuryHatredTargetPicker({
 
   if (!hatredTarget) return null;
 
-  // Gang types are global, so this is the one target that still works without a
-  // campaign — an Eternal Enmity in skirmish play can still name a gang type.
+  // The one target that works without a campaign.
   if (hatredTarget === 'gang_type') {
     return (
       <div>
@@ -172,8 +165,7 @@ export function InjuryHatredTargetPicker({
     );
   }
 
-  // hatredTarget === 'fighter': pick the gang first purely to narrow the list.
-  // Only the fighter id is submitted.
+  // 'fighter': the gang step only narrows the list; only the fighter id is submitted.
   return (
     <div className="space-y-2">
       <label className="block text-sm font-medium text-muted-foreground mb-1">Against</label>

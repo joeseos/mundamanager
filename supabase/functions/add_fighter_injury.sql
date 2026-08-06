@@ -10,16 +10,12 @@ DROP FUNCTION IF EXISTS public.add_fighter_injury(UUID, UUID) CASCADE;
 DROP FUNCTION IF EXISTS add_fighter_injury(UUID, UUID, UUID, BOOLEAN) CASCADE;
 DROP FUNCTION IF EXISTS public.add_fighter_injury(UUID, UUID, UUID, BOOLEAN) CASCADE;
 
--- in_hatred_target_id is the Hatred (X) target for the Enmity lasting injuries.
--- One parameter covers all three kinds: WHICH kind is expected comes from the
--- effect type's type_specific_data->>'hatred_target' ('gang' | 'gang_type' |
--- 'fighter'), not from the caller. That replaces the old hardcoded
--- `effect_name = 'Bitter Enmity'` check, which had to be kept in sync with
--- BITTER_ENMITY_EFFECT_NAME in the TypeScript by hand.
+-- in_hatred_target_id: one param for all three Hatred (X) kinds. Which kind is
+-- expected comes from the effect type's type_specific_data->>'hatred_target',
+-- not from the caller.
 --
--- NB: the parameter was renamed from in_bitter_enmity_target_gang_id. Postgres
--- will not rename a parameter via CREATE OR REPLACE, which is why the DROP list
--- above must run first (the 5-UUID signature is unchanged, so it is covered).
+-- NB: renamed from in_bitter_enmity_target_gang_id. CREATE OR REPLACE cannot
+-- rename a parameter, so the DROP above must run first.
 CREATE OR REPLACE FUNCTION add_fighter_injury(
     in_fighter_id UUID,
     in_injury_type_id UUID,
@@ -100,18 +96,17 @@ BEGIN
     -- Base type_specific_data for the new effect row (template + optional Hatred (X) target)
     v_merged_tsd := COALESCE(effect_type_record.type_specific_data, '{}'::jsonb);
 
-    -- Which kind of Hatred (X) target this injury declares, if any. Data-driven
-    -- so a new Enmity injury needs no change here — see the migration
-    -- 20260806170000_add_hatred_target_to_enmity_injuries.sql.
     v_hatred_target := effect_type_record.type_specific_data->>'hatred_target';
 
-    -- A target is always optional: skirmish play has no opposing gang to name,
-    -- and the user may decline. Only a target that IS supplied gets validated.
+    -- Always optional: skirmish play has no opponent to name.
     IF in_hatred_target_id IS NOT NULL THEN
         IF v_hatred_target IS NULL THEN
             RAISE EXCEPTION 'This lasting injury does not take a Hatred target';
         END IF;
 
+        -- Membership must be ACCEPTED, matching the permission check above: this
+        -- function is SECURITY DEFINER and directly callable, so it is the
+        -- enforcement boundary, not the UI's candidate list.
         IF v_hatred_target = 'gang' THEN
             IF in_hatred_target_id = v_gang_id THEN
                 RAISE EXCEPTION 'Hatred target gang cannot be the fighter''s own gang';
@@ -123,6 +118,8 @@ BEGIN
                 INNER JOIN campaign_gangs cg2 ON cg1.campaign_id = cg2.campaign_id
                 WHERE cg1.gang_id = v_gang_id
                   AND cg2.gang_id = in_hatred_target_id
+                  AND cg1.status = 'ACCEPTED'
+                  AND cg2.status = 'ACCEPTED'
             ) INTO v_shares_campaign;
 
             IF NOT COALESCE(v_shares_campaign, false) THEN
@@ -135,11 +132,9 @@ BEGIN
             WHERE g.id = in_hatred_target_id;
 
         ELSIF v_hatred_target = 'gang_type' THEN
-            -- Gang types are a global catalog, so unlike the other two kinds there
-            -- is no campaign constraint: Eternal Enmity works in skirmish play.
-            -- The edition must match, or an N23 gang type could be recorded
-            -- against an N26 fighter. Official types only; custom_gang_types are
-            -- deliberately not offered.
+            -- Global catalog, so no campaign constraint (works in skirmish).
+            -- Edition must match, or an N23 type could land on an N26 fighter.
+            -- Official types only.
             SELECT COALESCE(gt.edition_id, cgt.edition_id)
             INTO v_fighter_edition_id
             FROM gangs g
@@ -179,6 +174,8 @@ BEGIN
                 INNER JOIN campaign_gangs cg2 ON cg1.campaign_id = cg2.campaign_id
                 WHERE cg1.gang_id = v_gang_id
                   AND cg2.gang_id = v_target_gang_id
+                  AND cg1.status = 'ACCEPTED'
+                  AND cg2.status = 'ACCEPTED'
             ) INTO v_shares_campaign;
 
             IF NOT COALESCE(v_shares_campaign, false) THEN
@@ -191,8 +188,7 @@ BEGIN
             RAISE EXCEPTION 'Unknown Hatred target kind: %', v_hatred_target;
         END IF;
 
-        -- Name and colour are denormalised snapshots. They are deliberately NOT
-        -- kept in sync if the target is later renamed — see utils/hatredTarget.ts.
+        -- Denormalised snapshots; deliberately not kept in sync on rename.
         v_merged_tsd := v_merged_tsd || jsonb_build_object(
             'hatred_target_kind', v_hatred_target,
             'hatred_target_id', in_hatred_target_id::text,

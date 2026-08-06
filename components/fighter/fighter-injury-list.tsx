@@ -134,16 +134,13 @@ export function InjuriesList({
     [fighterCaptured, injuries]
   );
 
-  // Which Hatred (X) target the selected injury needs, declared on the effect
-  // type rather than derived from its name, so a new Enmity injury needs no
-  // change here. See utils/injuryTarget.ts.
+  // Declared on the effect type, not derived from its name.
   const selectedHatredTarget = useMemo(
     () => requiredHatredTarget(selectedInjury?.type_specific_data),
     [selectedInjury]
   );
 
-  // Gang types are global, so an Eternal Enmity can name one even in skirmish.
-  // The other two kinds need an opponent, which only a campaign supplies.
+  // Gang types work in skirmish; the other kinds need a campaign opponent.
   const hatredTargetIsSelectable =
     selectedHatredTarget === 'gang_type' || campaignGangs.length > 0;
 
@@ -205,11 +202,8 @@ export function InjuriesList({
       } | null = null;
 
       if (hatredId && hatredKind) {
-        // Resolve the display name from what's already in memory. Gang types
-        // live in the picker's own query, so those stay unresolved here and the
-        // label fills in when onSuccess swaps in the server's row — the same
-        // "only merge when resolved locally" rule that avoids an empty badge
-        // flash if the candidate list went stale.
+        // Resolve from memory only; gang types live in the picker's query, so
+        // those fill in when onSuccess swaps in the server row.
         let name: string | null = null;
         let colour: string | null = null;
 
@@ -1058,8 +1052,7 @@ export function InjuriesList({
               .slice()
               .filter(injury => {
                 // The crew rank map doubles as an allow-list, but only for the
-                // edition that publishes it — applying N23's to another ruleset
-                // would filter every option away and empty the combobox.
+                // edition that publishes it — otherwise it empties the combobox.
                 if (isCrew && rankMap) {
                   return rankMap.hasOwnProperty(injury.effect_name);
                 }
@@ -1266,8 +1259,7 @@ export function InjuriesList({
             })
             .map((injury) => ({
               id: injury.id,
-              // Include the Hatred (X) target, so the fighter page shows the same
-              // label as the gang card rather than a bare effect name.
+              // Match the gang card's label rather than a bare effect name.
               name: injuryAggregationLabel(injury),
               injury_id: injury.id
             }))
