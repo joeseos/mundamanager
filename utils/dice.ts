@@ -1,5 +1,6 @@
 // Dice utilities and roll tables (injuries, vehicles, ganger advancement, etc.)
 
+import type { EditionSlug } from '@/types/edition';
 import { BITTER_ENMITY_EFFECT_NAME } from '@/utils/bitterEnmityDisplay';
 
 export const roll = (sides: number): number => Math.floor(Math.random() * sides) + 1;
@@ -103,19 +104,10 @@ export const LASTING_INJURY_TABLE: TableEntry[] = [
   { range: [66, 66], name: 'Memorable Death' },
 ];
 
-export const resolveInjuryFromUtil = (roll: number): TableEntry | undefined =>
-  LASTING_INJURY_TABLE.find((e) => roll >= e.range[0] && roll <= e.range[1]);
-
-// Keeping resolve by name for optional diagnostics/UI usage
-export const resolveInjuryRangeFromUtilByName = (
-  name: string,
-): [number, number] | undefined => {
-  const entry = LASTING_INJURY_TABLE.find((e) => e.name === name);
-  return entry?.range;
-};
+// Resolvers are edition-scoped — see resolveInjuryFor / resolveInjuryRangeByNameFor below.
 
 // ============================================================================
-// Lasting Injuries for Crew - D66 table and resolver
+// Lasting Injuries for Crew - D66 table
 // ============================================================================
 
 // D66 table for Lasting Injuries for Crew
@@ -130,16 +122,41 @@ export const LASTING_INJURY_CREW_TABLE: TableEntry[] = [
   { range: [66, 66], name: 'Memorable Death' },
 ];
 
-export const resolveInjuryFromUtilCrew = (roll: number): TableEntry | undefined =>
-  LASTING_INJURY_CREW_TABLE.find((e) => roll >= e.range[0] && roll <= e.range[1]);
+// ============================================================================
+// Lasting Injuries (N26) - D66 table and resolver
+// ============================================================================
 
-// Keeping resolve by name for optional diagnostics/UI usage
-export const resolveInjuryRangeFromUtilByNameCrew = (
-  name: string,
-): [number, number] | undefined => {
-  const entry = LASTING_INJURY_CREW_TABLE.find((e) => e.name === name);
-  return entry?.range;
-};
+// D66 table for Lasting Injuries, N26 ruleset.
+//
+// Not a reskin of the N23 table: N26 splits Bitter Enmity into three Hatred (X)
+// variants by target (gang type / gang / model), replaces Convalescence with
+// Grievous Wound over a wider 31-46 spread, shifts every characteristic injury
+// down a row, and drops Old Battle Wound, Partially Deafened, Humiliated and
+// Multiple Injuries entirely. There is no Mutations / Festering band, which is
+// why lastingInjuryRankFor returns null for this edition.
+//
+// Note the N23 table spells 11 "Lesson Learned"; N26 spells it "Lesson Learnt".
+// Both must match their own edition's fighter_effect_types.effect_name exactly,
+// since ranges are a name-keyed reverse lookup.
+export const LASTING_INJURY_TABLE_N26: TableEntry[] = [
+  { range: [11, 11], name: 'Lesson Learnt' },
+  { range: [12, 12], name: 'Eternal Enmity' },
+  { range: [13, 13], name: BITTER_ENMITY_EFFECT_NAME },
+  { range: [14, 14], name: 'Personal Enmity' },
+  { range: [15, 15], name: 'Horrid Scars' },
+  { range: [16, 16], name: 'Impressive Scars' },
+  { range: [21, 26], name: 'Out Cold' },
+  { range: [31, 46], name: 'Grievous Wound' },
+  { range: [51, 51], name: 'Eye Injury' },
+  { range: [52, 52], name: 'Hand Injury' },
+  { range: [53, 53], name: 'Hobbled' },
+  { range: [54, 54], name: 'Spinal Injury' },
+  { range: [55, 55], name: 'Enfeebled' },
+  { range: [56, 56], name: 'Head Injury' },
+  { range: [61, 62], name: 'Captured' },
+  { range: [63, 65], name: 'Critical Injury' },
+  { range: [66, 66], name: 'Memorable Death' },
+];
 
 // ============================================================================
 // Rig Glitches for Spyrers - D66 table and resolver
@@ -170,16 +187,74 @@ export const RIG_GLITCH_TABLE: TableEntry[] = [
   { range: [66, 66], name: 'Critical Overload' },
 ];
 
-export const resolveRigGlitchFromUtil = (roll: number): TableEntry | undefined =>
-  RIG_GLITCH_TABLE.find((e) => roll >= e.range[0] && roll <= e.range[1]);
+// ============================================================================
+// Edition-scoped injury table selection
+// ============================================================================
 
-// Keeping resolve by name for optional diagnostics/UI usage
-export const resolveRigGlitchRangeFromUtilByName = (
-  name: string,
-): [number, number] | undefined => {
-  const entry = RIG_GLITCH_TABLE.find((e) => e.name === name);
-  return entry?.range;
+/** The injury tables one edition publishes. `null` where it publishes none. */
+type InjuryTables = {
+  base: TableEntry[];
+  crew: TableEntry[] | null;
+  spyrer: TableEntry[] | null;
 };
+
+/**
+ * Keyed by EditionSlug on purpose: adding an edition is a compile error here
+ * until it states its injury tables, the same guarantee EDITION_CAPABILITIES
+ * gives for capability flags and LIMITS_BY_EDITION gives for characteristics.
+ *
+ * This stays out of types/edition.ts because it selects a data table rather
+ * than gating a behaviour — the same split as getEquipmentCategoryRank.
+ */
+const INJURY_TABLES_BY_EDITION: Record<EditionSlug, InjuryTables> = {
+  n23: { base: LASTING_INJURY_TABLE, crew: LASTING_INJURY_CREW_TABLE, spyrer: RIG_GLITCH_TABLE },
+  n26: { base: LASTING_INJURY_TABLE_N26, crew: null, spyrer: null },
+};
+
+/**
+ * An unset or unrecognised slug gets no table at all, so callers show no ranges
+ * and resolve no rolls — matching NO_CAPABILITIES / NO_LIMITS. A missing slug
+ * means the edition failed to load, and quietly serving another edition's D66
+ * spread would silently apply the wrong injury to a fighter.
+ */
+const NO_INJURY_TABLES: InjuryTables = { base: [], crew: null, spyrer: null };
+
+/**
+ * The D66 table for one fighter, in one edition.
+ *
+ * The two fallbacks differ on purpose. A Crew fighter in an edition with no
+ * separate crew table rolls on the normal table — crew still take lasting
+ * injuries. A Spyrer in an edition with no rig glitch table gets nothing, since
+ * Rig Glitches are a self-contained subsystem rather than a variant of the
+ * normal table, and rolling normal injuries for a Spyrer rig would be wrong.
+ */
+export function lastingInjuryTableFor(
+  editionSlug: string | null | undefined,
+  opts: { isCrew?: boolean; isSpyrer?: boolean } = {},
+): TableEntry[] {
+  const tables = (editionSlug && INJURY_TABLES_BY_EDITION[editionSlug as EditionSlug])
+    || NO_INJURY_TABLES;
+
+  if (opts.isSpyrer) return tables.spyrer ?? [];
+  if (opts.isCrew) return tables.crew ?? tables.base;
+  return tables.base;
+}
+
+/** Resolve a D66 roll to its table entry for the given edition and fighter. */
+export const resolveInjuryFor = (
+  roll: number,
+  editionSlug: string | null | undefined,
+  opts: { isCrew?: boolean; isSpyrer?: boolean } = {},
+): TableEntry | undefined =>
+  lastingInjuryTableFor(editionSlug, opts).find((e) => roll >= e.range[0] && roll <= e.range[1]);
+
+/** Reverse lookup: the D66 range an injury name occupies, for display. */
+export const resolveInjuryRangeByNameFor = (
+  name: string,
+  editionSlug: string | null | undefined,
+  opts: { isCrew?: boolean; isSpyrer?: boolean } = {},
+): [number, number] | undefined =>
+  lastingInjuryTableFor(editionSlug, opts).find((e) => e.name === name)?.range;
 
 // ============================================================================
 // Vehicle Lasting Damage - D6 table and resolver

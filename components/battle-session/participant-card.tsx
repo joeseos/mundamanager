@@ -17,8 +17,8 @@ import Modal from '@/components/ui/modal';
 import CrewSelectionModal from '@/components/battle-session/crew-selection-modal';
 import DiceRoller from '@/components/dice-roller';
 import { FighterXpModal } from '@/components/fighter/fighter-xp-modal';
-import { rollD66, rollNd6Outcome, resolveInjuryFromUtil, resolveInjuryRangeFromUtilByName } from '@/utils/dice';
-import { lastingInjuryRank } from '@/utils/lastingInjuryRank';
+import { rollD66, rollNd6Outcome, resolveInjuryFor, resolveInjuryRangeByNameFor } from '@/utils/dice';
+import { lastingInjuryRankFor } from '@/utils/lastingInjuryRank';
 import { CgMoreVerticalO } from 'react-icons/cg';
 import { BsFire, BsFillExclamationCircleFill } from 'react-icons/bs';
 import { GiPieceSkull, GiSpiderWeb, GiHeavyBullets, GiHealthNormal, GiWaterDrop, GiSpill, GiCrossedChains, GiHandcuffs } from 'react-icons/gi';
@@ -154,6 +154,7 @@ function FighterActionModal({
   fighter,
   gangId,
   campaignId,
+  editionSlug,
   onXpChanged,
   onConditionsChanged,
   onInjuryAdded,
@@ -163,6 +164,7 @@ function FighterActionModal({
   fighter: BattleSessionFighter;
   gangId: string;
   campaignId?: string | null;
+  editionSlug?: string | null;
   onXpChanged: (delta: number) => void;
   onConditionsChanged: (conditions: SessionCondition[]) => void;
   onInjuryAdded: (injury: SessionInjuryRecord) => void;
@@ -343,6 +345,7 @@ function FighterActionModal({
       {showInjuryModal && (
         <InjuryPickerModal
           fighter={fighter}
+          editionSlug={editionSlug}
           onClose={() => setShowInjuryModal(false)}
           onInjuryAdded={(injury) => {
             onInjuryAdded(injury);
@@ -367,11 +370,13 @@ interface InjuryType {
 
 function InjuryPickerModal({
   fighter,
+  editionSlug,
   onClose,
   onInjuryAdded,
   onBroadcast,
 }: {
   fighter: BattleSessionFighter;
+  editionSlug?: string | null;
   onClose: () => void;
   onInjuryAdded: (injury: SessionInjuryRecord) => void;
   onBroadcast?: () => void;
@@ -413,15 +418,19 @@ function InjuryPickerModal({
   });
 
   useEffect(() => {
-    fetch('/api/fighters/injuries?is_spyrer=false')
+    const editionQuery = editionSlug ? `&edition_slug=${encodeURIComponent(editionSlug)}` : '';
+    fetch(`/api/fighters/injuries?is_spyrer=false${editionQuery}`)
       .then((r) => r.json())
       .then(setInjuryTypes)
       .catch(() => toast.error('Failed to load injuries'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [editionSlug]);
+
+  // This picker is non-spyrer, non-crew by construction (is_spyrer=false above).
+  const rankMap = lastingInjuryRankFor(editionSlug, false);
 
   const formatRange = (name: string): string => {
-    const range = resolveInjuryRangeFromUtilByName(name);
+    const range = resolveInjuryRangeByNameFor(name, editionSlug);
     if (!range) return '';
     const [min, max] = range;
     return min === max ? `${min}` : `${min}-${max}`;
@@ -459,10 +468,11 @@ function InjuryPickerModal({
         return minA - minB;
       })
       .reduce((groups, injury) => {
-        const rank = lastingInjuryRank[injury.effect_name] ?? Infinity;
-        let groupLabel = 'Other Lasting Injuries';
-        if (rank <= 29) groupLabel = 'Lasting Injuries';
-        else if (rank >= 30) groupLabel = 'Mutations / Festering Injuries';
+        let groupLabel = 'Lasting Injuries';
+        if (rankMap) {
+          const rank = rankMap[injury.effect_name] ?? Infinity;
+          if (rank >= 30) groupLabel = 'Mutations / Festering Injuries';
+        }
         if (!groups[groupLabel]) groups[groupLabel] = [];
         groups[groupLabel].push(injury);
         return groups;
@@ -511,15 +521,15 @@ function InjuryPickerModal({
               getName={(i) => (i as InjuryType).effect_name}
               inline
               rollFn={rollD66}
-              resolveNameForRoll={(r) => resolveInjuryFromUtil(r)?.name}
+              resolveNameForRoll={(r) => resolveInjuryFor(r, editionSlug)?.name}
               onRolled={(rolled) => {
                 if (!rolled.length) return;
-                const name = resolveInjuryFromUtil(rolled[0].roll)?.name;
+                const name = resolveInjuryFor(rolled[0].roll, editionSlug)?.name;
                 const match = injuryTypes.find((i) => i.effect_name === name) ?? (rolled[0].item as InjuryType);
                 if (match) { setSelectedId(match.id); setSelectedInjury(match); }
               }}
               onRoll={(roll) => {
-                const util = resolveInjuryFromUtil(roll);
+                const util = resolveInjuryFor(roll, editionSlug);
                 if (!util) return;
                 const match = injuryTypes.find((i) => i.effect_name === util.name);
                 if (match) { setSelectedId(match.id); setSelectedInjury(match); }
@@ -587,6 +597,7 @@ function FighterRow({
   gangFighter,
   gangId,
   campaignId,
+  editionSlug,
   onXpChanged,
   onConditionsChanged,
   onActivationsChange,
@@ -606,6 +617,7 @@ function FighterRow({
   gangFighter: GangFighter | undefined;
   gangId: string;
   campaignId?: string | null;
+  editionSlug?: string | null;
   onXpChanged: (delta: number) => void;
   onConditionsChanged: (conditions: SessionCondition[]) => void;
   onActivationsChange: (activations: number) => void;
@@ -738,6 +750,7 @@ function FighterRow({
               fighter={fighter}
               gangId={gangId}
               campaignId={campaignId}
+              editionSlug={editionSlug}
               onXpChanged={onXpChanged}
               onConditionsChanged={onConditionsChanged}
               onInjuryAdded={onInjuryAdded}
@@ -1659,6 +1672,9 @@ export default function ParticipantCard({
                         gangFighter={fullMatch}
                         gangId={participant.gang_id}
                         campaignId={session.campaign_id}
+                        // The session's edition, not gangFighter.edition_slug — the
+                        // per-fighter slug is often null for custom fighter types.
+                        editionSlug={session.edition_slug}
                         onXpChanged={(delta) => {
                           const totalXp = (f.session_record?.xp_earned ?? 0) + delta;
                           updateXpMutation.mutate({ sessionFighterId: f.id, totalXp });

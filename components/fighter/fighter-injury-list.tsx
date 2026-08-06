@@ -17,9 +17,8 @@ import {
 import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { LuTrash2 } from 'react-icons/lu';
 import DiceRoller from '@/components/dice-roller';
-import { rollD66Outcome, resolveInjuryFromUtil, resolveInjuryFromUtilCrew, resolveInjuryRangeFromUtilByName, resolveInjuryRangeFromUtilByNameCrew, resolveRigGlitchFromUtil, resolveRigGlitchRangeFromUtilByName } from '@/utils/dice';
-import { lastingInjuryRank } from '@/utils/lastingInjuryRank';
-import { lastingInjuryCrewRank } from '@/utils/lastingInjuryCrewRank';
+import { rollD66Outcome, resolveInjuryFor, resolveInjuryRangeByNameFor } from '@/utils/dice';
+import { lastingInjuryRankFor } from '@/utils/lastingInjuryRank';
 import { BITTER_ENMITY_EFFECT_NAME } from '@/utils/bitterEnmityDisplay';
 import { Combobox } from '@/components/ui/combobox';
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
@@ -60,6 +59,8 @@ interface InjuriesListProps {
   kill_count?: number;
   gangCredits?: number;
   fighterWeapons?: { id: string; name: string; equipment_category?: string; effect_names?: string[] }[];
+  /** Scopes the injury catalog, D66 table and grouping to one ruleset. Null shows an unscoped, ungrouped list. */
+  editionSlug?: string | null;
 }
 
 export function InjuriesList({
@@ -85,7 +86,8 @@ export function InjuriesList({
   is_spyrer = false,
   kill_count = 0,
   gangCredits = 0,
-  fighterWeapons
+  fighterWeapons,
+  editionSlug = null
 }: InjuriesListProps) {
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -571,12 +573,13 @@ export function InjuriesList({
   // Helper function to format the range display
   const isCrew = fighter_subtypes.includes('Crew');
 
+  // Which D66 table and rank map this fighter uses, in this edition. Resolved
+  // once so the range column, the roller and the grouping can't disagree.
+  const injuryTableOpts = { isCrew, isSpyrer: is_spyrer };
+  const rankMap = lastingInjuryRankFor(editionSlug, isCrew);
+
   const formatInjuryRange = (injuryName: string): string => {
-    const range = is_spyrer
-      ? resolveRigGlitchRangeFromUtilByName(injuryName)
-      : (isCrew
-        ? resolveInjuryRangeFromUtilByNameCrew(injuryName)
-        : resolveInjuryRangeFromUtilByName(injuryName));
+    const range = resolveInjuryRangeByNameFor(injuryName, editionSlug, injuryTableOpts);
 
     if (!range) return '';
 
@@ -634,8 +637,9 @@ export function InjuriesList({
 
     try {
       setIsLoadingInjuries(true);
+      const editionQuery = editionSlug ? `&edition_slug=${encodeURIComponent(editionSlug)}` : '';
       const response = await fetch(
-        `/api/fighters/injuries?is_spyrer=${is_spyrer}`,
+        `/api/fighters/injuries?is_spyrer=${is_spyrer}${editionQuery}`,
         {
           method: 'GET',
           headers: {
@@ -654,7 +658,7 @@ export function InjuriesList({
     } finally {
       setIsLoadingInjuries(false);
     }
-  }, [isLoadingInjuries, is_spyrer]);
+  }, [isLoadingInjuries, is_spyrer, editionSlug]);
 
   const handleOpenModal = useCallback(() => {
     setIsAddModalOpen(true);
@@ -961,15 +965,11 @@ export function InjuriesList({
           getName={(i: FighterEffect) => (i as any).effect_name}
           inline
           rollFn={rollD66Outcome}
-          resolveNameForRoll={(r) => {
-            const resolver = is_spyrer ? resolveRigGlitchFromUtil : (isCrew ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil);
-            return resolver(r)?.name;
-          }}
+          resolveNameForRoll={(r) => resolveInjuryFor(r, editionSlug, injuryTableOpts)?.name}
           onRolled={(rolled) => {
             if (rolled.length > 0) {
               const roll = rolled[0].roll;
-              const resolver = is_spyrer ? resolveRigGlitchFromUtil : (isCrew ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil);
-              const util = resolver(roll);
+              const util = resolveInjuryFor(roll, editionSlug, injuryTableOpts);
               let match: any = null;
               if (util) {
                 match = localAvailableInjuries.find(i => (i as any).effect_name === util.name);
@@ -983,8 +983,7 @@ export function InjuriesList({
             }
           }}
           onRoll={(roll) => {
-            const resolver = is_spyrer ? resolveRigGlitchFromUtil : (isCrew ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil);
-            const util = resolver(roll);
+            const util = resolveInjuryFor(roll, editionSlug, injuryTableOpts);
             if (!util) return;
             const match = localAvailableInjuries.find(i => (i as any).effect_name === util.name) as any;
             if (match) {
@@ -1025,8 +1024,11 @@ export function InjuriesList({
             localAvailableInjuries
               .slice()
               .filter(injury => {
-                if (isCrew) {
-                  return lastingInjuryCrewRank.hasOwnProperty(injury.effect_name);
+                // The crew rank map doubles as an allow-list, but only for the
+                // edition that publishes it — applying N23's to another ruleset
+                // would filter every option away and empty the combobox.
+                if (isCrew && rankMap) {
+                  return rankMap.hasOwnProperty(injury.effect_name);
                 }
                 if (injury.effect_name === 'Captured' && hasCapturedInjury) {
                   return false;
@@ -1044,15 +1046,19 @@ export function InjuriesList({
                 return minA - minB;
               })
               .reduce((groups, injury) => {
-                const rankMap = isCrew ? lastingInjuryCrewRank : lastingInjuryRank;
-                const rank = rankMap[injury.effect_name] ?? Infinity;
-                let groupLabel = "Other Lasting Injuries";
+                let groupLabel: string;
                 if (is_spyrer) {
                   groupLabel = "Rig Glitches";
-                } else if (rank <= 29) {
+                } else if (!rankMap) {
+                  // No rank bands for this edition (N26 publishes no Mutations /
+                  // Festering Injuries): one flat group, already sorted by D66.
                   groupLabel = "Lasting Injuries";
-                } else if (rank >= 30) {
-                  groupLabel = "Mutations / Festering Injuries";
+                } else {
+                  const rank = rankMap[injury.effect_name] ?? Infinity;
+                  groupLabel =
+                    rank <= 29 ? "Lasting Injuries"
+                    : rank >= 30 ? "Mutations / Festering Injuries"
+                    : "Other Lasting Injuries";
                 }
                 if (!groups[groupLabel]) groups[groupLabel] = [];
                 groups[groupLabel].push(injury);
