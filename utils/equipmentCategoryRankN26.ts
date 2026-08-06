@@ -74,6 +74,7 @@ export const equipmentCategoriesN26: EquipmentCategoryN26Entry[] = [
   { category_name: "Armour & Field Armour", super_category_name: "Wargear" },
   { category_name: "Gang Equipment", super_category_name: "Wargear" },
   { category_name: "Personal Equipment", super_category_name: "Wargear" },
+  { category_name: "Ridgehauler Upgrades", super_category_name: "Wargear" },
   { category_name: "Mounts", super_category_name: "Wargear" },
   { category_name: "Pets", super_category_name: "Wargear" },
   { category_name: "Weapon Accessories", super_category_name: "Wargear" },
