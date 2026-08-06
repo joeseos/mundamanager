@@ -75,7 +75,7 @@ interface AdminFighterEffectsProps {
   fighterEffectCategories?: FighterEffectCategory[];
   onUpdate?: () => void;
   onChange?: (effects: FighterEffectType[]) => void;
-  hideEquipmentOption?: boolean; // Hide "Applies to Equipment" option (for injuries/glitches)
+  hideEquipmentOption?: boolean; // Hide "Applies to Equipment" option (for lasting injuries/rig glitches)
 }
 
 export function AdminFighterEffects({

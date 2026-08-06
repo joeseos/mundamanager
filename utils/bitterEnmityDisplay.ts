@@ -7,7 +7,7 @@ import type { FighterEffect } from '@/types/fighter-effect';
 export const BITTER_ENMITY_EFFECT_NAME = 'Bitter Enmity' as const;
 
 /**
- * Label used when aggregating injuries on gang card / print.
+ * Label used when aggregating lasting injuries on gang card / print.
  * Matches {@link BITTER_ENMITY_EFFECT_NAME} plus enemy gang when stored — the granted
  * skill (e.g. Berserker) is shown separately on the fighter skills list.
  */

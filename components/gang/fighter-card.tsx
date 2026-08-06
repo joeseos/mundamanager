@@ -836,7 +836,7 @@ const FighterCard = memo(function FighterCard({
 
             {effects && effects.injuries && effects.injuries.length > 0 && (
               <>
-                <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Injuries</div>
+                <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Last. Injuries</div>
                 <div className={detailValueClass}>
                   {Object.entries(
                     effects.injuries

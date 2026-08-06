@@ -510,7 +510,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                   Weapons
                 </th>
                 <th className="border border-black px-1 py-1 text-left w-[260px]">
-                  Wargear, Injuries & Notes
+                  Wargear, Lasting Injuries & Notes
                 </th>
               </tr>
             </thead>
@@ -900,7 +900,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                          )}
                          {injuriesText && (
                            <div>
-                             <span className="font-semibold">Injuries:</span>{" "}
+                             <span className="font-semibold">Lasting Injuries:</span>{" "}
                              <span>{injuriesText}</span>
                            </div>
                          )}

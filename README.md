@@ -205,7 +205,7 @@ GangPage (Server Component)
 
 ### Overview
 The fighter effects system manages all modifications to fighter statistics through a unified interface. Effects can come from various sources:
-- Injuries
+- Lasting Injuries
 - Advancements
 - Bionics
 - Cyberteknika
