@@ -1,6 +1,10 @@
 /**
  * N26 equipment category order and UI-only super-category grouping.
  * Super-categories are not stored in the database.
+ *
+ * Keep this list in sync with `equipment_categories` rows for the N26 edition.
+ * A category missing here still appears in the UI, but sorts to the end with no
+ * super-category header (see compareEquipmentCategories fallback).
  */
 
 export interface EquipmentCategoryN26Entry {
@@ -23,7 +27,6 @@ export const equipmentCategoriesN26: EquipmentCategoryN26Entry[] = [
   { category_name: "Natural Weapons (Close Combat Weapons)", super_category_name: "Close Combat Weapons" },
   { category_name: "Nomad Weapons", super_category_name: "Close Combat Weapons" },
   { category_name: "Power Pack (Close Combat Weapons)", super_category_name: "Close Combat Weapons" },
-  { category_name: "Power Pack (Ranged Weapons)", super_category_name: "Close Combat Weapons" },
   { category_name: "Power Weapons", super_category_name: "Close Combat Weapons" },
   { category_name: "Primitive Weapons (Close Combat Weapons)", super_category_name: "Close Combat Weapons" },
   { category_name: "Repurposed Tools (Close Combat Weapons)", super_category_name: "Close Combat Weapons" },
@@ -53,6 +56,7 @@ export const equipmentCategoriesN26: EquipmentCategoryN26Entry[] = [
   { category_name: "Melta Weapons", super_category_name: "Ranged Weapons" },
   { category_name: "Natural Weapons (Ranged Weapons)", super_category_name: "Ranged Weapons" },
   { category_name: "Plasma Weapons", super_category_name: "Ranged Weapons" },
+  { category_name: "Power Pack (Ranged Weapons)", super_category_name: "Ranged Weapons" },
   { category_name: "Primitive Weapons (Ranged Weapons)", super_category_name: "Ranged Weapons" },
   { category_name: "Radiation Weapons", super_category_name: "Ranged Weapons" },
   { category_name: "Repurposed Tools (Ranged Weapons)", super_category_name: "Ranged Weapons" },
