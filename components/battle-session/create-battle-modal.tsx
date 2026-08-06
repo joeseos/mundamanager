@@ -10,6 +10,7 @@ import { createBattleSession, addParticipant } from '@/app/actions/battle-sessio
 import Modal from '@/components/ui/modal';
 import { Combobox } from '@/components/ui/combobox';
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
+import { editionsConflict } from '@/types/edition';
 import { Button } from '@/components/ui/button';
 import UserSearchBar, { type UserSearchResult } from '@/components/shared/user-search-bar';
 import type { Scenario } from '@/types/campaign';
@@ -37,6 +38,7 @@ export default function CreateBattleModal({
   campaignGangs: campaignGangsProp,
   existingSessionId,
   existingGangIds = [],
+  editionSlug,
   onClose,
 }: {
   gangId?: string;
@@ -46,6 +48,14 @@ export default function CreateBattleModal({
   campaignGangs?: CampaignGang[];
   existingSessionId?: string;
   existingGangIds?: string[];
+  /**
+   * Edition the battle is played under — the session's when adding to an
+   * existing one, otherwise the creating gang's. Scopes the skirmish opponent
+   * picker, since a battle runs on exactly one ruleset. Campaign opponents need
+   * no filtering: campaign membership is already edition-gated. The server
+   * enforces the rule regardless; this only keeps unusable gangs out of view.
+   */
+  editionSlug?: string | null;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -107,7 +117,12 @@ export default function CreateBattleModal({
       const res = await fetch(`/api/users/${selectedUser!.id}`);
       if (!res.ok) return [];
       const data = await res.json();
-      return (data.gangs || []) as { id: string; name: string; rating: number }[];
+      return (data.gangs || []) as {
+        id: string;
+        name: string;
+        rating: number;
+        edition_slug?: string | null;
+      }[];
     },
     enabled: !!selectedUser,
     // Opponents' gang lists change outside this client; refetch on every modal open
@@ -164,12 +179,15 @@ export default function CreateBattleModal({
     setSelectedCampaignGangIds((prev) => prev.filter((id) => id !== campaignGangId));
   };
 
-  // Filter out gangs already added as opponents or already in the session
+  // Filter out gangs already added as opponents, already in the session, or from
+  // another edition. Skirmish opponents are searched across all users, so unlike
+  // campaign gangs nothing upstream has constrained them to one ruleset.
   const availableUserGangs = (selectedUserGangs ?? []).filter(
     (g) =>
       g.id !== effectiveGangId &&
       !opponents.some((o) => o.gangId === g.id) &&
-      !existingGangIds.includes(g.id)
+      !existingGangIds.includes(g.id) &&
+      !editionsConflict(editionSlug, g.edition_slug)
   );
 
   const createMutation = useMutation({

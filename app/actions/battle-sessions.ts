@@ -16,6 +16,19 @@ import type {
 } from '@/types/battle-session';
 import { fetchBattleSessionDirect } from '@/app/lib/battle-sessions/get-battle-session-data';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
+import { editionsConflict } from '@/types/edition';
+
+/**
+ * Gangs have no edition of their own — it is always derived via the gang type,
+ * official or custom, same fallback order as getGangBasic.
+ */
+const GANG_EDITION_SELECT = `
+  gang_types!gang_type_id ( editions:edition_id ( id, slug ) ),
+  custom_gang_type:custom_gang_types!custom_gang_type_id ( editions:edition_id ( id, slug ) )
+`;
+
+const gangEdition = (gangRow: any): { id: string; slug: string } | null =>
+  gangRow?.gang_types?.editions ?? gangRow?.custom_gang_type?.editions ?? null;
 
 // =============================================================================
 // Data Fetching
@@ -147,6 +160,66 @@ export async function createBattleSession(params: {
       .single();
     const senderName = profile?.username || 'Someone';
 
+    // Fetched before the insert so it can serve both the participant rows and the
+    // edition resolution below.
+    const { data: gangs } = params.gang_ids?.length
+      ? await supabase
+          .from('gangs')
+          .select(`
+            id,
+            user_id,
+            rating,
+            ${GANG_EDITION_SELECT}
+          `)
+          .in('id', params.gang_ids)
+      : { data: null };
+
+    // Nothing stops a skirmish "New Battle" from pairing gangs of different
+    // editions — the opponent pickers filter, but a server action is a public
+    // endpoint, so the rule is enforced here too. Rejecting rather than picking
+    // one arbitrarily: .in() does not preserve input order, so "the creating
+    // gang's edition" is not something the returned array can be trusted to say.
+    const gangEditions = (gangs ?? []).map((g) => gangEdition(g)?.slug ?? null);
+    const hasEditionConflict = gangEditions.some((slug) =>
+      gangEditions.some((other) => editionsConflict(slug, other))
+    );
+    if (hasEditionConflict) {
+      return {
+        success: false,
+        error: 'All gangs in a battle must be from the same edition',
+      };
+    }
+
+    // The ruleset is derived server-side and never accepted from the client. A
+    // campaign fixes it for every session in it; a skirmish session takes it from
+    // the gangs that are playing, which the check above has confirmed agree.
+    // Both lookups failing leaves it null, which the app reads as "no
+    // edition-specific behaviour" — worth degrading to rather than blocking
+    // session creation over.
+    let editionId: string | null = null;
+
+    if (params.campaign_id) {
+      // campaigns.campaign_type_id has no FK, so PostgREST cannot embed through it.
+      const { data: campaign } = await supabase
+        .from('campaigns')
+        .select('campaign_type_id')
+        .eq('id', params.campaign_id)
+        .single();
+
+      if (campaign?.campaign_type_id) {
+        const { data: campaignType } = await supabase
+          .from('campaign_types')
+          .select('edition_id')
+          .eq('id', campaign.campaign_type_id)
+          .single();
+        editionId = campaignType?.edition_id ?? null;
+      }
+    }
+
+    if (!editionId && gangs?.length) {
+      editionId = gangs.map((g) => gangEdition(g)?.id ?? null).find((id) => id) ?? null;
+    }
+
     const { data, error } = await supabase
       .from('battle_sessions')
       .insert({
@@ -154,6 +227,7 @@ export async function createBattleSession(params: {
         campaign_id: params.campaign_id || null,
         scenario: params.scenario || null,
         status: 'pre_battle',
+        edition_id: editionId,
       })
       .select('id')
       .single();
@@ -162,41 +236,34 @@ export async function createBattleSession(params: {
 
     const sessionId = data.id;
 
-    if (params.gang_ids && params.gang_ids.length > 0) {
-      const { data: gangs } = await supabase
-        .from('gangs')
-        .select('id, user_id, rating')
-        .in('id', params.gang_ids);
+    if (gangs && gangs.length > 0) {
+      const participants = gangs.map((g) => ({
+        battle_session_id: sessionId,
+        user_id: g.user_id,
+        gang_id: g.id,
+        role: 'none' as const,
+        gang_rating_snapshot: g.rating ?? 0,
+      }));
 
-      if (gangs && gangs.length > 0) {
-        const participants = gangs.map((g) => ({
-          battle_session_id: sessionId,
-          user_id: g.user_id,
-          gang_id: g.id,
-          role: 'none' as const,
-          gang_rating_snapshot: g.rating ?? 0,
-        }));
+      await supabase.from('battle_session_participants').insert(participants);
 
-        await supabase.from('battle_session_participants').insert(participants);
+      const otherGangs = gangs.filter((g) => g.user_id && g.user_id !== user.id);
 
-        const otherGangs = gangs.filter((g) => g.user_id && g.user_id !== user.id);
-
-        if (otherGangs.length > 0) {
-          await supabase.from('notifications').insert(
-            otherGangs.map((g) => ({
-              receiver_id: g.user_id,
-              sender_id: user.id,
-              type: 'battle_invite',
-              text: `${senderName} added you to a battle session.`,
-              link: `/gang/${g.id}/battle-session/${sessionId}`,
-              dismissed: false,
-            }))
-          );
-        }
-        revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId), { expire: 0 });
-        for (const g of gangs) {
-          revalidateTag(CACHE_TAGS.GANG_BATTLE_SESSIONS(g.id), { expire: 0 });
-        }
+      if (otherGangs.length > 0) {
+        await supabase.from('notifications').insert(
+          otherGangs.map((g) => ({
+            receiver_id: g.user_id,
+            sender_id: user.id,
+            type: 'battle_invite',
+            text: `${senderName} added you to a battle session.`,
+            link: `/gang/${g.id}/battle-session/${sessionId}`,
+            dismissed: false,
+          }))
+        );
+      }
+      revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId), { expire: 0 });
+      for (const g of gangs) {
+        revalidateTag(CACHE_TAGS.GANG_BATTLE_SESSIONS(g.id), { expire: 0 });
       }
     }
 
@@ -640,7 +707,7 @@ export async function addParticipant(params: {
     // Verify session exists and is active
     const { data: session } = await supabase
       .from('battle_sessions')
-      .select('id, status, campaign_id, created_by')
+      .select('id, status, campaign_id, created_by, editions:edition_id ( slug )')
       .eq('id', params.session_id)
       .single();
 
@@ -653,11 +720,21 @@ export async function addParticipant(params: {
     // Validate gang belongs to the specified user
     const { data: gangOwner } = await supabase
       .from('gangs')
-      .select('user_id')
+      .select(`user_id, ${GANG_EDITION_SELECT}`)
       .eq('id', params.gang_id)
       .single();
     if (gangOwner?.user_id !== params.user_id)
       return { success: false, error: 'User does not own this gang' };
+
+    // The session's ruleset is already fixed; a gang from another edition would
+    // play by rules the session is not running. Same guard as createBattleSession,
+    // against the session rather than the other participants.
+    if (editionsConflict((session as any).editions?.slug, gangEdition(gangOwner)?.slug ?? null)) {
+      return {
+        success: false,
+        error: 'This gang is from a different edition than the battle',
+      };
+    }
 
     // If campaign session, validate gang is in the campaign
     if (session.campaign_id) {

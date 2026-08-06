@@ -38,7 +38,9 @@ export async function GET(
         credits,
         reputation,
         rating,
-        created_at
+        created_at,
+        gang_types!gang_type_id ( editions:edition_id ( slug ) ),
+        custom_gang_type:custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
       `)
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
@@ -310,7 +312,16 @@ export async function GET(
 
     return Response.json({
       profile,
-      gangs: gangs || [],
+      // The battle-session opponent picker needs each gang's ruleset, and these
+      // are other users' gangs so nothing on the client knows it. Flatten the
+      // embed away so the public shape stays flat. Official gang type first,
+      // then custom — same fallback order as getGangBasic.
+      gangs: (gangs || []).map(({ gang_types, custom_gang_type, ...gang }: any) => ({
+        ...gang,
+        edition_slug: gang_types?.editions?.slug
+          ?? custom_gang_type?.editions?.slug
+          ?? null,
+      })),
       campaigns: dedupedCampaigns,
       customAssets,
       customAssetsData

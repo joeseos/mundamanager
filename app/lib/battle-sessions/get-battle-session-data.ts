@@ -10,11 +10,18 @@ async function fetchBattleSessionDirect(
 ): Promise<BattleSessionFull | null> {
   const { data: session, error: sessionError } = await supabase
     .from('battle_sessions')
-    .select('*')
+    .select('*, editions:edition_id ( slug )')
     .eq('id', sessionId)
     .single();
 
   if (sessionError || !session) return null;
+
+  // Flatten the edition slug and drop the embed, mirroring getGangBasic. This has
+  // to happen in the loader rather than in the page: the realtime hook refetches
+  // through this same function, so a field merged downstream would render once and
+  // then disappear on the first refresh.
+  const { editions, ...sessionRow } = session;
+  const sessionBase = { ...sessionRow, edition_slug: editions?.slug ?? null };
 
   let campaign_name: string | undefined;
   if (session.campaign_id) {
@@ -35,7 +42,7 @@ async function fetchBattleSessionDirect(
 
   if (!participants || participants.length === 0) {
     return {
-      ...session,
+      ...sessionBase,
       participants: [],
       campaign_name,
     };
@@ -126,7 +133,7 @@ async function fetchBattleSessionDirect(
   }));
 
   return {
-    ...session,
+    ...sessionBase,
     participants: fullParticipants,
     campaign_name,
     campaign_resources: campaignResources.length > 0 ? campaignResources : undefined,
@@ -171,13 +178,20 @@ export const getGangBattleSessionsCached = async (
 
       if (sessionIds.length === 0) return [];
 
+      // Same embed + flatten as fetchBattleSessionDirect. BattleSession declares
+      // edition_slug, so a list loader that quietly omitted it would leave the
+      // field undefined here and populated there — the kind of inconsistency a
+      // future consumer only discovers at runtime.
       const { data: sessions } = await supabase
         .from('battle_sessions')
-        .select('*')
+        .select('*, editions:edition_id ( slug )')
         .in('id', sessionIds)
         .order('updated_at', { ascending: false });
 
-      return sessions || [];
+      return (sessions || []).map(({ editions, ...session }: any) => ({
+        ...session,
+        edition_slug: editions?.slug ?? null,
+      }));
     },
     [`gang-battle-sessions-${gangId}`],
     {

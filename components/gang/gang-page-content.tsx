@@ -951,6 +951,7 @@ export default function GangPageContent({
           sessions={gangData.processedData.battleSessions || []}
           gangId={gangId}
           gangName={gangData.processedData.name}
+          editionSlug={gangData.processedData.edition_slug}
           campaignId={(gangData.processedData.campaigns || [])[0]?.campaign_id}
           sessionUrl={(id) => `/gang/${gangId}/battle-session/${id}`}
         />
