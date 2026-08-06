@@ -147,6 +147,54 @@ export async function createBattleSession(params: {
       .single();
     const senderName = profile?.username || 'Someone';
 
+    // Fetched before the insert so it can serve both the participant rows and the
+    // edition resolution below.
+    const { data: gangs } = params.gang_ids?.length
+      ? await supabase
+          .from('gangs')
+          .select(`
+            id,
+            user_id,
+            rating,
+            gang_types!gang_type_id ( edition_id ),
+            custom_gang_type:custom_gang_types!custom_gang_type_id ( edition_id )
+          `)
+          .in('id', params.gang_ids)
+      : { data: null };
+
+    // The ruleset is derived server-side and never accepted from the client. A
+    // campaign fixes it for every session in it; a skirmish session takes it from
+    // the gangs that are playing. Both lookups failing leaves it null, which the
+    // app reads as "no edition-specific behaviour" — worth degrading to rather
+    // than blocking session creation over.
+    let editionId: string | null = null;
+
+    if (params.campaign_id) {
+      // campaigns.campaign_type_id has no FK, so PostgREST cannot embed through it.
+      const { data: campaign } = await supabase
+        .from('campaigns')
+        .select('campaign_type_id')
+        .eq('id', params.campaign_id)
+        .single();
+
+      if (campaign?.campaign_type_id) {
+        const { data: campaignType } = await supabase
+          .from('campaign_types')
+          .select('edition_id')
+          .eq('id', campaign.campaign_type_id)
+          .single();
+        editionId = campaignType?.edition_id ?? null;
+      }
+    }
+
+    if (!editionId && gangs?.length) {
+      // Same official-then-custom fallback as getGangBasic. Gangs have no
+      // edition_id of their own — it is always derived via the gang type.
+      editionId = gangs
+        .map((g: any) => g.gang_types?.edition_id ?? g.custom_gang_type?.edition_id ?? null)
+        .find((id: string | null) => id) ?? null;
+    }
+
     const { data, error } = await supabase
       .from('battle_sessions')
       .insert({
@@ -154,6 +202,7 @@ export async function createBattleSession(params: {
         campaign_id: params.campaign_id || null,
         scenario: params.scenario || null,
         status: 'pre_battle',
+        edition_id: editionId,
       })
       .select('id')
       .single();
@@ -162,41 +211,34 @@ export async function createBattleSession(params: {
 
     const sessionId = data.id;
 
-    if (params.gang_ids && params.gang_ids.length > 0) {
-      const { data: gangs } = await supabase
-        .from('gangs')
-        .select('id, user_id, rating')
-        .in('id', params.gang_ids);
+    if (gangs && gangs.length > 0) {
+      const participants = gangs.map((g) => ({
+        battle_session_id: sessionId,
+        user_id: g.user_id,
+        gang_id: g.id,
+        role: 'none' as const,
+        gang_rating_snapshot: g.rating ?? 0,
+      }));
 
-      if (gangs && gangs.length > 0) {
-        const participants = gangs.map((g) => ({
-          battle_session_id: sessionId,
-          user_id: g.user_id,
-          gang_id: g.id,
-          role: 'none' as const,
-          gang_rating_snapshot: g.rating ?? 0,
-        }));
+      await supabase.from('battle_session_participants').insert(participants);
 
-        await supabase.from('battle_session_participants').insert(participants);
+      const otherGangs = gangs.filter((g) => g.user_id && g.user_id !== user.id);
 
-        const otherGangs = gangs.filter((g) => g.user_id && g.user_id !== user.id);
-
-        if (otherGangs.length > 0) {
-          await supabase.from('notifications').insert(
-            otherGangs.map((g) => ({
-              receiver_id: g.user_id,
-              sender_id: user.id,
-              type: 'battle_invite',
-              text: `${senderName} added you to a battle session.`,
-              link: `/gang/${g.id}/battle-session/${sessionId}`,
-              dismissed: false,
-            }))
-          );
-        }
-        revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId), { expire: 0 });
-        for (const g of gangs) {
-          revalidateTag(CACHE_TAGS.GANG_BATTLE_SESSIONS(g.id), { expire: 0 });
-        }
+      if (otherGangs.length > 0) {
+        await supabase.from('notifications').insert(
+          otherGangs.map((g) => ({
+            receiver_id: g.user_id,
+            sender_id: user.id,
+            type: 'battle_invite',
+            text: `${senderName} added you to a battle session.`,
+            link: `/gang/${g.id}/battle-session/${sessionId}`,
+            dismissed: false,
+          }))
+        );
+      }
+      revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId), { expire: 0 });
+      for (const g of gangs) {
+        revalidateTag(CACHE_TAGS.GANG_BATTLE_SESSIONS(g.id), { expire: 0 });
       }
     }
 
