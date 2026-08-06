@@ -11,8 +11,16 @@ interface EditionSelectProps {
   label?: string;
 }
 
-/** Shared editions query — also used by callers that need to resolve a slug from an edition id. */
-export function useEditions() {
+/**
+ * Shared editions query — also used by callers that need to resolve a slug from
+ * an edition id.
+ *
+ * `enabled` is for callers that only need editions on some code paths. Hooks
+ * can't be called conditionally, so without it a component that needs editions
+ * rarely would still fetch on every mount (e.g. the injury target picker, which
+ * needs them only for gang-type targets).
+ */
+export function useEditions({ enabled = true }: { enabled?: boolean } = {}) {
   return useQuery<Edition[]>({
     queryKey: ['editions'],
     queryFn: async () => {
@@ -21,6 +29,7 @@ export function useEditions() {
       return response.json();
     },
     staleTime: 5 * 60 * 1000,
+    enabled,
   });
 }
 

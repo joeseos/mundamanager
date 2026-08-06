@@ -20,8 +20,13 @@ export interface AddFighterInjuryParams {
   set_captured?: boolean;
   captured_by_gang_id?: string | null;
   target_equipment_id?: string;
-  /** Enemy gang for {@link import('@/utils/bitterEnmityDisplay').BITTER_ENMITY_EFFECT_NAME}; validated against shared campaign (RPC enforces). */
-  bitter_enmity_target_gang_id?: string | null;
+  /**
+   * Hatred (X) target for the Enmity lasting injuries — a gang, gang type or
+   * fighter id. Which kind is expected comes from the effect type's declared
+   * `hatred_target`; the RPC validates the id against it. Always optional:
+   * skirmish play has no opponent to name.
+   */
+  hatred_target_id?: string | null;
 }
 
 export interface VerifyAndLogRolledFighterInjuryParams {
@@ -170,7 +175,7 @@ export async function addFighterInjury(
       shouldSetKilled = hasKilledStatusFlag(injuryType.type_specific_data || {});
     }
 
-    const bitterGangId = params.bitter_enmity_target_gang_id?.trim() || null;
+    const hatredTargetId = params.hatred_target_id?.trim() || null;
 
     let preInjuryCost = 0;
     if (shouldSetKilled && !fighter.killed && countsTowardRating(fighter)) {
@@ -188,7 +193,7 @@ export async function addFighterInjury(
         in_injury_type_id: params.injury_type_id,
         in_user_id: user.id,
         in_target_equipment_id: params.target_equipment_id || null,
-        in_bitter_enmity_target_gang_id: bitterGangId
+        in_hatred_target_id: hatredTargetId
       });
 
     if (error) {

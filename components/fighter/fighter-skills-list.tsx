@@ -14,7 +14,7 @@ import {
 } from '@/app/actions/fighter-advancement';
 import { LuTrash2 } from 'react-icons/lu';
 import Link from 'next/link';
-import { BITTER_ENMITY_EFFECT_NAME } from '@/utils/bitterEnmityDisplay';
+import { hatredTargetHref } from '@/utils/injuryTarget';
 
 // Interface for individual skill when displayed in table
 interface Skill {
@@ -26,9 +26,11 @@ interface Skill {
   is_advance: boolean;
   fighter_injury_id: string | null;
   injury_name?: string;
-  bitter_enmity_target_gang_id?: string;
-  bitter_enmity_target_gang_name?: string;
-  bitter_enmity_target_gang_colour?: string | null;
+  /** Hatred (X) target of the granting injury. See utils/injuryTarget.ts. */
+  hatred_target_kind?: 'gang' | 'gang_type' | 'fighter';
+  hatred_target_id?: string;
+  hatred_target_name?: string;
+  hatred_target_colour?: string | null;
 }
 
 // Props for the SkillsList component
@@ -588,9 +590,10 @@ export function SkillsList({
       is_advance: typedData.is_advance ?? false,
       fighter_injury_id: typedData.fighter_injury_id,
       injury_name: typedData.injury_name,
-      bitter_enmity_target_gang_id: typedData.bitter_enmity_target_gang_id,
-      bitter_enmity_target_gang_name: typedData.bitter_enmity_target_gang_name,
-      bitter_enmity_target_gang_colour: typedData.bitter_enmity_target_gang_colour
+      hatred_target_kind: typedData.hatred_target_kind,
+      hatred_target_id: typedData.hatred_target_id,
+      hatred_target_name: typedData.hatred_target_name,
+      hatred_target_colour: typedData.hatred_target_colour
     };
   });
 
@@ -615,31 +618,39 @@ export function SkillsList({
             label: 'Name',
             width: hasAnyCost ? '50%' : '70%',
             render: (_value, item) => {
-              const showBitterBadge =
-                item.injury_name === BITTER_ENMITY_EFFECT_NAME &&
-                item.bitter_enmity_target_gang_id &&
-                item.bitter_enmity_target_gang_name;
-              if (showBitterBadge) {
-                const colour = item.bitter_enmity_target_gang_colour || '#525252';
-                return (
-                  <span className="inline-flex flex-wrap items-center gap-1 align-middle">
-                    <span>{item.name}</span>
-                    <span
-                      className="inline-flex max-w-[200px] items-center truncate rounded-full px-2.5 py-0.5 text-xs font-semibold bg-muted"
-                      style={{ color: colour }}
-                    >
+              // Hatred (X) target of the injury that granted this skill. Gang
+              // types have no page of their own, so those render unlinked.
+              if (!item.hatred_target_id || !item.hatred_target_name) return item.name;
+
+              const colour = item.hatred_target_colour || '#525252';
+              const href = hatredTargetHref({
+                kind: item.hatred_target_kind ?? 'gang',
+                id: item.hatred_target_id,
+                name: item.hatred_target_name,
+                colour: item.hatred_target_colour ?? null,
+              });
+
+              return (
+                <span className="inline-flex flex-wrap items-center gap-1 align-middle">
+                  <span>{item.name}</span>
+                  <span
+                    className="inline-flex max-w-[200px] items-center truncate rounded-full px-2.5 py-0.5 text-xs font-semibold bg-muted"
+                    style={{ color: colour }}
+                  >
+                    {href ? (
                       <Link
-                        href={`/gang/${item.bitter_enmity_target_gang_id}`}
+                        href={href}
                         className="truncate hover:text-muted-foreground transition-colors"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {item.bitter_enmity_target_gang_name}
+                        {item.hatred_target_name}
                       </Link>
-                    </span>
+                    ) : (
+                      <span className="truncate">{item.hatred_target_name}</span>
+                    )}
                   </span>
-                );
-              }
-              return item.name;
+                </span>
+              );
             }
           },
           {

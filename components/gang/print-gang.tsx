@@ -7,7 +7,7 @@ import { Equipment } from "@/types/equipment";
 import { VehicleEquipment } from "@/types/fighter";
 import { calculateAdjustedStats, applySpecialRulesModifiers } from "@/utils/effect-modifiers";
 import { sortFightersByPositioning } from "@/utils/fighter-positioning";
-import { injuryAggregationLabel } from "@/utils/bitterEnmityDisplay";
+import { injuryAggregationLabel } from "@/utils/injuryTarget";
 import WeaponTable from "./fighter-card-weapon-table";
 import { StatsTable, StatsType } from "../ui/fighter-card-stats-table";
 import { hasSaveCharacteristic, hasTradePoints } from "@/types/edition";

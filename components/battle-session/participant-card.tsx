@@ -19,6 +19,9 @@ import DiceRoller from '@/components/dice-roller';
 import { FighterXpModal } from '@/components/fighter/fighter-xp-modal';
 import { rollD66, rollNd6Outcome, resolveInjuryFor, resolveInjuryRangeByNameFor } from '@/utils/dice';
 import { lastingInjuryRankFor } from '@/utils/lastingInjuryRank';
+import { requiredHatredTarget } from '@/utils/injuryTarget';
+import { InjuryHatredTargetPicker } from '@/components/fighter/injury-hatred-target-picker';
+import type { CampaignGangWithFighters } from '@/types/fighter-ooa-record';
 import { CgMoreVerticalO } from 'react-icons/cg';
 import { BsFire, BsFillExclamationCircleFill } from 'react-icons/bs';
 import { GiPieceSkull, GiSpiderWeb, GiHeavyBullets, GiHealthNormal, GiWaterDrop, GiSpill, GiCrossedChains, GiHandcuffs } from 'react-icons/gi';
@@ -155,6 +158,8 @@ function FighterActionModal({
   gangId,
   campaignId,
   editionSlug,
+  candidateGangs,
+  isSkirmish,
   onXpChanged,
   onConditionsChanged,
   onInjuryAdded,
@@ -165,6 +170,8 @@ function FighterActionModal({
   gangId: string;
   campaignId?: string | null;
   editionSlug?: string | null;
+  candidateGangs: CampaignGangWithFighters[];
+  isSkirmish: boolean;
   onXpChanged: (delta: number) => void;
   onConditionsChanged: (conditions: SessionCondition[]) => void;
   onInjuryAdded: (injury: SessionInjuryRecord) => void;
@@ -346,6 +353,8 @@ function FighterActionModal({
         <InjuryPickerModal
           fighter={fighter}
           editionSlug={editionSlug}
+          candidateGangs={candidateGangs}
+          isSkirmish={isSkirmish}
           onClose={() => setShowInjuryModal(false)}
           onInjuryAdded={(injury) => {
             onInjuryAdded(injury);
@@ -371,12 +380,17 @@ interface InjuryType {
 function InjuryPickerModal({
   fighter,
   editionSlug,
+  candidateGangs,
+  isSkirmish,
   onClose,
   onInjuryAdded,
   onBroadcast,
 }: {
   fighter: BattleSessionFighter;
   editionSlug?: string | null;
+  /** Gangs in THIS battle, own gang excluded — not every gang in the campaign. */
+  candidateGangs: CampaignGangWithFighters[];
+  isSkirmish: boolean;
   onClose: () => void;
   onInjuryAdded: (injury: SessionInjuryRecord) => void;
   onBroadcast?: () => void;
@@ -386,14 +400,17 @@ function InjuryPickerModal({
   const [selectedId, setSelectedId] = useState('');
   const [selectedInjury, setSelectedInjury] = useState<InjuryType | null>(null);
   const [mode, setMode] = useState<'main' | 'recovery' | 'captured'>('main');
+  const [hatredTargetId, setHatredTargetId] = useState('');
+  const [hatredGangId, setHatredGangId] = useState('');
 
   const addMut = useMutation({
-    mutationFn: async (params: { fighter_effect_type_id: string; effect_name: string; send_to_recovery: boolean; set_captured: boolean }) => {
+    mutationFn: async (params: { fighter_effect_type_id: string; effect_name: string; send_to_recovery: boolean; set_captured: boolean; hatred_target_id?: string | null }) => {
       const injuryResult = await addFighterInjury({
         fighter_id: fighter.fighter_id,
         injury_type_id: params.fighter_effect_type_id,
         send_to_recovery: params.send_to_recovery,
         set_captured: params.set_captured,
+        hatred_target_id: params.hatred_target_id ?? null,
       });
       if (!injuryResult.success) throw new Error(injuryResult.error || 'Failed to add injury');
 
@@ -436,6 +453,14 @@ function InjuryPickerModal({
     return min === max ? `${min}` : `${min}-${max}`;
   };
 
+  // Which Hatred (X) target the selected injury needs, if any.
+  const hatredTarget = requiredHatredTarget(selectedInjury?.type_specific_data);
+  // Gang types are global; the other kinds need opponents, which a skirmish
+  // session has none of that share a campaign (the RPC enforces that too).
+  const hatredSelectable =
+    hatredTarget === 'gang_type' || (!isSkirmish && candidateGangs.length > 0);
+  const blockedByHatredTarget = hatredTarget !== null && hatredSelectable && !hatredTargetId;
+
   const commit = (send_to_recovery: boolean, set_captured: boolean) => {
     if (!selectedInjury) return;
     addMut.mutate({
@@ -443,11 +468,16 @@ function InjuryPickerModal({
       effect_name: selectedInjury.effect_name,
       send_to_recovery,
       set_captured,
+      hatred_target_id: hatredTarget && hatredTargetId ? hatredTargetId : undefined,
     });
   };
 
   const handleAdd = (): false | void => {
     if (!selectedInjury) { toast.error('Select an injury'); return false; }
+    if (blockedByHatredTarget) {
+      toast.error(`Please select the target for ${selectedInjury.effect_name}`);
+      return false;
+    }
     const tsd = selectedInjury.type_specific_data || {};
     if (tsd.recovery === 'true') { setMode('recovery'); return false; }
     if (tsd.captured === 'true') { setMode('captured'); return false; }
@@ -543,12 +573,24 @@ function InjuryPickerModal({
                 onValueChange={(v) => {
                   setSelectedId(v);
                   setSelectedInjury(injuryTypes.find((i) => i.id === v) ?? null);
+                  setHatredTargetId('');
+                  setHatredGangId('');
                 }}
                 placeholder={loading ? 'Loading...' : 'Select a Lasting Injury'}
                 disabled={loading}
                 options={options}
               />
             </div>
+            <InjuryHatredTargetPicker
+              hatredTarget={hatredTarget}
+              candidateGangs={candidateGangs}
+              isSkirmish={isSkirmish}
+              editionSlug={editionSlug}
+              value={hatredTargetId}
+              onChange={setHatredTargetId}
+              gangStepValue={hatredGangId}
+              onGangStepChange={setHatredGangId}
+            />
           </div>
         </Modal>
       )}
@@ -598,6 +640,8 @@ function FighterRow({
   gangId,
   campaignId,
   editionSlug,
+  candidateGangs,
+  isSkirmish,
   onXpChanged,
   onConditionsChanged,
   onActivationsChange,
@@ -618,6 +662,8 @@ function FighterRow({
   gangId: string;
   campaignId?: string | null;
   editionSlug?: string | null;
+  candidateGangs: CampaignGangWithFighters[];
+  isSkirmish: boolean;
   onXpChanged: (delta: number) => void;
   onConditionsChanged: (conditions: SessionCondition[]) => void;
   onActivationsChange: (activations: number) => void;
@@ -751,6 +797,8 @@ function FighterRow({
               gangId={gangId}
               campaignId={campaignId}
               editionSlug={editionSlug}
+              candidateGangs={candidateGangs}
+              isSkirmish={isSkirmish}
               onXpChanged={onXpChanged}
               onConditionsChanged={onConditionsChanged}
               onInjuryAdded={onInjuryAdded}
@@ -1034,6 +1082,33 @@ export default function ParticipantCard({
   const localReady = readyOverride ?? participant.ready;
   const isMyGang = participant.user_id === userId;
   const isPostBattle = session.status === 'post_battle';
+
+  // Hatred (X) candidates for injuries added from this session: the gangs
+  // actually IN this battle, not every gang in the campaign — only a gang
+  // present at the battle can have taken the fighter Out of Action. Already in
+  // memory on the session, so no fetch is needed.
+  const hatredCandidateGangs = useMemo<CampaignGangWithFighters[]>(
+    () =>
+      session.participants
+        .filter((p) => p.gang_id !== participant.gang_id)
+        .map((p) => ({
+          gang_id: p.gang_id,
+          name: p.gang?.name ?? 'Unknown gang',
+          gang_colour: p.gang?.gang_colour ?? null,
+          owner_username: p.profile?.username ?? null,
+          fighters: p.fighters.flatMap((f) =>
+            f.fighter
+              ? [{
+                  id: f.fighter.id,
+                  fighter_name: f.fighter.fighter_name,
+                  fighter_type: f.fighter.fighter_type ?? null,
+                  gang_id: p.gang_id,
+                }]
+              : []
+          ),
+        })),
+    [session.participants, participant.gang_id]
+  );
   const canEdit = editable && (isMyGang || isArbitrator) && !isPostBattle;
   const canInteract = battleActive && (isMyGang || isArbitrator);
   const canPostBattle = isPostBattle && (isMyGang || isArbitrator);
@@ -1675,6 +1750,8 @@ export default function ParticipantCard({
                         // The session's edition, not gangFighter.edition_slug — the
                         // per-fighter slug is often null for custom fighter types.
                         editionSlug={session.edition_slug}
+                        candidateGangs={hatredCandidateGangs}
+                        isSkirmish={!session.campaign_id}
                         onXpChanged={(delta) => {
                           const totalXp = (f.session_record?.xp_earned ?? 0) + delta;
                           updateXpMutation.mutate({ sessionFighterId: f.id, totalXp });
