@@ -18,8 +18,8 @@ import Image from 'next/image'
 import { LuChevronLeft, LuChevronRight } from "react-icons/lu"
 import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang'
 import { EditionToggle } from '@/components/home/edition-toggle'
-import { matchesHomeEdition, useHomeEdition } from '@/hooks/use-home-edition'
-import { useEditionChangeReset } from '@/hooks/use-edition-change-reset'
+import { useHomeEdition } from '@/hooks/use-home-edition'
+import { sameEditionSlug } from '@/types/edition'
 
 type Gang = {
   id: string;
@@ -120,26 +120,28 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(DEFAULT_IMAGE_INDEX);
 
   const editionGangTypes = useMemo(
-    () => gangTypes.filter(type => matchesHomeEdition(type.edition_slug, editionSlug)),
+    () => gangTypes.filter(type => sameEditionSlug(type.edition_slug, editionSlug)),
     [gangTypes, editionSlug]
   );
 
   const editionVariants = useMemo(
-    () => availableVariants.filter(variant => matchesHomeEdition(variant.edition_slug, editionSlug)),
+    () => availableVariants.filter(variant => sameEditionSlug(variant.edition_slug, editionSlug)),
     [availableVariants, editionSlug]
   );
 
   // Clear selections that no longer belong to the active edition
-  useEditionChangeReset(editionSlug, () => {
+  const [prevEditionSlug, setPrevEditionSlug] = useState(editionSlug);
+  if (editionSlug !== prevEditionSlug) {
+    setPrevEditionSlug(editionSlug);
     if (gangType && !editionGangTypes.some(type => type.gang_type_id === gangType)) {
       setGangType("");
       setSelectedAffiliation("");
       setSelectedOrigin("");
     }
     setSelectedVariants(prev =>
-      prev.filter(variant => matchesHomeEdition(variant.edition_slug, editionSlug))
+      prev.filter(variant => sameEditionSlug(variant.edition_slug, editionSlug))
     );
-  });
+  }
 
   useEffect(() => {
     const fetchGangTypes = async () => {

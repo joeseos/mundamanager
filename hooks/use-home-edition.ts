@@ -1,20 +1,12 @@
 "use client"
 
 import { useCallback, useSyncExternalStore } from 'react'
-import { EDITION_N23, EDITION_N26, sameEditionSlug, type EditionSlug } from '@/types/edition'
+import { EDITION_N23, EDITION_N26, type EditionSlug } from '@/types/edition'
 
 export const HOME_EDITION_STORAGE_KEY = 'home_edition'
 
-export function isEditionSlug(value: string | null | undefined): value is EditionSlug {
+function isEditionSlug(value: string | null | undefined): value is EditionSlug {
   return value === EDITION_N23 || value === EDITION_N26
-}
-
-/** Null / missing edition slug is treated as N23 for home list filtering. */
-export function matchesHomeEdition(
-  editionSlug: string | null | undefined,
-  selected: EditionSlug
-): boolean {
-  return sameEditionSlug(editionSlug, selected)
 }
 
 function readStoredEdition(): EditionSlug {
@@ -68,8 +60,8 @@ function setStoredEdition(slug: EditionSlug) {
  * render, so lists filter correctly on first paint and a failed request can
  * never make edition-scoped UI render empty. Rows carry their own
  * `edition_slug` (resolved server-side in app/lib), so nothing here needs the
- * editions table — comparisons go through `matchesHomeEdition` /
- * `sameEditionSlug`, never through an edition uuid.
+ * editions table — callers compare with `sameEditionSlug`, never with an
+ * edition uuid.
  */
 export function useHomeEdition() {
   const editionSlug = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)

@@ -9,7 +9,8 @@ import { reorderFavourites } from '@/app/actions/reorder-favourites'
 import { toast } from 'sonner'
 import { useDndSensorsConfig, useSuppressClickAfterDrag } from '@/hooks/use-dnd-sensors'
 import { useIsMounted } from '@/hooks/use-is-mounted'
-import { matchesHomeEdition, useHomeEdition } from '@/hooks/use-home-edition'
+import { useHomeEdition } from '@/hooks/use-home-edition'
+import { sameEditionSlug } from '@/types/edition'
 import { EditionToggle } from '@/components/home/edition-toggle'
 import { CampaignCardContent, SortableCampaignCard } from '@/components/home/campaign-card'
 
@@ -31,7 +32,7 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
   }
 
   const editionCampaigns = useMemo(
-    () => localCampaigns.filter(c => matchesHomeEdition(c.edition_slug, editionSlug)),
+    () => localCampaigns.filter(c => sameEditionSlug(c.edition_slug, editionSlug)),
     [localCampaigns, editionSlug]
   );
 
