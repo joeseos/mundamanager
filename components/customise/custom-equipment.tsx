@@ -30,6 +30,7 @@ interface CustomiseEquipmentProps {
   readOnly?: boolean;
   userId?: string;
   userCampaigns?: UserCampaign[];
+  editionId?: string | null;
 }
 
 interface EquipmentCategory {
@@ -37,8 +38,13 @@ interface EquipmentCategory {
   category_name: string;
 }
 
-export function CustomiseEquipment({ className, initialEquipment = [], readOnly = false, userId, userCampaigns = [] }: CustomiseEquipmentProps) {
+export function CustomiseEquipment({ className, initialEquipment = [], readOnly = false, userId, userCampaigns = [], editionId = null }: CustomiseEquipmentProps) {
   const [equipment, setEquipment] = useState<CustomEquipment[]>(initialEquipment);
+  const [prevInitialEquipment, setPrevInitialEquipment] = useState(initialEquipment);
+  if (initialEquipment !== prevInitialEquipment) {
+    setPrevInitialEquipment(initialEquipment);
+    setEquipment(initialEquipment);
+  }
   const [isLoading, setIsLoading] = useState(false);
   const [editModalData, setEditModalData] = useState<CustomEquipment | null>(null);
   const [deleteModalData, setDeleteModalData] = useState<CustomEquipment | null>(null);
@@ -148,6 +154,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
         cost: parseInt(createForm.cost),
         availability: combineAvailability(createForm.availability_letter, createForm.availability_number),
         description: createForm.description,
+        edition_id: editionId,
       });
 
       // Save weapon profiles if this is a weapon and there are profiles
@@ -491,6 +498,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
         equipment_type: copyModalData.equipment_type,
         availability: copyModalData.availability,
         description: copyModalData.description,
+        edition_id: editionId ?? copyModalData.edition_id ?? null,
         user_id: user.id
       };
 

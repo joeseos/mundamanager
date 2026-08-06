@@ -15,6 +15,8 @@ export type Campaign = {
   user_gangs?: { id: string; name: string }[];
   is_favourite: boolean;
   favourite_order: number | null;
+  /** Derived from campaign_types; null treated as n23 by home filters. */
+  edition_slug: string | null;
 };
 
 export const getUserCampaigns = async (userId: string, supabase: any): Promise<Campaign[]> => {
@@ -57,7 +59,7 @@ export const getUserCampaigns = async (userId: string, supabase: any): Promise<C
         const campaignTypeIds = Array.from(new Set(campaigns.map((c: any) => c.campaign_type_id)));
         const { data: campaignTypes, error: typesError } = await supabase
           .from('campaign_types')
-          .select('id, campaign_type_name, image_url')
+          .select('id, campaign_type_name, image_url, editions:edition_id(slug)')
           .in('id', campaignTypeIds);
 
         if (typesError) {
@@ -84,6 +86,7 @@ export const getUserCampaigns = async (userId: string, supabase: any): Promise<C
             campaign_type_image_url: typeData?.image_url || '',
             is_favourite: memberData?.is_favourite ?? false,
             favourite_order: memberData?.favourite_order ?? null,
+            edition_slug: (typeData as any)?.editions?.slug ?? null,
           };
         }) as Campaign[];
 

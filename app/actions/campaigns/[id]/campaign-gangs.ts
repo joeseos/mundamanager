@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { revalidateTag } from "next/cache";
 import { invalidateCampaignMembership, invalidateCampaignTerritory, invalidatePermissionForUser } from "@/utils/cache-tags";
 import { getAuthenticatedUser } from '@/utils/auth';
+import { assertGangMatchesCampaignEdition } from './assert-gang-campaign-edition';
 
 export interface AddGangToCampaignDirectParams {
   campaignId: string;
@@ -28,6 +29,11 @@ export async function addGangToCampaignDirect(params: AddGangToCampaignDirectPar
     // Authenticate user
     const user = await getAuthenticatedUser(supabase);
     const { campaignId, gangId } = params;
+
+    const editionCheck = await assertGangMatchesCampaignEdition(supabase, campaignId, gangId);
+    if (!editionCheck.ok) {
+      return { success: false, error: editionCheck.error };
+    }
     
     // Get the gang's owner
     const { data: gangData, error: gangError } = await supabase

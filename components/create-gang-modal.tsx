@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
@@ -17,6 +17,8 @@ import { useSearchParams } from "next/navigation"
 import Image from 'next/image'
 import { LuChevronLeft, LuChevronRight } from "react-icons/lu"
 import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang'
+import { EditionToggle } from '@/components/home/edition-toggle'
+import { matchesHomeEditionId, useHomeEdition } from '@/hooks/use-home-edition'
 
 type Gang = {
   id: string;
@@ -51,11 +53,13 @@ type GangType = {
     category_name: string;
   }>;
   is_custom?: boolean;
+  edition_id?: string | null;
 };
 
 type GangVariant = {
   id: string;
   variant: string;
+  edition_id?: string | null;
 };
 
 interface CreateGangModalProps {
@@ -95,6 +99,7 @@ export function CreateGangButton() {
 export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { editionSlug, setEditionSlug, editionId, n23EditionId } = useHomeEdition();
   const [gangTypes, setGangTypes] = useState<GangType[]>([]);
   const [gangName, setGangName] = useState("")
   const [gangType, setGangType] = useState("")
@@ -112,6 +117,30 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const [selectedVariants, setSelectedVariants] = useState<GangVariant[]>([]);
   const [showVariants, setShowVariants] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(DEFAULT_IMAGE_INDEX);
+
+  const editionGangTypes = useMemo(
+    () => gangTypes.filter(type => matchesHomeEditionId(type.edition_id, editionId, n23EditionId)),
+    [gangTypes, editionId, n23EditionId]
+  );
+
+  const editionVariants = useMemo(
+    () => availableVariants.filter(variant => matchesHomeEditionId(variant.edition_id, editionId, n23EditionId)),
+    [availableVariants, editionId, n23EditionId]
+  );
+
+  // Clear selections that no longer belong to the active edition
+  const [prevEditionId, setPrevEditionId] = useState(editionId);
+  if (editionId !== prevEditionId) {
+    setPrevEditionId(editionId);
+    if (gangType && !editionGangTypes.some(type => type.gang_type_id === gangType)) {
+      setGangType("");
+      setSelectedAffiliation("");
+      setSelectedOrigin("");
+    }
+    setSelectedVariants(prev =>
+      prev.filter(variant => matchesHomeEditionId(variant.edition_id, editionId, n23EditionId))
+    );
+  }
 
   useEffect(() => {
     const fetchGangTypes = async () => {
@@ -355,6 +384,12 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
         </div>
         <div className="space-y-4">
           <div>
+            <label className="block text-sm font-medium text-muted-foreground mb-1">
+              Edition *
+            </label>
+            <EditionToggle value={editionSlug} onChange={setEditionSlug} />
+          </div>
+          <div>
             <label htmlFor="gang-type" className="block text-sm font-medium text-muted-foreground mb-1">
               Gang Type *
             </label>
@@ -367,7 +402,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
               <option value="">Select gang type</option>
               {/* System gang types */}
               {Object.entries(
-                gangTypes
+                editionGangTypes
                   .filter(t => !t.is_custom)
                   .sort((a, b) => {
                     const rankA = gangListRank[a.gang_type.toLowerCase()] ?? Infinity;
@@ -400,9 +435,9 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
                 ) : null
               ))}
               {/* Custom gang types */}
-              {gangTypes.filter(t => t.is_custom).length > 0 && (
+              {editionGangTypes.filter(t => t.is_custom).length > 0 && (
                 <optgroup label="Custom">
-                  {gangTypes
+                  {editionGangTypes
                     .filter(t => t.is_custom)
                     .sort((a, b) => a.gang_type.localeCompare(b.gang_type))
                     .map((type) => (
@@ -486,7 +521,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
                 <div>
                   <h3 className="text-xs font-semibold text-muted-foreground mb-1">Unaffiliated</h3>
                   <div className="flex flex-col gap-2">
-                    {availableVariants
+                    {editionVariants
                       .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? Infinity) <= 9)
                       .sort((a, b) =>
                         (gangVariantRank[a.variant.toLowerCase()] ?? Infinity) -
@@ -523,7 +558,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
                 <div>
                   <h3 className="text-xs font-semibold text-muted-foreground mb-1">Outlaw / Corrupted</h3>
                   <div className="flex flex-col gap-2">
-                    {availableVariants
+                    {editionVariants
                       .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? -1) >= 10)
                       .sort((a, b) =>
                         (gangVariantRank[a.variant.toLowerCase()] ?? Infinity) -

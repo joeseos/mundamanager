@@ -5,6 +5,14 @@ export const EDITION_N26 = 'n26';
 
 export type EditionSlug = typeof EDITION_N23 | typeof EDITION_N26;
 
+/** Null / missing edition slug is treated as N23 (legacy / unset rows). */
+export function sameEditionSlug(
+  a?: string | null,
+  b?: string | null
+): boolean {
+  return (a ?? EDITION_N23) === (b ?? EDITION_N23);
+}
+
 /**
  * Every edition-sensitive behaviour in the app, declared once per edition.
  *

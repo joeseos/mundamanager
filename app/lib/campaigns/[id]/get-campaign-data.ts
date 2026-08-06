@@ -40,24 +40,27 @@ async function _getCampaignBasic(campaignId: string, supabase: SupabaseClient) {
 
   let campaignTypeName = '';
   let campaignTypeImageUrl = '';
+  let campaignTypeEditionSlug: string | null = null;
   if (campaign.campaign_type_id) {
     const { data: campaignType, error: typeError } = await supabase
       .from('campaign_types')
-      .select('campaign_type_name, image_url')
+      .select('campaign_type_name, image_url, editions:edition_id(slug)')
       .eq('id', campaign.campaign_type_id)
       .single();
 
     if (!typeError && campaignType) {
       campaignTypeName = campaignType.campaign_type_name;
       campaignTypeImageUrl = campaignType.image_url || '';
+      campaignTypeEditionSlug = (campaignType as any).editions?.slug ?? null;
     }
   }
 
   return {
     ...campaign,
-    campaign_types: campaignTypeName ? { 
+    campaign_types: campaignTypeName ? {
       campaign_type_name: campaignTypeName,
-      image_url: campaignTypeImageUrl
+      image_url: campaignTypeImageUrl,
+      edition_slug: campaignTypeEditionSlug
     } : null
   };
 }

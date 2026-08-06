@@ -38,6 +38,7 @@ export interface CreateCustomFighterData {
   default_skills?: string[];
   default_equipment?: string[];
   equipment_list?: string[];
+  edition_id?: string | null;
 }
 
 // Fetch a custom fighter type with all its related data (skill access, default
@@ -193,6 +194,7 @@ export async function createCustomFighter(data: CreateCustomFighterData): Promis
         special_rules: data.special_rules,
         free_skill: data.free_skill,
         fighter_subtypes: data.fighter_subtypes,
+        edition_id: data.edition_id || null,
         created_at: new Date().toISOString()
       })
       .select()

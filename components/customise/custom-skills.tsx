@@ -28,6 +28,7 @@ interface CustomiseSkillsProps {
   readOnly?: boolean;
   userId?: string;
   userCampaigns?: UserCampaign[];
+  editionId?: string | null;
 }
 
 interface SkillType {
@@ -36,8 +37,13 @@ interface SkillType {
   is_custom?: boolean;
 }
 
-export function CustomiseSkills({ className, initialSkills = [], readOnly = false, userId, userCampaigns = [] }: CustomiseSkillsProps) {
+export function CustomiseSkills({ className, initialSkills = [], readOnly = false, userId, userCampaigns = [], editionId = null }: CustomiseSkillsProps) {
   const [skills, setSkills] = useState<CustomSkill[]>(initialSkills);
+  const [prevInitialSkills, setPrevInitialSkills] = useState(initialSkills);
+  if (initialSkills !== prevInitialSkills) {
+    setPrevInitialSkills(initialSkills);
+    setSkills(initialSkills);
+  }
   const [isLoading, setIsLoading] = useState(false);
   const [editModalData, setEditModalData] = useState<CustomSkill | null>(null);
   const [deleteModalData, setDeleteModalData] = useState<CustomSkill | null>(null);
@@ -97,7 +103,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
   // Returns the skill type ID to use, or null on failure
   const resolveSkillTypeId = async (form: { skill_type_id: string; is_custom_type: boolean }): Promise<{ id: string; is_custom: boolean } | null> => {
     if (showNewSkillTypeInput === 'create' && newSkillTypeName.trim()) {
-      const created = await createCustomSkillType({ name: newSkillTypeName.trim() });
+      const created = await createCustomSkillType({ name: newSkillTypeName.trim(), edition_id: editionId });
       const newType: SkillType = { id: created.id, name: created.name, is_custom: true };
       setSkillTypes(prev => [newType, ...prev.filter(t => t.id !== created.id)]);
       return { id: created.id, is_custom: true };

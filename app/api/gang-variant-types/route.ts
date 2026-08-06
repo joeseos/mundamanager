@@ -5,6 +5,7 @@ import { checkAdmin, getUserIdFromClaims } from "@/utils/auth";
 interface Variant {
     id: string;
     variant: string;
+    edition_id?: string | null;
 }
 
 export async function GET(request: Request) {
@@ -19,7 +20,7 @@ export async function GET(request: Request) {
 
         let query = supabase
             .from('gang_variant_types')
-            .select('id, variant')
+            .select('id, variant, edition_id')
             .order('variant')
 
         const { data, error } = await query;
@@ -28,7 +29,8 @@ export async function GET(request: Request) {
 
         const modelData = data.map((variant: Variant) => ({
             id: variant.id,
-            variant: variant.variant
+            variant: variant.variant,
+            edition_id: variant.edition_id ?? null,
         }));
 
         return NextResponse.json(modelData);

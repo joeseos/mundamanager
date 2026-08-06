@@ -9,6 +9,8 @@ import { reorderFavourites } from '@/app/actions/reorder-favourites'
 import { toast } from 'sonner'
 import { useDndSensorsConfig, useSuppressClickAfterDrag } from '@/hooks/use-dnd-sensors'
 import { useIsMounted } from '@/hooks/use-is-mounted'
+import { matchesHomeEdition, useHomeEdition } from '@/hooks/use-home-edition'
+import { EditionToggle } from '@/components/home/edition-toggle'
 import { GangCardContent, SortableGangCard } from '@/components/home/gang-card'
 
 interface GangsTabProps {
@@ -20,6 +22,7 @@ export function GangsTab({ gangs }: GangsTabProps) {
   const isMounted = useIsMounted();
   const sensors = useDndSensorsConfig();
   const suppressClickAfterDrag = useSuppressClickAfterDrag('.home-favourite-card-link');
+  const { editionSlug, setEditionSlug } = useHomeEdition();
 
   const [prevGangs, setPrevGangs] = useState(gangs);
   if (gangs !== prevGangs) {
@@ -27,22 +30,27 @@ export function GangsTab({ gangs }: GangsTabProps) {
     setLocalGangs(gangs);
   }
 
+  const editionGangs = useMemo(
+    () => localGangs.filter(g => matchesHomeEdition(g.edition_slug, editionSlug)),
+    [localGangs, editionSlug]
+  );
+
   const favouriteGangs = useMemo(
-    () => [...localGangs]
+    () => [...editionGangs]
       .filter(g => g.is_favourite)
       .sort((a, b) => (a.favourite_order ?? 0) - (b.favourite_order ?? 0)),
-    [localGangs]
+    [editionGangs]
   );
 
   const nonFavouriteGangs = useMemo(
-    () => [...localGangs]
+    () => [...editionGangs]
       .filter(g => !g.is_favourite)
       .sort((a, b) => {
         const dateA = new Date(b.last_updated || b.created_at).getTime();
         const dateB = new Date(a.last_updated || a.created_at).getTime();
         return dateA - dateB;
       }),
-    [localGangs]
+    [editionGangs]
   );
 
   const handleToggleFavourite = useCallback(async (gangId: string, isFavourite: boolean) => {
@@ -101,8 +109,11 @@ export function GangsTab({ gangs }: GangsTabProps) {
 
   return (
     <div className="bg-card shadow-md rounded-lg p-4">
-      <h2 className="text-xl md:text-2xl font-bold mb-4">Gangs</h2>
-      {localGangs.length === 0 ? (
+      <div className="flex items-center justify-between gap-2 mb-4">
+        <h2 className="text-xl md:text-2xl font-bold">Gangs</h2>
+        <EditionToggle value={editionSlug} onChange={setEditionSlug} />
+      </div>
+      {editionGangs.length === 0 ? (
         <p className="text-center text-muted-foreground">No gangs created yet.</p>
       ) : (
         <div className="space-y-3">

@@ -10,6 +10,7 @@ export interface CustomGangTypeData {
   gang_type: string;
   alignment?: 'Outlaw' | 'Law Abiding' | 'Unaligned' | null;
   description?: string | null;
+  edition_id?: string | null;
 }
 
 const DEFAULT_TRADING_POST_TYPE_ID = 'cada4005-66e3-4e3c-8a77-146329bd1eda';
@@ -24,6 +25,7 @@ export interface CustomGangType {
   default_image_urls?: any | null;
   created_at: string;
   updated_at?: string | null;
+  edition_id?: string | null;
   // Joined data
   trading_post_type_name?: string | null;
 }
@@ -49,6 +51,7 @@ export async function createCustomGangType(
         alignment: data.alignment || null,
         description,
         trading_post_type_id: DEFAULT_TRADING_POST_TYPE_ID,
+        edition_id: data.edition_id || null,
         created_at: new Date().toISOString(),
       })
       .select()

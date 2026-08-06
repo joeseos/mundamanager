@@ -126,14 +126,14 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       getAllTerritories(),
       supabase
         .from('trading_post_types')
-        .select('id, trading_post_name')
+        .select('id, trading_post_name, edition_id')
         .order('trading_post_name'),
       getCampaignAllegiances(params.id, supabase),
       getCampaignResources(params.id, supabase),
       getCampaignCaptives(params.id, supabase),
       supabase
         .from('custom_shared')
-        .select('custom_trading_post_id, custom_trading_posts!inner(id, custom_trading_post_name)')
+        .select('custom_trading_post_id, custom_trading_posts!inner(id, custom_trading_post_name, edition_id)')
         .eq('campaign_id', params.id)
         .not('custom_trading_post_id', 'is', null)
     ]);
@@ -142,6 +142,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
     const customTradingPostTypes = (customTradingPostsResult.data || []).map((row: any) => ({
       id: row.custom_trading_posts.id,
       trading_post_name: row.custom_trading_posts.custom_trading_post_name,
+      edition_id: row.custom_trading_posts.edition_id ?? null,
     }));
 
     // Combine the data
@@ -151,6 +152,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       campaign_type_id: campaignBasic.campaign_type_id,
       campaign_type_name: (campaignBasic.campaign_types as any)?.campaign_type_name || '',
       campaign_type_image_url: (campaignBasic.campaign_types as any)?.image_url || '',
+      edition_slug: (campaignBasic.campaign_types as any)?.edition_slug ?? null,
       image_url: campaignBasic.image_url || '',
       status: campaignBasic.status,
       description: campaignBasic.description,
