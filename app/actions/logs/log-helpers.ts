@@ -1,26 +1,21 @@
-/** XP case id → display label (must match fighter-xp-modal xpCountCases) */
-export const XP_CASE_LABELS: Record<string, string> = {
-  seriousInjury: 'Cause Serious Injury',
-  outOfAction: 'Cause OOA',
-  leaderChampionBonus: 'Leader/Champion',
-  vehicleWrecked: 'Wreck Vehicle',
-  rally: 'Successful Rally',
-  assistance: 'Provide Assistance',
-  misc: 'Misc.',
-  battleParticipation: 'Battle Participation',
-};
+import { XP_CASES } from '@/utils/xpCases';
 
-/** XP per case (id → XP each) - must match fighter-xp-modal */
-export const XP_CASE_VALUES: Record<string, number> = {
-  seriousInjury: 1,
-  outOfAction: 2,
-  leaderChampionBonus: 1,
-  vehicleWrecked: 2,
-  rally: 1,
-  assistance: 1,
-  misc: 1,
-  battleParticipation: 1,
-};
+/**
+ * XP case id → display label / XP each, derived from the single award registry
+ * in utils/xpCases.ts.
+ *
+ * Deliberately typed Record<string, …> rather than Record<XpCaseId, …>: these
+ * are indexed with ids read back from persisted log payloads, which may predate
+ * the union or outlive an award being retired from every edition's list. Both
+ * lookups below fall back rather than assuming a hit.
+ */
+export const XP_CASE_LABELS: Record<string, string> = Object.fromEntries(
+  Object.entries(XP_CASES).map(([id, def]) => [id, def.label])
+);
+
+export const XP_CASE_VALUES: Record<string, number> = Object.fromEntries(
+  Object.entries(XP_CASES).map(([id, def]) => [id, def.xp])
+);
 
 export function formatXpBreakdown(breakdown: Record<string, number>, miscNote?: string): string {
   return Object.entries(breakdown)

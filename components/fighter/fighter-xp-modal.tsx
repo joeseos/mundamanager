@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -13,6 +13,7 @@ import { updateFighterXpWithOoa } from '@/app/actions/edit-fighter';
 import { fetchCampaignGangsAndFighters } from '@/utils/api/fighter-ooa-records';
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { useCampaignGangFighterOptions } from '@/utils/campaign-gang-fighter-options';
+import { XP_CASES, xpAwardsFor, type XpCaseDef, type XpCaseId } from '@/utils/xpCases';
 import { toast } from 'sonner';
 
 type OoaEventType = 'out_of_action' | 'vehicle_wrecked';
@@ -28,12 +29,7 @@ const TARGET_CASES: TargetCaseConfig[] = [
   { id: 'vehicleWrecked', eventType: 'vehicle_wrecked', crewOnly: true },
 ];
 
-interface XpCase {
-  id: string;
-  label: string;
-  xp: number;
-  onSelectText?: (count: number) => string;
-}
+type XpCase = XpCaseDef & { id: XpCaseId };
 
 interface FighterXpModalProps {
   isOpen: boolean;
@@ -49,6 +45,12 @@ interface FighterXpModalProps {
   gangId?: string;
   /** The campaign to scope target gangs to (the fighter gang's first campaign). */
   campaignId?: string;
+  /**
+   * The gang's (or battle session's) edition, which decides the award list.
+   * Taken from the gang rather than the fighter type: a fighter-derived slug is
+   * null for custom fighter types. Unset/unknown → manual XP entry only.
+   */
+  editionSlug?: string | null;
   onClose: () => void;
   onXpUpdated: (newXp: number, newTotalXp: number, newKills: number, newKillCount?: number) => void;
 }
@@ -64,6 +66,7 @@ export function FighterXpModal({
   helperFighterName,
   gangId,
   campaignId,
+  editionSlug,
   onClose,
   onXpUpdated
 }: FighterXpModalProps) {
@@ -78,20 +81,16 @@ export function FighterXpModal({
   // Internal state for XP amount and errors
   const [xpAmount, setXpAmount] = useState('');
   const [xpError, setXpError] = useState('');
-  // Define XP "events" for the checkbox list
-  const xpCountCases: XpCase[] = [
-    { id: 'seriousInjury', label: 'Cause Serious Injury', xp: 1 },
-    { id: 'outOfAction', label: 'Cause OOA', xp: 2, onSelectText: (count) => `Adds ${count} to the OOA count` },
-    { id: 'leaderChampionBonus', label: 'Leader/Champion', xp: 1 },
-    { id: 'vehicleWrecked', label: 'Wreck Vehicle', xp: 2, onSelectText: (count) => `Adds ${count} to the vehicle wrecked count` },
-    { id: 'rally', label: 'Successful Rally', xp: 1 },
-    { id: 'assistance', label: 'Provide Assistance', xp: 1 },
-    { id: 'misc', label: 'Misc.', xp: 1 },
-  ];
+  // The edition decides which XP awards exist; an unknown edition offers none,
+  // leaving the manual amount field below as the only way to add XP.
+  const awards = useMemo(
+    () => xpAwardsFor(editionSlug).map((id): XpCase => ({ id, ...XP_CASES[id] })),
+    [editionSlug]
+  );
 
-  const xpCheckboxCases: XpCase[] = [
-    { id: 'battleParticipation', label: 'Battle Participation', xp: 1 },
-  ];
+  // Repeatable awards render with -/+ steppers, once-only ones as checkboxes.
+  const xpCountCases = useMemo(() => awards.filter((c) => c.input === 'counter'), [awards]);
+  const xpCheckboxCases = useMemo(() => awards.filter((c) => c.input === 'checkbox'), [awards]);
 
   // Track which of these XP events are checked
   const [xpCounts, setXpCounts] = useState<Record<string, number>>(
@@ -508,8 +507,10 @@ export function FighterXpModal({
               );
             })}
 
-            {/* Separator after the first cases */}
-            <hr className="my-2 border-border" />
+            {/* Separator after the first cases, only when both sides have some */}
+            {xpCountCases.length > 0 && xpCheckboxCases.length > 0 && (
+              <hr className="my-2 border-border" />
+            )}
 
             {/* Single XP Checkboxes */}
             {xpCheckboxCases.map((xpCase, idx, arr) => (
