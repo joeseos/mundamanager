@@ -1017,7 +1017,7 @@ export function InjuriesList({
             }
           }}
           placeholder={isLoadingInjuries && localAvailableInjuries.length === 0
-            ? "Loading injuries..."
+            ? "Loading Lasting Injuries..."
             : is_spyrer ? "Select a Rig Glitch" : "Select a Lasting Injury"
           }
           disabled={isLoadingInjuries && localAvailableInjuries.length === 0}
@@ -1046,7 +1046,7 @@ export function InjuriesList({
               .reduce((groups, injury) => {
                 const rankMap = isCrew ? lastingInjuryCrewRank : lastingInjuryRank;
                 const rank = rankMap[injury.effect_name] ?? Infinity;
-                let groupLabel = "Other Injuries";
+                let groupLabel = "Other Lasting Injuries";
                 if (is_spyrer) {
                   groupLabel = "Rig Glitches";
                 } else if (rank <= 29) {

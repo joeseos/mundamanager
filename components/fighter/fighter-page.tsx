@@ -1041,8 +1041,8 @@ export default function FighterPage({
               setFighterData(prev => {
                 if (!prev.fighter) return prev;
 
-                // Separate injuries and rig-glitches based on whether fighter is a Spyrer
-                // For Spyrers, all go to rig-glitches; for others, all go to injuries
+                // Separate lasting injuries and rig-glitches based on whether fighter is a Spyrer
+                // For Spyrers, all go to rig-glitches; for others, all go to lasting injuries
                 const isSpyrer = prev.fighter.is_spyrer;
 
                 return {

@@ -147,7 +147,7 @@ function ConditionBadge({
 }
 
 // ---------------------------------------------------------------------------
-// FighterActionModal — XP, Injuries, Remove in one modal
+// FighterActionModal — XP, Lasting Injuries, Remove in one modal
 // ---------------------------------------------------------------------------
 
 function FighterActionModal({
@@ -460,7 +460,7 @@ function InjuryPickerModal({
       })
       .reduce((groups, injury) => {
         const rank = lastingInjuryRank[injury.effect_name] ?? Infinity;
-        let groupLabel = 'Other Injuries';
+        let groupLabel = 'Other Lasting Injuries';
         if (rank <= 29) groupLabel = 'Lasting Injuries';
         else if (rank >= 30) groupLabel = 'Mutations / Festering Injuries';
         if (!groups[groupLabel]) groups[groupLabel] = [];

@@ -100,8 +100,8 @@ export default function AdminPage() {
       icon: LuScrollText
     },
     {
-      title: "Injuries & Rig Glitches",
-      description: "Manage injuries and rig glitches",
+      title: "Lasting Injuries & Rig Glitches",
+      description: "Manage lasting injuries and rig glitches",
       action: () => setShowInjuriesGlitches(true),
       icon: LuHeartCrack
     },

@@ -171,7 +171,7 @@ export default function CopyFighterModal({
 
           <div className="text-xs text-muted-foreground ml-6">
             {copyAsExperienced
-              ? `Full copy with all experience, stat advancements, and injuries`
+              ? `Full copy with all experience, stat advancements, and lasting injuries`
               : `Base fighter with equipment only (fresh recruit)`
             }
           </div>
