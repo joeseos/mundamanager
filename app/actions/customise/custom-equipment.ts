@@ -133,6 +133,7 @@ export async function createCustomEquipment(data: {
   equipment_type: 'wargear' | 'weapon';
   is_consumable?: boolean;
   description?: string | null;
+  edition_id?: string | null;
 }) {
   const description = normalizeCustomDescription(data.description);
   const lengthError = getCustomDescriptionLengthError(description);
@@ -171,6 +172,7 @@ export async function createCustomEquipment(data: {
       equipment_type: data.equipment_type,
       is_consumable: data.is_consumable ?? false,
       description,
+      edition_id: data.edition_id || null,
       created_at: new Date().toISOString()
     })
     .select()

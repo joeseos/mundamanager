@@ -174,6 +174,7 @@ export async function updateCustomSkill(
 
 export async function createCustomSkillType(data: {
   name: string;
+  edition_id?: string | null;
 }) {
   const supabase = await createClient();
   const user = await getAuthenticatedUser(supabase);
@@ -183,9 +184,10 @@ export async function createCustomSkillType(data: {
     .insert({
       user_id: user.id,
       name: data.name.trimEnd(),
+      edition_id: data.edition_id || null,
       created_at: new Date().toISOString()
     })
-    .select('id, user_id, name, created_at, updated_at')
+    .select('id, user_id, name, created_at, updated_at, edition_id')
     .single();
 
   if (error) {

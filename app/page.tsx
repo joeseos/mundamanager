@@ -56,10 +56,10 @@ export default async function Home() {
   const [campaignTypesResult, tradingPostTypesResult] = await Promise.all([
     supabase
       .from('campaign_types')
-      .select('id, campaign_type_name, trading_posts'),
+      .select('id, campaign_type_name, trading_posts, edition_id'),
     supabase
       .from('trading_post_types')
-      .select('id, trading_post_name')
+      .select('id, trading_post_name, edition_id')
       .order('trading_post_name')
   ]);
 

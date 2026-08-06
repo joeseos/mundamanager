@@ -11,6 +11,7 @@ import { getCustomDescriptionLengthError, normalizeCustomDescription } from './c
 export interface CustomTradingPostData {
   custom_trading_post_name: string;
   description?: string | null;
+  edition_id?: string | null;
 }
 
 export interface CustomTradingPost {
@@ -20,6 +21,7 @@ export interface CustomTradingPost {
   description?: string | null;
   created_at: string;
   updated_at?: string | null;
+  edition_id?: string | null;
 }
 
 export async function createCustomTradingPost(
@@ -40,6 +42,7 @@ export async function createCustomTradingPost(
         user_id: user.id,
         custom_trading_post_name: data.custom_trading_post_name.trimEnd(),
         description,
+        edition_id: data.edition_id || null,
       })
       .select()
       .single();

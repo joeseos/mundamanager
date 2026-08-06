@@ -183,6 +183,7 @@ export interface CustomEquipment {
   created_at: string;
   updated_at?: string;
   is_consumable?: boolean;
+  edition_id?: string | null;
 }
 
 /**

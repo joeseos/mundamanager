@@ -60,6 +60,7 @@ interface CustomiseTradingPostsProps {
   userId?: string;
   userCampaigns?: UserCampaign[];
   readOnly?: boolean;
+  editionId?: string | null;
 }
 
 export function CustomiseTradingPosts({
@@ -68,8 +69,14 @@ export function CustomiseTradingPosts({
   userId,
   userCampaigns = [],
   readOnly = false,
+  editionId = null,
 }: CustomiseTradingPostsProps) {
   const [tradingPosts, setTradingPosts] = useState<CustomTradingPost[]>(initialTradingPosts);
+  const [prevInitialTradingPosts, setPrevInitialTradingPosts] = useState(initialTradingPosts);
+  if (initialTradingPosts !== prevInitialTradingPosts) {
+    setPrevInitialTradingPosts(initialTradingPosts);
+    setTradingPosts(initialTradingPosts);
+  }
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editModalData, setEditModalData] = useState<CustomTradingPost | null>(null);
   const [deleteModalData, setDeleteModalData] = useState<CustomTradingPost | null>(null);
@@ -198,6 +205,7 @@ export function CustomiseTradingPosts({
         user_id: userId || '',
         custom_trading_post_name: data.custom_trading_post_name,
         description: data.description,
+        edition_id: data.edition_id ?? null,
         created_at: new Date().toISOString(),
       };
       const previous = tradingPosts;
@@ -221,7 +229,7 @@ export function CustomiseTradingPosts({
 
   const handleCreateConfirm = async () => {
     if (!isFormValid()) return false;
-    createMutation.mutate({ data: formData });
+    createMutation.mutate({ data: { ...formData, edition_id: editionId } });
     setIsAddModalOpen(false);
     resetForm();
     return true;

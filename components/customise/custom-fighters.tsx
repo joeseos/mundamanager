@@ -33,6 +33,7 @@ interface CustomiseFightersProps {
   userId?: string;
   userCampaigns?: UserCampaign[];
   readOnly?: boolean;
+  editionId?: string | null;
 }
 
 type SkillTypeItem = { id: string; skill_type: string; is_custom?: boolean };
@@ -108,7 +109,7 @@ interface FighterSubtype {
   subtype_name: string;
 }
 
-export function CustomiseFighters({ className, initialFighters, userId, userCampaigns = [], readOnly = false }: CustomiseFightersProps) {
+export function CustomiseFighters({ className, initialFighters, userId, userCampaigns = [], readOnly = false, editionId = null }: CustomiseFightersProps) {
   const [fighters, setFighters] = useState<CustomFighterType[]>(initialFighters);
 
   const [prevInitialFighters, setPrevInitialFighters] = useState(initialFighters);
@@ -874,6 +875,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         default_equipment: copyModalData.default_equipment?.map(eq => eq.equipment_id) || [],
         equipment_list: copyModalData.equipment_list?.map(eq => eq.equipment_id) || [],
         description: copyModalData.description,
+        edition_id: editionId ?? copyModalData.edition_id ?? null,
       };
 
       if (readOnly) {
@@ -955,6 +957,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       default_equipment: selectedEquipment,
       equipment_list: selectedEquipmentList,
       description,
+      edition_id: editionId,
     };
 
     // Check if we're editing or creating

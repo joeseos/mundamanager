@@ -106,6 +106,7 @@ interface CampaignPageContentProps {
     campaign_type_id: string;
     campaign_type_name: string;
     campaign_type_image_url?: string;
+    edition_slug?: string | null;
     image_url?: string;
     status: string | null;
     description: string;
@@ -141,8 +142,8 @@ interface CampaignPageContentProps {
   hasPendingJoinRequest?: boolean;
   campaignTypes: CampaignType[];
   allTerritories: AllTerritory[];
-  tradingPostTypes?: Array<{ id: string; trading_post_name: string }>;
-  customTradingPostTypes?: Array<{ id: string; trading_post_name: string }>;
+  tradingPostTypes?: Array<{ id: string; trading_post_name: string; edition_id?: string | null }>;
+  customTradingPostTypes?: Array<{ id: string; trading_post_name: string; edition_id?: string | null }>;
   campaignAllegiances?: Array<{ id: string; allegiance_name: string; is_custom: boolean }>;
   campaignResources?: Array<{ id: string; resource_name: string; is_custom: boolean }>;
   mapData?: {
@@ -810,6 +811,7 @@ export default function CampaignPageContent({
               )}
               <MembersTable
                 campaignId={campaignData.id}
+                campaignEditionSlug={campaignData.edition_slug ?? null}
                 isAdmin={isAdmin}
                 members={campaignData.members}
                 userId={userId}
@@ -1074,6 +1076,7 @@ export default function CampaignPageContent({
             allow_join_requests: campaignData.allow_join_requests ?? false,
             campaign_type_name: campaignData.campaign_type_name,
             campaign_type_id: campaignData.campaign_type_id,
+            edition_slug: campaignData.edition_slug ?? null,
             discord_guild_id: campaignData.discord_guild_id,
             discord_channel_id: campaignData.discord_channel_id,
             discord_channel_type: campaignData.discord_channel_type,

@@ -21,6 +21,8 @@ export type Gang = {
   campaigns: Array<{campaign_id: string, campaign_name: string}>;
   is_favourite: boolean;
   favourite_order: number | null;
+  /** Derived from official or custom gang type; null treated as n23 by home filters. */
+  edition_slug: string | null;
 };
 
 type RawGangData = {
@@ -82,8 +84,15 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
             gang_variants,
             is_favourite,
             favourite_order,
-            gang_types!gang_type_id(image_url, default_image_urls),
-            custom_gang_types!custom_gang_type_id(default_image_urls)
+            gang_types!gang_type_id(
+              image_url,
+              default_image_urls,
+              editions:edition_id (slug)
+            ),
+            custom_gang_types!custom_gang_type_id(
+              default_image_urls,
+              editions:edition_id (slug)
+            )
           `)
           .eq('user_id', userId)
           .order('created_at', { ascending: false });
@@ -173,6 +182,9 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
           campaigns: gang.campaigns,
           is_favourite: gang.is_favourite ?? false,
           favourite_order: gang.favourite_order ?? null,
+          edition_slug: gang.gang_types?.editions?.slug
+            ?? gang.custom_gang_types?.editions?.slug
+            ?? null,
         }));
 
         console.log(`Server: Processed ${gangsWithRatings.length} gangs with ratings`);

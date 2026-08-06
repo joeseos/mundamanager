@@ -9,6 +9,8 @@ import { reorderFavourites } from '@/app/actions/reorder-favourites'
 import { toast } from 'sonner'
 import { useDndSensorsConfig, useSuppressClickAfterDrag } from '@/hooks/use-dnd-sensors'
 import { useIsMounted } from '@/hooks/use-is-mounted'
+import { matchesHomeEdition, useHomeEdition } from '@/hooks/use-home-edition'
+import { EditionToggle } from '@/components/home/edition-toggle'
 import { CampaignCardContent, SortableCampaignCard } from '@/components/home/campaign-card'
 
 interface CampaignsTabProps {
@@ -20,6 +22,7 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
   const isMounted = useIsMounted();
   const sensors = useDndSensorsConfig();
   const suppressClickAfterDrag = useSuppressClickAfterDrag('.home-favourite-card-link');
+  const { editionSlug, setEditionSlug } = useHomeEdition();
 
   const [prevCampaigns, setPrevCampaigns] = useState(campaigns);
   if (campaigns !== prevCampaigns) {
@@ -27,22 +30,27 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
     setLocalCampaigns(campaigns);
   }
 
+  const editionCampaigns = useMemo(
+    () => localCampaigns.filter(c => matchesHomeEdition(c.edition_slug, editionSlug)),
+    [localCampaigns, editionSlug]
+  );
+
   const favouriteCampaigns = useMemo(
-    () => [...localCampaigns]
+    () => [...editionCampaigns]
       .filter(c => c.is_favourite)
       .sort((a, b) => (a.favourite_order ?? 0) - (b.favourite_order ?? 0)),
-    [localCampaigns]
+    [editionCampaigns]
   );
 
   const nonFavouriteCampaigns = useMemo(
-    () => [...localCampaigns]
+    () => [...editionCampaigns]
       .filter(c => !c.is_favourite)
       .sort((a, b) => {
         const dateA = new Date(a.updated_at || a.created_at).getTime();
         const dateB = new Date(b.updated_at || b.created_at).getTime();
         return dateB - dateA;
       }),
-    [localCampaigns]
+    [editionCampaigns]
   );
 
   const handleToggleCampaignFavourite = useCallback(async (campaignMemberId: string, isFavourite: boolean) => {
@@ -101,8 +109,11 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
 
   return (
     <div className="bg-card shadow-md rounded-lg p-4">
-      <h2 className="text-xl md:text-2xl font-bold mb-4">Campaigns</h2>
-      {localCampaigns.length === 0 ? (
+      <div className="flex items-center justify-between gap-2 mb-4">
+        <h2 className="text-xl md:text-2xl font-bold">Campaigns</h2>
+        <EditionToggle value={editionSlug} onChange={setEditionSlug} />
+      </div>
+      {editionCampaigns.length === 0 ? (
         <p className="text-center text-muted-foreground">No campaigns created yet.</p>
       ) : (
         <div className="space-y-3">

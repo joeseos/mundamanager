@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import type { Campaign } from '@/app/lib/get-user-campaigns'
 import type { Gang } from '@/app/lib/get-user-gangs'
@@ -19,6 +19,7 @@ import { CustomiseFighters } from '@/components/customise/custom-fighters'
 import { CustomiseSkills } from '@/components/customise/custom-skills'
 import { GangsTab } from '@/components/home/gangs-tab'
 import { CampaignsTab } from '@/components/home/campaigns-tab'
+import { matchesHomeEditionId, useHomeEdition } from '@/hooks/use-home-edition'
 
 type TabKey = 'gangs' | 'campaigns' | 'customassets'
 const TAB_KEYS: TabKey[] = ['gangs', 'campaigns', 'customassets']
@@ -51,6 +52,42 @@ export default function HomeTabs({
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState(0);
   const [fighterTypes, setFighterTypes] = useState<CustomFighterType[]>(customFighterTypes);
+  // Custom Assets stays N23-only and must not touch the shared home edition store
+  // (Gangs / Campaigns / Create modals). Revisit when skill-type and fighter
+  // authoring pickers are edition-filtered (CustomiseSkills fetchSkillTypes;
+  // CustomiseFighters gang/skill/equipment lists).
+  const { n23EditionId } = useHomeEdition();
+
+  const matchesCustomEdition = useCallback(
+    (itemEditionId: string | null | undefined) =>
+      matchesHomeEditionId(itemEditionId, n23EditionId, n23EditionId),
+    [n23EditionId]
+  );
+
+  const filteredEquipment = useMemo(
+    () => customEquipment.filter(item => matchesCustomEdition(item.edition_id)),
+    [customEquipment, matchesCustomEdition]
+  );
+  const filteredFighterTypes = useMemo(
+    () => fighterTypes.filter(item => matchesCustomEdition(item.edition_id)),
+    [fighterTypes, matchesCustomEdition]
+  );
+  const filteredSkills = useMemo(
+    () => customSkills.filter(item => matchesCustomEdition(item.edition_id)),
+    [customSkills, matchesCustomEdition]
+  );
+  const filteredGangTypes = useMemo(
+    () => customGangTypes.filter(item => matchesCustomEdition(item.edition_id)),
+    [customGangTypes, matchesCustomEdition]
+  );
+  const filteredTradingPosts = useMemo(
+    () => customTradingPosts.filter(item => matchesCustomEdition(item.edition_id)),
+    [customTradingPosts, matchesCustomEdition]
+  );
+  const filteredCollections = useMemo(
+    () => customCollections.filter(item => matchesCustomEdition(item.edition_id)),
+    [customCollections, matchesCustomEdition]
+  );
 
   const handleGangTypeUpdated = useCallback((gangTypeId: string, newName: string): CustomFighterType[] => {
     const previous = fighterTypes;
@@ -149,48 +186,54 @@ export default function HomeTabs({
             </div>
 
             <CustomiseEquipment
-              initialEquipment={customEquipment}
+              initialEquipment={filteredEquipment}
               userId={userId}
               userCampaigns={userCampaigns}
+              editionId={n23EditionId}
             />
 
             <CustomiseFighters
-              initialFighters={fighterTypes}
+              initialFighters={filteredFighterTypes}
               userId={userId}
               userCampaigns={userCampaigns}
+              editionId={n23EditionId}
             />
 
             <CustomiseSkills
-              initialSkills={customSkills}
+              initialSkills={filteredSkills}
               userId={userId}
               userCampaigns={userCampaigns}
+              editionId={n23EditionId}
             />
 
             <CustomiseGangTypes
-              initialGangTypes={customGangTypes}
+              initialGangTypes={filteredGangTypes}
               userId={userId}
               userCampaigns={userCampaigns}
               onGangTypeUpdated={handleGangTypeUpdated}
               onGangTypeUpdateRollback={handleGangTypeUpdateRollback}
+              editionId={n23EditionId}
             />
 
             <CustomiseTradingPosts
-              initialTradingPosts={customTradingPosts}
+              initialTradingPosts={filteredTradingPosts}
               userId={userId}
               userCampaigns={userCampaigns}
+              editionId={n23EditionId}
             />
 
             {/* Collections work like the other custom assets: always editable here; the
                 Share action gates itself to campaigns the user arbitrates. */}
             <CustomiseCollections
-              initialCollections={customCollections}
+              initialCollections={filteredCollections}
               userId={userId}
               userCampaigns={userCampaigns}
-              customEquipment={customEquipment}
-              customFighterTypes={fighterTypes}
-              customSkills={customSkills}
-              customGangTypes={customGangTypes}
-              customTradingPosts={customTradingPosts}
+              customEquipment={filteredEquipment}
+              customFighterTypes={filteredFighterTypes}
+              customSkills={filteredSkills}
+              customGangTypes={filteredGangTypes}
+              customTradingPosts={filteredTradingPosts}
+              editionId={n23EditionId}
             />
           </div>
         )}

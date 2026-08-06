@@ -60,6 +60,7 @@ interface CustomiseCollectionsProps {
   customSkills?: CustomSkill[];
   customGangTypes?: CustomGangType[];
   customTradingPosts?: CustomTradingPost[];
+  editionId?: string | null;
 }
 
 export function CustomiseCollections({
@@ -73,8 +74,14 @@ export function CustomiseCollections({
   customSkills = [],
   customGangTypes = [],
   customTradingPosts = [],
+  editionId = null,
 }: CustomiseCollectionsProps) {
   const [collections, setCollections] = useState<CustomCollectionWithItems[]>(initialCollections);
+  const [prevInitialCollections, setPrevInitialCollections] = useState(initialCollections);
+  if (initialCollections !== prevInitialCollections) {
+    setPrevInitialCollections(initialCollections);
+    setCollections(initialCollections);
+  }
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editModalData, setEditModalData] = useState<CustomCollectionWithItems | null>(null);
   const [viewModalData, setViewModalData] = useState<CustomCollectionWithItems | null>(null);
@@ -123,6 +130,7 @@ export function CustomiseCollections({
         description: data.description ?? null,
         items: [],
         resolvedItems: [],
+        edition_id: data.edition_id ?? null,
         created_at: new Date().toISOString(),
       };
       const previous = collections;
@@ -262,7 +270,7 @@ export function CustomiseCollections({
 
   const handleCreateConfirm = () => {
     if (!isFormValid()) return false;
-    createMutation.mutate({ name: formData.name, description: formData.description || null });
+    createMutation.mutate({ name: formData.name, description: formData.description || null, edition_id: editionId });
     setIsAddModalOpen(false);
     resetForm();
     return true;

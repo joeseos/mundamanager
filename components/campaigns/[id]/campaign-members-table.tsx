@@ -18,6 +18,7 @@ import { updateGangAllegiance } from "@/app/actions/campaigns/[id]/campaign-alle
 import { LuTrash2, LuPencil } from 'react-icons/lu'
 import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md"
 import { HiUser } from "react-icons/hi2";
+import { sameEditionSlug } from '@/types/edition';
 
 type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 
@@ -73,6 +74,7 @@ interface Gang {
   wealth?: number;
   reputation?: number;
   isInCampaign?: boolean;
+  edition_slug?: string | null;
 }
 
 type GangWithCampaignCheck = {
@@ -84,6 +86,8 @@ type GangWithCampaignCheck = {
   wealth?: number;
   reputation?: number;
   campaign_gangs?: Array<{ gang_id: string }>;
+  gang_types?: { editions?: { slug: string } | null } | null;
+  custom_gang_types?: { editions?: { slug: string } | null } | null;
 }
 
 interface GangToRemove {
@@ -96,6 +100,8 @@ interface GangToRemove {
 
 interface MembersTableProps {
   campaignId: string;
+  /** Edition of the campaign's campaign type; only gangs of this edition can be added. */
+  campaignEditionSlug?: string | null;
   isAdmin: boolean;
   members: Member[];
   userId?: string;
@@ -125,6 +131,7 @@ const formatRole = (role: MemberRole | undefined) => {
 
 export default function MembersTable({
   campaignId,
+  campaignEditionSlug = null,
   isAdmin,
   members,
   userId,
@@ -299,7 +306,13 @@ export default function MembersTable({
           rating,
           wealth,
           reputation,
-          campaign_gangs(gang_id)
+          campaign_gangs(gang_id),
+          gang_types!gang_type_id (
+            editions:edition_id (slug)
+          ),
+          custom_gang_types!custom_gang_type_id (
+            editions:edition_id (slug)
+          )
         `)
         .eq('user_id', userId)
         .returns<GangWithCampaignCheck[]>();
@@ -307,20 +320,27 @@ export default function MembersTable({
       if (error) throw error;
 
       // Transform data to include isInCampaign flag and map database column names to clean field names
-      const gangsWithAvailability = gangs?.map(gang => {
-        // If campaign_gangs array exists and has entries, the gang is in a campaign
-        const isInCampaign = Array.isArray(gang.campaign_gangs) && gang.campaign_gangs.length > 0;
+      const gangsWithAvailability = (gangs ?? [])
+        .map(gang => {
+          // If campaign_gangs array exists and has entries, the gang is in a campaign
+          const isInCampaign = Array.isArray(gang.campaign_gangs) && gang.campaign_gangs.length > 0;
+          const edition_slug = gang.gang_types?.editions?.slug
+            ?? gang.custom_gang_types?.editions?.slug
+            ?? null;
 
-        // Remove the campaign_gangs join data and map database column names
-        const { campaign_gangs, gang_type, gang_colour, ...gangData } = gang;
+          // Remove the campaign_gangs join data and map database column names
+          const { campaign_gangs, gang_type, gang_colour, gang_types, custom_gang_types, ...gangData } = gang;
 
-        return {
-          ...gangData,
-          gang_type,
-          gang_colour,
-          isInCampaign
-        };
-      }) || [];
+          return {
+            ...gangData,
+            gang_type,
+            gang_colour,
+            edition_slug,
+            isInCampaign
+          };
+        })
+        // Only gangs whose gang type edition matches this campaign's campaign type edition
+        .filter(gang => sameEditionSlug(gang.edition_slug, campaignEditionSlug));
 
       setUserGangs(gangsWithAvailability);
     } catch (error) {
@@ -641,7 +661,9 @@ export default function MembersTable({
         ))}
       </div>
       {userGangs.length === 0 && (
-        <p className="text-sm text-muted-foreground text-center">No gangs available for this player.</p>
+        <p className="text-sm text-muted-foreground text-center">
+          No gangs available for this player that match this campaign&apos;s edition.
+        </p>
       )}
       {selectedGang && !selectedGang.isInCampaign && availableAllegiances.length > 0 && (
         <div className="space-y-2 pt-2 border-t">
