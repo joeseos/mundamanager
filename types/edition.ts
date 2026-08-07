@@ -71,6 +71,12 @@ export interface EditionCapabilities {
   /** Fighter types carry a Starting XP value (feeds N26 advancement ranks) */
   startingXp: boolean;
   /**
+   * XP accumulates and is never spent: Advancements are earned by reaching rank
+   * thresholds. When false, XP is a currency spent on Advancements and refunded
+   * if one is deleted.
+   */
+  cumulativeXp: boolean;
+  /**
    * Weapon profiles use the N26 statline (SR, LR, Str, AP, Lethality) rather
    * than the N23 one (Rng S/L, Acc S/L, Str, AP, D, Am). Ammo and Damage are
    * written into Traits on N26 profiles.
@@ -83,6 +89,7 @@ const N26_CAPABILITIES: EditionCapabilities = {
   multipleFighterSubtypes: true,
   tradePoints: true,
   startingXp: true,
+  cumulativeXp: true,
   lethalityStatline: true,
 };
 
@@ -104,6 +111,7 @@ const EDITION_CAPABILITIES: Record<EditionSlug, EditionCapabilities> = {
     multipleFighterSubtypes: false,
     tradePoints: false,
     startingXp: false,
+    cumulativeXp: false,
     lethalityStatline: false,
   },
   n26: N26_CAPABILITIES,
@@ -120,6 +128,7 @@ const NO_CAPABILITIES: EditionCapabilities = {
   multipleFighterSubtypes: false,
   tradePoints: false,
   startingXp: false,
+  cumulativeXp: false,
   lethalityStatline: false,
 };
 
@@ -157,6 +166,9 @@ export const hasTradePoints = (editionSlug?: string | null): boolean =>
 
 export const hasStartingXp = (editionSlug?: string | null): boolean =>
   capabilitiesFor(editionSlug).startingXp;
+
+export const hasCumulativeXp = (editionSlug?: string | null): boolean =>
+  capabilitiesFor(editionSlug).cumulativeXp;
 
 export const hasLethalityStatline = (editionSlug?: string | null): boolean =>
   capabilitiesFor(editionSlug).lethalityStatline;
