@@ -82,6 +82,7 @@ interface Fighter {
   save?: number | null;
   edition_slug?: string | null;
   xp: number;
+  starting_xp?: number;
   total_xp: number;
   killed?: boolean;
   retired?: boolean;
@@ -687,8 +688,10 @@ export default function FighterPage({
             save={fighterData.fighter?.save ?? null}
             edition_slug={editionSlug}
             xp={fighterData.fighter?.xp || 0}
+            starting_xp={fighterData.fighter?.starting_xp || 0}
             total_xp={fighterData.fighter?.total_xp || 0}
             advancements={fighterData.fighter?.advancements || { characteristics: {}, skills: {} }}
+            skills={fighterData.fighter?.skills || {}}
             onNameUpdate={handleNameUpdate}
             onAddXp={() => handleModalToggle('addXp', true)}
             onEdit={canShowEditButtons ? () => handleModalToggle('editFighter', true) : undefined}
@@ -859,6 +862,7 @@ export default function FighterPage({
           <AdvancementsList
             fighterXp={fighterData.fighter?.xp || 0}
             fighterId={fighterData.fighter?.id || ''}
+            editionSlug={fighterData.gang?.edition_slug ?? fighterData.fighter?.edition_slug ?? null}
             fighterSubtypes={fighterData.fighter?.fighter_subtypes || []}
             advancements={fighterData.fighter?.effects?.advancements || []}
             skills={fighterData.fighter?.skills || {}}

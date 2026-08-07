@@ -336,7 +336,13 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         is_vehicle: isVehicle,
         alignment: alignment || null,
         delegation_cost: delegationCost ? parseInt(delegationCost) : null,
-        starting_xp: showStartingXp && startingXp ? parseInt(startingXp) : 0,
+        // Omitted when an edition that has Starting XP leaves it blank, so the
+        // column default applies. Editions without the concept send an explicit
+        // 0 instead — the field is hidden for them, and letting the default
+        // apply would recruit their fighters with XP they should never have.
+        ...(showStartingXp
+          ? (startingXp ? { starting_xp: parseInt(startingXp) } : {})
+          : { starting_xp: 0 }),
         default_equipment: selectedEquipment,
         default_skills: selectedSkills,
         equipment_list: equipmentListSelections,
