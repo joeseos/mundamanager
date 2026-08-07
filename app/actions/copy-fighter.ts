@@ -277,8 +277,11 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       save: sourceFighter.save ?? null,
       is_vehicle: sourceFighter.is_vehicle ?? false,
 
-      xp: params.copy_as_experienced ? sourceFighter.xp : 0,
-      starting_xp: params.copy_as_experienced ? sourceFighter.starting_xp : 0,
+      // Recruitment XP is a property of the fighter type, not of what the copy
+      // went on to earn, so it survives a non-experienced copy. Resetting it to 0
+      // would move an N26 fighter recruited at 13 XP onto the 3-wide Rookie track.
+      starting_xp: sourceFighter.starting_xp,
+      xp: params.copy_as_experienced ? sourceFighter.xp : sourceFighter.starting_xp,
       total_xp: params.copy_as_experienced ? sourceFighter.total_xp : 0,
       kills: params.copy_as_experienced ? sourceFighter.kills : 0,
 
@@ -699,8 +702,8 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
             willpower: beastFighter.willpower,
             intelligence: beastFighter.intelligence,
             save: beastFighter.save ?? null,
-            xp: params.copy_as_experienced ? beastFighter.xp : 0,
-            starting_xp: params.copy_as_experienced ? beastFighter.starting_xp : 0,
+            starting_xp: beastFighter.starting_xp,
+            xp: params.copy_as_experienced ? beastFighter.xp : beastFighter.starting_xp,
             total_xp: params.copy_as_experienced ? beastFighter.total_xp : 0,
             kills: params.copy_as_experienced ? beastFighter.kills : 0,
             credits: beastFighter.credits,

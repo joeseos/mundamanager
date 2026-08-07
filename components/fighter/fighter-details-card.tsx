@@ -61,6 +61,12 @@ interface FighterDetailsCardProps {
     characteristics: Record<string, any>;
     skills: Record<string, any>;
   };
+  /**
+   * The fighter's actual skill rows. Distinct from `advancements.skills`, which
+   * is a parallel shape the server does not populate on first load — counting
+   * advancements from it silently misses every skill the fighter already has.
+   */
+  skills?: Record<string, { is_advance?: boolean }>;
   onNameUpdate?: (name: string) => void;
   onAddXp?: () => void;
   onEdit?: () => void;
@@ -250,6 +256,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   xp,
   starting_xp = 0,
   advancements,
+  skills,
   onAddXp,
   onEdit,
   killed,
@@ -371,7 +378,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
     edition_slug,
     starting_xp,
     xp,
-    countAdvancementsTaken(effects, advancements?.skills)
+    countAdvancementsTaken(effects, skills)
   );
 
   const handleImageClick = () => {
