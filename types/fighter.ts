@@ -158,6 +158,7 @@ export interface FighterProps {
   save?: number | null;
   edition_slug?: string | null;
   xp: number;
+  starting_xp?: number;
   kills: number;
   kill_count?: number;
   gang_id?: string;
