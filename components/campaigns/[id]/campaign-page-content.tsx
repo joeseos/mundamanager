@@ -142,8 +142,8 @@ interface CampaignPageContentProps {
   hasPendingJoinRequest?: boolean;
   campaignTypes: CampaignType[];
   allTerritories: AllTerritory[];
-  tradingPostTypes?: Array<{ id: string; trading_post_name: string; edition_id?: string | null }>;
-  customTradingPostTypes?: Array<{ id: string; trading_post_name: string; edition_id?: string | null }>;
+  tradingPostTypes?: Array<{ id: string; trading_post_name: string; edition_slug?: string | null }>;
+  customTradingPostTypes?: Array<{ id: string; trading_post_name: string; edition_slug?: string | null }>;
   campaignAllegiances?: Array<{ id: string; allegiance_name: string; is_custom: boolean }>;
   campaignResources?: Array<{ id: string; resource_name: string; is_custom: boolean }>;
   mapData?: {

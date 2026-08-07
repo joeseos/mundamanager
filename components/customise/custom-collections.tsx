@@ -33,6 +33,7 @@ import type { CustomSkill } from '@/app/lib/customise/custom-skills';
 import type { CustomGangType } from '@/app/actions/customise/custom-gang-types';
 import type { CustomTradingPost } from '@/app/actions/customise/custom-trading-posts';
 import type { UserCampaign } from '@/types/campaign';
+import { EDITION_N23 } from '@/types/edition';
 
 const TYPE_LABELS: Record<CollectionItemType, string> = {
   gang_type: 'Gang Type',
@@ -60,7 +61,6 @@ interface CustomiseCollectionsProps {
   customSkills?: CustomSkill[];
   customGangTypes?: CustomGangType[];
   customTradingPosts?: CustomTradingPost[];
-  editionId?: string | null;
 }
 
 export function CustomiseCollections({
@@ -74,7 +74,6 @@ export function CustomiseCollections({
   customSkills = [],
   customGangTypes = [],
   customTradingPosts = [],
-  editionId = null,
 }: CustomiseCollectionsProps) {
   const [collections, setCollections] = useState<CustomCollectionWithItems[]>(initialCollections);
   const [prevInitialCollections, setPrevInitialCollections] = useState(initialCollections);
@@ -130,7 +129,7 @@ export function CustomiseCollections({
         description: data.description ?? null,
         items: [],
         resolvedItems: [],
-        edition_id: data.edition_id ?? null,
+        edition_slug: data.edition_slug ?? null,
         created_at: new Date().toISOString(),
       };
       const previous = collections;
@@ -270,7 +269,7 @@ export function CustomiseCollections({
 
   const handleCreateConfirm = () => {
     if (!isFormValid()) return false;
-    createMutation.mutate({ name: formData.name, description: formData.description || null, edition_id: editionId });
+    createMutation.mutate({ name: formData.name, description: formData.description || null, edition_slug: EDITION_N23 });
     setIsAddModalOpen(false);
     resetForm();
     return true;

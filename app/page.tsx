@@ -20,6 +20,7 @@ import { getUserCustomTradingPosts } from "@/app/lib/customise/custom-trading-po
 import { getUserCustomCollections } from "@/app/lib/customise/custom-collections";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { withEditionSlug } from "@/types/edition";
 
 export default async function Home() {
   const supabase = await createClient();
@@ -56,15 +57,15 @@ export default async function Home() {
   const [campaignTypesResult, tradingPostTypesResult] = await Promise.all([
     supabase
       .from('campaign_types')
-      .select('id, campaign_type_name, trading_posts, edition_id'),
+      .select('id, campaign_type_name, trading_posts, editions:edition_id (slug)'),
     supabase
       .from('trading_post_types')
-      .select('id, trading_post_name, edition_id')
+      .select('id, trading_post_name, editions:edition_id (slug)')
       .order('trading_post_name')
   ]);
 
-  const campaignTypes = campaignTypesResult.data;
-  const tradingPostTypes = tradingPostTypesResult.data;
+  const campaignTypes = (campaignTypesResult.data || []).map(withEditionSlug);
+  const tradingPostTypes = (tradingPostTypesResult.data || []).map(withEditionSlug);
 
   // Fetch user's campaigns for sharing (where user is owner or arbitrator)
   const { data: campaignMembers } = await supabase

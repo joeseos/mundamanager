@@ -22,6 +22,7 @@ import {
 } from '@/app/actions/customise/custom-gang-types';
 import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants';
 import type { UserCampaign } from '@/types/campaign';
+import { EDITION_N23 } from '@/types/edition';
 
 interface CustomiseGangTypesProps {
   className?: string;
@@ -31,7 +32,6 @@ interface CustomiseGangTypesProps {
   readOnly?: boolean;
   onGangTypeUpdated?: (gangTypeId: string, newName: string) => any[] | undefined;
   onGangTypeUpdateRollback?: (previousFighters: any[]) => void;
-  editionId?: string | null;
 }
 
 const ALIGNMENT_OPTIONS = ['Outlaw', 'Law Abiding', 'Unaligned'] as const;
@@ -44,7 +44,6 @@ export function CustomiseGangTypes({
   readOnly = false,
   onGangTypeUpdated,
   onGangTypeUpdateRollback,
-  editionId = null,
 }: CustomiseGangTypesProps) {
   const [gangTypes, setGangTypes] = useState<CustomGangType[]>(initialGangTypes);
   const [prevInitialGangTypes, setPrevInitialGangTypes] = useState(initialGangTypes);
@@ -80,7 +79,7 @@ export function CustomiseGangTypes({
         gang_type: newData.gang_type,
         alignment: newData.alignment,
         description: newData.description,
-        edition_id: newData.edition_id ?? null,
+        edition_slug: newData.edition_slug ?? null,
         created_at: new Date().toISOString(),
       };
       setGangTypes(prev => [...prev, optimistic]);
@@ -212,7 +211,7 @@ export function CustomiseGangTypes({
 
   const handleCreateConfirm = async () => {
     if (!isFormValid()) return false;
-    createMutation.mutate({ ...formData, edition_id: editionId });
+    createMutation.mutate({ ...formData, edition_slug: EDITION_N23 });
     return true;
   };
 

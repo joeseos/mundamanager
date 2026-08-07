@@ -23,6 +23,7 @@ import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants
 import type { UserCampaign } from '@/types/campaign';
 import type { EquipmentListItem } from '@/types/equipment';
 import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
+import { EDITION_N23 } from '@/types/edition';
 
 interface CustomiseEquipmentProps {
   className?: string;
@@ -30,7 +31,6 @@ interface CustomiseEquipmentProps {
   readOnly?: boolean;
   userId?: string;
   userCampaigns?: UserCampaign[];
-  editionId?: string | null;
 }
 
 interface EquipmentCategory {
@@ -38,7 +38,7 @@ interface EquipmentCategory {
   category_name: string;
 }
 
-export function CustomiseEquipment({ className, initialEquipment = [], readOnly = false, userId, userCampaigns = [], editionId = null }: CustomiseEquipmentProps) {
+export function CustomiseEquipment({ className, initialEquipment = [], readOnly = false, userId, userCampaigns = [] }: CustomiseEquipmentProps) {
   const [equipment, setEquipment] = useState<CustomEquipment[]>(initialEquipment);
   const [prevInitialEquipment, setPrevInitialEquipment] = useState(initialEquipment);
   if (initialEquipment !== prevInitialEquipment) {
@@ -154,7 +154,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
         cost: parseInt(createForm.cost),
         availability: combineAvailability(createForm.availability_letter, createForm.availability_number),
         description: createForm.description,
-        edition_id: editionId,
+        edition_slug: EDITION_N23,
       });
 
       // Save weapon profiles if this is a weapon and there are profiles
@@ -498,7 +498,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
         equipment_type: copyModalData.equipment_type,
         availability: copyModalData.availability,
         description: copyModalData.description,
-        edition_id: editionId ?? copyModalData.edition_id ?? null,
+        edition_slug: EDITION_N23,
         user_id: user.id
       };
 

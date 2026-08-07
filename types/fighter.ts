@@ -319,5 +319,5 @@ export interface CustomFighterType {
   }[];
   created_at: string;
   updated_at?: string;
-  edition_id?: string | null;
+  edition_slug?: string | null;
 }

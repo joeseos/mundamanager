@@ -5,6 +5,7 @@ import { CampaignErrorBoundary } from "@/components/campaigns/campaign-error-bou
 import { checkCampaignPermissions } from "@/utils/user-permissions";
 import type { CampaignPermissions } from "@/types/user-permissions";
 import { getAuthenticatedUser } from "@/utils/auth";
+import { editionSlugFromJoin, withEditionSlug } from "@/types/edition";
 
 // Import the optimized functions with unstable_cache
 import { 
@@ -126,23 +127,23 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       getAllTerritories(),
       supabase
         .from('trading_post_types')
-        .select('id, trading_post_name, edition_id')
+        .select('id, trading_post_name, editions:edition_id (slug)')
         .order('trading_post_name'),
       getCampaignAllegiances(params.id, supabase),
       getCampaignResources(params.id, supabase),
       getCampaignCaptives(params.id, supabase),
       supabase
         .from('custom_shared')
-        .select('custom_trading_post_id, custom_trading_posts!inner(id, custom_trading_post_name, edition_id)')
+        .select('custom_trading_post_id, custom_trading_posts!inner(id, custom_trading_post_name, editions:edition_id (slug))')
         .eq('campaign_id', params.id)
         .not('custom_trading_post_id', 'is', null)
     ]);
 
-    const tradingPostTypes = tradingPostTypesResult.data || [];
+    const tradingPostTypes = (tradingPostTypesResult.data || []).map(withEditionSlug);
     const customTradingPostTypes = (customTradingPostsResult.data || []).map((row: any) => ({
       id: row.custom_trading_posts.id,
       trading_post_name: row.custom_trading_posts.custom_trading_post_name,
-      edition_id: row.custom_trading_posts.edition_id ?? null,
+      edition_slug: editionSlugFromJoin(row.custom_trading_posts.editions),
     }));
 
     // Combine the data

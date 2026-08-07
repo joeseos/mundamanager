@@ -15,13 +15,13 @@ import { Tooltip } from 'react-tooltip';
 import React from "react"
 import type { CampaignType } from '@/types/campaign'
 import { EditionToggle } from '@/components/home/edition-toggle'
-import { matchesHomeEditionId, useHomeEdition } from '@/hooks/use-home-edition'
-import { useEditionChangeReset } from '@/hooks/use-edition-change-reset'
+import { useHomeEdition } from '@/hooks/use-home-edition'
+import { sameEditionSlug } from '@/types/edition'
 
 interface TradingPostType {
   id: string;
   trading_post_name: string;
-  edition_id?: string | null;
+  edition_slug?: string | null;
 }
 
 interface CreateCampaignModalProps {
@@ -65,7 +65,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
   
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { editionSlug, setEditionSlug, editionId, n23EditionId } = useHomeEdition();
+  const { editionSlug, setEditionSlug } = useHomeEdition();
   const [campaignName, setCampaignName] = useState("")
   const [campaignType, setCampaignType] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -75,19 +75,21 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
   const [selectedTradingPosts, setSelectedTradingPosts] = useState<string[]>([])
 
   const editionCampaignTypes = useMemo(
-    () => campaignTypes.filter(type => matchesHomeEditionId(type.edition_id, editionId, n23EditionId)),
-    [campaignTypes, editionId, n23EditionId]
+    () => campaignTypes.filter(type => sameEditionSlug(type.edition_slug, editionSlug)),
+    [campaignTypes, editionSlug]
   );
 
   const editionTradingPostTypes = useMemo(
-    () => tradingPostTypes.filter(type => matchesHomeEditionId(type.edition_id, editionId, n23EditionId)),
-    [tradingPostTypes, editionId, n23EditionId]
+    () => tradingPostTypes.filter(type => sameEditionSlug(type.edition_slug, editionSlug)),
+    [tradingPostTypes, editionSlug]
   );
 
   const isFormValid = campaignName.trim() !== "" && campaignType !== ""
 
   // Clear campaign type / trading posts that no longer belong to the active edition
-  useEditionChangeReset(editionId, () => {
+  const [prevEditionSlug, setPrevEditionSlug] = useState(editionSlug);
+  if (editionSlug !== prevEditionSlug) {
+    setPrevEditionSlug(editionSlug);
     if (campaignType && !editionCampaignTypes.some(type => type.id === campaignType)) {
       setCampaignType("");
       setSelectedTradingPosts([]);
@@ -96,7 +98,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
         prev.filter(id => editionTradingPostTypes.some(type => type.id === id))
       );
     }
-  });
+  }
 
   // Auto-select default trading posts when campaign type changes
   const [prevCampaignType, setPrevCampaignType] = useState(campaignType);
@@ -107,10 +109,9 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
       if (selectedCampaignType?.trading_posts && Array.isArray(selectedCampaignType.trading_posts)) {
         setSelectedTradingPosts(
           selectedCampaignType.trading_posts.filter(id =>
-            matchesHomeEditionId(
-              tradingPostTypes.find(type => type.id === id)?.edition_id,
-              editionId,
-              n23EditionId
+            sameEditionSlug(
+              tradingPostTypes.find(type => type.id === id)?.edition_slug,
+              editionSlug
             )
           )
         );

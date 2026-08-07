@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { getUserIdFromClaims } from "@/utils/auth";
+import { getEditionIdBySlug } from '@/app/lib/editions';
 
 /**
  * Lists fighter subtypes.
@@ -30,28 +31,14 @@ export async function GET(request: Request) {
     let resolvedEditionId = editionId;
 
     if (!resolvedEditionId && editionSlug) {
-      const { data: edition, error: editionError } = await supabase
-        .from('editions')
-        .select('id')
-        .eq('slug', editionSlug)
-        .maybeSingle();
+      resolvedEditionId = await getEditionIdBySlug(editionSlug);
 
-      if (editionError) {
-        console.error('Database error:', editionError);
-        return NextResponse.json({
-          error: 'Database error',
-          details: editionError.message
-        }, { status: 500 });
-      }
-
-      if (!edition) {
+      if (!resolvedEditionId) {
         return NextResponse.json({
           error: 'Unknown edition',
           details: `No edition with slug '${editionSlug}'`
         }, { status: 400 });
       }
-
-      resolvedEditionId = edition.id;
     }
 
     let query = supabase

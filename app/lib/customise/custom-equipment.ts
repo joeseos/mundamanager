@@ -2,6 +2,7 @@ import { unstable_cache } from 'next/cache';
 import { createClient } from "@/utils/supabase/server";
 import { CustomEquipment } from "@/types/equipment";
 import { CACHE_TAGS } from "@/utils/cache-tags";
+import { withEditionSlug } from "@/types/edition";
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 // Re-export for backward compatibility
@@ -12,7 +13,7 @@ export async function getUserCustomEquipment(userId: string, supabase: SupabaseC
     async () => {
       const { data: customEquipment, error } = await supabase
         .from('custom_equipment')
-        .select('*')
+        .select('*, editions:edition_id (slug)')
         .eq('user_id', userId)
         .order('equipment_name', { ascending: true });
 
@@ -21,7 +22,7 @@ export async function getUserCustomEquipment(userId: string, supabase: SupabaseC
         throw new Error(`Failed to fetch custom equipment: ${error.message}`);
       }
 
-      return customEquipment || [];
+      return (customEquipment || []).map(withEditionSlug);
     },
     [`user-custom-equipment-${userId}`],
     {
@@ -43,7 +44,7 @@ export async function getUserCustomEquipmentByCategory(category?: string): Promi
 
   let query = supabase
     .from('custom_equipment')
-    .select('*')
+    .select('*, editions:edition_id (slug)')
     .eq('user_id', user.id);
 
   // Apply category filter if specified
@@ -58,5 +59,5 @@ export async function getUserCustomEquipmentByCategory(category?: string): Promi
     throw new Error(`Failed to fetch custom equipment: ${error.message}`);
   }
 
-  return customEquipment || [];
+  return (customEquipment || []).map(withEditionSlug);
 }

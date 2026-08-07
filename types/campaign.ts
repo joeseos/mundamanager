@@ -171,6 +171,9 @@ export interface CampaignType {
   campaign_type_name: string;
   image_url?: string | null;
   trading_posts?: string[] | null;
+  /** edition_id is written by the admin editor; edition_slug is what app code
+   *  reads, resolved server-side. */
   edition_id?: string | null;
+  edition_slug?: string | null;
   campaign_type_resources?: CampaignTypeResource[];
 }

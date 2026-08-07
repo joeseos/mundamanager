@@ -5,14 +5,14 @@ import { useQuery } from '@tanstack/react-query';
 import { Combobox } from '@/components/ui/combobox';
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { useCampaignGangFighterOptions } from '@/utils/campaign-gang-fighter-options';
-import { useEditions } from '@/components/edition-select';
+import { sameEditionSlug } from '@/types/edition';
 import type { HatredTargetKind } from '@/utils/injuryTarget';
 import type { CampaignGangWithFighters } from '@/types/fighter-ooa-record';
 
 interface GangTypeRow {
   gang_type_id: string;
   gang_type: string;
-  edition_id: string | null;
+  edition_slug: string | null;
   is_custom?: boolean;
 }
 
@@ -54,12 +54,11 @@ export function InjuryHatredTargetPicker({
 }: InjuryHatredTargetPickerProps) {
   const { getFighterOptions } = useCampaignGangFighterOptions(candidateGangs);
 
-  // Gang types are global, so unlike the candidates they're fetched here. Both
-  // queries are gated: this mounts on every injury add, but only a gang-type
+  // Gang types are global, so unlike the candidates they're fetched here. The
+  // query is gated: this mounts on every injury add, but only a gang-type
   // target needs them.
   const needsGangTypes = hatredTarget === 'gang_type';
 
-  const { data: editions = [] } = useEditions({ enabled: needsGangTypes });
   const { data: gangTypes = [], isLoading: isLoadingGangTypes } = useQuery<GangTypeRow[]>({
     queryKey: ['gang-types'],
     queryFn: async () => {
@@ -87,18 +86,17 @@ export function InjuryHatredTargetPicker({
     [candidateGangs]
   );
 
-  const gangTypeOptions = useMemo(() => {
-    const editionId = editionSlug
-      ? editions.find(edition => edition.slug === editionSlug)?.id ?? null
-      : null;
-
-    return gangTypes
-      .filter(row => !row.is_custom)
-      // Own ruleset only; show nothing until editions resolve.
-      .filter(row => (editionId ? row.edition_id === editionId : false))
-      .sort((a, b) => a.gang_type.localeCompare(b.gang_type))
-      .map(row => ({ value: row.gang_type_id, label: row.gang_type }));
-  }, [gangTypes, editions, editionSlug]);
+  const gangTypeOptions = useMemo(
+    () =>
+      gangTypes
+        .filter(row => !row.is_custom)
+        // Own ruleset only. Rows arrive with their slug already resolved, so
+        // there is no lookup to wait on.
+        .filter(row => sameEditionSlug(row.edition_slug, editionSlug))
+        .sort((a, b) => a.gang_type.localeCompare(b.gang_type))
+        .map(row => ({ value: row.gang_type_id, label: row.gang_type })),
+    [gangTypes, editionSlug]
+  );
 
   if (!hatredTarget) return null;
 

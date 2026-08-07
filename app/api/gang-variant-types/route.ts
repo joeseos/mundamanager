@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin, getUserIdFromClaims } from "@/utils/auth";
+import { editionSlugFromJoin } from "@/types/edition";
 
 interface Variant {
     id: string;
     variant: string;
-    edition_id?: string | null;
+    editions?: { slug: string } | { slug: string }[] | null;
 }
 
 export async function GET(request: Request) {
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
 
         let query = supabase
             .from('gang_variant_types')
-            .select('id, variant, edition_id')
+            .select('id, variant, editions:edition_id (slug)')
             .order('variant')
 
         const { data, error } = await query;
@@ -30,7 +31,7 @@ export async function GET(request: Request) {
         const modelData = data.map((variant: Variant) => ({
             id: variant.id,
             variant: variant.variant,
-            edition_id: variant.edition_id ?? null,
+            edition_slug: editionSlugFromJoin(variant.editions),
         }));
 
         return NextResponse.json(modelData);

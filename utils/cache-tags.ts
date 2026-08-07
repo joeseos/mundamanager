@@ -111,6 +111,7 @@ export const CACHE_TAGS = {
   // =============================================================================
   
   // Global reference data (rarely changes)
+  GLOBAL_EDITIONS: () => `global-editions`,                           // editions table (migration-only)
   GLOBAL_GANG_TYPES: () => `global-gang-types`,                       // gang type options
   GLOBAL_FIGHTER_TYPES: () => `global-fighter-types`,                 // fighter type options
   GLOBAL_TERRITORIES_LIST: () => `global-territories-list`,           // territory options

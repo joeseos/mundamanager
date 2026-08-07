@@ -40,6 +40,7 @@ import type { CampaignResource } from '@/utils/campaigns/resources';
 import type { UserCampaign } from '@/types/campaign';
 import type { EquipmentListItem } from '@/types/equipment';
 import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
+import { EDITION_N23 } from '@/types/edition';
 
 interface EquipmentPendingChanges {
   costOverride: number | null;
@@ -60,7 +61,6 @@ interface CustomiseTradingPostsProps {
   userId?: string;
   userCampaigns?: UserCampaign[];
   readOnly?: boolean;
-  editionId?: string | null;
 }
 
 export function CustomiseTradingPosts({
@@ -69,7 +69,6 @@ export function CustomiseTradingPosts({
   userId,
   userCampaigns = [],
   readOnly = false,
-  editionId = null,
 }: CustomiseTradingPostsProps) {
   const [tradingPosts, setTradingPosts] = useState<CustomTradingPost[]>(initialTradingPosts);
   const [prevInitialTradingPosts, setPrevInitialTradingPosts] = useState(initialTradingPosts);
@@ -205,7 +204,7 @@ export function CustomiseTradingPosts({
         user_id: userId || '',
         custom_trading_post_name: data.custom_trading_post_name,
         description: data.description,
-        edition_id: data.edition_id ?? null,
+        edition_slug: data.edition_slug ?? null,
         created_at: new Date().toISOString(),
       };
       const previous = tradingPosts;
@@ -229,7 +228,7 @@ export function CustomiseTradingPosts({
 
   const handleCreateConfirm = async () => {
     if (!isFormValid()) return false;
-    createMutation.mutate({ data: { ...formData, edition_id: editionId } });
+    createMutation.mutate({ data: { ...formData, edition_slug: EDITION_N23 } });
     setIsAddModalOpen(false);
     resetForm();
     return true;
