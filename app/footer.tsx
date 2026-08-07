@@ -13,10 +13,18 @@ export default function Footer() {
           <div className="flex flex-col gap-2 flex-1">
             <div className="flex items-center gap-2 mb-2">
               <Image
-                src="/images/favicon-36x36.png"
+                src="/images/favicon-36x36-black.png"
                 alt="Munda Manager"
                 width={36}
                 height={36}
+                className="dark:hidden"
+              />
+              <Image
+                src="/images/favicon-36x36-white.png"
+                alt="Munda Manager"
+                width={36}
+                height={36}
+                className="hidden dark:block"
               />
               <span className="text-lg font-bold">Munda Manager</span>
             </div>

@@ -30,8 +30,8 @@ async function getCombinedCustomFighters(supabase: SupabaseServerClient, userId:
     const fighterIds = sharedFighterIds?.map(sf => sf.custom_fighter_type_id).filter(Boolean) || [];
 
     if (fighterIds.length > 0) {
-      // Same edition embed as getUserCustomFighterTypes, so shared fighters carry
-      // an edition_slug too rather than silently losing their edition features.
+      // Same edition embed as getUserCustomFighterTypes, so shared fighters
+      // carry an edition_slug rather than losing their edition features.
       const { data: sharedFighters } = await supabase
         .from('custom_fighter_types')
         .select('*, editions:edition_id (slug)')

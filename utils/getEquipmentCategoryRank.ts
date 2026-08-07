@@ -3,14 +3,10 @@ import { equipmentCategoryRankN23 } from '@/utils/equipmentCategoryRankN23';
 import { equipmentCategoryRankN26 } from '@/utils/equipmentCategoryRankN26';
 
 /**
- * Keyed by EditionSlug on purpose: adding an edition is a compile error here
- * until it states its own category order, the same guarantee EDITION_CAPABILITIES
- * gives for capability flags and LIMITS_BY_EDITION gives for characteristics.
- *
- * This stays out of types/edition.ts because it selects a data table rather than
- * gating a behaviour — the same split as INJURY_TABLES_BY_EDITION. The related
- * behaviour flag, whether categories group under super-categories, is a
- * capability and lives in the registry as hasEquipmentSuperCategories.
+ * Keyed by EditionSlug so a new edition is a compile error here, matching
+ * LIMITS_BY_EDITION and INJURY_TABLES_BY_EDITION. Stays out of types/edition.ts
+ * because it selects a data table rather than gating a behaviour; the related
+ * flag is hasEquipmentSuperCategories in the registry.
  */
 const CATEGORY_RANK_BY_EDITION: Record<EditionSlug, { [key: string]: number }> = {
   n23: equipmentCategoryRankN23,
@@ -18,9 +14,8 @@ const CATEGORY_RANK_BY_EDITION: Record<EditionSlug, { [key: string]: number }> =
 };
 
 /**
- * Edition-scoped equipment category sort order.
- * An unset or unrecognised slug gets no ranking, so callers fall back to
- * alphabetical rather than borrowing another edition's order.
+ * Edition-scoped category sort order. An unknown slug gets no ranking, so
+ * callers fall back to alphabetical rather than borrowing another edition's.
  */
 export function getEquipmentCategoryRank(
   editionSlug?: string | null

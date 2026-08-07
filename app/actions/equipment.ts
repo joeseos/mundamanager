@@ -362,12 +362,10 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       ? (params.listed_cost ?? baseCost)
       : finalPurchaseCost;
 
-    // Gangs have no edition of their own; it comes via the gang type.
     const editionSlug = gangEditionSlug(gang);
 
-    // Apply master-crafted bonus for weapons. Gated on the gang's edition so the
-    // client-side checkbox being hidden is not the only thing stopping it — the
-    // rating multiplier is a write, and params come from the browser.
+    // Gated server-side: params come from the browser, so the hidden checkbox
+    // must not be the only thing stopping this.
     const masterCrafted =
       equipmentDetails.equipment_type === 'weapon'
       && !!params.master_crafted

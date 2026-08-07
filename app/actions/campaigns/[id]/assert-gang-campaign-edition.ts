@@ -2,11 +2,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { editionsConflict, editionSlugFromJoin, gangEditionSlug } from '@/types/edition';
 
 /**
- * Campaign type edition and gang type edition must not conflict.
- *
- * Uses editionsConflict, not sameEditionForDisplay: this rejects a user action, so
- * an edition that failed to resolve must not be silently read as N23 and used to
- * turn someone away. Matches the battle-session guard.
+ * Campaign type edition and gang type edition must not conflict. Uses
+ * editionsConflict, not sameEditionForDisplay: this rejects a user action, so an
+ * unresolved edition must not be read as N23 and used to turn someone away.
  */
 export async function assertGangMatchesCampaignEdition(
   supabase: SupabaseClient,

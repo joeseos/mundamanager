@@ -159,6 +159,13 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
 
     // Custom fighter type gang info is embedded in fighterBasic via the FK join
     const customFighterTypeInfo = fighterBasic.custom_fighter_type ?? null;
+    const isCustomFighterType = Boolean(fighterBasic.custom_fighter_type_id);
+    const isVehicle = isCustomFighterType
+      ? Boolean(customFighterTypeInfo?.is_vehicle)
+      : Boolean(fighterTypeData?.is_vehicle);
+    const fighterEditionSlug = isCustomFighterType
+      ? customFighterTypeInfo?.editions?.slug ?? (isVehicle ? gangBasic.edition_slug : null)
+      : fighterTypeData?.editions?.slug ?? null;
 
     // Campaign data already includes trading_post_names from getGangCampaigns, no processing needed
 
@@ -278,7 +285,8 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         credits: totalCost,
         alliance_crew_name: fighterTypeData?.alliance_crew_name,
         is_spyrer: fighterTypeData?.is_spyrer || false,
-        edition_slug: fighterTypeData?.editions?.slug ?? null,
+        is_vehicle: isVehicle,
+        edition_slug: fighterEditionSlug,
         fighter_type: {
           fighter_type_id: fighterTypeData?.id || fighterBasic.custom_fighter_type_id || '',
           fighter_type: fighterBasic.fighter_type || fighterTypeData?.fighter_type || 'Unknown',

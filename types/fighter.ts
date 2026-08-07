@@ -194,6 +194,7 @@ export interface FighterProps {
   };
   vehicles?: Vehicle[];
   is_spyrer?: boolean;
+  is_vehicle?: boolean;
   
   // Base stats (original values)
   base_stats: {

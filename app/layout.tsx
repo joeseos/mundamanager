@@ -144,11 +144,18 @@ export default function RootLayout({
           <div className="flex justify-between items-center h-14 px-2">
             <Link href="/" className="flex items-center">
               <Image
-                src="/images/favicon-36x36.png"
+                src="/images/favicon-36x36-black.png"
                 alt="App Icon"
                 width={36}
                 height={36}
-                className="ml-1 mr-2"
+                className="ml-1 mr-2 dark:hidden"
+              />
+              <Image
+                src="/images/favicon-36x36-white.png"
+                alt="App Icon"
+                width={36}
+                height={36}
+                className="ml-1 mr-2 hidden dark:block"
               />
               <span className="text-lg font-bold hover:text-primary transition-colors">
                 Munda Manager

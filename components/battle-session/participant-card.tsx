@@ -339,6 +339,7 @@ function FighterActionModal({
           currentKillCount={fighterData.kill_count}
           gangId={gangId}
           campaignId={campaignId ?? undefined}
+          editionSlug={editionSlug}
           onClose={() => setShowXpModal(false)}
           onXpUpdated={(newXp) => {
             const delta = newXp - (fighterData?.xp ?? 0);
