@@ -238,7 +238,12 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
 
   // N26 makes the vehicle the fighter itself, so its gear is ordinary fighter_equipment
   // and feeds the vehicle list directly instead of coming off a `vehicles` row.
-  const isVehicleFighter = Boolean(fighterData.fighter?.is_vehicle) && !fighterData.fighter?.vehicles?.[0];
+  //
+  // Precedence: an actual `vehicles` row always wins. The two can only coexist as bad data
+  // (or mid-conversion), and dropping a real vehicle's equipment is worse than ignoring the
+  // flag. `vehicleView` below resolves effects the same way and must stay in step — split
+  // them and the list renders one edition's equipment against the other's effects.
+  const isVehicleFighter = !fighterData.fighter?.vehicles?.[0] && Boolean(fighterData.fighter?.is_vehicle);
 
   // Transform vehicle equipment
   const transformedVehicleEquipment = isVehicleFighter
@@ -600,6 +605,7 @@ export default function FighterPage({
   // Where this vehicle's equipment and effects live. N23 hangs a `vehicles` row off a Crew
   // fighter; N26 makes the vehicle the fighter, so both are scoped by fighter_id instead
   // and there is no vehicle id to scope the hardpoint and lasting-damage actions with.
+  // Row-wins precedence, mirroring `isVehicleFighter` in transformFighterData.
   const vehicleView: { vehicleId: string | null; effects: Record<string, FighterEffect[]> } | null = vehicle
     ? { vehicleId: vehicle.id, effects: vehicle.effects ?? {} }
     : isVehicle
