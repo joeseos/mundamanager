@@ -3966,19 +3966,6 @@ $$;
 
 
 --
--- Name: OLDfighter_equipment_tradingpost; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public."OLDfighter_equipment_tradingpost" (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    fighter_type_id uuid,
-    equipment_tradingpost jsonb,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone
-);
-
-
---
 -- Name: alliances; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6309,14 +6296,6 @@ ALTER TABLE ONLY public.fighter_equipment_selections
 
 
 --
--- Name: OLDfighter_equipment_tradingpost fighter_equipment_tradingpost_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public."OLDfighter_equipment_tradingpost"
-    ADD CONSTRAINT fighter_equipment_tradingpost_pkey PRIMARY KEY (id);
-
-
---
 -- Name: fighter_exotic_beasts fighter_exotic_beasts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7164,13 +7143,6 @@ CREATE INDEX fighter_equipment_is_editable_idx ON public.fighter_equipment USING
 
 
 --
--- Name: fighter_equipment_tradingpost_fighter_type_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX fighter_equipment_tradingpost_fighter_type_id_idx ON public."OLDfighter_equipment_tradingpost" USING btree (fighter_type_id);
-
-
---
 -- Name: fighter_equipment_vehicle_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7322,6 +7294,13 @@ CREATE INDEX gang_types_edition_id_idx ON public.gang_types USING btree (edition
 --
 
 CREATE INDEX gang_types_gang_type_idx ON public.gang_types USING btree (gang_type);
+
+
+--
+-- Name: gang_types_trading_post_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gang_types_trading_post_type_id_idx ON public.gang_types USING btree (trading_post_type_id);
 
 
 --
@@ -8875,14 +8854,6 @@ ALTER TABLE ONLY public.fighter_equipment_selections
 
 
 --
--- Name: OLDfighter_equipment_tradingpost fighter_equipment_tradingpost_fighter_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public."OLDfighter_equipment_tradingpost"
-    ADD CONSTRAINT fighter_equipment_tradingpost_fighter_type_id_fkey FOREIGN KEY (fighter_type_id) REFERENCES public.fighter_types(id) ON DELETE CASCADE;
-
-
---
 -- Name: fighter_equipment fighter_equipment_vehicle_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10020,13 +9991,6 @@ CREATE POLICY "Allow authenticated users to view fighter_equipment" ON public.fi
 
 
 --
--- Name: OLDfighter_equipment_tradingpost Allow authenticated users to view fighter_equipment_tradingpost; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Allow authenticated users to view fighter_equipment_tradingpost" ON public."OLDfighter_equipment_tradingpost" FOR SELECT TO authenticated USING (true);
-
-
---
 -- Name: fighter_gang_legacy Allow authenticated users to view fighter_gang_legacy; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -10480,12 +10444,6 @@ CREATE POLICY "Gang owners, admins, or arbitrators can create fighters" ON publi
    FROM public.campaign_gangs cg
   WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
-
---
--- Name: OLDfighter_equipment_tradingpost; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public."OLDfighter_equipment_tradingpost" ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: campaign_triumphs Only admin can create campaign_triumphs entries; Type: POLICY; Schema: public; Owner: -
@@ -12297,27 +12255,6 @@ CREATE POLICY fighter_equipment_selections_admin_insert_policy ON public.fighter
 --
 
 CREATE POLICY fighter_equipment_selections_admin_update_policy ON public.fighter_equipment_selections FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
-
-
---
--- Name: OLDfighter_equipment_tradingpost fighter_equipment_tradingpost_admin_delete_policy; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY fighter_equipment_tradingpost_admin_delete_policy ON public."OLDfighter_equipment_tradingpost" FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
-
-
---
--- Name: OLDfighter_equipment_tradingpost fighter_equipment_tradingpost_admin_insert_policy; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY fighter_equipment_tradingpost_admin_insert_policy ON public."OLDfighter_equipment_tradingpost" FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
-
-
---
--- Name: OLDfighter_equipment_tradingpost fighter_equipment_tradingpost_admin_update_policy; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY fighter_equipment_tradingpost_admin_update_policy ON public."OLDfighter_equipment_tradingpost" FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
 
 
 --
