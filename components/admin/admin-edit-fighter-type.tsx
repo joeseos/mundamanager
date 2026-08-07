@@ -217,8 +217,10 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   // Memoize filtered skills to avoid recalculating on every render
   const availableSkills = useMemo(() => {
     if (!Array.isArray(skills)) return [];
-    return skills.filter(skill => !selectedSkills.includes(skill.id));
-  }, [skills, selectedSkills]);
+    return skills.filter(skill =>
+      skill.skill_type_id === selectedSkillType && !selectedSkills.includes(skill.id)
+    );
+  }, [skills, selectedSkills, selectedSkillType]);
 
   const fetchEquipmentByCategory = async () => {
     if (hasLoadedEquipmentCategoriesRef.current && equipment.length > 0) {
@@ -384,6 +386,14 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const handleEditionChange = (newEditionId: string) => {
     setEditionId(newEditionId);
 
+    // Keep loaded metadata for rendering saved skills, but remove any selection
+    // that cannot be proved to belong to the newly selected edition.
+    setSelectedSkills(prev => prev.filter(skillId => {
+      const skill = skills.find(candidate => candidate.id === skillId);
+      const skillType = skillTypes.find(type => type.id === skill?.skill_type_id);
+      return !!skillType && (!newEditionId || skillType.edition_id === newEditionId);
+    }));
+
     if (editions.find(edition => edition.id === newEditionId)?.slug !== 'n26') {
       setIsVehicle(false);
     }
@@ -484,17 +494,23 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   useEffect(() => {
     const fetchSkills = async () => {
       if (!selectedSkillType) {
-        setSkills([]);
         return;
       }
 
       try {
-        const response = await fetch(`/api/admin/skills?skill_type_id=${selectedSkillType}`);
+        const params = new URLSearchParams({ skill_type_id: selectedSkillType });
+        if (editionId) params.set('edition_id', editionId);
+        const response = await fetch(`/api/admin/skills?${params}`);
         if (!response.ok) throw new Error('Failed to fetch skills');
         const data = await response.json();
         // API returns {skills: [], effect_categories: []} when filtered by skill_type_id
         const skillsArray = Array.isArray(data) ? data : data.skills || [];
-        setSkills(skillsArray);
+        // Preserve metadata for saved selections while the fighter record is
+        // loading so their chips can still be rendered.
+        setSkills(previous => {
+          const merged = new Map([...previous, ...skillsArray].map(skill => [skill.id, skill]));
+          return Array.from(merged.values());
+        });
       } catch (error) {
         console.error('Error fetching skills:', error);
         toast.error('Failed to load skills');
@@ -502,7 +518,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     };
 
     fetchSkills();
-  }, [selectedSkillType]);
+  }, [selectedSkillType, editionId]);
 
   // Fetch full skill details for selected skills when loading a fighter type
   useEffect(() => {

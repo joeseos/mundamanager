@@ -188,7 +188,7 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
     setEditionId(newEditionId);
     if (newEditionId && skillType) {
       const selectedType = skillTypeList.find(t => t.id === skillType);
-      if (selectedType && selectedType.edition_id !== newEditionId) {
+      if (!selectedType || selectedType.edition_id !== newEditionId) {
         setSkillType('');
         setSkillTypeName('');
         setSkillName('');
@@ -209,11 +209,13 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
     }
   }
 
-  const searchSkillType = async (skillTypeId: string) => {
+  const searchSkillType = async (skillTypeId: string, selectedEditionId: string) => {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/admin/skills?skill_type_id=' + skillTypeId, {
+      const params = new URLSearchParams({ skill_type_id: skillTypeId });
+      if (selectedEditionId) params.set('edition_id', selectedEditionId);
+      const response = await fetch(`/api/admin/skills?${params}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -433,13 +435,14 @@ const handleSubmitSkill = async (operation: OperationType) => {
                     const selectedIndex = e.target.selectedIndex;
                     const selectedOption = e.target.options[selectedIndex];
                     const selectedSkillType = selectedOption.getAttribute("data-skill-type") || "";
+                    const selectedType = skillTypeList.find(t => t.id === e.target.value);
+                    const selectedEditionId = selectedType?.edition_id ?? editionId;
                     setSkillType(e.target.value);
                     setSkillName("");
                     if (e.target.value !== "") {
-                      searchSkillType(e.target.value);
+                      searchSkillType(e.target.value, selectedEditionId);
                     }
                     setSkillTypeName(selectedSkillType);
-                    const selectedType = skillTypeList.find(t => t.id === e.target.value);
                     setEditionId(selectedType?.edition_id ?? '');
                   }
                 }

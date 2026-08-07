@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +23,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
   const [editionId, setEditionId] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const { data: skillTypeList = [] } = useQuery<Array<{id: string, skill_type: string}>>({
+  const { data: skillTypeList = [] } = useQuery<Array<{id: string, skill_type: string, edition_id?: string | null}>>({
     queryKey: ['admin-skill-types'],
     queryFn: async () => {
       const response = await fetch('/api/admin/skill-types');
@@ -32,6 +32,24 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
     },
     staleTime: 5 * 60 * 1000,
   });
+
+  const filteredSkillTypeList = useMemo(
+    () => editionId
+      ? skillTypeList.filter(type => type.edition_id === editionId)
+      : skillTypeList,
+    [skillTypeList, editionId]
+  );
+
+  const handleEditionChange = (newEditionId: string) => {
+    setEditionId(newEditionId);
+
+    if (newEditionId && skillType) {
+      const selectedType = skillTypeList.find(type => type.id === skillType);
+      if (!selectedType || selectedType.edition_id !== newEditionId) {
+        setSkillType('');
+      }
+    }
+  };
 
   const { data: gangOriginList = [] } = useQuery<Array<{id: string, origin_name: string, category_name: string}>>({
     queryKey: ['admin-gang-origins'],
@@ -146,6 +164,8 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
 
         <div className="px-[10px] py-4">
           <div className="grid grid-cols-1 gap-4">
+            <EditionSelect value={editionId} onChange={handleEditionChange} defaultToCurrent />
+
             <div className="col-span-1">
               <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Skill Set *
@@ -159,7 +179,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
                 <option value="">Select a skill set</option>
 
                 {Object.entries(
-                  skillTypeList
+                  filteredSkillTypeList
                     .sort((a, b) => {
                       const rankA = skillSetRank[a.skill_type.toLowerCase()] ?? Infinity;
                       const rankB = skillSetRank[b.skill_type.toLowerCase()] ?? Infinity;
@@ -180,7 +200,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
                       if (!groups[groupLabel]) groups[groupLabel] = [];
                       groups[groupLabel].push(type);
                       return groups;
-                    }, {} as Record<string, typeof skillTypeList>)
+                    }, {} as Record<string, typeof filteredSkillTypeList>)
                 ).map(([groupLabel, skillList]) => (
                   <optgroup key={groupLabel} label={groupLabel}>
                     {skillList.map((type) => (
@@ -272,10 +292,6 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
               )}
             </div>
 
-            {/* Skills inherit their edition from the skill set; only new skill sets need one */}
-            {skillTypeName !== '' && (
-              <EditionSelect value={editionId} onChange={setEditionId} defaultToCurrent />
-            )}
           </div>
         </div>
 
