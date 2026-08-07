@@ -705,7 +705,7 @@ export default function FighterPage({
           />
 
           {/* Vehicle Equipment Section - only show if fighter has a vehicle */}
-          {isVehicle && vehicle && (
+          {vehicle && (
             <VehicleEquipmentList
               editionSlug={editionSlug}
               fighterId={fighterId}
@@ -1103,7 +1103,7 @@ export default function FighterPage({
           )}
 
           {/* Vehicle Lasting Damage Section - only show if fighter has a vehicle */}
-          {isVehicle && vehicle && (
+          {vehicle && (
             <VehicleDamagesList
               damages={vehicle.effects ? vehicle.effects["lasting damages"] || [] : []}
               onDamageUpdate={(updatedDamages) => {
@@ -1363,7 +1363,7 @@ export default function FighterPage({
             />
           )}
 
-          {uiState.modals.addVehicleEquipment && isVehicle && fighterData.fighter && fighterData.gang && vehicle && (
+          {uiState.modals.addVehicleEquipment && fighterData.fighter && fighterData.gang && vehicle && (
             <ItemModal
               title="Add Vehicle Equipment"
               onClose={() => handleModalToggle('addVehicleEquipment', false)}
