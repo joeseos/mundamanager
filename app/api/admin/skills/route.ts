@@ -13,6 +13,7 @@ export async function GET(request: Request) {
   const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const skillTypeId = searchParams.get('skill_type_id');
+  const editionId = searchParams.get('edition_id');
   const effectTypeId = searchParams.get('effect_type_id');
   const modifierId = searchParams.get('modifier_id');
 
@@ -66,11 +67,20 @@ export async function GET(request: Request) {
     // Handle skill queries
     let query = supabase
       .from('skills')
-      .select('id, name, skill_type_id, gang_origin_id')
+      .select(editionId
+        ? 'id, name, skill_type_id, gang_origin_id, skill_types!inner(edition_id)'
+        : 'id, name, skill_type_id, gang_origin_id, skill_types(edition_id)')
       .order('name');
 
     if (skillTypeId) {
       query = query.eq('skill_type_id', skillTypeId);
+    }
+
+    // A skill belongs to an edition through its skill set. The inner relation is
+    // important here: filtering an ordinary embedded relation would leave the
+    // parent skill rows in the result with an empty relation.
+    if (editionId) {
+      query = query.eq('skill_types.edition_id', editionId);
     }
 
     const { data, error } = await query;
@@ -79,22 +89,26 @@ export async function GET(request: Request) {
 
     // If fetching a specific skill, include its effects
     let transformedData;
-    if (skillTypeId && data.length > 0) {
+    if (skillTypeId) {
       // Fetch effects for all skills in the result
       const skillIds = data.map((skill: Skill) => skill.id);
 
-      const { data: effectTypes } = await supabase
-        .from('fighter_effect_types')
-        .select(`
-          id,
-          effect_name,
-          fighter_effect_category_id,
-          type_specific_data,
-          sort_order,
-          fighter_effect_categories(id, category_name)
-        `)
-        .in('type_specific_data->>skill_id', skillIds)
-        .order('sort_order', { ascending: true, nullsFirst: false });
+      let effectTypes: any[] = [];
+      if (skillIds.length > 0) {
+        const { data: effectTypeData } = await supabase
+          .from('fighter_effect_types')
+          .select(`
+            id,
+            effect_name,
+            fighter_effect_category_id,
+            type_specific_data,
+            sort_order,
+            fighter_effect_categories(id, category_name)
+          `)
+          .in('type_specific_data->>skill_id', skillIds)
+          .order('sort_order', { ascending: true, nullsFirst: false });
+        effectTypes = effectTypeData || [];
+      }
 
       // Fetch modifiers for the effect types
       let modifiers: any[] = [];
@@ -128,7 +142,7 @@ export async function GET(request: Request) {
 
       // Extract unique categories from the effects (they're already nested in each effect)
       const uniqueCategories = new Map();
-      effectTypes?.forEach((et: any) => {
+      effectTypes.forEach((et: any) => {
         if (et.fighter_effect_categories) {
           uniqueCategories.set(
             et.fighter_effect_categories.id,

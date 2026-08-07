@@ -185,6 +185,15 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   const handleEditionChange = (newEditionId: string) => {
     setEditionId(newEditionId);
 
+    // Skills are edition-owned through their skill set. Unknown skill metadata
+    // is discarded as well so a stale selection can never be submitted after
+    // the user explicitly changes edition.
+    setSelectedSkills(prev => prev.filter(skillId => {
+      const skill = skills.find(candidate => candidate.id === skillId);
+      const skillType = skillTypes.find(type => type.id === skill?.skill_type_id);
+      return !!skillType && (!newEditionId || skillType.edition_id === newEditionId);
+    }));
+
     if (editions.find(edition => edition.id === newEditionId)?.slug !== 'n26') {
       setIsVehicle(false);
     }
@@ -230,9 +239,11 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   };
 
   const { data: skills = [] } = useQuery<Skill[]>({
-    queryKey: ['admin-skills', selectedSkillType],
+    queryKey: ['admin-skills', selectedSkillType, editionId],
     queryFn: async () => {
-      const response = await fetch(`/api/admin/skills?skill_type_id=${selectedSkillType}`);
+      const params = new URLSearchParams({ skill_type_id: selectedSkillType });
+      if (editionId) params.set('edition_id', editionId);
+      const response = await fetch(`/api/admin/skills?${params}`);
       if (!response.ok) throw new Error('Failed to fetch skills');
       const data = await response.json();
       return Array.isArray(data) ? data : data.skills || [];
@@ -1210,4 +1221,4 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
       </div>
     </div>
   );
-} 
+}
