@@ -69,6 +69,7 @@ interface FighterDetailsCardProps {
   kills: number;
   kill_count?: number;
   is_spyrer?: boolean;
+  is_vehicle?: boolean;
   effects?: {
     injuries: FighterEffect[];
     advancements: FighterEffect[];
@@ -131,7 +132,7 @@ const calculateVehicleStats = (baseStats: any) => {
     drive_slots: baseStats.drive_slots || 0,
     engine_slots: baseStats.engine_slots || 0,
   };
-  
+
   // Apply modifiers from vehicle effects (lasting damages, vehicle upgrades, and user adjustments)
   if (baseStats.effects) {
     const effectCategories = ["lasting damages", "vehicle upgrades", "user"];
@@ -142,12 +143,12 @@ const calculateVehicleStats = (baseStats: any) => {
             effect.fighter_effect_modifiers.forEach(modifier => {
               // Convert stat_name to lowercase to match our stats object keys
               const statName = modifier.stat_name.toLowerCase();
-              
+
               // Skip slot modifiers - these are used for counting occupied slots, not increasing max slots
               if (statName === 'body_slots' || statName === 'drive_slots' || statName === 'engine_slots') {
                 return;
               }
-              
+
               // Only apply if the stat exists in our stats object
               if (statName in stats) {
                 // Apply the numeric modifier to the appropriate stat
@@ -167,7 +168,7 @@ const calculateVehicleStats = (baseStats: any) => {
 const getPillColor = (occupied: number | undefined, total: number | undefined) => {
   const occupiedValue = occupied || 0;
   const totalValue = total || 0;
-  
+
   if (occupiedValue > totalValue) return "bg-red-500";
   if (occupiedValue === totalValue) return "bg-gray-500";
   return "bg-green-500";
@@ -193,7 +194,7 @@ const calculateOccupiedSlots = (vehicle: any) => {
 
             effect.fighter_effect_modifiers.forEach((modifier: any) => {
               const statName = modifier.stat_name.toLowerCase();
-              
+
               // Check for explicit slot modifiers - this is the only method now
               if (statName === 'body_slots' && modifier.numeric_value > 0) {
                 usesBodySlot = true;
@@ -208,7 +209,7 @@ const calculateOccupiedSlots = (vehicle: any) => {
 
             // Count the slot usage (each effect/equipment uses 1 slot of its type)
             if (usesBodySlot) bodyOccupied++;
-            if (usesDriveSlot) driveOccupied++;  
+            if (usesDriveSlot) driveOccupied++;
             if (usesEngineSlot) engineOccupied++;
           }
         });
@@ -255,6 +256,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   kills,
   kill_count,
   is_spyrer,
+  is_vehicle,
   effects,
   vehicles,
   gangId,
@@ -351,6 +353,11 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   ]);
   const canShowEditButtons = userPermissions.canEdit;
   const isCrew = fighter_subtypes.includes('Crew');
+  const isVehicle = is_vehicle ?? false;
+  // Only an N23 crew reads its profile off an attached vehicle record. An N26 vehicle is the
+  // fighter, so it keeps the ordinary statline. N26 has no Crew subtype today, so the guard is
+  // consistency rather than a live case — but the statline and its limits must agree either way.
+  const showsVehicleProfile = isCrew && !isVehicle;
 
   const handleImageClick = () => {
     if (canShowEditButtons) {
@@ -361,22 +368,22 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   const handleImageUpdate = (newImageUrl: string) => {
     setCurrentImageUrl(newImageUrl);
   };
-  
+
   // Calculate modified stats including effects (injuries/advancements)
-  const modifiedStats = useMemo(() => 
+  const modifiedStats = useMemo(() =>
     calculateAdjustedStats(fighterData),
     [fighterData]
   );
 
   // Calculate vehicle stats once
-  const vehicleStats = useMemo(() => 
-    isCrew ? calculateVehicleStats(vehicles?.[0]) : null,
-    [isCrew, vehicles]
+  const vehicleStats = useMemo(() =>
+    showsVehicleProfile ? calculateVehicleStats(vehicles?.[0]) : null,
+    [showsVehicleProfile, vehicles]
   );
 
   // Update stats object to handle crew stats - now using modifiedStats instead of adjustedStats
   const stats = useMemo<Record<string, string | number>>(() => ({
-    ...(isCrew ? {
+    ...(showsVehicleProfile ? {
       'M': vehicles?.[0] ? `${vehicleStats?.movement}"` : '*',
       'Front': vehicles?.[0] ? vehicleStats?.front : '*',
       'Side': vehicles?.[0] ? vehicleStats?.side : '*',
@@ -406,7 +413,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       'Int': `${modifiedStats.intelligence}+`,
       'XP': xp ?? 0
     })
-  }), [isCrew, vehicleStats, vehicles, modifiedStats, xp, edition_slug]);
+  }), [showsVehicleProfile, vehicleStats, vehicles, modifiedStats, xp, edition_slug]);
 
   return (
     <div className="relative">
@@ -451,9 +458,9 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
             {recovery && <FaMedkit className="text-blue-500" />}
             {captured && <GiHandcuffs className="text-sky-300" />}
           </div>
-        
+
           {/* Profile picture of the fighter */}
-          <div 
+          <div
             className={`bg-secondary rounded-full shadow-md border-4 border-black flex flex-col md:size-[85px] size-[64px] relative z-10 print:bg-card print:shadow-none overflow-hidden ${canShowEditButtons ? 'cursor-pointer hover:border-neutral-400 transition-colors' : ''}`}
             onClick={handleImageClick}
           >
@@ -522,11 +529,11 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
             Edit
           </Button>
         </div>
-      </div> 
-      <div className="mt-2">
-        <FighterDetailsStatsTable data={stats} isCrew={isCrew} editionSlug={edition_slug} />
       </div>
-      
+      <div className="mt-2">
+        <FighterDetailsStatsTable data={stats} isCrew={showsVehicleProfile} editionSlug={edition_slug} />
+      </div>
+
       {/* Show owner information for owned fighters */}
       {owner_name && (
         <div className="mt-2 text-left">
@@ -535,7 +542,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
           </div>
         </div>
       )}
-      
+
       {/* Show captured-by gang information */}
       {captured && captured_by_gang_name && (
         <div className="mt-2 text-left">
@@ -553,7 +560,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
           </div>
         </div>
       )}
-      
+
       {/* Show Gang Legacy information */}
       {fighter_gang_legacy && (
         <div className="mt-2 text-left">
@@ -572,9 +579,9 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
         </div>
       )}
 
-      {/* Show vehicle information for crew fighters */}
+      {/* N23 crews have separate vehicle records; N26 vehicles are fighters. */}
       <div className="mt-4">
-      {isCrew && (
+      {showsVehicleProfile && (
           <div className="text-sm text-muted-foreground">
             Vehicle:{' '}
             {vehicles?.[0]
@@ -585,7 +592,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
             }
           </div>
         )}
-        {isCrew && vehicles?.[0] && vehicleStats && (() => {
+        {showsVehicleProfile && vehicles?.[0] && vehicleStats && (() => {
           const occupiedSlots = calculateOccupiedSlots(vehicles?.[0]);
           return (
             <>
@@ -634,7 +641,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
 
       {/* Fighter Logs Modal */}
       <LogModal
-        fetchUrl={`/api/gangs/${gangId || ''}/logs?fighterId=${id}${isCrew && vehicles?.[0] ? `&vehicleId=${vehicles[0].id}` : ''}`}
+        fetchUrl={`/api/gangs/${gangId || ''}/logs?fighterId=${id}${showsVehicleProfile && vehicles?.[0] ? `&vehicleId=${vehicles[0].id}` : ''}`}
         title={`Activity Logs: ${name}`}
         emptyMessage="No activity logs found for this fighter."
         isOpen={isLogsModalOpen}
@@ -652,4 +659,4 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       />
     </div>
   );
-}); 
+});

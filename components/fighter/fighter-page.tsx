@@ -128,6 +128,7 @@ interface Fighter {
   base_credits?: number;
   base_copy_cost?: number;
   is_spyrer?: boolean;
+  is_vehicle?: boolean;
   selected_archetype_id?: string | null;
 }
 
@@ -235,24 +236,38 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
     };
   });
 
+  // N26 makes the vehicle the fighter itself, so its gear is ordinary fighter_equipment
+  // and feeds the vehicle list directly instead of coming off a `vehicles` row.
+  //
+  // Precedence: an actual `vehicles` row always wins. The two can only coexist as bad data
+  // (or mid-conversion), and dropping a real vehicle's equipment is worse than ignoring the
+  // flag. `vehicleView` below resolves effects the same way and must stay in step — split
+  // them and the list renders one edition's equipment against the other's effects.
+  const isVehicleFighter = !fighterData.fighter?.vehicles?.[0] && Boolean(fighterData.fighter?.is_vehicle);
+
   // Transform vehicle equipment
-  const transformedVehicleEquipment = (fighterData.fighter?.vehicles?.[0]?.equipment || []).map((item: any) => ({
-    fighter_equipment_id: item.fighter_equipment_id || item.vehicle_weapon_id || item.id,
-    equipment_id: item.equipment_id,
-    equipment_name: item.is_master_crafted && item.equipment_type === 'weapon'
-      ? `${item.equipment_name} (Master-crafted)`
-      : item.equipment_name,
-    equipment_type: item.equipment_type,
-    cost: item.purchase_cost,
-    base_cost: item.original_cost,
-    core_equipment: false,
-    vehicle_id: fighterData.fighter?.vehicles?.[0]?.id,
-    vehicle_equipment_id: item.vehicle_weapon_id || item.id,
-    weapon_profiles: item.weapon_profiles,
-    is_consumable: item.is_consumable,
-    cost_resource_name: item.cost_resource?.name ?? null,
-    cost_resource_amount: item.cost_resource?.amount ?? null
-  }));
+  const transformedVehicleEquipment = isVehicleFighter
+    ? transformedEquipment.map((item: any) => ({
+        ...item,
+        vehicle_equipment_id: item.fighter_equipment_id
+      }))
+    : (fighterData.fighter?.vehicles?.[0]?.equipment || []).map((item: any) => ({
+        fighter_equipment_id: item.fighter_equipment_id || item.vehicle_weapon_id || item.id,
+        equipment_id: item.equipment_id,
+        equipment_name: item.is_master_crafted && item.equipment_type === 'weapon'
+          ? `${item.equipment_name} (Master-crafted)`
+          : item.equipment_name,
+        equipment_type: item.equipment_type,
+        cost: item.purchase_cost,
+        base_cost: item.original_cost,
+        core_equipment: false,
+        vehicle_id: fighterData.fighter?.vehicles?.[0]?.id,
+        vehicle_equipment_id: item.vehicle_weapon_id || item.id,
+        weapon_profiles: item.weapon_profiles,
+        is_consumable: item.is_consumable,
+        cost_resource_name: item.cost_resource?.name ?? null,
+        cost_resource_amount: item.cost_resource?.amount ?? null
+      }));
 
   // Preserve all effects from server, with defaults for required categories
   const effects = {
@@ -460,7 +475,7 @@ export default function FighterPage({
           }
         });
       }
-      
+
       const isOwnedBeast = !!prev.fighter?.owner_name;
       return {
         ...prev,
@@ -584,6 +599,18 @@ export default function FighterPage({
   );
 
   const vehicle = fighterData.fighter?.vehicles?.[0];
+  const isVehicle = fighterData.fighter.is_vehicle ?? false;
+  const editionSlug = fighterData.gang.edition_slug ?? fighterData.fighter.edition_slug ?? null;
+
+  // Where this vehicle's equipment and effects live. N23 hangs a `vehicles` row off a Crew
+  // fighter; N26 makes the vehicle the fighter, so both are scoped by fighter_id instead
+  // and there is no vehicle id to scope the hardpoint and lasting-damage actions with.
+  // Row-wins precedence, mirroring `isVehicleFighter` in transformFighterData.
+  const vehicleView: { vehicleId: string | null; effects: Record<string, FighterEffect[]> } | null = vehicle
+    ? { vehicleId: vehicle.id, effects: vehicle.effects ?? {} }
+    : isVehicle
+      ? { vehicleId: null, effects: fighterData.fighter.effects }
+      : null;
 
   // Prepare options for Combobox
   const fighterOptions = sortFightersByPositioning(
@@ -598,9 +625,9 @@ export default function FighterPage({
       if (f.starved) statusIcons.push(<TbMeatOff className="text-red-500 w-4 h-4" key="starved" />);
       if (f.recovery) statusIcons.push(<FaMedkit className="text-blue-500 w-4 h-4" key="recovery" />);
       if (f.captured) statusIcons.push(<GiHandcuffs className="text-red-600 w-4 h-4" key="captured" />);
-      
+
       const displayText = `${f.fighter_name} - ${f.fighter_type}${f.xp !== undefined ? ` (${f.xp} XP)` : ''}`;
-      
+
       return {
         value: f.id,
         displayValue: displayText,
@@ -636,7 +663,7 @@ export default function FighterPage({
               className="w-full"
             />
           </div>
-          
+
           <FighterDetailsCard
             id={fighterData.fighter?.id || ''}
             name={fighterData.fighter?.fighter_name || ''}
@@ -658,7 +685,7 @@ export default function FighterPage({
             willpower={fighterData.fighter?.willpower || 0}
             intelligence={fighterData.fighter?.intelligence || 0}
             save={fighterData.fighter?.save ?? null}
-            edition_slug={fighterData.fighter?.edition_slug ?? null}
+            edition_slug={editionSlug}
             xp={fighterData.fighter?.xp || 0}
             total_xp={fighterData.fighter?.total_xp || 0}
             advancements={fighterData.fighter?.advancements || { characteristics: {}, skills: {} }}
@@ -675,6 +702,7 @@ export default function FighterPage({
             kills={fighterData.fighter?.kills || 0}
             kill_count={fighterData.fighter?.kill_count}
             is_spyrer={fighterData.fighter?.is_spyrer}
+            is_vehicle={fighterData.fighter?.is_vehicle}
             effects={fighterData.fighter.effects || {
               injuries: [],
               advancements: [],
@@ -700,10 +728,10 @@ export default function FighterPage({
             selected_archetype={(fighterData as any)?.fighter?.selected_archetype}
           />
 
-          {/* Vehicle Equipment Section - only show if fighter has a vehicle */}
-          {vehicle && (
+          {/* Vehicle Equipment Section - the vehicle is either an attached row (N23) or the fighter itself (N26) */}
+          {vehicleView && (
             <VehicleEquipmentList
-              editionSlug={fighterData.fighter?.edition_slug ?? null}
+              editionSlug={editionSlug}
               fighterId={fighterId}
               gangId={fighterData.gang?.id || ''}
               gangCredits={fighterData.gang?.credits || 0}
@@ -711,33 +739,41 @@ export default function FighterPage({
               onEquipmentUpdate={(updatedEquipment, newFighterCredits, newGangCredits, deletedEffects = []) => {
                 setFighterData(prev => {
                   if (!prev.fighter) return prev;
-                  
-                  // Remove deleted effects from vehicle effects if any
-                  let updatedVehicles = prev.fighter.vehicles;
-                  if (deletedEffects.length > 0 && updatedVehicles?.[0]) {
-                    const vehicle = updatedVehicles[0];
-                    let updatedVehicleEffects = { ...vehicle.effects };
-                    
-                    // Remove deleted effects from each category
-                    Object.keys(updatedVehicleEffects).forEach(categoryKey => {
-                      updatedVehicleEffects[categoryKey] = updatedVehicleEffects[categoryKey].filter(
+
+                  const withoutDeleted = <T extends Record<string, any[]>>(categories: T): T => {
+                    const remaining: Record<string, any[]> = { ...categories };
+                    Object.keys(remaining).forEach(categoryKey => {
+                      remaining[categoryKey] = remaining[categoryKey].filter(
                         (effect: any) => !deletedEffects.some((deletedEffect: any) => deletedEffect.id === effect.id)
                       );
                     });
-                    
-                    updatedVehicles = [{
-                      ...vehicle,
-                      effects: updatedVehicleEffects
-                    }];
+                    return remaining as T;
+                  };
+
+                  // Remove deleted effects from wherever this vehicle's effects live
+                  let updatedVehicles = prev.fighter.vehicles;
+                  let updatedFighterEffects = prev.fighter.effects;
+                  if (deletedEffects.length > 0) {
+                    if (updatedVehicles?.[0]) {
+                      updatedVehicles = [{
+                        ...updatedVehicles[0],
+                        effects: withoutDeleted(updatedVehicles[0].effects ?? {})
+                      }];
+                    } else {
+                      updatedFighterEffects = withoutDeleted(updatedFighterEffects);
+                    }
                   }
-                  
+
                   return {
                     ...prev,
                     vehicleEquipment: updatedEquipment,
-                    fighter: { 
-                      ...prev.fighter, 
+                    // On N26 this list *is* the fighter's equipment, so keep both in step
+                    equipment: vehicleView.vehicleId ? prev.equipment : updatedEquipment,
+                    fighter: {
+                      ...prev.fighter,
                       credits: newFighterCredits,
-                      vehicles: updatedVehicles
+                      vehicles: updatedVehicles,
+                      effects: updatedFighterEffects
                     },
                     gang: prev.gang ? { ...prev.gang, credits: newGangCredits } : null
                   };
@@ -746,46 +782,48 @@ export default function FighterPage({
               equipment={fighterData.vehicleEquipment}
               onAddEquipment={() => handleModalToggle('addVehicleEquipment', true)}
               userPermissions={userPermissions}
-              vehicleEffects={vehicle.effects}
-              vehicleId={vehicle.id}
+              vehicleEffects={vehicleView.effects}
+              vehicleId={vehicleView.vehicleId}
               onRegisterPurchase={(fn) => { vehiclePurchaseHandlerRef.current = fn; }}
             />
           )}
 
-          <WeaponList
-            editionSlug={fighterData.fighter?.edition_slug ?? null}
-            fighterId={fighterId}
-            gangId={fighterData.gang?.id || ''}
-            gangCredits={fighterData.gang?.credits || 0}
-            fighterCredits={fighterData.fighter?.credits || 0}
-            onEquipmentUpdate={handleEquipmentUpdate}
-            equipment={fighterData.equipment}
-            onAddEquipment={() => handleModalToggle('addWeapon', true)}
-            userPermissions={userPermissions}
-            onRegisterPurchase={(fn) => { purchaseHandlerRef.current = fn; }}
-            fighterEffects={fighterData.fighter?.effects || {}}
-            onEffectsUpdate={(updatedEffects) => {
-              setFighterData(prev => ({
-                ...prev,
-                fighter: prev.fighter ? {
-                  ...prev.fighter,
-                  effects: {
-                    ...prev.fighter.effects,
-                    ...updatedEffects
-                  }
-                } : null
-              }));
-            }}
-            loadouts={fighterData.loadouts}
-            activeLoadoutId={fighterData.activeLoadoutId}
-            onLoadoutsUpdate={(updatedLoadouts, newActiveLoadoutId) => {
-              setFighterData(prev => ({
-                ...prev,
-                loadouts: updatedLoadouts,
-                activeLoadoutId: newActiveLoadoutId
-              }));
-            }}
-          />
+          {!isVehicle && (
+            <WeaponList
+              editionSlug={editionSlug}
+              fighterId={fighterId}
+              gangId={fighterData.gang?.id || ''}
+              gangCredits={fighterData.gang?.credits || 0}
+              fighterCredits={fighterData.fighter?.credits || 0}
+              onEquipmentUpdate={handleEquipmentUpdate}
+              equipment={fighterData.equipment}
+              onAddEquipment={() => handleModalToggle('addWeapon', true)}
+              userPermissions={userPermissions}
+              onRegisterPurchase={(fn) => { purchaseHandlerRef.current = fn; }}
+              fighterEffects={fighterData.fighter?.effects || {}}
+              onEffectsUpdate={(updatedEffects) => {
+                setFighterData(prev => ({
+                  ...prev,
+                  fighter: prev.fighter ? {
+                    ...prev.fighter,
+                    effects: {
+                      ...prev.fighter.effects,
+                      ...updatedEffects
+                    }
+                  } : null
+                }));
+              }}
+              loadouts={fighterData.loadouts}
+              activeLoadoutId={fighterData.activeLoadoutId}
+              onLoadoutsUpdate={(updatedLoadouts, newActiveLoadoutId) => {
+                setFighterData(prev => ({
+                  ...prev,
+                  loadouts: updatedLoadouts,
+                  activeLoadoutId: newActiveLoadoutId
+                }));
+              }}
+            />
+          )}
 
           <SkillsList
             skills={fighterData.fighter?.skills || {}}
@@ -936,189 +974,194 @@ export default function FighterPage({
             />
           )}
 
-          <InjuriesList
-            injuries={[
-              ...(fighterData.fighter?.effects?.injuries || []),
-              ...(fighterData.fighter?.effects?.['rig-glitches'] || [])
-            ]}
-            editionSlug={fighterData.gang?.edition_slug ?? fighterData.fighter?.edition_slug ?? null}
-            fighterId={fighterData.fighter?.id || ''}
-            fighterGangId={fighterData.gang?.id}
-            fighterCampaigns={fighterData.fighter?.campaigns}
-            fighterRecovery={fighterData.fighter?.recovery}
-            fighterKilled={fighterData.fighter?.killed}
-            fighterCaptured={fighterData.fighter?.captured}
-            fighterCapturedByGangId={fighterData.fighter?.captured_by_gang_id ?? null}
-            userPermissions={userPermissions}
-            fighter_subtypes={fighterData.fighter?.fighter_subtypes || []}
-            is_spyrer={fighterData.fighter?.is_spyrer}
-            kill_count={fighterData.fighter?.kill_count ?? 0}
-            gangCredits={fighterData.gang?.credits ?? 0}
-            skills={fighterData.fighter?.skills || {}}
-            fighterWeapons={fighterData.equipment
-              ?.filter((e: any) => e.equipment_type === 'weapon')
-              .map((e: any) => ({
-                id: e.fighter_equipment_id,
-                name: e.equipment_name,
-                equipment_category: e.equipment_category,
-                effect_names: e.effect_names
-              }))}
-            onEquipmentEffectUpdate={(fighterEquipmentId, effectData) => {
-              setFighterData(prev => {
-                if (!prev.fighter) return prev;
+          {!isVehicle && (
+            <InjuriesList
+              injuries={[
+                ...(fighterData.fighter?.effects?.injuries || []),
+                ...(fighterData.fighter?.effects?.['rig-glitches'] || [])
+              ]}
+              editionSlug={editionSlug}
+              fighterId={fighterData.fighter?.id || ''}
+              fighterGangId={fighterData.gang?.id}
+              fighterCampaigns={fighterData.fighter?.campaigns}
+              fighterRecovery={fighterData.fighter?.recovery}
+              fighterKilled={fighterData.fighter?.killed}
+              fighterCaptured={fighterData.fighter?.captured}
+              fighterCapturedByGangId={fighterData.fighter?.captured_by_gang_id ?? null}
+              userPermissions={userPermissions}
+              fighter_subtypes={fighterData.fighter?.fighter_subtypes || []}
+              is_spyrer={fighterData.fighter?.is_spyrer}
+              kill_count={fighterData.fighter?.kill_count ?? 0}
+              gangCredits={fighterData.gang?.credits ?? 0}
+              skills={fighterData.fighter?.skills || {}}
+              fighterWeapons={fighterData.equipment
+                ?.filter((e: any) => e.equipment_type === 'weapon')
+                .map((e: any) => ({
+                  id: e.fighter_equipment_id,
+                  name: e.equipment_name,
+                  equipment_category: e.equipment_category,
+                  effect_names: e.effect_names
+                }))}
+              onEquipmentEffectUpdate={(fighterEquipmentId, effectData) => {
+                setFighterData(prev => {
+                  if (!prev.fighter) return prev;
 
-                // Update equipment to recalculate weapon profiles
-                const updatedEquipment = prev.equipment.map((item: Equipment): Equipment => {
-                  if (item.fighter_equipment_id === fighterEquipmentId) {
-                    if (effectData === null) {
-                      // Restore base profiles by removing the effect modifiers
-                      const baseProfiles = item.base_weapon_profiles || item.weapon_profiles;
-                      return {
-                        ...item,
-                        weapon_profiles: baseProfiles
-                      };
-                    } else {
-                      // Apply modifiers to weapon profiles
-                      const effect = {
-                        id: effectData.id,
-                        effect_name: effectData.effect_name,
-                        fighter_effect_type_id: effectData.fighter_effect_type_id,
-                        fighter_equipment_id: fighterEquipmentId,
-                        fighter_effect_modifiers: effectData.fighter_effect_modifiers || [],
-                        type_specific_data: effectData.type_specific_data,
-                        created_at: effectData.created_at
-                      };
+                  // Update equipment to recalculate weapon profiles
+                  const updatedEquipment = prev.equipment.map((item: Equipment): Equipment => {
+                    if (item.fighter_equipment_id === fighterEquipmentId) {
+                      if (effectData === null) {
+                        // Restore base profiles by removing the effect modifiers
+                        const baseProfiles = item.base_weapon_profiles || item.weapon_profiles;
+                        return {
+                          ...item,
+                          weapon_profiles: baseProfiles
+                        };
+                      } else {
+                        // Apply modifiers to weapon profiles
+                        const effect = {
+                          id: effectData.id,
+                          effect_name: effectData.effect_name,
+                          fighter_effect_type_id: effectData.fighter_effect_type_id,
+                          fighter_equipment_id: fighterEquipmentId,
+                          fighter_effect_modifiers: effectData.fighter_effect_modifiers || [],
+                          type_specific_data: effectData.type_specific_data,
+                          created_at: effectData.created_at
+                        };
 
-                      // Store base profiles if not already stored, then apply modifiers
-                      const baseProfiles = item.base_weapon_profiles || item.weapon_profiles || [];
-                      const modifiedProfiles = applyWeaponModifiers(baseProfiles, [effect]);
+                        // Store base profiles if not already stored, then apply modifiers
+                        const baseProfiles = item.base_weapon_profiles || item.weapon_profiles || [];
+                        const modifiedProfiles = applyWeaponModifiers(baseProfiles, [effect]);
 
-                      return {
-                        ...item,
-                        base_weapon_profiles: baseProfiles,
-                        weapon_profiles: modifiedProfiles
-                      };
+                        return {
+                          ...item,
+                          base_weapon_profiles: baseProfiles,
+                          weapon_profiles: modifiedProfiles
+                        };
+                      }
                     }
+                    return item;
+                  });
+
+                  // Update fighter effects - add/remove effect from equipment category
+                  let updatedEffects = prev.fighter.effects;
+                  if (effectData === null) {
+                    // Remove effect with matching fighter_equipment_id from equipment category
+                    updatedEffects = {
+                      ...updatedEffects,
+                      equipment: updatedEffects.equipment.filter(e => e.fighter_equipment_id !== fighterEquipmentId)
+                    };
+                  } else {
+                    // Add new effect to equipment category
+                    const newEffect: FighterEffect = {
+                      id: effectData.id,
+                      effect_name: effectData.effect_name,
+                      fighter_effect_type_id: effectData.fighter_effect_type_id,
+                      fighter_equipment_id: fighterEquipmentId ?? undefined,
+                      fighter_effect_modifiers: effectData.fighter_effect_modifiers || [],
+                      type_specific_data: effectData.type_specific_data,
+                      created_at: effectData.created_at
+                    };
+                    updatedEffects = {
+                      ...updatedEffects,
+                      equipment: [...updatedEffects.equipment, newEffect]
+                    };
                   }
-                  return item;
+
+                  return {
+                    ...prev,
+                    fighter: {
+                      ...prev.fighter,
+                      effects: updatedEffects
+                    },
+                    equipment: updatedEquipment
+                  };
                 });
+              }}
+              onInjuryUpdate={(updatedInjuries, recoveryStatus, capturedStatus, capturedByGangId, killedStatus) => {
+                setFighterData(prev => {
+                  if (!prev.fighter) return prev;
 
-                // Update fighter effects - add/remove effect from equipment category
-                let updatedEffects = prev.fighter.effects;
-                if (effectData === null) {
-                  // Remove effect with matching fighter_equipment_id from equipment category
-                  updatedEffects = {
-                    ...updatedEffects,
-                    equipment: updatedEffects.equipment.filter(e => e.fighter_equipment_id !== fighterEquipmentId)
-                  };
-                } else {
-                  // Add new effect to equipment category
-                  const newEffect: FighterEffect = {
-                    id: effectData.id,
-                    effect_name: effectData.effect_name,
-                    fighter_effect_type_id: effectData.fighter_effect_type_id,
-                    fighter_equipment_id: fighterEquipmentId ?? undefined,
-                    fighter_effect_modifiers: effectData.fighter_effect_modifiers || [],
-                    type_specific_data: effectData.type_specific_data,
-                    created_at: effectData.created_at
-                  };
-                  updatedEffects = {
-                    ...updatedEffects,
-                    equipment: [...updatedEffects.equipment, newEffect]
-                  };
-                }
+                  // Separate lasting injuries and rig-glitches based on whether fighter is a Spyrer
+                  // For Spyrers, all go to rig-glitches; for others, all go to lasting injuries
+                  const isSpyrer = prev.fighter.is_spyrer;
 
-                return {
-                  ...prev,
-                  fighter: {
-                    ...prev.fighter,
-                    effects: updatedEffects
-                  },
-                  equipment: updatedEquipment
-                };
-              });
-            }}
-            onInjuryUpdate={(updatedInjuries, recoveryStatus, capturedStatus, capturedByGangId, killedStatus) => {
-              setFighterData(prev => {
-                if (!prev.fighter) return prev;
-
-                // Separate lasting injuries and rig-glitches based on whether fighter is a Spyrer
-                // For Spyrers, all go to rig-glitches; for others, all go to lasting injuries
-                const isSpyrer = prev.fighter.is_spyrer;
-
-                return {
-                  ...prev,
-                  fighter: {
-                    ...prev.fighter,
-                    recovery: recoveryStatus !== undefined ? recoveryStatus : prev.fighter.recovery,
-                    killed: killedStatus !== undefined ? killedStatus : prev.fighter.killed,
-                    captured: capturedStatus !== undefined ? capturedStatus : prev.fighter.captured,
-                    captured_by_gang_id: capturedByGangId !== undefined ? capturedByGangId : prev.fighter.captured_by_gang_id,
-                    effects: {
-                      ...prev.fighter.effects,
-                      injuries: isSpyrer ? [] : updatedInjuries,
-                      'rig-glitches': isSpyrer ? updatedInjuries : []
+                  return {
+                    ...prev,
+                    fighter: {
+                      ...prev.fighter,
+                      recovery: recoveryStatus !== undefined ? recoveryStatus : prev.fighter.recovery,
+                      killed: killedStatus !== undefined ? killedStatus : prev.fighter.killed,
+                      captured: capturedStatus !== undefined ? capturedStatus : prev.fighter.captured,
+                      captured_by_gang_id: capturedByGangId !== undefined ? capturedByGangId : prev.fighter.captured_by_gang_id,
+                      effects: {
+                        ...prev.fighter.effects,
+                        injuries: isSpyrer ? [] : updatedInjuries,
+                        'rig-glitches': isSpyrer ? updatedInjuries : []
+                      }
                     }
-                  }
-                };
-              });
-            }}
-            onSkillsUpdate={(updatedSkills) => {
-              setFighterData(prev => ({
-                ...prev,
-                fighter: prev.fighter ? {
-                  ...prev.fighter,
-                  skills: updatedSkills
-                } : null
-              }));
-            }}
-            onKillCountUpdate={(newKillCount) => {
-              setFighterData(prev => ({
-                ...prev,
-                fighter: prev.fighter ? {
-                  ...prev.fighter,
-                  kill_count: newKillCount
-                } : null
-              }));
-            }}
-            onGangFinancialsUpdate={(financials) => {
-              setFighterData(prev => ({
-                ...prev,
-                gang: prev.gang ? {
-                  ...prev.gang,
-                  credits: financials.credits,
-                  rating: financials.rating,
-                  wealth: financials.wealth
-                } : prev.gang
-              }));
-            }}
-          />
-
-          {/* Vehicle Lasting Damage Section - only show if fighter has a vehicle */}
-          {vehicle && (
-            <VehicleDamagesList
-              damages={vehicle.effects ? vehicle.effects["lasting damages"] || [] : []}
-              onDamageUpdate={(updatedDamages) => {
+                  };
+                });
+              }}
+              onSkillsUpdate={(updatedSkills) => {
                 setFighterData(prev => ({
                   ...prev,
                   fighter: prev.fighter ? {
                     ...prev.fighter,
-                    vehicles: prev.fighter.vehicles?.map(v => 
-                      v.id === vehicle.id 
-                        ? { 
-                            ...v, 
-                            effects: { 
-                              ...v.effects, 
-                              "lasting damages": updatedDamages 
-                            } 
-                          }
-                        : v
-                    )
+                    skills: updatedSkills
                   } : null
                 }));
               }}
+              onKillCountUpdate={(newKillCount) => {
+                setFighterData(prev => ({
+                  ...prev,
+                  fighter: prev.fighter ? {
+                    ...prev.fighter,
+                    kill_count: newKillCount
+                  } : null
+                }));
+              }}
+              onGangFinancialsUpdate={(financials) => {
+                setFighterData(prev => ({
+                  ...prev,
+                  gang: prev.gang ? {
+                    ...prev.gang,
+                    credits: financials.credits,
+                    rating: financials.rating,
+                    wealth: financials.wealth
+                  } : prev.gang
+                }));
+              }}
+            />
+          )}
+
+          {/* Vehicle Lasting Damage Section - the vehicle is either an attached row (N23) or the fighter itself (N26) */}
+          {vehicleView && (
+            <VehicleDamagesList
+              damages={vehicleView.effects?.["lasting damages"] || []}
+              onDamageUpdate={(updatedDamages) => {
+                setFighterData(prev => {
+                  if (!prev.fighter) return prev;
+                  const vehicleId = vehicleView.vehicleId;
+                  return {
+                    ...prev,
+                    fighter: {
+                      ...prev.fighter,
+                      vehicles: vehicleId
+                        ? prev.fighter.vehicles?.map(v =>
+                            v.id === vehicleId
+                              ? { ...v, effects: { ...v.effects, "lasting damages": updatedDamages } }
+                              : v
+                          )
+                        : prev.fighter.vehicles,
+                      effects: vehicleId
+                        ? prev.fighter.effects
+                        : { ...prev.fighter.effects, "lasting damages": updatedDamages }
+                    }
+                  };
+                });
+              }}
               fighterId={fighterData.fighter?.id || ''}
-              vehicleId={vehicle.id}
+              vehicleId={vehicleView.vehicleId}
               gangId={fighterData.gang?.id || ''}
               vehicle={vehicle}
               gangCredits={fighterData.gang?.credits || 0}
@@ -1332,7 +1375,7 @@ export default function FighterPage({
             />
           )}
 
-          {uiState.modals.addWeapon && fighterData.fighter && fighterData.gang && (
+          {uiState.modals.addWeapon && !isVehicle && fighterData.fighter && fighterData.gang && (
             <ItemModal
               title="Equipment"
               onClose={() => handleModalToggle('addWeapon', false)}
@@ -1349,13 +1392,15 @@ export default function FighterPage({
               fighterWeapons={(fighterData.equipment || []).filter(eq => eq.equipment_type === 'weapon').map(eq => ({ id: eq.fighter_equipment_id, name: eq.equipment_name, equipment_category: eq.equipment_category, effect_names: eq.effect_names }))}
               {...campaignProps}
               gangReputation={fighterData.gang?.reputation}
-              editionSlug={fighterData.gang?.edition_slug ?? fighterData.fighter?.edition_slug ?? null}
+              editionSlug={editionSlug}
               gangTradePoints={fighterData.gang?.trade_points}
               onPurchaseRequest={(payload) => { purchaseHandlerRef.current?.(payload); }}
             />
           )}
 
-          {uiState.modals.addVehicleEquipment && fighterData.fighter && fighterData.gang && vehicle && (
+          {/* An N26 vehicle has no vehicle_types row - its list comes from its fighter type, so it
+              buys through the ordinary fighter path with no vehicle-category restriction. */}
+          {uiState.modals.addVehicleEquipment && fighterData.fighter && fighterData.gang && vehicleView && (
             <ItemModal
               title="Add Vehicle Equipment"
               onClose={() => handleModalToggle('addVehicleEquipment', false)}
@@ -1365,14 +1410,14 @@ export default function FighterPage({
               fighterId={fighterData.fighter.id}
               fighterTypeId={fighterData.fighter.fighter_type.fighter_type_id}
               fighterCredits={fighterData.fighter.credits}
-              vehicleId={vehicle.id}
-              vehicleType={vehicle.vehicle_type}
-              vehicleTypeId={vehicle.vehicle_type_id}
-              isVehicleEquipment={true}
-              allowedCategories={VEHICLE_EQUIPMENT_CATEGORIES}
+              vehicleId={vehicle?.id}
+              vehicleType={vehicle?.vehicle_type}
+              vehicleTypeId={vehicle?.vehicle_type_id}
+              isVehicleEquipment={Boolean(vehicle)}
+              allowedCategories={vehicle ? VEHICLE_EQUIPMENT_CATEGORIES : undefined}
               {...campaignProps}
               gangReputation={fighterData.gang?.reputation}
-              editionSlug={fighterData.gang?.edition_slug ?? fighterData.fighter?.edition_slug ?? null}
+              editionSlug={editionSlug}
               gangTradePoints={fighterData.gang?.trade_points}
               onPurchaseRequest={(payload) => { vehiclePurchaseHandlerRef.current?.(payload); }}
             />

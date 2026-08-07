@@ -39,6 +39,8 @@ export interface FighterBasic {
   custom_fighter_type?: {
     gang_type_id: string | null;
     custom_gang_type_id: string | null;
+    is_vehicle?: boolean;
+    editions?: { slug: string } | null;
   } | null;
   fighter_gang_legacy_id?: string | null;
   fighter_gang_legacy?: {
@@ -159,7 +161,9 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
           custom_fighter_type_id,
           custom_fighter_type:custom_fighter_type_id (
             gang_type_id,
-            custom_gang_type_id
+            custom_gang_type_id,
+            is_vehicle,
+            editions:edition_id (slug)
           ),
           fighter_gang_legacy_id,
           fighter_gang_legacy:fighter_gang_legacy_id (
@@ -1183,8 +1187,8 @@ export const getFighterTypeInfo = async (fighterTypeId: string | null, supabase:
   fighter_type: string;
   alliance_crew_name?: string;
   is_spyrer?: boolean;
+  is_vehicle?: boolean;
   gang_type_id?: string | null;
-  edition_id?: string | null;
   editions?: { slug: string } | null;
 } | null> => {
   if (!fighterTypeId) return null;
@@ -1193,7 +1197,7 @@ export const getFighterTypeInfo = async (fighterTypeId: string | null, supabase:
     async () => {
       const { data, error } = await supabase
         .from('fighter_types')
-        .select('id, fighter_type, alliance_crew_name, is_spyrer, gang_type_id, edition_id, editions:edition_id (slug)')
+        .select('id, fighter_type, alliance_crew_name, is_spyrer, is_vehicle, gang_type_id, editions:edition_id (slug)')
         .eq('id', fighterTypeId)
         .single();
 
