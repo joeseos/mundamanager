@@ -490,6 +490,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       intelligence: effectiveFighterData.intelligence,
       save: effectiveFighterData.save ?? null,
       xp: effectiveFighterData.starting_xp ?? 0,
+      starting_xp: effectiveFighterData.starting_xp ?? 0,
       is_vehicle: effectiveFighterData.is_vehicle ?? false,
       kills: 0,
       special_rules: effectiveFighterData.special_rules,
