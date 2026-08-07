@@ -43,8 +43,8 @@ export const equipmentCategoriesN26: EquipmentCategoryN26Entry[] = [
   { category_name: "Auxiliary Weapons", super_category_name: "Ranged Weapons" },
   { category_name: "Blast Weapons", super_category_name: "Ranged Weapons" },
   { category_name: "Bolt Weapons", super_category_name: "Ranged Weapons" },
-  { category_name: "Combi-Pistols", super_category_name: "Ranged Weapons" },
-  { category_name: "Combi-Weapons", super_category_name: "Ranged Weapons" },
+  { category_name: "Combi-pistols", super_category_name: "Ranged Weapons" },
+  { category_name: "Combi-weapons", super_category_name: "Ranged Weapons" },
   { category_name: "Esoteric Weapons (Ranged Weapons)", super_category_name: "Ranged Weapons" },
   { category_name: "Exo Weapons (Ranged Weapons)", super_category_name: "Ranged Weapons" },
   { category_name: "Flamers", super_category_name: "Ranged Weapons" },
@@ -73,9 +73,10 @@ export const equipmentCategoriesN26: EquipmentCategoryN26Entry[] = [
   { category_name: "Yeld Weapons", super_category_name: "Spyrer Weapons" },
   { category_name: "Armour & Field Armour", super_category_name: "Wargear" },
   { category_name: "Gang Equipment", super_category_name: "Wargear" },
-  { category_name: "Personal Equipment", super_category_name: "Wargear" },
   { category_name: "Mounts", super_category_name: "Wargear" },
+  { category_name: "Personal Equipment", super_category_name: "Wargear" },
   { category_name: "Pets", super_category_name: "Wargear" },
+  { category_name: "Ridgehauler Upgrades", super_category_name: "Wargear" },
   { category_name: "Weapon Accessories", super_category_name: "Wargear" },
 ];
 
