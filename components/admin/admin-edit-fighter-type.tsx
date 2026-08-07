@@ -1215,7 +1215,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         intelligence: parseInt(intelligence),
         attacks: parseInt(attacks),
         save: showSave && save ? parseInt(save) : null,
-        starting_xp: showStartingXp && startingXp ? parseInt(startingXp) : 0,
+        // See admin-create-fighter-type: blank on an edition that has Starting XP
+        // defers to the column default, editions without it pin 0.
+        ...(showStartingXp
+          ? (startingXp ? { starting_xp: parseInt(startingXp) } : {})
+          : { starting_xp: 0 }),
         special_rules: specialRules,
         free_skill: freeSkill,
         is_gang_addition: isGangAddition,
