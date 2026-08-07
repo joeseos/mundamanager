@@ -354,6 +354,10 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   const canShowEditButtons = userPermissions.canEdit;
   const isCrew = fighter_subtypes.includes('Crew');
   const isVehicle = is_vehicle ?? false;
+  // Only an N23 crew reads its profile off an attached vehicle record. An N26 vehicle is the
+  // fighter, so it keeps the ordinary statline. N26 has no Crew subtype today, so the guard is
+  // consistency rather than a live case — but the statline and its limits must agree either way.
+  const showsVehicleProfile = isCrew && !isVehicle;
 
   const handleImageClick = () => {
     if (canShowEditButtons) {
@@ -373,13 +377,13 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
 
   // Calculate vehicle stats once
   const vehicleStats = useMemo(() =>
-    isCrew ? calculateVehicleStats(vehicles?.[0]) : null,
-    [isCrew, vehicles]
+    showsVehicleProfile ? calculateVehicleStats(vehicles?.[0]) : null,
+    [showsVehicleProfile, vehicles]
   );
 
   // Update stats object to handle crew stats - now using modifiedStats instead of adjustedStats
   const stats = useMemo<Record<string, string | number>>(() => ({
-    ...(isCrew ? {
+    ...(showsVehicleProfile ? {
       'M': vehicles?.[0] ? `${vehicleStats?.movement}"` : '*',
       'Front': vehicles?.[0] ? vehicleStats?.front : '*',
       'Side': vehicles?.[0] ? vehicleStats?.side : '*',
@@ -409,7 +413,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       'Int': `${modifiedStats.intelligence}+`,
       'XP': xp ?? 0
     })
-  }), [isCrew, vehicleStats, vehicles, modifiedStats, xp, edition_slug]);
+  }), [showsVehicleProfile, vehicleStats, vehicles, modifiedStats, xp, edition_slug]);
 
   return (
     <div className="relative">
@@ -527,7 +531,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
         </div>
       </div>
       <div className="mt-2">
-        <FighterDetailsStatsTable data={stats} isCrew={isCrew} editionSlug={edition_slug} />
+        <FighterDetailsStatsTable data={stats} isCrew={showsVehicleProfile} editionSlug={edition_slug} />
       </div>
 
       {/* Show owner information for owned fighters */}
@@ -577,7 +581,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
 
       {/* N23 crews have separate vehicle records; N26 vehicles are fighters. */}
       <div className="mt-4">
-      {isCrew && !isVehicle && (
+      {showsVehicleProfile && (
           <div className="text-sm text-muted-foreground">
             Vehicle:{' '}
             {vehicles?.[0]
@@ -588,7 +592,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
             }
           </div>
         )}
-        {isCrew && !isVehicle && vehicles?.[0] && vehicleStats && (() => {
+        {showsVehicleProfile && vehicles?.[0] && vehicleStats && (() => {
           const occupiedSlots = calculateOccupiedSlots(vehicles?.[0]);
           return (
             <>
@@ -637,7 +641,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
 
       {/* Fighter Logs Modal */}
       <LogModal
-        fetchUrl={`/api/gangs/${gangId || ''}/logs?fighterId=${id}${isCrew && !isVehicle && vehicles?.[0] ? `&vehicleId=${vehicles[0].id}` : ''}`}
+        fetchUrl={`/api/gangs/${gangId || ''}/logs?fighterId=${id}${showsVehicleProfile && vehicles?.[0] ? `&vehicleId=${vehicles[0].id}` : ''}`}
         title={`Activity Logs: ${name}`}
         emptyMessage="No activity logs found for this fighter."
         isOpen={isLogsModalOpen}
