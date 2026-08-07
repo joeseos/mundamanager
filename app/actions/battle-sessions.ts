@@ -16,7 +16,7 @@ import type {
 } from '@/types/battle-session';
 import { fetchBattleSessionDirect } from '@/app/lib/battle-sessions/get-battle-session-data';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
-import { editionsConflict } from '@/types/edition';
+import { editionsConflict, gangEditionJoin } from '@/types/edition';
 
 /**
  * Gangs have no edition of their own — it is always derived via the gang type,
@@ -27,8 +27,7 @@ const GANG_EDITION_SELECT = `
   custom_gang_type:custom_gang_types!custom_gang_type_id ( editions:edition_id ( id, slug ) )
 `;
 
-const gangEdition = (gangRow: any): { id: string; slug: string } | null =>
-  gangRow?.gang_types?.editions ?? gangRow?.custom_gang_type?.editions ?? null;
+const gangEdition = gangEditionJoin;
 
 // =============================================================================
 // Data Fetching

@@ -19,7 +19,7 @@ import { LuChevronLeft, LuChevronRight } from "react-icons/lu"
 import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang'
 import { EditionToggle } from '@/components/home/edition-toggle'
 import { useHomeEdition } from '@/hooks/use-home-edition'
-import { sameEditionSlug } from '@/types/edition'
+import { sameEditionForDisplay } from '@/types/edition'
 
 type Gang = {
   id: string;
@@ -120,12 +120,12 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(DEFAULT_IMAGE_INDEX);
 
   const editionGangTypes = useMemo(
-    () => gangTypes.filter(type => sameEditionSlug(type.edition_slug, editionSlug)),
+    () => gangTypes.filter(type => sameEditionForDisplay(type.edition_slug, editionSlug)),
     [gangTypes, editionSlug]
   );
 
   const editionVariants = useMemo(
-    () => availableVariants.filter(variant => sameEditionSlug(variant.edition_slug, editionSlug)),
+    () => availableVariants.filter(variant => sameEditionForDisplay(variant.edition_slug, editionSlug)),
     [availableVariants, editionSlug]
   );
 
@@ -139,7 +139,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
       setSelectedOrigin("");
     }
     setSelectedVariants(prev =>
-      prev.filter(variant => sameEditionSlug(variant.edition_slug, editionSlug))
+      prev.filter(variant => sameEditionForDisplay(variant.edition_slug, editionSlug))
     );
   }
 

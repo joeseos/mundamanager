@@ -1,7 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { sameEditionSlug } from '@/types/edition';
+import { editionsConflict, editionSlugFromJoin, gangEditionSlug } from '@/types/edition';
 
-/** Campaign type edition and gang type edition must match (null treated as n23). */
+/**
+ * Campaign type edition and gang type edition must not conflict.
+ *
+ * Uses editionsConflict, not sameEditionForDisplay: this rejects a user action, so
+ * an edition that failed to resolve must not be silently read as N23 and used to
+ * turn someone away. Matches the battle-session guard.
+ */
 export async function assertGangMatchesCampaignEdition(
   supabase: SupabaseClient,
   campaignId: string,
@@ -30,12 +36,10 @@ export async function assertGangMatchesCampaignEdition(
     return { ok: false, error: 'Gang not found' };
   }
 
-  const campaignEditionSlug = (campaign as any).campaign_types?.editions?.slug ?? null;
-  const gangEditionSlug = (gang as any).gang_types?.editions?.slug
-    ?? (gang as any).custom_gang_types?.editions?.slug
-    ?? null;
+  const campaignEdition = editionSlugFromJoin((campaign as any).campaign_types?.editions);
+  const gangEdition = gangEditionSlug(gang);
 
-  if (!sameEditionSlug(campaignEditionSlug, gangEditionSlug)) {
+  if (editionsConflict(campaignEdition, gangEdition)) {
     return {
       ok: false,
       error: 'This gang is from a different edition than the campaign'

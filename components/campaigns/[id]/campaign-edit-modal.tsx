@@ -16,7 +16,7 @@ import { tradingPostRank } from "@/utils/tradingPostRank";
 import CampaignAllegiancesActions from "@/components/campaigns/[id]/campaign-allegiances-actions";
 import CampaignResourcesActions from "@/components/campaigns/[id]/campaign-resources-actions";
 import { Badge } from "@/components/ui/badge";
-import { sameEditionSlug } from '@/types/edition';
+import { sameEditionForDisplay } from '@/types/edition';
 
 interface TradingPostType {
   id: string;
@@ -110,14 +110,14 @@ export default function CampaignEditModal({
 
   const editionTradingPostTypes = useMemo(
     () => tradingPostTypes.filter(type =>
-      sameEditionSlug(type.edition_slug, campaignData.edition_slug)
+      sameEditionForDisplay(type.edition_slug, campaignData.edition_slug)
     ),
     [tradingPostTypes, campaignData.edition_slug]
   );
 
   const editionCustomTradingPostTypes = useMemo(
     () => customTradingPostTypes.filter(type =>
-      sameEditionSlug(type.edition_slug, campaignData.edition_slug)
+      sameEditionForDisplay(type.edition_slug, campaignData.edition_slug)
     ),
     [customTradingPostTypes, campaignData.edition_slug]
   );

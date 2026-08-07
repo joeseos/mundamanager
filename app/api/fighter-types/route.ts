@@ -3,6 +3,7 @@ import { createClient } from "@/utils/supabase/server";
 import { gangVariantFighterModifiers } from '@/utils/gangVariantMap';
 import { getUserCustomFighterTypes } from '@/app/lib/customise/custom-fighters';
 import { getUserIdFromClaims } from "@/utils/auth";
+import { withEditionSlug } from '@/types/edition';
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -29,12 +30,14 @@ async function getCombinedCustomFighters(supabase: SupabaseServerClient, userId:
     const fighterIds = sharedFighterIds?.map(sf => sf.custom_fighter_type_id).filter(Boolean) || [];
 
     if (fighterIds.length > 0) {
+      // Same edition embed as getUserCustomFighterTypes, so shared fighters carry
+      // an edition_slug too rather than silently losing their edition features.
       const { data: sharedFighters } = await supabase
         .from('custom_fighter_types')
-        .select('*')
+        .select('*, editions:edition_id (slug)')
         .in('id', fighterIds);
 
-      sharedCustomFighters = sharedFighters || [];
+      sharedCustomFighters = (sharedFighters || []).map(withEditionSlug);
     }
   }
 
@@ -74,7 +77,7 @@ function transformCustomFighter(cf: any) {
     intelligence: cf.intelligence,
     attacks: cf.attacks,
     save: cf.save ?? null,
-    edition_slug: null, // custom fighters get edition support with the customise edition selector
+    edition_slug: cf.edition_slug ?? null,
     limitation: null,
     alignment: null,
     default_equipment: [],
