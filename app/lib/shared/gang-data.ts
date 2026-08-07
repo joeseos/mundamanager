@@ -157,6 +157,7 @@ export interface GangFighter {
   intelligence: number;
   save?: number | null;
   edition_slug?: string | null;
+  starting_xp: number;
   weapons: WeaponProps[];
   wargear: WargearItem[];
   effects: Record<string, any[]>;
@@ -982,6 +983,7 @@ export const getGangFightersList = async (
           intelligence,
           save,
           xp,
+          starting_xp,
           special_rules,
           fighter_subtypes,
           fighter_type,

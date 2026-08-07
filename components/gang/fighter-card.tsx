@@ -6,6 +6,7 @@ import { Equipment } from '@/types/equipment';
 import { FighterProps, FighterEffect, Vehicle, VehicleEquipment, FighterSkills } from '@/types/fighter';
 import { hasSaveCharacteristic } from '@/types/edition';
 import { calculateAdjustedStats, applySpecialRulesModifiers } from '@/utils/effect-modifiers';
+import { countAdvancementsTaken, openAdvancementsFor } from '@/utils/advancementRanks';
 import { injuryAggregationLabel } from '@/utils/injuryTarget';
 import { TbMeatOff } from "react-icons/tb";
 import { GiHandcuffs, GiImprisoned } from "react-icons/gi";
@@ -153,6 +154,7 @@ const FighterCard = memo(function FighterCard({
   save,
   edition_slug,
   xp,
+  starting_xp = 0,
   advancements,
   weapons,
   wargear,
@@ -448,6 +450,15 @@ const FighterCard = memo(function FighterCard({
 
   const isInactive = killed || retired || enslaved || recovery;
 
+  // Advancements earned but not yet taken. Zero in editions that do not rank by
+  // XP, so the badge is N26-only without an explicit edition check here.
+  const openAdvancements = openAdvancementsFor(
+    edition_slug,
+    starting_xp,
+    xp,
+    countAdvancementsTaken(effects, skills)
+  );
+
   // Determine a unique and valid id for the fighter card based on its status.
   // The combined state 'is_inactive_and_recovery' takes precedence over the individual states.
   const fighterCardId =
@@ -605,6 +616,9 @@ const FighterCard = memo(function FighterCard({
             {starved && <TbMeatOff className="text-red-500" />}
             {recovery && <FaMedkit className="text-blue-500" />}
             {captured && <GiHandcuffs className="text-sky-300" />}
+            {openAdvancements > 0 && (
+              <span className="text-xs font-bold text-amber-500 whitespace-nowrap">Level Up</span>
+            )}
           </div>
           {/* Render image if image_url is present, before credits box */}
           {image_url && (

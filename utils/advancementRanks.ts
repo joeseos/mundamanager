@@ -105,3 +105,40 @@ export function advancementsEarnedFor(
   // the fact; it means no Advancement, never a negative one.
   return Math.max(0, tiersAtOrBelow(ranks, currentXp) - tiersAtOrBelow(ranks, startingXp));
 }
+
+/**
+ * How many Advancements a model has already taken.
+ *
+ * An Advancement lands as one of two rows depending on what was picked: a
+ * characteristic increase becomes a fighter_effect in the 'advancements'
+ * category, a skill becomes a fighter_skill flagged is_advance. Starting and
+ * free skills are not Advancements and carry is_advance false.
+ *
+ * Both the fighter page and the gang roster count this, so it lives here rather
+ * than in either card — the same reason calculateAdjustedStats is shared.
+ */
+export function countAdvancementsTaken(
+  effects: { advancements?: unknown[] } | null | undefined,
+  skills: Record<string, { is_advance?: boolean }> | null | undefined,
+): number {
+  const characteristics = effects?.advancements?.length ?? 0;
+  const skillAdvances = Object.values(skills ?? {}).filter((skill) => skill?.is_advance).length;
+
+  return characteristics + skillAdvances;
+}
+
+/**
+ * Advancements the model has earned but not yet spent — the "Level Up" state.
+ *
+ * Derived on read rather than stored: it is a pure function of the model's XP,
+ * its recruitment XP and what it has already taken, so it cannot drift out of
+ * step with any of them and adding XP needs no extra write.
+ */
+export function openAdvancementsFor(
+  editionSlug: string | null | undefined,
+  startingXp: number,
+  currentXp: number,
+  advancementsTaken: number,
+): number {
+  return Math.max(0, advancementsEarnedFor(editionSlug, startingXp, currentXp) - advancementsTaken);
+}
