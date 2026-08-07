@@ -31,13 +31,17 @@ import {
   rollNd6Outcome,
   GANGER_EXOTIC_BEAST_ADVANCEMENT_TABLE,
   resolveGangerExoticBeastAdvancementFromUtil,
+  N26_ADVANCEMENT_TABLE,
+  resolveN26AdvancementFromUtil,
   type TableEntry
 } from '@/utils/dice';
+import { hasCumulativeXp } from '@/types/edition';
 
 // AdvancementModal Interfaces
 interface AdvancementModalProps {
   fighterId: string;
   currentXp: number;
+  editionSlug?: string | null;
   fighterSubtypes: string[];
   advancements: Array<FighterEffectType>;
   skills: Record<string, any>;
@@ -169,6 +173,7 @@ interface AdvancementsListProps {
   fighterXp: number;
   fighterChanges?: FighterChanges;
   fighterId: string;
+  editionSlug?: string | null;
   fighterSubtypes: string[];
   advancements: Array<FighterEffectType>;
   skills: FighterSkills;
@@ -400,6 +405,7 @@ function buildSkillSetComboboxOptions(
 }
 
 const GANGER_ADVANCEMENT_TABLE_LABEL = 'Ganger / Exotic Beast Advancement';
+const N26_ADVANCEMENT_TABLE_LABEL = 'Advancement';
 
 const CHAMPION_PROMOTION_XP_COST = 12;
 const CHAMPION_PROMOTION_CREDITS_INCREASE = 40;
@@ -439,6 +445,7 @@ type ChampionPendingPromotion = FighterPromotionResult;
 export function AdvancementModal({
   fighterId,
   currentXp,
+  editionSlug,
   fighterSubtypes,
   advancements,
   skills,
@@ -479,6 +486,7 @@ export function AdvancementModal({
   // Ganger / Exotic Beast advancement roll UI (inline)
   const [gangerSelectedRowId, setGangerSelectedRowId] = useState('');
   const [gangerRollCooldown, setGangerRollCooldown] = useState(false);
+  const [n26RollCooldown, setN26RollCooldown] = useState(false);
   const [gangerCharMap, setGangerCharMap] = useState<Record<string, GangerCharAdv>>({});
   const [gangerSpecialistCosts, setGangerSpecialistCosts] = useState<{ xp_cost: number; credits_increase: number }>({
     xp_cost: 6,
@@ -932,6 +940,35 @@ export function AdvancementModal({
       toast.error(e?.message || 'Failed to log advancement roll');
     }
   });
+
+  const logN26RollMutation = useMutation({
+    mutationFn: async (variables: { outcome_label: string; dice_data: Record<string, unknown> }) => {
+      const result = await verifyAndLogRolledGangerAdvancementRoll({
+        fighter_id: fighterId,
+        advancement_table: N26_ADVANCEMENT_TABLE_LABEL,
+        outcome_label: variables.outcome_label,
+        dice_data: variables.dice_data
+      });
+      if (!result.success) throw new Error(result.error || 'Failed to log advancement roll');
+      return result;
+    },
+    onSuccess: () => {
+      toast.success('Advancement roll logged');
+    },
+    onError: (e: Error) => {
+      toast.error(e?.message || 'Failed to log advancement roll');
+    }
+  });
+
+  const logN26RollWithCooldown = (outcomeLabel: string, rollTotal: number, dice: number[]) => {
+    if (n26RollCooldown || logN26RollMutation.isPending) return;
+    setN26RollCooldown(true);
+    try {
+      logN26RollMutation.mutate({ outcome_label: outcomeLabel, dice_data: { result: rollTotal, dice } });
+    } finally {
+      setTimeout(() => setN26RollCooldown(false), 2000);
+    }
+  };
 
   const logGangerSubRollMutation = useMutation({
     mutationFn: async (variables: { outcome_label: string; dice_data: Record<string, unknown> }) => {
@@ -1999,6 +2036,11 @@ export function AdvancementModal({
   const isGangerOrExoticBeastRestricted =
     fighterSubtypes.includes('Ganger') || fighterSubtypes.includes('Exotic Beast');
 
+  // N26 earns Advancements by rank and spends no XP, so every fighter rolls on
+  // one table and no XP price is ever paid. The N23 subtype-specific tables and
+  // escalating costs do not apply.
+  const isCumulativeXp = hasCumulativeXp(editionSlug);
+
   const handleAdvancementPurchase = async () => {
     if (gangerModalRollBuy) {
       setGangerPurchaseBusy(true);
@@ -2140,11 +2182,61 @@ export function AdvancementModal({
         <div className="p-2 overflow-y-auto grow">
           <div className="mb-4">
             <p className="text-sm text-muted-foreground mb-2">
-              XP cost and rating increase are automatically calculated based on the type and number of advancements.
+              {isCumulativeXp
+                ? 'Advancements are earned by rank and cost no XP. Roll 2D6, then take any result you rolled high enough for.'
+                : 'XP cost and rating increase are automatically calculated based on the type and number of advancements.'}
             </p>
           </div>
 
-          {userPermissions &&
+          {isCumulativeXp && userPermissions && (
+            <div className="mb-4 space-y-4">
+              <div className="space-y-2">
+                <DiceRoller
+                  items={N26_ADVANCEMENT_TABLE}
+                  getRange={(r) => ({ min: r.range[0], max: r.range[1] })}
+                  getName={(r) => r.name}
+                  inline
+                  rollFn={() => rollNd6Outcome(2)}
+                  resolveNameForRoll={(t) => resolveN26AdvancementFromUtil(t)?.name}
+                  onRolled={(rolled) => {
+                    if (rolled.length > 0) {
+                      const { roll: total, dice } = rolled[0];
+                      const row = resolveN26AdvancementFromUtil(total);
+                      if (row) logN26RollWithCooldown(row.name, total, dice);
+                    }
+                  }}
+                  onRoll={(total, dice) => {
+                    const row = resolveN26AdvancementFromUtil(total);
+                    if (row) logN26RollWithCooldown(row.name, total, dice);
+                  }}
+                  buttonText="Roll 2D6"
+                  disabled={!userPermissions.canEdit || logN26RollMutation.isPending || n26RollCooldown}
+                />
+              </div>
+
+              <div className="space-y-1 pt-2 border-t">
+                <p className="text-sm font-medium">Advancement table</p>
+                <p className="text-xs text-muted-foreground">
+                  The roll is recorded in your gang log. Choose the result below — you may take any result you
+                  rolled high enough for.
+                </p>
+                <ul className="text-xs text-muted-foreground pt-1 space-y-0.5">
+                  {N26_ADVANCEMENT_TABLE.map((row) => (
+                    <li key={`${row.range[0]}-${row.range[1]}`} className="flex gap-2">
+                      <span className="font-mono w-10 shrink-0">
+                        {row.range[0] === row.range[1] ? row.range[0] : `${row.range[0]}-${row.range[1]}`}
+                      </span>
+                      <span className="grow">{row.name}</span>
+                      <span className="shrink-0">+{row.credits}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {!isCumulativeXp &&
+            userPermissions &&
             onFighterDetailsUpdate &&
             (fighterSubtypes.includes('Ganger') || fighterSubtypes.includes('Exotic Beast')) && (
               <div className="mb-4 space-y-4">
@@ -2352,7 +2444,7 @@ export function AdvancementModal({
             )}
 
           <div className="space-y-4">
-          {!isGangerOrExoticBeastRestricted && (
+          {(!isGangerOrExoticBeastRestricted || isCumulativeXp) && (
             <>
             <div className="relative">
               <Combobox
@@ -2603,7 +2695,9 @@ export function AdvancementModal({
             </>
           )}
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className={isCumulativeXp ? '' : 'grid grid-cols-2 gap-4'}>
+              {/* No XP is spent in a rank-based edition, so there is no cost to show or edit. */}
+              {!isCumulativeXp && (
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
                   XP Cost
@@ -2619,6 +2713,7 @@ export function AdvancementModal({
                   min="0"
                 />
               </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Cost Increase in Credits
@@ -2679,6 +2774,7 @@ export function AdvancementsList({
   fighterXp,
   fighterChanges = { advancement: [], characteristics: [], skills: [] },
   fighterId,
+  editionSlug,
   fighterSubtypes,
   advancements = [],
   skills = {},
@@ -3069,6 +3165,7 @@ export function AdvancementsList({
         <AdvancementModal
           fighterId={fighterId}
           currentXp={fighterXp}
+          editionSlug={editionSlug}
           fighterSubtypes={fighterSubtypes}
           advancements={advancements}
           skills={skills}
