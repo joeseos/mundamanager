@@ -617,7 +617,9 @@ const FighterCard = memo(function FighterCard({
             {recovery && <FaMedkit className="text-blue-500" />}
             {captured && <GiHandcuffs className="text-sky-300" />}
             {openAdvancements > 0 && (
-              <span className="text-xs font-bold text-amber-500 whitespace-nowrap">Level Up</span>
+              <span className="text-xs font-bold text-amber-500 whitespace-nowrap">
+                {openAdvancements} Level Up{openAdvancements === 1 ? '' : 's'}
+              </span>
             )}
           </div>
           {/* Render image if image_url is present, before credits box */}

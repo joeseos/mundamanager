@@ -7,6 +7,7 @@ import { revalidateTag } from 'next/cache';
 import { updateGangRatingSimple, updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { countsTowardRating } from '@/utils/fighter-status';
 import { hasCumulativeXp } from '@/types/edition';
+import { openAdvancementsFor } from '@/utils/advancementRanks';
 
 import { 
   logCharacteristicAdvancement, 
@@ -22,7 +23,7 @@ import { updateFighterDetails } from './edit-fighter';
 // Advancement costs XP is edition-specific, so every action that touches a
 // fighter's XP balance loads it alongside the fighter.
 const FIGHTER_WITH_EDITION_SELECT = `
-  id, user_id, gang_id, xp, free_skill, fighter_name, killed, retired, enslaved, captured,
+  id, user_id, gang_id, xp, starting_xp, free_skill, fighter_name, killed, retired, enslaved, captured,
   gangs!gang_id (
     gang_types!gang_type_id ( editions:edition_id ( slug ) ),
     custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
@@ -36,6 +37,64 @@ function editionSlugOf(fighter: any): string | null {
   return gang?.gang_types?.editions?.slug
     ?? gang?.custom_gang_types?.editions?.slug
     ?? null;
+}
+
+/**
+ * How many Advancements a fighter has already taken, counted from the database.
+ *
+ * Mirrors countAdvancementsTaken in utils/advancementRanks.ts, which the cards
+ * apply to data they already hold: a characteristic is an effect in the
+ * 'advancements' category, a skill is a fighter_skill flagged is_advance.
+ */
+async function countAdvancementsTakenFor(supabase: any, fighterId: string): Promise<number> {
+  const [characteristics, skillAdvances] = await Promise.all([
+    supabase
+      .from('fighter_effects')
+      .select('id, fighter_effect_types!inner(fighter_effect_categories!inner(category_name))', {
+        count: 'exact',
+        head: true,
+      })
+      .eq('fighter_id', fighterId)
+      .eq('fighter_effect_types.fighter_effect_categories.category_name', 'advancements'),
+    supabase
+      .from('fighter_skills')
+      .select('id', { count: 'exact', head: true })
+      .eq('fighter_id', fighterId)
+      .eq('is_advance', true),
+  ]);
+
+  return (characteristics.count ?? 0) + (skillAdvances.count ?? 0);
+}
+
+/**
+ * Whether the fighter may take another Advancement right now.
+ *
+ * The two editions gate on different things: N23 on whether the fighter can
+ * afford the XP cost, N26 on whether it has earned an Advancement it has not
+ * yet spent. Returns an error message, or null when the Advancement may proceed.
+ */
+async function advancementBlockedReason(
+  supabase: any,
+  fighter: any,
+  spendsXp: boolean,
+  xpCost: number,
+  isAdvance: boolean = true,
+): Promise<string | null> {
+  if (spendsXp) {
+    return fighter.xp < xpCost ? 'Insufficient XP' : null;
+  }
+
+  // A starting or free skill is not an Advancement and consumes none.
+  if (!isAdvance) return null;
+
+  const open = openAdvancementsFor(
+    editionSlugOf(fighter),
+    fighter.starting_xp ?? 0,
+    fighter.xp,
+    await countAdvancementsTakenFor(supabase, fighter.id),
+  );
+
+  return open > 0 ? null : 'No advancements available';
 }
 
 // Type for power boost type_specific_data
@@ -153,9 +212,9 @@ export async function addCharacteristicAdvancement(
     // XP total only ever grows and there is nothing to afford.
     const spendsXp = !hasCumulativeXp(editionSlugOf(fighter));
 
-    // Check if fighter has enough XP
-    if (spendsXp && fighter.xp < params.xp_cost) {
-      return { success: false, error: 'Insufficient XP' };
+    const blockedReason = await advancementBlockedReason(supabase, fighter, spendsXp, params.xp_cost);
+    if (blockedReason) {
+      return { success: false, error: blockedReason };
     }
 
     // Get the effect type details
@@ -348,9 +407,15 @@ export async function addSkillAdvancement(
     // XP total only ever grows and there is nothing to afford.
     const spendsXp = !hasCumulativeXp(editionSlugOf(fighter));
 
-    // Check if fighter has enough XP
-    if (spendsXp && fighter.xp < params.xp_cost) {
-      return { success: false, error: 'Insufficient XP' };
+    const blockedReason = await advancementBlockedReason(
+      supabase,
+      fighter,
+      spendsXp,
+      params.xp_cost,
+      params.is_advance ?? true,
+    );
+    if (blockedReason) {
+      return { success: false, error: blockedReason };
     }
 
     // Insert the new skill advancement with fighter owner's user_id
