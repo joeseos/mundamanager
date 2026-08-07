@@ -621,6 +621,7 @@ export default function GangPageContent({
           helperFighterName={xpModalFighter.fighter_name}
           gangId={gangId}
           campaignId={gangCampaigns[0]?.campaign_id}
+          editionSlug={gangData.processedData.edition_slug}
           onClose={() => setXpModalFighter(null)}
           onXpUpdated={(newXp, _newTotalXp, newKills, newKillCount) => {
             setGangData(prev => ({

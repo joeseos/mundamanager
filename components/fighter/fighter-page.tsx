@@ -1314,6 +1314,7 @@ export default function FighterPage({
               is_spyrer={fighterData.fighter.is_spyrer}
               gangId={fighterData.gang?.id}
               campaignId={fighterData.fighter?.campaigns?.[0]?.campaign_id}
+              editionSlug={fighterData.gang?.edition_slug ?? fighterData.fighter?.edition_slug ?? null}
               onClose={() => handleModalToggle('addXp', false)}
               onXpUpdated={handleXpUpdated}
             />
