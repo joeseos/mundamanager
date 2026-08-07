@@ -691,6 +691,7 @@ export default function FighterPage({
             starting_xp={fighterData.fighter?.starting_xp || 0}
             total_xp={fighterData.fighter?.total_xp || 0}
             advancements={fighterData.fighter?.advancements || { characteristics: {}, skills: {} }}
+            skills={fighterData.fighter?.skills || {}}
             onNameUpdate={handleNameUpdate}
             onAddXp={() => handleModalToggle('addXp', true)}
             onEdit={canShowEditButtons ? () => handleModalToggle('editFighter', true) : undefined}

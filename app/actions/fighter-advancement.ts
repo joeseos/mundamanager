@@ -63,6 +63,13 @@ async function countAdvancementsTakenFor(supabase: any, fighterId: string): Prom
       .eq('is_advance', true),
   ]);
 
+  // This count is half of a server-side limit, so a failed query must not read
+  // as "nothing taken yet" — that would grant an Advancement on the strength of
+  // an error. Fail closed and let the caller refuse.
+  if (characteristics.error || skillAdvances.error) {
+    throw new Error('Failed to count existing advancements');
+  }
+
   return (characteristics.count ?? 0) + (skillAdvances.count ?? 0);
 }
 
