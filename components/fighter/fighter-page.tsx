@@ -598,8 +598,10 @@ export default function FighterPage({
   const editionSlug = fighterData.gang.edition_slug ?? fighterData.fighter.edition_slug ?? null;
 
   // Where this vehicle's equipment and effects live. N23 hangs a `vehicles` row off a Crew
-  // fighter; N26 makes the vehicle the fighter, so both are scoped by fighter_id instead
-  // and there is no vehicle id to scope the hardpoint and lasting-damage actions with.
+  // fighter; N26 makes the vehicle the fighter, so both are scoped by fighter_id instead.
+  // A null vehicleId reaches the lists as '' — the hardpoint and lasting-damage actions are
+  // all vehicle-scoped and will reject it, which is fine until N26 gets its own damage table
+  // and fighter-scoped actions. N26 is not exposed to regular users yet.
   const vehicleView: { vehicleId: string | null; effects: Record<string, FighterEffect[]> } | null = vehicle
     ? { vehicleId: vehicle.id, effects: vehicle.effects ?? {} }
     : isVehicle
@@ -777,7 +779,7 @@ export default function FighterPage({
               onAddEquipment={() => handleModalToggle('addVehicleEquipment', true)}
               userPermissions={userPermissions}
               vehicleEffects={vehicleView.effects}
-              vehicleId={vehicleView.vehicleId}
+              vehicleId={vehicleView.vehicleId ?? ''}
               onRegisterPurchase={(fn) => { vehiclePurchaseHandlerRef.current = fn; }}
             />
           )}
@@ -1155,7 +1157,7 @@ export default function FighterPage({
                 });
               }}
               fighterId={fighterData.fighter?.id || ''}
-              vehicleId={vehicleView.vehicleId}
+              vehicleId={vehicleView.vehicleId ?? ''}
               gangId={fighterData.gang?.id || ''}
               vehicle={vehicle}
               gangCredits={fighterData.gang?.credits || 0}

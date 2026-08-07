@@ -23,12 +23,7 @@ interface VehicleDamagesListProps {
   onRequestClose?: () => void;
   onDamageUpdate: (updatedDamages: FighterEffect[]) => void;
   fighterId: string;
-  /**
-   * Null on N26, where the vehicle is the fighter and there is no `vehicles` row. Add and
-   * repair are scoped by vehicle id, so they no-op until N26 gets its own damage table and
-   * fighter-scoped actions.
-   */
-  vehicleId: string | null;
+  vehicleId: string;
   gangId: string;
   vehicle: any; // Pass the full vehicle object for cost calculation
   gangCredits?: number;
@@ -100,7 +95,7 @@ export function VehicleDamagesList({
   });
 
   const logResolvedDamageRollWithCooldown = (damage: { id: string; effect_name: string }, roll: number) => {
-    if (!vehicleId || damageRollCooldown || logDamageRollMutation.isPending) return;
+    if (damageRollCooldown || logDamageRollMutation.isPending) return;
     setDamageRollCooldown(true);
     logDamageRollMutation.mutate({
       vehicle_id: vehicleId,
@@ -258,7 +253,7 @@ export function VehicleDamagesList({
           // Call addDamageMutation with the ID directly
           if (damageId) {
             addDamageMutation.mutate({
-              vehicleId: variables.vehicleId,
+              vehicleId,
               fighterId,
               gangId,
               damageId: damageId,
@@ -352,7 +347,6 @@ export function VehicleDamagesList({
   }, []);
 
   const handleAddDamage = async () => {
-    if (!vehicleId) return false;
     if (!selectedDamageId) {
       toast.error("Please select a lasting damage");
       return false;
@@ -389,7 +383,7 @@ export function VehicleDamagesList({
   };
 
   const handleRepairDamage = async () => {
-    if (!vehicleId || uniqueDamages.length === 0 || gangCredits === undefined) return false;
+    if (uniqueDamages.length === 0 || gangCredits === undefined) return false;
     const damageIdsToRepair = uniqueDamages.map((d: FighterEffect) => d.id).filter(isValidUUID);
     if (damageIdsToRepair.length === 0) {
       toast.error('No valid damages to repair.');
@@ -554,14 +548,14 @@ export function VehicleDamagesList({
         <div className="flex flex-wrap justify-between items-center mb-2">
           <h2 className="text-xl md:text-2xl font-bold">Lasting Damage</h2>
           <div className="flex gap-2">
-            <Button
+            <Button 
               onClick={() => setIsRepairModalOpen(true)}
               className="bg-card hover:bg-muted text-foreground border border-border"
               disabled={uniqueDamages.length === 0 || !userPermissions.canEdit}
             >
               Repair
             </Button>
-            <Button
+            <Button 
               onClick={handleOpenModal}
               className="bg-neutral-900 hover:bg-gray-800 text-white"
               disabled={!userPermissions.canEdit}
