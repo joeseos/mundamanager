@@ -347,3 +347,61 @@ export const resolveGangerExoticBeastAdvancementRangeFromUtilByName = (
   const entry = GANGER_EXOTIC_BEAST_ADVANCEMENT_TABLE.find((e) => e.name === name);
   return entry?.range;
 };
+
+// ============================================================================
+// N26 Advancement - 2D6 table
+// ============================================================================
+
+/**
+ * One result on the N26 Advancement table.
+ *
+ * A result may offer characteristics, skills or both: rolling a 2 offers +1
+ * Leadership, +1 Intelligence *or* a random Primary skill. `credits` is the
+ * increase to the model's Credits Value, which is fixed per result rather than
+ * per characteristic — unlike N23, where it varies by fighter subtype.
+ *
+ * `skillAcquisitionTypeIds` are the ids get_available_skills returns, so a
+ * skill result feeds the existing skill picker directly.
+ */
+export type N26AdvancementEntry = {
+  range: [number, number];
+  name: string;
+  credits: number;
+  /** Characteristic effect_names this result may improve. */
+  characteristics?: readonly string[];
+  /** Skill acquisition types this result may award. */
+  skillAcquisitionTypeIds?: readonly string[];
+};
+
+/**
+ * The player may take ANY result they rolled high enough for, so a roll sets an
+ * upper bound rather than picking a row. Nothing here enforces that: the roll is
+ * logged and the player selects a result, matching how the N23 Ganger table
+ * already behaves.
+ */
+export const N26_ADVANCEMENT_TABLE: N26AdvancementEntry[] = [
+  { range: [2, 2], name: '+1 Leadership, +1 Intelligence or a random Primary skill', credits: 5,
+    characteristics: ['Leadership', 'Intelligence'], skillAcquisitionTypeIds: ['primary_random'] },
+  { range: [3, 4], name: '+1 Cool or +1 Willpower', credits: 5,
+    characteristics: ['Cool', 'Willpower'] },
+  { range: [5, 5], name: 'A new Primary skill or a random Secondary skill', credits: 10,
+    skillAcquisitionTypeIds: ['primary_selected', 'secondary_random'] },
+  { range: [6, 6], name: '+1 Initiative or +1" Movement', credits: 10,
+    characteristics: ['Initiative', 'Movement'] },
+  { range: [7, 8], name: 'A new Secondary skill', credits: 15,
+    skillAcquisitionTypeIds: ['secondary_selected'] },
+  { range: [9, 9], name: '+1 Weapon Skill or +1 Ballistic Skill', credits: 15,
+    characteristics: ['Weapon Skill', 'Ballistic Skill'] },
+  { range: [10, 10], name: '+1 Strength or +1 Toughness', credits: 20,
+    characteristics: ['Strength', 'Toughness'] },
+  { range: [11, 11], name: '+1 Wounds, +1 Attacks or +1 Save', credits: 20,
+    characteristics: ['Wounds', 'Attacks', 'Save'] },
+  // A 12 lifts the Skill Set restriction entirely — any set, including sets
+  // exclusive to other gangs and Inherent skills. The model's own Type/Subtype
+  // gate still applies and is never lifted.
+  { range: [12, 12], name: 'Any skill', credits: 30,
+    skillAcquisitionTypeIds: ['primary_selected', 'secondary_selected', 'any_random'] },
+];
+
+export const resolveN26AdvancementFromUtil = (roll: number): N26AdvancementEntry | undefined =>
+  N26_ADVANCEMENT_TABLE.find((e) => roll >= e.range[0] && roll <= e.range[1]);
