@@ -24,9 +24,9 @@ interface VehicleDamagesListProps {
   onDamageUpdate: (updatedDamages: FighterEffect[]) => void;
   fighterId: string;
   /**
-   * Null on N26, where the vehicle is the fighter and there is no `vehicles` row. The add
-   * and repair actions are all scoped by vehicle id, so they stay disabled until N26 has
-   * its own damage table and fighter-scoped actions.
+   * Null on N26, where the vehicle is the fighter and there is no `vehicles` row. Add and
+   * repair are scoped by vehicle id, so they no-op until N26 gets its own damage table and
+   * fighter-scoped actions.
    */
   vehicleId: string | null;
   gangId: string;
@@ -537,7 +537,7 @@ export function VehicleDamagesList({
           </Button>
           <Button
             onClick={() => void handleAddDamage()}
-            disabled={!selectedDamageId || addDamageMutation.isPending || !vehicleId}
+            disabled={!selectedDamageId || addDamageMutation.isPending}
             className="bg-neutral-900 hover:bg-gray-800 text-white"
           >
             Add Lasting Damage
@@ -557,14 +557,14 @@ export function VehicleDamagesList({
             <Button
               onClick={() => setIsRepairModalOpen(true)}
               className="bg-card hover:bg-muted text-foreground border border-border"
-              disabled={uniqueDamages.length === 0 || !userPermissions.canEdit || !vehicleId}
+              disabled={uniqueDamages.length === 0 || !userPermissions.canEdit}
             >
               Repair
             </Button>
             <Button
               onClick={handleOpenModal}
               className="bg-neutral-900 hover:bg-gray-800 text-white"
-              disabled={!userPermissions.canEdit || !vehicleId}
+              disabled={!userPermissions.canEdit}
             >
               Add
             </Button>
