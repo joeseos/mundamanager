@@ -524,7 +524,8 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
               </div>
             )}
 
-            {item.equipment_type === 'weapon' && equipmentListType !== 'fighters-list' && (
+            {/* Master-crafted is N23-only; Trade Points splits the editions the same way. */}
+            {!showTradePoints && item.equipment_type === 'weapon' && equipmentListType !== 'fighters-list' && (
               <div className="flex items-center space-x-2 mt-2">
                 <Checkbox
                   id="master-crafted"
