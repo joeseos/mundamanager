@@ -30,6 +30,11 @@ import {
   getBaseCost,
 } from '@/utils/equipment-selection';
 import { EquipmentSelection } from './EquipmentSelection';
+import {
+  automaticFighterSpecialisation,
+  representativeFighterType,
+} from '@/utils/fighterSpecialisationSelection';
+import { canAutoSelectFighterSpecialisationWithoutDefault } from '@/types/edition';
 
 export type FighterAddCatalog = 'roster' | 'additions';
 
@@ -275,16 +280,14 @@ export default function FighterAddModal({
       }));
       setAvailableSpecialisations(specialisations);
 
-      const defaultSpecialisation = specialisations.find(sub => !sub.specialisation_name || sub.specialisation_name === 'Default');
-      const autoSelectedId = defaultSpecialisation
-        ? defaultSpecialisation.id
-        : specialisations.reduce((lowest, current) => {
-            const lowestCost = fighterTypes.find(ft => ft.id === lowest.id)?.total_cost ?? Infinity;
-            const currentCost = fighterTypes.find(ft => ft.id === current.id)?.total_cost ?? Infinity;
-            return currentCost < lowestCost ? current : lowest;
-          }, specialisations[0]).id;
+      const automaticType = automaticFighterSpecialisation(
+        fighterTypeGroup,
+        canAutoSelectFighterSpecialisationWithoutDefault(selectedType?.edition_slug)
+      );
+      const autoSelectedId = automaticType?.id ?? '';
       setSelectedSpecialisationId(autoSelectedId);
-      applyDefaultEquipmentAndCost(autoSelectedId, false);
+      if (autoSelectedId) applyDefaultEquipmentAndCost(autoSelectedId, false);
+      else setFighterCost('');
     } else {
       setAvailableSpecialisations([]);
       applyDefaultEquipmentAndCost(typeId, false);
@@ -617,18 +620,17 @@ export default function FighterAddModal({
 
   const buildTypeOptions = () => {
     const typeSubtypeMap = new Map<string, { fighter: FighterType; cost: number }>();
+    const groupedTypes = new Map<string, FighterType[]>();
     filteredTypes.forEach(fighter => {
       const key = `${fighter.fighter_type}-${fighter.fighter_subtypes?.join(',')}`;
-      if (!typeSubtypeMap.has(key)) {
-        typeSubtypeMap.set(key, { fighter, cost: fighter.total_cost });
-      } else {
-        const current = typeSubtypeMap.get(key)!;
-        if (!fighter.specialisation && current.fighter.specialisation) {
-          typeSubtypeMap.set(key, { fighter, cost: fighter.total_cost });
-        } else if (fighter.total_cost < current.cost) {
-          typeSubtypeMap.set(key, { fighter, cost: fighter.total_cost });
-        }
-      }
+      groupedTypes.set(key, [...(groupedTypes.get(key) ?? []), fighter]);
+    });
+    groupedTypes.forEach((group, key) => {
+      const fighter = representativeFighterType(
+        group,
+        canAutoSelectFighterSpecialisationWithoutDefault(group[0]?.edition_slug)
+      );
+      if (fighter) typeSubtypeMap.set(key, { fighter, cost: fighter.total_cost });
     });
 
     const options: Array<{ value: string; label: string | React.ReactNode; displayValue?: string; disabled?: boolean }> = [];

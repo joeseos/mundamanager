@@ -124,6 +124,8 @@ const EDITION_CAPABILITIES = {
   masterCraftedWeapons:     { n23: true,  n26: false },
   /** Gang / fighter-type Law Abiding vs Outlaw alignment */
   alignment:                { n23: true,  n26: false },
+  /** A missing default fighter type may fall back to its cheapest specialisation */
+  autoSelectFighterSpecialisationWithoutDefault: { n23: true, n26: false },
 } as const satisfies Record<string, Record<EditionSlug, boolean>>;
 
 type EditionCapability = keyof typeof EDITION_CAPABILITIES;
@@ -187,6 +189,10 @@ export const hasMasterCraftedWeapons = (editionSlug?: string | null): boolean =>
 
 export const hasAlignment = (editionSlug?: string | null): boolean =>
   can('alignment', editionSlug);
+
+export const canAutoSelectFighterSpecialisationWithoutDefault = (
+  editionSlug?: string | null
+): boolean => can('autoSelectFighterSpecialisationWithoutDefault', editionSlug);
 
 export interface Edition {
   id: string;
