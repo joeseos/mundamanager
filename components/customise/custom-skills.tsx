@@ -12,7 +12,7 @@ import { LuEye, LuSquarePen, LuTrash2 } from 'react-icons/lu';
 import { FaRegCopy } from 'react-icons/fa';
 import { FiShare2 } from 'react-icons/fi';
 import { createClient } from '@/utils/supabase/client';
-import { skillSetRank } from '@/utils/skillSetRank';
+import { getSkillSetRank } from '@/utils/skillSetRank';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -335,6 +335,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
       ];
 
   const renderSkillTypeOptions = () => {
+    const skillSetRank = getSkillSetRank(EDITION_N23);
     const customTypes = skillTypes.filter(t => t.is_custom);
     const standardTypes = skillTypes.filter(t => !t.is_custom);
 

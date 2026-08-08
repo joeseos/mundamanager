@@ -23,7 +23,7 @@ import { createCustomFighter, deleteCustomFighter, updateCustomFighter } from '@
 import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants';
 import { filterAllowedFighterSubtypes } from '@/utils/allowedFighterSubtypes';
 import { ShareCustomFighterModal } from '@/components/customise/custom-shared';
-import { skillSetRank } from '@/utils/skillSetRank';
+import { getSkillSetRank } from '@/utils/skillSetRank';
 import type { UserCampaign } from '@/types/campaign';
 import type { EquipmentListItem } from '@/types/equipment';
 import { EDITION_N23 } from '@/types/edition';
@@ -38,10 +38,12 @@ interface CustomiseFightersProps {
 
 type SkillTypeItem = { id: string; skill_type: string; is_custom?: boolean };
 
-function SkillSetOptions({ skillTypes, excludeIds }: {
+function SkillSetOptions({ skillTypes, excludeIds, editionSlug }: {
   skillTypes: SkillTypeItem[];
   excludeIds?: Set<string>;
+  editionSlug?: string | null;
 }) {
+  const skillSetRank = getSkillSetRank(editionSlug ?? EDITION_N23);
   const available = excludeIds
     ? skillTypes.filter(st => !excludeIds.has(st.id))
     : skillTypes;

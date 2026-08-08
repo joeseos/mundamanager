@@ -7,7 +7,7 @@ import Modal from "@/components/ui/modal";
 import { Skill, FighterSkills, FighterEffect as FighterEffectType } from '@/types/fighter';
 import { TypeSpecificData } from '@/types/fighter-effect';
 import { createClient } from '@/utils/supabase/client';
-import { skillSetRank } from "@/utils/skillSetRank";
+import { getSkillSetRank } from "@/utils/skillSetRank";
 import { characteristicRank } from "@/utils/characteristicRank";
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
@@ -55,6 +55,7 @@ interface AdvancementModalProps {
   fighterTypeName?: string;
   fighterTypeId?: string;
   fighterSpecialisationId?: string;
+  editionSlug?: string | null;
   onFighterDetailsUpdate?: (patch: {
     fighter_subtypes?: string[];
     fighter_type?: string;
@@ -183,6 +184,7 @@ interface AdvancementsListProps {
   fighterTypeName?: string;
   fighterTypeId?: string;
   fighterSpecialisationId?: string;
+  editionSlug?: string | null;
   onFighterDetailsUpdate?: (patch: {
     fighter_subtypes?: string[];
     fighter_type?: string;
@@ -302,8 +304,10 @@ type SkillSetComboboxOption = {
 function buildSkillSetComboboxOptions(
   categories: SkillType[],
   skillAccess: SkillAccess[],
-  highlightPrimaryOnly: boolean
+  highlightPrimaryOnly: boolean,
+  editionSlug?: string | null
 ): SkillSetComboboxOption[] {
+  const skillSetRank = getSkillSetRank(editionSlug);
   const skillAccessMap = new Map<string, SkillAccess>();
   skillAccess.forEach((a) => skillAccessMap.set(a.skill_type_id, a));
 
@@ -452,6 +456,7 @@ export function AdvancementModal({
   fighterTypeName = '',
   fighterTypeId = '',
   fighterSpecialisationId = '',
+  editionSlug = null,
   onFighterDetailsUpdate
 }: AdvancementModalProps) {
   
@@ -1457,9 +1462,10 @@ export function AdvancementModal({
       buildSkillSetComboboxOptions(
         gangerSpecialistSkillCategories,
         gangerPreviewSkillAccess,
-        true
+        true,
+        editionSlug
       ),
-    [gangerSpecialistSkillCategories, gangerPreviewSkillAccess]
+    [gangerSpecialistSkillCategories, gangerPreviewSkillAccess, editionSlug]
   );
 
   const gangerSelectedSkillSetAccess = useMemo<'primary' | 'secondary' | 'allowed' | null>(() => {
@@ -1618,14 +1624,16 @@ export function AdvancementModal({
     return buildSkillSetComboboxOptions(
       skillCategories,
       accessSource,
-      advancementType === 'promotion_to_champion'
+      advancementType === 'promotion_to_champion',
+      editionSlug
     );
   }, [
     isSkillLikeAdvancementType,
     advancementType,
     categories,
     skillAccess,
-    championPreviewSkillAccess
+    championPreviewSkillAccess,
+    editionSlug
   ]);
 
   /**
@@ -2681,6 +2689,7 @@ export function AdvancementsList({
   fighterTypeName = '',
   fighterTypeId = '',
   fighterSpecialisationId = '',
+  editionSlug = null,
   onFighterDetailsUpdate
 }: AdvancementsListProps) {
   const [isAdvancementModalOpen, setIsAdvancementModalOpen] = useState(false);
@@ -3070,6 +3079,7 @@ export function AdvancementsList({
           fighterTypeName={fighterTypeName}
           fighterTypeId={fighterTypeId}
           fighterSpecialisationId={fighterSpecialisationId}
+          editionSlug={editionSlug}
           onFighterDetailsUpdate={onFighterDetailsUpdate}
         />
       )}

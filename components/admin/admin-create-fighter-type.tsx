@@ -10,7 +10,7 @@ import { HiX } from "react-icons/hi";
 import { GangType, Equipment } from "@/types/gang";
 import { EditionSelect, useEditions } from '@/components/edition-select';
 import { hasSaveCharacteristic, allowsMultipleSubtypes, hasStartingXp } from '@/types/edition';
-import { skillSetRank } from "@/utils/skillSetRank";
+import { getSkillSetRank } from "@/utils/skillSetRank";
 import { compareEquipmentCategories } from "@/utils/getEquipmentCategoryRank";
 
 interface AdminCreateFighterTypeModalProps {
@@ -806,7 +806,9 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                   <option value="">Select a skill set</option>
 
                   {Object.entries(
-                    [...filteredSkillTypes]
+                    (() => {
+                      const skillSetRank = getSkillSetRank(editionSlug);
+                      return [...filteredSkillTypes]
                       .sort((a, b) => {
                         const rankA = skillSetRank[a.skill_type.toLowerCase()] ?? Infinity;
                         const rankB = skillSetRank[b.skill_type.toLowerCase()] ?? Infinity;
@@ -827,7 +829,8 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                         if (!groups[groupLabel]) groups[groupLabel] = [];
                         groups[groupLabel].push(type);
                         return groups;
-                      }, {} as Record<string, SkillType[]>)
+                      }, {} as Record<string, SkillType[]>);
+                    })()
                   ).map(([groupLabel, skillList]) => (
                     <optgroup key={groupLabel} label={groupLabel}>
                       {skillList.map((type) => (
