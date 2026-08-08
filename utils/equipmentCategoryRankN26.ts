@@ -39,6 +39,7 @@ export const equipmentCategoriesN26: EquipmentCategoryN26Entry[] = [
   { category_name: "Web Weapons (Close Combat Weapons)", super_category_name: "Close Combat Weapons" },
   { category_name: "Aranthian Weapons (Ranged Weapons)", super_category_name: "Ranged Weapons" },
   { category_name: "Augmetic Weapons (Ranged Weapons)", super_category_name: "Ranged Weapons" },
+  { category_name: "Ammunition", super_category_name: "Ranged Weapons" },
   { category_name: "Auto/Stub Weapons", super_category_name: "Ranged Weapons" },
   { category_name: "Auxiliary Weapons", super_category_name: "Ranged Weapons" },
   { category_name: "Blast Weapons", super_category_name: "Ranged Weapons" },
