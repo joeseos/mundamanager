@@ -214,6 +214,17 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       setVariantAvailValueNumber(6);
       setEquipmentVariantAvailabilities([]);
     }
+    // Weapon Group parents are edition-scoped; drop a cross-edition pick
+    if (newEditionId) {
+      setWeaponProfiles(profiles => profiles.map(profile => {
+        if (!profile.weapon_group_id) return profile;
+        const parent = weapons.find(w => w.id === profile.weapon_group_id);
+        if (parent && parent.edition_id !== newEditionId) {
+          return { ...profile, weapon_group_id: null };
+        }
+        return profile;
+      }));
+    }
   };
 
   const { data: equipmentDetails, isLoading: isEquipmentDetailsLoading } = useQuery<any>({
@@ -359,7 +370,12 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     }
   }
 
-  const { data: weapons = [], isLoading: isWeaponsLoading } = useQuery<Array<{id: string, equipment_name: string}>>({
+  const { data: weapons = [], isLoading: isWeaponsLoading } = useQuery<Array<{
+    id: string;
+    equipment_name: string;
+    edition_id?: string | null;
+    equipment_type?: string;
+  }>>({
     queryKey: ['admin-weapons'],
     queryFn: async () => {
       const response = await fetch('/api/admin/equipment?equipment_type=weapon');
@@ -369,6 +385,11 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     enabled: !!selectedEquipmentId && equipmentType === 'weapon',
     staleTime: 5 * 60 * 1000,
   });
+
+  const filteredWeapons = useMemo(
+    () => editionId ? weapons.filter(weapon => weapon.edition_id === editionId) : weapons,
+    [weapons, editionId]
+  );
 
   const { data: gangTypeOptions = [], isLoading: isGangTypesLoading } = useQuery<Array<{gang_type_id: string, gang_type: string, edition_id?: string | null}>>({
     queryKey: ['admin-gang-types'],
@@ -1765,7 +1786,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             disabled={!selectedEquipmentId}
                           >
                             <option value="">Use This Weapon (Default)</option>
-                            {weapons
+                            {filteredWeapons
                               .filter(w => w.id !== selectedEquipmentId)
                               .map((weapon) => (
                                 <option key={weapon.id} value={weapon.id}>
