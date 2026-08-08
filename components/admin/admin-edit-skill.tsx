@@ -5,10 +5,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from 'sonner';
-import { skillSetRank } from "@/utils/skillSetRank";
+import { getSkillSetRank } from "@/utils/skillSetRank";
 import { gangOriginRank } from "@/utils/gangOriginRank";
 import { AdminFighterEffects } from './admin-fighter-effects';
-import { EditionSelect } from '@/components/edition-select';
+import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
 
 enum OperationType {
   POST = 'POST',
@@ -156,6 +156,9 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
   const [skillEffects, setSkillEffects] = useState<any[]>([]);
   const [skillsCategoryId, setSkillsCategoryId] = useState('');
   const [effectCategories, setEffectCategories] = useState<any[]>([]);
+  const { data: editions = [] } = useEditions();
+  const editionSlug = editionSlugOf(editions, editionId);
+  const skillSetRank = getSkillSetRank(editionSlug);
 
   const { data: skillTypeList = [] } = useQuery<Array<{id: string, skill_type: string, edition_id?: string | null}>>({
     queryKey: ['admin-skill-types'],

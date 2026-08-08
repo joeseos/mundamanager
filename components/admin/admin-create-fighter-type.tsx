@@ -10,7 +10,7 @@ import { HiX } from "react-icons/hi";
 import { GangType, Equipment } from "@/types/gang";
 import { EditionSelect, useEditions } from '@/components/edition-select';
 import { hasSaveCharacteristic, allowsMultipleSubtypes, hasStartingXp, hasVehicles } from '@/types/edition';
-import { skillSetRank } from "@/utils/skillSetRank";
+import { getSkillSetRank } from "@/utils/skillSetRank";
 import { compareEquipmentCategories } from "@/utils/getEquipmentCategoryRank";
 
 interface AdminCreateFighterTypeModalProps {
@@ -169,6 +169,34 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
     () => editionId ? skillTypes.filter(type => type.edition_id === editionId) : skillTypes,
     [skillTypes, editionId]
   );
+
+  const groupedSkillTypes = useMemo(() => {
+    const skillSetRank = getSkillSetRank(editionSlug);
+    return Object.entries(
+      [...filteredSkillTypes]
+        .sort((a, b) => {
+          const rankA = skillSetRank[a.skill_type.toLowerCase()] ?? Infinity;
+          const rankB = skillSetRank[b.skill_type.toLowerCase()] ?? Infinity;
+          return rankA - rankB;
+        })
+        .reduce((groups, type) => {
+          const rank = skillSetRank[type.skill_type.toLowerCase()] ?? Infinity;
+          let groupLabel = "Misc."; // Default category for unranked skills
+
+          if (rank <= 19) groupLabel = "Universal Skills";
+          else if (rank <= 39) groupLabel = "Gang-specific Skills";
+          else if (rank <= 59) groupLabel = "Wyrd Powers";
+          else if (rank <= 69) groupLabel = "Cult Wyrd Powers";
+          else if (rank <= 79) groupLabel = "Psychoteric Whispers";
+          else if (rank <= 89) groupLabel = "Legendary Names";
+          else if (rank <= 99) groupLabel = "Ironhead Squat Mining Clans";
+
+          if (!groups[groupLabel]) groups[groupLabel] = [];
+          groups[groupLabel].push(type);
+          return groups;
+        }, {} as Record<string, SkillType[]>)
+    );
+  }, [filteredSkillTypes, editionSlug]);
 
   const filteredEquipment = useMemo(
     () => editionId ? equipment.filter(item => item.edition_id === editionId) : equipment,
@@ -805,30 +833,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                 >
                   <option value="">Select a skill set</option>
 
-                  {Object.entries(
-                    [...filteredSkillTypes]
-                      .sort((a, b) => {
-                        const rankA = skillSetRank[a.skill_type.toLowerCase()] ?? Infinity;
-                        const rankB = skillSetRank[b.skill_type.toLowerCase()] ?? Infinity;
-                        return rankA - rankB;
-                      })
-                      .reduce((groups, type) => {
-                        const rank = skillSetRank[type.skill_type.toLowerCase()] ?? Infinity;
-                        let groupLabel = "Misc."; // Default category for unranked skills
-
-                        if (rank <= 19) groupLabel = "Universal Skills";
-                        else if (rank <= 39) groupLabel = "Gang-specific Skills";
-                        else if (rank <= 59) groupLabel = "Wyrd Powers";
-                        else if (rank <= 69) groupLabel = "Cult Wyrd Powers";
-                        else if (rank <= 79) groupLabel = "Psychoteric Whispers";
-                        else if (rank <= 89) groupLabel = "Legendary Names";
-                        else if (rank <= 99) groupLabel = "Ironhead Squat Mining Clans";
-
-                        if (!groups[groupLabel]) groups[groupLabel] = [];
-                        groups[groupLabel].push(type);
-                        return groups;
-                      }, {} as Record<string, SkillType[]>)
-                  ).map(([groupLabel, skillList]) => (
+                  {groupedSkillTypes.map(([groupLabel, skillList]) => (
                     <optgroup key={groupLabel} label={groupLabel}>
                       {skillList.map((type) => (
                         <option key={type.id} value={type.id}>

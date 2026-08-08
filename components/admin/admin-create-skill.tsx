@@ -5,9 +5,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from 'sonner';
-import { skillSetRank } from "@/utils/skillSetRank";
+import { getSkillSetRank } from "@/utils/skillSetRank";
 import { gangOriginRank } from "@/utils/gangOriginRank";
-import { EditionSelect } from '@/components/edition-select';
+import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
 
 interface AdminCreateSkillModalProps {
   onClose: () => void;
@@ -22,6 +22,9 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
   const [gangOrigin, setGangOrigin] = useState('');
   const [editionId, setEditionId] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const { data: editions = [] } = useEditions();
+  const editionSlug = editionSlugOf(editions, editionId);
+  const skillSetRank = getSkillSetRank(editionSlug);
 
   const { data: skillTypeList = [] } = useQuery<Array<{id: string, skill_type: string, edition_id?: string | null}>>({
     queryKey: ['admin-skill-types'],

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Modal from "@/components/ui/modal";
 import { toast } from 'sonner';
-import { skillSetRank } from "@/utils/skillSetRank";
+import { getSkillSetRank } from "@/utils/skillSetRank";
 import { FighterSkills } from '@/types/fighter';
 import { createClient } from '@/utils/supabase/client';
 import { List } from "@/components/ui/list";
@@ -41,6 +41,7 @@ interface SkillsListProps {
   free_skill?: boolean;
   userPermissions: UserPermissions;
   gangCredits?: number;
+  editionSlug?: string | null;
   onSkillsUpdate: (updatedSkills: FighterSkills) => void;
   onGangCreditsUpdate?: (creditsDelta: number) => void;
 }
@@ -50,6 +51,7 @@ interface SkillModalProps {
   fighterId: string;
   userId: string;
   gangCredits?: number;
+  editionSlug?: string | null;
   onClose: () => void;
   onSkillAdded: (skillId: string, skillName: string, creditsIncrease: number, isAdvance: boolean) => void;
   onSkillRollback: (skillName: string) => void;
@@ -86,7 +88,7 @@ interface SkillAccess {
 }
 
 // SkillModal Component
-export function SkillModal({ fighterId, userId, gangCredits, onClose, onSkillAdded, onSkillRollback, isSubmitting, onSelectSkill, onGangCreditsUpdate }: SkillModalProps) {
+export function SkillModal({ fighterId, userId, gangCredits, editionSlug, onClose, onSkillAdded, onSkillRollback, isSubmitting, onSelectSkill, onGangCreditsUpdate }: SkillModalProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [skillsData, setSkillsData] = useState<SkillResponse | null>(null);
@@ -219,6 +221,7 @@ export function SkillModal({ fighterId, userId, gangCredits, onClose, onSkillAdd
    * Group headers are rendered as disabled rows so the Combobox treats them as section headers.
    */
   const skillSetComboboxOptions = useMemo(() => {
+    const skillSetRank = getSkillSetRank(editionSlug);
     const skillAccessMap = new Map<string, SkillAccess>();
     skillAccess.forEach((a) => skillAccessMap.set(a.skill_type_id, a));
 
@@ -315,7 +318,7 @@ export function SkillModal({ fighterId, userId, gangCredits, onClose, onSkillAdd
     });
 
     return options;
-  }, [categories, skillAccess]);
+  }, [categories, skillAccess, editionSlug]);
 
   // Whether the fighter has no meaningful access to the currently selected skill set.
   // Suppressed while skill-access data is still loading to avoid false-positive warnings.
@@ -459,6 +462,7 @@ export function SkillsList({
   free_skill,
   userPermissions,
   gangCredits,
+  editionSlug,
   onSkillsUpdate,
   onGangCreditsUpdate
 }: SkillsListProps) {
@@ -718,6 +722,7 @@ export function SkillsList({
           fighterId={fighterId}
           userId={userPermissions.userId}
           gangCredits={gangCredits}
+          editionSlug={editionSlug}
           onClose={() => setIsAddSkillModalOpen(false)}
           onSkillAdded={handleSkillAdded}
           onSkillRollback={handleSkillRollback}

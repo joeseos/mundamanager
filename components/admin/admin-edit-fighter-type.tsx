@@ -11,7 +11,7 @@ import { LuTrash2 } from "react-icons/lu";
 import { FighterType } from "@/types/fighter";
 import { GangType } from "@/types/gang";
 import { Equipment } from '@/types/equipment';
-import { skillSetRank } from "@/utils/skillSetRank";
+import { getSkillSetRank } from "@/utils/skillSetRank";
 import { compareEquipmentCategories } from "@/utils/getEquipmentCategoryRank";
 import { AdminFighterEquipmentSelection, EquipmentSelection, guiToDataModel, dataModelToGui } from "@/components/admin/admin-fighter-equipment-selection";
 import { EditionSelect, useEditions } from '@/components/edition-select';
@@ -349,6 +349,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
   // Memoize grouped skill types to avoid expensive computation on every render
   const groupedSkillTypes = useMemo(() => {
+    const skillSetRank = getSkillSetRank(editionSlug);
     return Object.entries(
       [...filteredSkillTypes]
         .sort((a, b) => {
@@ -373,7 +374,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
           return groups;
         }, {} as Record<string, SkillType[]>)
     );
-  }, [filteredSkillTypes]);
+  }, [filteredSkillTypes, editionSlug]);
 
   const toggleFighterSubtype = (subtypeName: string, checked: boolean) => {
     const selected = new Set(selectedFighterSubtypes);

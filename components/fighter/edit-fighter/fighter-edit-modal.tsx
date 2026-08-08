@@ -1351,6 +1351,7 @@ export function EditFighterModal({
         fighterId={fighter.id}
         isOpen={showSkillAccessModal}
         onClose={() => setShowSkillAccessModal(false)}
+        editionSlug={fighter.edition_slug}
       />
     </>
   );

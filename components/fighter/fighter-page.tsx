@@ -832,6 +832,7 @@ export default function FighterPage({
             free_skill={fighterData.fighter?.free_skill}
             userPermissions={userPermissions}
             gangCredits={fighterData.gang?.credits}
+            editionSlug={editionSlug}
             onSkillsUpdate={(updatedSkills) => {
               setFighterData(prev => ({
                 ...prev,
@@ -870,6 +871,7 @@ export default function FighterPage({
             fighterTypeName={fighterData.fighter?.fighter_type?.fighter_type || ''}
             fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
             fighterSpecialisationId={fighterData.fighter?.fighter_specialisation?.fighter_specialisation_id || ''}
+            editionSlug={editionSlug}
             onFighterDetailsUpdate={(patch) => {
               setFighterData((prev) => ({
                 ...prev,
@@ -1322,7 +1324,7 @@ export default function FighterPage({
 
           {uiState.modals.editFighter && fighterData.fighter && (
             <EditFighterModal
-              fighter={convertToFighterProps(fighterData.fighter)}
+              fighter={convertToFighterProps({ ...fighterData.fighter, edition_slug: editionSlug })}
               isOpen={uiState.modals.editFighter}
               initialValues={{
                 name: fighterData.fighter.fighter_name,

@@ -23,7 +23,7 @@ import { createCustomFighter, deleteCustomFighter, updateCustomFighter } from '@
 import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants';
 import { filterAllowedFighterSubtypes } from '@/utils/allowedFighterSubtypes';
 import { ShareCustomFighterModal } from '@/components/customise/custom-shared';
-import { skillSetRank } from '@/utils/skillSetRank';
+import { getSkillSetRank } from '@/utils/skillSetRank';
 import type { UserCampaign } from '@/types/campaign';
 import type { EquipmentListItem } from '@/types/equipment';
 import { EDITION_N23 } from '@/types/edition';
@@ -42,6 +42,8 @@ function SkillSetOptions({ skillTypes, excludeIds }: {
   skillTypes: SkillTypeItem[];
   excludeIds?: Set<string>;
 }) {
+  // Customise is N23-only for now (same as create/copy paths below).
+  const skillSetRank = getSkillSetRank(EDITION_N23);
   const available = excludeIds
     ? skillTypes.filter(st => !excludeIds.has(st.id))
     : skillTypes;
