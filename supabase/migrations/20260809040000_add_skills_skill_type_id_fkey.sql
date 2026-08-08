@@ -5,16 +5,9 @@
 -- type modals after the edition-aware skills API started embedding
 -- skill_types to filter by edition_id (#1948).
 --
--- Skills inherit their edition through skill_types (see
--- 20260630095837_add_editions_and_root_edition_ids.sql); the embed is the
--- intended way to scope skills to an edition.
---
 -- ON DELETE RESTRICT: deleting a skill set must not silently wipe its skills
 -- (those skills may still be referenced by fighter_skills / fighter_defaults
--- with NO ACTION FKs). Matches campaigns_campaign_type_id_fkey.
---
--- Verified clean before writing: the one orphan ("Test Skill 2") was deleted
--- manually; remaining skills all point at an existing skill_type.
+-- with NO ACTION FKs).
 
 alter table public.skills
   add constraint skills_skill_type_id_fkey
