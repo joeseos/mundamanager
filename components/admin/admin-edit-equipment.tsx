@@ -379,11 +379,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     [gangTypeOptions, editionId]
   );
 
-  const filteredTradingPostTypes = useMemo(
-    () => editionId ? tradingPostTypes.filter(tp => tp.edition_id === editionId) : tradingPostTypes,
-    [tradingPostTypes, editionId]
-  );
-
   const filteredFighterTypes = useMemo(
     () => editionId ? fighterTypes.filter(ft => ft.edition_id === editionId) : fighterTypes,
     [fighterTypes, editionId]
@@ -1661,7 +1656,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                   equipmentId={selectedEquipmentId}
                   selectedTradingPosts={selectedTradingPosts}
                   setSelectedTradingPosts={setSelectedTradingPosts}
-                  tradingPostTypes={filteredTradingPostTypes}
+                  tradingPostTypes={tradingPostTypes}
                   editionId={editionId}
                   disabled={!selectedEquipmentId}
                 />

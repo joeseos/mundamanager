@@ -45,12 +45,26 @@ export function AdminTradingPost({
 
   const tradingPostTypes = propTradingPostTypes.length > 0 ? propTradingPostTypes : fetchedTradingPostTypes;
 
-  const filteredTradingPostTypes = useMemo(
+  // What an admin may newly pick: the current edition's posts only.
+  const selectableTradingPostTypes = useMemo(
     () => editionId
       ? tradingPostTypes.filter(tp => tp.edition_id === editionId)
       : tradingPostTypes,
     [tradingPostTypes, editionId]
   );
+
+  // Anything already selected stays listed even if it belongs to another
+  // edition. Filtering it out of the list only hid it -- it stayed in state and
+  // was still submitted, with no checkbox left to untick it.
+  const listedTradingPostTypes = useMemo(() => {
+    const selectable = new Set(selectableTradingPostTypes.map(tp => tp.id));
+    return [
+      ...selectableTradingPostTypes,
+      ...tradingPostTypes.filter(
+        tp => !selectable.has(tp.id) && selectedTradingPosts.includes(tp.id)
+      ),
+    ];
+  }, [selectableTradingPostTypes, tradingPostTypes, selectedTradingPosts]);
 
   const handleSave = () => {
     toast.success("Trading Post selections saved. Remember to update the equipment to apply changes.");
@@ -75,7 +89,7 @@ export function AdminTradingPost({
         <div className="p-4 text-center text-muted-foreground">Loading trading post types...</div>
       ) : (
         <div className="space-y-3">
-          {filteredTradingPostTypes.map((tradingPost) => (
+          {listedTradingPostTypes.map((tradingPost) => (
             <div key={tradingPost.id} className="flex items-center space-x-3">
               <Checkbox
                 id={`trading-post-${tradingPost.id}`}
@@ -98,11 +112,11 @@ export function AdminTradingPost({
       {selectedTradingPosts.length > 0 && (
         <div className="mt-4 p-3 bg-muted rounded-lg">
           <div className="text-sm font-medium text-muted-foreground mb-2">
-            Selected Trading Posts ({selectedTradingPosts.filter(id => filteredTradingPostTypes.some(tp => tp.id === id)).length}):
+            Selected Trading Posts ({selectedTradingPosts.length}):
           </div>
           <div className="flex flex-wrap gap-2">
             {selectedTradingPosts.map((tradingPostId) => {
-              const tradingPost = filteredTradingPostTypes.find(tp => tp.id === tradingPostId);
+              const tradingPost = tradingPostTypes.find(tp => tp.id === tradingPostId);
               return tradingPost ? (
                 <span 
                   key={tradingPostId}
@@ -136,7 +150,7 @@ export function AdminTradingPost({
       {selectedTradingPosts.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-2">
           {selectedTradingPosts.map((tradingPostId) => {
-            const tradingPost = filteredTradingPostTypes.find(tp => tp.id === tradingPostId);
+            const tradingPost = tradingPostTypes.find(tp => tp.id === tradingPostId);
             return tradingPost ? (
               <span 
                 key={tradingPostId}
