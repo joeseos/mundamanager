@@ -6600,11 +6600,18 @@ ALTER TABLE ONLY public.skill_access_archetypes
 
 
 --
--- Name: skill_types skill_types_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: skill_types skill_types_edition_id_name_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.skill_types
-    ADD CONSTRAINT skill_types_name_key UNIQUE (name);
+    ADD CONSTRAINT skill_types_edition_id_name_key UNIQUE (edition_id, name);
+
+
+--
+-- Name: CONSTRAINT skill_types_edition_id_name_key ON skill_types; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON CONSTRAINT skill_types_edition_id_name_key ON public.skill_types IS 'Skill-set names are unique within an edition, not globally.';
 
 
 --
@@ -6895,6 +6902,13 @@ CREATE INDEX custom_equipment_user_id_idx ON public.custom_equipment USING btree
 --
 
 CREATE INDEX custom_fighter_types_edition_id_idx ON public.custom_fighter_types USING btree (edition_id);
+
+
+--
+-- Name: custom_fighter_types_free_skill_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_fighter_types_free_skill_idx ON public.custom_fighter_types USING btree (free_skill);
 
 
 --
@@ -7238,6 +7252,13 @@ CREATE INDEX fighter_types_gang_type_id_idx ON public.fighter_types USING btree 
 --
 
 CREATE INDEX fighter_types_gang_type_idx ON public.fighter_types USING btree (gang_type);
+
+
+--
+-- Name: fighter_types_is_spyrer_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_types_is_spyrer_idx ON public.fighter_types USING btree (is_spyrer);
 
 
 --
@@ -9459,6 +9480,14 @@ ALTER TABLE ONLY public.skill_types
 
 ALTER TABLE ONLY public.skills
     ADD CONSTRAINT skills_gang_origin_id_fkey FOREIGN KEY (gang_origin_id) REFERENCES public.gang_origins(id) ON DELETE SET NULL;
+
+
+--
+-- Name: skills skills_skill_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.skills
+    ADD CONSTRAINT skills_skill_type_id_fkey FOREIGN KEY (skill_type_id) REFERENCES public.skill_types(id) ON DELETE RESTRICT;
 
 
 --
