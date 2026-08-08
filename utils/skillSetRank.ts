@@ -16,18 +16,14 @@ const SKILL_SET_RANK_BY_EDITION: Record<EditionSlug, { [key: string]: number }> 
 };
 
 /**
- * Edition-scoped skill-set sort and group order.
- *
- * Unlike the sibling registries, an unknown or unset slug falls back to N23
- * rather than to nothing. Those hold rules data, where borrowing another
- * edition's answer would mark stats illegal or roll the wrong injury; this only
- * decides how a dropdown is sorted and grouped. Returning nothing would collapse
- * every skill set into the single "Misc." bucket, which is worse than an order
- * that is merely from the wrong edition.
+ * Edition-scoped skill-set sort and group order. An unset or unrecognised slug
+ * gets no ranking, so callers group everything under "Misc." rather than
+ * borrowing another edition's order — the same choice the sibling registries
+ * make. A caller landing here is a signal its edition never resolved.
  */
 export function getSkillSetRank(
   editionSlug?: string | null
 ): { [key: string]: number } {
-  if (!editionSlug) return skillSetRankN23;
-  return SKILL_SET_RANK_BY_EDITION[editionSlug as EditionSlug] ?? skillSetRankN23;
+  if (!editionSlug) return {};
+  return SKILL_SET_RANK_BY_EDITION[editionSlug as EditionSlug] ?? {};
 }
