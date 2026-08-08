@@ -13,7 +13,7 @@ export async function GET(request: Request) {
 
     const { data, error } = await supabase
       .from('trading_post_types')
-      .select('id, trading_post_name')
+      .select('id, trading_post_name, edition_id')
       .order('trading_post_name');
 
     if (error) throw error;

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -10,6 +10,7 @@ import Modal from "@/components/ui/modal";
 interface TradingPostType {
   id: string;
   trading_post_name: string;
+  edition_id?: string | null;
 }
 
 interface AdminTradingPostProps {
@@ -17,6 +18,7 @@ interface AdminTradingPostProps {
   selectedTradingPosts: string[];
   setSelectedTradingPosts: (tradingPosts: string[] | ((prev: string[]) => string[])) => void;
   tradingPostTypes?: TradingPostType[];
+  editionId?: string;
   disabled?: boolean;
 }
 
@@ -25,6 +27,7 @@ export function AdminTradingPost({
   selectedTradingPosts,
   setSelectedTradingPosts,
   tradingPostTypes: propTradingPostTypes = [],
+  editionId = '',
   disabled = false
 }: AdminTradingPostProps) {
   const [showTradingPostDialog, setShowTradingPostDialog] = useState(false);
@@ -41,6 +44,27 @@ export function AdminTradingPost({
   });
 
   const tradingPostTypes = propTradingPostTypes.length > 0 ? propTradingPostTypes : fetchedTradingPostTypes;
+
+  // What an admin may newly pick: the current edition's posts only.
+  const selectableTradingPostTypes = useMemo(
+    () => editionId
+      ? tradingPostTypes.filter(tp => tp.edition_id === editionId)
+      : tradingPostTypes,
+    [tradingPostTypes, editionId]
+  );
+
+  // Anything already selected stays listed even if it belongs to another
+  // edition. Filtering it out of the list only hid it -- it stayed in state and
+  // was still submitted, with no checkbox left to untick it.
+  const listedTradingPostTypes = useMemo(() => {
+    const selectable = new Set(selectableTradingPostTypes.map(tp => tp.id));
+    return [
+      ...selectableTradingPostTypes,
+      ...tradingPostTypes.filter(
+        tp => !selectable.has(tp.id) && selectedTradingPosts.includes(tp.id)
+      ),
+    ];
+  }, [selectableTradingPostTypes, tradingPostTypes, selectedTradingPosts]);
 
   const handleSave = () => {
     toast.success("Trading Post selections saved. Remember to update the equipment to apply changes.");
@@ -65,7 +89,7 @@ export function AdminTradingPost({
         <div className="p-4 text-center text-muted-foreground">Loading trading post types...</div>
       ) : (
         <div className="space-y-3">
-          {tradingPostTypes.map((tradingPost) => (
+          {listedTradingPostTypes.map((tradingPost) => (
             <div key={tradingPost.id} className="flex items-center space-x-3">
               <Checkbox
                 id={`trading-post-${tradingPost.id}`}
@@ -151,4 +175,4 @@ export function AdminTradingPost({
       )}
     </div>
   );
-} 
+}
