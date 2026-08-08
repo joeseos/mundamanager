@@ -119,7 +119,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [attacks, setAttacks] = useState('');
   const [save, setSave] = useState('');
   const [startingXp, setStartingXp] = useState('');
-  const [specialSkills, setSpecialSkills] = useState('');
+  const [specialRules, setSpecialRules] = useState<string[]>([]);
+  const [newSpecialRule, setNewSpecialRule] = useState('');
   const [freeSkill, setFreeSkill] = useState(false);
   const [isGangAddition, setIsGangAddition] = useState(false);
   const [isDramatisPersonae, setIsDramatisPersonae] = useState(false);
@@ -169,7 +170,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   // Add refs for the problematic input fields
   const fighterTypeInputRef = useRef<HTMLInputElement>(null);
   const specialisationNameInputRef = useRef<HTMLInputElement>(null);
-  const specialSkillsInputRef = useRef<HTMLInputElement>(null);
   const gangAdjustedCostInputRef = useRef<HTMLInputElement>(null);
   
   // Add a ref to track if equipment categories have been loaded
@@ -197,12 +197,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       specialisationNameInputRef.current.value = specialisationName;
     }
   }, [specialisationName]);
-
-  useEffect(() => {
-    if (specialSkillsInputRef.current) {
-      specialSkillsInputRef.current.value = specialSkills;
-    }
-  }, [specialSkills]);
 
   const { data: skillTypes = [] } = useQuery<SkillType[]>({
     queryKey: ['admin-skill-types'],
@@ -621,7 +615,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       setAttacks(data.attacks?.toString() || '0');
       setSave(data.save != null ? data.save.toString() : '');
       setStartingXp(data.starting_xp?.toString() || '0');
-      setSpecialSkills(data.special_rules?.join(', ') || '');
+      setSpecialRules(data.special_rules || []);
+      setNewSpecialRule('');
       setFreeSkill(!!data.free_skill);
       setIsGangAddition(!!data.is_gang_addition);
       setIsDramatisPersonae(!!data.is_dramatis_personae);
@@ -967,6 +962,22 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     }
   }, [equipmentSelection]);
 
+  const handleAddSpecialRule = () => {
+    if (!newSpecialRule.trim()) return;
+
+    if (specialRules.includes(newSpecialRule.trim())) {
+      setNewSpecialRule('');
+      return;
+    }
+
+    setSpecialRules(prev => [...prev, newSpecialRule.trim()]);
+    setNewSpecialRule('');
+  };
+
+  const handleRemoveSpecialRule = (ruleToRemove: string) => {
+    setSpecialRules(prev => prev.filter(rule => rule !== ruleToRemove));
+  };
+
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
@@ -997,11 +1008,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         specialisationName,
         fighterIdToUpdate
       });
-      
-      const specialRulesArray = specialSkills
-        .split(',')
-        .map(rule => rule.trim())
-        .filter(rule => rule.length > 0);
 
       // Validate required fields
       if (!fighterType || !fighterToUpdate?.gang_type_id) {
@@ -1203,7 +1209,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         attacks: parseInt(attacks),
         save: showSave && save ? parseInt(save) : null,
         starting_xp: showStartingXp && startingXp ? parseInt(startingXp) : 0,
-        special_rules: specialRulesArray,
+        special_rules: specialRules,
         free_skill: freeSkill,
         is_gang_addition: isGangAddition,
         is_dramatis_personae: isDramatisPersonae,
@@ -1854,15 +1860,44 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Special Rules
                 </label>
-                <Input
-                  ref={specialSkillsInputRef}
-                  type="text"
-                  defaultValue={specialSkills}
-                  onChange={handleInputTyping}
-                  onBlur={(e) => setSpecialSkills(e.target.value)}
-                  placeholder="Enter special rules (comma-separated)"
-                  className="w-full"
-                />
+                <div className="flex space-x-2 mb-2">
+                  <Input
+                    type="text"
+                    value={newSpecialRule}
+                    onChange={(e) => setNewSpecialRule(e.target.value)}
+                    placeholder="Add a Special Rule"
+                    className="grow"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddSpecialRule();
+                      }
+                    }}
+                  />
+                  <Button
+                    onClick={handleAddSpecialRule}
+                    type="button"
+                  >
+                    Add
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {specialRules.map((rule, index) => (
+                    <div
+                      key={index}
+                      className="bg-muted px-3 py-1 rounded-full flex items-center text-sm"
+                    >
+                      <span>{rule}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSpecialRule(rule)}
+                        className="ml-2 text-muted-foreground hover:text-foreground focus:outline-hidden"
+                      >
+                        <HiX className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="flex items-center gap-4">

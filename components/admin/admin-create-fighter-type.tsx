@@ -72,7 +72,8 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   const [intelligence, setIntelligence] = useState('');
   const [attacks, setAttacks] = useState('');
   const [save, setSave] = useState('');
-  const [specialSkills, setSpecialSkills] = useState('');
+  const [specialRules, setSpecialRules] = useState<string[]>([]);
+  const [newSpecialRule, setNewSpecialRule] = useState('');
   const [freeSkill, setFreeSkill] = useState(false);
   const [isGangAddition, setIsGangAddition] = useState(false);
   const [isDramatisPersonae, setIsDramatisPersonae] = useState(false);
@@ -281,6 +282,22 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
     staleTime: 5 * 60 * 1000,
   });
 
+  const handleAddSpecialRule = () => {
+    if (!newSpecialRule.trim()) return;
+
+    if (specialRules.includes(newSpecialRule.trim())) {
+      setNewSpecialRule('');
+      return;
+    }
+
+    setSpecialRules(prev => [...prev, newSpecialRule.trim()]);
+    setNewSpecialRule('');
+  };
+
+  const handleRemoveSpecialRule = (ruleToRemove: string) => {
+    setSpecialRules(prev => prev.filter(rule => rule !== ruleToRemove));
+  };
+
   const handleSubmit = async () => {
     // Check if selected fighter subtype is Crew
     const isCrew = selectedFighterSubtypes.includes('Crew');
@@ -368,7 +385,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         intelligence: intelligence ? parseInt(intelligence) : null,
         attacks: attacks ? parseInt(attacks) : null,
         save: showSave && save ? parseInt(save) : null,
-        special_rules: specialSkills.split(',').map(skill => skill.trim()).filter(Boolean),
+        special_rules: specialRules,
         free_skill: freeSkill,
         is_gang_addition: isGangAddition,
         is_dramatis_personae: isDramatisPersonae,
@@ -757,18 +774,46 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
 
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
-                Special Skills
+                Special Rules
               </label>
-              <Input
-                type="text"
-                value={specialSkills}
-                onChange={(e) => setSpecialSkills(e.target.value)}
-                placeholder="e.g. Gang Hierarchy (Champion), Tools of the Trade, Combat Chems Stash"
-                className="w-full"
-              />
-              <p className="text-sm text-muted-foreground mt-1">
-                Separate multiple skills with commas
-              </p>
+              <div className="flex space-x-2 mb-2">
+                <Input
+                  type="text"
+                  value={newSpecialRule}
+                  onChange={(e) => setNewSpecialRule(e.target.value)}
+                  placeholder="Add a Special Rule"
+                  className="grow"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddSpecialRule();
+                    }
+                  }}
+                />
+                <Button
+                  onClick={handleAddSpecialRule}
+                  type="button"
+                >
+                  Add
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {specialRules.map((rule, index) => (
+                  <div
+                    key={index}
+                    className="bg-muted px-3 py-1 rounded-full flex items-center text-sm"
+                  >
+                    <span>{rule}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSpecialRule(rule)}
+                      className="ml-2 text-muted-foreground hover:text-foreground focus:outline-hidden"
+                    >
+                      <HiX className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div>

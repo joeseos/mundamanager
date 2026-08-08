@@ -64,23 +64,41 @@ export async function GET(request: Request) {
       return NextResponse.json(data);
     }
 
-    // Handle skill queries
+    // Handle skill queries.
+    // Skills inherit edition through skill_types, but skills.skill_type_id has
+    // no FK yet, so PostgREST cannot embed skill_types (PGRST200). Resolve
+    // matching skill-set ids first, then filter skills with .in().
     let query = supabase
       .from('skills')
-      .select(editionId
-        ? 'id, name, skill_type_id, gang_origin_id, skill_types!inner(edition_id)'
-        : 'id, name, skill_type_id, gang_origin_id, skill_types(edition_id)')
+      .select('id, name, skill_type_id, gang_origin_id')
       .order('name');
 
     if (skillTypeId) {
       query = query.eq('skill_type_id', skillTypeId);
     }
 
-    // A skill belongs to an edition through its skill set. The inner relation is
-    // important here: filtering an ordinary embedded relation would leave the
-    // parent skill rows in the result with an empty relation.
     if (editionId) {
-      query = query.eq('skill_types.edition_id', editionId);
+      let skillTypeQuery = supabase
+        .from('skill_types')
+        .select('id')
+        .eq('edition_id', editionId);
+
+      if (skillTypeId) {
+        skillTypeQuery = skillTypeQuery.eq('id', skillTypeId);
+      }
+
+      const { data: editionSkillTypes, error: skillTypesError } = await skillTypeQuery;
+      if (skillTypesError) throw skillTypesError;
+
+      const editionSkillTypeIds = (editionSkillTypes ?? []).map((st) => st.id);
+      if (editionSkillTypeIds.length === 0) {
+        if (skillTypeId) {
+          return NextResponse.json({ skills: [], effect_categories: [] });
+        }
+        return NextResponse.json([]);
+      }
+
+      query = query.in('skill_type_id', editionSkillTypeIds);
     }
 
     const { data, error } = await query;
