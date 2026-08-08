@@ -2,7 +2,7 @@ import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { getUserIdFromClaims } from "@/utils/auth";
 import { getEditionIdBySlug } from '@/app/lib/editions';
-import { EDITION_N23, editionSlugFromJoin } from '@/types/edition';
+import { EDITION_N23, gangEditionSlug } from '@/types/edition';
 
 export async function GET(request: Request) {
   try {
@@ -47,10 +47,7 @@ export async function GET(request: Request) {
           .eq('id', fighterGangId)
           .maybeSingle();
 
-        resolvedEditionSlug =
-          editionSlugFromJoin((gang as any)?.gang_types?.editions)
-          ?? editionSlugFromJoin((gang as any)?.custom_gang_type_edition?.editions)
-          ?? null;
+        resolvedEditionSlug = gangEditionSlug(gang);
       }
     }
 
