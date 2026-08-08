@@ -19,7 +19,7 @@ import { CustomiseFighters } from '@/components/customise/custom-fighters'
 import { CustomiseSkills } from '@/components/customise/custom-skills'
 import { GangsTab } from '@/components/home/gangs-tab'
 import { CampaignsTab } from '@/components/home/campaigns-tab'
-import { EDITION_N23, sameEditionSlug } from '@/types/edition'
+import { EDITION_N23, sameEditionForDisplay } from '@/types/edition'
 
 type TabKey = 'gangs' | 'campaigns' | 'customassets'
 const TAB_KEYS: TabKey[] = ['gangs', 'campaigns', 'customassets']
@@ -57,7 +57,7 @@ export default function HomeTabs({
   // authoring pickers are edition-filtered (CustomiseSkills fetchSkillTypes;
   // CustomiseFighters gang/skill/equipment lists).
   const matchesCustomEdition = (itemEditionSlug: string | null | undefined) =>
-    sameEditionSlug(itemEditionSlug, EDITION_N23);
+    sameEditionForDisplay(itemEditionSlug, EDITION_N23);
 
   const filteredEquipment = useMemo(
     () => customEquipment.filter(item => matchesCustomEdition(item.edition_slug)),

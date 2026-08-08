@@ -8,7 +8,7 @@ import { ImInfo } from "react-icons/im";
 import { Equipment, EquipmentGrants, ResourceCost } from '@/types/equipment';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
-import { hasTradePoints } from '@/types/edition';
+import { hasMasterCraftedWeapons, hasTradePoints } from '@/types/edition';
 import { isValidTradePoints, parseTradePointsCost } from '@/utils/campaigns/resources';
 
 export interface PurchaseConfirmOptions {
@@ -81,6 +81,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
     : undefined;
 
   const showTradePoints = hasTradePoints(editionSlug);
+  const showMasterCrafted = hasMasterCraftedWeapons(editionSlug);
   const [manualTradePoints, setManualTradePoints] = useState<string>(
     String(item.trade_points ?? '0')
   );
@@ -524,8 +525,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
               </div>
             )}
 
-            {/* Master-crafted is N23-only; Trade Points splits the editions the same way. */}
-            {!showTradePoints && item.equipment_type === 'weapon' && equipmentListType !== 'fighters-list' && (
+            {showMasterCrafted && item.equipment_type === 'weapon' && equipmentListType !== 'fighters-list' && (
               <div className="flex items-center space-x-2 mt-2">
                 <Checkbox
                   id="master-crafted"

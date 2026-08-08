@@ -6,7 +6,7 @@ import { CACHE_TAGS, invalidateGangCredits, invalidateUserGangsList } from '@/ut
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { logGangResourceChanges } from './logs/gang-resource-logs';
-import { hasTradePoints } from '@/types/edition';
+import { gangEditionSlug, hasTradePoints } from '@/types/edition';
 
 interface UpdateGangParams {
   gang_id: string;
@@ -160,11 +160,7 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     // a client sends the field.
     let tradePointsChanged = false;
     if (params.trade_points !== undefined && params.trade_points_operation) {
-      // Embeds come back as objects for these many-to-one FKs; the untyped
-      // client infers arrays, hence the casts (same pattern as add-fighter.ts).
-      const editionSlug = (gang.gang_types as any)?.editions?.slug
-        ?? (gang.custom_gang_types as any)?.editions?.slug
-        ?? null;
+      const editionSlug = gangEditionSlug(gang);
       if (!hasTradePoints(editionSlug)) {
         throw new Error('Trade Points is not available for this gang edition');
       }
