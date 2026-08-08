@@ -23,7 +23,7 @@ import { EquipmentGrants, ResourceCost, CostResourcePayload } from '@/types/equi
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
 import { clearHardpointReference } from './vehicle-hardpoints';
 import { deductGangResource, returnGangResource, parseTradePointsCost, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
-import { hasTradePoints } from '@/types/edition';
+import { gangEditionSlug, hasMasterCraftedWeapons, hasTradePoints } from '@/types/edition';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -362,8 +362,15 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       ? (params.listed_cost ?? baseCost)
       : finalPurchaseCost;
 
-    // Apply master-crafted bonus for weapons
-    if (equipmentDetails.equipment_type === 'weapon' && params.master_crafted) {
+    const editionSlug = gangEditionSlug(gang);
+
+    // Gated server-side: params come from the browser, so the hidden checkbox
+    // must not be the only thing stopping this.
+    const masterCrafted =
+      equipmentDetails.equipment_type === 'weapon'
+      && !!params.master_crafted
+      && hasMasterCraftedWeapons(editionSlug);
+    if (masterCrafted) {
       ratingCost = Math.ceil((ratingCost * 1.25) / 5) * 5;
     }
 
@@ -417,11 +424,6 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
 
     // Trade Points (N26). The cost comes from the client alongside manual_cost — the
     // modal already resolved the discounted catalog value via get_equipment_detailed_data.
-    // Embeds come back as objects for these many-to-one FKs; the untyped client infers
-    // arrays, hence the casts (same pattern as update-gang.ts).
-    const editionSlug = (gang.gang_types as any)?.editions?.slug
-      ?? (gang.custom_gang_types as any)?.editions?.slug
-      ?? null;
     const tradePointsCost = hasTradePoints(editionSlug)
       ? parseTradePointsCost(params.manual_trade_points ?? equipmentDetails.trade_points)
       : 0;
@@ -458,7 +460,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           purchase_cost: ratingCost,
           gang_stash: true,
           user_id: gang.user_id,
-          is_master_crafted: equipmentDetails.equipment_type === 'weapon' && params.master_crafted,
+          is_master_crafted: masterCrafted,
           is_editable: equipmentDetails.is_editable || false,
           ...costResourcePayload
         })
@@ -481,7 +483,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           original_cost: baseCost,
           purchase_cost: ratingCost,
           user_id: gang.user_id,
-          is_master_crafted: equipmentDetails.equipment_type === 'weapon' && params.master_crafted,
+          is_master_crafted: masterCrafted,
           is_editable: equipmentDetails.is_editable || false,
           ...costResourcePayload
         })
@@ -853,7 +855,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       custom_equipment_id: params.custom_equipment_id,
       original_cost: baseCost,
       purchase_cost: ratingCost,
-      is_master_crafted: equipmentDetails.equipment_type === 'weapon' && params.master_crafted
+      is_master_crafted: masterCrafted
     };
 
     if (params.buy_for_gang_stash) {
@@ -879,7 +881,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
             original_cost: baseCost,
             purchase_cost: ratingCost,
             gang_stash: true,
-            is_master_crafted: equipmentDetails.equipment_type === 'weapon' && params.master_crafted,
+            is_master_crafted: masterCrafted,
             wargear_details: {
               name: equipmentDetails.equipment_name,
               cost: baseCost

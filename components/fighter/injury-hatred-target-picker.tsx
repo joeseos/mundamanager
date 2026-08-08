@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Combobox } from '@/components/ui/combobox';
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { useCampaignGangFighterOptions } from '@/utils/campaign-gang-fighter-options';
-import { sameEditionSlug } from '@/types/edition';
+import { sameEditionForDisplay } from '@/types/edition';
 import type { HatredTargetKind } from '@/utils/injuryTarget';
 import type { CampaignGangWithFighters } from '@/types/fighter-ooa-record';
 
@@ -92,7 +92,7 @@ export function InjuryHatredTargetPicker({
         .filter(row => !row.is_custom)
         // Own ruleset only. Rows arrive with their slug already resolved, so
         // there is no lookup to wait on.
-        .filter(row => sameEditionSlug(row.edition_slug, editionSlug))
+        .filter(row => sameEditionForDisplay(row.edition_slug, editionSlug))
         .sort((a, b) => a.gang_type.localeCompare(b.gang_type))
         .map(row => ({ value: row.gang_type_id, label: row.gang_type })),
     [gangTypes, editionSlug]

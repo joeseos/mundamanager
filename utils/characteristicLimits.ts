@@ -72,7 +72,7 @@ const LIMITS_BY_EDITION: Record<EditionSlug, { fighter: CharacteristicLimits; cr
 
 /**
  * An unset or unrecognised slug gets no limits at all, so callers find no entry
- * and flag nothing — matching NO_CAPABILITIES in types/edition.ts. A missing
+ * and flag nothing — matching how the capability registry answers. A missing
  * slug means the edition failed to load, and quietly applying one edition's
  * ranges would mark correct stats as illegal.
  */

@@ -15,12 +15,9 @@ import { EquipmentTooltipTrigger } from './equipment-tooltip';
 import { PurchaseModal } from './purchase-modal';
 import { usePurchaseEquipment, type EquipmentBoughtResult } from '@/hooks/use-purchase-equipment';
 import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
-import { hasTradePoints } from '@/types/edition';
+import { hasEquipmentSuperCategories, hasTradePoints } from '@/types/edition';
 import { isExclusiveTradePoints, parseTradePointsCost } from '@/utils/campaigns/resources';
-import {
-  compareEquipmentCategories,
-  hasEquipmentSuperCategories,
-} from '@/utils/getEquipmentCategoryRank';
+import { compareEquipmentCategories } from '@/utils/getEquipmentCategoryRank';
 import {
   getEquipmentCategoryDisplayNameN26,
   getEquipmentSuperCategoryN26,

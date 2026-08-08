@@ -213,7 +213,7 @@ const INJURY_TABLES_BY_EDITION: Record<EditionSlug, InjuryTables> = {
 
 /**
  * An unset or unrecognised slug gets no table at all, so callers show no ranges
- * and resolve no rolls — matching NO_CAPABILITIES / NO_LIMITS. A missing slug
+ * and resolve no rolls — matching NO_LIMITS and the capability registry. A missing slug
  * means the edition failed to load, and quietly serving another edition's D66
  * spread would silently apply the wrong injury to a fighter.
  */

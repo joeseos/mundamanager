@@ -18,7 +18,7 @@ import { updateGangAllegiance } from "@/app/actions/campaigns/[id]/campaign-alle
 import { LuTrash2, LuPencil } from 'react-icons/lu'
 import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md"
 import { HiUser } from "react-icons/hi2";
-import { sameEditionSlug } from '@/types/edition';
+import { gangEditionSlug, sameEditionForDisplay } from '@/types/edition';
 
 type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 
@@ -324,9 +324,7 @@ export default function MembersTable({
         .map(gang => {
           // If campaign_gangs array exists and has entries, the gang is in a campaign
           const isInCampaign = Array.isArray(gang.campaign_gangs) && gang.campaign_gangs.length > 0;
-          const edition_slug = gang.gang_types?.editions?.slug
-            ?? gang.custom_gang_types?.editions?.slug
-            ?? null;
+          const edition_slug = gangEditionSlug(gang);
 
           // Remove the campaign_gangs join data and map database column names
           const { campaign_gangs, gang_type, gang_colour, gang_types, custom_gang_types, ...gangData } = gang;
@@ -340,7 +338,7 @@ export default function MembersTable({
           };
         })
         // Only gangs whose gang type edition matches this campaign's campaign type edition
-        .filter(gang => sameEditionSlug(gang.edition_slug, campaignEditionSlug));
+        .filter(gang => sameEditionForDisplay(gang.edition_slug, campaignEditionSlug));
 
       setUserGangs(gangsWithAvailability);
     } catch (error) {

@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextRequest } from 'next/server'
 import { getUserCustomCollections } from '@/app/lib/customise/custom-collections'
+import { gangEditionSlug } from '@/types/edition'
 
 export async function GET(
   request: NextRequest,
@@ -313,14 +314,11 @@ export async function GET(
     return Response.json({
       profile,
       // The battle-session opponent picker needs each gang's ruleset, and these
-      // are other users' gangs so nothing on the client knows it. Flatten the
-      // embed away so the public shape stays flat. Official gang type first,
-      // then custom — same fallback order as getGangBasic.
+      // are other users' gangs so nothing on the client knows it. Destructured
+      // out of the row so the public shape stays flat.
       gangs: (gangs || []).map(({ gang_types, custom_gang_type, ...gang }: any) => ({
         ...gang,
-        edition_slug: gang_types?.editions?.slug
-          ?? custom_gang_type?.editions?.slug
-          ?? null,
+        edition_slug: gangEditionSlug({ gang_types, custom_gang_type }),
       })),
       campaigns: dedupedCampaigns,
       customAssets,

@@ -2,6 +2,7 @@ import { unstable_cache } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import { TypeSpecificData } from '@/types/fighter-effect';
 import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang';
+import { gangEditionSlug } from '@/types/edition';
 
 export type Gang = {
   id: string;
@@ -182,9 +183,7 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
           campaigns: gang.campaigns,
           is_favourite: gang.is_favourite ?? false,
           favourite_order: gang.favourite_order ?? null,
-          edition_slug: gang.gang_types?.editions?.slug
-            ?? gang.custom_gang_types?.editions?.slug
-            ?? null,
+          edition_slug: gangEditionSlug(gang),
         }));
 
         console.log(`Server: Processed ${gangsWithRatings.length} gangs with ratings`);

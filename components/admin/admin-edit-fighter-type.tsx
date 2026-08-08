@@ -15,7 +15,7 @@ import { getSkillSetRank } from "@/utils/skillSetRank";
 import { compareEquipmentCategories } from "@/utils/getEquipmentCategoryRank";
 import { AdminFighterEquipmentSelection, EquipmentSelection, guiToDataModel, dataModelToGui } from "@/components/admin/admin-fighter-equipment-selection";
 import { EditionSelect, useEditions } from '@/components/edition-select';
-import { hasSaveCharacteristic, allowsMultipleSubtypes, hasStartingXp } from '@/types/edition';
+import { hasSaveCharacteristic, allowsMultipleSubtypes, hasStartingXp, hasVehicles } from '@/types/edition';
 import Modal from '@/components/ui/modal';
 
 interface FighterSpecialisation {
@@ -395,7 +395,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       return !!skillType && (!newEditionId || skillType.edition_id === newEditionId);
     }));
 
-    if (editions.find(edition => edition.id === newEditionId)?.slug !== 'n26') {
+    if (!hasVehicles(editions.find(edition => edition.id === newEditionId)?.slug)) {
       setIsVehicle(false);
     }
 
@@ -1922,7 +1922,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   </label>
                 </div>
 
-                {editionSlug === 'n26' && (
+                {hasVehicles(editionSlug) && (
                   <div className="flex items-center space-x-2">
                     <Checkbox
                       id="vehicle"

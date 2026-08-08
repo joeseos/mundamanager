@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 import { useDndSensorsConfig, useSuppressClickAfterDrag } from '@/hooks/use-dnd-sensors'
 import { useIsMounted } from '@/hooks/use-is-mounted'
 import { useHomeEdition } from '@/hooks/use-home-edition'
-import { sameEditionSlug } from '@/types/edition'
+import { sameEditionForDisplay } from '@/types/edition'
 import { EditionToggle } from '@/components/home/edition-toggle'
 import { GangCardContent, SortableGangCard } from '@/components/home/gang-card'
 
@@ -32,7 +32,7 @@ export function GangsTab({ gangs }: GangsTabProps) {
   }
 
   const editionGangs = useMemo(
-    () => localGangs.filter(g => sameEditionSlug(g.edition_slug, editionSlug)),
+    () => localGangs.filter(g => sameEditionForDisplay(g.edition_slug, editionSlug)),
     [localGangs, editionSlug]
   );
 

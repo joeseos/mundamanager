@@ -16,7 +16,7 @@ import React from "react"
 import type { CampaignType } from '@/types/campaign'
 import { EditionToggle } from '@/components/home/edition-toggle'
 import { useHomeEdition } from '@/hooks/use-home-edition'
-import { sameEditionSlug } from '@/types/edition'
+import { sameEditionForDisplay } from '@/types/edition'
 
 interface TradingPostType {
   id: string;
@@ -75,12 +75,12 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
   const [selectedTradingPosts, setSelectedTradingPosts] = useState<string[]>([])
 
   const editionCampaignTypes = useMemo(
-    () => campaignTypes.filter(type => sameEditionSlug(type.edition_slug, editionSlug)),
+    () => campaignTypes.filter(type => sameEditionForDisplay(type.edition_slug, editionSlug)),
     [campaignTypes, editionSlug]
   );
 
   const editionTradingPostTypes = useMemo(
-    () => tradingPostTypes.filter(type => sameEditionSlug(type.edition_slug, editionSlug)),
+    () => tradingPostTypes.filter(type => sameEditionForDisplay(type.edition_slug, editionSlug)),
     [tradingPostTypes, editionSlug]
   );
 
@@ -109,7 +109,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
       if (selectedCampaignType?.trading_posts && Array.isArray(selectedCampaignType.trading_posts)) {
         setSelectedTradingPosts(
           selectedCampaignType.trading_posts.filter(id =>
-            sameEditionSlug(
+            sameEditionForDisplay(
               tradingPostTypes.find(type => type.id === id)?.edition_slug,
               editionSlug
             )
