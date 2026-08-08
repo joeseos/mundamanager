@@ -40,7 +40,7 @@ export interface BattleSession {
   claimed_territory: string | null;
   /**
    * Ruleset the session is played under, flattened from battle_sessions.edition_id
-   * by the loader. Null means no edition-specific behaviour (see capabilitiesFor).
+   * by the loader. Null means no edition-specific behaviour applies.
    */
   edition_slug?: string | null;
 }

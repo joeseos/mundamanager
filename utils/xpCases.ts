@@ -67,8 +67,8 @@ export const XP_CASES: Record<XpCaseId, XpCaseDef> = {
  * Keyed by EditionSlug on purpose: adding an edition is a compile error here
  * until it states its own awards, the same guarantee EDITION_CAPABILITIES gives
  * the capability flags. This is edition-keyed *data* rather than a behaviour
- * switch, so it lives in its own module and EditionCapabilities stays
- * boolean-only — the pattern set by utils/characteristicLimits.ts.
+ * switch, so it lives in its own module and the registry stays boolean-only —
+ * the pattern set by utils/characteristicLimits.ts.
  */
 const XP_AWARDS_BY_EDITION: Record<EditionSlug, readonly XpCaseId[]> = {
   n23: [
@@ -99,8 +99,8 @@ const XP_AWARDS_BY_EDITION: Record<EditionSlug, readonly XpCaseId[]> = {
 };
 
 /**
- * An unset or unrecognised slug offers no preset awards at all, matching
- * NO_CAPABILITIES in types/edition.ts. A missing slug means the edition failed
+ * An unset or unrecognised slug offers no preset awards at all, matching how
+ * the capability registry answers. A missing slug means the edition failed
  * to load, and offering one edition's awards would invite logging XP under
  * rules that do not apply; the modal still accepts a manual amount.
  */

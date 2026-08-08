@@ -124,7 +124,7 @@ const EDITION_CAPABILITIES = {
   masterCraftedWeapons:     { n23: true,  n26: false },
 } as const satisfies Record<string, Record<EditionSlug, boolean>>;
 
-export type EditionCapability = keyof typeof EDITION_CAPABILITIES;
+type EditionCapability = keyof typeof EDITION_CAPABILITIES;
 
 // Once per unrecognised slug, not once per lookup.
 const warnedSlugs = new Set<string>();
