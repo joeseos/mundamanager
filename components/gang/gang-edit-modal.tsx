@@ -142,6 +142,9 @@ export default function GangEditModal({
     sameEditionForDisplay(variant.edition_slug, editionSlug)
   );
   const showGangVariants = editionAvailableVariants.length > 0;
+  const showAlignment = hasAlignment(editionSlug);
+  // Mirror admin fighter-type forms: clear alignment when the edition lacks it
+  const effectiveAlignment = showAlignment ? alignment : '';
 
   // Get campaign ID and current allegiance if gang is in a campaign
   const campaignId = campaigns?.[0]?.campaign_id;
@@ -150,7 +153,7 @@ export default function GangEditModal({
   
   const [initialValues, setInitialValues] = useState({
     name: gangName,
-    alignment: alignment,
+    alignment: effectiveAlignment,
     allianceId: allianceId || '',
     gangColour: gangColour,
     gangIsVariant: gangVariants.length > 0,
@@ -167,7 +170,7 @@ export default function GangEditModal({
     credits: '',  // delta inputs start empty
     reputation: '',
     trade_points: '',
-    alignment: alignment,
+    alignment: effectiveAlignment,
     allianceId: allianceId || '',
     gangColour: gangColour,
     gangIsVariant: gangVariants.length > 0,
@@ -229,7 +232,7 @@ export default function GangEditModal({
     if (isOpen) {
       setInitialValues({
         name: gangName,
-        alignment: alignment,
+        alignment: effectiveAlignment,
         allianceId: allianceId || '',
         gangColour: gangColour,
         gangIsVariant: gangVariants.length > 0,
@@ -246,7 +249,7 @@ export default function GangEditModal({
         credits: '',
         reputation: '',
         trade_points: '',
-        alignment: alignment,
+        alignment: effectiveAlignment,
         allianceId: allianceId || '',
         gangColour: gangColour,
         gangIsVariant: gangVariants.length > 0,
@@ -393,8 +396,8 @@ export default function GangEditModal({
       updates.name = formState.name;
     }
 
-    // Only include alignment if changed
-    if (formState.alignment !== initial.alignment) {
+    // Only include alignment if the edition supports it and the value changed
+    if (showAlignment && formState.alignment !== initial.alignment) {
       updates.alignment = formState.alignment;
     }
 
@@ -526,7 +529,7 @@ export default function GangEditModal({
 
       <div className="flex flex-row gap-4">
         {/* Alignment Section */}
-        {hasAlignment(editionSlug) && (
+        {showAlignment && (
           <div className="flex-1 space-y-2">
             <p className="text-sm font-medium">Alignment</p>
             <Combobox
