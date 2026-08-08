@@ -102,7 +102,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [fighterEffects, setFighterEffects] = useState<any[]>([]);
   const [fighterEffectCategories, setFighterEffectCategories] = useState<any[]>([]);
   const [selectedTradingPosts, setSelectedTradingPosts] = useState<string[]>([]);
-  const [tradingPostTypes, setTradingPostTypes] = useState<Array<{id: string, trading_post_name: string}>>([]);
+  const [tradingPostTypes, setTradingPostTypes] = useState<Array<{id: string, trading_post_name: string, edition_id?: string | null}>>([]);
 
   
 
@@ -170,6 +170,42 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       if (selected && newEditionId && selected.edition_id !== newEditionId) {
         setEquipmentCategory('');
       }
+    }
+    // Gang types are edition-scoped; clear any in-progress Cost-per-Gang pick
+    setSelectedGangType('');
+    // Drop trading posts / fighter types that belong to another edition
+    if (newEditionId) {
+      setSelectedTradingPosts(prev =>
+        prev.filter(id => {
+          const tp = tradingPostTypes.find(t => t.id === id);
+          return !tp || tp.edition_id === newEditionId;
+        })
+      );
+      setSelectedFighterTypes(prev =>
+        prev.filter(id => {
+          const ft = fighterTypes.find(f => f.id === id);
+          return !ft || ft.edition_id === newEditionId;
+        })
+      );
+    }
+    // N26 uses Trade Points instead of Availability; drop stale N23 rows
+    if (hasTradePoints(editionSlugOf(editions, newEditionId))) {
+      setShowAvailabilityDialog(false);
+      setSelectedAvailabilityGangType('');
+      setAvailValueLetter('');
+      setAvailValueNumber(6);
+      setAvailExclusive(false);
+      setEquipmentAvailabilities([]);
+      setShowOriginAvailabilityDialog(false);
+      setSelectedAvailabilityGangOrigin('');
+      setOriginAvailValueLetter('');
+      setOriginAvailValueNumber(6);
+      setEquipmentOriginAvailabilities([]);
+      setShowVariantAvailabilityDialog(false);
+      setSelectedAvailabilityGangVariant('');
+      setVariantAvailValueLetter('');
+      setVariantAvailValueNumber(6);
+      setEquipmentVariantAvailabilities([]);
     }
   };
 
@@ -327,7 +363,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: gangTypeOptions = [], isLoading: isGangTypesLoading } = useQuery<Array<{gang_type_id: string, gang_type: string}>>({
+  const { data: gangTypeOptions = [], isLoading: isGangTypesLoading } = useQuery<Array<{gang_type_id: string, gang_type: string, edition_id?: string | null}>>({
     queryKey: ['admin-gang-types'],
     queryFn: async () => {
       const response = await fetch('/api/admin/gang-types');
@@ -337,6 +373,21 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     enabled: showAdjustedCostDialog || showAvailabilityDialog,
     staleTime: 5 * 60 * 1000,
   });
+
+  const filteredGangTypes = useMemo(
+    () => editionId ? gangTypeOptions.filter(type => type.edition_id === editionId) : gangTypeOptions,
+    [gangTypeOptions, editionId]
+  );
+
+  const filteredTradingPostTypes = useMemo(
+    () => editionId ? tradingPostTypes.filter(tp => tp.edition_id === editionId) : tradingPostTypes,
+    [tradingPostTypes, editionId]
+  );
+
+  const filteredFighterTypes = useMemo(
+    () => editionId ? fighterTypes.filter(ft => ft.edition_id === editionId) : fighterTypes,
+    [fighterTypes, editionId]
+  );
 
   const { data: gangOriginList = [] } = useQuery<Array<{id: string, origin_name: string, category_name: string}>>({
     queryKey: ['admin-gang-origins'],
@@ -440,19 +491,25 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           gang_origin_id: d.gang_origin_id,
           adjusted_cost: d.adjusted_cost
         })),
-        equipment_availabilities: equipmentAvailabilities.map(a => ({
-          gang_type_id: a.gang_type_id,
-          availability: a.availability,
-          exclusive: a.exclusive
-        })),
-        equipment_origin_availabilities: equipmentOriginAvailabilities.map(a => ({
-          gang_origin_id: a.gang_origin_id,
-          availability: a.availability
-        })),
-        equipment_variant_availabilities: equipmentVariantAvailabilities.map(a => ({
-          gang_variant_id: a.gang_variant_id,
-          availability: a.availability
-        })),
+        equipment_availabilities: showAvailability
+          ? equipmentAvailabilities.map(a => ({
+              gang_type_id: a.gang_type_id,
+              availability: a.availability,
+              exclusive: a.exclusive
+            }))
+          : [],
+        equipment_origin_availabilities: showAvailability
+          ? equipmentOriginAvailabilities.map(a => ({
+              gang_origin_id: a.gang_origin_id,
+              availability: a.availability
+            }))
+          : [],
+        equipment_variant_availabilities: showAvailability
+          ? equipmentVariantAvailabilities.map(a => ({
+              gang_variant_id: a.gang_variant_id,
+              availability: a.availability
+            }))
+          : [],
         fighter_effects: fighterEffects
       };
 
@@ -970,7 +1027,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                 {isGangTypesLoading ? (
                                   <option>Loading...</option>
                                 ) : (
-                                  gangTypeOptions.map((gang) => (
+                                  filteredGangTypes.map((gang) => (
                                     <option key={gang.gang_type_id} value={gang.gang_type_id}>
                                       {gang.gang_type}
                                     </option>
@@ -999,7 +1056,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       )}
                     </div>
 
-                    {/* Availability per Gang */}
+                    {/* Availability per Gang — N23 only (N26 uses Trade Points) */}
+                    {showAvailability && (
                     <div>
                       <label className="block text-sm font-medium text-muted-foreground mb-1">
                         Availability per Gang
@@ -1129,6 +1187,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         </Modal>
                       )}
                     </div>
+                    )}
 
                     {/* Cost per Gang Origin */}
                     <div>
@@ -1268,7 +1327,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       )}
                     </div>
 
-                    {/* Availability per Gang Origin */}
+                    {/* Availability per Gang Origin — N23 only */}
+                    {showAvailability && (
                     <div>
                       <label className="block text-sm font-medium text-muted-foreground mb-1">
                         Availability per Gang Origin
@@ -1398,8 +1458,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         </Modal>
                       )}
                     </div>
+                    )}
 
-                    {/* Availability per Gang Variant */}
+                    {/* Availability per Gang Variant — N23 only */}
+                    {showAvailability && (
                     <div>
                       <label className="block text-sm font-medium text-muted-foreground mb-1">
                         Availability per Gang Variant
@@ -1520,6 +1582,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         </Modal>
                       )}
                     </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1543,7 +1606,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                     disabled={!selectedEquipmentId}
                   >
                     <option value="">Select fighter type to add</option>
-                    {fighterTypes
+                    {filteredFighterTypes
                       .filter(ft => !selectedFighterTypes.includes(ft.id))
                       .sort((a, b) => {
                         // First sort by gang type
@@ -1598,7 +1661,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                   equipmentId={selectedEquipmentId}
                   selectedTradingPosts={selectedTradingPosts}
                   setSelectedTradingPosts={setSelectedTradingPosts}
-                  tradingPostTypes={tradingPostTypes}
+                  tradingPostTypes={filteredTradingPostTypes}
+                  editionId={editionId}
                   disabled={!selectedEquipmentId}
                 />
               )}

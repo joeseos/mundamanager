@@ -88,6 +88,17 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         setEquipmentCategory('');
       }
     }
+    // Gang types are edition-scoped; clear any in-progress Cost-per-Gang pick
+    setSelectedGangType('');
+    // N26 uses Trade Points instead of Availability; drop stale N23 rows
+    if (hasTradePoints(editionSlugOf(editions, newEditionId))) {
+      setShowAvailabilityDialog(false);
+      setSelectedAvailabilityGangType('');
+      setAvailValueLetter('');
+      setAvailValueNumber(6);
+      setAvailExclusive(false);
+      setEquipmentAvailabilities([]);
+    }
     // Stats the new edition does not use are no longer rendered, but anything
     // already typed would stay in state and still be submitted -- an N26 weapon
     // saved with a Damage and an Accuracy. Blank them on the way across.
@@ -110,7 +121,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: gangTypeOptions = [] } = useQuery<Array<{gang_type_id: string, gang_type: string}>>({
+  const { data: gangTypeOptions = [] } = useQuery<Array<{gang_type_id: string, gang_type: string, edition_id?: string | null}>>({
     queryKey: ['admin-gang-types'],
     queryFn: async () => {
       const response = await fetch('/api/admin/gang-types');
@@ -120,6 +131,11 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
     enabled: showAdjustedCostDialog || showAvailabilityDialog,
     staleTime: 5 * 60 * 1000,
   });
+
+  const filteredGangTypes = useMemo(
+    () => editionId ? gangTypeOptions.filter(type => type.edition_id === editionId) : gangTypeOptions,
+    [gangTypeOptions, editionId]
+  );
 
   const handleProfileChange = (index: number, field: keyof WeaponProfileInput, value: string | number | boolean) => {
     const newProfiles = [...weaponProfiles];
@@ -193,11 +209,13 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
             gang_type_id: d.gang_type_id,
             adjusted_cost: d.adjusted_cost
           })),
-          equipment_availabilities: equipmentAvailabilities.map(a => ({
-            gang_type_id: a.gang_type_id,
-            availability: a.availability,
-            exclusive: a.exclusive
-          }))
+          equipment_availabilities: showAvailability
+            ? equipmentAvailabilities.map(a => ({
+                gang_type_id: a.gang_type_id,
+                availability: a.availability,
+                exclusive: a.exclusive
+              }))
+            : []
         }),
       });
 
@@ -433,7 +451,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                             className="w-full p-2 border rounded-md"
                           >
                             <option key="default" value="">Select a Gang Type</option>
-                            {gangTypeOptions.map((gang) => (
+                            {filteredGangTypes.map((gang) => (
                               <option key={gang.gang_type_id} value={gang.gang_type_id}>
                                 {gang.gang_type}
                               </option>
@@ -502,7 +520,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
               </div>
             )}
 
-            {equipmentType && equipmentType !== 'vehicle_upgrade' && (
+            {showAvailability && equipmentType && equipmentType !== 'vehicle_upgrade' && (
               <div className="col-span-1">
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Availability per Gang

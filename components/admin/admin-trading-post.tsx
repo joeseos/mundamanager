@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -10,6 +10,7 @@ import Modal from "@/components/ui/modal";
 interface TradingPostType {
   id: string;
   trading_post_name: string;
+  edition_id?: string | null;
 }
 
 interface AdminTradingPostProps {
@@ -17,6 +18,7 @@ interface AdminTradingPostProps {
   selectedTradingPosts: string[];
   setSelectedTradingPosts: (tradingPosts: string[] | ((prev: string[]) => string[])) => void;
   tradingPostTypes?: TradingPostType[];
+  editionId?: string;
   disabled?: boolean;
 }
 
@@ -25,6 +27,7 @@ export function AdminTradingPost({
   selectedTradingPosts,
   setSelectedTradingPosts,
   tradingPostTypes: propTradingPostTypes = [],
+  editionId = '',
   disabled = false
 }: AdminTradingPostProps) {
   const [showTradingPostDialog, setShowTradingPostDialog] = useState(false);
@@ -41,6 +44,13 @@ export function AdminTradingPost({
   });
 
   const tradingPostTypes = propTradingPostTypes.length > 0 ? propTradingPostTypes : fetchedTradingPostTypes;
+
+  const filteredTradingPostTypes = useMemo(
+    () => editionId
+      ? tradingPostTypes.filter(tp => tp.edition_id === editionId)
+      : tradingPostTypes,
+    [tradingPostTypes, editionId]
+  );
 
   const handleSave = () => {
     toast.success("Trading Post selections saved. Remember to update the equipment to apply changes.");
@@ -65,7 +75,7 @@ export function AdminTradingPost({
         <div className="p-4 text-center text-muted-foreground">Loading trading post types...</div>
       ) : (
         <div className="space-y-3">
-          {tradingPostTypes.map((tradingPost) => (
+          {filteredTradingPostTypes.map((tradingPost) => (
             <div key={tradingPost.id} className="flex items-center space-x-3">
               <Checkbox
                 id={`trading-post-${tradingPost.id}`}
@@ -88,11 +98,11 @@ export function AdminTradingPost({
       {selectedTradingPosts.length > 0 && (
         <div className="mt-4 p-3 bg-muted rounded-lg">
           <div className="text-sm font-medium text-muted-foreground mb-2">
-            Selected Trading Posts ({selectedTradingPosts.length}):
+            Selected Trading Posts ({selectedTradingPosts.filter(id => filteredTradingPostTypes.some(tp => tp.id === id)).length}):
           </div>
           <div className="flex flex-wrap gap-2">
             {selectedTradingPosts.map((tradingPostId) => {
-              const tradingPost = tradingPostTypes.find(tp => tp.id === tradingPostId);
+              const tradingPost = filteredTradingPostTypes.find(tp => tp.id === tradingPostId);
               return tradingPost ? (
                 <span 
                   key={tradingPostId}
@@ -126,7 +136,7 @@ export function AdminTradingPost({
       {selectedTradingPosts.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-2">
           {selectedTradingPosts.map((tradingPostId) => {
-            const tradingPost = tradingPostTypes.find(tp => tp.id === tradingPostId);
+            const tradingPost = filteredTradingPostTypes.find(tp => tp.id === tradingPostId);
             return tradingPost ? (
               <span 
                 key={tradingPostId}
@@ -151,4 +161,4 @@ export function AdminTradingPost({
       )}
     </div>
   );
-} 
+}

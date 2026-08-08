@@ -231,7 +231,7 @@ export async function GET(request: Request) {
       // Fetch trading post types for the component to display names
       const { data: tradingPostTypes, error: tradingPostTypesError } = await supabase
         .from('trading_post_types')
-        .select('id, trading_post_name')
+        .select('id, trading_post_name, edition_id')
         .order('trading_post_name');
 
       // Don't throw error if the query fails, just log it
@@ -326,6 +326,7 @@ export async function GET(request: Request) {
             gang_type,
             fighter_subtypes,
             fighter_specialisation_id,
+            edition_id,
             fighter_specialisations(
               specialisation_name
             )

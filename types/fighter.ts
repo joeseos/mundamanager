@@ -33,6 +33,7 @@ export interface FighterType {
     specialisation_name: string;
   } | null;
   alliance_crew_name?: string;
+  edition_id?: string | null;
   cost: number;
   movement: number;
   weapon_skill: number;
