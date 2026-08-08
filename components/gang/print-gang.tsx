@@ -10,7 +10,7 @@ import { sortFightersByPositioning } from "@/utils/fighter-positioning";
 import { injuryAggregationLabel } from "@/utils/injuryTarget";
 import WeaponTable from "./fighter-card-weapon-table";
 import { StatsTable, StatsType } from "../ui/fighter-card-stats-table";
-import { hasSaveCharacteristic, hasTradePoints } from "@/types/edition";
+import { hasAlignment, hasSaveCharacteristic, hasTradePoints } from "@/types/edition";
 import { MdCheckBoxOutlineBlank } from "react-icons/md";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
@@ -1106,20 +1106,24 @@ export default function PrintGang({ gang }: PrintGangProps) {
                           )}
         
                           {/* Alignment & Alliance */}
-                          <div className="text-muted-foreground text-sm">
-                            <div className="flex flex-wrap gap-x-2 gap-y-1">
-                              {/* Alignment */}
-                              <div className="flex items-center gap-1 text-sm">
-                                Alignment: <Badge variant="secondary">{alignment}</Badge>
+                          {(hasAlignment(edition_slug) || alliance_name) && (
+                            <div className="text-muted-foreground text-sm">
+                              <div className="flex flex-wrap gap-x-2 gap-y-1">
+                                {/* Alignment */}
+                                {hasAlignment(edition_slug) && (
+                                  <div className="flex items-center gap-1 text-sm">
+                                    Alignment: <Badge variant="secondary">{alignment}</Badge>
+                                  </div>
+                                )}
+                                {/* Alliance */}
+                                {alliance_name && (
+                                  <div className="flex items-center gap-1 text-sm">
+                                    Alliance: <Badge variant="secondary">{alliance_name}</Badge>
+                                  </div>
+                                )}
                               </div>
-                              {/* Alliance */}
-                              {alliance_name && (
-                                <div className="flex items-center gap-1 text-sm">
-                                  Alliance: <Badge variant="secondary">{alliance_name}</Badge>
-                                </div>
-                              )}
                             </div>
-                          </div>
+                          )}
                         </div>
         
                         {/* Campaign Attributes */}
@@ -1560,20 +1564,24 @@ export default function PrintGang({ gang }: PrintGangProps) {
                       )}
     
                       {/* Alignment & Alliance */}
-                      <div className="text-muted-foreground text-sm">
-                        <div className="flex flex-wrap gap-x-2 gap-y-1">
-                          {/* Alignment */}
-                          <div className="flex items-center gap-1 text-sm">
-                            Alignment: <Badge variant="secondary">{alignment}</Badge>
+                      {(hasAlignment(edition_slug) || alliance_name) && (
+                        <div className="text-muted-foreground text-sm">
+                          <div className="flex flex-wrap gap-x-2 gap-y-1">
+                            {/* Alignment */}
+                            {hasAlignment(edition_slug) && (
+                              <div className="flex items-center gap-1 text-sm">
+                                Alignment: <Badge variant="secondary">{alignment}</Badge>
+                              </div>
+                            )}
+                            {/* Alliance */}
+                            {alliance_name && (
+                              <div className="flex items-center gap-1 text-sm">
+                                Alliance: <Badge variant="secondary">{alliance_name}</Badge>
+                              </div>
+                            )}
                           </div>
-                          {/* Alliance */}
-                          {alliance_name && (
-                            <div className="flex items-center gap-1 text-sm">
-                              Alliance: <Badge variant="secondary">{alliance_name}</Badge>
-                            </div>
-                          )}
                         </div>
-                      </div>
+                      )}
                     </div>
     
                     {/* Campaign Attributes */}

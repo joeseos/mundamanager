@@ -30,7 +30,7 @@ import { fighterSubtypeRank } from '@/utils/fighterSubtypeRank';
 import { GangImageEditModal } from './gang-image-edit-modal';
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { hasTradePoints } from '@/types/edition';
+import { hasAlignment, hasTradePoints } from '@/types/edition';
 
 
 interface GangProps {
@@ -222,7 +222,7 @@ export default function Gang({
   const [showGangAdditionsModal, setShowGangAdditionsModal] = useState(false);
   const [gangIsVariant, setGangIsVariant] = useState(safeGangVariant.length > 0);
   const [gangVariants, setGangVariants] = useState<Array<{id: string, variant: string}>>(safeGangVariant);
-  const [availableVariants, setAvailableVariants] = useState<Array<{id: string, variant: string}>>([]);
+  const [availableVariants, setAvailableVariants] = useState<Array<{id: string, variant: string, edition_slug?: string | null}>>([]);
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
@@ -1117,22 +1117,26 @@ export default function Gang({
                 )}
 
                 {/* Alignment, Alliance */}
-                <div className="text-muted-foreground text-sm">
-                  <div className="flex flex-wrap gap-x-2 gap-y-1">
-                    {/* Alignment */}
-                    <div className="flex items-center gap-1 text-sm">
-                      Alignment:
-                      <Badge variant="secondary">{alignment}</Badge>
+                {(hasAlignment(edition_slug) || (allianceId && allianceName)) && (
+                  <div className="text-muted-foreground text-sm">
+                    <div className="flex flex-wrap gap-x-2 gap-y-1">
+                      {/* Alignment */}
+                      {hasAlignment(edition_slug) && (
+                        <div className="flex items-center gap-1 text-sm">
+                          Alignment:
+                          <Badge variant="secondary">{alignment}</Badge>
+                        </div>
+                      )}
+                      {/* Alliance */}
+                      {allianceId && allianceName && (
+                        <div className="flex items-center gap-1 text-sm">
+                          Alliance:
+                          <Badge variant="secondary">{allianceName}</Badge>
+                        </div>
+                      )}
                     </div>
-                    {/* Alliance */}
-                    {allianceId && allianceName && (
-                      <div className="flex items-center gap-1 text-sm">
-                        Alliance:
-                        <Badge variant="secondary">{allianceName}</Badge>
-                      </div>
-                    )}
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Campaign Attributes */}

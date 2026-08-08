@@ -15,7 +15,7 @@ import { getSkillSetRank } from "@/utils/skillSetRank";
 import { compareEquipmentCategories } from "@/utils/getEquipmentCategoryRank";
 import { AdminFighterEquipmentSelection, EquipmentSelection, guiToDataModel, dataModelToGui } from "@/components/admin/admin-fighter-equipment-selection";
 import { EditionSelect, useEditions } from '@/components/edition-select';
-import { hasSaveCharacteristic, allowsMultipleSubtypes, hasStartingXp, hasVehicles } from '@/types/edition';
+import { hasAlignment, hasSaveCharacteristic, allowsMultipleSubtypes, hasStartingXp, hasVehicles } from '@/types/edition';
 import Modal from '@/components/ui/modal';
 
 interface FighterSpecialisation {
@@ -295,6 +295,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const showSave = hasSaveCharacteristic(editionSlug);
   const allowMultipleSubtypes = allowsMultipleSubtypes(editionSlug);
   const showStartingXp = hasStartingXp(editionSlug);
+  const showAlignment = hasAlignment(editionSlug);
 
   const { data: gangAffiliations = [] } = useQuery<GangAffiliation[]>({
     queryKey: ['admin-lineages', 'affiliation'],
@@ -389,8 +390,14 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       return !!skillType && (!newEditionId || skillType.edition_id === newEditionId);
     }));
 
-    if (!hasVehicles(editions.find(edition => edition.id === newEditionId)?.slug)) {
+    const newEditionSlug = editions.find(edition => edition.id === newEditionId)?.slug;
+
+    if (!hasVehicles(newEditionSlug)) {
       setIsVehicle(false);
+    }
+
+    if (!hasAlignment(newEditionSlug)) {
+      setAlignment('');
     }
 
     const subtypesForEdition = newEditionId
@@ -400,7 +407,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     let nextSubtypes = selectedFighterSubtypes.filter(name => subtypeNames.has(name));
     // A single-subtype edition must not leave extra subtypes selected but hidden
     // behind the dropdown, where they would still be submitted
-    if (!allowsMultipleSubtypes(editions.find(edition => edition.id === newEditionId)?.slug)) {
+    if (!allowsMultipleSubtypes(newEditionSlug)) {
       nextSubtypes = nextSubtypes.slice(0, 1);
     }
     setSelectedFighterSubtypes(nextSubtypes);
@@ -1215,7 +1222,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         is_dramatis_personae: isDramatisPersonae,
         is_spyrer: isSpyrer,
         is_vehicle: isVehicle,
-        alignment: alignment || null,
+        alignment: showAlignment ? (alignment || null) : null,
         delegation_cost: delegationCost ? parseInt(delegationCost) : null,
         default_equipment: selectedEquipment,
         default_skills: selectedSkills,
@@ -1649,21 +1656,23 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-muted-foreground mb-1">
-                    Alignment
-                  </label>
-                  <select
-                    value={alignment}
-                    onChange={(e) => setAlignment(e.target.value)}
-                    className="w-full p-2 border rounded-md"
-                  >
-                    <option value="">Select Alignment</option>
-                    <option value="Law Abiding">Law Abiding</option>
-                    <option value="Outlaw">Outlaw</option>
-                    <option value="Unaligned">Unaligned</option>
-                  </select>
-                </div>
+                {showAlignment && (
+                  <div>
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">
+                      Alignment
+                    </label>
+                    <select
+                      value={alignment}
+                      onChange={(e) => setAlignment(e.target.value)}
+                      className="w-full p-2 border rounded-md"
+                    >
+                      <option value="">Select Alignment</option>
+                      <option value="Law Abiding">Law Abiding</option>
+                      <option value="Outlaw">Outlaw</option>
+                      <option value="Unaligned">Unaligned</option>
+                    </select>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-muted-foreground mb-1">

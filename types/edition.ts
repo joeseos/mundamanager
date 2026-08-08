@@ -122,6 +122,8 @@ const EDITION_CAPABILITIES = {
   equipmentSuperCategories: { n23: false, n26: true  },
   /** Weapons can be bought master-crafted, at a higher rating cost */
   masterCraftedWeapons:     { n23: true,  n26: false },
+  /** Gang / fighter-type Law Abiding vs Outlaw alignment */
+  alignment:                { n23: true,  n26: false },
 } as const satisfies Record<string, Record<EditionSlug, boolean>>;
 
 type EditionCapability = keyof typeof EDITION_CAPABILITIES;
@@ -182,6 +184,9 @@ export const hasEquipmentSuperCategories = (
 
 export const hasMasterCraftedWeapons = (editionSlug?: string | null): boolean =>
   can('masterCraftedWeapons', editionSlug);
+
+export const hasAlignment = (editionSlug?: string | null): boolean =>
+  can('alignment', editionSlug);
 
 export interface Edition {
   id: string;
