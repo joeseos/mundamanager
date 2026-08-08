@@ -1,6 +1,15 @@
-import {createClient} from "@/utils/supabase/server";
-import {NextResponse} from "next/server";
+import { createClient } from "@/utils/supabase/server";
+import { NextResponse } from "next/server";
 import { getUserIdFromClaims } from "@/utils/auth";
+import { editionSlugFromJoin } from "@/types/edition";
+
+interface Alliance {
+  id: string;
+  alliance_name: string;
+  alliance_type: string | null;
+  strong_alliance: string | null;
+  editions?: { slug: string } | { slug: string }[] | null;
+}
 
 export async function GET() {
   const supabase = await createClient();
@@ -13,12 +22,20 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from('alliances')
-      .select('id, alliance_name, alliance_type, strong_alliance')
+      .select('id, alliance_name, alliance_type, strong_alliance, editions:edition_id (slug)')
       .order('alliance_name');
 
     if (error) throw error;
 
-    return NextResponse.json(data);
+    const modelData = (data as Alliance[]).map((alliance) => ({
+      id: alliance.id,
+      alliance_name: alliance.alliance_name,
+      alliance_type: alliance.alliance_type,
+      strong_alliance: alliance.strong_alliance,
+      edition_slug: editionSlugFromJoin(alliance.editions),
+    }));
+
+    return NextResponse.json(modelData);
   } catch (error) {
     console.error('Error fetching alliances:', error);
     return NextResponse.json(

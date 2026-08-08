@@ -14,7 +14,7 @@ import { gangVariantRank } from "@/utils/gangVariantRank";
 import { useQuery } from '@tanstack/react-query';
 import { ResourceUpdate } from '@/types/gang';
 import { deleteGang } from '@/app/actions/delete-gang';
-import { hasTradePoints } from '@/types/edition';
+import { hasAlignment, hasTradePoints, sameEditionForDisplay } from '@/types/edition';
 
 interface GangUpdates {
   name?: string;
@@ -76,7 +76,7 @@ interface GangEditModalProps {
   allianceName: string;
   gangColour: string;
   gangVariants: Array<{id: string, variant: string}>;
-  availableVariants: Array<{id: string, variant: string}>;
+  availableVariants: Array<{id: string, variant: string, edition_slug?: string | null}>;
   gangAffiliationId: string | null;
   gangAffiliationName: string;
   gangTypeHasAffiliation: boolean;
@@ -138,6 +138,11 @@ export default function GangEditModal({
 }: GangEditModalProps) {
   const router = useRouter();
 
+  const editionAvailableVariants = availableVariants.filter(variant =>
+    sameEditionForDisplay(variant.edition_slug, editionSlug)
+  );
+  const showGangVariants = editionAvailableVariants.length > 0;
+
   // Get campaign ID and current allegiance if gang is in a campaign
   const campaignId = campaigns?.[0]?.campaign_id;
   const currentAllegianceFromCampaign = campaigns?.[0]?.allegiance;
@@ -178,8 +183,11 @@ export default function GangEditModal({
   const [resourceDeltas, setResourceDeltas] = useState<Record<string, string>>({});
 
   // Alliance management state
-  const [allianceList, setAllianceList] = useState<Array<{id: string, alliance_name: string, strong_alliance: string}>>([]);
+  const [allianceList, setAllianceList] = useState<Array<{id: string, alliance_name: string, strong_alliance: string, edition_slug?: string | null}>>([]);
   const [allianceListLoaded, setAllianceListLoaded] = useState(false);
+  const editionAllianceList = allianceList.filter(alliance =>
+    sameEditionForDisplay(alliance.edition_slug, editionSlug)
+  );
   
   // Gang affiliation management state
   const [affiliationList, setAffiliationList] = useState<Array<{id: string, name: string}>>([]);
@@ -328,7 +336,7 @@ export default function GangEditModal({
   };
 
   const syncGangVariantsWithAlignment = (newAlignment: string, currentVariants: Array<{id: string, variant: string}>) => {
-    const outlaw = availableVariants.find(v => v.variant === 'Outlaw');
+    const outlaw = editionAvailableVariants.find(v => v.variant === 'Outlaw');
     const hasOutlaw = currentVariants.some(v => v.variant === 'Outlaw');
 
     if (newAlignment === 'Outlaw' && outlaw && !hasOutlaw) {
@@ -518,18 +526,20 @@ export default function GangEditModal({
 
       <div className="flex flex-row gap-4">
         {/* Alignment Section */}
-        <div className="flex-1 space-y-2">
-          <p className="text-sm font-medium">Alignment</p>
-          <Combobox
-            options={[
-              { value: 'Law Abiding', label: 'Law Abiding' },
-              { value: 'Outlaw', label: 'Outlaw' }
-            ]}
-            value={formState.alignment || undefined}
-            onValueChange={(value) => handleAlignmentChange(value || '')}
-            placeholder="Select Alignment"
-          />
-        </div>
+        {hasAlignment(editionSlug) && (
+          <div className="flex-1 space-y-2">
+            <p className="text-sm font-medium">Alignment</p>
+            <Combobox
+              options={[
+                { value: 'Law Abiding', label: 'Law Abiding' },
+                { value: 'Outlaw', label: 'Outlaw' }
+              ]}
+              value={formState.alignment || undefined}
+              onValueChange={(value) => handleAlignmentChange(value || '')}
+              placeholder="Select Alignment"
+            />
+          </div>
+        )}
 
         {/* Gang Colour Section */}
         <div className="space-y-2">
@@ -716,14 +726,14 @@ export default function GangEditModal({
               groupLabelConfig.map((entry, index) => [entry.label, index + 1])
             );
 
-            const groupedAlliances = allianceList.reduce((groups, alliance) => {
+            const groupedAlliances = editionAllianceList.reduce((groups, alliance) => {
               const rank = allianceRank[alliance.alliance_name.toLowerCase()] ?? Infinity;
               const groupLabel = getGroupLabelFromRank(rank);
 
               if (!groups[groupLabel]) groups[groupLabel] = [];
               groups[groupLabel].push(alliance);
               return groups;
-            }, {} as Record<string, typeof allianceList>);
+            }, {} as Record<string, typeof editionAllianceList>);
 
             const options: Array<{ value: string; label: string | React.ReactNode; displayValue?: string; disabled?: boolean }> = [];
 
@@ -734,13 +744,32 @@ export default function GangEditModal({
               displayValue: "None"
             });
 
+            // Keep a stale/cross-edition current alliance visible so the Combobox can show it
+            if (
+              formState.allianceId &&
+              !editionAllianceList.some(a => a.id === formState.allianceId)
+            ) {
+              const currentAlliance =
+                allianceList.find(a => a.id === formState.allianceId) ||
+                (allianceId === formState.allianceId
+                  ? { id: allianceId, alliance_name: allianceName }
+                  : null);
+              if (currentAlliance) {
+                options.push({
+                  value: currentAlliance.id,
+                  label: currentAlliance.alliance_name,
+                  displayValue: currentAlliance.alliance_name
+                });
+              }
+            }
+
             Object.entries(groupedAlliances)
               .sort(([a], [b]) => {
                 const rankA = groupLabelRank[a] ?? 999;
                 const rankB = groupLabelRank[b] ?? 999;
                 return rankA - rankB;
               })
-              .forEach(([groupLabel, allianceList]) => {
+              .forEach(([groupLabel, alliancesInGroup]) => {
                 // Add group header as disabled option
                 options.push({
                   value: `header-${groupLabel}`,
@@ -750,7 +779,7 @@ export default function GangEditModal({
                 });
 
                 // Add alliances in this group
-                allianceList
+                alliancesInGroup
                   .sort((a, b) => {
                     const rankA = allianceRank[a.alliance_name.toLowerCase()] ?? Infinity;
                     const rankB = allianceRank[b.alliance_name.toLowerCase()] ?? Infinity;
@@ -829,37 +858,71 @@ export default function GangEditModal({
         </div>
       )}
 
-      <div className="mt-4">
-        <div className="flex items-center space-x-2">
-          <label htmlFor="variant-toggle" className="text-sm font-medium">
-            Gang Variants
-          </label>
-          <Switch
-            id="variant-toggle"
-            checked={formState.gangIsVariant}
-            onCheckedChange={(checked) => setFormState(prev => ({ ...prev, gangIsVariant: checked }))}
-          />
-        </div>
+      {showGangVariants && (
+        <div className="mt-4">
+          <div className="flex items-center space-x-2">
+            <label htmlFor="variant-toggle" className="text-sm font-medium">
+              Gang Variants
+            </label>
+            <Switch
+              id="variant-toggle"
+              checked={formState.gangIsVariant}
+              onCheckedChange={(checked) => setFormState(prev => ({ ...prev, gangIsVariant: checked }))}
+            />
+          </div>
 
-        {formState.gangIsVariant && (
-          <div className="grid grid-cols-2 gap-4 ">
-            {/* Unaffiliated variants */}
-            <div>
-              <h3 className="text-xs font-semibold text-muted-foreground mb-1">Unaffiliated</h3>
-              <div className="flex flex-col gap-2">
-                {availableVariants
-                  .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? Infinity) <= 9)
-                  .sort((a, b) =>
-                    (gangVariantRank[a.variant.toLowerCase()] ?? Infinity) -
-                    (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
-                  )
-                  .map((variant) => (
-                    <React.Fragment key={variant.id}>
-                      {/* Insert separator before 'skirmish' */}
-                      {variant.variant.toLowerCase() === "skirmish" && (
-                        <div className="border-t border-border" />
-                      )}
-                      <div className="flex items-center space-x-2">
+          {formState.gangIsVariant && (
+            <div className="grid grid-cols-2 gap-4 ">
+              {/* Unaffiliated variants */}
+              <div>
+                <h3 className="text-xs font-semibold text-muted-foreground mb-1">Unaffiliated</h3>
+                <div className="flex flex-col gap-2">
+                  {editionAvailableVariants
+                    .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? Infinity) <= 9)
+                    .sort((a, b) =>
+                      (gangVariantRank[a.variant.toLowerCase()] ?? Infinity) -
+                      (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
+                    )
+                    .map((variant) => (
+                      <React.Fragment key={variant.id}>
+                        {/* Insert separator before 'skirmish' */}
+                        {variant.variant.toLowerCase() === "skirmish" && (
+                          <div className="border-t border-border" />
+                        )}
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`variant-${variant.id}`}
+                            checked={formState.gangVariants.some(v => v.id === variant.id)}
+                            onCheckedChange={(checked) => {
+                              setFormState(prev => ({
+                                ...prev,
+                                gangVariants: checked
+                                  ? [...prev.gangVariants, variant]
+                                  : prev.gangVariants.filter(v => v.id !== variant.id)
+                              }));
+                            }}
+                          />
+                          <label htmlFor={`variant-${variant.id}`} className="text-sm cursor-pointer">
+                            {variant.variant}
+                          </label>
+                        </div>
+                      </React.Fragment>
+                    ))}
+                </div>
+              </div>
+
+              {/* Outlaw/Corrupted variants*/}
+              <div>
+                <h3 className="text-xs font-semibold text-muted-foreground mb-1">Outlaw / Corrupted</h3>
+                <div className="flex flex-col gap-2">
+                  {editionAvailableVariants
+                    .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? -1) >= 10)
+                    .sort((a, b) =>
+                      (gangVariantRank[a.variant.toLowerCase()] ?? Infinity) -
+                      (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
+                    )
+                    .map(variant => (
+                      <div key={variant.id} className="flex items-center space-x-2">
                         <Checkbox
                           id={`variant-${variant.id}`}
                           checked={formState.gangVariants.some(v => v.id === variant.id)}
@@ -876,45 +939,13 @@ export default function GangEditModal({
                           {variant.variant}
                         </label>
                       </div>
-                    </React.Fragment>
-                  ))}
+                    ))}
+                </div>
               </div>
             </div>
-
-            {/* Outlaw/Corrupted variants*/}
-            <div>
-              <h3 className="text-xs font-semibold text-muted-foreground mb-1">Outlaw / Corrupted</h3>
-              <div className="flex flex-col gap-2">
-                {availableVariants
-                  .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? -1) >= 10)
-                  .sort((a, b) =>
-                    (gangVariantRank[a.variant.toLowerCase()] ?? Infinity) -
-                    (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
-                  )
-                  .map(variant => (
-                    <div key={variant.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`variant-${variant.id}`}
-                        checked={formState.gangVariants.some(v => v.id === variant.id)}
-                        onCheckedChange={(checked) => {
-                          setFormState(prev => ({
-                            ...prev,
-                            gangVariants: checked
-                              ? [...prev.gangVariants, variant]
-                              : prev.gangVariants.filter(v => v.id !== variant.id)
-                          }));
-                        }}
-                      />
-                      <label htmlFor={`variant-${variant.id}`} className="text-sm cursor-pointer">
-                        {variant.variant}
-                      </label>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
     </div>
   );
