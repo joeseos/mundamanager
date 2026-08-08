@@ -9,6 +9,15 @@
 -- (those skills may still be referenced by fighter_skills / fighter_defaults
 -- with NO ACTION FKs).
 
+-- Drop skills whose skill_type_id no longer points at a skill_types row so the
+-- FK can be added on every environment. No-op when already clean; fails loudly
+-- if an orphan is still referenced by fighter_skills / fighter_defaults.
+delete from public.skills s
+where s.skill_type_id is not null
+  and not exists (
+    select 1 from public.skill_types st where st.id = s.skill_type_id
+  );
+
 alter table public.skills
   add constraint skills_skill_type_id_fkey
   foreign key (skill_type_id) references public.skill_types(id)
