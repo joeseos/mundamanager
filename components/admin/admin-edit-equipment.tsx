@@ -187,6 +187,13 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           return !ft || ft.edition_id === newEditionId;
         })
       );
+      // Cost per Gang is keyed on a gang type, which is edition-scoped too
+      setGangAdjustedCosts(prev =>
+        prev.filter(cost => {
+          const gt = gangTypeOptions.find(g => g.gang_type_id === cost.gang_type_id);
+          return !gt || gt.edition_id === newEditionId;
+        })
+      );
     }
     // N26 uses Trade Points instead of Availability; drop stale N23 rows
     if (hasTradePoints(editionSlugOf(editions, newEditionId))) {
@@ -1147,7 +1154,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                 {isGangTypesLoading ? (
                                   <option>Loading...</option>
                                 ) : (
-                                  gangTypeOptions.map((gang) => (
+                                  filteredGangTypes.map((gang) => (
                                     <option key={gang.gang_type_id} value={gang.gang_type_id}>
                                       {gang.gang_type}
                                     </option>

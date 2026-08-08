@@ -89,7 +89,16 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
       }
     }
     // Gang types are edition-scoped; clear any in-progress Cost-per-Gang pick
+    // and drop rows already added against another edition's gang types
     setSelectedGangType('');
+    if (newEditionId) {
+      setGangAdjustedCosts(prev =>
+        prev.filter(cost => {
+          const gt = gangTypeOptions.find(g => g.gang_type_id === cost.gang_type_id);
+          return !gt || gt.edition_id === newEditionId;
+        })
+      );
+    }
     // N26 uses Trade Points instead of Availability; drop stale N23 rows
     if (hasTradePoints(editionSlugOf(editions, newEditionId))) {
       setShowAvailabilityDialog(false);
@@ -587,7 +596,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                             className="w-full p-2 border rounded-md"
                           >
                             <option key="default" value="">Select a Gang Type</option>
-                            {gangTypeOptions.map((gang) => (
+                            {filteredGangTypes.map((gang) => (
                               <option key={gang.gang_type_id} value={gang.gang_type_id}>
                                 {gang.gang_type}
                               </option>
