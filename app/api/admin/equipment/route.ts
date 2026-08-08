@@ -30,6 +30,7 @@ export async function GET(request: Request) {
   const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const equipment_category = searchParams.get('equipment_category');
+  const equipment_type = searchParams.get('equipment_type');
   const id = searchParams.get('id');
 
   // Check admin authorization
@@ -390,11 +391,18 @@ export async function GET(request: Request) {
       return NextResponse.json(data);
 
     } else {
-      // Return all equipment when no filters are provided
-      const { data, error } = await supabase
+      // Return all equipment, optionally filtered by equipment_type
+      // (e.g. Weapon Group dropdown uses ?equipment_type=weapon)
+      let query = supabase
         .from('equipment')
         .select('*')
         .order('equipment_name');
+
+      if (equipment_type) {
+        query = query.eq('equipment_type', equipment_type);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       return NextResponse.json(data);

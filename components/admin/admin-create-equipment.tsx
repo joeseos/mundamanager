@@ -80,6 +80,27 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   // Str, AP, D and Am. Only the stats the selected edition uses are offered.
   const usesLethality = hasLethalityStatline(editionSlug);
 
+  const { data: weapons = [] } = useQuery<Array<{
+    id: string;
+    equipment_name: string;
+    edition_id?: string | null;
+    equipment_type?: string;
+  }>>({
+    queryKey: ['admin-weapons'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/equipment?equipment_type=weapon');
+      if (!response.ok) throw new Error('Failed to fetch weapons');
+      return response.json();
+    },
+    enabled: equipmentType === 'weapon',
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const filteredWeapons = useMemo(
+    () => editionId ? weapons.filter(weapon => weapon.edition_id === editionId) : weapons,
+    [weapons, editionId]
+  );
+
   const handleEditionChange = (newEditionId: string) => {
     setEditionId(newEditionId);
     if (equipmentCategory) {
@@ -111,24 +132,21 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
     // Stats the new edition does not use are no longer rendered, but anything
     // already typed would stay in state and still be submitted -- an N26 weapon
     // saved with a Damage and an Accuracy. Blank them on the way across.
+    // Weapon Group parents are edition-scoped too; drop a cross-edition pick.
     const nowUsesLethality = hasLethalityStatline(editionSlugOf(editions, newEditionId));
-    setWeaponProfiles(profiles => profiles.map(profile => (
-      nowUsesLethality
+    setWeaponProfiles(profiles => profiles.map(profile => {
+      const clearedStats = nowUsesLethality
         ? { ...profile, acc_short: '', acc_long: '', damage: '', ammo: '' }
-        : { ...profile, lethality: '' }
-    )));
+        : { ...profile, lethality: '' };
+      if (profile.weapon_group_id && newEditionId) {
+        const parent = weapons.find(w => w.id === profile.weapon_group_id);
+        if (parent && parent.edition_id !== newEditionId) {
+          return { ...clearedStats, weapon_group_id: null };
+        }
+      }
+      return clearedStats;
+    }));
   };
-
-  const { data: weapons = [] } = useQuery<Array<{id: string, equipment_name: string}>>({
-    queryKey: ['admin-weapons'],
-    queryFn: async () => {
-      const response = await fetch('/api/admin/equipment?equipment_type=weapon');
-      if (!response.ok) throw new Error('Failed to fetch weapons');
-      return response.json();
-    },
-    enabled: equipmentType === 'weapon',
-    staleTime: 5 * 60 * 1000,
-  });
 
   const { data: gangTypeOptions = [] } = useQuery<Array<{gang_type_id: string, gang_type: string, edition_id?: string | null}>>({
     queryKey: ['admin-gang-types'],
@@ -750,7 +768,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           className="w-full p-2 border rounded-md"
                         >
                           <option value="">Use This Weapon (Default)</option>
-                          {weapons.map((weapon) => (
+                          {filteredWeapons.map((weapon) => (
                             <option key={weapon.id} value={weapon.id}>
                               {weapon.equipment_name}
                             </option>
