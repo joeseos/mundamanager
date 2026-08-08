@@ -108,7 +108,6 @@ export function SkillAccessModal({
   const computedSkillAccess = useMemo(() => {
     if (!allSkillTypes || !skillAccessData) return null;
 
-    const skillSetRank = getSkillSetRank(editionSlug);
     const accessMap = new Map(
       (skillAccessData.skill_access || []).map((sa: any) => [
         sa.skill_type_id,
@@ -140,7 +139,7 @@ export function SkillAccessModal({
     });
 
     return result;
-  }, [allSkillTypes, skillAccessData, editionSlug]);
+  }, [allSkillTypes, skillAccessData, editionSlug, skillSetRank]);
 
   // Sync computed data to local state once per modal open
   const [prevComputedSkillAccess, setPrevComputedSkillAccess] = useState(computedSkillAccess);

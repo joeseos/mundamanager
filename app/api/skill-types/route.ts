@@ -2,7 +2,7 @@ import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { getUserIdFromClaims } from "@/utils/auth";
 import { getEditionIdBySlug } from '@/app/lib/editions';
-import { editionSlugFromJoin } from '@/types/edition';
+import { EDITION_N23, editionSlugFromJoin } from '@/types/edition';
 
 export async function GET(request: Request) {
   try {
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
         const { data: gang } = await supabase
           .from('gangs')
           .select(`
-            gang_types (
+            gang_types!gang_type_id (
               editions:edition_id ( slug )
             ),
             custom_gang_type_edition:custom_gang_types!custom_gang_type_id (
@@ -64,18 +64,34 @@ export async function GET(request: Request) {
       }
     }
 
-    // Standard skill types (optionally edition-scoped)
-    let skillTypesQuery = supabase
-      .from('skill_types')
-      .select('*');
+    // Standard skill types (optionally edition-scoped). Until an edition's
+    // skill catalog is seeded, fall back to N23 so fighters don't get an empty
+    // picker (N26 skill_types are not seeded yet).
+    let catalogEditionId = resolvedEditionId;
 
-    if (resolvedEditionId) {
-      skillTypesQuery = skillTypesQuery.eq('edition_id', resolvedEditionId);
-    }
+    const fetchSkillTypes = async (editionId: string | null) => {
+      let query = supabase.from('skill_types').select('*');
+      if (editionId) query = query.eq('edition_id', editionId);
+      return query;
+    };
 
-    const { data, error } = await skillTypesQuery;
-
+    let { data, error } = await fetchSkillTypes(catalogEditionId);
     if (error) throw error;
+
+    if (catalogEditionId && (data?.length ?? 0) === 0) {
+      const n23EditionId = await getEditionIdBySlug(EDITION_N23);
+      if (n23EditionId && n23EditionId !== catalogEditionId) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn(
+            `[skill-types] No skill_types for edition "${resolvedEditionSlug ?? catalogEditionId}" — ` +
+            `falling back to n23 until that edition's catalog is seeded.`
+          );
+        }
+        catalogEditionId = n23EditionId;
+        ({ data, error } = await fetchSkillTypes(catalogEditionId));
+        if (error) throw error;
+      }
+    }
 
     // Always fetch user's own custom skill types
     let ownTypesQuery = supabase
@@ -83,8 +99,8 @@ export async function GET(request: Request) {
       .select('id, name, edition_id')
       .eq('user_id', userId);
 
-    if (resolvedEditionId) {
-      ownTypesQuery = ownTypesQuery.eq('edition_id', resolvedEditionId);
+    if (catalogEditionId) {
+      ownTypesQuery = ownTypesQuery.eq('edition_id', catalogEditionId);
     }
 
     const { data: ownTypes } = await ownTypesQuery;
@@ -130,8 +146,8 @@ export async function GET(request: Request) {
               .select('id, name, edition_id')
               .in('id', sharedTypeIds);
 
-            if (resolvedEditionId) {
-              typesQuery = typesQuery.eq('edition_id', resolvedEditionId);
+            if (catalogEditionId) {
+              typesQuery = typesQuery.eq('edition_id', catalogEditionId);
             }
 
             const { data: types } = await typesQuery;
@@ -167,8 +183,8 @@ export async function GET(request: Request) {
               .select('id, name, edition_id')
               .in('id', fighterCustomTypeIds);
 
-            if (resolvedEditionId) {
-              typesQuery = typesQuery.eq('edition_id', resolvedEditionId);
+            if (catalogEditionId) {
+              typesQuery = typesQuery.eq('edition_id', catalogEditionId);
             }
 
             const { data: types } = await typesQuery;

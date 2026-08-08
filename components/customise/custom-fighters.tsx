@@ -38,12 +38,12 @@ interface CustomiseFightersProps {
 
 type SkillTypeItem = { id: string; skill_type: string; is_custom?: boolean };
 
-function SkillSetOptions({ skillTypes, excludeIds, editionSlug }: {
+function SkillSetOptions({ skillTypes, excludeIds }: {
   skillTypes: SkillTypeItem[];
   excludeIds?: Set<string>;
-  editionSlug?: string | null;
 }) {
-  const skillSetRank = getSkillSetRank(editionSlug ?? EDITION_N23);
+  // Customise is N23-only for now (same as create/copy paths below).
+  const skillSetRank = getSkillSetRank(EDITION_N23);
   const available = excludeIds
     ? skillTypes.filter(st => !excludeIds.has(st.id))
     : skillTypes;
