@@ -128,6 +128,11 @@ const EDITION_CAPABILITIES = {
   masterCraftedWeapons:     { n23: true,  n26: false },
   /** Gang / fighter-type Law Abiding vs Outlaw alignment */
   alignment:                { n23: true,  n26: false },
+  /**
+   * Gang additions are picked by category (Brutes, Hangers-on, Pets, Hired
+   * Guns, then one entry per alliance) rather than by raw fighter subtype.
+   */
+  gangAdditionCategories:   { n23: false, n26: true  },
 } as const satisfies Record<string, Record<EditionSlug, boolean>>;
 
 type EditionCapability = keyof typeof EDITION_CAPABILITIES;
@@ -191,6 +196,10 @@ export const hasMasterCraftedWeapons = (editionSlug?: string | null): boolean =>
 
 export const hasAlignment = (editionSlug?: string | null): boolean =>
   can('alignment', editionSlug);
+
+export const hasGangAdditionCategories = (
+  editionSlug?: string | null
+): boolean => can('gangAdditionCategories', editionSlug);
 
 export interface Edition {
   id: string;

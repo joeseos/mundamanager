@@ -10,7 +10,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { HiX } from "react-icons/hi";
 import { toast } from 'sonner';
 import { applySpecialRulesModifiers } from '@/utils/effect-modifiers';
-import { fighterSubtypeRank } from '@/utils/fighterSubtypeRank';
+import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { isArchetypeEligible, mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';
 import { SkillAccessModal } from './skill-access-modal';
 import { FighterCharacteristicTable } from './fighter-characteristic-table';
@@ -1076,8 +1076,8 @@ export function EditFighterModal({
                   // Convert the map values to an array and sort
                   return Array.from(typeSubtypeMap.values())
                     .sort((a, b) => {
-                      const subtypeRankA = fighterSubtypeRank[(a.fighter.fighter_subtypes[0] || '').toLowerCase()] ?? Infinity;
-                      const subtypeRankB = fighterSubtypeRank[(b.fighter.fighter_subtypes[0] || '').toLowerCase()] ?? Infinity;
+                      const subtypeRankA = getFighterSubtypeSortRank(a.fighter.fighter_subtypes, fighter.edition_slug);
+                      const subtypeRankB = getFighterSubtypeSortRank(b.fighter.fighter_subtypes, fighter.edition_slug);
 
                       if (subtypeRankA !== subtypeRankB) {
                         return subtypeRankA - subtypeRankB;

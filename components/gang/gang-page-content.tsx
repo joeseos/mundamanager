@@ -935,7 +935,8 @@ export default function GangPageContent({
           <h2 className="text-xl md:text-2xl font-bold mb-4">Campaign</h2>
           <GangTerritories 
             gangId={gangId} 
-            campaigns={gangData.processedData.campaigns || []} 
+            campaigns={gangData.processedData.campaigns || []}
+            editionSlug={gangData.processedData.edition_slug}
           />
         </div>
         <GangNotes

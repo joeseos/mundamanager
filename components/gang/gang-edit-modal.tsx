@@ -9,7 +9,7 @@ import { Combobox } from "@/components/ui/combobox";
 import Modal from '@/components/ui/modal';
 import { toast } from 'sonner';
 import { HexColorPicker } from "react-colorful";
-import { allianceRank } from "@/utils/allianceRank";
+import { groupAlliancesByType } from "@/utils/allianceRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
 import { useQuery } from '@tanstack/react-query';
 import { ResourceUpdate } from '@/types/gang';
@@ -186,7 +186,13 @@ export default function GangEditModal({
   const [resourceDeltas, setResourceDeltas] = useState<Record<string, string>>({});
 
   // Alliance management state
-  const [allianceList, setAllianceList] = useState<Array<{id: string, alliance_name: string, strong_alliance: string, edition_slug?: string | null}>>([]);
+  const [allianceList, setAllianceList] = useState<Array<{
+    id: string;
+    alliance_name: string;
+    alliance_type?: string | null;
+    strong_alliance: string;
+    edition_slug?: string | null;
+  }>>([]);
   const [allianceListLoaded, setAllianceListLoaded] = useState(false);
   const editionAllianceList = allianceList.filter(alliance =>
     sameEditionForDisplay(alliance.edition_slug, editionSlug)
@@ -709,35 +715,6 @@ export default function GangEditModal({
               return [];
             }
 
-            const groupLabelConfig = [
-              { label: "Criminal Organisations", maxRank: 9 },
-              { label: "Merchant Guilds", maxRank: 19 },
-              { label: "Noble Houses", maxRank: 29 },
-              { label: "Other Alliances", maxRank: Infinity },
-            ];
-
-            const getGroupLabelFromRank = (rank: number): string => {
-              for (const entry of groupLabelConfig) {
-                if (rank <= entry.maxRank) {
-                  return entry.label;
-                }
-              }
-              return "Other Alliances";
-            };
-
-            const groupLabelRank: Record<string, number> = Object.fromEntries(
-              groupLabelConfig.map((entry, index) => [entry.label, index + 1])
-            );
-
-            const groupedAlliances = editionAllianceList.reduce((groups, alliance) => {
-              const rank = allianceRank[alliance.alliance_name.toLowerCase()] ?? Infinity;
-              const groupLabel = getGroupLabelFromRank(rank);
-
-              if (!groups[groupLabel]) groups[groupLabel] = [];
-              groups[groupLabel].push(alliance);
-              return groups;
-            }, {} as Record<string, typeof editionAllianceList>);
-
             const options: Array<{ value: string; label: string | React.ReactNode; displayValue?: string; disabled?: boolean }> = [];
 
             // Add "None" option at the beginning
@@ -766,13 +743,11 @@ export default function GangEditModal({
               }
             }
 
-            Object.entries(groupedAlliances)
-              .sort(([a], [b]) => {
-                const rankA = groupLabelRank[a] ?? 999;
-                const rankB = groupLabelRank[b] ?? 999;
-                return rankA - rankB;
-              })
-              .forEach(([groupLabel, alliancesInGroup]) => {
+            groupAlliancesByType(editionAllianceList, editionSlug).forEach(
+              ({ group, alliances: alliancesInGroup }) => {
+                // "Other" reads as a heading of its own in this dropdown
+                const groupLabel = group === "Other" ? "Other Alliances" : group;
+
                 // Add group header as disabled option
                 options.push({
                   value: `header-${groupLabel}`,
@@ -782,20 +757,15 @@ export default function GangEditModal({
                 });
 
                 // Add alliances in this group
-                alliancesInGroup
-                  .sort((a, b) => {
-                    const rankA = allianceRank[a.alliance_name.toLowerCase()] ?? Infinity;
-                    const rankB = allianceRank[b.alliance_name.toLowerCase()] ?? Infinity;
-                    return rankA - rankB;
-                  })
-                  .forEach(alliance => {
-                    options.push({
-                      value: alliance.id,
-                      label: <span className="ml-3">{alliance.alliance_name}</span>,
-                      displayValue: alliance.alliance_name
-                    });
+                alliancesInGroup.forEach(alliance => {
+                  options.push({
+                    value: alliance.id,
+                    label: <span className="ml-3">{alliance.alliance_name}</span>,
+                    displayValue: alliance.alliance_name
                   });
-              });
+                });
+              }
+            );
 
             return options;
           })()}

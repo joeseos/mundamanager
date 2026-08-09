@@ -6,7 +6,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { Checkbox } from "@/components/ui/checkbox";
 import { HiX } from "react-icons/hi";
 import { ImInfo } from "react-icons/im";
-import { fighterSubtypeRank } from '@/utils/fighterSubtypeRank';
+import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 
 // Determines the target subtype for promotion based on current subtype
 const PROMOTION_MAP: Record<string, string> = {
@@ -31,10 +31,13 @@ function normalizeSpecialRules(rules: (string | unknown)[]): string[] {
 
 type PromotionFighterType = FighterPromotionModalProps['fighterTypes'][number];
 
-function sortPromotionFighterTypes(types: PromotionFighterType[]): PromotionFighterType[] {
+function sortPromotionFighterTypes(
+  types: PromotionFighterType[],
+  editionSlug?: string | null
+): PromotionFighterType[] {
   return [...types].sort((a, b) => {
-    const subtypeRankA = fighterSubtypeRank[(a.fighter_subtypes[0] || '').toLowerCase()] ?? Infinity;
-    const subtypeRankB = fighterSubtypeRank[(b.fighter_subtypes[0] || '').toLowerCase()] ?? Infinity;
+    const subtypeRankA = getFighterSubtypeSortRank(a.fighter_subtypes, editionSlug);
+    const subtypeRankB = getFighterSubtypeSortRank(b.fighter_subtypes, editionSlug);
     if (subtypeRankA !== subtypeRankB) return subtypeRankA - subtypeRankB;
 
     const typeCompare = a.fighter_type.localeCompare(b.fighter_type);
@@ -82,6 +85,7 @@ interface FighterPromotionModalProps {
     total_cost: number;
     specialisation?: { id: string; specialisation_name: string } | null;
   }>;
+  editionSlug?: string | null;
   isOpen: boolean;
   onClose: () => void;
   /** When true, shows guidance to use Add Advancement for XP-based promotion. */
@@ -97,6 +101,7 @@ export function FighterPromotionModal({
   currentFighterTypeId,
   currentFighterSpecialisationId,
   fighterTypes,
+  editionSlug = null,
   isOpen,
   onClose,
   showXpPromotionHint = false,
@@ -114,18 +119,19 @@ export function FighterPromotionModal({
   const eligibleTypes = useMemo(() => {
     if (isExoticBeast || !targetSubtype) return [];
     return sortPromotionFighterTypes(
-      fighterTypes.filter(ft => ft.fighter_subtypes.includes(targetSubtype))
+      fighterTypes.filter(ft => ft.fighter_subtypes.includes(targetSubtype)),
+      editionSlug
     );
-  }, [fighterTypes, targetSubtype, isExoticBeast]);
+  }, [fighterTypes, targetSubtype, isExoticBeast, editionSlug]);
 
   // Types shown in the combobox: eligible only, or all gang types when expanded
   const displayTypes = useMemo(() => {
     if (isExoticBeast) return [];
     if (includeAllGangFighterTypes) {
-      return sortPromotionFighterTypes(fighterTypes);
+      return sortPromotionFighterTypes(fighterTypes, editionSlug);
     }
     return eligibleTypes;
-  }, [fighterTypes, eligibleTypes, isExoticBeast, includeAllGangFighterTypes]);
+  }, [fighterTypes, eligibleTypes, isExoticBeast, includeAllGangFighterTypes, editionSlug]);
 
   const selectedType = displayTypes.find(ft => ft.id === selectedTypeId);
 

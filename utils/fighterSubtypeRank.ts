@@ -1,14 +1,37 @@
-export const fighterSubtypeRank: { [key: string]: number } = {
-  "leader": 1,
-  "champion": 2,
-  "prospect": 3,
-  "specialist": 4,
-  "ganger": 5,
-  "juve": 6,
-  "crew": 7,
-  "exotic beast": 8,
-  "brute": 9,
-  "exotic beast specialist": 10,
-  "beast": 11,
-  "pet": 12,
+import type { EditionSlug } from '@/types/edition';
+import { bestRank } from '@/utils/rankLookup';
+import { fighterSubtypeRankN23 } from '@/utils/fighterSubtypeRankN23';
+import { fighterSubtypeRankN26 } from '@/utils/fighterSubtypeRankN26';
+
+/**
+ * Keyed by EditionSlug so a new edition is a compile error here until it states
+ * its own order, matching LIMITS_BY_EDITION and SKILL_SET_RANK_BY_EDITION.
+ */
+const FIGHTER_SUBTYPE_RANK_BY_EDITION: Record<EditionSlug, { [key: string]: number }> = {
+  n23: fighterSubtypeRankN23,
+  n26: fighterSubtypeRankN26,
 };
+
+/**
+ * Edition-scoped fighter-subtype sort order. An unset or unrecognised slug
+ * gets no ranking, so callers fall back rather than borrowing another
+ * edition's order.
+ */
+export function getFighterSubtypeRank(
+  editionSlug?: string | null
+): { [key: string]: number } {
+  if (!editionSlug) return {};
+  return FIGHTER_SUBTYPE_RANK_BY_EDITION[editionSlug as EditionSlug] ?? {};
+}
+
+/**
+ * Sort rank for a fighter across all its subtype labels. Uses the best
+ * (lowest) recognised rank so labels like "Pious" or "Beast" do not hide
+ * "Prospect" / "Pet" when those are not first in the array.
+ */
+export function getFighterSubtypeSortRank(
+  subtypes: string[] | null | undefined,
+  editionSlug?: string | null
+): number {
+  return bestRank(subtypes, getFighterSubtypeRank(editionSlug));
+}

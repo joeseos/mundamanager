@@ -6,9 +6,13 @@ import Modal from '@/components/ui/modal';
 import { FighterType, EquipmentOption, NormalizedEquipmentSelection } from '@/types/fighter-type';
 import { FighterProps, Archetype } from '@/types/fighter';
 import { toast } from 'sonner';
-import { fighterSubtypeRank } from '@/utils/fighterSubtypeRank';
-import { gangAdditionRank } from '@/utils/gangAdditionRank';
+import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
+import { getGangAdditionRank, getGangAdditionSortRank } from '@/utils/gangAdditionRank';
+import { N26_ADDITION_CATEGORIES } from '@/utils/gangAdditionRankN26';
+import { groupAlliancesByType } from '@/utils/allianceRank';
+import { bestRankedLabel } from '@/utils/rankLookup';
 import { fighterTypeRank } from '@/utils/fighterTypeRank';
+import { hasGangAdditionCategories, sameEditionForDisplay } from '@/types/edition';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
 import { ImInfo } from 'react-icons/im';
@@ -34,6 +38,43 @@ import { EquipmentSelection } from './EquipmentSelection';
 /** 'vehicles' is the 'roster' query narrowed to vehicle fighter types. */
 export type FighterAddCatalog = 'roster' | 'additions' | 'vehicles';
 
+type AllianceOption = {
+  id: string;
+  alliance_name: string;
+  alliance_type: string | null;
+  alliance_crew_name: string | null;
+  edition_slug?: string | null;
+};
+
+function hasFighterSubtype(type: { fighter_subtypes?: string[] | null }, subtype: string): boolean {
+  return (type.fighter_subtypes ?? []).some(
+    (s) => s.toLowerCase().trim() === subtype.toLowerCase()
+  );
+}
+
+function matchesAdditionCategory(
+  type: { fighter_subtypes?: string[] | null; alliance_id?: string | null },
+  categoryValue: string
+): boolean {
+  if (categoryValue.startsWith('alliance:')) {
+    return type.alliance_id === categoryValue.slice('alliance:'.length);
+  }
+  if (categoryValue === 'misc') {
+    if (type.alliance_id) return false;
+    return !N26_ADDITION_CATEGORIES.some((c) => hasFighterSubtype(type, c.subtype));
+  }
+  const category = N26_ADDITION_CATEGORIES.find((c) => c.value === categoryValue);
+  return category ? hasFighterSubtype(type, category.subtype) : false;
+}
+
+function isCategorisedGangAddition(type: {
+  fighter_subtypes?: string[] | null;
+  alliance_id?: string | null;
+}): boolean {
+  if (type.alliance_id) return true;
+  return N26_ADDITION_CATEGORIES.some((c) => hasFighterSubtype(type, c.subtype));
+}
+
 interface FighterAddModalProps {
   catalog: FighterAddCatalog;
   showModal: boolean;
@@ -42,6 +83,7 @@ interface FighterAddModalProps {
   gangTypeId?: string | null;
   customGangTypeId?: string | null;
   gangAffiliationId?: string | null;
+  editionSlug?: string | null;
   initialCredits: number;
   onFighterAdded: (newFighter: any, cost: number) => void;
   onFighterRollback?: (tempFighterId: string, cost: number, ratingCost: number) => void;
@@ -104,6 +146,7 @@ export default function FighterAddModal({
   gangTypeId,
   customGangTypeId,
   gangAffiliationId,
+  editionSlug = null,
   initialCredits,
   onFighterAdded,
   onFighterRollback,
@@ -111,6 +154,9 @@ export default function FighterAddModal({
   gangVariants = [],
 }: FighterAddModalProps) {
   const isAdditions = catalog === 'additions';
+  const usesCategories = hasGangAdditionCategories(editionSlug);
+  const isCategoryAdditions = isAdditions && usesCategories;
+  const gangAdditionRank = getGangAdditionRank(editionSlug);
   const isVehicles = catalog === 'vehicles';
   const noun = isVehicles ? 'Vehicle' : 'Fighter';
 
@@ -132,7 +178,7 @@ export default function FighterAddModal({
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   const { data: fighterTypes = [] } = useQuery<FighterType[]>({
-    queryKey: ['fighter-types', catalog, gangId, gangTypeId, customGangTypeId, includeCustomFighters, includeAllFighterTypes, gangAffiliationId, JSON.stringify(gangVariants)],
+    queryKey: ['fighter-types', catalog, gangId, gangTypeId, customGangTypeId, includeCustomFighters, includeAllFighterTypes, gangAffiliationId, editionSlug, JSON.stringify(gangVariants)],
     queryFn: async () => {
       const affiliationParam = gangAffiliationId ? `&gang_affiliation_id=${gangAffiliationId}` : '';
       const gangTypeParam = gangTypeId ? `&gang_type_id=${gangTypeId}` : '';
@@ -157,21 +203,43 @@ export default function FighterAddModal({
       return data
         .filter((type: any) => {
           if (!type.is_custom_fighter) return true;
-          const inGangAdditionSubtype = gangAdditionRank[(type.fighter_subtypes?.[0] || '').toLowerCase()] !== undefined;
+          const inGangAdditionSubtype = usesCategories
+            ? isCategorisedGangAddition(type)
+            : getGangAdditionSortRank(type.fighter_subtypes, editionSlug) !== Infinity;
           // Gang-addition-subtype custom fighters belong to the additions catalog only.
           return isAdditions ? inGangAdditionSubtype : !inGangAdditionSubtype;
         })
-        .map(mapFighterType);
+        .map(mapFighterType)
+        // Gang additions are a cross-gang pool (not scoped by gang_type_id), so
+        // keep only rows that match the gang's edition — same rule Add Fighter
+        // gets for free via edition-scoped gang types.
+        .filter((type: FighterType) => sameEditionForDisplay(type.edition_slug, editionSlug));
     },
     enabled: showModal,
   });
 
-  // Additions catalog: filter the type list by the chosen fighter subtype.
+  const { data: alliances = [] } = useQuery<AllianceOption[]>({
+    queryKey: ['alliances', editionSlug],
+    queryFn: async () => {
+      const response = await fetch('/api/alliances');
+      if (!response.ok) throw new Error('Failed to fetch alliances');
+      const data = await response.json();
+      return (data as AllianceOption[]).filter((alliance) =>
+        sameEditionForDisplay(alliance.edition_slug, editionSlug)
+      );
+    },
+    enabled: showModal && isCategoryAdditions,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  // Additions catalog: filter the type list by the chosen category or subtype.
   const filteredTypes = isAdditions && selectedSubtype
-    ? fighterTypes.filter(type =>
-        type.alliance_id
-          ? type.alliance_crew_name === selectedSubtype
-          : type.fighter_subtypes?.includes(selectedSubtype)
+    ? fighterTypes.filter((type) =>
+        isCategoryAdditions
+          ? matchesAdditionCategory(type, selectedSubtype)
+          : type.alliance_id
+            ? type.alliance_crew_name === selectedSubtype
+            : type.fighter_subtypes?.includes(selectedSubtype)
       )
     : fighterTypes;
 
@@ -279,17 +347,9 @@ export default function FighterAddModal({
         cost: ft.total_cost,
       }));
       setAvailableSpecialisations(specialisations);
-
-      const defaultSpecialisation = specialisations.find(sub => !sub.specialisation_name || sub.specialisation_name === 'Default');
-      const autoSelectedId = defaultSpecialisation
-        ? defaultSpecialisation.id
-        : specialisations.reduce((lowest, current) => {
-            const lowestCost = fighterTypes.find(ft => ft.id === lowest.id)?.total_cost ?? Infinity;
-            const currentCost = fighterTypes.find(ft => ft.id === current.id)?.total_cost ?? Infinity;
-            return currentCost < lowestCost ? current : lowest;
-          }, specialisations[0]).id;
-      setSelectedSpecialisationId(autoSelectedId);
-      applyDefaultEquipmentAndCost(autoSelectedId, false);
+      // Leave specialisation unselected so the combobox shows the placeholder;
+      // cost/equipment apply once the user picks one (confirm stays disabled until then).
+      setFighterCost('');
     } else {
       setAvailableSpecialisations([]);
       applyDefaultEquipmentAndCost(typeId, false);
@@ -546,9 +606,54 @@ export default function FighterAddModal({
     return false;
   })();
 
+  const buildCategoryOptions = () => {
+    const options: Array<{ value: string; label: string | React.ReactNode; displayValue?: string; disabled?: boolean }> = [];
+
+    for (const category of N26_ADDITION_CATEGORIES) {
+      const hasTypes = fighterTypes.some((type) => matchesAdditionCategory(type, category.value));
+      if (!hasTypes) continue;
+      options.push({
+        value: category.value,
+        label: category.label,
+        displayValue: category.label,
+      });
+    }
+
+    const hasMisc = fighterTypes.some((type) => matchesAdditionCategory(type, 'misc'));
+    if (hasMisc) {
+      options.push({
+        value: 'misc',
+        label: 'Misc.',
+        displayValue: 'Misc.',
+      });
+    }
+
+    groupAlliancesByType(alliances, editionSlug).forEach(({ group, alliances: alliancesInGroup }) => {
+      const header = `Alliances: ${group}`;
+      options.push({
+        value: `header-${header}`,
+        label: <span className="font-bold">{header}</span>,
+        displayValue: header,
+        disabled: true,
+      });
+      alliancesInGroup.forEach((alliance) => {
+        const label = alliance.alliance_crew_name || alliance.alliance_name;
+        options.push({
+          value: `alliance:${alliance.id}`,
+          label: <span className="ml-3">{label}</span>,
+          displayValue: label,
+        });
+      });
+    });
+
+    return options;
+  };
+
   const buildSubtypeOptions = () => {
+    if (isCategoryAdditions) return buildCategoryOptions();
+
     const nonAlliances = fighterTypes.filter(t => !t.alliance_id);
-    const alliances = fighterTypes.filter(t => t.alliance_id);
+    const allianceFighterTypes = fighterTypes.filter(t => t.alliance_id);
 
     const groupLabelConfig = [
       { label: 'Hangers-on & Brutes', maxRank: 2, alliance: false },
@@ -574,15 +679,14 @@ export default function FighterAddModal({
     );
 
     const nonAllianceGroups = nonAlliances.reduce((groups, type) => {
-      const subtypeName = type.fighter_subtypes?.[0] || '';
-      const rank = gangAdditionRank[subtypeName.toLowerCase()] ?? Infinity;
+      const { label: subtypeName, rank } = bestRankedLabel(type.fighter_subtypes, gangAdditionRank);
       const groupLabel = getGroupLabelFromRank(rank, false);
       if (!groups[groupLabel]) groups[groupLabel] = new Set();
       groups[groupLabel].add(subtypeName);
       return groups;
     }, {} as Record<string, Set<string>>);
 
-    const allianceGroups = alliances.reduce((groups, type) => {
+    const allianceGroups = allianceFighterTypes.reduce((groups, type) => {
       const crewName = type.alliance_crew_name || 'Unnamed Delegation';
       const rank = gangAdditionRank[crewName.toLowerCase()] ?? Infinity;
       const groupLabel = getGroupLabelFromRank(rank, true);
@@ -673,8 +777,8 @@ export default function FighterAddModal({
     }
 
     const sortFighters = (a: { fighter: FighterType; cost: number }, b: { fighter: FighterType; cost: number }) => {
-      const subtypeRankA = fighterSubtypeRank[(a.fighter.fighter_subtypes?.[0] || '').toLowerCase()] ?? Infinity;
-      const subtypeRankB = fighterSubtypeRank[(b.fighter.fighter_subtypes?.[0] || '').toLowerCase()] ?? Infinity;
+      const subtypeRankA = getFighterSubtypeSortRank(a.fighter.fighter_subtypes, a.fighter.edition_slug);
+      const subtypeRankB = getFighterSubtypeSortRank(b.fighter.fighter_subtypes, b.fighter.edition_slug);
       if (subtypeRankA !== subtypeRankB) return subtypeRankA - subtypeRankB;
       if (a.cost !== b.cost) return a.cost - b.cost;
       return a.fighter.fighter_type.localeCompare(b.fighter.fighter_type);
@@ -768,10 +872,12 @@ export default function FighterAddModal({
 
   const modalContent = (
     <div className="space-y-4">
-      {/* Fighter Subtype (additions catalog only) */}
+      {/* Category (N26) / Fighter Subtype (N23) — additions catalog only */}
       {isAdditions && (
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-muted-foreground">Fighter Subtype *</label>
+          <label className="block text-sm font-medium text-muted-foreground">
+            {isCategoryAdditions ? 'Category *' : 'Fighter Subtype *'}
+          </label>
           <Combobox
             value={selectedSubtype}
             onValueChange={(value) => {
@@ -783,7 +889,7 @@ export default function FighterAddModal({
               setSelectedEquipment([]);
               setFighterCost('');
             }}
-            placeholder="Select Fighter Subtype"
+            placeholder={isCategoryAdditions ? 'Select Category' : 'Select Fighter Subtype'}
             options={buildSubtypeOptions()}
           />
           {selectedSubtype === 'Exotic Beast' && (

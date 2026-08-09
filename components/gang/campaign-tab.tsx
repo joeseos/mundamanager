@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { Tooltip } from 'react-tooltip';
 import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
-import { fighterSubtypeRank } from '@/utils/fighterSubtypeRank';
+import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { createClient } from "@/utils/supabase/client";
 import { Battle } from '@/types/campaign';
 import { getWinnerIds } from '@/utils/battle-winners';
@@ -19,8 +19,9 @@ import { LuSwords } from "react-icons/lu";
 import { MdFactory, MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md";
 import { GiHandcuffs } from "react-icons/gi";
 
-function getSubtypeRank(fighterSubtype: string) {
-  return fighterSubtypeRank[fighterSubtype.toLowerCase().trim()] ?? 99;
+function getSubtypeRank(subtypes: string[] | null | undefined, editionSlug?: string | null) {
+  const rank = getFighterSubtypeSortRank(subtypes, editionSlug);
+  return rank === Infinity ? 99 : rank;
 }
 
 function breakdownRowKey(
@@ -58,6 +59,7 @@ interface BattleLog extends Battle {
 interface GangTerritoriesProps {
   gangId: string;
   campaigns: Campaign[];
+  editionSlug?: string | null;
 }
 
 type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
@@ -94,7 +96,7 @@ const formatDate = (dateString: string | null) => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
 
-export default function GangTerritories({ gangId, campaigns = [] }: GangTerritoriesProps) {
+export default function GangTerritories({ gangId, campaigns = [], editionSlug = null }: GangTerritoriesProps) {
   const [battleLogs, setBattleLogs] = useState<BattleLog[]>([]);
   const [isLoadingBattles, setIsLoadingBattles] = useState(false);
   const [selectedBattleReport, setSelectedBattleReport] = useState<BattleLog | null>(null);
@@ -350,16 +352,16 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
   const ooaBreakdown = useMemo(() => {
     const breakdown = fighterStats?.ooa_breakdown ?? [];
     return [...breakdown].sort(
-      (a, b) => getSubtypeRank(a.fighter_subtypes?.[0] || '') - getSubtypeRank(b.fighter_subtypes?.[0] || '')
+      (a, b) => getSubtypeRank(a.fighter_subtypes, editionSlug) - getSubtypeRank(b.fighter_subtypes, editionSlug)
     );
-  }, [fighterStats?.ooa_breakdown]);
+  }, [fighterStats?.ooa_breakdown, editionSlug]);
 
   const deathsBreakdown = useMemo(() => {
     const breakdown = fighterStats?.deaths_breakdown ?? [];
     return [...breakdown].sort(
-      (a, b) => getSubtypeRank(a.fighter_subtypes?.[0] || '') - getSubtypeRank(b.fighter_subtypes?.[0] || '')
+      (a, b) => getSubtypeRank(a.fighter_subtypes, editionSlug) - getSubtypeRank(b.fighter_subtypes, editionSlug)
     );
-  }, [fighterStats?.deaths_breakdown]);
+  }, [fighterStats?.deaths_breakdown, editionSlug]);
 
   return (
     <div>
