@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Edition } from '@/types/edition';
 
@@ -46,13 +46,11 @@ export const editionSlugOf = (editions: Edition[], editionId?: string | null): s
 export function EditionSelect({ value, onChange, defaultToCurrent = false, label = 'Edition' }: EditionSelectProps) {
   const { data: editions = [] } = useEditions();
 
-  // Default only once, when editions first load — never after, so an explicit
-  // blank selection ("all editions" in filter contexts) sticks
-  const hasDefaulted = useRef(false);
+  // Create/edit forms (defaultToCurrent) must always have an edition: fill the
+  // current one whenever value is empty. Filter contexts omit defaultToCurrent
+  // so an explicit blank "all editions" selection can stick.
   useEffect(() => {
-    if (hasDefaulted.current || editions.length === 0) return;
-    hasDefaulted.current = true;
-    if (!defaultToCurrent || value) return;
+    if (!defaultToCurrent || value || editions.length === 0) return;
     const current = editions.find(edition => edition.is_current);
     if (current) onChange(current.id);
   }, [defaultToCurrent, value, editions, onChange]);
@@ -67,7 +65,9 @@ export function EditionSelect({ value, onChange, defaultToCurrent = false, label
         onChange={(e) => onChange(e.target.value)}
         className="w-full p-2 border rounded-md"
       >
-        <option value="">Select edition</option>
+        {/* Create/edit forms that default to the current edition always need one
+            selected; omit the blank option so "All Editions" isn't available. */}
+        {!defaultToCurrent && <option value="">Select edition</option>}
         {editions.map((edition) => (
           <option key={edition.id} value={edition.id}>
             {edition.name}

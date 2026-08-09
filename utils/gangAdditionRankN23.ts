@@ -21,9 +21,9 @@ export const gangAdditionRankN23: { [key: string]: number } = {
   "corpse guild, corpse harvesting party": 50,
   "guild of coin, toll collectors": 51,
   "justicar courts, palanite justicar delegation": 52,
-  "promethium guild, pyromantic conclave": 52,
-  "slave guild, slaver entourage": 53,
-  "water guild, nautican syphoning delegation": 54,
+  "promethium guild, pyromantic conclave": 53,
+  "slave guild, slaver entourage": 54,
+  "water guild, nautican syphoning delegation": 55,
   //
   "house catallus, carnival": 60,
   "house greim, military attaché": 61,
