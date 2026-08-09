@@ -25,6 +25,7 @@ import { LuUndo2 } from 'react-icons/lu';
 import DiceRoller from '@/components/dice-roller';
 import { Combobox } from '@/components/ui/combobox';
 import { FighterPromotionModal, type FighterPromotionResult } from '@/components/fighter/edit-fighter/fighter-promotion-modal';
+import { rosterFighterTypesQuery } from '@/utils/fighter-type-query';
 import {
   roll,
   formatRollOutcomeLine,
@@ -684,20 +685,10 @@ export function AdvancementModal({
     !!userPermissions &&
     !!onFighterDetailsUpdate;
 
+  // Promotions run between fighter subtypes, so vehicles are never a target — and the
+  // modal's "include all gang fighter types" option would otherwise offer them.
   const { data: preFetchedFighterTypes = [] } = useQuery({
-    queryKey: ['fighter-types-edit', gangId, gangTypeId, customGangTypeId],
-    queryFn: async () => {
-      const params = new URLSearchParams({
-        gang_id: gangId,
-        is_gang_addition: 'false'
-      });
-      if (gangTypeId) params.set('gang_type_id', gangTypeId);
-      if (customGangTypeId) params.set('custom_gang_type_id', customGangTypeId);
-
-      const response = await fetch(`/api/fighter-types?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch fighter types');
-      return response.json();
-    },
+    ...rosterFighterTypesQuery({ gangId, gangTypeId, customGangTypeId, isVehicle: false }),
     enabled: !!gangId && !!(gangTypeId || customGangTypeId) && (gangerPromotionOpen || championPromotionOpen),
     staleTime: 10 * 60 * 1000,
   });
@@ -2699,19 +2690,7 @@ export function AdvancementsList({
   const showPromoteButton = fighterSubtypes.some(c => ['Ganger', 'Juve', 'Prospect', 'Champion', 'Specialist', 'Exotic Beast', 'Exotic Beast Specialist'].includes(c));
 
   const { data: preFetchedFighterTypes = [] } = useQuery({
-    queryKey: ['fighter-types-edit', gangId, gangTypeId, customGangTypeId],
-    queryFn: async () => {
-      const params = new URLSearchParams({
-        gang_id: gangId,
-        is_gang_addition: 'false'
-      });
-      if (gangTypeId) params.set('gang_type_id', gangTypeId);
-      if (customGangTypeId) params.set('custom_gang_type_id', customGangTypeId);
-
-      const response = await fetch(`/api/fighter-types?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch fighter types');
-      return response.json();
-    },
+    ...rosterFighterTypesQuery({ gangId, gangTypeId, customGangTypeId, isVehicle: false }),
     enabled: !!gangId && !!(gangTypeId || customGangTypeId) && isStandalonePromotionOpen,
     staleTime: 10 * 60 * 1000,
   });

@@ -275,6 +275,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       willpower: sourceFighter.willpower,
       intelligence: sourceFighter.intelligence,
       save: sourceFighter.save ?? null,
+      is_vehicle: sourceFighter.is_vehicle ?? false,
 
       xp: params.copy_as_experienced ? sourceFighter.xp : 0,
       total_xp: params.copy_as_experienced ? sourceFighter.total_xp : 0,

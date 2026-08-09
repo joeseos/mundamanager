@@ -364,6 +364,7 @@ export default function FighterAddModal({
       credits: displayCost,
       ...stats,
       edition_slug: selectedType?.edition_slug ?? null,
+      is_vehicle: selectedType?.is_vehicle ?? false,
       xp: selectedType?.starting_xp ?? 0,
       kills: 0,
       weapons: optimisticWeapons,
@@ -435,7 +436,8 @@ export default function FighterAddModal({
           variables.fighter_type_id,
           selectedType?.specialisation?.specialisation_name
         ),
-        edition_slug: selectedType?.edition_slug ?? null
+        edition_slug: selectedType?.edition_slug ?? null,
+        is_vehicle: selectedType?.is_vehicle ?? false
       };
 
       if (context.tempFighterId && onFighterReconcile) {
