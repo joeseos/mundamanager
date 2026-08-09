@@ -31,7 +31,8 @@ import {
 } from '@/utils/equipment-selection';
 import { EquipmentSelection } from './EquipmentSelection';
 
-export type FighterAddCatalog = 'roster' | 'additions';
+/** 'vehicles' is the 'roster' query narrowed to vehicle fighter types. */
+export type FighterAddCatalog = 'roster' | 'additions' | 'vehicles';
 
 interface FighterAddModalProps {
   catalog: FighterAddCatalog;
@@ -91,6 +92,7 @@ function mapFighterType(type: any): FighterType {
     free_skill: type.free_skill || false,
     is_dramatis_personae: type.is_dramatis_personae || false,
     starting_xp: type.starting_xp ?? 0,
+    is_vehicle: type.is_vehicle ?? false,
   } as FighterType;
 }
 
@@ -109,6 +111,8 @@ export default function FighterAddModal({
   gangVariants = [],
 }: FighterAddModalProps) {
   const isAdditions = catalog === 'additions';
+  const isVehicles = catalog === 'vehicles';
+  const noun = isVehicles ? 'Vehicle' : 'Fighter';
 
   const tempIdCounter = useRef(0);
   const [selectedFighterTypeId, setSelectedFighterTypeId] = useState('');
@@ -134,15 +138,16 @@ export default function FighterAddModal({
       const gangTypeParam = gangTypeId ? `&gang_type_id=${gangTypeId}` : '';
       const customFightersParam = includeCustomFighters ? '&include_custom_fighters=true' : '';
       const includeAllGangTypeParam = includeCustomFighters ? '&include_all_gang_type=true' : '';
+      const isVehicleParam = `&is_vehicle=${isVehicles}`;
 
       let url: string;
       if (isAdditions) {
-        url = `/api/fighter-types?gang_id=${gangId}${gangTypeParam}&is_gang_addition=true${affiliationParam}${customFightersParam}${includeAllGangTypeParam}`;
+        url = `/api/fighter-types?gang_id=${gangId}${gangTypeParam}&is_gang_addition=true${affiliationParam}${customFightersParam}${includeAllGangTypeParam}${isVehicleParam}`;
       } else {
         const gangVariantsParam = gangVariants.length > 0 ? `&gang_variants=${encodeURIComponent(JSON.stringify(gangVariants))}` : '';
         const customGangTypeParam = customGangTypeId ? `&custom_gang_type_id=${customGangTypeId}` : '';
         const includeAllTypesParam = includeAllFighterTypes ? '&include_all_types=true' : '';
-        url = `/api/fighter-types?gang_id=${gangId}${gangTypeParam}${customGangTypeParam}&is_gang_addition=false${gangVariantsParam}${customFightersParam}${includeAllGangTypeParam}${affiliationParam}${includeAllTypesParam}`;
+        url = `/api/fighter-types?gang_id=${gangId}${gangTypeParam}${customGangTypeParam}&is_gang_addition=false${gangVariantsParam}${customFightersParam}${includeAllGangTypeParam}${affiliationParam}${includeAllTypesParam}${isVehicleParam}`;
       }
 
       const response = await fetch(url);
@@ -359,6 +364,7 @@ export default function FighterAddModal({
       credits: displayCost,
       ...stats,
       edition_slug: selectedType?.edition_slug ?? null,
+      is_vehicle: selectedType?.is_vehicle ?? false,
       xp: selectedType?.starting_xp ?? 0,
       kills: 0,
       weapons: optimisticWeapons,
@@ -388,7 +394,7 @@ export default function FighterAddModal({
     }) => {
       const result = await addFighterToGang(params);
       if (!result.success) {
-        throw new Error(result.error || 'Failed to add fighter');
+        throw new Error(result.error || `Failed to add ${noun.toLowerCase()}`);
       }
       return result;
     },
@@ -417,7 +423,7 @@ export default function FighterAddModal({
       if (context?.tempFighterId && onFighterRollback) {
         onFighterRollback(context.tempFighterId, context.cost, context.ratingCost);
       }
-      toast.error(error instanceof Error ? error.message : 'Failed to add fighter');
+      toast.error(error instanceof Error ? error.message : `Failed to add ${noun.toLowerCase()}`);
     },
     onSuccess: (result, variables, context) => {
       if (!context || !result.data) return;
@@ -430,7 +436,8 @@ export default function FighterAddModal({
           variables.fighter_type_id,
           selectedType?.specialisation?.specialisation_name
         ),
-        edition_slug: selectedType?.edition_slug ?? null
+        edition_slug: selectedType?.edition_slug ?? null,
+        is_vehicle: selectedType?.is_vehicle ?? false
       };
 
       if (context.tempFighterId && onFighterReconcile) {
@@ -463,13 +470,13 @@ export default function FighterAddModal({
 
     const fighterTypeIdToUse = selectedSpecialisationId || selectedFighterTypeId;
     if (!fighterTypeIdToUse) {
-      setFetchError('Please select a fighter type');
+      setFetchError(`Please select a ${noun.toLowerCase()} type`);
       return false;
     }
 
     const enteredCost = parseInt(fighterCost);
     if (enteredCost > 0 && initialCredits < enteredCost) {
-      setFetchError('Not enough credits to add this fighter');
+      setFetchError(`Not enough credits to add this ${noun.toLowerCase()}`);
       return false;
     }
 
@@ -705,7 +712,7 @@ export default function FighterAddModal({
       return groups;
     }, {} as Record<string, Array<{ fighter: FighterType; cost: number }>>);
 
-    const groupDisplayNames: Record<string, string> = { regular: 'Fighter Types', custom: 'Custom Fighter Types' };
+    const groupDisplayNames: Record<string, string> = { regular: `${noun} Types`, custom: `Custom ${noun} Types` };
     const hasMultipleGroups = Object.keys(groupedByType).length > 1;
     const sortedGroups = Object.keys(groupedByType).sort((a, b) => (fighterTypeRank[a] ?? 999) - (fighterTypeRank[b] ?? 999));
 
@@ -789,11 +796,11 @@ export default function FighterAddModal({
 
       {/* Fighter Type */}
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-muted-foreground">Fighter Type *</label>
+        <label className="block text-sm font-medium text-muted-foreground">{noun} Type *</label>
         <Combobox
           value={selectedFighterTypeId}
           onValueChange={handleSelectFighterType}
-          placeholder="Select fighter type"
+          placeholder={`Select ${noun.toLowerCase()} type`}
           disabled={isAdditions && !selectedSubtype}
           options={buildTypeOptions()}
         />
@@ -816,12 +823,12 @@ export default function FighterAddModal({
             }}
           />
           <label htmlFor="include-custom-fighters" className="text-sm font-medium text-muted-foreground cursor-pointer">
-            Include Custom Fighter Types
+            Include Custom {noun} Types
           </label>
           <div className="relative group">
             <ImInfo tabIndex={0} className="outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded-sm" />
             <div className="absolute bottom-full mb-2 hidden group-hover:block group-focus-within:block bg-black text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
-              When enabled, your custom fighter types will be included in the fighter type dropdown. Only custom fighters matching this gang type will be shown.
+              When enabled, your custom {noun.toLowerCase()} types will be included in the {noun.toLowerCase()} type dropdown. Only custom {noun.toLowerCase()}s matching this gang type will be shown.
             </div>
           </div>
         </div>
@@ -842,12 +849,12 @@ export default function FighterAddModal({
               }}
             />
             <label htmlFor="include-all-fighter-types" className="text-sm font-medium text-muted-foreground cursor-pointer">
-              Include all Fighter Types
+              Include all {noun} Types
             </label>
             <div className="relative group">
               <ImInfo tabIndex={0} className="outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded-sm" />
               <div className="absolute bottom-full mb-2 hidden group-hover:block group-focus-within:block bg-black text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
-                When enabled, fighter types from all gangs will be shown. Gang additions are found in the &quot;Gang Additions&quot; menu.
+                When enabled, {noun.toLowerCase()} types from all gangs will be shown.{!isVehicles && ' Gang additions are found in the "Gang Additions" menu.'}
               </div>
             </div>
           </div>
@@ -918,7 +925,7 @@ export default function FighterAddModal({
         <label className="block text-sm font-medium text-muted-foreground">Cost (credits) *</label>
         <Input
           type="number"
-          placeholder="Enter fighter cost"
+          placeholder={`Enter ${noun.toLowerCase()} cost`}
           value={fighterCost}
           onChange={(e) => setFighterCost(e.target.value)}
           className="w-full"
@@ -963,7 +970,7 @@ export default function FighterAddModal({
           <div className="relative group">
             <ImInfo tabIndex={0} className="outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded-sm" />
             <div className="absolute bottom-full mb-2 hidden group-hover:block group-focus-within:block bg-neutral-900 text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
-              When enabled, the fighter&apos;s rating is calculated using their listed cost, even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
+              When enabled, the {noun.toLowerCase()}&apos;s rating is calculated using their listed cost, even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
             </div>
           </div>
         </div>
@@ -971,10 +978,10 @@ export default function FighterAddModal({
 
       {/* Fighter Name */}
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-muted-foreground">Fighter Name *</label>
+        <label className="block text-sm font-medium text-muted-foreground">{noun} Name *</label>
         <Input
           type="text"
-          placeholder="Enter fighter name"
+          placeholder={`Enter ${noun.toLowerCase()} name`}
           value={fighterName}
           onChange={(e) => setFighterName(e.target.value)}
           className="w-full"
@@ -987,7 +994,7 @@ export default function FighterAddModal({
 
   return (
     <Modal
-      title={isAdditions ? 'Gang Additions' : 'Add Fighter'}
+      title={isAdditions ? 'Gang Additions' : `Add ${noun}`}
       headerContent={
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Gang Credits</span>
@@ -997,7 +1004,7 @@ export default function FighterAddModal({
       content={modalContent}
       onClose={closeModal}
       onConfirm={handleAddFighter}
-      confirmText="Add Fighter"
+      confirmText={`Add ${noun}`}
       confirmDisabled={
         addFighterMutation.isPending ||
         !selectedFighterTypeId || !fighterName || !fighterCost ||

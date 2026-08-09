@@ -106,12 +106,18 @@ export function EditFighterModal({
     stats: {} as Record<string, number>
   });
   
+  // Retyping stays within the fighter's own catalog: a vehicle can become another
+  // vehicle, but never a Ganger, and vice versa. The flag is part of the key too,
+  // since the promotion modals share it.
+  const isVehicleFighter = Boolean(fighter.is_vehicle);
+
   const { data: fetchedFighterTypes } = useQuery({
-    queryKey: ['fighter-types-edit', gangId, gangTypeId, customGangTypeId],
+    queryKey: ['fighter-types-edit', gangId, gangTypeId, customGangTypeId, isVehicleFighter],
     queryFn: async () => {
       const params = new URLSearchParams({
         gang_id: gangId,
-        is_gang_addition: 'false'
+        is_gang_addition: 'false',
+        is_vehicle: String(isVehicleFighter)
       });
       if (gangTypeId) params.set('gang_type_id', gangTypeId);
       if (customGangTypeId) params.set('custom_gang_type_id', customGangTypeId);

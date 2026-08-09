@@ -45,7 +45,8 @@ RETURNS TABLE (
     delegation_cost numeric,
     is_dramatis_personae boolean,
     edition_slug text,
-    starting_xp numeric
+    starting_xp numeric,
+    is_vehicle boolean
 ) LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
     RETURN QUERY
@@ -869,7 +870,8 @@ BEGIN
         ft.delegation_cost,
         ft.is_dramatis_personae,
         ed.slug AS edition_slug,
-        ft.starting_xp
+        ft.starting_xp,
+        ft.is_vehicle
     FROM fighter_types ft
     LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id
         AND ftgc.gang_type_id = p_gang_type_id
