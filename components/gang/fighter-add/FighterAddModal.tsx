@@ -30,10 +30,6 @@ import {
   getBaseCost,
 } from '@/utils/equipment-selection';
 import { EquipmentSelection } from './EquipmentSelection';
-import {
-  automaticFighterSpecialisation,
-  representativeFighterType,
-} from '@/utils/fighterSpecialisationSelection';
 import { canAutoSelectFighterSpecialisationWithoutDefault } from '@/types/edition';
 
 export type FighterAddCatalog = 'roster' | 'additions';
@@ -271,8 +267,24 @@ export default function FighterAddModal({
       t.fighter_type === selectedType?.fighter_type &&
       t.fighter_subtypes?.[0] === selectedType?.fighter_subtypes?.[0]
     );
+    const fallbackEnabled = canAutoSelectFighterSpecialisationWithoutDefault(
+      selectedType?.edition_slug
+    );
+    const defaultType = fighterTypeGroup.find(type =>
+      !type.specialisation || type.specialisation.specialisation_name === 'Default'
+    );
+    const automaticType = defaultType ?? (
+      fallbackEnabled
+        ? fighterTypeGroup.reduce((lowest, current) =>
+            current.total_cost < lowest.total_cost ? current : lowest
+          )
+        : undefined
+    );
+    const shouldShowSpecialisationSelect =
+      fighterTypeGroup.length > 1 ||
+      (fighterTypeGroup.length === 1 && !automaticType);
 
-    if (fighterTypeGroup.length > 1) {
+    if (shouldShowSpecialisationSelect) {
       const specialisations = fighterTypeGroup.map(ft => ({
         id: ft.id,
         specialisation_name: ft.specialisation?.specialisation_name || 'Default',
@@ -280,10 +292,6 @@ export default function FighterAddModal({
       }));
       setAvailableSpecialisations(specialisations);
 
-      const automaticType = automaticFighterSpecialisation(
-        fighterTypeGroup,
-        canAutoSelectFighterSpecialisationWithoutDefault(selectedType?.edition_slug)
-      );
       const autoSelectedId = automaticType?.id ?? '';
       setSelectedSpecialisationId(autoSelectedId);
       if (autoSelectedId) applyDefaultEquipmentAndCost(autoSelectedId, false);
@@ -626,9 +634,18 @@ export default function FighterAddModal({
       groupedTypes.set(key, [...(groupedTypes.get(key) ?? []), fighter]);
     });
     groupedTypes.forEach((group, key) => {
-      const fighter = representativeFighterType(
-        group,
-        canAutoSelectFighterSpecialisationWithoutDefault(group[0]?.edition_slug)
+      const defaultType = group.find(type =>
+        !type.specialisation || type.specialisation.specialisation_name === 'Default'
+      );
+      const fallbackEnabled = canAutoSelectFighterSpecialisationWithoutDefault(
+        group[0]?.edition_slug
+      );
+      const fighter = defaultType ?? (
+        fallbackEnabled
+          ? group.reduce((lowest, current) =>
+              current.total_cost < lowest.total_cost ? current : lowest
+            )
+          : group[0]
       );
       if (fighter) typeSubtypeMap.set(key, { fighter, cost: fighter.total_cost });
     });
