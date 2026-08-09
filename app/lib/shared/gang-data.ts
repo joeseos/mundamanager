@@ -957,18 +957,10 @@ export const getGangFightersList = async (
       // Every fighter in a roster belongs to one gang, so the edition is resolved
       // once here rather than per fighter from fighter_types — which yields null
       // for custom fighter types, and would leave them with no edition at all.
-      const { data: gangEditionRow } = await supabase
-        .from('gangs')
-        .select(`
-          gang_types!gang_type_id ( editions:edition_id ( slug ) ),
-          custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
-        `)
-        .eq('id', gangId)
-        .single();
-
-      const gangEditionSlug = (gangEditionRow?.gang_types as any)?.editions?.slug
-        ?? (gangEditionRow?.custom_gang_types as any)?.editions?.slug
-        ?? null;
+      // getGangBasic already derives it and is warm by the time the gang and
+      // print pages reach this, so no round trip is added there. Its cache tag is
+      // deliberately not adopted: a gang's edition never changes.
+      const gangEditionSlug = (await getGangBasic(gangId, supabase))?.edition_slug ?? null;
 
       // Step 1: Fetch ALL fighters for the gang in ONE query with joins
       const { data: fighters, error: fightersError } = await supabase
