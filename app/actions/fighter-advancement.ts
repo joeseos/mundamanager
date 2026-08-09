@@ -6,6 +6,8 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidateTag } from 'next/cache';
 import { updateGangRatingSimple, updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { countsTowardRating } from '@/utils/fighter-status';
+import { hasCumulativeXp, gangEditionSlug } from '@/types/edition';
+import { openAdvancementsFor } from '@/utils/advancementRanks';
 
 import { 
   logCharacteristicAdvancement, 
@@ -16,6 +18,94 @@ import {
 } from './logs/gang-fighter-logs';
 import type { GangLogActionResult } from './logs/gang-logs';
 import { updateFighterDetails } from './edit-fighter';
+
+// A fighter's edition comes from its gang's (custom) gang type — gangs have no
+// edition_id of their own. Whether an Advancement costs XP is edition-specific,
+// so every action that moves a fighter's XP loads it alongside the fighter.
+// gangEditionSlug reads this shape back, including the array/object widening the
+// untyped client introduces.
+const FIGHTER_WITH_EDITION_SELECT = `
+  id, user_id, gang_id, xp, starting_xp, free_skill, fighter_name, killed, retired, enslaved, captured,
+  gangs!gang_id (
+    gang_types!gang_type_id ( editions:edition_id ( slug ) ),
+    custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
+  )
+`;
+
+const fighterEditionSlug = (fighter: any): string | null =>
+  gangEditionSlug(fighter?.gangs);
+
+/**
+ * How many Advancements a fighter has already taken, counted from the database.
+ *
+ * Mirrors countAdvancementsTaken in utils/advancementRanks.ts, which the cards
+ * apply to data they already hold: a characteristic is an effect in the
+ * 'advancements' category, a skill is a fighter_skill flagged is_advance.
+ */
+async function countAdvancementsTakenFor(supabase: any, fighterId: string): Promise<number> {
+  const [characteristics, skillAdvances] = await Promise.all([
+    supabase
+      .from('fighter_effects')
+      .select('id, fighter_effect_types!inner(fighter_effect_categories!inner(category_name))', {
+        count: 'exact',
+        head: true,
+      })
+      .eq('fighter_id', fighterId)
+      .eq('fighter_effect_types.fighter_effect_categories.category_name', 'advancements'),
+    supabase
+      .from('fighter_skills')
+      .select('id', { count: 'exact', head: true })
+      .eq('fighter_id', fighterId)
+      .eq('is_advance', true),
+  ]);
+
+  // This count is half of a server-side limit, so a failed query must not read
+  // as "nothing taken yet" — that would grant an Advancement on the strength of
+  // an error. Fail closed and let the caller refuse.
+  if (characteristics.error || skillAdvances.error) {
+    throw new Error('Failed to count existing advancements');
+  }
+
+  return (characteristics.count ?? 0) + (skillAdvances.count ?? 0);
+}
+
+/**
+ * Whether the fighter may take another Advancement right now, as an error
+ * message or null to proceed.
+ *
+ * The two economies gate on different things: an edition that spends XP gates on
+ * whether the fighter can afford the cost, one that earns Advancements by rank
+ * gates on whether it has an earned Advancement it has not yet taken.
+ *
+ * SOFT LIMIT. This reads the count and the caller then inserts, so two requests
+ * racing each other can both pass. That is tolerable here — a gang is edited by
+ * one person and the whole add-advancement path is already several
+ * non-transactional steps — but it is not a guarantee. Do not build anything on
+ * it that assumes the count cannot be exceeded.
+ */
+async function advancementBlockedReason(
+  supabase: any,
+  fighter: any,
+  spendsXp: boolean,
+  xpCost: number,
+  isAdvance: boolean = true,
+): Promise<string | null> {
+  if (spendsXp) {
+    return fighter.xp < xpCost ? 'Insufficient XP' : null;
+  }
+
+  // A starting or free skill is not an Advancement and consumes none.
+  if (!isAdvance) return null;
+
+  const open = openAdvancementsFor(
+    fighterEditionSlug(fighter),
+    fighter.starting_xp ?? 0,
+    fighter.xp,
+    await countAdvancementsTakenFor(supabase, fighter.id),
+  );
+
+  return open > 0 ? null : 'No advancements available';
+}
 
 // Type for power boost type_specific_data
 interface PowerBoostTypeData {
@@ -118,7 +208,7 @@ export async function addCharacteristicAdvancement(
     // Verify fighter ownership and get fighter data
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, user_id, gang_id, xp, free_skill, fighter_name, killed, retired, enslaved, captured')
+      .select(FIGHTER_WITH_EDITION_SELECT)
       .eq('id', params.fighter_id)
       .single();
 
@@ -128,9 +218,18 @@ export async function addCharacteristicAdvancement(
 
     // Note: Authorization is enforced by RLS policies on fighters table
 
-    // Check if fighter has enough XP
-    if (fighter.xp < params.xp_cost) {
-      return { success: false, error: 'Insufficient XP' };
+    // A rank-based edition earns Advancements rather than buying them, so its XP
+    // total only ever grows and there is nothing to afford.
+    const spendsXp = !hasCumulativeXp(fighterEditionSlug(fighter));
+
+    const blockedReason = await advancementBlockedReason(
+      supabase,
+      fighter,
+      spendsXp,
+      params.xp_cost,
+    );
+    if (blockedReason) {
+      return { success: false, error: blockedReason };
     }
 
     // Get the effect type details
@@ -211,8 +310,9 @@ export async function addCharacteristicAdvancement(
     // Update fighter's XP only (characteristic is handled by effect modifiers)
     const { data: updatedFighter, error: updateError } = await supabase
       .from('fighters')
-      .update({ 
-        xp: fighter.xp - params.xp_cost,
+      .update({
+        // Nothing is spent in a rank-based edition, so XP is left where it is.
+        xp: spendsXp ? fighter.xp - params.xp_cost : fighter.xp,
         updated_at: new Date().toISOString()
       })
       .eq('id', params.fighter_id)
@@ -309,7 +409,7 @@ export async function addSkillAdvancement(
     // Verify fighter ownership and get fighter data
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, user_id, gang_id, xp, free_skill, fighter_name, killed, retired, enslaved, captured')
+      .select(FIGHTER_WITH_EDITION_SELECT)
       .eq('id', params.fighter_id)
       .single();
 
@@ -319,9 +419,19 @@ export async function addSkillAdvancement(
 
     // Note: Authorization is enforced by RLS policies on fighters table
 
-    // Check if fighter has enough XP
-    if (fighter.xp < params.xp_cost) {
-      return { success: false, error: 'Insufficient XP' };
+    // A rank-based edition earns Advancements rather than buying them, so its XP
+    // total only ever grows and there is nothing to afford.
+    const spendsXp = !hasCumulativeXp(fighterEditionSlug(fighter));
+
+    const blockedReason = await advancementBlockedReason(
+      supabase,
+      fighter,
+      spendsXp,
+      params.xp_cost,
+      params.is_advance ?? true,
+    );
+    if (blockedReason) {
+      return { success: false, error: blockedReason };
     }
 
     // Insert the new skill advancement with fighter owner's user_id
@@ -413,7 +523,8 @@ export async function addSkillAdvancement(
 
     // Update fighter's XP and conditionally set free_skill to false
     const updateData: any = {
-      xp: fighter.xp - params.xp_cost,
+      // Nothing is spent in a rank-based edition, so XP is left where it is.
+      xp: spendsXp ? fighter.xp - params.xp_cost : fighter.xp,
       updated_at: new Date().toISOString()
     };
     
@@ -640,7 +751,7 @@ export async function deleteAdvancement(
     // Verify fighter ownership
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, user_id, gang_id, xp, free_skill, fighter_name, killed, retired, enslaved, captured')
+      .select(FIGHTER_WITH_EDITION_SELECT)
       .eq('id', params.fighter_id)
       .single();
 
@@ -649,6 +760,11 @@ export async function deleteAdvancement(
     }
 
     // Note: Authorization is enforced by RLS policies on fighters table
+
+    // Nothing was spent on a rank-based Advancement, so deleting one refunds
+    // nothing. The Advancement becomes available again on its own: the taken
+    // count drops, so openAdvancementsFor rises back by one.
+    const spendsXp = !hasCumulativeXp(fighterEditionSlug(fighter));
 
     let xpToRefund = 0;
     let ratingDelta = 0;
@@ -848,8 +964,8 @@ export async function deleteAdvancement(
     // Update fighter's XP and free_skill status
     const { data: updatedFighter, error: updateError } = await supabase
       .from('fighters')
-      .update({ 
-        xp: fighter.xp + xpToRefund,
+      .update({
+        xp: spendsXp ? fighter.xp + xpToRefund : fighter.xp,
         free_skill: newFreeSkillStatus,
         updated_at: new Date().toISOString()
       })

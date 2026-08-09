@@ -5,6 +5,7 @@ import WeaponTable from './fighter-card-weapon-table';
 import { Equipment } from '@/types/equipment';
 import { FighterProps, FighterEffect, Vehicle, VehicleEquipment, FighterSkills } from '@/types/fighter';
 import { hasSaveCharacteristic } from '@/types/edition';
+import { LevelUpBadge } from '@/components/ui/level-up-badge';
 import { calculateAdjustedStats, applySpecialRulesModifiers } from '@/utils/effect-modifiers';
 import { injuryAggregationLabel } from '@/utils/injuryTarget';
 import { TbMeatOff } from "react-icons/tb";
@@ -153,6 +154,7 @@ const FighterCard = memo(function FighterCard({
   save,
   edition_slug,
   xp,
+  starting_xp = 0,
   advancements,
   weapons,
   wargear,
@@ -605,6 +607,13 @@ const FighterCard = memo(function FighterCard({
             {starved && <TbMeatOff className="text-red-500" />}
             {recovery && <FaMedkit className="text-blue-500" />}
             {captured && <GiHandcuffs className="text-sky-300" />}
+            <LevelUpBadge
+              editionSlug={edition_slug}
+              startingXp={starting_xp}
+              xp={xp}
+              effects={effects}
+              skills={skills}
+            />
           </div>
           {/* Render image if image_url is present, before credits box */}
           {image_url && (

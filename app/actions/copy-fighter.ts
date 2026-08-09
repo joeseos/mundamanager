@@ -277,7 +277,13 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       save: sourceFighter.save ?? null,
       is_vehicle: sourceFighter.is_vehicle ?? false,
 
-      xp: params.copy_as_experienced ? sourceFighter.xp : 0,
+      // Recruitment XP belongs to the fighter type, not to what this fighter went
+      // on to earn, so it survives an inexperienced copy. Dropping the copy to
+      // xp 0 while it still records a starting_xp of 13 would leave it sitting
+      // below its own recruitment value; a fresh recruit of that type has
+      // xp === starting_xp, which is what add-fighter writes.
+      starting_xp: sourceFighter.starting_xp,
+      xp: params.copy_as_experienced ? sourceFighter.xp : sourceFighter.starting_xp,
       total_xp: params.copy_as_experienced ? sourceFighter.total_xp : 0,
       kills: params.copy_as_experienced ? sourceFighter.kills : 0,
 
@@ -698,7 +704,9 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
             willpower: beastFighter.willpower,
             intelligence: beastFighter.intelligence,
             save: beastFighter.save ?? null,
-            xp: params.copy_as_experienced ? beastFighter.xp : 0,
+            // As above: recruitment XP survives an inexperienced copy.
+            starting_xp: beastFighter.starting_xp,
+            xp: params.copy_as_experienced ? beastFighter.xp : beastFighter.starting_xp,
             total_xp: params.copy_as_experienced ? beastFighter.total_xp : 0,
             kills: params.copy_as_experienced ? beastFighter.kills : 0,
             credits: beastFighter.credits,

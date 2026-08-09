@@ -104,7 +104,8 @@ export async function createExoticBeastsForEquipment(
           willpower,
           intelligence,
           save,
-          special_rules
+          special_rules,
+          starting_xp
         )
       `)
       .eq('equipment_id', params.equipmentId);
@@ -147,7 +148,10 @@ export async function createExoticBeastsForEquipment(
           intelligence: fighterType.intelligence,
           save: fighterType.save ?? null,
           special_rules: fighterType.special_rules || [],
-          xp: 0
+          // A beast is recruited like any other fighter, so it starts on its
+          // type's Starting XP and records that as its recruitment value.
+          xp: fighterType.starting_xp ?? 0,
+          starting_xp: fighterType.starting_xp ?? 0
         })
         .select('id, fighter_name, fighter_type, fighter_subtypes, credits, created_at')
         .single();

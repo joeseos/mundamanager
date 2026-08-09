@@ -12,22 +12,38 @@ DECLARE
   v_advancements_category_id UUID;
   v_fighter_subtypes jsonb;
   v_uses_flat_cost boolean; -- Flag for fighters that use flat costs (Ganger and Exotic Beast)
+  v_edition_id UUID;
+  v_cumulative_xp boolean; -- Edition earns Advancements by rank instead of buying them
 BEGIN
-  -- Get fighter's current XP and fighter subtypes
-  SELECT f.xp, f.fighter_subtypes
-  INTO v_fighter_xp, v_fighter_subtypes
+  -- Get fighter's current XP, subtypes, and the edition of the gang it belongs
+  -- to. The edition is resolved from the gang the same way add_fighter_injury
+  -- does it: Advancement rows are edition-scoped, and without this an N23
+  -- fighter would be offered N26 Advancements and vice versa.
+  SELECT f.xp, f.fighter_subtypes, COALESCE(gt.edition_id, cgt.edition_id)
+  INTO v_fighter_xp, v_fighter_subtypes, v_edition_id
   FROM fighters f
+  JOIN gangs g ON g.id = f.gang_id
+  LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+  LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
   WHERE f.id = get_fighter_available_advancements.fighter_id;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Fighter not found with ID %', get_fighter_available_advancements.fighter_id;
   END IF;
-  
-  -- Determine if the fighter uses flat costs based on their subtypes
-  -- Only Gangers and Exotic Beasts use flat costs
-  v_uses_flat_cost :=
-    v_fighter_subtypes ?| array['Ganger', 'Exotic Beast'];
-  
+
+  -- SQL cannot read the capability registry in types/edition.ts, so the slug is
+  -- resolved to an id once here rather than compared per row. Mirrors the
+  -- cumulativeXp capability: N26 earns Advancements by crossing a rank
+  -- threshold and spends no XP on them.
+  v_cumulative_xp := v_edition_id IS NOT NULL
+    AND v_edition_id = (SELECT id FROM editions WHERE slug = 'n26');
+
+  -- Determine if the fighter uses flat costs based on their subtypes.
+  -- Only Gangers and Exotic Beasts use flat costs, and only where XP is spent:
+  -- an edition that earns Advancements by rank has no cost to make flat.
+  v_uses_flat_cost := NOT v_cumulative_xp
+    AND v_fighter_subtypes ?| array['Ganger', 'Exotic Beast'];
+
   -- Get the advancements category ID
   SELECT id INTO v_advancements_category_id
   FROM fighter_effect_categories
@@ -47,6 +63,9 @@ BEGIN
       COALESCE((fet.type_specific_data->>'credits_increase')::integer, 10) AS base_credits_increase
     FROM fighter_effect_types fet
     WHERE fet.fighter_effect_category_id = v_advancements_category_id
+      -- Edition-scoped: effect_name repeats across editions, so an unfiltered
+      -- read would hand N26 rows to N23 fighters once the N26 catalog is seeded.
+      AND fet.edition_id IS NOT DISTINCT FROM v_edition_id
   ),
   advancement_counts AS (
     -- Count how many times each fighter has advanced each characteristic
@@ -68,6 +87,8 @@ BEGIN
       etc.base_xp_cost,
       -- Calculate XP cost based on fighter subtype and characteristic
       CASE
+        -- Advancements are earned by rank, not bought: there is nothing to pay
+        WHEN v_cumulative_xp THEN 0
         -- For Gangers and Exotic Beasts: fixed 6 XP cost
         WHEN v_uses_flat_cost THEN 6
         -- For Juves and Prospects: base cost only (no escalating penalty)
@@ -78,6 +99,8 @@ BEGIN
       END as xp_cost,
       -- Calculate credits increase based on fighter subtype and characteristic
       CASE
+        -- Flat per characteristic, straight off the edition's own catalog rows
+        WHEN v_cumulative_xp THEN etc.base_credits_increase
         -- For Gangers and Exotic Beasts: credits based on advancement table
         WHEN v_uses_flat_cost THEN
           CASE
@@ -100,6 +123,9 @@ BEGIN
       true as is_available,
       -- Check if fighter has enough XP based on the calculated cost
       CASE
+        -- Nothing is spent, so affordability never blocks. Whether an
+        -- Advancement is actually owed is a rank question the caller answers.
+        WHEN v_cumulative_xp THEN true
         WHEN v_uses_flat_cost THEN v_fighter_xp >= 6
         WHEN v_fighter_subtypes ?| array['Juve', 'Prospect'] THEN v_fighter_xp >= etc.base_xp_cost
         WHEN COALESCE(ac.times_increased, 0) = 0 THEN v_fighter_xp >= etc.base_xp_cost
@@ -130,7 +156,8 @@ BEGIN
     'current_xp', v_fighter_xp,
     'fighter_subtypes', v_fighter_subtypes,
     'uses_flat_cost', v_uses_flat_cost,
-    -- Ganger/Exotic Beast: Specialist table row (random Primary skill) — same flat costs as other ganger advances
+    -- Ganger/Exotic Beast: Specialist table row (random Primary skill) — same flat costs as other ganger advances.
+    -- v_uses_flat_cost is already false for rank-based editions, which promote Specialists by their own rules.
     'ganger_to_specialist_advancement', CASE WHEN v_uses_flat_cost THEN jsonb_build_object(
       'xp_cost', 6,
       'credits_increase', 20

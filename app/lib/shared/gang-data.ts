@@ -141,6 +141,7 @@ export interface GangFighter {
   alliance_crew_name?: string;
   position?: string;
   xp: number;
+  starting_xp: number;
   kills: number;
   credits: number;
   loadout_cost?: number; // Cost of equipment in active loadout only (for fighter card display)
@@ -953,6 +954,14 @@ export const getGangFightersList = async (
 
   return unstable_cache(
     async () => {
+      // Every fighter in a roster belongs to one gang, so the edition is resolved
+      // once here rather than per fighter from fighter_types — which yields null
+      // for custom fighter types and would leave them with no edition at all.
+      // getGangBasic already derives it and is warm by the time the gang and
+      // print pages reach this, so no round trip is added on those paths. Its
+      // cache tag is deliberately not adopted: a gang's edition never changes.
+      const gangEditionSlugForRoster = (await getGangBasic(gangId, supabase))?.edition_slug ?? null;
+
       // Step 1: Fetch ALL fighters for the gang in ONE query with joins
       const { data: fighters, error: fightersError } = await supabase
         .from('fighters')
@@ -978,6 +987,7 @@ export const getGangFightersList = async (
           intelligence,
           save,
           xp,
+          starting_xp,
           special_rules,
           fighter_subtypes,
           fighter_type,
@@ -1991,6 +2001,7 @@ export const getGangFightersList = async (
           kill_count: fighter.kill_count ?? 0,
           position: fighter.position,
           xp: fighter.xp,
+          starting_xp: fighter.starting_xp,
           kills: fighter.kills || 0,
           credits: totalCost,
           loadout_cost: activeLoadoutId ? displayLoadoutCost : undefined, // Only set when loadout is active
@@ -2007,7 +2018,7 @@ export const getGangFightersList = async (
           willpower: fighter.willpower,
           intelligence: fighter.intelligence,
           save: fighter.save ?? null,
-          edition_slug: fighterTypeInfo.editions?.slug ?? null,
+          edition_slug: gangEditionSlugForRoster,
           weapons,
           wargear,
           effects,

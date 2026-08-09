@@ -467,6 +467,9 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       intelligence: effectiveFighterData.intelligence,
       save: effectiveFighterData.save ?? null,
       xp: effectiveFighterData.starting_xp ?? 0,
+      // Snapshot of the recruitment value. Kept on the fighter because the
+      // fighter type is editable and N26 counts Advancements from this figure.
+      starting_xp: effectiveFighterData.starting_xp ?? 0,
       is_vehicle: effectiveFighterData.is_vehicle ?? false,
       kills: 0,
       special_rules: effectiveFighterData.special_rules,

@@ -3,6 +3,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { toast } from 'sonner';
+import { useRollLogger } from '@/hooks/use-roll-logger';
+import { N26AdvancementPanel } from '@/components/fighter/n26-advancement-panel';
+import { hasCumulativeXp } from '@/types/edition';
 import Modal from "@/components/ui/modal";
 import { Skill, FighterSkills, FighterEffect as FighterEffectType } from '@/types/fighter';
 import { TypeSpecificData } from '@/types/fighter-effect';
@@ -478,7 +481,6 @@ export function AdvancementModal({
   const [gangerPurchaseBusy, setGangerPurchaseBusy] = useState(false);
   // Ganger / Exotic Beast advancement roll UI (inline)
   const [gangerSelectedRowId, setGangerSelectedRowId] = useState('');
-  const [gangerRollCooldown, setGangerRollCooldown] = useState(false);
   const [gangerCharMap, setGangerCharMap] = useState<Record<string, GangerCharAdv>>({});
   const [gangerSpecialistCosts, setGangerSpecialistCosts] = useState<{ xp_cost: number; credits_increase: number }>({
     xp_cost: 6,
@@ -676,8 +678,17 @@ export function AdvancementModal({
     [gangerSelectedRowId]
   );
 
+  // A rank-based edition puts every fighter on one Advancement table and spends
+  // no XP, so the N23 subtype-specific tables and escalating costs do not apply.
+  const isCumulativeXp = hasCumulativeXp(editionSlug);
+
+  // The Ganger / Exotic Beast table, its flat 6 XP cost and the Specialist
+  // promotion are all N23 rules, and a rank-based edition promotes Specialists by
+  // its own rules. This must be false there — it gates the ganger purchase path,
+  // not just the roll UI.
   const isGangerOrExoticBeastSubtype =
-    fighterSubtypes.includes('Ganger') || fighterSubtypes.includes('Exotic Beast');
+    !isCumulativeXp &&
+    (fighterSubtypes.includes('Ganger') || fighterSubtypes.includes('Exotic Beast'));
 
   const gangerModalRollBuy =
     isGangerOrExoticBeastSubtype &&
@@ -914,69 +925,44 @@ export function AdvancementModal({
     };
   }, [fighterId, shouldFetchGangerSkillsInSet, gangerSelectedSkillSetId, gangerPromotionTypeId]);
 
-  const logGangerRollMutation = useMutation({
-    mutationFn: async (variables: { outcome_label: string; dice_data: Record<string, unknown> }) => {
-      const result = await verifyAndLogRolledGangerAdvancementRoll({
-        fighter_id: fighterId,
-        advancement_table: GANGER_ADVANCEMENT_TABLE_LABEL,
-        outcome_label: variables.outcome_label,
-        dice_data: variables.dice_data
-      });
-      if (!result.success) throw new Error(result.error || 'Failed to log advancement roll');
-      return result;
-    },
-    onSuccess: () => {
-      toast.success('Advancement roll logged');
-    },
-    onError: (e: Error) => {
-      toast.error(e?.message || 'Failed to log advancement roll');
-    }
+  const gangerRollLogger = useRollLogger<{ outcome_label: string; dice_data: Record<string, unknown> }>({
+    log: (variables) => verifyAndLogRolledGangerAdvancementRoll({
+      fighter_id: fighterId,
+      advancement_table: GANGER_ADVANCEMENT_TABLE_LABEL,
+      ...variables
+    }),
+    successMessage: 'Advancement roll logged',
+    errorMessage: 'Failed to log advancement roll'
   });
 
-  const logGangerSubRollMutation = useMutation({
-    mutationFn: async (variables: { outcome_label: string; dice_data: Record<string, unknown> }) => {
-      const result = await verifyAndLogRolledGangerAdvancementRoll({
-        fighter_id: fighterId,
-        advancement_table: GANGER_ADVANCEMENT_TABLE_LABEL,
-        outcome_label: variables.outcome_label,
-        dice_data: variables.dice_data
-      });
-      if (!result.success) throw new Error(result.error || 'Failed to log sub-roll');
-      return result;
-    },
-    onSuccess: () => {
-      toast.success('Sub-roll recorded in gang log');
-    },
-    onError: (e: Error) => {
-      toast.error(e?.message || 'Failed to log sub-roll');
-    }
+  // cooldownMs 0: only the main Ganger roll was ever debounced. The sub-roll and
+  // skill rolls guarded on in-flight alone, and this keeps that behaviour rather
+  // than quietly adding a 2s block to them.
+  const gangerSubRollLogger = useRollLogger<{ outcome_label: string; dice_data: Record<string, unknown> }>({
+    log: (variables) => verifyAndLogRolledGangerAdvancementRoll({
+      fighter_id: fighterId,
+      advancement_table: GANGER_ADVANCEMENT_TABLE_LABEL,
+      ...variables
+    }),
+    successMessage: 'Sub-roll recorded in gang log',
+    errorMessage: 'Failed to log sub-roll',
+    cooldownMs: 0
   });
 
-  const logSkillAdvancementRollMutation = useMutation({
-    mutationFn: async (variables: {
-      skill_set_name: string;
-      skill_set_access_label: string;
-      acquisition_type_label: string;
-      outcome_label: string;
-      dice_data: Record<string, unknown>;
-    }) => {
-      const result = await verifyAndLogRolledSkillAdvancementRoll({
-        fighter_id: fighterId,
-        skill_set_name: variables.skill_set_name,
-        skill_set_access_label: variables.skill_set_access_label,
-        acquisition_type_label: variables.acquisition_type_label,
-        outcome_label: variables.outcome_label,
-        dice_data: variables.dice_data
-      });
-      if (!result.success) throw new Error(result.error || 'Failed to log skill advancement roll');
-      return result;
-    },
-    onSuccess: () => {
-      toast.success('Skill advancement roll recorded in gang log');
-    },
-    onError: (e: Error) => {
-      toast.error(e?.message || 'Failed to log skill advancement roll');
-    }
+  const skillAdvancementRollLogger = useRollLogger<{
+    skill_set_name: string;
+    skill_set_access_label: string;
+    acquisition_type_label: string;
+    outcome_label: string;
+    dice_data: Record<string, unknown>;
+  }>({
+    log: (variables) => verifyAndLogRolledSkillAdvancementRoll({
+      fighter_id: fighterId,
+      ...variables
+    }),
+    successMessage: 'Skill advancement roll recorded in gang log',
+    errorMessage: 'Failed to log skill advancement roll',
+    cooldownMs: 0
   });
 
   const applyGangerSpecialistMutation = useMutation({
@@ -1090,24 +1076,22 @@ export function AdvancementModal({
   });
 
   const logGangerResolvedRollWithCooldown = (row: TableEntry, rollTotal: number, dice: number[]) => {
-    if (gangerRollCooldown || logGangerRollMutation.isPending) return false;
-    setGangerRollCooldown(true);
-    try {
-      const combo = GANGER_ADVANCEMENT_COMBO_OPTIONS.find(
-        (o) => o.range[0] === row.range[0] && o.range[1] === row.range[1]
-      );
-      if (combo) {
-        setGangerCostsUserOverride(false);
-        setGangerSelectedRowId(combo.id);
-      }
-      logGangerRollMutation.mutate({
-        outcome_label: row.name,
-        dice_data: { result: rollTotal, dice }
-      });
-      return true;
-    } finally {
-      setTimeout(() => setGangerRollCooldown(false), 2000);
+    // Selecting the rolled row is part of accepting the roll, so it stays behind
+    // the same guard: a refused double-click must not move the selection either.
+    const accepted = gangerRollLogger.logRoll({
+      outcome_label: row.name,
+      dice_data: { result: rollTotal, dice }
+    });
+    if (!accepted) return false;
+
+    const combo = GANGER_ADVANCEMENT_COMBO_OPTIONS.find(
+      (o) => o.range[0] === row.range[0] && o.range[1] === row.range[1]
+    );
+    if (combo) {
+      setGangerCostsUserOverride(false);
+      setGangerSelectedRowId(combo.id);
     }
+    return true;
   };
 
   const executeGangerPairPurchase = useCallback(
@@ -1285,8 +1269,8 @@ export function AdvancementModal({
     if (!gangerModalRollBuy) return { canBuy: false, pending: false };
     const pending =
       applyGangerSpecialistMutation.isPending ||
-      logGangerSubRollMutation.isPending ||
-      logGangerRollMutation.isPending;
+      gangerSubRollLogger.isPending ||
+      gangerRollLogger.isPending;
     if (!userPermissions?.canEdit) return { canBuy: false, pending };
     if (!gangerSelectedRowId || !gangerSelectedRow) return { canBuy: false, pending };
     if (editableXpCost < 0 || currentXp < editableXpCost) return { canBuy: false, pending };
@@ -1324,8 +1308,8 @@ export function AdvancementModal({
     gangerSelectedSkillIndex,
     gangerSkillsInSet,
     applyGangerSpecialistMutation.isPending,
-    logGangerSubRollMutation.isPending,
-    logGangerRollMutation.isPending
+    gangerSubRollLogger.isPending,
+    gangerRollLogger.isPending
   ]);
 
   const gangerCostsDepsKey = `${gangerModalRollBuy}-${gangerSelectedRow?.kind}-${gangerPairStatName}-${gangerCostsUserOverride}`;
@@ -1353,12 +1337,11 @@ export function AdvancementModal({
       toast.error('No skills in this set (or still loading)');
       return;
     }
-    if (logGangerSubRollMutation.isPending) return;
     const r = roll(gangerSkillsInSet.length);
     const chosen = gangerSkillsInSet[r - 1];
     setGangerSkillPickRoll(r);
     setGangerSelectedSkillIndex(r - 1);
-    logGangerSubRollMutation.mutate({
+    gangerSubRollLogger.logRoll({
       outcome_label: `Specialist — Skill: ${chosen.skill_name}`,
       dice_data: {
         result: r,
@@ -1370,7 +1353,6 @@ export function AdvancementModal({
   };
 
   const rollSkillFromSet = useCallback(() => {
-    if (logSkillAdvancementRollMutation.isPending) return;
     const pool = availableAdvancements.filter((a) => a.is_available !== false);
     if (pool.length === 0) {
       toast.error('No available skills in this set');
@@ -1411,7 +1393,7 @@ export function AdvancementModal({
         ? 'Promotion to Champion'
         : sample?.available_acquisition_types?.find((t) => t.type_id === skillAcquisitionType)?.name ??
           skillAcquisitionType;
-    logSkillAdvancementRollMutation.mutate({
+    skillAdvancementRollLogger.logRoll({
       skill_set_name: skillSetName,
       skill_set_access_label: skillSetAccessLabel,
       acquisition_type_label: acquisitionTypeLabel,
@@ -1436,7 +1418,7 @@ export function AdvancementModal({
     skillAccess,
     skillAcquisitionType,
     advancementType,
-    logSkillAdvancementRollMutation
+    skillAdvancementRollLogger
   ]);
 
   const gangerAdvancementComboboxOptions = useMemo(
@@ -1996,9 +1978,6 @@ export function AdvancementModal({
     }
   };
 
-  const isGangerOrExoticBeastRestricted =
-    fighterSubtypes.includes('Ganger') || fighterSubtypes.includes('Exotic Beast');
-
   const handleAdvancementPurchase = async () => {
     if (gangerModalRollBuy) {
       setGangerPurchaseBusy(true);
@@ -2095,8 +2074,8 @@ export function AdvancementModal({
     championPurchaseBusy ||
     applyGangerSpecialistMutation.isPending ||
     applyChampionPromotionMutation.isPending ||
-    logGangerSubRollMutation.isPending ||
-    logGangerRollMutation.isPending;
+    gangerSubRollLogger.isPending ||
+    gangerRollLogger.isPending;
 
   const buyAdvancementDisabled = gangerModalRollBuy
     ? !gangerBuyUi.canBuy || purchaseBlockingBusy || gangerBuyUi.pending
@@ -2140,11 +2119,18 @@ export function AdvancementModal({
         <div className="p-2 overflow-y-auto grow">
           <div className="mb-4">
             <p className="text-sm text-muted-foreground mb-2">
-              XP cost and rating increase are automatically calculated based on the type and number of advancements.
+              {isCumulativeXp
+                ? 'Advancements are earned by rank and cost no XP. Roll 2D6, then take any result you rolled high enough for.'
+                : 'XP cost and rating increase are automatically calculated based on the type and number of advancements.'}
             </p>
           </div>
 
-          {userPermissions &&
+          {isCumulativeXp && userPermissions && (
+            <N26AdvancementPanel fighterId={fighterId} canEdit={!!userPermissions.canEdit} />
+          )}
+
+          {!isCumulativeXp &&
+            userPermissions &&
             onFighterDetailsUpdate &&
             (fighterSubtypes.includes('Ganger') || fighterSubtypes.includes('Exotic Beast')) && (
               <div className="mb-4 space-y-4">
@@ -2179,9 +2165,8 @@ export function AdvancementModal({
                     buttonText="Roll 2D6"
                     disabled={
                       !userPermissions.canEdit ||
-                      logGangerRollMutation.isPending ||
-                      logGangerSubRollMutation.isPending ||
-                      gangerRollCooldown
+                      gangerRollLogger.disabled ||
+                      gangerSubRollLogger.isPending
                     }
                   />
                 </div>
@@ -2301,7 +2286,7 @@ export function AdvancementModal({
                           onClick={rollGangerSkillInSet}
                           disabled={
                             !userPermissions.canEdit ||
-                            logGangerSubRollMutation.isPending
+                            gangerSubRollLogger.disabled
                           }
                         >
                           Roll for Skill
@@ -2352,7 +2337,7 @@ export function AdvancementModal({
             )}
 
           <div className="space-y-4">
-          {!isGangerOrExoticBeastRestricted && (
+          {!isGangerOrExoticBeastSubtype && (
             <>
             <div className="relative">
               <Combobox
@@ -2440,7 +2425,7 @@ export function AdvancementModal({
                           onClick={rollSkillFromSet}
                           disabled={
                             !userPermissions?.canEdit ||
-                            logSkillAdvancementRollMutation.isPending ||
+                            skillAdvancementRollLogger.disabled ||
                             availableAdvancements.filter((a) => a.is_available !== false).length === 0
                           }
                         >
@@ -2565,7 +2550,7 @@ export function AdvancementModal({
                           onClick={rollSkillFromSet}
                           disabled={
                             !userPermissions?.canEdit ||
-                            logSkillAdvancementRollMutation.isPending ||
+                            skillAdvancementRollLogger.disabled ||
                             availableAdvancements.filter((a) => a.is_available !== false).length === 0
                           }
                         >
@@ -2603,7 +2588,9 @@ export function AdvancementModal({
             </>
           )}
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className={isCumulativeXp ? '' : 'grid grid-cols-2 gap-4'}>
+              {/* No XP is spent in a rank-based edition, so there is no cost to show. */}
+              {!isCumulativeXp && (
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
                   XP Cost
@@ -2619,6 +2606,7 @@ export function AdvancementModal({
                   min="0"
                 />
               </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Cost Increase in Credits

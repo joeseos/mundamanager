@@ -4,6 +4,7 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { FighterDetailsStatsTable } from '../ui/fighter-details-stats-table';
 import { hasSaveCharacteristic } from '@/types/edition';
+import { LevelUpBadge } from '@/components/ui/level-up-badge';
 import { memo } from 'react';
 import { calculateAdjustedStats } from '@/utils/effect-modifiers';
 import { FighterProps, FighterEffect, Vehicle } from '@/types/fighter';
@@ -51,11 +52,17 @@ interface FighterDetailsCardProps {
   save?: number | null;
   edition_slug?: string | null;
   xp: number;
+  starting_xp?: number;
   total_xp?: number;
   advancements?: {
     characteristics: Record<string, any>;
     skills: Record<string, any>;
   };
+  /**
+   * The fighter's actual skill rows. Distinct from `advancements.skills`, which
+   * the server does not populate on first load.
+   */
+  skills?: Record<string, { is_advance?: boolean }>;
   onNameUpdate?: (name: string) => void;
   onAddXp?: () => void;
   onEdit?: () => void;
@@ -243,7 +250,9 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   save,
   edition_slug,
   xp,
+  starting_xp = 0,
   advancements,
+  skills,
   onAddXp,
   onEdit,
   killed,
@@ -457,6 +466,13 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
             {starved && <TbMeatOff className="text-red-500" />}
             {recovery && <FaMedkit className="text-blue-500" />}
             {captured && <GiHandcuffs className="text-sky-300" />}
+            <LevelUpBadge
+              editionSlug={edition_slug}
+              startingXp={starting_xp}
+              xp={xp}
+              effects={effects}
+              skills={skills}
+            />
           </div>
 
           {/* Profile picture of the fighter */}

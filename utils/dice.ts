@@ -347,3 +347,45 @@ export const resolveGangerExoticBeastAdvancementRangeFromUtilByName = (
   const entry = GANGER_EXOTIC_BEAST_ADVANCEMENT_TABLE.find((e) => e.name === name);
   return entry?.range;
 };
+
+// ============================================================================
+// N26 Advancement - 2D6 table
+// ============================================================================
+
+/**
+ * One result on the N26 Advancement table.
+ *
+ * `credits` is the rulebook's Credits Value increase for the result, shown for
+ * reference while choosing. It is NOT what gets applied — the figure the app
+ * charges comes from the fighter_effect_types row via
+ * get_fighter_available_advancements, so a catalog correction takes effect
+ * without touching this table.
+ */
+export type N26AdvancementEntry = {
+  range: [number, number];
+  name: string;
+  credits: number;
+};
+
+/**
+ * The player may take any result they rolled at or above, so a roll sets an
+ * upper bound rather than picking a row. Nothing here enforces that: the roll is
+ * logged and the player selects a result, matching how the N23 Ganger table
+ * already behaves.
+ */
+export const N26_ADVANCEMENT_TABLE: N26AdvancementEntry[] = [
+  { range: [2, 2],   name: '+1 Leadership, +1 Intelligence or a random Primary skill', credits: 5 },
+  { range: [3, 4],   name: '+1 Cool or +1 Willpower',                                  credits: 5 },
+  { range: [5, 5],   name: 'A new Primary skill or a random Secondary skill',          credits: 10 },
+  { range: [6, 6],   name: '+1 Initiative or +1" Movement',                            credits: 10 },
+  { range: [7, 8],   name: 'A new Secondary skill',                                    credits: 15 },
+  { range: [9, 9],   name: '+1 Weapon Skill or +1 Ballistic Skill',                    credits: 15 },
+  { range: [10, 10], name: '+1 Strength or +1 Toughness',                              credits: 20 },
+  { range: [11, 11], name: '+1 Wounds, +1 Attacks or +1 Save',                         credits: 20 },
+  // A 12 lifts the Skill Set restriction entirely — any set, including sets
+  // exclusive to other gangs. The model's own Type/Subtype gate still applies.
+  { range: [12, 12], name: 'Any skill',                                                credits: 30 },
+];
+
+export const resolveN26AdvancementFromUtil = (roll: number): N26AdvancementEntry | undefined =>
+  N26_ADVANCEMENT_TABLE.find((e) => roll >= e.range[0] && roll <= e.range[1]);
