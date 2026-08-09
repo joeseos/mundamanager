@@ -3,6 +3,7 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { FighterEffect, FighterSkills } from '@/types/fighter';
 import { toast } from 'sonner';
+import { useRollLogger } from '@/hooks/use-roll-logger';
 import Modal from '@/components/ui/modal';
 import { List } from "@/components/ui/list";
 import { Button } from '@/components/ui/button';
@@ -106,7 +107,6 @@ export function InjuriesList({
   const [showEquipmentSelection, setShowEquipmentSelection] = useState(false);
   const [targetEquipmentId, setTargetEquipmentId] = useState<string | null>(null);
   const [isEffectSelectionValid, setIsEffectSelectionValid] = useState(false);
-  const [injuryRollCooldown, setInjuryRollCooldown] = useState(false);
   const [selectedCapturingGangId, setSelectedCapturingGangId] = useState<string>('');
   const [selectedHatredTargetId, setSelectedHatredTargetId] = useState<string>('');
   // First step of the fighter picker only — narrows the fighter list, never submitted.
@@ -568,36 +568,24 @@ export function InjuriesList({
     },
   });
 
-  // TanStack Query mutation for logging rolled injury results
-  const logInjuryRollMutation = useMutation({
-    mutationFn: async (variables: { 
-      fighter_id: string; 
-      injury_type_id: string;
-      injury_table: string;
-      dice_data: any;
-    }) => {
-      const result = await verifyAndLogRolledFighterInjury({
-        fighter_id: variables.fighter_id,
-        injury_type_id: variables.injury_type_id,
-        injury_table: variables.injury_table,
-        dice_data: variables.dice_data
-      });
+  // Logging of rolled injury results. The server message is prefixed here rather
+  // than in the hook, so the toast keeps its existing "Failed to log lasting
+  // injury: <reason>" shape.
+  const injuryRollLogger = useRollLogger<{
+    fighter_id: string;
+    injury_type_id: string;
+    injury_table: string;
+    dice_data: any;
+  }>({
+    log: async (variables) => {
+      const result = await verifyAndLogRolledFighterInjury(variables);
+      if (result.success) return result;
 
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to log lasting injury');
-      }
-      return result;
-    },
-    onSuccess: (result, variables, context) => {
-      const statusMessage: string[] = [];
-      
-      const successText = is_spyrer ? 'Rig glitch logged successfully' : 'Lasting injury logged successfully';
-      toast.success(`${successText}${statusMessage.length > 0 ? ` and ${statusMessage.join(' and ')}` : ''}`);
-    },
-    onError: (error, variables, context) => {
       const errorText = is_spyrer ? 'Failed to log rig glitch' : 'Failed to log lasting injury';
-      toast.error(`${errorText}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+      return { success: false, error: `${errorText}: ${result.error || 'Unknown error'}` };
+    },
+    successMessage: is_spyrer ? 'Rig glitch logged successfully' : 'Lasting injury logged successfully',
+    errorMessage: is_spyrer ? 'Failed to log rig glitch' : 'Failed to log lasting injury'
   });
 
   // Helper function to format the range display
@@ -617,49 +605,26 @@ export function InjuriesList({
     return min === max ? `${min}` : `${min}-${max}`;
   };
 
-  // Coordinates applying a resolved dice roll:
-  // - Guards against duplicate submissions
-  // - Applies UI selection state
-  // - Logs the roll to the server
-  // - Enforces a short cooldown to prevent spam
-  const logResolvedRollWithCooldown = (injury: FighterEffect, roll: number) => {  
-    if (injuryRollCooldown || logInjuryRollMutation.isPending) {
-      return false;
-    }
-
-    setInjuryRollCooldown(true);
-
-    // Ensure the cooldown is always released once it has been set
-    try {
-      selectRolledInjury(injury);
-      logRolledInjury(injury, roll);
-      return true;      
-    } finally {
-      // Cooldown to prevent rapid re-rolling and excessive logging
-      setTimeout(() => setInjuryRollCooldown(false), 2000);
-    }
-  };
-
-  // Updates local UI state to reflect the injury produced by a dice roll.
-  // This is purely a UI concern and does not trigger any persistence.
-  const selectRolledInjury = (injury: FighterEffect) => {
-    setSelectedInjuryId(injury.id);
-    setSelectedInjury(injury);
-  };
-  
-  // Persists a resolved dice roll to the backend for auditing / verification.
-  // Fire-and-forget mutation; success and error handling are managed by the mutation.
-  const logRolledInjury = (injury: FighterEffect, roll: number) => {
+  // Coordinates applying a resolved dice roll: logs it to the server (the hook
+  // guards against duplicate submissions and enforces the cooldown), then applies
+  // the UI selection. The selection is deliberately behind the same guard — a
+  // refused double-click must not move the selection either.
+  const logResolvedRollWithCooldown = (injury: FighterEffect, roll: number) => {
     const injuryTable = is_spyrer
       ? 'Rig Glitch'
       : (isCrew ? 'Lasting Injury Crew' : 'Lasting Injury');
 
-    logInjuryRollMutation.mutate({
+    const accepted = injuryRollLogger.logRoll({
       fighter_id: fighterId,
       injury_type_id: injury.id,
       injury_table: injuryTable,
       dice_data: { result: roll }
     });
+    if (!accepted) return false;
+
+    setSelectedInjuryId(injury.id);
+    setSelectedInjury(injury);
+    return true;
   };
 
   const fetchAvailableInjuries = useCallback(async () => {
@@ -1019,8 +984,7 @@ export function InjuriesList({
           buttonText="Roll D66"
           disabled={
             !userPermissions.canEdit ||
-            logInjuryRollMutation.isPending ||
-            injuryRollCooldown
+            injuryRollLogger.disabled
           }
         />
       </div>

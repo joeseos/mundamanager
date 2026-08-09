@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { FighterEffect } from '@/types/fighter';
 import { toast } from 'sonner';
+import { useRollLogger } from '@/hooks/use-roll-logger';
 import Modal from '../ui/modal';
 import { Checkbox } from "@/components/ui/checkbox";
 import DiceRoller from '@/components/dice-roller';
@@ -68,41 +69,26 @@ export function VehicleDamagesList({
   const [selectedDamageId, setSelectedDamageId] = useState<string>('');
   const [isRepairModalOpen, setIsRepairModalOpen] = useState(false);
   const [selectedRepairTypeId, setSelectedRepairTypeId] = useState<string>('');
-  const [damageRollCooldown, setDamageRollCooldown] = useState(false);
 
   const queryClient = useQueryClient();
 
-  const logDamageRollMutation = useMutation({
-    mutationFn: async (variables: {
-      vehicle_id: string;
-      fighter_id: string;
-      gang_id: string;
-      damage_type_id: string;
-      damage_table: string;
-      dice_data: { result: number };
-    }) => {
-      const result = await verifyAndLogRolledVehicleDamage({
-        vehicle_id: variables.vehicle_id,
-        fighter_id: variables.fighter_id,
-        gang_id: variables.gang_id,
-        damage_type_id: variables.damage_type_id,
-        damage_table: variables.damage_table,
-        dice_data: variables.dice_data
-      });
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to log vehicle damage roll');
-      }
-      return result;
-    },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Failed to log vehicle damage roll');
-    }
+  // No success toast here, unlike the injury and advancement rollers: applying
+  // the damage already reports itself, and this only records the roll.
+  const damageRollLogger = useRollLogger<{
+    vehicle_id: string;
+    fighter_id: string;
+    gang_id: string;
+    damage_type_id: string;
+    damage_table: string;
+    dice_data: { result: number };
+  }>({
+    log: (variables) => verifyAndLogRolledVehicleDamage(variables),
+    errorMessage: 'Failed to log vehicle damage roll'
   });
 
   const logResolvedDamageRollWithCooldown = (damage: { id: string; effect_name: string }, roll: number) => {
-    if (!vehicleId || damageRollCooldown || logDamageRollMutation.isPending) return;
-    setDamageRollCooldown(true);
-    logDamageRollMutation.mutate({
+    if (!vehicleId) return;
+    damageRollLogger.logRoll({
       vehicle_id: vehicleId,
       fighter_id: fighterId,
       gang_id: gangId,
@@ -110,7 +96,6 @@ export function VehicleDamagesList({
       damage_table: 'Lasting Damage',
       dice_data: { result: roll }
     });
-    setTimeout(() => setDamageRollCooldown(false), 2000);
   };
 
   const VEHICLE_DAMAGE_CATEGORY_ID = 'a993261a-4172-4afb-85bf-f35e78a1189f';
@@ -465,7 +450,7 @@ export function VehicleDamagesList({
               return resolveVehicleDamageFromUtil(roll);
             }}
             buttonText="Roll D6"
-            disabled={!userPermissions.canEdit || logDamageRollMutation.isPending || damageRollCooldown}
+            disabled={!userPermissions.canEdit || damageRollLogger.disabled}
             onRolled={(rolled) => {
               if (rolled.length === 0) return;
               const roll = rolled[0].roll;
@@ -646,7 +631,7 @@ export function VehicleDamagesList({
                     return resolveVehicleDamageFromUtil(roll);
                   }}
                   buttonText="Roll D6"
-                  disabled={!userPermissions.canEdit || logDamageRollMutation.isPending || damageRollCooldown}
+                  disabled={!userPermissions.canEdit || damageRollLogger.disabled}
                   onRolled={(rolled) => {
                     if (rolled.length === 0) return;
                     const roll = rolled[0].roll;
