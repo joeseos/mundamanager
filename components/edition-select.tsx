@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Edition } from '@/types/edition';
 
@@ -46,14 +46,22 @@ export const editionSlugOf = (editions: Edition[], editionId?: string | null): s
 export function EditionSelect({ value, onChange, defaultToCurrent = false, label = 'Edition' }: EditionSelectProps) {
   const { data: editions = [] } = useEditions();
 
-  // Create/edit forms (defaultToCurrent) must always have an edition: fill the
-  // current one whenever value is empty. Filter contexts omit defaultToCurrent
-  // so an explicit blank "all editions" selection can stick.
+  // Default only once per mount for create/edit forms. Do NOT re-fire when an
+  // existing catalog row with edition_id null clears value — is_current is only
+  // a UI default, never an assignment onto stored rows.
+  const hasDefaulted = useRef(false);
   useEffect(() => {
-    if (!defaultToCurrent || value || editions.length === 0) return;
+    if (hasDefaulted.current || editions.length === 0) return;
+    hasDefaulted.current = true;
+    if (!defaultToCurrent || value) return;
     const current = editions.find(edition => edition.is_current);
     if (current) onChange(current.id);
   }, [defaultToCurrent, value, editions, onChange]);
+
+  // Filter contexts keep a blank "all editions" choice. Create/edit forms omit
+  // it once a value is set; if value is empty (e.g. a legacy null edition_id
+  // row), keep the blank option so that null is visible and preservable.
+  const showBlankOption = !defaultToCurrent || !value;
 
   return (
     <div>
@@ -65,9 +73,7 @@ export function EditionSelect({ value, onChange, defaultToCurrent = false, label
         onChange={(e) => onChange(e.target.value)}
         className="w-full p-2 border rounded-md"
       >
-        {/* Create/edit forms that default to the current edition always need one
-            selected; omit the blank option so "All Editions" isn't available. */}
-        {!defaultToCurrent && <option value="">Select edition</option>}
+        {showBlankOption && <option value="">Select edition</option>}
         {editions.map((edition) => (
           <option key={edition.id} value={edition.id}>
             {edition.name}

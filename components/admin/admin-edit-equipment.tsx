@@ -1635,10 +1635,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         // First sort by gang type
                         const gangCompare = a.gang_type.localeCompare(b.gang_type);
                         if (gangCompare !== 0) return gangCompare;
-                        // Then by fighter subtype priority
+                        // Then by fighter subtype priority (per fighter type's own edition)
                         const subtypeCompare =
-                          getFighterSubtypeSortRank(a.fighter_subtypes, editionSlug)
-                          - getFighterSubtypeSortRank(b.fighter_subtypes, editionSlug);
+                          getFighterSubtypeSortRank(a.fighter_subtypes, editionSlugOf(editions, a.edition_id))
+                          - getFighterSubtypeSortRank(b.fighter_subtypes, editionSlugOf(editions, b.edition_id));
                         if (subtypeCompare !== 0) return subtypeCompare;
                         // Finally by fighter type name
                         return a.fighter_type.localeCompare(b.fighter_type);
