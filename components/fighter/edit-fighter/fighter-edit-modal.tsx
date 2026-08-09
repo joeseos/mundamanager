@@ -12,7 +12,6 @@ import { toast } from 'sonner';
 import { applySpecialRulesModifiers } from '@/utils/effect-modifiers';
 import { fighterSubtypeRank } from '@/utils/fighterSubtypeRank';
 import { isArchetypeEligible, mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';
-import { rosterFighterTypesQuery } from '@/utils/fighter-type-query';
 import { SkillAccessModal } from './skill-access-modal';
 import { FighterCharacteristicTable } from './fighter-characteristic-table';
 import { CharacterStatsModal } from './character-stats-modal';
@@ -108,14 +107,25 @@ export function EditFighterModal({
   });
   
   // Retyping stays within the fighter's own catalog: a vehicle can become another
-  // vehicle, but never a Ganger, and vice versa.
+  // vehicle, but never a Ganger, and vice versa. The flag is part of the key too,
+  // since the promotion modals share it.
+  const isVehicleFighter = Boolean(fighter.is_vehicle);
+
   const { data: fetchedFighterTypes } = useQuery({
-    ...rosterFighterTypesQuery({
-      gangId,
-      gangTypeId,
-      customGangTypeId,
-      isVehicle: Boolean(fighter.is_vehicle),
-    }),
+    queryKey: ['fighter-types-edit', gangId, gangTypeId, customGangTypeId, isVehicleFighter],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        gang_id: gangId,
+        is_gang_addition: 'false',
+        is_vehicle: String(isVehicleFighter)
+      });
+      if (gangTypeId) params.set('gang_type_id', gangTypeId);
+      if (customGangTypeId) params.set('custom_gang_type_id', customGangTypeId);
+
+      const response = await fetch(`/api/fighter-types?${params}`);
+      if (!response.ok) throw new Error('Failed to fetch fighter types');
+      return response.json();
+    },
     enabled: isOpen,
     staleTime: 10 * 60 * 1000,
   });
