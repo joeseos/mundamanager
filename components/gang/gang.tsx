@@ -1317,6 +1317,7 @@ export default function Gang({
                 gangId={id}
                 gangTypeId={gang_type_id}
                 customGangTypeId={custom_gang_type_id}
+                editionSlug={edition_slug}
                 initialCredits={credits}
                 onFighterAdded={handleFighterAdded}
                 onFighterRollback={onFighterRollback}
