@@ -528,9 +528,7 @@ export async function PATCH(request: Request) {
         willpower: data.willpower,
         intelligence: data.intelligence,
         save: data.save ?? null,
-        // Omitted when the client sends nothing, so the column default applies.
-        // Writing an explicit 0 here would make that default unreachable.
-        ...(data.starting_xp != null ? { starting_xp: data.starting_xp } : {}),
+        starting_xp: data.starting_xp,
         special_rules: data.special_rules,
         free_skill: data.free_skill,
         is_gang_addition: data.is_gang_addition,

@@ -1215,8 +1215,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         intelligence: parseInt(intelligence),
         attacks: parseInt(attacks),
         save: showSave && save ? parseInt(save) : null,
-        // See admin-create-fighter-type: blank on an edition that has Starting XP
-        // defers to the column default, editions without it pin 0.
+        // Editions without Starting XP pin 0, as in admin-create-fighter-type.
+        // Blank sends nothing, which leaves the stored value untouched.
         ...(showStartingXp
           ? (startingXp ? { starting_xp: parseInt(startingXp) } : {})
           : { starting_xp: 0 }),
