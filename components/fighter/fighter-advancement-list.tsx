@@ -2337,6 +2337,7 @@ export function AdvancementModal({
                   currentFighterTypeId={fighterTypeId}
                   currentFighterSpecialisationId={fighterSpecialisationId || undefined}
                   fighterTypes={preFetchedFighterTypes}
+                  editionSlug={editionSlug}
                   isOpen={gangerPromotionOpen}
                   onClose={() => setGangerPromotionOpen(false)}
                   onPromoted={(data) => {
@@ -2478,6 +2479,7 @@ export function AdvancementModal({
                     currentFighterTypeId={fighterTypeId}
                     currentFighterSpecialisationId={fighterSpecialisationId || undefined}
                     fighterTypes={preFetchedFighterTypes}
+                    editionSlug={editionSlug}
                     isOpen={championPromotionOpen}
                     onClose={() => setChampionPromotionOpen(false)}
                     onPromoted={(data) => {
@@ -3050,6 +3052,7 @@ export function AdvancementsList({
         currentFighterTypeId={fighterTypeId}
         currentFighterSpecialisationId={fighterSpecialisationId || undefined}
         fighterTypes={preFetchedFighterTypes}
+        editionSlug={editionSlug}
         isOpen={isStandalonePromotionOpen}
         onClose={() => setIsStandalonePromotionOpen(false)}
         showXpPromotionHint

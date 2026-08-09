@@ -26,7 +26,7 @@ import { updateGangPositioning } from '@/app/actions/update-gang-positioning';
 import { FaRegCopy } from 'react-icons/fa';
 import CopyGangModal from './copy-gang-modal';
 import { Tooltip } from 'react-tooltip';
-import { fighterSubtypeRank } from '@/utils/fighterSubtypeRank';
+import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { GangImageEditModal } from './gang-image-edit-modal';
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -320,26 +320,29 @@ export default function Gang({
 
   // Fighters composition for tooltip: group by fighter_type and fighter_subtypes
   const fighterTypeSubtypeCounts = useMemo(() => {
-    const counts = new Map<string, { label: string; count: number; subtypeKey: string }>();
+    const counts = new Map<string, { label: string; count: number; subtypes: string[] }>();
     for (const fighter of activeFighters) {
       const typeLabel = fighter.fighter_type || 'Unknown Type';
       const subtypeLabel = fighter.fighter_subtypes?.join(', ') || 'Unknown Subtype';
       const key = `${typeLabel} (${subtypeLabel})`;
-      const subtypeKey = (fighter.fighter_subtypes?.[0] || 'unknown').toLowerCase();
       const existing = counts.get(key);
       if (existing) {
         existing.count += 1;
       } else {
-        counts.set(key, { label: key, count: 1, subtypeKey });
+        counts.set(key, {
+          label: key,
+          count: 1,
+          subtypes: fighter.fighter_subtypes ?? [],
+        });
       }
     }
     return Array.from(counts.values()).sort((a, b) => {
-      const rankA = fighterSubtypeRank[a.subtypeKey] ?? Infinity;
-      const rankB = fighterSubtypeRank[b.subtypeKey] ?? Infinity;
+      const rankA = getFighterSubtypeSortRank(a.subtypes, edition_slug);
+      const rankB = getFighterSubtypeSortRank(b.subtypes, edition_slug);
       if (rankA !== rankB) return rankA - rankB;
       return a.label.localeCompare(b.label);
     });
-  }, [activeFighters]);
+  }, [activeFighters, edition_slug]);
 
   const fighterTypeSubtypeTotal = useMemo(() => {
     return fighterTypeSubtypeCounts.reduce((sum, item) => sum + item.count, 0);
@@ -1294,6 +1297,7 @@ export default function Gang({
               gangId={id}
               gangTypeId={gang_type_id}
               customGangTypeId={custom_gang_type_id}
+              editionSlug={edition_slug}
               initialCredits={credits}
               onFighterAdded={handleFighterAdded}
               onFighterRollback={onFighterRollback}
@@ -1326,6 +1330,7 @@ export default function Gang({
               setShowModal={setShowGangAdditionsModal}
               gangId={id}
               gangTypeId={gang_type_id}
+              editionSlug={edition_slug}
               initialCredits={credits}
               onFighterAdded={handleFighterAdded}
               onFighterRollback={onFighterRollback}

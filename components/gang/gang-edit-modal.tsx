@@ -9,7 +9,7 @@ import { Combobox } from "@/components/ui/combobox";
 import Modal from '@/components/ui/modal';
 import { toast } from 'sonner';
 import { HexColorPicker } from "react-colorful";
-import { allianceRank } from "@/utils/allianceRank";
+import { getAllianceRank } from "@/utils/allianceRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
 import { useQuery } from '@tanstack/react-query';
 import { ResourceUpdate } from '@/types/gang';
@@ -186,7 +186,13 @@ export default function GangEditModal({
   const [resourceDeltas, setResourceDeltas] = useState<Record<string, string>>({});
 
   // Alliance management state
-  const [allianceList, setAllianceList] = useState<Array<{id: string, alliance_name: string, strong_alliance: string, edition_slug?: string | null}>>([]);
+  const [allianceList, setAllianceList] = useState<Array<{
+    id: string;
+    alliance_name: string;
+    alliance_type?: string | null;
+    strong_alliance: string;
+    edition_slug?: string | null;
+  }>>([]);
   const [allianceListLoaded, setAllianceListLoaded] = useState(false);
   const editionAllianceList = allianceList.filter(alliance =>
     sameEditionForDisplay(alliance.edition_slug, editionSlug)
@@ -709,29 +715,28 @@ export default function GangEditModal({
               return [];
             }
 
-            const groupLabelConfig = [
-              { label: "Criminal Organisations", maxRank: 9 },
-              { label: "Merchant Guilds", maxRank: 19 },
-              { label: "Noble Houses", maxRank: 29 },
-              { label: "Other Alliances", maxRank: Infinity },
+            const allianceTypeGroupOrder = [
+              "Criminal Organisations",
+              "Merchant Guilds",
+              "Noble Houses",
+              "Other Alliances",
             ];
 
-            const getGroupLabelFromRank = (rank: number): string => {
-              for (const entry of groupLabelConfig) {
-                if (rank <= entry.maxRank) {
-                  return entry.label;
-                }
-              }
+            const allianceTypeGroupLabel = (allianceType: string | null | undefined): string => {
+              const raw = (allianceType || "").trim().toLowerCase();
+              if (raw === "criminal") return "Criminal Organisations";
+              if (raw === "merchant guilds") return "Merchant Guilds";
+              if (raw === "noble houses") return "Noble Houses";
               return "Other Alliances";
             };
 
             const groupLabelRank: Record<string, number> = Object.fromEntries(
-              groupLabelConfig.map((entry, index) => [entry.label, index + 1])
+              allianceTypeGroupOrder.map((label, index) => [label, index + 1])
             );
 
+            const allianceRank = getAllianceRank(editionSlug);
             const groupedAlliances = editionAllianceList.reduce((groups, alliance) => {
-              const rank = allianceRank[alliance.alliance_name.toLowerCase()] ?? Infinity;
-              const groupLabel = getGroupLabelFromRank(rank);
+              const groupLabel = allianceTypeGroupLabel(alliance.alliance_type);
 
               if (!groups[groupLabel]) groups[groupLabel] = [];
               groups[groupLabel].push(alliance);

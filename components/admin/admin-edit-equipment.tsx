@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { FighterType } from "@/types/fighter";
 import { WeaponProfileInput, emptyWeaponProfile, EquipmentGrants, EquipmentAvailability, EquipmentOriginAvailability, EquipmentVariantAvailability, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
 import { HiX } from "react-icons/hi";
-import { fighterSubtypeRank } from "@/utils/fighterSubtypeRank";
+import { getFighterSubtypeSortRank } from "@/utils/fighterSubtypeRank";
 import { gangOriginRank } from "@/utils/gangOriginRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
 import { AdminFighterEffects } from "./admin-fighter-effects";
@@ -1636,8 +1636,9 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         const gangCompare = a.gang_type.localeCompare(b.gang_type);
                         if (gangCompare !== 0) return gangCompare;
                         // Then by fighter subtype priority
-                        const subtypeCompare = (fighterSubtypeRank[(a.fighter_subtypes?.[0] || '').toLowerCase() as keyof typeof fighterSubtypeRank] || Infinity)
-                          - (fighterSubtypeRank[(b.fighter_subtypes?.[0] || '').toLowerCase() as keyof typeof fighterSubtypeRank] || Infinity);
+                        const subtypeCompare =
+                          getFighterSubtypeSortRank(a.fighter_subtypes, editionSlug)
+                          - getFighterSubtypeSortRank(b.fighter_subtypes, editionSlug);
                         if (subtypeCompare !== 0) return subtypeCompare;
                         // Finally by fighter type name
                         return a.fighter_type.localeCompare(b.fighter_type);

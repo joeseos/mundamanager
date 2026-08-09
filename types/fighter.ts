@@ -244,7 +244,7 @@ export interface FighterProps {
   selected_archetype_id?: string | null; // ID of the selected skill archetype (for Underhive Outcasts)
 }
 
-// Update the FIGHTER_SUBTYPES to include all subtypes from fighterSubtypeRank
+// Update the FIGHTER_SUBTYPES to include all subtypes from fighterSubtypeRankN23 / fighterSubtypeRankN26
 export const FIGHTER_SUBTYPES = [
   'Leader',
   'Champion',
