@@ -1347,7 +1347,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       .from('fighters')
       .update(updateData)
       .eq('id', params.fighter_id)
-      .select('id, fighter_name, label, kills, kill_count, cost_adjustment')
+      .select('id, fighter_name, label, kills, kill_count, cost_adjustment, fighter_subtypes')
       .single();
 
     if (updateError) throw updateError;
