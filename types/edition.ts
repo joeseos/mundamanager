@@ -116,7 +116,11 @@ const EDITION_CAPABILITIES = {
    * written into Traits on N26 profiles.
    */
   lethalityStatline:        { n23: false, n26: true  },
-  /** Fighter types can be vehicles */
+  /**
+   * Fighter types can be vehicles (fighter_types.is_vehicle), and the Add Vehicle
+   * catalog is drawn from them. When false, vehicles are a catalog of their own
+   * (vehicle_types) and are assigned to a Crew fighter rather than being fighters.
+   */
   vehicles:                 { n23: false, n26: true  },
   /** Equipment categories group under UI-only super-categories in the modal */
   equipmentSuperCategories: { n23: false, n26: true  },

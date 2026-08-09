@@ -90,8 +90,78 @@ function transformCustomFighter(cf: any) {
     available_legacies: [],
     is_custom_fighter: true,
     free_skill: cf.free_skill || false,
-    delegation_cost: cf.delegation_cost ?? null
+    delegation_cost: cf.delegation_cost ?? null,
+    is_vehicle: cf.is_vehicle ?? false
   };
+}
+
+// null means "no filter", which is what callers outside the gang add-modals want.
+function filterByIsVehicle(rows: any[], isVehicleParam: string | null) {
+  if (isVehicleParam === null) return rows;
+  const wantVehicles = isVehicleParam === 'true';
+  return rows.filter((type: any) => Boolean(type.is_vehicle) === wantVehicles);
+}
+
+async function getGangEditionId(
+  supabase: SupabaseServerClient,
+  gangTypeId: string | null,
+  customGangTypeId: string | null
+) {
+  if (gangTypeId) {
+    const { data } = await supabase
+      .from('gang_types')
+      .select('edition_id')
+      .eq('gang_type_id', gangTypeId)
+      .maybeSingle();
+    return data?.edition_id ?? null;
+  }
+  if (customGangTypeId) {
+    const { data } = await supabase
+      .from('custom_gang_types')
+      .select('edition_id')
+      .eq('id', customGangTypeId)
+      .maybeSingle();
+    return data?.edition_id ?? null;
+  }
+  return null;
+}
+
+// Vehicles any gang of this edition may take. N23 spells this as vehicle_types.gang_type_id
+// IS NULL; fighter_types.gang_type_id is NOT NULL, so the equivalent is the edition's
+// "Available to All" gang type. Resolving nothing is normal, not an error.
+async function getAvailableToAllFighterTypes(
+  supabase: SupabaseServerClient,
+  gangTypeId: string | null,
+  customGangTypeId: string | null
+) {
+  const editionId = await getGangEditionId(supabase, gangTypeId, customGangTypeId);
+  if (!editionId) return [];
+
+  const { data: sharedGangType } = await supabase
+    .from('gang_types')
+    .select('gang_type_id')
+    .eq('gang_type', 'Available to All')
+    .eq('edition_id', editionId)
+    .maybeSingle();
+
+  if (!sharedGangType?.gang_type_id) return [];
+
+  const { data, error } = await supabase.rpc('get_fighter_types_with_cost', {
+    p_gang_type_id: sharedGangType.gang_type_id,
+    p_gang_affiliation_id: null,
+    p_is_gang_addition: false
+  });
+
+  if (error) {
+    console.error('Error fetching Available to All fighter types:', error);
+    return [];
+  }
+  return data ?? [];
+}
+
+function mergeById(existing: any[], extra: any[]) {
+  const seen = new Set(existing.map((row: any) => row.id));
+  return [...existing, ...extra.filter((row: any) => !seen.has(row.id))];
 }
 
 export async function GET(request: Request) {
@@ -104,6 +174,8 @@ export async function GET(request: Request) {
   const includeCustomFighters = searchParams.get('include_custom_fighters') === 'true';
   const includeAllGangType = searchParams.get('include_all_gang_type') === 'true';
   const includeAllTypes = searchParams.get('include_all_types') === 'true';
+  // Tri-state: 'true' = vehicles only, 'false' = no vehicles, absent = unfiltered.
+  const isVehicleParam = searchParams.get('is_vehicle');
 
   if (!gangId && !isGangAddition && !includeAllTypes) {
     return NextResponse.json({ error: 'Gang ID is required' }, { status: 400 });
@@ -136,7 +208,11 @@ export async function GET(request: Request) {
         })
         .map(transformCustomFighter);
 
-      return NextResponse.json(data);
+      if (isVehicleParam === 'true') {
+        data = mergeById(data, await getAvailableToAllFighterTypes(supabase, gangTypeId, customGangTypeId));
+      }
+
+      return NextResponse.json(filterByIsVehicle(data, isVehicleParam));
     }
 
     if (includeAllTypes) {
@@ -311,7 +387,12 @@ export async function GET(request: Request) {
       }
     }
 
-    return NextResponse.json(data);
+    // include_all_types already returns every gang type's fighters, shared ones included.
+    if (isVehicleParam === 'true' && !includeAllTypes) {
+      data = mergeById(data, await getAvailableToAllFighterTypes(supabase, gangTypeId, customGangTypeId));
+    }
+
+    return NextResponse.json(filterByIsVehicle(data, isVehicleParam));
   } catch (error) {
     console.error('Error fetching fighter types:', error);
     return NextResponse.json({ error: 'Error fetching fighter types' }, { status: 500 });

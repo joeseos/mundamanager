@@ -92,4 +92,5 @@ export interface FighterType {
   is_dramatis_personae?: boolean;
   is_custom_fighter?: boolean;
   starting_xp?: number;
+  is_vehicle?: boolean;
 }

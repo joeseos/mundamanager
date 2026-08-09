@@ -30,7 +30,7 @@ import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { GangImageEditModal } from './gang-image-edit-modal';
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { hasAlignment, hasTradePoints } from '@/types/edition';
+import { hasAlignment, hasTradePoints, hasVehicles } from '@/types/edition';
 
 
 interface GangProps {
@@ -1307,20 +1307,38 @@ export default function Gang({
             />
           )}
 
+          {/* An edition whose vehicles are fighter types adds them as fighters. */}
           {showAddVehicleModal && (
-            <AddVehicle
-              showModal={showAddVehicleModal}
-              setShowModal={setShowAddVehicleModal}
-              gangId={id}
-              initialCredits={credits}
-              onVehicleAdd={handleVehicleAdded}
-              onGangCreditsUpdate={onGangCreditsUpdate}
-              onGangWealthUpdate={onGangWealthUpdate}
-              fighters={fighters}
-              positioning={positioning}
-              onFighterUpdate={onFighterUpdate}
-              userPermissions={userPermissions}
-            />
+            hasVehicles(edition_slug) ? (
+              <FighterAddModal
+                catalog="vehicles"
+                showModal={showAddVehicleModal}
+                setShowModal={setShowAddVehicleModal}
+                gangId={id}
+                gangTypeId={gang_type_id}
+                customGangTypeId={custom_gang_type_id}
+                initialCredits={credits}
+                onFighterAdded={handleFighterAdded}
+                onFighterRollback={onFighterRollback}
+                onFighterReconcile={onFighterReconcile}
+                gangVariants={gangVariants}
+                gangAffiliationId={gangAffiliationId}
+              />
+            ) : (
+              <AddVehicle
+                showModal={showAddVehicleModal}
+                setShowModal={setShowAddVehicleModal}
+                gangId={id}
+                initialCredits={credits}
+                onVehicleAdd={handleVehicleAdded}
+                onGangCreditsUpdate={onGangCreditsUpdate}
+                onGangWealthUpdate={onGangWealthUpdate}
+                fighters={fighters}
+                positioning={positioning}
+                onFighterUpdate={onFighterUpdate}
+                userPermissions={userPermissions}
+              />
+            )
           )}
 
           {showGangAdditionsModal && (

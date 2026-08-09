@@ -684,12 +684,15 @@ export function AdvancementModal({
     !!userPermissions &&
     !!onFighterDetailsUpdate;
 
+  // Promotions run between fighter subtypes, so vehicles are never a target — and the
+  // modal's "include all gang fighter types" option would otherwise offer them.
   const { data: preFetchedFighterTypes = [] } = useQuery({
-    queryKey: ['fighter-types-edit', gangId, gangTypeId, customGangTypeId],
+    queryKey: ['fighter-types-edit', gangId, gangTypeId, customGangTypeId, false],
     queryFn: async () => {
       const params = new URLSearchParams({
         gang_id: gangId,
-        is_gang_addition: 'false'
+        is_gang_addition: 'false',
+        is_vehicle: 'false'
       });
       if (gangTypeId) params.set('gang_type_id', gangTypeId);
       if (customGangTypeId) params.set('custom_gang_type_id', customGangTypeId);
@@ -2701,11 +2704,12 @@ export function AdvancementsList({
   const showPromoteButton = fighterSubtypes.some(c => ['Ganger', 'Juve', 'Prospect', 'Champion', 'Specialist', 'Exotic Beast', 'Exotic Beast Specialist'].includes(c));
 
   const { data: preFetchedFighterTypes = [] } = useQuery({
-    queryKey: ['fighter-types-edit', gangId, gangTypeId, customGangTypeId],
+    queryKey: ['fighter-types-edit', gangId, gangTypeId, customGangTypeId, false],
     queryFn: async () => {
       const params = new URLSearchParams({
         gang_id: gangId,
-        is_gang_addition: 'false'
+        is_gang_addition: 'false',
+        is_vehicle: 'false'
       });
       if (gangTypeId) params.set('gang_type_id', gangTypeId);
       if (customGangTypeId) params.set('custom_gang_type_id', customGangTypeId);
