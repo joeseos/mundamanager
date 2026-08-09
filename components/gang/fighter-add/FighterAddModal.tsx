@@ -8,9 +8,11 @@ import { FighterProps, Archetype } from '@/types/fighter';
 import { toast } from 'sonner';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { getGangAdditionRank, getGangAdditionSortRank } from '@/utils/gangAdditionRank';
-import { getAllianceRank } from '@/utils/allianceRank';
+import { N26_ADDITION_CATEGORIES } from '@/utils/gangAdditionRankN26';
+import { groupAlliancesByType } from '@/utils/allianceRank';
+import { bestRankedLabel } from '@/utils/rankLookup';
 import { fighterTypeRank } from '@/utils/fighterTypeRank';
-import { EDITION_N26, sameEditionForDisplay } from '@/types/edition';
+import { hasGangAdditionCategories, sameEditionForDisplay } from '@/types/edition';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
 import { ImInfo } from 'react-icons/im';
@@ -35,20 +37,6 @@ import { EquipmentSelection } from './EquipmentSelection';
 
 export type FighterAddCatalog = 'roster' | 'additions';
 
-const N26_ADDITION_CATEGORIES = [
-  { value: 'brute', label: 'Brutes', subtype: 'Brute' },
-  { value: 'hanger-on', label: 'Hangers-on', subtype: 'Hanger-on' },
-  { value: 'pet', label: 'Pets', subtype: 'Pet' },
-  { value: 'loner', label: 'Hired Guns', subtype: 'Loner' },
-] as const;
-
-const N26_ALLIANCE_TYPE_ORDER = [
-  'Criminal Organisations',
-  'Merchant Guilds',
-  'Noble Houses',
-  'Other',
-] as const;
-
 type AllianceOption = {
   id: string;
   alliance_name: string;
@@ -63,7 +51,7 @@ function hasFighterSubtype(type: { fighter_subtypes?: string[] | null }, subtype
   );
 }
 
-function isN26CategoryMatch(
+function matchesAdditionCategory(
   type: { fighter_subtypes?: string[] | null; alliance_id?: string | null },
   categoryValue: string
 ): boolean {
@@ -78,27 +66,12 @@ function isN26CategoryMatch(
   return category ? hasFighterSubtype(type, category.subtype) : false;
 }
 
-function isN26GangAdditionType(type: {
+function isCategorisedGangAddition(type: {
   fighter_subtypes?: string[] | null;
   alliance_id?: string | null;
 }): boolean {
   if (type.alliance_id) return true;
   return N26_ADDITION_CATEGORIES.some((c) => hasFighterSubtype(type, c.subtype));
-}
-
-function allianceTypeHeader(allianceType: string | null): string {
-  const raw = (allianceType || 'Other').trim();
-  if (raw.toLowerCase() === 'criminal') return 'Alliances: Criminal Organisations';
-  if (raw.toLowerCase() === 'others' || raw.toLowerCase() === 'other') return 'Alliances: Other';
-  return `Alliances: ${raw}`;
-}
-
-function allianceTypeHeaderRank(header: string): number {
-  const key = header.replace(/^Alliances:\s*/i, '');
-  const idx = N26_ALLIANCE_TYPE_ORDER.findIndex(
-    (label) => label.toLowerCase() === key.toLowerCase()
-  );
-  return idx === -1 ? 999 : idx;
 }
 
 interface FighterAddModalProps {
@@ -179,7 +152,8 @@ export default function FighterAddModal({
   gangVariants = [],
 }: FighterAddModalProps) {
   const isAdditions = catalog === 'additions';
-  const isN26Additions = isAdditions && editionSlug === EDITION_N26;
+  const usesCategories = hasGangAdditionCategories(editionSlug);
+  const isCategoryAdditions = isAdditions && usesCategories;
   const gangAdditionRank = getGangAdditionRank(editionSlug);
 
   const tempIdCounter = useRef(0);
@@ -224,10 +198,9 @@ export default function FighterAddModal({
       return data
         .filter((type: any) => {
           if (!type.is_custom_fighter) return true;
-          const inGangAdditionSubtype =
-            editionSlug === EDITION_N26
-              ? isN26GangAdditionType(type)
-              : getGangAdditionSortRank(type.fighter_subtypes, editionSlug) !== Infinity;
+          const inGangAdditionSubtype = usesCategories
+            ? isCategorisedGangAddition(type)
+            : getGangAdditionSortRank(type.fighter_subtypes, editionSlug) !== Infinity;
           // Gang-addition-subtype custom fighters belong to the additions catalog only.
           return isAdditions ? inGangAdditionSubtype : !inGangAdditionSubtype;
         })
@@ -250,15 +223,15 @@ export default function FighterAddModal({
         sameEditionForDisplay(alliance.edition_slug, editionSlug)
       );
     },
-    enabled: showModal && isN26Additions,
+    enabled: showModal && isCategoryAdditions,
     staleTime: 10 * 60 * 1000,
   });
 
-  // Additions catalog: filter the type list by the chosen category (N26) or subtype (N23).
+  // Additions catalog: filter the type list by the chosen category or subtype.
   const filteredTypes = isAdditions && selectedSubtype
     ? fighterTypes.filter((type) =>
-        isN26Additions
-          ? isN26CategoryMatch(type, selectedSubtype)
+        isCategoryAdditions
+          ? matchesAdditionCategory(type, selectedSubtype)
           : type.alliance_id
             ? type.alliance_crew_name === selectedSubtype
             : type.fighter_subtypes?.includes(selectedSubtype)
@@ -626,11 +599,11 @@ export default function FighterAddModal({
     return false;
   })();
 
-  const buildN26CategoryOptions = () => {
+  const buildCategoryOptions = () => {
     const options: Array<{ value: string; label: string | React.ReactNode; displayValue?: string; disabled?: boolean }> = [];
 
     for (const category of N26_ADDITION_CATEGORIES) {
-      const hasTypes = fighterTypes.some((type) => isN26CategoryMatch(type, category.value));
+      const hasTypes = fighterTypes.some((type) => matchesAdditionCategory(type, category.value));
       if (!hasTypes) continue;
       options.push({
         value: category.value,
@@ -639,7 +612,7 @@ export default function FighterAddModal({
       });
     }
 
-    const hasMisc = fighterTypes.some((type) => isN26CategoryMatch(type, 'misc'));
+    const hasMisc = fighterTypes.some((type) => matchesAdditionCategory(type, 'misc'));
     if (hasMisc) {
       options.push({
         value: 'misc',
@@ -648,45 +621,29 @@ export default function FighterAddModal({
       });
     }
 
-    const groupedAlliances = alliances.reduce((groups, alliance) => {
-      const header = allianceTypeHeader(alliance.alliance_type);
-      if (!groups[header]) groups[header] = [];
-      groups[header].push(alliance);
-      return groups;
-    }, {} as Record<string, AllianceOption[]>);
-
-    const allianceRank = getAllianceRank(editionSlug);
-    Object.entries(groupedAlliances)
-      .sort(([a], [b]) => allianceTypeHeaderRank(a) - allianceTypeHeaderRank(b))
-      .forEach(([header, alliancesInGroup]) => {
-        options.push({
-          value: `header-${header}`,
-          label: <span className="font-bold">{header}</span>,
-          displayValue: header,
-          disabled: true,
-        });
-        alliancesInGroup
-          .sort((a, b) => {
-            const rankA = allianceRank[a.alliance_name.toLowerCase()] ?? Infinity;
-            const rankB = allianceRank[b.alliance_name.toLowerCase()] ?? Infinity;
-            if (rankA !== rankB) return rankA - rankB;
-            return a.alliance_name.localeCompare(b.alliance_name);
-          })
-          .forEach((alliance) => {
-            const label = alliance.alliance_crew_name || alliance.alliance_name;
-            options.push({
-              value: `alliance:${alliance.id}`,
-              label: <span className="ml-3">{label}</span>,
-              displayValue: label,
-            });
-          });
+    groupAlliancesByType(alliances, editionSlug).forEach(({ group, alliances: alliancesInGroup }) => {
+      const header = `Alliances: ${group}`;
+      options.push({
+        value: `header-${header}`,
+        label: <span className="font-bold">{header}</span>,
+        displayValue: header,
+        disabled: true,
       });
+      alliancesInGroup.forEach((alliance) => {
+        const label = alliance.alliance_crew_name || alliance.alliance_name;
+        options.push({
+          value: `alliance:${alliance.id}`,
+          label: <span className="ml-3">{label}</span>,
+          displayValue: label,
+        });
+      });
+    });
 
     return options;
   };
 
   const buildSubtypeOptions = () => {
-    if (isN26Additions) return buildN26CategoryOptions();
+    if (isCategoryAdditions) return buildCategoryOptions();
 
     const nonAlliances = fighterTypes.filter(t => !t.alliance_id);
     const allianceFighterTypes = fighterTypes.filter(t => t.alliance_id);
@@ -714,21 +671,8 @@ export default function FighterAddModal({
       groupLabelConfig.map((entry, index) => [entry.label, index + 1])
     );
 
-    const bestRankedSubtype = (subtypes: string[] | null | undefined): { name: string; rank: number } => {
-      let bestName = subtypes?.[0] || '';
-      let bestRank = Infinity;
-      for (const subtype of subtypes ?? []) {
-        const rank = gangAdditionRank[subtype.toLowerCase().trim()];
-        if (rank !== undefined && rank < bestRank) {
-          bestRank = rank;
-          bestName = subtype;
-        }
-      }
-      return { name: bestName, rank: bestRank };
-    };
-
     const nonAllianceGroups = nonAlliances.reduce((groups, type) => {
-      const { name: subtypeName, rank } = bestRankedSubtype(type.fighter_subtypes);
+      const { label: subtypeName, rank } = bestRankedLabel(type.fighter_subtypes, gangAdditionRank);
       const groupLabel = getGroupLabelFromRank(rank, false);
       if (!groups[groupLabel]) groups[groupLabel] = new Set();
       groups[groupLabel].add(subtypeName);
@@ -925,7 +869,7 @@ export default function FighterAddModal({
       {isAdditions && (
         <div className="space-y-2">
           <label className="block text-sm font-medium text-muted-foreground">
-            {isN26Additions ? 'Category *' : 'Fighter Subtype *'}
+            {isCategoryAdditions ? 'Category *' : 'Fighter Subtype *'}
           </label>
           <Combobox
             value={selectedSubtype}
@@ -938,7 +882,7 @@ export default function FighterAddModal({
               setSelectedEquipment([]);
               setFighterCost('');
             }}
-            placeholder={isN26Additions ? 'Select Category' : 'Select Fighter Subtype'}
+            placeholder={isCategoryAdditions ? 'Select Category' : 'Select Fighter Subtype'}
             options={buildSubtypeOptions()}
           />
           {selectedSubtype === 'Exotic Beast' && (

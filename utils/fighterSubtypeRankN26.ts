@@ -7,4 +7,7 @@ export const fighterSubtypeRankN26: { [key: string]: number } = {
   "juve": 6,
   "pet": 7,
   "brute": 8,
+  "hanger-on": 9,
+  "beast": 10,
+  "loner": 11,
 };

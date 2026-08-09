@@ -1,9 +1,7 @@
 import type { EditionSlug } from '@/types/edition';
+import { bestRank } from '@/utils/rankLookup';
 import { gangAdditionRankN23 } from '@/utils/gangAdditionRankN23';
 import { gangAdditionRankN26 } from '@/utils/gangAdditionRankN26';
-
-export { gangAdditionRankN23 } from '@/utils/gangAdditionRankN23';
-export { gangAdditionRankN26 } from '@/utils/gangAdditionRankN26';
 
 /**
  * Keyed by EditionSlug so a new edition is a compile error here until it states
@@ -33,13 +31,5 @@ export function getGangAdditionSortRank(
   subtypes: string[] | null | undefined,
   editionSlug?: string | null
 ): number {
-  const ranks = getGangAdditionRank(editionSlug);
-  let best = Infinity;
-  for (const subtype of subtypes ?? []) {
-    const rank = ranks[subtype.toLowerCase().trim()];
-    if (rank !== undefined && rank < best) {
-      best = rank;
-    }
-  }
-  return best;
+  return bestRank(subtypes, getGangAdditionRank(editionSlug));
 }

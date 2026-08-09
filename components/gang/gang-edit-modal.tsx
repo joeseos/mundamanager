@@ -9,7 +9,7 @@ import { Combobox } from "@/components/ui/combobox";
 import Modal from '@/components/ui/modal';
 import { toast } from 'sonner';
 import { HexColorPicker } from "react-colorful";
-import { getAllianceRank } from "@/utils/allianceRank";
+import { groupAlliancesByType } from "@/utils/allianceRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
 import { useQuery } from '@tanstack/react-query';
 import { ResourceUpdate } from '@/types/gang';
@@ -715,34 +715,6 @@ export default function GangEditModal({
               return [];
             }
 
-            const allianceTypeGroupOrder = [
-              "Criminal Organisations",
-              "Merchant Guilds",
-              "Noble Houses",
-              "Other Alliances",
-            ];
-
-            const allianceTypeGroupLabel = (allianceType: string | null | undefined): string => {
-              const raw = (allianceType || "").trim().toLowerCase();
-              if (raw === "criminal") return "Criminal Organisations";
-              if (raw === "merchant guilds") return "Merchant Guilds";
-              if (raw === "noble houses") return "Noble Houses";
-              return "Other Alliances";
-            };
-
-            const groupLabelRank: Record<string, number> = Object.fromEntries(
-              allianceTypeGroupOrder.map((label, index) => [label, index + 1])
-            );
-
-            const allianceRank = getAllianceRank(editionSlug);
-            const groupedAlliances = editionAllianceList.reduce((groups, alliance) => {
-              const groupLabel = allianceTypeGroupLabel(alliance.alliance_type);
-
-              if (!groups[groupLabel]) groups[groupLabel] = [];
-              groups[groupLabel].push(alliance);
-              return groups;
-            }, {} as Record<string, typeof editionAllianceList>);
-
             const options: Array<{ value: string; label: string | React.ReactNode; displayValue?: string; disabled?: boolean }> = [];
 
             // Add "None" option at the beginning
@@ -771,13 +743,11 @@ export default function GangEditModal({
               }
             }
 
-            Object.entries(groupedAlliances)
-              .sort(([a], [b]) => {
-                const rankA = groupLabelRank[a] ?? 999;
-                const rankB = groupLabelRank[b] ?? 999;
-                return rankA - rankB;
-              })
-              .forEach(([groupLabel, alliancesInGroup]) => {
+            groupAlliancesByType(editionAllianceList, editionSlug).forEach(
+              ({ group, alliances: alliancesInGroup }) => {
+                // "Other" reads as a heading of its own in this dropdown
+                const groupLabel = group === "Other" ? "Other Alliances" : group;
+
                 // Add group header as disabled option
                 options.push({
                   value: `header-${groupLabel}`,
@@ -787,20 +757,15 @@ export default function GangEditModal({
                 });
 
                 // Add alliances in this group
-                alliancesInGroup
-                  .sort((a, b) => {
-                    const rankA = allianceRank[a.alliance_name.toLowerCase()] ?? Infinity;
-                    const rankB = allianceRank[b.alliance_name.toLowerCase()] ?? Infinity;
-                    return rankA - rankB;
-                  })
-                  .forEach(alliance => {
-                    options.push({
-                      value: alliance.id,
-                      label: <span className="ml-3">{alliance.alliance_name}</span>,
-                      displayValue: alliance.alliance_name
-                    });
+                alliancesInGroup.forEach(alliance => {
+                  options.push({
+                    value: alliance.id,
+                    label: <span className="ml-3">{alliance.alliance_name}</span>,
+                    displayValue: alliance.alliance_name
                   });
-              });
+                });
+              }
+            );
 
             return options;
           })()}

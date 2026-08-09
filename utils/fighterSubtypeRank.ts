@@ -1,9 +1,7 @@
 import type { EditionSlug } from '@/types/edition';
+import { bestRank } from '@/utils/rankLookup';
 import { fighterSubtypeRankN23 } from '@/utils/fighterSubtypeRankN23';
 import { fighterSubtypeRankN26 } from '@/utils/fighterSubtypeRankN26';
-
-export { fighterSubtypeRankN23 } from '@/utils/fighterSubtypeRankN23';
-export { fighterSubtypeRankN26 } from '@/utils/fighterSubtypeRankN26';
 
 /**
  * Keyed by EditionSlug so a new edition is a compile error here until it states
@@ -35,13 +33,5 @@ export function getFighterSubtypeSortRank(
   subtypes: string[] | null | undefined,
   editionSlug?: string | null
 ): number {
-  const ranks = getFighterSubtypeRank(editionSlug);
-  let best = Infinity;
-  for (const subtype of subtypes ?? []) {
-    const rank = ranks[subtype.toLowerCase().trim()];
-    if (rank !== undefined && rank < best) {
-      best = rank;
-    }
-  }
-  return best;
+  return bestRank(subtypes, getFighterSubtypeRank(editionSlug));
 }
