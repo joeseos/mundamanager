@@ -369,17 +369,9 @@ export default function FighterAddModal({
         cost: ft.total_cost,
       }));
       setAvailableSpecialisations(specialisations);
-
-      const defaultSpecialisation = specialisations.find(sub => !sub.specialisation_name || sub.specialisation_name === 'Default');
-      const autoSelectedId = defaultSpecialisation
-        ? defaultSpecialisation.id
-        : specialisations.reduce((lowest, current) => {
-            const lowestCost = fighterTypes.find(ft => ft.id === lowest.id)?.total_cost ?? Infinity;
-            const currentCost = fighterTypes.find(ft => ft.id === current.id)?.total_cost ?? Infinity;
-            return currentCost < lowestCost ? current : lowest;
-          }, specialisations[0]).id;
-      setSelectedSpecialisationId(autoSelectedId);
-      applyDefaultEquipmentAndCost(autoSelectedId, false);
+      // Leave specialisation unselected so the combobox shows the placeholder;
+      // cost/equipment apply once the user picks one (confirm stays disabled until then).
+      setFighterCost('');
     } else {
       setAvailableSpecialisations([]);
       applyDefaultEquipmentAndCost(typeId, false);
