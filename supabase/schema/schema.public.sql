@@ -166,11 +166,15 @@ BEGIN
         RAISE EXCEPTION 'The provided fighter effect type ID does not exist';
     END IF;
 
-    -- Validate that the effect type belongs to the injuries or rig-glitches category
+    -- Validate the effect type's category. 'lasting damages' is here because an
+    -- N26 vehicle IS a fighter: it has no `vehicles` row, so its damage must hang
+    -- off fighter_effects.fighter_id (which this function writes) rather than
+    -- vehicle_id (which add_vehicle_effect writes, for N23 vehicles).
     IF effect_type_record.fighter_effect_category_id NOT IN (
-        SELECT id FROM fighter_effect_categories WHERE category_name IN ('injuries', 'rig-glitches')
+        SELECT id FROM fighter_effect_categories
+        WHERE category_name IN ('injuries', 'rig-glitches', 'lasting damages')
     ) THEN
-        RAISE EXCEPTION 'The provided fighter effect type is not an injury or rig glitch';
+        RAISE EXCEPTION 'The provided fighter effect type is not an injury, rig glitch or lasting damage';
     END IF;
 
     -- Check if this is "Partially Deafened"
