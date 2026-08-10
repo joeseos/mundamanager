@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { saveFighterSkillAccessOverrides } from '@/app/actions/fighter-skill-access';
@@ -12,7 +12,11 @@ import { toast } from 'sonner';
 import { applySpecialRulesModifiers } from '@/utils/effect-modifiers';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { allowsMultipleSubtypes } from '@/types/edition';
-import { isArchetypeEligible, mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';
+import {
+  getArchetypeCatalogSubtype,
+  isArchetypeEligible,
+  mapArchetypeSkillAccessToOverrides,
+} from '@/utils/archetypeEligibility';
 import { SkillAccessModal } from './skill-access-modal';
 import { FighterCharacteristicTable } from './fighter-characteristic-table';
 import { CharacterStatsModal } from './character-stats-modal';
@@ -268,13 +272,21 @@ export function EditFighterModal({
     return fighter.fighter_subtypes?.[0] || 'Unknown';
   }, [selectedFighterTypeId, fighterTypes, fighter.fighter_subtypes]);
 
-  // Archetypes still use a single effective subtype (first selected, else type default)
-  const effectiveFighterSubtype = selectedFighterSubtypes[0] || defaultFighterSubtypeName;
+  // Archetypes: eligible if any selected subtype matches the gang's Outcasts list; catalog uses fixed priority
+  const subtypesForArchetype = useMemo(() => {
+    if (selectedFighterSubtypes.length > 0) return selectedFighterSubtypes;
+    if (fighter.fighter_subtypes?.length) return fighter.fighter_subtypes;
+    return defaultFighterSubtypeName ? [defaultFighterSubtypeName] : [];
+  }, [selectedFighterSubtypes, fighter.fighter_subtypes, defaultFighterSubtypeName]);
+
+  const archetypeCatalogSubtype = getArchetypeCatalogSubtype(subtypesForArchetype, {
+    gangTypeId,
+  });
 
   const archetypeFighterSubtypeId = useMemo(() => {
-    if (!effectiveFighterSubtype || !allFighterSubtypes) return '';
-    return allFighterSubtypes.find(fc => fc.subtype_name === effectiveFighterSubtype)?.id ?? '';
-  }, [effectiveFighterSubtype, allFighterSubtypes]);
+    if (!archetypeCatalogSubtype || !allFighterSubtypes) return '';
+    return allFighterSubtypes.find(fc => fc.subtype_name === archetypeCatalogSubtype)?.id ?? '';
+  }, [archetypeCatalogSubtype, allFighterSubtypes]);
 
   // Resolve the effective fighter type for default special rules (specialisation aware)
   const effectiveFighterType = useMemo(() => {
@@ -391,10 +403,10 @@ export function EditFighterModal({
     return typeOptions;
   }, [fighterTypes, fighter.edition_slug]);
 
-  // Determine if this fighter can use archetypes (Outcasts gang + Leader/Champion subtype)
+  // Eligible when Outcasts (N23/N26) + any selected subtype is in that gang's archetype list
   const canUseArchetypes = isArchetypeEligible({
     gangTypeId,
-    fighterSubtype: effectiveFighterSubtype || fighter.fighter_subtypes?.[0],
+    fighterSubtypes: subtypesForArchetype,
   });
 
   // Fetch archetypes using TanStack Query (only if eligible and modal is open)
@@ -412,6 +424,24 @@ export function EditFighterModal({
     enabled: isOpen && canUseArchetypes,
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
+
+  // Drop stale selection when ineligible, or when a settled non-empty catalog no longer includes it
+  useEffect(() => {
+    if (!selectedArchetypeId) return;
+
+    if (!canUseArchetypes) {
+      setSelectedArchetypeId('');
+      return;
+    }
+
+    const archetypes = archetypesData?.archetypes as Archetype[] | undefined;
+    // Wait for a real catalog payload; empty/missing lists must not wipe a valid selection
+    if (!archetypes || archetypes.length === 0) return;
+
+    if (!archetypes.some((a) => a.id === selectedArchetypeId)) {
+      setSelectedArchetypeId('');
+    }
+  }, [canUseArchetypes, archetypesData, selectedArchetypeId]);
 
   // TanStack mutation for editing fighter details
   const mutation = useMutation({
@@ -995,7 +1025,7 @@ export function EditFighterModal({
         costAdjustment: formValues.costAdjustment,
         special_rules: formValues.special_rules,
         fighter_gang_legacy_id: selectedGangLegacyId || null,
-        selected_archetype_id: selectedArchetypeId || null
+        selected_archetype_id: canUseArchetypes ? (selectedArchetypeId || null) : null
       };
 
       // Only include fighter type fields if we're actually updating the fighter type
@@ -1283,7 +1313,7 @@ export function EditFighterModal({
               </div>
             )}
 
-            {/* Archetype Selection (only for Underhive Outcasts Leader/Champion) */}
+            {/* Archetype Selection (Underhive Outcasts — N23 Leader/Champion, N26 + Ganger) */}
             {canUseArchetypes && (
               <div>
                 <label htmlFor="archetype" className="block text-sm font-medium mb-1">

@@ -18,7 +18,7 @@ import { Combobox } from '@/components/ui/combobox';
 import { ImInfo } from 'react-icons/im';
 import { addFighterToGang } from '@/app/actions/add-fighter';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { isArchetypeEligible } from '@/utils/archetypeEligibility';
+import { getArchetypeCatalogSubtype, isArchetypeEligible } from '@/utils/archetypeEligibility';
 import {
   buildFighterFromServerData,
   buildBeastFromServerData,
@@ -248,7 +248,7 @@ export default function FighterAddModal({
 
   const canUseArchetypes = isArchetypeEligible({
     gangTypeId,
-    fighterSubtype: currentFighterType?.fighter_subtypes?.[0],
+    fighterSubtypes: currentFighterType?.fighter_subtypes,
   });
 
   // Scope the subtype lookup to the fighter type's edition: subtype_name is only
@@ -270,10 +270,12 @@ export default function FighterAddModal({
   });
 
   const currentFighterSubtypeId = useMemo(() => {
-    const primarySubtype = currentFighterType?.fighter_subtypes?.[0];
-    if (!primarySubtype || !allFighterSubtypes) return '';
-    return allFighterSubtypes.find(fc => fc.subtype_name === primarySubtype)?.id ?? '';
-  }, [currentFighterType, allFighterSubtypes]);
+    const catalogSubtype = getArchetypeCatalogSubtype(currentFighterType?.fighter_subtypes, {
+      gangTypeId,
+    });
+    if (!catalogSubtype || !allFighterSubtypes) return '';
+    return allFighterSubtypes.find(fc => fc.subtype_name === catalogSubtype)?.id ?? '';
+  }, [currentFighterType, allFighterSubtypes, gangTypeId]);
 
   const { data: archetypesData } = useQuery({
     queryKey: ['skill-archetypes', currentFighterSubtypeId],
@@ -558,7 +560,7 @@ export default function FighterAddModal({
       use_base_cost_for_rating: useBaseCostForRating,
       use_delegation_cost: useDelegationCost,
       fighter_gang_legacy_id: selectedLegacyId || undefined,
-      selected_archetype_id: selectedArchetypeId || undefined,
+      selected_archetype_id: canUseArchetypes ? (selectedArchetypeId || undefined) : undefined,
     });
 
     return true;
