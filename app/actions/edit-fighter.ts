@@ -207,7 +207,10 @@ async function validateFighterSubtypesForUpdate(
   params: UpdateFighterDetailsParams,
   subtypes: string[],
   currentSubtypes?: string[] | null
-): Promise<{ ok: true; subtypes: string[] } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; subtypes: string[]; editionSlug: string }
+  | { ok: false; error: string }
+> {
   const normalized = normalizeFighterSubtypeNames(subtypes);
   const previous = normalizeFighterSubtypeNames(
     Array.isArray(currentSubtypes) ? currentSubtypes : []
@@ -262,7 +265,7 @@ async function validateFighterSubtypesForUpdate(
     }
   }
 
-  return { ok: true, subtypes: normalized };
+  return { ok: true, subtypes: normalized, editionSlug };
 }
 
 interface EditFighterResult {
@@ -1470,6 +1473,10 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (params.kill_count !== undefined) updateData.kill_count = params.kill_count;
     if (params.cost_adjustment !== undefined) updateData.cost_adjustment = params.cost_adjustment;
     if (params.special_rules !== undefined) updateData.special_rules = params.special_rules;
+
+    // Reused by archetype assignability when subtypes were validated in this request
+    let resolvedEditionSlug: string | undefined;
+
     if (params.fighter_subtypes !== undefined) {
       const validated = await validateFighterSubtypesForUpdate(
         supabase,
@@ -1482,6 +1489,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
         return { success: false, error: validated.error };
       }
       updateData.fighter_subtypes = validated.subtypes;
+      resolvedEditionSlug = validated.editionSlug;
     }
     if (params.fighter_type !== undefined) updateData.fighter_type = params.fighter_type;
     if (params.fighter_type_id !== undefined) updateData.fighter_type_id = params.fighter_type_id;
@@ -1496,7 +1504,18 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     const previousArchetypeId: string | null = fighter.selected_archetype_id ?? null;
     let clearedArchetype = false;
 
-    if (params.selected_archetype_id !== undefined || params.fighter_subtypes !== undefined) {
+    const wantsExplicitClear =
+      params.selected_archetype_id !== undefined && !params.selected_archetype_id;
+    const wantsAssignableCheck =
+      Boolean(params.selected_archetype_id) ||
+      (params.selected_archetype_id === undefined &&
+        params.fighter_subtypes !== undefined &&
+        Boolean(previousArchetypeId));
+
+    if (wantsExplicitClear) {
+      updateData.selected_archetype_id = null;
+      if (previousArchetypeId) clearedArchetype = true;
+    } else if (wantsAssignableCheck) {
       const { data: gangData, error: gangError } = await supabase
         .from('gangs')
         .select('gang_type_id')
@@ -1512,36 +1531,41 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       const fighterSubtypes = effectiveSubtypes.length ? effectiveSubtypes : ['Custom'];
 
       const checkArchetypeAssignable = async (archetypeId: string) => {
-        const editionResult = await resolveFighterEditionSlugForUpdate(
-          supabase,
-          params.fighter_id,
-          params
-        );
-        if (!editionResult.ok) {
-          return { ok: false as const, error: editionResult.error };
+        let editionSlug = resolvedEditionSlug;
+        if (!editionSlug) {
+          const editionResult = await resolveFighterEditionSlugForUpdate(
+            supabase,
+            params.fighter_id,
+            params
+          );
+          if (!editionResult.ok) {
+            return { ok: false as const, error: editionResult.error };
+          }
+          editionSlug = editionResult.editionSlug;
         }
         return assertArchetypeAssignable(supabase, {
           gangTypeId: gangData.gang_type_id,
           fighterSubtypes,
           archetypeId,
-          editionSlug: editionResult.editionSlug,
+          editionSlug,
         });
       };
 
-      if (params.selected_archetype_id !== undefined) {
-        if (params.selected_archetype_id) {
-          const assignable = await checkArchetypeAssignable(params.selected_archetype_id);
-          if (!assignable.ok) {
+      if (params.selected_archetype_id) {
+        const assignable = await checkArchetypeAssignable(params.selected_archetype_id);
+        if (!assignable.ok) {
+          // Same save also changed subtypes: drop the stale archetype instead of failing the edit
+          if (params.fighter_subtypes !== undefined) {
+            updateData.selected_archetype_id = null;
+            if (previousArchetypeId) clearedArchetype = true;
+          } else {
             return { success: false, error: assignable.error };
           }
-          updateData.selected_archetype_id = params.selected_archetype_id;
         } else {
-          updateData.selected_archetype_id = null;
-          if (previousArchetypeId) clearedArchetype = true;
+          updateData.selected_archetype_id = params.selected_archetype_id;
         }
       } else if (previousArchetypeId) {
         // Subtypes changed without an explicit archetype write — drop if no longer assignable
-        // (e.g. still Outcasts-eligible but catalog priority moved Leader ahead of Champion).
         const assignable = await checkArchetypeAssignable(previousArchetypeId);
         if (!assignable.ok) {
           updateData.selected_archetype_id = null;
@@ -1550,13 +1574,12 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       }
     }
 
-
     // Update fighter
     const { data: updatedFighter, error: updateError } = await supabase
       .from('fighters')
       .update(updateData)
       .eq('id', params.fighter_id)
-      .select('id, fighter_name, label, kills, kill_count, cost_adjustment, fighter_subtypes')
+      .select('id, fighter_name, label, kills, kill_count, cost_adjustment, fighter_subtypes, selected_archetype_id')
       .single();
 
     if (updateError) throw updateError;

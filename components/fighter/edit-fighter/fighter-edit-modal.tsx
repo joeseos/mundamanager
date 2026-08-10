@@ -548,19 +548,27 @@ export function EditFighterModal({
         onEditSuccess?.(serverFighter, (ctx as any).optimistic, (ctx as any).snapshot);
       }
 
-      // If archetype changed, save the skill access overrides
-      if (submit.selected_archetype_id !== fighter.selected_archetype_id) {
+      // Prefer the persisted archetype — server may clear it when subtypes invalidate the catalog
+      const persistedArchetypeId: string | null =
+        serverFighter && 'selected_archetype_id' in serverFighter
+          ? ((serverFighter as { selected_archetype_id?: string | null }).selected_archetype_id ?? null)
+          : (submit.selected_archetype_id ?? null);
+
+      setSelectedArchetypeId(persistedArchetypeId || '');
+
+      // If archetype changed vs pre-save fighter, save/clear skill access overrides
+      if (persistedArchetypeId !== (fighter.selected_archetype_id ?? null)) {
         try {
-          if (submit.selected_archetype_id && archetypesData?.archetypes) {
+          if (persistedArchetypeId && archetypesData?.archetypes) {
             const archetype = (archetypesData.archetypes as Archetype[]).find(
-              (a: Archetype) => a.id === submit.selected_archetype_id
+              (a: Archetype) => a.id === persistedArchetypeId
             );
             if (archetype) {
               const overrides = mapArchetypeSkillAccessToOverrides(archetype.skill_access);
 
               await saveFighterSkillAccessOverrides({ fighter_id: fighter.id, overrides });
             }
-          } else if (!submit.selected_archetype_id && fighter.selected_archetype_id) {
+          } else if (!persistedArchetypeId && fighter.selected_archetype_id) {
             // Archetype removed - clear all overrides (reset to default)
             await saveFighterSkillAccessOverrides({ fighter_id: fighter.id, overrides: [] });
           }
