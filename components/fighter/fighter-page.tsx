@@ -237,38 +237,24 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
     };
   });
 
-  // N26 makes the vehicle the fighter itself, so its gear is ordinary fighter_equipment
-  // and feeds the vehicle list directly instead of coming off a `vehicles` row.
-  //
-  // Precedence: an actual `vehicles` row always wins. The two can only coexist as bad data
-  // (or mid-conversion), and dropping a real vehicle's equipment is worse than ignoring the
-  // flag. `vehicleView` below resolves effects the same way and must stay in step — split
-  // them and the list renders one edition's equipment against the other's effects.
-  const isVehicleFighter = !fighterData.fighter?.vehicles?.[0] && Boolean(fighterData.fighter?.is_vehicle);
-
-  // Transform vehicle equipment
-  const transformedVehicleEquipment = isVehicleFighter
-    ? transformedEquipment.map((item: any) => ({
-        ...item,
-        vehicle_equipment_id: item.fighter_equipment_id
-      }))
-    : (fighterData.fighter?.vehicles?.[0]?.equipment || []).map((item: any) => ({
-        fighter_equipment_id: item.fighter_equipment_id || item.vehicle_weapon_id || item.id,
-        equipment_id: item.equipment_id,
-        equipment_name: item.is_master_crafted && item.equipment_type === 'weapon'
-          ? `${item.equipment_name} (Master-crafted)`
-          : item.equipment_name,
-        equipment_type: item.equipment_type,
-        cost: item.purchase_cost,
-        base_cost: item.original_cost,
-        core_equipment: false,
-        vehicle_id: fighterData.fighter?.vehicles?.[0]?.id,
-        vehicle_equipment_id: item.vehicle_weapon_id || item.id,
-        weapon_profiles: item.weapon_profiles,
-        is_consumable: item.is_consumable,
-        cost_resource_name: item.cost_resource?.name ?? null,
-        cost_resource_amount: item.cost_resource?.amount ?? null
-      }));
+  // N23-only: a vehicle that is itself the fighter already has its gear in transformedEquipment
+  const transformedVehicleEquipment = (fighterData.fighter?.vehicles?.[0]?.equipment || []).map((item: any) => ({
+    fighter_equipment_id: item.fighter_equipment_id || item.vehicle_weapon_id || item.id,
+    equipment_id: item.equipment_id,
+    equipment_name: item.is_master_crafted && item.equipment_type === 'weapon'
+      ? `${item.equipment_name} (Master-crafted)`
+      : item.equipment_name,
+    equipment_type: item.equipment_type,
+    cost: item.purchase_cost,
+    base_cost: item.original_cost,
+    core_equipment: false,
+    vehicle_id: fighterData.fighter?.vehicles?.[0]?.id,
+    vehicle_equipment_id: item.vehicle_weapon_id || item.id,
+    weapon_profiles: item.weapon_profiles,
+    is_consumable: item.is_consumable,
+    cost_resource_name: item.cost_resource?.name ?? null,
+    cost_resource_amount: item.cost_resource?.amount ?? null
+  }));
 
   // Preserve all effects from server, with defaults for required categories
   const effects = {
@@ -603,10 +589,8 @@ export default function FighterPage({
   const isVehicle = fighterData.fighter.is_vehicle ?? false;
   const editionSlug = fighterData.gang.edition_slug ?? fighterData.fighter.edition_slug ?? null;
 
-  // Where this vehicle's equipment and effects live. N23 hangs a `vehicles` row off a Crew
-  // fighter; N26 makes the vehicle the fighter, so both are scoped by fighter_id instead
-  // and there is no vehicle id to scope the hardpoint and lasting-damage actions with.
-  // Row-wins precedence, mirroring `isVehicleFighter` in transformFighterData.
+  // Where this vehicle's lasting damage lives: an attached `vehicles` row (N23), else the
+  // fighter itself (N26). A real row always wins — the two only coexist as bad data.
   const vehicleView: { vehicleId: string | null; effects: Record<string, FighterEffect[]> } | null = vehicle
     ? { vehicleId: vehicle.id, effects: vehicle.effects ?? {} }
     : isVehicle
@@ -729,8 +713,8 @@ export default function FighterPage({
             selected_archetype={(fighterData as any)?.fighter?.selected_archetype}
           />
 
-          {/* Vehicle Equipment Section - the vehicle is either an attached row (N23) or the fighter itself (N26) */}
-          {vehicleView && (
+          {/* N23 only: hardpoints and Body/Drive/Engine slots exist only on a `vehicles` row */}
+          {vehicleView?.vehicleId && (
             <VehicleEquipmentList
               editionSlug={editionSlug}
               fighterId={fighterId}
@@ -751,30 +735,22 @@ export default function FighterPage({
                     return remaining as T;
                   };
 
-                  // Remove deleted effects from wherever this vehicle's effects live
+                  // This list only renders for a `vehicles` row, so its effects live there
                   let updatedVehicles = prev.fighter.vehicles;
-                  let updatedFighterEffects = prev.fighter.effects;
-                  if (deletedEffects.length > 0) {
-                    if (updatedVehicles?.[0]) {
-                      updatedVehicles = [{
-                        ...updatedVehicles[0],
-                        effects: withoutDeleted(updatedVehicles[0].effects ?? {})
-                      }];
-                    } else {
-                      updatedFighterEffects = withoutDeleted(updatedFighterEffects);
-                    }
+                  if (deletedEffects.length > 0 && updatedVehicles?.[0]) {
+                    updatedVehicles = [{
+                      ...updatedVehicles[0],
+                      effects: withoutDeleted(updatedVehicles[0].effects ?? {})
+                    }];
                   }
 
                   return {
                     ...prev,
                     vehicleEquipment: updatedEquipment,
-                    // On N26 this list *is* the fighter's equipment, so keep both in step
-                    equipment: vehicleView.vehicleId ? prev.equipment : updatedEquipment,
                     fighter: {
                       ...prev.fighter,
                       credits: newFighterCredits,
-                      vehicles: updatedVehicles,
-                      effects: updatedFighterEffects
+                      vehicles: updatedVehicles
                     },
                     gang: prev.gang ? { ...prev.gang, credits: newGangCredits } : null
                   };
@@ -789,8 +765,8 @@ export default function FighterPage({
             />
           )}
 
-          {!isVehicle && (
-            <WeaponList
+          {/* Every fighter's own equipment, a vehicle-fighter included */}
+          <WeaponList
               editionSlug={editionSlug}
               fighterId={fighterId}
               gangId={fighterData.gang?.id || ''}
@@ -824,7 +800,6 @@ export default function FighterPage({
                 }));
               }}
             />
-          )}
 
           <SkillsList
             skills={fighterData.fighter?.skills || {}}
@@ -1163,6 +1138,23 @@ export default function FighterPage({
                   };
                 });
               }}
+              onFighterStatusUpdate={(status) => {
+                setFighterData(prev => {
+                  if (!prev.fighter) return prev;
+                  return {
+                    ...prev,
+                    fighter: {
+                      ...prev.fighter,
+                      ...(status.recovery !== undefined && { recovery: status.recovery }),
+                      ...(status.captured !== undefined && { captured: status.captured }),
+                      ...(status.capturedByGangId !== undefined && {
+                        captured_by_gang_id: status.capturedByGangId
+                      }),
+                      ...(status.killed !== undefined && { killed: status.killed })
+                    }
+                  };
+                });
+              }}
               fighterId={fighterData.fighter?.id || ''}
               vehicleId={vehicleView.vehicleId}
               gangId={fighterData.gang?.id || ''}
@@ -1175,6 +1167,9 @@ export default function FighterPage({
                 }));
               }}
               userPermissions={userPermissions}
+              editionSlug={editionSlug}
+              fighterCampaigns={fighterData.fighter?.campaigns}
+              fighterRecovery={fighterData.fighter?.recovery}
             />
           )}
 
@@ -1382,7 +1377,7 @@ export default function FighterPage({
             />
           )}
 
-          {uiState.modals.addWeapon && !isVehicle && fighterData.fighter && fighterData.gang && (
+          {uiState.modals.addWeapon && fighterData.fighter && fighterData.gang && (
             <ItemModal
               title="Equipment"
               onClose={() => handleModalToggle('addWeapon', false)}
@@ -1405,9 +1400,8 @@ export default function FighterPage({
             />
           )}
 
-          {/* An N26 vehicle has no vehicle_types row - its list comes from its fighter type, so it
-              buys through the ordinary fighter path with no vehicle-category restriction. */}
-          {uiState.modals.addVehicleEquipment && fighterData.fighter && fighterData.gang && vehicleView && (
+          {/* N23 only: scoped to the `vehicles` row's vehicle_types catalog */}
+          {uiState.modals.addVehicleEquipment && fighterData.fighter && fighterData.gang && vehicle && (
             <ItemModal
               title="Add Vehicle Equipment"
               onClose={() => handleModalToggle('addVehicleEquipment', false)}

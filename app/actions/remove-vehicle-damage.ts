@@ -1,7 +1,14 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server';
-import { invalidateVehicleEffects, invalidateVehicleRepair } from '@/utils/cache-tags';
+import { revalidateTag } from 'next/cache';
+import {
+  CACHE_TAGS,
+  invalidateFighterData,
+  invalidateGangCredits,
+  invalidateVehicleEffects,
+  invalidateVehicleRepair,
+} from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { logVehicleAction } from './logs/vehicle-logs';
 import { updateGangRatingSimple, updateGangFinancials, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
@@ -22,8 +29,10 @@ type RepairCondition = "Almost like new" | "Quality repairs" | "Superficial Dama
 interface RepairVehicleDamageParams {
   damageIds: string[];
   repairCost: number;
-  repairType: RepairCondition
-  vehicleId: string;
+  /** Omitted by flat per-damage repairs (the N26 Chop Shop), which negotiate no quality. */
+  repairType?: RepairCondition
+  /** Null when the vehicle is the fighter itself (N26); `fighterId` then identifies the owner. */
+  vehicleId: string | null;
   fighterId: string;
   gangId: string;
 }
@@ -148,11 +157,13 @@ export async function repairVehicleDamage(params: RepairVehicleDamageParams): Pr
         .select('id, credits, rating, wealth')
         .eq('id', params.gangId)
         .single(),
-      supabase
-        .from('vehicles')
-        .select('id, fighter_id, vehicle_name')
-        .eq('id', params.vehicleId)
-        .single()
+      params.vehicleId
+        ? supabase
+            .from('vehicles')
+            .select('id, fighter_id, vehicle_name')
+            .eq('id', params.vehicleId)
+            .single()
+        : Promise.resolve({ data: null })
     ]);
 
     const damageData = damageResult.data;
@@ -179,22 +190,26 @@ export async function repairVehicleDamage(params: RepairVehicleDamageParams): Pr
       return sum + credits;
     }, 0);
 
-    // Determine if vehicle is assigned to an active fighter
+    // Whose active status decides whether these damages count toward rating
+    const ownerFighterId = params.vehicleId ? vehicleData?.fighter_id : params.fighterId;
+
     let isAssignedToActiveFighter = false;
     let fighterName: string | undefined;
-    const vehicleName = vehicleData?.vehicle_name || 'Unknown Vehicle';
 
-    if (vehicleData?.fighter_id) {
+    if (ownerFighterId) {
       const { data: fighterData } = await supabase
         .from('fighters')
         .select('killed, retired, enslaved, captured, fighter_name')
-        .eq('id', vehicleData.fighter_id)
+        .eq('id', ownerFighterId)
         .single();
 
       const { countsTowardRating } = await import('@/utils/fighter-status');
       isAssignedToActiveFighter = countsTowardRating(fighterData);
       fighterName = fighterData?.fighter_name;
     }
+
+    // A vehicle that is the fighter has no name of its own
+    const vehicleName = vehicleData?.vehicle_name || fighterName || 'Unknown Vehicle';
 
     // Delete all damage effects (RLS enforces authorization)
     const { error: deleteError } = await supabase
@@ -238,9 +253,9 @@ export async function repairVehicleDamage(params: RepairVehicleDamageParams): Pr
 
       await logVehicleAction({
         gang_id: params.gangId,
-        vehicle_id: params.vehicleId,
+        vehicle_id: params.vehicleId || '',
         vehicle_name: vehicleName,
-        fighter_id: vehicleData?.fighter_id,
+        fighter_id: ownerFighterId,
         fighter_name: fighterName,
         damage_name: damageList.toLowerCase(),
         repair_type: params.repairType,
@@ -258,8 +273,14 @@ export async function repairVehicleDamage(params: RepairVehicleDamageParams): Pr
       console.error('Failed to log vehicle damage repair:', logError);
     }
 
-    // Invalidate cache for vehicle effects and gang credits
-    invalidateVehicleRepair(params.fighterId, params.gangId);
+    // Fighter-scoped damages need the fighter effects tag, not BASE_FIGHTER_VEHICLES
+    if (params.vehicleId) {
+      invalidateVehicleRepair(params.fighterId, params.gangId);
+    } else {
+      invalidateFighterData(params.fighterId, params.gangId);
+      revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighterId), { expire: 0 });
+      invalidateGangCredits(params.gangId);
+    }
 
     return {
       success: true

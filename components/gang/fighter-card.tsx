@@ -181,6 +181,7 @@ const FighterCard = memo(function FighterCard({
   dragAttributes,
   disableHoverEffects = false,
   is_spyrer = false,
+  is_vehicle = false,
 }: FighterCardProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [isMultiline, setIsMultiline] = useState(false);
@@ -946,7 +947,7 @@ const FighterCard = memo(function FighterCard({
   return (
     <FighterCardActionMenu
       fighterId={id}
-      isCrewWithVehicle={isCrew && !!vehicle}
+      hasLastingDamage={(isCrew && !!vehicle) || is_vehicle}
       isCaptured={!!captured}
       isKilled={!!killed}
       isSpyrer={is_spyrer}
