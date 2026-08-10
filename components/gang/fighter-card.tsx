@@ -665,7 +665,7 @@ const FighterCard = memo(function FighterCard({
           )}
           
           <div>
-            <StatsTable data={stats} isCrew={isCrew} viewMode={viewMode} />
+            <StatsTable data={stats} isCrew={isCrew} viewMode={viewMode} editionSlug={edition_slug} />
           </div>
 
           {/* Show fighter weapons */}

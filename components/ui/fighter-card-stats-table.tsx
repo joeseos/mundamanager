@@ -1,5 +1,6 @@
 import React from 'react';
 import { GangViewMode, isFullSizeGangViewMode } from '@/components/gang/ViewModeDropdown';
+import { initiativeAndMentalCharacteristicSuffix } from '@/types/edition';
 
 // Add these types at the top of the file
 type CrewStats = {
@@ -65,12 +66,31 @@ interface StatsTableProps {
   data?: StatsType;
   isCrew?: boolean;
   viewMode?: GangViewMode;
+  editionSlug?: string | null;
 }
 
 // Add a type for valid stat keys
 type StatKey = keyof CrewStats | keyof FighterStats;
 
-export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
+const EDITION_SUFFIX_STATS = new Set<StatKey>(['I', 'Ld', 'Cl', 'Wil', 'Int']);
+
+const formatStatValue = (
+  key: string,
+  value: string | number,
+  editionSlug?: string | null
+): string | number => {
+  if (
+    typeof value !== 'string' ||
+    !value.endsWith('+') ||
+    !EDITION_SUFFIX_STATS.has(key as StatKey)
+  ) {
+    return value;
+  }
+
+  return `${value.slice(0, -1)}${initiativeAndMentalCharacteristicSuffix(editionSlug)}`;
+};
+
+export function StatsTable({ data, isCrew, viewMode, editionSlug }: StatsTableProps) {
   if (!data || Object.keys(data).length === 0) {
     return <p>No characteristics available</p>;
   }
@@ -206,7 +226,7 @@ export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
                   ${getColumnBorderClass(key)}`}
                 style={{ width: columnWidth }}
               >
-                {value}
+                {formatStatValue(key, value, editionSlug)}
               </td>
             ))}
           </tr>

@@ -1,7 +1,18 @@
 import { useMemo } from 'react';
 import { FighterProps as Fighter } from '@/types/fighter';
+import { initiativeAndMentalCharacteristicSuffix } from '@/types/edition';
+
+const EDITION_SUFFIX_STATS = new Set([
+  'initiative',
+  'leadership',
+  'cool',
+  'willpower',
+  'intelligence',
+]);
 
 export function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
+  const initiativeAndMentalSuffix = initiativeAndMentalCharacteristicSuffix(fighter.edition_slug);
+
   // Define the stats to display
   const stats = [
     { key: 'movement', label: 'M' },
@@ -76,7 +87,7 @@ export function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
                    stat.key === 'wounds' || stat.key === 'attacks' ||
                    stat.key === 'strength' || stat.key === 'toughness' ?
                    baseValue :
-                   `${baseValue}+`}
+                   `${baseValue}${EDITION_SUFFIX_STATS.has(stat.key) ? initiativeAndMentalSuffix : '+'}`}
                 </td>
               );
             })}
