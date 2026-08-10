@@ -45,6 +45,8 @@ export interface CreatedBeast {
   intelligence: number;
   save?: number | null;
   xp: number;
+  /** null means N/A: this beast's type cannot gain XP. */
+  starting_xp: number | null;
   kills: number;
   special_rules: string[];
   // Equipment and skills
@@ -105,7 +107,8 @@ export async function createExoticBeastsForEquipment(
           willpower,
           intelligence,
           save,
-          special_rules
+          special_rules,
+          starting_xp
         )
       `)
       .eq('equipment_id', params.equipmentId);
@@ -150,7 +153,12 @@ export async function createExoticBeastsForEquipment(
           intelligence: fighterType.intelligence,
           save: fighterType.save ?? null,
           special_rules: fighterType.special_rules || [],
-          xp: 0
+          // A beast is recruited like any other fighter, so it starts on its
+          // type's Starting XP and records that as its recruitment value. The
+          // column has no default, so omitting starting_xp would store NULL —
+          // N/A, a model that can never gain XP — for every beast and pet.
+          xp: fighterType.starting_xp ?? 0,
+          starting_xp: fighterType.starting_xp ?? null
         })
         .select('id, fighter_name, fighter_type, fighter_subtypes, credits, created_at')
         .single();
@@ -225,7 +233,8 @@ export async function createExoticBeastsForEquipment(
         willpower: fighterType.willpower,
         intelligence: fighterType.intelligence,
         save: fighterType.save ?? null,
-        xp: 0,
+        xp: fighterType.starting_xp ?? 0,
+        starting_xp: fighterType.starting_xp ?? null,
         kills: 0,
         special_rules: fighterType.special_rules || [],
         equipment: equipment,
