@@ -436,8 +436,8 @@ export default function GangPageContent({
 
   const openVehicleDamageModal = useCallback((fighterId: string, options?: { openAddModal?: boolean }) => {
     const fighter = gangData.processedData.fighters.find(f => f.id === fighterId) || null;
-    // Only set if fighter has a vehicle
-    if (fighter && fighter.vehicles && fighter.vehicles.length > 0) {
+    // Either an attached vehicle (N23) or a vehicle that is itself the fighter (N26)
+    if (fighter && ((fighter.vehicles && fighter.vehicles.length > 0) || fighter.is_vehicle)) {
       setVehicleModalFighter(fighter);
       setVehicleModalOpenAddOnMount(options?.openAddModal ?? false);
     }
@@ -927,11 +927,13 @@ export default function GangPageContent({
         );
       })()}
 
-      {vehicleModalFighter && vehicleModalFighter.vehicles && vehicleModalFighter.vehicles[0] && (() => {
+      {vehicleModalFighter && (() => {
         // Use latest fighter/vehicle from gangData so the list reflects optimistic updates
         const currentFighter = gangData.processedData.fighters.find(f => f.id === vehicleModalFighter.id) ?? vehicleModalFighter;
+        // N23 hangs the damages off a `vehicles` row; on N26 the vehicle is the fighter,
+        // so they sit in the fighter's own effects and there is no vehicle id to scope by.
         const currentVehicle = currentFighter.vehicles?.[0];
-        if (!currentVehicle) return null;
+        if (!currentVehicle && !currentFighter.is_vehicle) return null;
         const vehicleDamageModalTitle = vehicleModalOpenAddOnMount ? "Add Lasting Damage" : "Vehicle Lasting Damage";
         return (
           <Modal
@@ -951,9 +953,7 @@ export default function GangPageContent({
                 setVehicleModalOpenAddOnMount(false);
               }}
               damages={
-                currentVehicle.effects
-                  ? currentVehicle.effects["lasting damages"] || []
-                  : []
+                (currentVehicle ? currentVehicle.effects : currentFighter.effects)?.["lasting damages"] || []
               }
               onDamageUpdate={(updatedDamages) => {
                 setGangData(prev => ({
@@ -963,7 +963,12 @@ export default function GangPageContent({
                     fighters: prev.processedData.fighters.map(f => {
                       if (f.id !== currentFighter.id) return f;
 
-                      if (!f.vehicles || f.vehicles.length === 0) return f;
+                      if (!f.vehicles || f.vehicles.length === 0) {
+                        return {
+                          ...f,
+                          effects: { ...(f.effects || {}), "lasting damages": updatedDamages },
+                        };
+                      }
                       const [firstVehicle, ...restVehicles] = f.vehicles;
 
                       return {
@@ -983,13 +988,37 @@ export default function GangPageContent({
                   },
                 }));
               }}
+              onFighterStatusUpdate={(status) => {
+                setGangData(prev => ({
+                  ...prev,
+                  processedData: {
+                    ...prev.processedData,
+                    fighters: prev.processedData.fighters.map(f =>
+                      f.id === currentFighter.id
+                        ? {
+                            ...f,
+                            ...(status.recovery !== undefined && { recovery: status.recovery }),
+                            ...(status.captured !== undefined && { captured: status.captured }),
+                            ...(status.capturedByGangId !== undefined && {
+                              captured_by_gang_id: status.capturedByGangId
+                            }),
+                            ...(status.killed !== undefined && { killed: status.killed })
+                          }
+                        : f
+                    ),
+                  },
+                }));
+              }}
               fighterId={currentFighter.id}
-              vehicleId={currentVehicle.id}
+              vehicleId={currentVehicle?.id ?? null}
               gangId={gangId}
               vehicle={currentVehicle}
               gangCredits={gangData.processedData.credits}
               onGangCreditsUpdate={handleGangCreditsUpdate}
               userPermissions={userPermissions}
+              editionSlug={gangData.processedData.edition_slug ?? null}
+              fighterCampaigns={currentFighter.campaigns ?? gangData.processedData.campaigns}
+              fighterRecovery={currentFighter.recovery}
             />
           </Modal>
         );

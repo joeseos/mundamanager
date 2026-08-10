@@ -192,6 +192,11 @@ export interface FighterProps {
     user: FighterEffect[];
     skills: FighterEffect[];
     'power-boosts': FighterEffect[];
+    /**
+     * Only an N26 vehicle carries this: it is a fighter, so its Lasting Damage
+     * sits in its own effects rather than on an attached `vehicles` row.
+     */
+    'lasting damages'?: FighterEffect[];
   };
   vehicles?: Vehicle[];
   is_spyrer?: boolean;

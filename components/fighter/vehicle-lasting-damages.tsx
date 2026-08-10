@@ -1,15 +1,34 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { FighterEffect } from '@/types/fighter';
 import { toast } from 'sonner';
 import Modal from '../ui/modal';
 import { Checkbox } from "@/components/ui/checkbox";
 import DiceRoller from '@/components/dice-roller';
-import { rollNd6Outcome, resolveVehicleDamageFromUtil, getVehicleDamageRollForName, resolveVehicleRepairFromUtil, getVehicleRepairRollForName, VEHICLE_REPAIR_TABLE } from '@/utils/dice';
+import {
+  rollNd6Outcome,
+  rollD66Outcome,
+  vehicleDamageTableFor,
+  resolveVehicleDamageFor,
+  resolveVehicleDamageRangeByNameFor,
+  vehicleRepairModelFor,
+  resolveVehicleRepairFromUtil,
+} from '@/utils/dice';
 import { UserPermissions } from '@/types/user-permissions';
 import { LuTrash2 } from 'react-icons/lu';
 import { addVehicleDamage, verifyAndLogRolledVehicleDamage } from '@/app/actions/add-vehicle-damage';
 import { removeVehicleDamage, repairVehicleDamage } from '@/app/actions/remove-vehicle-damage';
+import {
+  addFighterInjury,
+  deleteFighterInjury,
+  verifyAndLogRolledFighterInjury,
+} from '@/app/actions/fighter-injury';
+import { requiredHatredTarget } from '@/utils/injuryTarget';
+import { InjuryHatredTargetPicker } from '@/components/fighter/injury-hatred-target-picker';
+import { fetchCampaignGangsAndFighters } from '@/utils/api/fighter-ooa-records';
+import type { CampaignGangWithFighters } from '@/types/fighter-ooa-record';
+import { hasKilledStatusFlag } from '@/utils/fighter-status';
+import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Combobox } from '@/components/ui/combobox';
 
@@ -22,11 +41,21 @@ interface VehicleDamagesListProps {
   /** When addFormOnly, called when user cancels or after successful add (closes parent modal). */
   onRequestClose?: () => void;
   onDamageUpdate: (updatedDamages: FighterEffect[]) => void;
+  /**
+   * N26 damages set fighter status the way lasting injuries do. Omitted on N23,
+   * where the damage sits on the vehicle and the fighter is untouched.
+   */
+  onFighterStatusUpdate?: (status: {
+    recovery?: boolean;
+    captured?: boolean;
+    capturedByGangId?: string | null;
+    killed?: boolean;
+  }) => void;
   fighterId: string;
   /**
-   * Null on N26, where the vehicle is the fighter and there is no `vehicles` row. Add and
-   * repair are scoped by vehicle id, so they no-op until N26 gets its own damage table and
-   * fighter-scoped actions.
+   * Null on N26, where the vehicle is the fighter and there is no `vehicles` row.
+   * The damage then hangs off fighter_effects.fighter_id and goes through the
+   * fighter-scoped actions; a non-null id keeps the N23 vehicle-scoped path.
    */
   vehicleId: string | null;
   gangId: string;
@@ -34,30 +63,32 @@ interface VehicleDamagesListProps {
   gangCredits?: number;
   onGangCreditsUpdate?: (newCredits: number) => void;
   userPermissions: UserPermissions;
+  /** Scopes the damage catalog and the D6/D66 table to one ruleset. */
+  editionSlug?: string | null;
+  /** Campaign membership, for the Hatred (X) and Captured pickers on N26. */
+  fighterCampaigns?: Array<{ campaign_id?: string; id?: string }>;
+  fighterRecovery?: boolean;
 }
 
 type RepairCondition = "Almost like new" | "Quality repairs" | "Superficial Damage";
 
-// Static array of repair types based on VEHICLE_REPAIR_TABLE
-const repairTypes = VEHICLE_REPAIR_TABLE.map((entry) => ({
-  id: `repair-${entry.name.toLowerCase().replace(/\s+/g, '-')}`,
-  effect_name: entry.name,
-  range: entry.range
-}));
-
-export function VehicleDamagesList({ 
+export function VehicleDamagesList({
   damages = [],
   initialOpenAddModal = false,
   addFormOnly = false,
   onRequestClose,
   onDamageUpdate,
+  onFighterStatusUpdate,
   fighterId,
   vehicleId,
   gangId,
   vehicle,
   gangCredits,
   onGangCreditsUpdate,
-  userPermissions
+  userPermissions,
+  editionSlug = null,
+  fighterCampaigns,
+  fighterRecovery = false
 }: VehicleDamagesListProps) {
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
   const [repairCost, setRepairCost] = useState<number>(0);
@@ -69,26 +100,73 @@ export function VehicleDamagesList({
   const [isRepairModalOpen, setIsRepairModalOpen] = useState(false);
   const [selectedRepairTypeId, setSelectedRepairTypeId] = useState<string>('');
   const [damageRollCooldown, setDamageRollCooldown] = useState(false);
+  // N26 Chop Shop: damages are removed individually, so selection is by effect row
+  // id — two instances of the same damage must be paid for separately.
+  const [selectedRepairIds, setSelectedRepairIds] = useState<string[]>([]);
+  const [selectedCapturingGangId, setSelectedCapturingGangId] = useState<string>('');
+  const [selectedHatredTargetId, setSelectedHatredTargetId] = useState<string>('');
+  // First step of the fighter picker only — narrows the list, never submitted.
+  const [selectedHatredGangId, setSelectedHatredGangId] = useState<string>('');
+  const [campaignGangs, setCampaignGangs] = useState<CampaignGangWithFighters[]>([]);
+  const [isFetchingGangs, setIsFetchingGangs] = useState(false);
 
   const queryClient = useQueryClient();
 
+  // A vehicle with no `vehicles` row is the fighter itself (N26): its damages live
+  // on fighter_effects.fighter_id and go through the fighter-scoped actions.
+  const isFighterScoped = vehicleId === null;
+
+  const { entries: damageEntries, dice: damageDice } = vehicleDamageTableFor(editionSlug);
+  const hasDamageTable = damageEntries.length > 0;
+  const repairModel = vehicleRepairModelFor(editionSlug);
+
+  const campaignIds = useMemo(
+    () =>
+      (fighterCampaigns ?? [])
+        .map(campaign => campaign.campaign_id ?? campaign.id)
+        .filter((id): id is string => Boolean(id)),
+    [fighterCampaigns]
+  );
+
+  // N23 rolls a repair quality on D6. N26's Chop Shop has no roll, so this is empty there.
+  const repairTypes = useMemo(
+    () =>
+      repairModel?.kind === 'roll'
+        ? repairModel.entries.map((entry) => ({
+            id: `repair-${entry.name.toLowerCase().replace(/\s+/g, '-')}`,
+            effect_name: entry.name,
+            range: entry.range
+          }))
+        : [],
+    [repairModel]
+  );
+
   const logDamageRollMutation = useMutation({
     mutationFn: async (variables: {
-      vehicle_id: string;
+      vehicle_id: string | null;
       fighter_id: string;
       gang_id: string;
       damage_type_id: string;
       damage_table: string;
       dice_data: { result: number };
     }) => {
-      const result = await verifyAndLogRolledVehicleDamage({
-        vehicle_id: variables.vehicle_id,
-        fighter_id: variables.fighter_id,
-        gang_id: variables.gang_id,
-        damage_type_id: variables.damage_type_id,
-        damage_table: variables.damage_table,
-        dice_data: variables.dice_data
-      });
+      // verifyAndLogRolledVehicleDamage reads the `vehicles` row, which an N26
+      // vehicle does not have; the fighter-scoped logger takes its place.
+      const result = variables.vehicle_id
+        ? await verifyAndLogRolledVehicleDamage({
+            vehicle_id: variables.vehicle_id,
+            fighter_id: variables.fighter_id,
+            gang_id: variables.gang_id,
+            damage_type_id: variables.damage_type_id,
+            damage_table: variables.damage_table,
+            dice_data: variables.dice_data
+          })
+        : await verifyAndLogRolledFighterInjury({
+            fighter_id: variables.fighter_id,
+            injury_type_id: variables.damage_type_id,
+            injury_table: variables.damage_table,
+            dice_data: variables.dice_data
+          });
       if (!result.success) {
         throw new Error(result.error || 'Failed to log vehicle damage roll');
       }
@@ -100,7 +178,7 @@ export function VehicleDamagesList({
   });
 
   const logResolvedDamageRollWithCooldown = (damage: { id: string; effect_name: string }, roll: number) => {
-    if (!vehicleId || damageRollCooldown || logDamageRollMutation.isPending) return;
+    if (damageRollCooldown || logDamageRollMutation.isPending) return;
     setDamageRollCooldown(true);
     logDamageRollMutation.mutate({
       vehicle_id: vehicleId,
@@ -113,12 +191,75 @@ export function VehicleDamagesList({
     setTimeout(() => setDamageRollCooldown(false), 2000);
   };
 
-  const VEHICLE_DAMAGE_CATEGORY_ID = 'a993261a-4172-4afb-85bf-f35e78a1189f';
   const tempIdCounter = useRef(0);
 
   // TanStack Query mutations
   const addDamageMutation = useMutation({
-    mutationFn: addVehicleDamage,
+    /**
+     * Two write paths, one normalised result. An N23 damage belongs to a `vehicles`
+     * row; an N26 damage belongs to the fighter, so it goes through the ordinary
+     * lasting-injury action — which is what puts it on fighter_effects.fighter_id
+     * and applies its Recovery / Captured / destroyed flags.
+     */
+    mutationFn: async (variables: {
+      vehicleId: string | null;
+      fighterId: string;
+      gangId: string;
+      damageId: string;
+      damageName: string;
+      sendToRecovery?: boolean;
+      setKilled?: boolean;
+      setCaptured?: boolean;
+      capturedByGangId?: string | null;
+      hatredTargetId?: string;
+    }) => {
+      if (variables.vehicleId) {
+        const result = await addVehicleDamage({
+          vehicleId: variables.vehicleId,
+          fighterId: variables.fighterId,
+          gangId: variables.gangId,
+          damageId: variables.damageId,
+          damageName: variables.damageName
+        });
+        if (!result.success || !result.data) {
+          throw new Error(result.error || 'Failed to add vehicle damage');
+        }
+        const row = result.data;
+        return {
+          effect: {
+            id: row.id,
+            effect_name: row.effect_name,
+            fighter_effect_type_id: row.effect_type?.id,
+            fighter_effect_modifiers: row.fighter_effect_modifiers || [],
+            type_specific_data: row.type_specific_data,
+            created_at: row.created_at || new Date().toISOString()
+          } as FighterEffect,
+          status: null
+        };
+      }
+
+      const result = await addFighterInjury({
+        fighter_id: variables.fighterId,
+        injury_type_id: variables.damageId,
+        send_to_recovery: variables.sendToRecovery,
+        set_killed: variables.setKilled,
+        set_captured: variables.setCaptured,
+        captured_by_gang_id: variables.capturedByGangId ?? null,
+        hatred_target_id: variables.hatredTargetId ?? null
+      });
+      if (!result.success || !result.injury) {
+        throw new Error(result.error || 'Failed to add lasting damage');
+      }
+      return {
+        effect: result.injury as FighterEffect,
+        status: {
+          recovery: result.recovery_status,
+          captured: result.captured_status,
+          capturedByGangId: variables.setCaptured ? (variables.capturedByGangId ?? null) : undefined,
+          killed: result.killed_status
+        }
+      };
+    },
     onMutate: async (variables) => {
       // Find the selected damage for optimistic update
       const selectedDamage = availableDamages.find((d: any) => d.id === variables.damageId);
@@ -144,22 +285,15 @@ export function VehicleDamagesList({
       return { previousDamages, optimisticDamage };
     },
     onSuccess: (result, variables, context) => {
-      if (!result.success || !result.data) {
-        throw new Error(result.error || 'Failed to add vehicle damage');
+      // Replace optimistic damage with the real one so delete uses the real id
+      if (context?.previousDamages && onDamageUpdate) {
+        onDamageUpdate([...context.previousDamages, result.effect]);
       }
 
-      // Replace optimistic damage with real one from server so delete uses real id
-      const realDamage: FighterEffect = {
-        id: result.data.id,
-        effect_name: result.data.effect_name,
-        fighter_effect_type_id: result.data.effect_type?.id,
-        fighter_effect_modifiers: result.data.fighter_effect_modifiers || [],
-        type_specific_data: result.data.type_specific_data,
-        created_at: result.data.created_at || new Date().toISOString()
-      };
-
-      if (context?.previousDamages && onDamageUpdate) {
-        onDamageUpdate([...context.previousDamages, realDamage]);
+      // Recovery / Captured / destroyed are fighter statuses, so only the
+      // fighter-scoped path produces them.
+      if (result.status) {
+        onFighterStatusUpdate?.(result.status);
       }
 
       // Invalidate related queries in the query client
@@ -167,9 +301,21 @@ export function VehicleDamagesList({
       queryClient.invalidateQueries({ queryKey: ['gang', variables.gangId] });
       queryClient.invalidateQueries({ queryKey: ['vehicle', vehicleId] });
 
-      toast.success('Lasting damage added successfully');
-      
+      const statusNotes = [
+        result.status?.recovery && 'sent to Recovery',
+        result.status?.captured && 'marked as Captured',
+        result.status?.killed && 'destroyed'
+      ].filter(Boolean);
+      toast.success(
+        statusNotes.length > 0
+          ? `Lasting damage added — vehicle ${statusNotes.join(' and ')}`
+          : 'Lasting damage added successfully'
+      );
+
       setSelectedDamageId('');
+      setSelectedHatredTargetId('');
+      setSelectedHatredGangId('');
+      setSelectedCapturingGangId('');
       setIsAddModalOpen(false);
       if (addFormOnly) onRequestClose?.();
     },
@@ -184,7 +330,12 @@ export function VehicleDamagesList({
   });
 
   const removeDamageMutation = useMutation({
-    mutationFn: removeVehicleDamage,
+    // An N26 damage is a fighter effect, so deleting it goes through the injury
+    // action — which also reverses a destroyed vehicle's killed status and rating.
+    mutationFn: async (variables: { damageId: string; fighterId: string; gangId: string }) =>
+      isFighterScoped
+        ? await deleteFighterInjury({ fighter_id: variables.fighterId, injury_id: variables.damageId })
+        : await removeVehicleDamage(variables),
     onMutate: async (variables) => {
       // Store previous state for rollback
       const previousDamages = [...damages];
@@ -230,15 +381,16 @@ export function VehicleDamagesList({
       // Store previous state for rollback
       const previousDamages = [...damages];
       const previousCredits = gangCredits;
-      
-      // Optimistically remove all damages
-      const updatedDamages: FighterEffect[] = [];
-      onDamageUpdate(updatedDamages);
-      
+
+      // Remove exactly what was submitted. N23 repairs every damage at once, but
+      // the N26 Chop Shop repairs only the ones selected and paid for.
+      const repairedIds = new Set(variables.damageIds);
+      onDamageUpdate(damages.filter((d: FighterEffect) => !repairedIds.has(d.id)));
+
       // Optimistically update gang credits
       if (onGangCreditsUpdate && gangCredits !== undefined) {
         onGangCreditsUpdate(gangCredits - variables.repairCost);
-      } 
+      }
 
       return { previousDamages, previousCredits };
     },
@@ -249,8 +401,9 @@ export function VehicleDamagesList({
 
       toast.success(`Repaired ${variables.damageIds.length} damage(s) for ${variables.repairCost} credits`);
 
-      // If repair type is "Almost like new", add "Persistent Rattle" damage
-      if (variables.repairType === 'Almost like new') {
+      // "Almost like new" leaving a Persistent Rattle is an N23 repair-roll rule;
+      // the N26 Chop Shop leaves nothing behind and has no Persistent Rattle row.
+      if (repairModel?.kind === 'roll' && variables.repairType === 'Almost like new') {
         try {
           const match = availableDamages.find((d: any) => d.effect_name === 'Persistent Rattle');
           const damageId = match?.id;
@@ -276,6 +429,7 @@ export function VehicleDamagesList({
       setIsRepairModalOpen(false);
       setRepairCost(0);
       setRepairPercent(0);
+      setSelectedRepairIds([]);
       setRepairType("Superficial Damage")
     },
     onError: (error, variables, context) => {
@@ -299,25 +453,31 @@ export function VehicleDamagesList({
     return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id);
   }
 
-  // Helper function to format vehicle damage range (D6 roll value)
-  const formatVehicleDamageRange = (damageName: string): string => {
-    const roll = getVehicleDamageRollForName(damageName);
-    return roll ? `${roll}` : '';
-  };
-
-  // Helper function to format vehicle repair range (D6 roll range)
-  const formatVehicleRepairRange = (repairName: string): string => {
-    const entry = VEHICLE_REPAIR_TABLE.find((e) => e.name === repairName);
-    if (!entry) return '';
-    const [min, max] = entry.range;
+  // A single roll (N23 D6) renders as "3"; a band (N26 D66) as "31-46".
+  const formatRange = (range: [number, number] | undefined): string => {
+    if (!range) return '';
+    const [min, max] = range;
     return min === max ? `${min}` : `${min}-${max}`;
   };
 
-  // Fetch available damages using TanStack Query - when add modal or repair modal is opened
+  const formatVehicleDamageRange = (damageName: string): string =>
+    formatRange(resolveVehicleDamageRangeByNameFor(damageName, editionSlug));
+
+  const formatVehicleRepairRange = (repairName: string): string =>
+    formatRange(repairTypes.find((r) => r.effect_name === repairName)?.range);
+
+  /** Lowest roll for a damage name, for sorting the catalog into table order. */
+  const damageSortKey = (damageName: string): number =>
+    resolveVehicleDamageRangeByNameFor(damageName, editionSlug)?.[0] ?? Number.MAX_SAFE_INTEGER;
+
+  // Fetch available damages using TanStack Query - when add modal or repair modal is opened.
+  // The edition is part of the key: effect_name is reused across editions, so one
+  // shared cache entry would serve N23's damages to an N26 vehicle.
   const { data: availableDamages = [], isLoading: isLoadingDamages, error: damagesError } = useQuery({
-    queryKey: ['vehicle-lasting-damages'],
+    queryKey: ['vehicle-lasting-damages', editionSlug],
     queryFn: async () => {
-      const response = await fetch('/api/vehicles/lasting-damage');
+      const query = editionSlug ? `?edition_slug=${encodeURIComponent(editionSlug)}` : '';
+      const response = await fetch(`/api/vehicles/lasting-damage${query}`);
       if (!response.ok) {
         throw new Error('Failed to fetch lasting damage types');
       }
@@ -327,6 +487,73 @@ export function VehicleDamagesList({
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000,  // 10 minutes
   });
+
+  const selectedDamage = availableDamages.find((d: any) => d.id === selectedDamageId);
+  const selectedHatredTarget = requiredHatredTarget(selectedDamage?.type_specific_data);
+
+  // Gang types are global, so an Eternal Enmity needs no campaign data at all.
+  const selectedRequiresCaptured = selectedDamage?.type_specific_data?.captured === 'true';
+  const needsCampaignGangPicker =
+    isFighterScoped &&
+    campaignIds.length > 0 &&
+    (selectedRequiresCaptured ||
+      selectedHatredTarget === 'gang' ||
+      selectedHatredTarget === 'fighter');
+
+  const [prevNeedsCampaignGangPicker, setPrevNeedsCampaignGangPicker] = useState(needsCampaignGangPicker);
+  if (needsCampaignGangPicker !== prevNeedsCampaignGangPicker) {
+    setPrevNeedsCampaignGangPicker(needsCampaignGangPicker);
+    if (!needsCampaignGangPicker) {
+      setCampaignGangs([]);
+      setSelectedCapturingGangId('');
+      setSelectedHatredTargetId('');
+      setSelectedHatredGangId('');
+    } else {
+      setIsFetchingGangs(true);
+    }
+  }
+
+  useEffect(() => {
+    if (!needsCampaignGangPicker) return;
+
+    let cancelled = false;
+
+    const fetchGangs = async () => {
+      try {
+        const allGangs: CampaignGangWithFighters[] = [];
+        const seenIds = new Set<string>();
+
+        const gangResults = await Promise.all(
+          campaignIds.map(async (campaignId) => {
+            try {
+              return await fetchCampaignGangsAndFighters({ campaignId, gangId });
+            } catch {
+              return [];
+            }
+          })
+        );
+
+        for (const gangs of gangResults) {
+          for (const g of gangs) {
+            // The helper passes gangId so the vehicle's own gang comes back too.
+            if (g.gang_id !== gangId && !seenIds.has(g.gang_id)) {
+              seenIds.add(g.gang_id);
+              allGangs.push(g);
+            }
+          }
+        }
+
+        if (!cancelled) setCampaignGangs(allGangs);
+      } catch (err) {
+        console.error('Failed to fetch campaign gangs:', err);
+      } finally {
+        if (!cancelled) setIsFetchingGangs(false);
+      }
+    };
+
+    fetchGangs();
+    return () => { cancelled = true; };
+  }, [needsCampaignGangPicker, campaignIds, gangId]);
 
   // Show error toast if damages failed to load
   useEffect(() => {
@@ -352,22 +579,45 @@ export function VehicleDamagesList({
   }, []);
 
   const handleAddDamage = async () => {
-    if (!vehicleId) return false;
     if (!selectedDamageId) {
       toast.error("Please select a lasting damage");
       return false;
     }
 
-    // Find the selected damage name for logging
-    const selectedDamage = availableDamages.find((d: any) => d.id === selectedDamageId);
-    const damageName = selectedDamage?.effect_name || 'Unknown damage';
-    
+    const damage = availableDamages.find((d: any) => d.id === selectedDamageId);
+    const damageName = damage?.effect_name || 'Unknown damage';
+
+    // N23 damages are inert catalog rows on the vehicle; only the fighter-scoped
+    // path carries statuses and Hatred (X) targets.
+    if (!isFighterScoped) {
+      addDamageMutation.mutate({ vehicleId, fighterId, gangId, damageId: selectedDamageId, damageName });
+      return true;
+    }
+
+    const typeSpecificData = damage?.type_specific_data && typeof damage.type_specific_data === 'object'
+      ? damage.type_specific_data
+      : {};
+
+    const hatredKind = requiredHatredTarget(typeSpecificData);
+    // A gang type is global; a gang or fighter target needs campaign opponents,
+    // and skirmish play has none to name.
+    const hatredSelectable = hatredKind === 'gang_type' || campaignGangs.length > 0;
+    if (hatredKind && hatredSelectable && !selectedHatredTargetId) {
+      toast.error(`Please select the target for ${damageName}`);
+      return false;
+    }
+
     addDamageMutation.mutate({
       vehicleId,
       fighterId,
       gangId,
       damageId: selectedDamageId,
-      damageName
+      damageName,
+      sendToRecovery: typeSpecificData.recovery === 'true' && !fighterRecovery,
+      setKilled: hasKilledStatusFlag(typeSpecificData),
+      setCaptured: typeSpecificData.captured === 'true',
+      capturedByGangId: selectedCapturingGangId || null,
+      hatredTargetId: hatredKind && selectedHatredTargetId ? selectedHatredTargetId : undefined
     });
 
     return true;
@@ -389,27 +639,35 @@ export function VehicleDamagesList({
   };
 
   const handleRepairDamage = async () => {
-    if (!vehicleId || uniqueDamages.length === 0 || gangCredits === undefined) return false;
-    const damageIdsToRepair = uniqueDamages.map((d: FighterEffect) => d.id).filter(isValidUUID);
+    if (uniqueDamages.length === 0 || gangCredits === undefined) return false;
+
+    // N23 repairs every damage at once; the N26 Chop Shop repairs the selection.
+    const candidates = repairModel?.kind === 'per-damage'
+      ? uniqueDamages.filter((d: FighterEffect) => selectedRepairIds.includes(d.id))
+      : uniqueDamages;
+
+    const damageIdsToRepair = candidates.map((d: FighterEffect) => d.id).filter(isValidUUID);
     if (damageIdsToRepair.length === 0) {
-      toast.error('No valid damages to repair.');
+      toast.error(repairModel?.kind === 'per-damage'
+        ? 'Select at least one Lasting Damage to repair.'
+        : 'No valid damages to repair.');
       return false;
     }
-    
+
     if (gangCredits < repairCost) {
       toast.error(`Not enough gang credits to repair these damages. Repair cost: ${repairCost}, Available credits: ${gangCredits}`);
       return false;
     }
-    
+
     repairDamageMutation.mutate({
       damageIds: damageIdsToRepair,
       repairCost,
-      repairType,
+      // The Chop Shop negotiates no repair quality, so it sends none.
+      repairType: repairModel?.kind === 'roll' ? repairType : undefined,
       vehicleId,
       fighterId,
       gangId
     });
-
 
     return true;
   };
@@ -419,11 +677,20 @@ export function VehicleDamagesList({
     ? damages.filter((d, idx, arr) => arr.findIndex(x => x.id === d.id) === idx)
     : damages;
 
-  // Calculate vehicle cost + upgrades (excluding weapons)
+  // N26 Chop Shop: a flat cost per selected damage, recomputed as the selection changes.
+  const perDamageCost = repairModel?.kind === 'per-damage' ? repairModel.costPerDamage : 0;
+  const [prevSelectedRepairCount, setPrevSelectedRepairCount] = useState(selectedRepairIds.length);
+  if (repairModel?.kind === 'per-damage' && selectedRepairIds.length !== prevSelectedRepairCount) {
+    setPrevSelectedRepairCount(selectedRepairIds.length);
+    setRepairCost(selectedRepairIds.length * perDamageCost);
+  }
+
+  // N23: a percentage of vehicle cost + upgrades (excluding weapons)
   const [prevRepairModalOpen, setPrevRepairModalOpen] = useState(isRepairModalOpen);
   const [prevRepairPercent, setPrevRepairPercent] = useState(repairPercent);
   const [prevVehicle, setPrevVehicle] = useState(vehicle);
-  if (isRepairModalOpen !== prevRepairModalOpen || repairPercent !== prevRepairPercent || vehicle !== prevVehicle) {
+  if (repairModel?.kind === 'roll' &&
+      (isRepairModalOpen !== prevRepairModalOpen || repairPercent !== prevRepairPercent || vehicle !== prevVehicle)) {
     setPrevRepairModalOpen(isRepairModalOpen);
     setPrevRepairPercent(repairPercent);
     setPrevVehicle(vehicle);
@@ -446,91 +713,124 @@ export function VehicleDamagesList({
     }
   }
 
+  const applyRolledDamage = (roll: number) => {
+    const entry = resolveVehicleDamageFor(roll, editionSlug);
+    if (!entry) return;
+    const match = availableDamages.find((d: any) => d.effect_name === entry.name);
+    if (!match) return;
+    setSelectedDamageId(match.id);
+    logResolvedDamageRollWithCooldown(match, roll);
+    toast(`Roll ${roll}: ${match.effect_name}`);
+  };
+
+  // One add form, rendered both inline (addFormOnly, from the gang card) and inside
+  // the Add modal — the roller, the picker and the target pickers must not drift.
+  const addDamageForm = (
+    <div className="space-y-4">
+      <div>
+        <DiceRoller
+          items={availableDamages}
+          ensureItems={undefined}
+          getRange={(i: FighterEffect) => {
+            const range = resolveVehicleDamageRangeByNameFor((i as any).effect_name, editionSlug);
+            return range ? { min: range[0], max: range[1] } : null;
+          }}
+          getName={(i: FighterEffect) => (i as any).effect_name}
+          inline
+          rollFn={() => (damageDice === 'd66' ? rollD66Outcome() : rollNd6Outcome(1))}
+          resolveNameForRoll={(roll) => resolveVehicleDamageFor(roll, editionSlug)?.name}
+          buttonText={damageDice === 'd66' ? 'Roll D66' : 'Roll D6'}
+          disabled={
+            !userPermissions.canEdit ||
+            !hasDamageTable ||
+            logDamageRollMutation.isPending ||
+            damageRollCooldown
+          }
+          onRolled={(rolled) => {
+            if (rolled.length === 0) return;
+            applyRolledDamage(rolled[0].roll);
+          }}
+          onRoll={applyRolledDamage}
+        />
+      </div>
+      <div className="space-y-2 pt-3 border-t">
+        <label htmlFor="damageSelect" className="text-sm font-medium">
+          Lasting Damage
+        </label>
+        <Combobox
+          value={selectedDamageId}
+          onValueChange={(value) => setSelectedDamageId(value)}
+          placeholder={isLoadingDamages && availableDamages.length === 0
+            ? "Loading damages..."
+            : "Select a Lasting Damage"
+          }
+          disabled={isLoadingDamages && availableDamages.length === 0}
+          options={availableDamages
+            .slice()
+            .sort((a: any, b: any) => damageSortKey(a.effect_name) - damageSortKey(b.effect_name))
+            .map((damage: any) => {
+              const range = formatVehicleDamageRange(damage.effect_name);
+              const displayText = range ? `${range} ${damage.effect_name}` : damage.effect_name;
+              return {
+                value: damage.id,
+                label: range ? (
+                  <>
+                    <span className="text-gray-400 inline-block w-11 text-center mr-1">{range}</span>{damage.effect_name}
+                  </>
+                ) : damage.effect_name,
+                displayValue: displayText
+              };
+            })}
+        />
+      </div>
+
+      {/* Hatred (X) and Captured targets — fighter-scoped damages only */}
+      {isFighterScoped && selectedHatredTarget && (
+        <div className="space-y-2 pt-3 border-t">
+          <InjuryHatredTargetPicker
+            hatredTarget={selectedHatredTarget}
+            candidateGangs={campaignGangs}
+            isLoadingCandidates={isFetchingGangs}
+            isSkirmish={campaignIds.length === 0}
+            editionSlug={editionSlug}
+            value={selectedHatredTargetId}
+            onChange={setSelectedHatredTargetId}
+            gangStepValue={selectedHatredGangId}
+            onGangStepChange={setSelectedHatredGangId}
+          />
+        </div>
+      )}
+
+      {isFighterScoped && selectedRequiresCaptured && campaignGangs.length > 0 && (
+        <div className="space-y-2 pt-3 border-t">
+          <label className="text-sm font-medium">Captured by</label>
+          <Combobox
+            value={selectedCapturingGangId}
+            onValueChange={setSelectedCapturingGangId}
+            placeholder={isFetchingGangs ? "Loading gangs..." : "Select a Gang"}
+            disabled={isFetchingGangs}
+            options={campaignGangs
+              .slice()
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map(gang =>
+                buildGangComboboxOption({
+                  id: gang.gang_id,
+                  name: gang.name,
+                  gang_colour: gang.gang_colour,
+                  owner_username: gang.owner_username
+                })
+              )}
+          />
+        </div>
+      )}
+    </div>
+  );
+
   // When opened directly from gang card menu, render only the add form (no list, no inner modal)
   if (addFormOnly) {
     return (
       <div className="space-y-4">
-        <div>
-          <DiceRoller
-            items={availableDamages}
-            ensureItems={undefined}
-            getRange={(i: FighterEffect) => {
-              const roll = getVehicleDamageRollForName((i as any).effect_name);
-              return roll ? { min: roll, max: roll } : null;
-            }}
-            getName={(i: FighterEffect) => (i as any).effect_name}
-            inline
-            rollFn={() => rollNd6Outcome(1)}
-            resolveNameForRoll={(roll) => {
-              return resolveVehicleDamageFromUtil(roll);
-            }}
-            buttonText="Roll D6"
-            disabled={!userPermissions.canEdit || logDamageRollMutation.isPending || damageRollCooldown}
-            onRolled={(rolled) => {
-              if (rolled.length === 0) return;
-              const roll = rolled[0].roll;
-              const name = resolveVehicleDamageFromUtil(roll);
-              if (name) {
-                const match = availableDamages.find((d: any) => d.effect_name === name);
-                if (match) {
-                  setSelectedDamageId(match.id);
-                  logResolvedDamageRollWithCooldown(match, roll);
-                  toast(`Roll ${roll}: ${match.effect_name}`);
-                }
-              }
-            }}
-            onRoll={(roll) => {
-              const name = resolveVehicleDamageFromUtil(roll);
-              if (name) {
-                const match = availableDamages.find((d: any) => d.effect_name === name);
-                if (match) {
-                  setSelectedDamageId(match.id);
-                  logResolvedDamageRollWithCooldown(match, roll);
-                  toast(`Roll ${roll}: ${match.effect_name}`);
-                }
-              }
-            }}
-          />
-        </div>
-        <div className="space-y-2 pt-3 border-t">
-          <label htmlFor="damageSelect" className="text-sm font-medium">
-            Lasting Damage
-          </label>
-          <Combobox
-            value={selectedDamageId}
-            onValueChange={(value) => {
-              setSelectedDamageId(value);
-            }}
-            placeholder={isLoadingDamages && availableDamages.length === 0
-              ? "Loading damages..."
-              : "Select a Lasting Damage"
-            }
-            disabled={isLoadingDamages && availableDamages.length === 0}
-            options={availableDamages
-              .slice()
-              .sort((a: any, b: any) => {
-                const rollA = getVehicleDamageRollForName(a.effect_name);
-                const rollB = getVehicleDamageRollForName(b.effect_name);
-                if (!rollA && !rollB) return 0;
-                if (!rollA) return 1;
-                if (!rollB) return -1;
-                return rollA - rollB;
-              })
-              .map((damage: any) => {
-                const range = formatVehicleDamageRange(damage.effect_name);
-                const displayText = range ? `${range} ${damage.effect_name}` : damage.effect_name;
-                return {
-                  value: damage.id,
-                  label: range ? (
-                    <>
-                      <span className="text-gray-400 inline-block w-11 text-center mr-1">{range}</span>{damage.effect_name}
-                    </>
-                  ) : damage.effect_name,
-                  displayValue: displayText
-                };
-              })}
-          />
-        </div>
+        {addDamageForm}
         <div className="flex justify-end gap-2 pt-2 border-t">
           <Button variant="outline" onClick={onRequestClose} disabled={addDamageMutation.isPending}>
             Cancel
@@ -557,14 +857,14 @@ export function VehicleDamagesList({
             <Button
               onClick={() => setIsRepairModalOpen(true)}
               className="bg-card hover:bg-muted text-foreground border border-border"
-              disabled={uniqueDamages.length === 0 || !userPermissions.canEdit}
+              disabled={uniqueDamages.length === 0 || !userPermissions.canEdit || !repairModel}
             >
-              Repair
+              {repairModel?.kind === 'per-damage' ? 'Chop Shop' : 'Repair'}
             </Button>
             <Button
               onClick={handleOpenModal}
               className="bg-neutral-900 hover:bg-gray-800 text-white"
-              disabled={!userPermissions.canEdit}
+              disabled={!userPermissions.canEdit || !hasDamageTable}
             >
               Add
             </Button>
@@ -629,95 +929,7 @@ export function VehicleDamagesList({
       {isAddModalOpen && (
         <Modal
           title="Lasting Damage"
-          content={
-            <div className="space-y-4">
-              <div>
-                <DiceRoller
-                  items={availableDamages}
-                  ensureItems={undefined}
-                  getRange={(i: FighterEffect) => {
-                    const roll = getVehicleDamageRollForName((i as any).effect_name);
-                    return roll ? { min: roll, max: roll } : null;
-                  }}
-                  getName={(i: FighterEffect) => (i as any).effect_name}
-                  inline
-                  rollFn={() => rollNd6Outcome(1)}
-                  resolveNameForRoll={(roll) => {
-                    return resolveVehicleDamageFromUtil(roll);
-                  }}
-                  buttonText="Roll D6"
-                  disabled={!userPermissions.canEdit || logDamageRollMutation.isPending || damageRollCooldown}
-                  onRolled={(rolled) => {
-                    if (rolled.length === 0) return;
-                    const roll = rolled[0].roll;
-                    const name = resolveVehicleDamageFromUtil(roll);
-                    if (name) {
-                      const match = availableDamages.find((d: any) => d.effect_name === name);
-                      if (match) {
-                        setSelectedDamageId(match.id);
-                        logResolvedDamageRollWithCooldown(match, roll);
-                        toast(`Roll ${roll}: ${match.effect_name}`);
-                      }
-                    }
-                  }}
-                  onRoll={(roll) => {
-                    const name = resolveVehicleDamageFromUtil(roll);
-                    if (name) {
-                      const match = availableDamages.find((d: any) => d.effect_name === name);
-                      if (match) {
-                        setSelectedDamageId(match.id);
-                        logResolvedDamageRollWithCooldown(match, roll);
-                        toast(`Roll ${roll}: ${match.effect_name}`);
-                      }
-                    }
-                  }}
-                />
-              </div>
-
-              <div className="space-y-2 pt-3 border-t">
-                <label htmlFor="damageSelect" className="text-sm font-medium">
-                  Lasting Damage
-                </label>
-                <Combobox
-                  value={selectedDamageId}
-                  onValueChange={(value) => {
-                    setSelectedDamageId(value);
-                  }}
-                  placeholder={isLoadingDamages && availableDamages.length === 0
-                    ? "Loading damages..."
-                    : "Select a Lasting Damage"
-                  }
-                  disabled={isLoadingDamages && availableDamages.length === 0}
-                  options={availableDamages
-                    .slice()
-                    .sort((a: any, b: any) => {
-                      // Sort by D6 roll value (1-6)
-                      const rollA = getVehicleDamageRollForName(a.effect_name);
-                      const rollB = getVehicleDamageRollForName(b.effect_name);
-                      
-                      if (!rollA && !rollB) return 0;
-                      if (!rollA) return 1;
-                      if (!rollB) return -1;
-                      
-                      return rollA - rollB;
-                    })
-                    .map((damage: any) => {
-                      const range = formatVehicleDamageRange(damage.effect_name);
-                      const displayText = range ? `${range} ${damage.effect_name}` : damage.effect_name;
-                      return {
-                        value: damage.id,
-                        label: range ? (
-                          <>
-                            <span className="text-gray-400 inline-block w-11 text-center mr-1">{range}</span>{damage.effect_name}
-                          </>
-                        ) : damage.effect_name,
-                        displayValue: displayText
-                      };
-                    })}
-                />
-              </div>
-            </div>
-          }
+          content={addDamageForm}
           onClose={handleCloseModal}
           onConfirm={handleAddDamage}
           confirmText="Add Lasting Damage"
@@ -744,7 +956,7 @@ export function VehicleDamagesList({
 
       {isRepairModalOpen && (
         <Modal
-          title="Repair Damage"
+          title={repairModel?.kind === 'per-damage' ? 'Visit Chop Shop' : 'Repair Damage'}
           headerContent={
             gangCredits !== undefined && (
               <div className="flex items-center gap-2">
@@ -758,19 +970,47 @@ export function VehicleDamagesList({
           content={
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">The following damages will be repaired:</label>
+                <label className="block text-sm font-medium mb-2">
+                  {repairModel?.kind === 'per-damage'
+                    ? `Select the Lasting Damage to repair (${perDamageCost} credits each):`
+                    : 'The following damages will be repaired:'}
+                </label>
                 <div className="overflow-x-auto mb-4">
                   <table className="w-full table-auto">
                     <tbody>
                       {uniqueDamages.map((damage: FighterEffect) => (
                         <tr key={damage.id} className="border-t">
-                          <td className="px-1 py-1">{damage.effect_name}</td>
+                          {repairModel?.kind === 'per-damage' && (
+                            <td className="w-8 px-1 py-1">
+                              <Checkbox
+                                id={`repair-${damage.id}`}
+                                checked={selectedRepairIds.includes(damage.id)}
+                                onCheckedChange={(checked) =>
+                                  setSelectedRepairIds(prev =>
+                                    checked
+                                      ? [...prev, damage.id]
+                                      : prev.filter(id => id !== damage.id)
+                                  )
+                                }
+                              />
+                            </td>
+                          )}
+                          <td className="px-1 py-1">
+                            {repairModel?.kind === 'per-damage' ? (
+                              <label htmlFor={`repair-${damage.id}`} className="cursor-pointer">
+                                {damage.effect_name}
+                              </label>
+                            ) : (
+                              damage.effect_name
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-                {/* Repair type selection */}
+                {/* Repair type selection — N23 only; the Chop Shop has no roll */}
+                {repairModel?.kind === 'roll' && (
                 <div className="space-y-2 pt-3 border-t">
                   <label htmlFor="repairTypeSelect" className="text-sm font-medium">
                     Repair Type
@@ -863,6 +1103,7 @@ export function VehicleDamagesList({
                       })}
                   />
                 </div>
+                )}
                 {/* Calculate vehicle cost + upgrades (excluding weapons) */}
                 <div className="mt-4">
                   <div className="flex items-center gap-2">
@@ -878,9 +1119,15 @@ export function VehicleDamagesList({
                       className="w-24 p-2 border rounded-sm focus:ring-2 focus:ring-black focus:border-black text-base"
                     />
                   </div>
-                  {selectedRepairTypeId && (
+                  {repairModel?.kind === 'per-damage' && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {selectedRepairIds.length} selected at {perDamageCost} credits each. Repeated
+                      Lasting Damage must be selected — and paid for — separately.
+                    </p>
+                  )}
+                  {repairModel?.kind === 'roll' && selectedRepairTypeId && (
                     <p className={`mt-2 text-xs ${repairType === 'Almost like new' ? 'text-amber-700' : ''}`}>
-                      {repairType === 'Almost like new' 
+                      {repairType === 'Almost like new'
                         ? 'All Lasting Damage will be replaced with a Persistent Rattle.'
                         : 'All Lasting Damage will be repaired.'}
                     </p>
@@ -894,11 +1141,16 @@ export function VehicleDamagesList({
             setSelectedRepairTypeId('');
             setRepairCost(0);
             setRepairPercent(0);
+            setSelectedRepairIds([]);
             setRepairType("Superficial Damage");
           }}
           onConfirm={handleRepairDamage}
-          confirmText="Repair"
-          confirmDisabled={uniqueDamages.length === 0 || repairDamageMutation.isPending}
+          confirmText={repairModel?.kind === 'per-damage' ? 'Pay & Repair' : 'Repair'}
+          confirmDisabled={
+            uniqueDamages.length === 0 ||
+            repairDamageMutation.isPending ||
+            (repairModel?.kind === 'per-damage' && selectedRepairIds.length === 0)
+          }
         />
       )}
     </>

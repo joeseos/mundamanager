@@ -33,8 +33,8 @@ interface VehicleEquipmentListProps {
   onAddEquipment: () => void;
   userPermissions: UserPermissions;
   vehicleEffects?: any;
-  /** Null on N26, where the vehicle is the fighter and there is no `vehicles` row to scope by. */
-  vehicleId: string | null;
+  /** This list is N23-only: it renders solely for an attached `vehicles` row. */
+  vehicleId: string;
   onRegisterPurchase?: (fn: (payload: { params: any; item: any }) => void) => void;
   editionSlug?: string | null;
 }
@@ -991,7 +991,7 @@ export function VehicleEquipmentList({
         />
       )}
 
-      {fitWeaponData && vehicleId && (
+      {fitWeaponData && (
         <FitWeaponModal
           weaponName={fitWeaponData.weaponName}
           currentHardpointId={

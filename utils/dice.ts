@@ -257,45 +257,143 @@ export const resolveInjuryRangeByNameFor = (
   lastingInjuryTableFor(editionSlug, opts).find((e) => e.name === name)?.range;
 
 // ============================================================================
-// Vehicle Lasting Damage - D6 table and resolver
+// Vehicle Lasting Damage - edition-scoped tables and resolvers
 // ============================================================================
 
-export const VEHICLE_DAMAGE_TABLE: Record<number, string> = {
-  1: 'Persistent Rattle',
-  2: 'Handling Glitch',
-  3: 'Unreliable',
-  4: 'Loss of Power',
-  5: 'Damaged Bodywork',
-  6: 'Damaged Frame',
+// D6 table for Vehicle Lasting Damage, N23 ruleset. Six mechanical faults that
+// modify the *vehicle* statline on the attached `vehicles` row.
+export const VEHICLE_DAMAGE_TABLE_N23: TableEntry[] = [
+  { range: [1, 1], name: 'Persistent Rattle' },
+  { range: [2, 2], name: 'Handling Glitch' },
+  { range: [3, 3], name: 'Unreliable' },
+  { range: [4, 4], name: 'Loss of Power' },
+  { range: [5, 5], name: 'Damaged Bodywork' },
+  { range: [6, 6], name: 'Damaged Frame' },
+];
+
+// D66 table for Vehicle Lasting Damage, N26 ruleset.
+//
+// Not a reskin of N23. N26 makes the vehicle a fighter, so this rolls D66 rather
+// than D6, modifies ordinary fighter characteristics rather than vehicle ones,
+// and carries the Recovery / Captured / destroyed outcomes of the N26 lasting
+// injury table — including the same Hatred (X) Enmity trio at 12-14.
+//
+// Names deliberately collide with N26 *injuries* ('Lesson Learnt', the Enmity
+// trio, 'Captured'); those are separate rows in the 'lasting damages' category.
+// 'Superficial Damage' also collides with an entry in VEHICLE_REPAIR_TABLE_N23,
+// which is a repair quality rather than an effect. effect_name must match
+// supabase/migrations/20260810120000_seed_n26_vehicle_lasting_damages.sql
+// exactly, since ranges are a name-keyed reverse lookup.
+export const VEHICLE_DAMAGE_TABLE_N26: TableEntry[] = [
+  { range: [11, 11], name: 'Lesson Learnt' },
+  { range: [12, 12], name: 'Eternal Enmity' },
+  { range: [13, 13], name: BITTER_ENMITY_EFFECT_NAME },
+  { range: [14, 14], name: 'Personal Enmity' },
+  { range: [15, 16], name: 'Percussive Repair' },
+  { range: [21, 26], name: 'Superficial Damage' },
+  { range: [31, 46], name: 'Major Damage' },
+  { range: [51, 52], name: 'Busted Sights' },
+  { range: [53, 53], name: 'Drive System Fault' },
+  { range: [54, 54], name: 'Buckled Frame' },
+  { range: [55, 56], name: 'Engine Fracture' },
+  { range: [61, 62], name: 'Captured' },
+  { range: [63, 65], name: 'Critical Damage' },
+  { range: [66, 66], name: 'Catastrophic Explosion!' },
+];
+
+/**
+ * The damage table one edition publishes, and how it is rolled. The dice kind
+ * travels with the table so callers pick a roll function from data rather than
+ * branching on the edition slug.
+ */
+export type VehicleDamageTable = {
+  entries: TableEntry[];
+  dice: 'd6' | 'd66';
 };
 
-export const resolveVehicleDamageFromUtil = (d6: number): string | undefined =>
-  VEHICLE_DAMAGE_TABLE[d6 as 1 | 2 | 3 | 4 | 5 | 6];
-
-// Utility to look up the D6 value by damage name (optional)
-export const getVehicleDamageRollForName = (name: string): number | undefined => {
-  const found = Object.entries(VEHICLE_DAMAGE_TABLE).find(([, n]) => n === name);
-  return found ? Number(found[0]) : undefined;
+/**
+ * Keyed by EditionSlug on purpose, matching INJURY_TABLES_BY_EDITION: adding an
+ * edition is a compile error here until it states its vehicle damage table.
+ */
+const VEHICLE_DAMAGE_BY_EDITION: Record<EditionSlug, VehicleDamageTable> = {
+  n23: { entries: VEHICLE_DAMAGE_TABLE_N23, dice: 'd6' },
+  n26: { entries: VEHICLE_DAMAGE_TABLE_N26, dice: 'd66' },
 };
 
+/**
+ * An unset or unrecognised slug gets no table, so callers show no ranges and
+ * resolve no rolls — the same reasoning as NO_INJURY_TABLES. Quietly serving
+ * another edition's spread would apply the wrong damage to a vehicle. The dice
+ * kind is arbitrary when there are no entries; nothing can be rolled.
+ */
+const NO_VEHICLE_DAMAGE: VehicleDamageTable = { entries: [], dice: 'd6' };
+
+/** The vehicle damage table for one edition, with the dice it is rolled on. */
+export function vehicleDamageTableFor(
+  editionSlug: string | null | undefined,
+): VehicleDamageTable {
+  return (editionSlug && VEHICLE_DAMAGE_BY_EDITION[editionSlug as EditionSlug])
+    || NO_VEHICLE_DAMAGE;
+}
+
+/** Resolve a roll to its table entry for the given edition. */
+export const resolveVehicleDamageFor = (
+  roll: number,
+  editionSlug: string | null | undefined,
+): TableEntry | undefined =>
+  vehicleDamageTableFor(editionSlug).entries.find((e) => roll >= e.range[0] && roll <= e.range[1]);
+
+/** Reverse lookup: the range a damage name occupies, for display. */
+export const resolveVehicleDamageRangeByNameFor = (
+  name: string,
+  editionSlug: string | null | undefined,
+): [number, number] | undefined =>
+  vehicleDamageTableFor(editionSlug).entries.find((e) => e.name === name)?.range;
+
 // ============================================================================
-// Vehicle Repair - D6 table and resolver
+// Vehicle Repair - edition-scoped models
 // ============================================================================
 
-export const VEHICLE_REPAIR_TABLE: TableEntry[] = [
+export const VEHICLE_REPAIR_TABLE_N23: TableEntry[] = [
   { range: [1, 3], name: 'Almost like new' },
   { range: [4, 5], name: 'Quality repairs' },
   { range: [6, 6], name: 'Superficial Damage' },
 ];
 
+/**
+ * The two editions repair by genuinely different mechanics, not by different
+ * numbers, so this is a discriminated union rather than a shared table:
+ *
+ *  - `roll` (N23): roll D6 for a repair quality, clear *every* damage, and pay a
+ *    percentage of the vehicle's cost. 'Almost like new' leaves a Persistent
+ *    Rattle behind.
+ *  - `per-damage` (N26): the Chop Shop. Select any number of damages and pay a
+ *    flat cost for each; no roll, nothing left behind. Duplicates of the same
+ *    damage must be selected separately, so callers key on effect row id.
+ */
+export type VehicleRepairModel =
+  | { kind: 'roll'; entries: TableEntry[] }
+  | { kind: 'per-damage'; costPerDamage: number };
+
+const VEHICLE_REPAIR_BY_EDITION: Record<EditionSlug, VehicleRepairModel> = {
+  n23: { kind: 'roll', entries: VEHICLE_REPAIR_TABLE_N23 },
+  n26: { kind: 'per-damage', costPerDamage: 50 },
+};
+
+/** How this edition repairs vehicle damage, or null where it publishes no rules. */
+export const vehicleRepairModelFor = (
+  editionSlug: string | null | undefined,
+): VehicleRepairModel | null =>
+  (editionSlug && VEHICLE_REPAIR_BY_EDITION[editionSlug as EditionSlug]) || null;
+
 export const resolveVehicleRepairFromUtil = (d6: number): string | undefined => {
-  const entry = VEHICLE_REPAIR_TABLE.find((e) => d6 >= e.range[0] && d6 <= e.range[1]);
+  const entry = VEHICLE_REPAIR_TABLE_N23.find((e) => d6 >= e.range[0] && d6 <= e.range[1]);
   return entry?.name;
 };
 
 // Utility to look up the D6 value by repair name (optional)
 export const getVehicleRepairRollForName = (name: string): number | undefined => {
-  const entry = VEHICLE_REPAIR_TABLE.find((e) => e.name === name);
+  const entry = VEHICLE_REPAIR_TABLE_N23.find((e) => e.name === name);
   return entry ? entry.range[0] : undefined;
 };
 

@@ -184,7 +184,9 @@ async function validateFighterSubtypesForUpdate(
   subtypes: string[],
   currentSubtypes?: string[] | null
 ): Promise<
-  | { ok: true; subtypes: string[]; editionSlug: string }
+  // editionSlug is nullable for the same reason resolveFighterEditionSlugForUpdate
+  // returns null: an unresolved edition is legacy N23, not a failure.
+  | { ok: true; subtypes: string[]; editionSlug: string | null }
   | { ok: false; error: string }
 > {
   const normalized = normalizeFighterSubtypeNames(subtypes);
@@ -1447,8 +1449,9 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (params.cost_adjustment !== undefined) updateData.cost_adjustment = params.cost_adjustment;
     if (params.special_rules !== undefined) updateData.special_rules = params.special_rules;
 
-    // Reused by archetype assignability when subtypes were validated in this request
-    let resolvedEditionSlug: string | undefined;
+    // Reused by archetype assignability when subtypes were validated in this request.
+    // `undefined` means not resolved yet; `null` means resolved to no edition (legacy N23).
+    let resolvedEditionSlug: string | null | undefined;
 
     if (params.fighter_subtypes !== undefined) {
       const validated = await validateFighterSubtypesForUpdate(
@@ -1504,23 +1507,18 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       const fighterSubtypes = effectiveSubtypes.length ? effectiveSubtypes : ['Custom'];
 
       const checkArchetypeAssignable = async (archetypeId: string) => {
-        let editionSlug = resolvedEditionSlug;
-        if (!editionSlug) {
-          const editionResult = await resolveFighterEditionSlugForUpdate(
-            supabase,
-            params.fighter_id,
-            params
-          );
-          if (!editionResult.ok) {
-            return { ok: false as const, error: editionResult.error };
-          }
-          editionSlug = editionResult.editionSlug;
+        // Resolve at most once per request, and only when the subtype validation
+        // above did not already do it. Testing against undefined rather than
+        // falsiness matters: a null slug is a resolved answer (legacy N23), and
+        // re-querying it would cost a round trip per archetype check.
+        if (resolvedEditionSlug === undefined) {
+          resolvedEditionSlug = await resolveFighterEditionSlugForUpdate(supabase, params.fighter_id);
         }
         return assertArchetypeAssignable(supabase, {
           gangTypeId: gangData.gang_type_id,
           fighterSubtypes,
           archetypeId,
-          editionSlug,
+          editionSlug: resolvedEditionSlug,
         });
       };
 

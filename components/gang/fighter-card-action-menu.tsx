@@ -12,7 +12,8 @@ import { useFighterCardModals } from './fighter-card-modals-context';
 
 interface FighterCardActionMenuProps {
   fighterId: string;
-  isCrewWithVehicle: boolean;
+  /** N23 Crew with an attached vehicle, or an N26 vehicle — which is a fighter in its own right. */
+  hasLastingDamage: boolean;
   isCaptured?: boolean;
   isKilled?: boolean;
   isSpyrer?: boolean;
@@ -25,7 +26,7 @@ const MENU_TAP_MOVE_THRESHOLD = 10;
 
 export function FighterCardActionMenu({
   fighterId,
-  isCrewWithVehicle,
+  hasLastingDamage,
   isCaptured = false,
   isKilled = false,
   isSpyrer = false,
@@ -210,7 +211,7 @@ export function FighterCardActionMenu({
 
   const handleAddVehicleDamage = () => {
     if (!modalsContext) return;
-    if (!isCrewWithVehicle) return;
+    if (!hasLastingDamage) return;
     closeMenu();
     modalsContext.openVehicleDamageModal(fighterId, { openAddModal: true });
   };
@@ -287,7 +288,7 @@ export function FighterCardActionMenu({
           >
             {isSpyrer ? 'Add Rig Glitches' : 'Add Lasting Injuries'}
           </button>
-          {isCrewWithVehicle && (
+          {hasLastingDamage && (
             <button
               type="button"
               className="block w-full rounded-sm px-3 py-2.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"

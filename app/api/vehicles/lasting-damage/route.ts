@@ -1,10 +1,39 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from 'next/server';
+import { getEditionIdBySlug } from '@/app/lib/editions';
 
-export async function GET() {
+/**
+ * Lists the vehicle lasting damage catalog.
+ *
+ * fighter_effect_types holds one row per damage per edition, and effect_name is
+ * reused across editions — N23 and N26 both have a 'Superficial Damage', on
+ * different dice with different meanings. Callers must scope the request to an
+ * edition via `edition_slug` or `edition_id`, otherwise a vehicle is offered
+ * another ruleset's damages.
+ *
+ * Both filters are optional; omitting them returns every edition's rows.
+ */
+export async function GET(request: Request) {
   const supabase = await createClient();
   try {
-    const { data: effects, error: effectsError } = await supabase
+    const url = new URL(request.url);
+    const editionSlug = url.searchParams.get('edition_slug');
+    const editionId = url.searchParams.get('edition_id');
+
+    let resolvedEditionId = editionId;
+
+    if (!resolvedEditionId && editionSlug) {
+      resolvedEditionId = await getEditionIdBySlug(editionSlug);
+
+      if (!resolvedEditionId) {
+        return NextResponse.json({
+          error: 'Unknown edition',
+          details: `No edition with slug '${editionSlug}'`
+        }, { status: 400 });
+      }
+    }
+
+    let query = supabase
       .from('fighter_effect_types')
       .select(`
         *,
@@ -14,6 +43,14 @@ export async function GET() {
       `)
       .eq('fighter_effect_category_id', 'a993261a-4172-4afb-85bf-f35e78a1189f')
       .order('effect_name');
+
+    if (resolvedEditionId) {
+      query = query.eq('edition_id', resolvedEditionId);
+    }
+
+    // An empty list is a valid answer, not an error: an edition may legitimately
+    // have no vehicle damages defined yet.
+    const { data: effects, error: effectsError } = await query;
 
     if (effectsError) throw effectsError;
 
