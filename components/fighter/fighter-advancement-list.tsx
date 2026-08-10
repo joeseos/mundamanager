@@ -59,7 +59,6 @@ interface AdvancementModalProps {
   fighterTypeName?: string;
   fighterTypeId?: string;
   fighterSpecialisationId?: string;
-  editionSlug?: string | null;
   onFighterDetailsUpdate?: (patch: {
     fighter_subtypes?: string[];
     fighter_type?: string;
@@ -189,7 +188,6 @@ interface AdvancementsListProps {
   fighterTypeName?: string;
   fighterTypeId?: string;
   fighterSpecialisationId?: string;
-  editionSlug?: string | null;
   onFighterDetailsUpdate?: (patch: {
     fighter_subtypes?: string[];
     fighter_type?: string;
@@ -445,7 +443,7 @@ type ChampionPendingPromotion = FighterPromotionResult;
 export function AdvancementModal({
   fighterId,
   currentXp,
-  editionSlug,
+  editionSlug = null,
   fighterSubtypes,
   advancements,
   skills,
@@ -463,7 +461,6 @@ export function AdvancementModal({
   fighterTypeName = '',
   fighterTypeId = '',
   fighterSpecialisationId = '',
-  editionSlug = null,
   onFighterDetailsUpdate
 }: AdvancementModalProps) {
   
@@ -2774,7 +2771,7 @@ export function AdvancementsList({
   fighterXp,
   fighterChanges = { advancement: [], characteristics: [], skills: [] },
   fighterId,
-  editionSlug,
+  editionSlug = null,
   fighterSubtypes,
   advancements = [],
   skills = {},
@@ -2790,7 +2787,6 @@ export function AdvancementsList({
   fighterTypeName = '',
   fighterTypeId = '',
   fighterSpecialisationId = '',
-  editionSlug = null,
   onFighterDetailsUpdate
 }: AdvancementsListProps) {
   const [isAdvancementModalOpen, setIsAdvancementModalOpen] = useState(false);
@@ -3183,7 +3179,6 @@ export function AdvancementsList({
           fighterTypeName={fighterTypeName}
           fighterTypeId={fighterTypeId}
           fighterSpecialisationId={fighterSpecialisationId}
-          editionSlug={editionSlug}
           onFighterDetailsUpdate={onFighterDetailsUpdate}
         />
       )}
