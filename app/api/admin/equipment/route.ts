@@ -8,6 +8,7 @@ import {
   FighterEffectCategory
 } from "@/types/fighter-effect";
 import { isValidTradePoints } from "@/utils/campaigns/resources";
+import { fetchAllRows } from "@/utils/supabase/fetch-all-rows";
 
 interface FighterTypeEquipment {
   fighter_type_id: string;
@@ -319,26 +320,28 @@ export async function GET(request: Request) {
       
       try {
         // Fetch all fighter types
-        const { data: fighterTypes, error: fighterTypesError } = await supabase
-          .from('fighter_types')
-          .select(`
-            id,
-            fighter_type,
-            gang_type,
-            fighter_subtypes,
-            fighter_specialisation_id,
-            edition_id,
-            fighter_specialisations(
-              specialisation_name
-            )
-          `)
-          .order('gang_type')
-          .order('fighter_type');
-
-        if (fighterTypesError) {
+        try {
+          allFighterTypes = await fetchAllRows((from, to) =>
+            supabase
+              .from('fighter_types')
+              .select(`
+                id,
+                fighter_type,
+                gang_type,
+                fighter_subtypes,
+                fighter_specialisation_id,
+                edition_id,
+                fighter_specialisations(
+                  specialisation_name
+                )
+              `)
+              .order('gang_type')
+              .order('fighter_type')
+              .order('id')
+              .range(from, to)
+          );
+        } catch (fighterTypesError) {
           console.warn('Error fetching fighter types:', fighterTypesError);
-        } else {
-          allFighterTypes = fighterTypes || [];
         }
 
         // Fetch fighter types that have this equipment
@@ -357,10 +360,19 @@ export async function GET(request: Request) {
       }
 
       // Fetch all equipment for the grants dropdown
-      const { data: allEquipment } = await supabase
-        .from('equipment')
-        .select('id, equipment_name')
-        .order('equipment_name');
+      let allEquipment: { id: string; equipment_name: string }[] = [];
+      try {
+        allEquipment = await fetchAllRows((from, to) =>
+          supabase
+            .from('equipment')
+            .select('id, equipment_name')
+            .order('equipment_name')
+            .order('id')
+            .range(from, to)
+        );
+      } catch (error) {
+        console.warn('Error fetching equipment for grants dropdown:', error);
+      }
 
       return NextResponse.json({
         ...equipment,
@@ -381,30 +393,36 @@ export async function GET(request: Request) {
 
     } else if (equipment_category) {
       // Return equipment filtered by category
-      const { data, error } = await supabase
-        .from('equipment')
-        .select('*')
-        .eq('equipment_category', equipment_category)
-        .order('equipment_name');
+      const data = await fetchAllRows((from, to) =>
+        supabase
+          .from('equipment')
+          .select('*')
+          .eq('equipment_category', equipment_category)
+          .order('equipment_name')
+          .order('id')
+          .range(from, to)
+      );
 
-      if (error) throw error;
       return NextResponse.json(data);
 
     } else {
       // Return all equipment, optionally filtered by equipment_type
       // (e.g. Weapon Group dropdown uses ?equipment_type=weapon)
-      let query = supabase
-        .from('equipment')
-        .select('*')
-        .order('equipment_name');
+      const data = await fetchAllRows((from, to) => {
+        let query = supabase
+          .from('equipment')
+          .select('*')
+          .order('equipment_name')
+          .order('id')
+          .range(from, to);
 
-      if (equipment_type) {
-        query = query.eq('equipment_type', equipment_type);
-      }
+        if (equipment_type) {
+          query = query.eq('equipment_type', equipment_type);
+        }
 
-      const { data, error } = await query;
+        return query;
+      });
 
-      if (error) throw error;
       return NextResponse.json(data);
     }
   } catch (error) {
