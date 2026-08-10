@@ -31,7 +31,8 @@ export interface FighterBasic {
   intelligence: number;
   save?: number | null;
   xp: number;
-  starting_xp: number;
+  /** null means N/A: this fighter's type cannot gain XP. */
+  starting_xp: number | null;
   special_rules?: string[];
   fighter_subtypes: string[];
   fighter_type?: string;

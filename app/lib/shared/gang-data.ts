@@ -158,7 +158,8 @@ export interface GangFighter {
   intelligence: number;
   save?: number | null;
   edition_slug?: string | null;
-  starting_xp: number;
+  /** null means N/A: this fighter's type cannot gain XP. */
+  starting_xp: number | null;
   weapons: WeaponProps[];
   wargear: WargearItem[];
   effects: Record<string, any[]>;

@@ -489,8 +489,11 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       willpower: effectiveFighterData.willpower,
       intelligence: effectiveFighterData.intelligence,
       save: effectiveFighterData.save ?? null,
+      // A type with no Starting XP is N/A — it cannot gain XP — and the fighter
+      // records that as NULL too. Its xp still starts at 0: the roster reads N/A
+      // off starting_xp, and xp stays a number so a house rule can raise it.
       xp: effectiveFighterData.starting_xp ?? 0,
-      starting_xp: effectiveFighterData.starting_xp ?? 0,
+      starting_xp: effectiveFighterData.starting_xp ?? null,
       is_vehicle: effectiveFighterData.is_vehicle ?? false,
       kills: 0,
       special_rules: effectiveFighterData.special_rules,

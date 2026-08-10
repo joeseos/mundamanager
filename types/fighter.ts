@@ -158,7 +158,8 @@ export interface FighterProps {
   save?: number | null;
   edition_slug?: string | null;
   xp: number;
-  starting_xp?: number;
+  /** null means N/A: this fighter's type cannot gain XP. */
+  starting_xp?: number | null;
   kills: number;
   kill_count?: number;
   gang_id?: string;
