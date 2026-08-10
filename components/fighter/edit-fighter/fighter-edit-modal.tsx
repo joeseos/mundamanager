@@ -478,7 +478,10 @@ export function EditFighterModal({
         stat_adjustments: Object.keys(pendingStatAdjustments).length > 0 ? pendingStatAdjustments : undefined
       });
       if (!result.success) throw new Error(result.error || 'Failed to update fighter');
-      return result.data?.fighter;
+      return {
+        fighter: result.data?.fighter,
+        warning: result.warning,
+      };
     },
     onMutate: (submit) => {
       // Build optimistic user-effect overlay from pendingStatAdjustments
@@ -541,7 +544,8 @@ export function EditFighterModal({
       }
       toast.error(err instanceof Error ? err.message : 'Failed to update fighter');
     },
-    onSuccess: async (serverFighter, submit, ctx) => {
+    onSuccess: async (result, submit, ctx) => {
+      const serverFighter = result?.fighter;
       if (ctx && 'optimistic' in (ctx as any) && 'snapshot' in (ctx as any)) {
         onEditSuccess?.(serverFighter, (ctx as any).optimistic, (ctx as any).snapshot);
       }
@@ -554,7 +558,12 @@ export function EditFighterModal({
           : (submit.selected_archetype_id ?? null);
 
       setSelectedArchetypeId(persistedArchetypeId || '');
-      toast.success('Fighter updated successfully');
+
+      if (result?.warning) {
+        toast.error(result.warning);
+      } else {
+        toast.success('Fighter updated successfully');
+      }
     }
   });
 

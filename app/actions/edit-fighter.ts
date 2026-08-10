@@ -286,6 +286,8 @@ interface EditFighterResult {
     kill_count?: number;
   };
   error?: string;
+  /** Partial-success note (e.g. archetype saved but skill-access overrides failed) */
+  warning?: string;
   fighter?: {
     id: string;
     fighter_name: string;
@@ -1590,6 +1592,10 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (updateError) throw updateError;
 
     // Keep skill-access overrides in sync with the persisted archetype (server-derived, not client-supplied)
+    const ARCHETYPE_SKILL_ACCESS_WARNING =
+      'Fighter updated but skill access save failed. Please try again via Customise Skill Set Access.';
+    let archetypeSkillAccessWarning: string | undefined;
+
     if (clearedArchetype) {
       const { error: overrideDeleteError } = await supabase
         .from('fighter_skill_access_override')
@@ -1598,6 +1604,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
 
       if (overrideDeleteError) {
         console.error('Failed to clear skill access overrides after archetype removal:', overrideDeleteError);
+        archetypeSkillAccessWarning = ARCHETYPE_SKILL_ACCESS_WARNING;
       }
     } else if (archetypeIdForOverrides) {
       try {
@@ -1609,6 +1616,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
 
         if (archetypeFetchError || !archetypeData) {
           console.error('Failed to fetch archetype for skill-access overrides:', archetypeFetchError);
+          archetypeSkillAccessWarning = ARCHETYPE_SKILL_ACCESS_WARNING;
         } else if (archetypeData.skill_access && Array.isArray(archetypeData.skill_access)) {
           const overrides = mapArchetypeSkillAccessToOverrides(archetypeData.skill_access);
 
@@ -1619,6 +1627,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
 
           if (overrideDeleteError) {
             console.error('Failed to clear prior skill access overrides:', overrideDeleteError);
+            archetypeSkillAccessWarning = ARCHETYPE_SKILL_ACCESS_WARNING;
           } else if (overrides.length > 0) {
             const overrideRows = overrides.map(sa => ({
               fighter_id: params.fighter_id,
@@ -1633,11 +1642,13 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
 
             if (overrideInsertError) {
               console.error('Failed to insert archetype skill-access overrides:', overrideInsertError);
+              archetypeSkillAccessWarning = ARCHETYPE_SKILL_ACCESS_WARNING;
             }
           }
         }
       } catch (archetypeError) {
         console.error('Error applying archetype skill-access overrides:', archetypeError);
+        archetypeSkillAccessWarning = ARCHETYPE_SKILL_ACCESS_WARNING;
       }
     }
 
@@ -1799,6 +1810,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
 
     return {
       success: true,
+      warning: archetypeSkillAccessWarning,
       data: { 
         fighter: updatedFighter
       }
