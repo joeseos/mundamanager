@@ -1,6 +1,9 @@
 import { useMemo } from 'react';
 import { FighterProps as Fighter } from '@/types/fighter';
-import { initiativeAndMentalCharacteristicSuffix } from '@/types/edition';
+import {
+  hasSaveCharacteristic,
+  initiativeAndMentalCharacteristicSuffix,
+} from '@/types/edition';
 
 const EDITION_SUFFIX_STATS = new Set([
   'initiative',
@@ -13,26 +16,49 @@ const EDITION_SUFFIX_STATS = new Set([
 export function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
   const initiativeAndMentalSuffix = initiativeAndMentalCharacteristicSuffix(fighter.edition_slug);
 
-  // Define the stats to display
-  const stats = [
-    { key: 'movement', label: 'M' },
-    { key: 'weapon_skill', label: 'WS' },
-    { key: 'ballistic_skill', label: 'BS' },
-    { key: 'strength', label: 'S' },
-    { key: 'toughness', label: 'T' },
-    { key: 'wounds', label: 'W' },
-    { key: 'initiative', label: 'I' },
-    { key: 'attacks', label: 'A' },
-    { key: 'leadership', label: 'Ld' },
-    { key: 'cool', label: 'Cl' },
-    { key: 'willpower', label: 'Wil' },
-    { key: 'intelligence', label: 'Int' }
-  ];
+  const stats = useMemo(() => {
+    const baseStats = [
+      { key: 'movement', label: 'M' },
+      { key: 'weapon_skill', label: 'WS' },
+      { key: 'ballistic_skill', label: 'BS' },
+      { key: 'strength', label: 'S' },
+      { key: 'toughness', label: 'T' },
+      { key: 'wounds', label: 'W' },
+      { key: 'initiative', label: 'I' },
+      { key: 'attacks', label: 'A' },
+      { key: 'leadership', label: 'Ld' },
+      { key: 'cool', label: 'Cl' },
+      { key: 'willpower', label: 'Wil' },
+      { key: 'intelligence', label: 'Int' }
+    ];
 
-  // IMPORTANT FIX: Get base values from original fighter properties directly
-  const getStat = (fighter: Fighter, key: string): number => {
-    // Return original base values from fighter object
-    return fighter[key as keyof Fighter] as number || 0;
+    if (!hasSaveCharacteristic(fighter.edition_slug)) return baseStats;
+
+    const attacksIndex = baseStats.findIndex(stat => stat.key === 'attacks');
+    return [
+      ...baseStats.slice(0, attacksIndex + 1),
+      { key: 'save', label: 'Sv' },
+      ...baseStats.slice(attacksIndex + 1)
+    ];
+  }, [fighter.edition_slug]);
+
+  // IMPORTANT FIX: Get base values from original fighter properties directly.
+  // Save is nullable (NULL = not applicable); do not coerce it to 0.
+  const getStat = (fighter: Fighter, key: string): number | null => {
+    const value = fighter[key as keyof Fighter];
+    if (key === 'save') {
+      return value == null ? null : Number(value);
+    }
+    return (value as number) || 0;
+  };
+
+  const formatStatValue = (key: string, value: number | null): string | number => {
+    if (key === 'save' && value == null) return '-';
+    if (key === 'movement') return `${value}"`;
+    if (key === 'wounds' || key === 'attacks' || key === 'strength' || key === 'toughness') {
+      return value as number;
+    }
+    return `${value}${EDITION_SUFFIX_STATS.has(key) ? initiativeAndMentalSuffix : '+'}`;
   };
 
   // Single function to calculate effects for any category
@@ -83,11 +109,7 @@ export function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
 
               return (
                 <td key={stat.key} className="border-l border-border text-center text-xs">
-                  {stat.key === 'movement' ? `${baseValue}"` :
-                   stat.key === 'wounds' || stat.key === 'attacks' ||
-                   stat.key === 'strength' || stat.key === 'toughness' ?
-                   baseValue :
-                   `${baseValue}${EDITION_SUFFIX_STATS.has(stat.key) ? initiativeAndMentalSuffix : '+'}`}
+                  {formatStatValue(stat.key, baseValue)}
                 </td>
               );
             })}
@@ -215,15 +237,16 @@ export function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
               const augmentationsValue = augmentationsEffects[stat.key] || 0;
               const equipmentValue = equipmentEffects[stat.key] || 0;
               const powerBoostsValue = powerBoostsEffects[stat.key] || 0;
-              const total = baseValue + injuryValue + advancementValue + bionicsValue + userValue + geneSmithingValue + rigGlitchesValue + augmentationsValue + equipmentValue + powerBoostsValue;
+              const modifiers = injuryValue + advancementValue + bionicsValue + userValue + geneSmithingValue + rigGlitchesValue + augmentationsValue + equipmentValue + powerBoostsValue;
+
+              // Null save with no modifiers stays unset; modifiers alone grant a save.
+              const total = stat.key === 'save' && baseValue == null && modifiers === 0
+                ? null
+                : (baseValue ?? 0) + modifiers;
 
               return (
                 <td key={stat.key} className="border-l border-border text-center text-xs">
-                  {stat.key === 'movement' ? `${total}"` :
-                   stat.key === 'wounds' || stat.key === 'attacks' ||
-                   stat.key === 'strength' || stat.key === 'toughness' ?
-                   total :
-                   `${total}+`}
+                  {formatStatValue(stat.key, total)}
                 </td>
               );
             })}

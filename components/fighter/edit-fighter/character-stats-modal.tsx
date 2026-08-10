@@ -1,11 +1,14 @@
 import { useState, useMemo } from 'react';
 import { FighterEffect, FighterProps as Fighter } from '@/types/fighter';
+import {
+  hasSaveCharacteristic,
+  initiativeAndMentalCharacteristicSuffix,
+} from '@/types/edition';
 import { Button } from "@/components/ui/button";
 import { LuPlus } from "react-icons/lu";
 import { LuMinus } from "react-icons/lu";
-import { initiativeAndMentalCharacteristicSuffix } from '@/types/edition';
 
-type StatKey = "M" | "WS" | "BS" | "S" | "T" | "W" | "I" | "A" | "Ld" | "Cl" | "Wil" | "Int";
+type StatKey = "M" | "WS" | "BS" | "S" | "T" | "W" | "I" | "A" | "Sv" | "Ld" | "Cl" | "Wil" | "Int";
 
 const EDITION_SUFFIX_STATS = new Set<StatKey>(['I', 'Ld', 'Cl', 'Wil', 'Int']);
 
@@ -40,6 +43,7 @@ export function CharacterStatsModal({
     wounds: 0,
     initiative: 0,
     attacks: 0,
+    save: 0,
     leadership: 0,
     cool: 0,
     willpower: 0,
@@ -48,7 +52,7 @@ export function CharacterStatsModal({
 
   // Map fighter stats to our format for display
   const displayStats = useMemo((): Stat[] => {
-    return [
+    const stats: Stat[] = [
       { key: "M", name: "Movement", value: `${fighter.movement}"` },
       { key: "WS", name: "Weapon Skill", value: `${fighter.weapon_skill}+` },
       { key: "BS", name: "Ballistic Skill", value: `${fighter.ballistic_skill}+` },
@@ -62,6 +66,17 @@ export function CharacterStatsModal({
       { key: "Wil", name: "Willpower", value: `${fighter.willpower}${initiativeAndMentalSuffix}` },
       { key: "Int", name: "Intelligence", value: `${fighter.intelligence}${initiativeAndMentalSuffix}` },
     ];
+
+    if (hasSaveCharacteristic(fighter.edition_slug)) {
+      const attacksIndex = stats.findIndex(stat => stat.key === "A");
+      stats.splice(attacksIndex + 1, 0, {
+        key: "Sv",
+        name: "Save",
+        value: fighter.save != null ? `${fighter.save}+` : '-'
+      });
+    }
+
+    return stats;
   }, [fighter, initiativeAndMentalSuffix]);
 
   // Get the property name from the stat key
@@ -75,6 +90,7 @@ export function CharacterStatsModal({
       case "W": return "wounds";
       case "I": return "initiative";
       case "A": return "attacks";
+      case "Sv": return "save";
       case "Ld": return "leadership";
       case "Cl": return "cool";
       case "Wil": return "willpower";
@@ -101,19 +117,20 @@ export function CharacterStatsModal({
     }));
   };
 
-  // IMPORTANT: The base values should be the fighter's original stats
-  const getBaseValue = (key: StatKey): number => {
+  // IMPORTANT: The base values should be the fighter's original stats.
+  // Save is nullable — null means the characteristic is unset.
+  const getBaseValue = (key: StatKey): number | null => {
     const propName = getPropertyName(key);
-    return fighter[propName as keyof Fighter] as number;
+    const value = fighter[propName as keyof Fighter] as number | null | undefined;
+    if (key === "Sv") return value == null ? null : Number(value);
+    return value as number;
   };
 
   // This function now correctly gets the total including ALL modifiers
   // but does NOT include our adjustments (those are handled separately)
-  const getCurrentTotal = (key: StatKey): number => {
+  const getCurrentTotal = (key: StatKey): number | null => {
     const propName = getPropertyName(key);
-
-    // Get base value
-    const baseValue = fighter[propName as keyof Fighter] as number;
+    const baseValue = getBaseValue(key);
 
     // Get all modifiers from effects (injuries, advancements, user effects)
     let modifiers = 0;
@@ -139,19 +156,20 @@ export function CharacterStatsModal({
     processEffects(fighter.effects?.equipment);
     processEffects(fighter.effects?.user);
 
-    // Return total (base + existing modifiers)
-    return baseValue + modifiers;
+    if (key === "Sv" && baseValue == null && modifiers === 0) return null;
+    return (baseValue ?? 0) + modifiers;
   };
 
   // This function gets what the new total will be after our adjustments
   const getAdjustedTotal = (key: StatKey): string => {
     const propName = getPropertyName(key);
-
-    // Start with the current total (including all existing modifiers)
     const currentTotal = getCurrentTotal(key);
+    const adjustment = adjustments[propName] || 0;
 
-    // Add our new adjustment
-    const withAdjustment = currentTotal + (adjustments[propName] || 0);
+    // Null save with no adjustments stays unset; an adjustment grants a save.
+    if (key === "Sv" && currentTotal == null && adjustment === 0) return '-';
+
+    const withAdjustment = (currentTotal ?? 0) + adjustment;
 
     // Format based on stat type
     if (key === "M") return `${withAdjustment}"`;
@@ -164,7 +182,7 @@ export function CharacterStatsModal({
   const getBaseDisplay = (key: StatKey): string => {
     const baseValue = getBaseValue(key);
 
-    // Format the base value appropriately
+    if (key === "Sv" && baseValue == null) return '-';
     if (key === "M") return `${baseValue}"`;
     if (key === "W" || key === "A" || key === "S" || key === "T") return `${baseValue}`;
     if (EDITION_SUFFIX_STATS.has(key)) return `${baseValue}${initiativeAndMentalSuffix}`;
