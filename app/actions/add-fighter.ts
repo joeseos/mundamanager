@@ -6,10 +6,9 @@ import { invalidateFighterAddition, invalidateUserGangsList } from '@/utils/cach
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { logFighterAction } from '@/app/actions/logs/fighter-logs';
-import {
-  isArchetypeEligible,
-  mapArchetypeSkillAccessToOverrides,
-} from '@/utils/archetypeEligibility';
+import { mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';
+import { assertArchetypeAssignable } from '@/utils/assertArchetypeAssignable';
+import { editionSlugFromJoin, gangEditionSlug, type EditionJoin } from '@/types/edition';
 
 interface SelectedEquipment {
   equipment_id: string;
@@ -18,6 +17,13 @@ interface SelectedEquipment {
   effect_ids?: string[];
   is_editable?: boolean;
 }
+
+/** Fighter type / custom fighter type row with optional editions embed for slug resolution. */
+type FighterTypeSource = {
+  editions?: EditionJoin;
+  fighter_subtypes?: string[] | null;
+  [key: string]: unknown;
+};
 
 interface AddFighterParams {
   fighter_name: string;
@@ -317,7 +323,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     // First try to get fighter if user owns it
     const { data: ownedFighter } = await supabase
       .from('custom_fighter_types')
-      .select('*')
+      .select('*, editions:edition_id ( slug )')
       .eq('id', params.fighter_type_id)
       .eq('user_id', user.id)
       .maybeSingle();
@@ -347,7 +353,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
           // Fetch the actual fighter data
           const { data: fighterData } = await supabase
             .from('custom_fighter_types')
-            .select('*')
+            .select('*, editions:edition_id ( slug )')
             .eq('id', params.fighter_type_id)
             .single();
 
@@ -362,12 +368,16 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         Promise.resolve({ data: null, error: null }) : // Skip regular fighter type lookup for custom fighters
         supabase
           .from('fighter_types')
-          .select('*')
+          .select('*, editions:edition_id ( slug )')
           .eq('id', params.fighter_type_id)
           .single(),
       supabase
         .from('gangs')
-        .select('id, credits, user_id, gang_type_id')
+        .select(`
+          id, credits, user_id, gang_type_id,
+          gang_types!gang_type_id ( editions:edition_id ( slug ) ),
+          custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
+        `)
         .eq('id', params.gang_id)
         .single()
     ]);
@@ -431,15 +441,28 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     // Server-side archetype eligibility (UI check is not sufficient)
     let archetypeIdToPersist: string | null = null;
     if (params.selected_archetype_id) {
-      if (!isArchetypeEligible({
+      const fighterSource = effectiveFighterData as FighterTypeSource;
+      const fighterSubtypes = fighterSource.fighter_subtypes?.length
+        ? fighterSource.fighter_subtypes
+        : ['Custom'];
+
+      // Prefer fighter-type edition; fall back to gang edition for legacy custom types with null edition_id
+      const editionSlug =
+        editionSlugFromJoin(fighterSource.editions) ?? gangEditionSlug(gangData);
+
+      const assignable = await assertArchetypeAssignable(supabase, {
         gangTypeId: gangData.gang_type_id,
-        fighterSubtype: effectiveFighterData.fighter_subtypes?.[0] ?? 'Custom',
-      })) {
+        fighterSubtypes,
+        archetypeId: params.selected_archetype_id,
+        editionSlug,
+      });
+      if (!assignable.ok) {
         return {
           success: false,
-          error: 'This fighter type cannot be assigned an archetype for this gang.',
+          error: assignable.error,
         };
       }
+
       archetypeIdToPersist = params.selected_archetype_id;
     }
 

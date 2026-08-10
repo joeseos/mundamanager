@@ -1,7 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { updateFighterDetails } from '@/app/actions/edit-fighter';
-import { saveFighterSkillAccessOverrides } from '@/app/actions/fighter-skill-access';
 import { Input } from "@/components/ui/input";
 import Modal from "@/components/ui/modal";
 import { FighterProps as Fighter, Archetype } from '@/types/fighter';
@@ -12,7 +11,10 @@ import { toast } from 'sonner';
 import { applySpecialRulesModifiers } from '@/utils/effect-modifiers';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { allowsMultipleSubtypes } from '@/types/edition';
-import { isArchetypeEligible, mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';
+import {
+  getArchetypeCatalogSubtype,
+  isArchetypeEligible,
+} from '@/utils/archetypeEligibility';
 import { SkillAccessModal } from './skill-access-modal';
 import { FighterCharacteristicTable } from './fighter-characteristic-table';
 import { CharacterStatsModal } from './character-stats-modal';
@@ -279,13 +281,21 @@ export function EditFighterModal({
     return fighter.fighter_subtypes?.[0] || 'Unknown';
   }, [selectedFighterTypeId, fighterTypes, fighter.fighter_subtypes]);
 
-  // Archetypes still use a single effective subtype (first selected, else type default)
-  const effectiveFighterSubtype = selectedFighterSubtypes[0] || defaultFighterSubtypeName;
+  // Archetypes: eligible if any selected subtype matches the gang's Outcasts list; catalog uses fixed priority
+  const subtypesForArchetype = useMemo(() => {
+    if (selectedFighterSubtypes.length > 0) return selectedFighterSubtypes;
+    if (fighter.fighter_subtypes?.length) return fighter.fighter_subtypes;
+    return defaultFighterSubtypeName ? [defaultFighterSubtypeName] : [];
+  }, [selectedFighterSubtypes, fighter.fighter_subtypes, defaultFighterSubtypeName]);
+
+  const archetypeCatalogSubtype = getArchetypeCatalogSubtype(subtypesForArchetype, {
+    gangTypeId,
+  });
 
   const archetypeFighterSubtypeId = useMemo(() => {
-    if (!effectiveFighterSubtype || !allFighterSubtypes) return '';
-    return allFighterSubtypes.find(fc => fc.subtype_name === effectiveFighterSubtype)?.id ?? '';
-  }, [effectiveFighterSubtype, allFighterSubtypes]);
+    if (!archetypeCatalogSubtype || !allFighterSubtypes) return '';
+    return allFighterSubtypes.find(fc => fc.subtype_name === archetypeCatalogSubtype)?.id ?? '';
+  }, [archetypeCatalogSubtype, allFighterSubtypes]);
 
   // Resolve the effective fighter type for default special rules (specialisation aware)
   const effectiveFighterType = useMemo(() => {
@@ -402,10 +412,10 @@ export function EditFighterModal({
     return typeOptions;
   }, [fighterTypes, fighter.edition_slug]);
 
-  // Determine if this fighter can use archetypes (Outcasts gang + Leader/Champion subtype)
+  // Eligible when Outcasts (N23/N26) + any selected subtype is in that gang's archetype list
   const canUseArchetypes = isArchetypeEligible({
     gangTypeId,
-    fighterSubtype: effectiveFighterSubtype || fighter.fighter_subtypes?.[0],
+    fighterSubtypes: subtypesForArchetype,
   });
 
   // Fetch archetypes using TanStack Query (only if eligible and modal is open)
@@ -423,6 +433,24 @@ export function EditFighterModal({
     enabled: isOpen && canUseArchetypes,
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
+
+  // Drop stale selection when ineligible, or when a settled non-empty catalog no longer includes it
+  useEffect(() => {
+    if (!selectedArchetypeId) return;
+
+    if (!canUseArchetypes) {
+      setSelectedArchetypeId('');
+      return;
+    }
+
+    const archetypes = archetypesData?.archetypes as Archetype[] | undefined;
+    // Wait for a real catalog payload; empty/missing lists must not wipe a valid selection
+    if (!archetypes || archetypes.length === 0) return;
+
+    if (!archetypes.some((a) => a.id === selectedArchetypeId)) {
+      setSelectedArchetypeId('');
+    }
+  }, [canUseArchetypes, archetypesData, selectedArchetypeId]);
 
   // TanStack mutation for editing fighter details
   const mutation = useMutation({
@@ -461,7 +489,10 @@ export function EditFighterModal({
         stat_adjustments: Object.keys(pendingStatAdjustments).length > 0 ? pendingStatAdjustments : undefined
       });
       if (!result.success) throw new Error(result.error || 'Failed to update fighter');
-      return result.data?.fighter;
+      return {
+        fighter: result.data?.fighter,
+        warning: result.warning,
+      };
     },
     onMutate: (submit) => {
       // Build optimistic user-effect overlay from pendingStatAdjustments
@@ -524,35 +555,26 @@ export function EditFighterModal({
       }
       toast.error(err instanceof Error ? err.message : 'Failed to update fighter');
     },
-    onSuccess: async (serverFighter, submit, ctx) => {
+    onSuccess: async (result, submit, ctx) => {
+      const serverFighter = result?.fighter;
       if (ctx && 'optimistic' in (ctx as any) && 'snapshot' in (ctx as any)) {
         onEditSuccess?.(serverFighter, (ctx as any).optimistic, (ctx as any).snapshot);
       }
 
-      // If archetype changed, save the skill access overrides
-      if (submit.selected_archetype_id !== fighter.selected_archetype_id) {
-        try {
-          if (submit.selected_archetype_id && archetypesData?.archetypes) {
-            const archetype = (archetypesData.archetypes as Archetype[]).find(
-              (a: Archetype) => a.id === submit.selected_archetype_id
-            );
-            if (archetype) {
-              const overrides = mapArchetypeSkillAccessToOverrides(archetype.skill_access);
+      // Prefer the persisted archetype — server may clear it when subtypes invalidate the catalog.
+      // Skill-access overrides are applied server-side from the validated archetype row.
+      const persistedArchetypeId: string | null =
+        serverFighter && 'selected_archetype_id' in serverFighter
+          ? ((serverFighter as { selected_archetype_id?: string | null }).selected_archetype_id ?? null)
+          : (submit.selected_archetype_id ?? null);
 
-              await saveFighterSkillAccessOverrides({ fighter_id: fighter.id, overrides });
-            }
-          } else if (!submit.selected_archetype_id && fighter.selected_archetype_id) {
-            // Archetype removed - clear all overrides (reset to default)
-            await saveFighterSkillAccessOverrides({ fighter_id: fighter.id, overrides: [] });
-          }
-        } catch (error) {
-          console.error('Failed to save archetype skill access:', error);
-          toast.error('Fighter updated but skill access save failed. Please try again via Customise Skill Set Access.');
-          return; // Don't show success toast
-        }
+      setSelectedArchetypeId(persistedArchetypeId || '');
+
+      if (result?.warning) {
+        toast.error(result.warning);
+      } else {
+        toast.success('Fighter updated successfully');
       }
-
-      toast.success('Fighter updated successfully');
     }
   });
 
@@ -1012,7 +1034,7 @@ export function EditFighterModal({
         costAdjustment: formValues.costAdjustment,
         special_rules: formValues.special_rules,
         fighter_gang_legacy_id: selectedGangLegacyId || null,
-        selected_archetype_id: selectedArchetypeId || null
+        selected_archetype_id: canUseArchetypes ? (selectedArchetypeId || null) : null
       };
 
       // Only include fighter type fields if we're actually updating the fighter type
@@ -1300,7 +1322,7 @@ export function EditFighterModal({
               </div>
             )}
 
-            {/* Archetype Selection (only for Underhive Outcasts Leader/Champion) */}
+            {/* Archetype Selection (Underhive Outcasts — N23 Leader/Champion, N26 + Ganger) */}
             {canUseArchetypes && (
               <div>
                 <label htmlFor="archetype" className="block text-sm font-medium mb-1">

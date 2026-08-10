@@ -29,7 +29,7 @@ export const editionsConflict = (
 
 /** An `editions:edition_id (…)` embed. PostgREST returns a to-one embed as an
  *  object, but generated types sometimes widen it to an array. */
-type EditionJoin = { slug: string } | { slug: string }[] | null | undefined;
+export type EditionJoin = { slug: string } | { slug: string }[] | null | undefined;
 
 function firstOf<T>(value: T | T[] | null | undefined): T | null {
   if (!value) return null;
