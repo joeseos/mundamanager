@@ -133,7 +133,7 @@ export async function createExoticBeastsForEquipment(
           fighter_type_id: beastConfig.fighter_type_id,
           // From the fighter type, so each edition gets its own name for this
           // (N23 'Exotic Beast', N26 'Pet') without branching on the edition.
-          fighter_subtypes: fighterType.fighter_subtypes ?? ['Exotic Beast'],
+          fighter_subtypes: fighterType.fighter_subtypes?.length ? fighterType.fighter_subtypes : ['Exotic Beast'],
           gang_id: params.gangId,
           credits: 0,
           movement: fighterType.movement,
