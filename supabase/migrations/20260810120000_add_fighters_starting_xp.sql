@@ -6,13 +6,25 @@
 -- 13 XP sits on a 6-wide band, not the 3-wide Rookie band a fresh model starts
 -- on.
 --
--- WHY THE FIGHTER CARRIES ITS OWN COPY. fighter_types.starting_xp and
--- custom_fighter_types.starting_xp hold the value a fighter is recruited with,
--- but both are editable in Admin. Reading recruitment XP from the type would
--- mean that correcting a fighter type retroactively changes how much XP every
--- existing fighter of that type counts as having earned, and therefore how many
--- Advancements it is owed. Each fighter keeps its own copy, fixed at the moment
--- it joined the gang.
+-- WHY THE FIGHTER CARRIES ITS OWN COPY. A fighter is recruited with
+-- xp = its type's starting_xp, so the value is known at that moment — but it
+-- cannot be recovered afterwards from anything already stored:
+--
+--   * Not from the fighter's type. fighter_type_id is not fixed: promoting a
+--     fighter rewrites it (promoteFighter -> updateFighterDetails), and
+--     updateFighterDetails can reassign fighter_type_id / custom_fighter_type_id
+--     outright. A Ganger recruited on 13 XP and promoted to Champion would start
+--     being measured against the Champion's starting XP, silently changing how
+--     many Advancements it is owed mid-campaign. Both type-level columns are
+--     also editable in Admin, so correcting the catalog would rebase every
+--     existing fighter of that type.
+--
+--   * Not from xp - total_xp. total_xp is not maintained on the live path:
+--     updateFighterXpWithOoa (what the Add XP modal calls) writes xp only and
+--     returns a total_xp it never stored. The one path that does maintain the
+--     column, /api/fighters/[id] with xp_to_add, has no caller in the UI.
+--
+-- So each fighter keeps its own copy, fixed at the moment it joined the gang.
 --
 -- WHICH COLUMN IS AUTHORITATIVE. The fighters table now carries three XP
 -- columns and they are not interchangeable:
