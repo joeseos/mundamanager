@@ -241,58 +241,63 @@ ON CONFLICT (id) DO NOTHING;
 -- ============================================================================
 -- 16. FIGHTER TYPES CONFIGURATION (ORLOCK AND CAWDOR)
 -- ============================================================================
+-- starting_xp is spelled out on every row because the column has no default:
+-- omitting it stores NULL, which means N/A — a type that can never gain XP.
+-- These are all N23 rows, an edition with no Starting XP concept, so they carry
+-- an explicit 0, matching what the admin form writes for such an edition.
+
 -- House Orlock Fighter Types
-INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, fighter_subtypes, free_skill, is_gang_addition, edition_id, created_at) VALUES
-('01111111-1111-1111-1111-111111111111', 'b86a0a06-4f47-4c78-8d04-fb7b7042c14e', 'House Orlock', 'Road Boss', 120, 5, 3, 3, 3, 4, 2, 4, 4, 5, 5, 5, 2, '["Leader"]', true, false, '00000000-0000-0000-0000-000000000023', now()),
-('02222222-2222-2222-2222-222222222222', 'b86a0a06-4f47-4c78-8d04-fb7b7042c14e', 'House Orlock', 'Road Captain', 95, 5, 3, 3, 3, 4, 2, 4, 5, 6, 6, 6, 2, '["Champion"]', true, false, '00000000-0000-0000-0000-000000000023', now()),
-('03333333-3333-3333-3333-333333333333', 'b86a0a06-4f47-4c78-8d04-fb7b7042c14e', 'House Orlock', 'Wrecker', 60, 5, 4, 4, 3, 3, 1, 4, 6, 7, 7, 7, 1, '["Specialist"]', false, false, '00000000-0000-0000-0000-000000000023', now()),
-('04444444-4444-4444-4444-444444444444', 'b86a0a06-4f47-4c78-8d04-fb7b7042c14e', 'House Orlock', 'Gunner', 55, 5, 4, 4, 3, 3, 1, 4, 6, 7, 7, 7, 1, '["Ganger"]', false, false, '00000000-0000-0000-0000-000000000023', now()),
-('05555555-5555-5555-5555-555555555555', 'b86a0a06-4f47-4c78-8d04-fb7b7042c14e', 'House Orlock', 'Greenhorn', 30, 6, 5, 5, 3, 3, 1, 3, 7, 8, 8, 8, 1, '["Juve"]', false, false, '00000000-0000-0000-0000-000000000023', now())
+INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, fighter_subtypes, free_skill, is_gang_addition, edition_id, created_at, starting_xp) VALUES
+('01111111-1111-1111-1111-111111111111', 'b86a0a06-4f47-4c78-8d04-fb7b7042c14e', 'House Orlock', 'Road Boss', 120, 5, 3, 3, 3, 4, 2, 4, 4, 5, 5, 5, 2, '["Leader"]', true, false, '00000000-0000-0000-0000-000000000023', now(), 0),
+('02222222-2222-2222-2222-222222222222', 'b86a0a06-4f47-4c78-8d04-fb7b7042c14e', 'House Orlock', 'Road Captain', 95, 5, 3, 3, 3, 4, 2, 4, 5, 6, 6, 6, 2, '["Champion"]', true, false, '00000000-0000-0000-0000-000000000023', now(), 0),
+('03333333-3333-3333-3333-333333333333', 'b86a0a06-4f47-4c78-8d04-fb7b7042c14e', 'House Orlock', 'Wrecker', 60, 5, 4, 4, 3, 3, 1, 4, 6, 7, 7, 7, 1, '["Specialist"]', false, false, '00000000-0000-0000-0000-000000000023', now(), 0),
+('04444444-4444-4444-4444-444444444444', 'b86a0a06-4f47-4c78-8d04-fb7b7042c14e', 'House Orlock', 'Gunner', 55, 5, 4, 4, 3, 3, 1, 4, 6, 7, 7, 7, 1, '["Ganger"]', false, false, '00000000-0000-0000-0000-000000000023', now(), 0),
+('05555555-5555-5555-5555-555555555555', 'b86a0a06-4f47-4c78-8d04-fb7b7042c14e', 'House Orlock', 'Greenhorn', 30, 6, 5, 5, 3, 3, 1, 3, 7, 8, 8, 8, 1, '["Juve"]', false, false, '00000000-0000-0000-0000-000000000023', now(), 0)
 ON CONFLICT (id) DO NOTHING;
 
 -- House Cawdor Fighter Types
-INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, fighter_subtypes, free_skill, is_gang_addition, edition_id, created_at) VALUES
-('c1111111-1111-1111-1111-111111111111', 'c0a579a9-ac5e-4289-96db-43f87537847b', 'House Cawdor', 'Word Keeper', 120, 5, 3, 3, 3, 4, 2, 4, 4, 5, 5, 5, 2, '["Leader"]', true, false, '00000000-0000-0000-0000-000000000023', now()),
-('c2222222-2222-2222-2222-222222222222', 'c0a579a9-ac5e-4289-96db-43f87537847b', 'House Cawdor', 'Priest/Deacon', 95, 5, 3, 3, 3, 4, 2, 4, 5, 6, 6, 6, 2, '["Champion"]', true, false, '00000000-0000-0000-0000-000000000023', now()),
-('c3333333-3333-3333-3333-333333333333', 'c0a579a9-ac5e-4289-96db-43f87537847b', 'House Cawdor', 'Firebrand', 60, 5, 4, 4, 3, 3, 1, 4, 6, 7, 7, 7, 1, '["Specialist"]', false, false, '00000000-0000-0000-0000-000000000023', now()),
-('c4444444-4444-4444-4444-444444444444', 'c0a579a9-ac5e-4289-96db-43f87537847b', 'House Cawdor', 'Brethren', 55, 5, 4, 4, 3, 3, 1, 4, 6, 7, 7, 7, 1, '["Ganger"]', false, false, '00000000-0000-0000-0000-000000000023', now()),
-('c5555555-5555-5555-5555-555555555555', 'c0a579a9-ac5e-4289-96db-43f87537847b', 'House Cawdor', 'Bonepicker', 30, 6, 5, 5, 3, 3, 1, 3, 7, 8, 8, 8, 1, '["Juve"]', false, false, '00000000-0000-0000-0000-000000000023', now()),
-('c6666666-6666-6666-6666-666666666666', 'c0a579a9-ac5e-4289-96db-43f87537847b', 'House Cawdor', 'Sheenbird', 90, 6, 4, 5, 3, 3, 1, 3, 7, 7, 8, 8, 2, '["Exotic Beast"]', false, false, '00000000-0000-0000-0000-000000000023', now())
+INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, fighter_subtypes, free_skill, is_gang_addition, edition_id, created_at, starting_xp) VALUES
+('c1111111-1111-1111-1111-111111111111', 'c0a579a9-ac5e-4289-96db-43f87537847b', 'House Cawdor', 'Word Keeper', 120, 5, 3, 3, 3, 4, 2, 4, 4, 5, 5, 5, 2, '["Leader"]', true, false, '00000000-0000-0000-0000-000000000023', now(), 0),
+('c2222222-2222-2222-2222-222222222222', 'c0a579a9-ac5e-4289-96db-43f87537847b', 'House Cawdor', 'Priest/Deacon', 95, 5, 3, 3, 3, 4, 2, 4, 5, 6, 6, 6, 2, '["Champion"]', true, false, '00000000-0000-0000-0000-000000000023', now(), 0),
+('c3333333-3333-3333-3333-333333333333', 'c0a579a9-ac5e-4289-96db-43f87537847b', 'House Cawdor', 'Firebrand', 60, 5, 4, 4, 3, 3, 1, 4, 6, 7, 7, 7, 1, '["Specialist"]', false, false, '00000000-0000-0000-0000-000000000023', now(), 0),
+('c4444444-4444-4444-4444-444444444444', 'c0a579a9-ac5e-4289-96db-43f87537847b', 'House Cawdor', 'Brethren', 55, 5, 4, 4, 3, 3, 1, 4, 6, 7, 7, 7, 1, '["Ganger"]', false, false, '00000000-0000-0000-0000-000000000023', now(), 0),
+('c5555555-5555-5555-5555-555555555555', 'c0a579a9-ac5e-4289-96db-43f87537847b', 'House Cawdor', 'Bonepicker', 30, 6, 5, 5, 3, 3, 1, 3, 7, 8, 8, 8, 1, '["Juve"]', false, false, '00000000-0000-0000-0000-000000000023', now(), 0),
+('c6666666-6666-6666-6666-666666666666', 'c0a579a9-ac5e-4289-96db-43f87537847b', 'House Cawdor', 'Sheenbird', 90, 6, 4, 5, 3, 3, 1, 3, 7, 7, 8, 8, 2, '["Exotic Beast"]', false, false, '00000000-0000-0000-0000-000000000023', now(), 0)
 ON CONFLICT (id) DO NOTHING;
 
 -- House Delaque Fighter Types
-INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, fighter_subtypes, free_skill, is_gang_addition, edition_id, created_at) VALUES
-('d1111111-1111-1111-1111-111111111111', '2c67ccbc-e103-433c-9535-bc6f9435fa38', 'House Delaque', 'Master of Shadows', 120, 5, 3, 3, 3, 3, 2, 3, 4, 5, 5, 5, 2, '["Leader"]', true, false, '00000000-0000-0000-0000-000000000023', now()),
-('d2222222-2222-2222-2222-222222222222', '2c67ccbc-e103-433c-9535-bc6f9435fa38', 'House Delaque', 'Phantom', 95, 5, 3, 3, 3, 3, 2, 3, 5, 6, 6, 6, 2, '["Champion"]', true, false, '00000000-0000-0000-0000-000000000023', now()),
-('d3333333-3333-3333-3333-333333333333', '2c67ccbc-e103-433c-9535-bc6f9435fa38', 'House Delaque', 'Ghost (Specialist)', 50, 5, 4, 4, 3, 3, 1, 4, 6, 7, 7, 7, 1, '["Specialist"]', false, false, '00000000-0000-0000-0000-000000000023', now()),
-('d4444444-4444-4444-4444-444444444444', '2c67ccbc-e103-433c-9535-bc6f9435fa38', 'House Delaque', 'Ghost', 50, 5, 4, 4, 3, 3, 1, 4, 6, 7, 7, 7, 1, '["Ganger"]', false, false, '00000000-0000-0000-0000-000000000023', now()),
-('d5555555-5555-5555-5555-555555555555', '2c67ccbc-e103-433c-9535-bc6f9435fa38', 'House Delaque', 'Shadow', 30, 6, 4, 5, 3, 3, 1, 3, 7, 8, 8, 8, 1, '["Juve"]', false, false, '00000000-0000-0000-0000-000000000023', now())
+INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, fighter_subtypes, free_skill, is_gang_addition, edition_id, created_at, starting_xp) VALUES
+('d1111111-1111-1111-1111-111111111111', '2c67ccbc-e103-433c-9535-bc6f9435fa38', 'House Delaque', 'Master of Shadows', 120, 5, 3, 3, 3, 3, 2, 3, 4, 5, 5, 5, 2, '["Leader"]', true, false, '00000000-0000-0000-0000-000000000023', now(), 0),
+('d2222222-2222-2222-2222-222222222222', '2c67ccbc-e103-433c-9535-bc6f9435fa38', 'House Delaque', 'Phantom', 95, 5, 3, 3, 3, 3, 2, 3, 5, 6, 6, 6, 2, '["Champion"]', true, false, '00000000-0000-0000-0000-000000000023', now(), 0),
+('d3333333-3333-3333-3333-333333333333', '2c67ccbc-e103-433c-9535-bc6f9435fa38', 'House Delaque', 'Ghost (Specialist)', 50, 5, 4, 4, 3, 3, 1, 4, 6, 7, 7, 7, 1, '["Specialist"]', false, false, '00000000-0000-0000-0000-000000000023', now(), 0),
+('d4444444-4444-4444-4444-444444444444', '2c67ccbc-e103-433c-9535-bc6f9435fa38', 'House Delaque', 'Ghost', 50, 5, 4, 4, 3, 3, 1, 4, 6, 7, 7, 7, 1, '["Ganger"]', false, false, '00000000-0000-0000-0000-000000000023', now(), 0),
+('d5555555-5555-5555-5555-555555555555', '2c67ccbc-e103-433c-9535-bc6f9435fa38', 'House Delaque', 'Shadow', 30, 6, 4, 5, 3, 3, 1, 3, 7, 8, 8, 8, 1, '["Juve"]', false, false, '00000000-0000-0000-0000-000000000023', now(), 0)
 ON CONFLICT (id) DO NOTHING;
 
 -- House Escher Fighter Types
-INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, fighter_subtypes, free_skill, is_gang_addition, edition_id, created_at) VALUES
-('e1111111-1111-1111-1111-111111111111', 'd66feb66-7a3b-4306-9d0b-58725b72ee0d', 'House Escher', 'Gang Queen', 120, 5, 3, 3, 3, 3, 2, 3, 4, 5, 6, 6, 2, '["Leader"]', true, false, '00000000-0000-0000-0000-000000000023', now()),
-('e2222222-2222-2222-2222-222222222222', 'd66feb66-7a3b-4306-9d0b-58725b72ee0d', 'House Escher', 'Matriarch', 95, 5, 3, 3, 3, 3, 2, 3, 5, 6, 7, 7, 2, '["Champion"]', true, false, '00000000-0000-0000-0000-000000000023', now()),
-('e3333333-3333-3333-3333-333333333333', 'd66feb66-7a3b-4306-9d0b-58725b72ee0d', 'House Escher', 'Sister (Specialist)', 50, 5, 4, 4, 3, 3, 1, 3, 6, 7, 8, 7, 1, '["Specialist"]', false, false, '00000000-0000-0000-0000-000000000023', now()),
-('e4444444-4444-4444-4444-444444444444', 'd66feb66-7a3b-4306-9d0b-58725b72ee0d', 'House Escher', 'Sister', 50, 5, 4, 4, 3, 3, 1, 3, 6, 7, 8, 7, 1, '["Ganger"]', false, false, '00000000-0000-0000-0000-000000000023', now()),
-('e5555555-5555-5555-5555-555555555555', 'd66feb66-7a3b-4306-9d0b-58725b72ee0d', 'House Escher', 'Little Sister', 30, 6, 4, 5, 3, 3, 1, 3, 7, 8, 8, 8, 1, '["Juve"]', false, false, '00000000-0000-0000-0000-000000000023', now())
+INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, fighter_subtypes, free_skill, is_gang_addition, edition_id, created_at, starting_xp) VALUES
+('e1111111-1111-1111-1111-111111111111', 'd66feb66-7a3b-4306-9d0b-58725b72ee0d', 'House Escher', 'Gang Queen', 120, 5, 3, 3, 3, 3, 2, 3, 4, 5, 6, 6, 2, '["Leader"]', true, false, '00000000-0000-0000-0000-000000000023', now(), 0),
+('e2222222-2222-2222-2222-222222222222', 'd66feb66-7a3b-4306-9d0b-58725b72ee0d', 'House Escher', 'Matriarch', 95, 5, 3, 3, 3, 3, 2, 3, 5, 6, 7, 7, 2, '["Champion"]', true, false, '00000000-0000-0000-0000-000000000023', now(), 0),
+('e3333333-3333-3333-3333-333333333333', 'd66feb66-7a3b-4306-9d0b-58725b72ee0d', 'House Escher', 'Sister (Specialist)', 50, 5, 4, 4, 3, 3, 1, 3, 6, 7, 8, 7, 1, '["Specialist"]', false, false, '00000000-0000-0000-0000-000000000023', now(), 0),
+('e4444444-4444-4444-4444-444444444444', 'd66feb66-7a3b-4306-9d0b-58725b72ee0d', 'House Escher', 'Sister', 50, 5, 4, 4, 3, 3, 1, 3, 6, 7, 8, 7, 1, '["Ganger"]', false, false, '00000000-0000-0000-0000-000000000023', now(), 0),
+('e5555555-5555-5555-5555-555555555555', 'd66feb66-7a3b-4306-9d0b-58725b72ee0d', 'House Escher', 'Little Sister', 30, 6, 4, 5, 3, 3, 1, 3, 7, 8, 8, 8, 1, '["Juve"]', false, false, '00000000-0000-0000-0000-000000000023', now(), 0)
 ON CONFLICT (id) DO NOTHING;
 
 -- House Goliath Fighter Types
-INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, fighter_subtypes, free_skill, is_gang_addition, edition_id, created_at) VALUES
-('81111111-1111-1111-1111-111111111111', 'ad325025-d293-4078-b14b-4306be45f1c8', 'House Goliath', 'Forge Tyrant', 120, 4, 3, 3, 4, 4, 2, 4, 4, 5, 6, 6, 2, '["Leader"]', true, false, '00000000-0000-0000-0000-000000000023', now()),
-('82222222-2222-2222-2222-222222222222', 'ad325025-d293-4078-b14b-4306be45f1c8', 'House Goliath', 'Forge Boss', 95, 4, 3, 3, 4, 4, 2, 4, 5, 6, 7, 7, 2, '["Champion"]', true, false, '00000000-0000-0000-0000-000000000023', now()),
-('83333333-3333-3333-3333-333333333333', 'ad325025-d293-4078-b14b-4306be45f1c8', 'House Goliath', 'Bully (Specialist)', 60, 4, 4, 4, 4, 4, 1, 4, 6, 7, 8, 7, 1, '["Specialist"]', false, false, '00000000-0000-0000-0000-000000000023', now()),
-('84444444-4444-4444-4444-444444444444', 'ad325025-d293-4078-b14b-4306be45f1c8', 'House Goliath', 'Bully', 60, 4, 4, 4, 4, 4, 1, 4, 6, 7, 8, 7, 1, '["Ganger"]', false, false, '00000000-0000-0000-0000-000000000023', now()),
-('85555555-5555-5555-5555-555555555555', 'ad325025-d293-4078-b14b-4306be45f1c8', 'House Goliath', 'Grit', 35, 5, 4, 5, 3, 3, 1, 4, 7, 8, 8, 8, 1, '["Juve"]', false, false, '00000000-0000-0000-0000-000000000023', now())
+INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, fighter_subtypes, free_skill, is_gang_addition, edition_id, created_at, starting_xp) VALUES
+('81111111-1111-1111-1111-111111111111', 'ad325025-d293-4078-b14b-4306be45f1c8', 'House Goliath', 'Forge Tyrant', 120, 4, 3, 3, 4, 4, 2, 4, 4, 5, 6, 6, 2, '["Leader"]', true, false, '00000000-0000-0000-0000-000000000023', now(), 0),
+('82222222-2222-2222-2222-222222222222', 'ad325025-d293-4078-b14b-4306be45f1c8', 'House Goliath', 'Forge Boss', 95, 4, 3, 3, 4, 4, 2, 4, 5, 6, 7, 7, 2, '["Champion"]', true, false, '00000000-0000-0000-0000-000000000023', now(), 0),
+('83333333-3333-3333-3333-333333333333', 'ad325025-d293-4078-b14b-4306be45f1c8', 'House Goliath', 'Bully (Specialist)', 60, 4, 4, 4, 4, 4, 1, 4, 6, 7, 8, 7, 1, '["Specialist"]', false, false, '00000000-0000-0000-0000-000000000023', now(), 0),
+('84444444-4444-4444-4444-444444444444', 'ad325025-d293-4078-b14b-4306be45f1c8', 'House Goliath', 'Bully', 60, 4, 4, 4, 4, 4, 1, 4, 6, 7, 8, 7, 1, '["Ganger"]', false, false, '00000000-0000-0000-0000-000000000023', now(), 0),
+('85555555-5555-5555-5555-555555555555', 'ad325025-d293-4078-b14b-4306be45f1c8', 'House Goliath', 'Grit', 35, 5, 4, 5, 3, 3, 1, 4, 7, 8, 8, 8, 1, '["Juve"]', false, false, '00000000-0000-0000-0000-000000000023', now(), 0)
 ON CONFLICT (id) DO NOTHING;
 
 -- Hired Guns (Dramatis Personae / Bounty Hunters)
 -- is_gang_addition = true is what surfaces her in every gang's "Gang Additions" tab:
 -- get_fighter_types_with_cost filters gang additions on that flag alone and ignores
 -- gang_type_id. Needs four columns the house rows above don't use.
-INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, fighter_subtypes, free_skill, is_gang_addition, special_rules, limitation, alignment, is_dramatis_personae, edition_id, created_at) VALUES
-('7eaf0b51-6e82-4b8d-861c-e870927f665e', '6145eb6e-84a6-4fbd-b1d3-87348505db42', 'Hired Guns', 'Arbelesta Raen Catallus', 250, 5, 6, 2, 3, 3, 2, 3, 7, 7, 6, 6, 1, '["Bounty Hunter"]', false, true, ARRAY['"Unique Partnership"', '"Bounty Hunter"', '"Slotted"']::jsonb[], 1, 'Law Abiding', true, '00000000-0000-0000-0000-000000000023', now())
+INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, fighter_subtypes, free_skill, is_gang_addition, special_rules, limitation, alignment, is_dramatis_personae, edition_id, created_at, starting_xp) VALUES
+('7eaf0b51-6e82-4b8d-861c-e870927f665e', '6145eb6e-84a6-4fbd-b1d3-87348505db42', 'Hired Guns', 'Arbelesta Raen Catallus', 250, 5, 6, 2, 3, 3, 2, 3, 7, 7, 6, 6, 1, '["Bounty Hunter"]', false, true, ARRAY['"Unique Partnership"', '"Bounty Hunter"', '"Slotted"']::jsonb[], 1, 'Law Abiding', true, '00000000-0000-0000-0000-000000000023', now(), 0)
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
