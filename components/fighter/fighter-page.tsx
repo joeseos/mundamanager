@@ -82,7 +82,8 @@ interface Fighter {
   save?: number | null;
   edition_slug?: string | null;
   xp: number;
-  starting_xp?: number;
+  /** null means N/A: this fighter's type cannot gain XP. */
+  starting_xp?: number | null;
   total_xp: number;
   killed?: boolean;
   retired?: boolean;
@@ -673,7 +674,7 @@ export default function FighterPage({
             save={fighterData.fighter?.save ?? null}
             edition_slug={editionSlug}
             xp={fighterData.fighter?.xp || 0}
-            starting_xp={fighterData.fighter?.starting_xp || 0}
+            starting_xp={fighterData.fighter?.starting_xp ?? null}
             total_xp={fighterData.fighter?.total_xp || 0}
             advancements={fighterData.fighter?.advancements || { characteristics: {}, skills: {} }}
             skills={fighterData.fighter?.skills || {}}

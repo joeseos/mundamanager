@@ -52,17 +52,22 @@ const tiersAtOrBelow = (tiers: readonly number[], xp: number): number =>
  * onto a new tier. This is a range count rather than `currentXp - startingXp`
  * because tiers widen as XP rises: rebasing to zero would put a Ganger recruited
  * on 13 XP back on the 3-wide Rookie track and advance them twice as fast.
+ *
+ * A null `startingXp` is N/A — the model's type cannot gain XP — and counts as
+ * zero rather than short-circuiting. Such a model sits on 0 XP and so earns
+ * nothing anyway; reading it as zero is what lets a group that house-rules XP
+ * onto it have that XP rank normally instead of being silently ignored.
  */
 export function advancementsEarnedFor(
   editionSlug: string | null | undefined,
-  startingXp: number,
+  startingXp: number | null,
   currentXp: number,
 ): number {
   const tiers = tierStartsFor(editionSlug);
 
   // XP below the recruitment value is only reachable by editing a fighter after
   // the fact; it means no Advancement, never a negative one.
-  return Math.max(0, tiersAtOrBelow(tiers, currentXp) - tiersAtOrBelow(tiers, startingXp));
+  return Math.max(0, tiersAtOrBelow(tiers, currentXp) - tiersAtOrBelow(tiers, startingXp ?? 0));
 }
 
 /**
@@ -88,7 +93,7 @@ export function countAdvancementsTaken(
  */
 export function openAdvancementsFor(
   editionSlug: string | null | undefined,
-  startingXp: number,
+  startingXp: number | null,
   currentXp: number,
   advancementsTaken: number,
 ): number {

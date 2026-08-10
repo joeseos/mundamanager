@@ -55,7 +55,8 @@ interface FighterDetailsCardProps {
   save?: number | null;
   edition_slug?: string | null;
   xp: number;
-  starting_xp?: number;
+  /** null means N/A: this fighter's type cannot gain XP. */
+  starting_xp?: number | null;
   total_xp?: number;
   advancements?: {
     characteristics: Record<string, any>;
@@ -254,7 +255,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   save,
   edition_slug,
   xp,
-  starting_xp = 0,
+  starting_xp = null,
   advancements,
   skills,
   onAddXp,
@@ -405,6 +406,11 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
 
   const initiativeAndMentalSuffix = initiativeAndMentalCharacteristicSuffix(edition_slug);
 
+  // A model whose type cannot gain XP has no recruitment value, and reads N/A.
+  // The number takes over the moment the model actually holds XP, so a group
+  // house-ruling XP onto it still sees it.
+  const xpDisplay = starting_xp == null && !xp ? 'N/A' : (xp ?? 0);
+
   // Update stats object to handle crew stats - now using modifiedStats instead of adjustedStats
   const stats = useMemo<Record<string, string | number>>(() => ({
     ...(showsVehicleProfile ? {
@@ -420,7 +426,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       'Cl': `${modifiedStats.cool}${initiativeAndMentalSuffix}`,
       'Wil': `${modifiedStats.willpower}${initiativeAndMentalSuffix}`,
       'Int': `${modifiedStats.intelligence}${initiativeAndMentalSuffix}`,
-      'XP': xp ?? 0
+      'XP': xpDisplay
     } : {
       'M': `${modifiedStats.movement}"`,
       'WS': `${modifiedStats.weapon_skill}+`,
@@ -435,9 +441,9 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       'Cl': `${modifiedStats.cool}${initiativeAndMentalSuffix}`,
       'Wil': `${modifiedStats.willpower}${initiativeAndMentalSuffix}`,
       'Int': `${modifiedStats.intelligence}${initiativeAndMentalSuffix}`,
-      'XP': xp ?? 0
+      'XP': xpDisplay
     })
-  }), [showsVehicleProfile, vehicleStats, vehicles, modifiedStats, xp, edition_slug, initiativeAndMentalSuffix]);
+  }), [showsVehicleProfile, vehicleStats, vehicles, modifiedStats, xpDisplay, edition_slug, initiativeAndMentalSuffix]);
 
   return (
     <div className="relative">

@@ -154,7 +154,7 @@ const FighterCard = memo(function FighterCard({
   save,
   edition_slug,
   xp,
-  starting_xp = 0,
+  starting_xp = null,
   advancements,
   weapons,
   wargear,
@@ -413,6 +413,11 @@ const FighterCard = memo(function FighterCard({
 
   // Update stats calculation to use modifiedStats
   const stats = useMemo((): StatsType => {
+    // A model whose type cannot gain XP has no recruitment value, and the
+    // roster reads N/A for it. The number takes over the moment the model
+    // actually holds XP, so a group house-ruling XP onto it still sees it.
+    const xpDisplay = starting_xp == null && !xp ? 'N/A' : xp;
+
     if (isCrew) {
       return {
         'M': vehicleStats ? `${vehicleStats.movement}"` : '*',
@@ -427,7 +432,7 @@ const FighterCard = memo(function FighterCard({
         'Cl': `${adjustedStats.cool}+`,
         'Wil': `${adjustedStats.willpower}+`,
         'Int': `${adjustedStats.intelligence}+`,
-        'XP': xp
+        'XP': xpDisplay
       };
     }
     
@@ -445,9 +450,9 @@ const FighterCard = memo(function FighterCard({
       'Cl': `${adjustedStats.cool}+`,
       'Wil': `${adjustedStats.willpower}+`,
       'Int': `${adjustedStats.intelligence}+`,
-      'XP': xp
+      'XP': xpDisplay
     };
-  }, [isCrew, vehicleStats, adjustedStats, xp, edition_slug]);
+  }, [isCrew, vehicleStats, adjustedStats, xp, starting_xp, edition_slug]);
 
   const isInactive = killed || retired || enslaved || recovery;
 
