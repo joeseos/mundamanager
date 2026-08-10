@@ -92,8 +92,9 @@ export function gangEditionSlug(gang: any): string | null {
  * added afterwards. Inner keys must stay plain string literals — computed keys
  * compile but switch off the completeness check.
  *
- * Values are boolean. A decision with more than two answers needs the constraint
- * widened to `unknown` and its own accessor; nothing needs that yet.
+ * Values are usually boolean, but need not be — the constraint is `unknown` so a
+ * decision with more than two answers lives here too, as its own row with its own
+ * accessor (see beastSubtype). `can` still only accepts the boolean-valued rows.
  *
  * Covers the code path only: the editions table is the other half and nothing
  * keeps them in sync, so a new edition needs a migration AND rows here.
@@ -133,38 +134,59 @@ const EDITION_CAPABILITIES = {
    * Guns, then one entry per alliance) rather than by raw fighter subtype.
    */
   gangAdditionCategories:   { n23: false, n26: true  },
-} as const satisfies Record<string, Record<EditionSlug, boolean>>;
+  /**
+   * What the edition calls an equipment-granted companion fighter. The subtype
+   * itself comes from the beast's fighter type; this is for copy about it.
+   */
+  beastSubtype:             { n23: 'Exotic Beast', n26: 'Pet' },
+} as const satisfies Record<string, Record<EditionSlug, unknown>>;
 
 type EditionCapability = keyof typeof EDITION_CAPABILITIES;
+
+type CapabilityAnswer<K extends EditionCapability> =
+  (typeof EDITION_CAPABILITIES)[K][EditionSlug];
+
+/** The rows `can` may be asked about, so a non-boolean row can't leak through it. */
+type BooleanCapability = {
+  [K in EditionCapability]: CapabilityAnswer<K> extends boolean ? K : never;
+}[EditionCapability];
 
 // Once per unrecognised slug, not once per lookup.
 const warnedSlugs = new Set<string>();
 
-function can(
-  capability: EditionCapability,
+/**
+ * An edition's answer for one capability, or undefined when the slug is missing
+ * or unrecognised. Each accessor decides what undefined means for its own rule.
+ */
+function answerFor<K extends EditionCapability>(
+  capability: K,
   editionSlug?: string | null
-): boolean {
+): CapabilityAnswer<K> | undefined {
   // Missing slug: nothing edition-specific applies, and it is not drift, so it
   // stays quiet. An unrecognised slug below is drift, and warns.
-  if (!editionSlug) return false;
+  if (!editionSlug) return undefined;
 
   const answers = EDITION_CAPABILITIES[capability] as Readonly<
-    Record<string, boolean | undefined>
+    Record<string, CapabilityAnswer<K> | undefined>
   >;
   const answer = answers[editionSlug];
 
-  if (answer === undefined) {
-    if (process.env.NODE_ENV !== 'production' && !warnedSlugs.has(editionSlug)) {
-      warnedSlugs.add(editionSlug);
-      console.warn(
-        `[edition] Unknown edition slug "${editionSlug}" — add it to EditionSlug ` +
-        `and answer every row in EDITION_CAPABILITIES. Until then all ` +
-        `edition-specific features are switched off for it.`
-      );
-    }
-    return false;
+  if (answer === undefined && process.env.NODE_ENV !== 'production' && !warnedSlugs.has(editionSlug)) {
+    warnedSlugs.add(editionSlug);
+    console.warn(
+      `[edition] Unknown edition slug "${editionSlug}" — add it to EditionSlug ` +
+      `and answer every row in EDITION_CAPABILITIES. Until then all ` +
+      `edition-specific features are switched off for it.`
+    );
   }
   return answer;
+}
+
+function can(
+  capability: BooleanCapability,
+  editionSlug?: string | null
+): boolean {
+  return answerFor(capability, editionSlug) === true;
 }
 
 // The public API. Callers ask what an edition can do rather than comparing
@@ -200,6 +222,9 @@ export const hasAlignment = (editionSlug?: string | null): boolean =>
 export const hasGangAdditionCategories = (
   editionSlug?: string | null
 ): boolean => can('gangAdditionCategories', editionSlug);
+
+export const beastSubtypeName = (editionSlug?: string | null): string =>
+  answerFor('beastSubtype', editionSlug) ?? EDITION_CAPABILITIES.beastSubtype.n23;
 
 export interface Edition {
   id: string;

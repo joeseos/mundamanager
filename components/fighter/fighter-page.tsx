@@ -205,7 +205,8 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
   const transformedEquipment = (fighterData.equipment || []).map((item: any) => {
     const equipmentBeastCost = item.beast_equipment_cost || 0;
     const advancementsBeastCost = item.beast_advancements_cost || 0;
-    const isBeastEquipment = item.equipment_category?.toLowerCase() === 'status items: exotic beasts';
+    const equipmentCategory = item.equipment_category?.toLowerCase();
+    const isBeastEquipment = equipmentCategory === 'status items: exotic beasts' || equipmentCategory === 'pets';
     const totalCost = item.purchase_cost + equipmentBeastCost + advancementsBeastCost;
     return {
       fighter_equipment_id: item.fighter_equipment_id,
@@ -1228,6 +1229,9 @@ export default function FighterPage({
               base_credits: fighterData.fighter.base_credits || 0,
               base_copy_cost: fighterData.fighter.base_copy_cost || 0,
               is_spyrer: fighterData.fighter.is_spyrer,
+              // Both feed the owned-beast delete guard.
+              fighter_subtypes: fighterData.fighter?.fighter_subtypes,
+              edition_slug: fighterData.fighter?.edition_slug,
               owner_name: fighterData.fighter?.owner_name,
               campaigns: fighterData.fighter?.campaigns,
               vehicles: fighterData.fighter?.vehicles?.map(v => ({

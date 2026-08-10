@@ -855,7 +855,7 @@ export default function Gang({
 
   const visibleFighters = useMemo(() => {
     return fighters.filter(fighter => {
-      if (fighter.fighter_subtypes?.some(c => c.toLowerCase().startsWith('exotic beast')) && fighter.beast_equipment_stashed) {
+      if (fighter.fighter_subtypes?.some(c => c.toLowerCase().startsWith('exotic beast') || c.toLowerCase() === 'pet') && fighter.beast_equipment_stashed) {
         return false;
       }
       return true;
