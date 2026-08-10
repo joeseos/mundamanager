@@ -400,13 +400,10 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         is_vehicle: isVehicle,
         alignment: showAlignment ? (alignment || null) : null,
         delegation_cost: delegationCost ? parseInt(delegationCost) : null,
-        // Omitted when an edition that has Starting XP leaves it blank, so the
-        // column default applies. Editions without the concept send an explicit
-        // 0 instead — the field is hidden for them, and letting the default
-        // apply would recruit their fighters with XP they should never have.
-        ...(showStartingXp
-          ? (startingXp ? { starting_xp: parseInt(startingXp) } : {})
-          : { starting_xp: 0 }),
+        // Blank means N/A — a type that can never gain XP — and stores null.
+        // Editions without the concept send an explicit 0 instead: the field is
+        // hidden for them, and their fighters do gain XP, starting from none.
+        starting_xp: showStartingXp ? (startingXp === '' ? null : parseInt(startingXp)) : 0,
         default_equipment: selectedEquipment,
         default_skills: selectedSkills,
         equipment_list: equipmentListSelections,
@@ -619,10 +616,13 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                     type="number"
                     value={startingXp}
                     onChange={(e) => setStartingXp(e.target.value)}
-                    placeholder="e.g. 0"
+                    placeholder="Leave blank for N/A"
                     className="w-full"
                     min="0"
                   />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Blank means this type can never gain XP.
+                  </p>
                 </div>
               )}
             </div>

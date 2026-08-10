@@ -621,7 +621,9 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       setIntelligence(data.intelligence?.toString() || '0');
       setAttacks(data.attacks?.toString() || '0');
       setSave(data.save != null ? data.save.toString() : '');
-      setStartingXp(data.starting_xp?.toString() || '0');
+      // Blank, not '0' — a stored null is N/A, and loading it as 0 would turn
+      // it into a real starting value on the next save.
+      setStartingXp(data.starting_xp != null ? data.starting_xp.toString() : '');
       setSpecialRules(data.special_rules || []);
       setNewSpecialRule('');
       setFreeSkill(!!data.free_skill);
@@ -1215,11 +1217,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         intelligence: parseInt(intelligence),
         attacks: parseInt(attacks),
         save: showSave && save ? parseInt(save) : null,
-        // Editions without Starting XP pin 0, as in admin-create-fighter-type.
-        // Blank sends nothing, which leaves the stored value untouched.
-        ...(showStartingXp
-          ? (startingXp ? { starting_xp: parseInt(startingXp) } : {})
-          : { starting_xp: 0 }),
+        // Blank means N/A and is sent as an explicit null, as in
+        // admin-create-fighter-type. Sending nothing instead would leave the
+        // stored value in place, making N/A impossible to set on a type that
+        // already has a number. Editions without Starting XP pin 0.
+        starting_xp: showStartingXp ? (startingXp === '' ? null : parseInt(startingXp)) : 0,
         special_rules: specialRules,
         free_skill: freeSkill,
         is_gang_addition: isGangAddition,
@@ -1701,10 +1703,13 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                       type="number"
                       value={startingXp}
                       onChange={(e) => setStartingXp(e.target.value)}
-                      placeholder="e.g. 0"
+                      placeholder="Leave blank for N/A"
                       className="w-full"
                       min="0"
                     />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Blank means this type can never gain XP.
+                    </p>
                   </div>
                 )}
               </div>
