@@ -19,15 +19,25 @@ import {
 import type { GangLogActionResult } from './logs/gang-logs';
 import { updateFighterDetails } from './edit-fighter';
 
-// A fighter's edition comes from its gang's (custom) gang type. Whether an
-// Advancement costs XP is edition-specific, so every action that touches a
-// fighter's XP balance loads it alongside the fighter.
-const FIGHTER_WITH_EDITION_SELECT = `
-  id, user_id, gang_id, xp, starting_xp, free_skill, fighter_name, killed, retired, enslaved, captured,
+// A fighter's edition comes from its gang's (custom) gang type.
+const GANG_EDITION_EMBED = `
   gangs!gang_id (
     gang_types!gang_type_id ( editions:edition_id ( slug ) ),
     custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
   )
+`;
+
+// Whether an Advancement costs XP is edition-specific, so every action that
+// touches a fighter's XP balance loads the edition alongside the fighter.
+const FIGHTER_WITH_EDITION_SELECT = `
+  id, user_id, gang_id, xp, starting_xp, free_skill, fighter_name, killed, retired, enslaved, captured,
+  ${GANG_EDITION_EMBED}
+`;
+
+// The roll loggers need the edition too, but none of the XP balance.
+const ROLL_LOGGER_FIGHTER_SELECT = `
+  id, gang_id, fighter_name, fighter_subtypes,
+  ${GANG_EDITION_EMBED}
 `;
 
 // Embeds come back as objects for these many-to-one FKs; the untyped client
@@ -1406,7 +1416,7 @@ export async function deletePowerBoost(
 }
 
 // ---------------------------------------------------------------------------
-// Ganger / Exotic Beast — advancement roll logging (gang log)
+// Advancement roll logging (gang log) — N23 Ganger / Exotic Beast, N26 any model
 // ---------------------------------------------------------------------------
 
 export interface VerifyAndLogRolledGangerAdvancementRollParams {
@@ -1418,6 +1428,25 @@ export interface VerifyAndLogRolledGangerAdvancementRollParams {
 
 const GANGER_ELIGIBLE_SUBTYPES = new Set(['Ganger', 'Exotic Beast']);
 
+/**
+ * Whether the edition splits advancement rolls by fighter subtype.
+ *
+ * N23 does: Gangers and Exotic Beasts roll on their own flat-cost table and log
+ * through the roll logger below, while every other subtype rolls for a skill and
+ * logs through the skill logger. The two guards are the halves of that routing.
+ *
+ * N26 has no such split — every model rolls on the one Advancement table — so
+ * neither guard applies. Left in place it rejects both directions: an N26 model
+ * that is not a Ganger cannot log an Advancement roll, and an N26 Ganger cannot
+ * log a skill roll. 'Exotic Beast' is an N23-only subtype, so the list can never
+ * rescue an N26 fighter.
+ */
+const routesRollsBySubtype = (fighter: any): boolean =>
+  !hasCumulativeXp(editionSlugOf(fighter));
+
+const isGangerEligible = (fighter: any): boolean =>
+  !!fighter.fighter_subtypes?.some((subtype: string) => GANGER_ELIGIBLE_SUBTYPES.has(subtype));
+
 export async function verifyAndLogRolledGangerAdvancementRoll(
   params: VerifyAndLogRolledGangerAdvancementRollParams
 ): Promise<GangLogActionResult> {
@@ -1427,7 +1456,7 @@ export async function verifyAndLogRolledGangerAdvancementRoll(
 
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, fighter_name, fighter_subtypes')
+      .select(ROLL_LOGGER_FIGHTER_SELECT)
       .eq('id', params.fighter_id)
       .single();
 
@@ -1435,7 +1464,7 @@ export async function verifyAndLogRolledGangerAdvancementRoll(
       throw new Error('Fighter not found');
     }
 
-    if (!fighter.fighter_subtypes?.some((c: string) => GANGER_ELIGIBLE_SUBTYPES.has(c))) {
+    if (routesRollsBySubtype(fighter) && !isGangerEligible(fighter)) {
       throw new Error('Advancement roll is only for Gangers and Exotic Beasts');
     }
 
@@ -1477,8 +1506,9 @@ export interface VerifyAndLogRolledSkillAdvancementRollParams {
 }
 
 /**
- * Logs a random skill advancement roll to the gang log. Rejects Ganger / Exotic Beast
- * fighters because they have their own dedicated logging pathway via
+ * Logs a random skill advancement roll to the gang log. Where the edition routes
+ * rolls by subtype, rejects Ganger / Exotic Beast fighters because they have
+ * their own dedicated logging pathway via
  * `verifyAndLogRolledGangerAdvancementRoll`.
  */
 export async function verifyAndLogRolledSkillAdvancementRoll(
@@ -1490,7 +1520,7 @@ export async function verifyAndLogRolledSkillAdvancementRoll(
 
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, fighter_name, fighter_subtypes')
+      .select(ROLL_LOGGER_FIGHTER_SELECT)
       .eq('id', params.fighter_id)
       .single();
 
@@ -1498,7 +1528,7 @@ export async function verifyAndLogRolledSkillAdvancementRoll(
       throw new Error('Fighter not found');
     }
 
-    if (fighter.fighter_subtypes?.some((c: string) => GANGER_ELIGIBLE_SUBTYPES.has(c))) {
+    if (routesRollsBySubtype(fighter) && isGangerEligible(fighter)) {
       throw new Error('Use the Ganger / Exotic Beast advancement roll logger for this fighter subtype');
     }
 
