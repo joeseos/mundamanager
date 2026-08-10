@@ -102,6 +102,8 @@ export function gangEditionSlug(gang: any): string | null {
 const EDITION_CAPABILITIES = {
   /** Sv on the fighter profile */
   saveCharacteristic:       { n23: false, n26: true  },
+  /** Suffix for I, Ld, Cl, Wil, and Int values on fighter profiles */
+  initiativeAndMentalCharacteristicSuffix: { n23: '+', n26: '' },
   /** A fighter may hold several subtypes at once */
   multipleFighterSubtypes:  { n23: false, n26: true  },
   /**
@@ -193,6 +195,12 @@ function can(
 // slugs, and never reuse one predicate to gate an unrelated rule.
 export const hasSaveCharacteristic = (editionSlug?: string | null): boolean =>
   can('saveCharacteristic', editionSlug);
+
+export const initiativeAndMentalCharacteristicSuffix = (
+  editionSlug?: string | null
+): '+' | '' =>
+  answerFor('initiativeAndMentalCharacteristicSuffix', editionSlug) ??
+  EDITION_CAPABILITIES.initiativeAndMentalCharacteristicSuffix.n23;
 
 export const allowsMultipleSubtypes = (editionSlug?: string | null): boolean =>
   can('multipleFighterSubtypes', editionSlug);

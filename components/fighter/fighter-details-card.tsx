@@ -3,7 +3,10 @@ import Link from 'next/link';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { FighterDetailsStatsTable } from '../ui/fighter-details-stats-table';
-import { hasSaveCharacteristic } from '@/types/edition';
+import {
+  hasSaveCharacteristic,
+  initiativeAndMentalCharacteristicSuffix,
+} from '@/types/edition';
 import { memo } from 'react';
 import { calculateAdjustedStats } from '@/utils/effect-modifiers';
 import { FighterProps, FighterEffect, Vehicle } from '@/types/fighter';
@@ -381,6 +384,8 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
     [showsVehicleProfile, vehicles]
   );
 
+  const initiativeAndMentalSuffix = initiativeAndMentalCharacteristicSuffix(edition_slug);
+
   // Update stats object to handle crew stats - now using modifiedStats instead of adjustedStats
   const stats = useMemo<Record<string, string | number>>(() => ({
     ...(showsVehicleProfile ? {
@@ -392,10 +397,10 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       'Hnd': vehicles?.[0] ? `${vehicleStats?.handling}+` : '*',
       'Sv': vehicles?.[0] ? `${vehicleStats?.save}+` : '*',
       'BS': modifiedStats.ballistic_skill === 0 ? '-' : `${modifiedStats.ballistic_skill}+`,
-      'Ld': `${modifiedStats.leadership}+`,
-      'Cl': `${modifiedStats.cool}+`,
-      'Wil': `${modifiedStats.willpower}+`,
-      'Int': `${modifiedStats.intelligence}+`,
+      'Ld': `${modifiedStats.leadership}${initiativeAndMentalSuffix}`,
+      'Cl': `${modifiedStats.cool}${initiativeAndMentalSuffix}`,
+      'Wil': `${modifiedStats.willpower}${initiativeAndMentalSuffix}`,
+      'Int': `${modifiedStats.intelligence}${initiativeAndMentalSuffix}`,
       'XP': xp ?? 0
     } : {
       'M': `${modifiedStats.movement}"`,
@@ -404,16 +409,16 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       'S': modifiedStats.strength,
       'T': modifiedStats.toughness,
       'W': modifiedStats.wounds,
-      'I': `${modifiedStats.initiative}+`,
+      'I': `${modifiedStats.initiative}${initiativeAndMentalSuffix}`,
       'A': modifiedStats.attacks,
       ...(hasSaveCharacteristic(edition_slug) && { 'Sv': modifiedStats.save != null ? `${modifiedStats.save}+` : '-' }),
-      'Ld': `${modifiedStats.leadership}+`,
-      'Cl': `${modifiedStats.cool}+`,
-      'Wil': `${modifiedStats.willpower}+`,
-      'Int': `${modifiedStats.intelligence}+`,
+      'Ld': `${modifiedStats.leadership}${initiativeAndMentalSuffix}`,
+      'Cl': `${modifiedStats.cool}${initiativeAndMentalSuffix}`,
+      'Wil': `${modifiedStats.willpower}${initiativeAndMentalSuffix}`,
+      'Int': `${modifiedStats.intelligence}${initiativeAndMentalSuffix}`,
       'XP': xp ?? 0
     })
-  }), [showsVehicleProfile, vehicleStats, vehicles, modifiedStats, xp, edition_slug]);
+  }), [showsVehicleProfile, vehicleStats, vehicles, modifiedStats, xp, edition_slug, initiativeAndMentalSuffix]);
 
   return (
     <div className="relative">

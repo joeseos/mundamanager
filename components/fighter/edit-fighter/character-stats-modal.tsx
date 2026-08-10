@@ -1,11 +1,16 @@
 import { useState, useMemo } from 'react';
 import { FighterEffect, FighterProps as Fighter } from '@/types/fighter';
-import { hasSaveCharacteristic } from '@/types/edition';
+import {
+  hasSaveCharacteristic,
+  initiativeAndMentalCharacteristicSuffix,
+} from '@/types/edition';
 import { Button } from "@/components/ui/button";
 import { LuPlus } from "react-icons/lu";
 import { LuMinus } from "react-icons/lu";
 
 type StatKey = "M" | "WS" | "BS" | "S" | "T" | "W" | "I" | "A" | "Sv" | "Ld" | "Cl" | "Wil" | "Int";
+
+const EDITION_SUFFIX_STATS = new Set<StatKey>(['I', 'Ld', 'Cl', 'Wil', 'Int']);
 
 interface Stat {
   key: StatKey;
@@ -26,6 +31,8 @@ export function CharacterStatsModal({
   onUpdateStats,
   isSaving = false
 }: CharacterStatsModalProps) {
+  const initiativeAndMentalSuffix = initiativeAndMentalCharacteristicSuffix(fighter.edition_slug);
+
   // Keep track of the user's adjustments separately from the base values
   const [adjustments, setAdjustments] = useState<Record<string, number>>({
     movement: 0,
@@ -52,12 +59,12 @@ export function CharacterStatsModal({
       { key: "S", name: "Strength", value: `${fighter.strength}` },
       { key: "T", name: "Toughness", value: `${fighter.toughness}` },
       { key: "W", name: "Wounds", value: `${fighter.wounds}` },
-      { key: "I", name: "Initiative", value: `${fighter.initiative}+` },
+      { key: "I", name: "Initiative", value: `${fighter.initiative}${initiativeAndMentalSuffix}` },
       { key: "A", name: "Attacks", value: `${fighter.attacks}` },
-      { key: "Ld", name: "Leadership", value: `${fighter.leadership}+` },
-      { key: "Cl", name: "Cool", value: `${fighter.cool}+` },
-      { key: "Wil", name: "Willpower", value: `${fighter.willpower}+` },
-      { key: "Int", name: "Intelligence", value: `${fighter.intelligence}+` },
+      { key: "Ld", name: "Leadership", value: `${fighter.leadership}${initiativeAndMentalSuffix}` },
+      { key: "Cl", name: "Cool", value: `${fighter.cool}${initiativeAndMentalSuffix}` },
+      { key: "Wil", name: "Willpower", value: `${fighter.willpower}${initiativeAndMentalSuffix}` },
+      { key: "Int", name: "Intelligence", value: `${fighter.intelligence}${initiativeAndMentalSuffix}` },
     ];
 
     if (hasSaveCharacteristic(fighter.edition_slug)) {
@@ -70,7 +77,7 @@ export function CharacterStatsModal({
     }
 
     return stats;
-  }, [fighter]);
+  }, [fighter, initiativeAndMentalSuffix]);
 
   // Get the property name from the stat key
   const getPropertyName = (key: StatKey): string => {
@@ -167,6 +174,7 @@ export function CharacterStatsModal({
     // Format based on stat type
     if (key === "M") return `${withAdjustment}"`;
     if (key === "W" || key === "A" || key === "S" || key === "T") return `${withAdjustment}`;
+    if (EDITION_SUFFIX_STATS.has(key)) return `${withAdjustment}${initiativeAndMentalSuffix}`;
     return `${withAdjustment}+`;
   };
 
@@ -177,6 +185,7 @@ export function CharacterStatsModal({
     if (key === "Sv" && baseValue == null) return '-';
     if (key === "M") return `${baseValue}"`;
     if (key === "W" || key === "A" || key === "S" || key === "T") return `${baseValue}`;
+    if (EDITION_SUFFIX_STATS.has(key)) return `${baseValue}${initiativeAndMentalSuffix}`;
     return `${baseValue}+`;
   };
 
@@ -219,13 +228,7 @@ export function CharacterStatsModal({
                       size="icon"
                       className="h-10 w-10 rounded-md"
                       onClick={() => handleDecrease(stat.key)}
-                      disabled={
-                        isSaving ||
-                        // Unset Sv: only allow increase until a save is granted
-                        (stat.key === "Sv" &&
-                          getCurrentTotal("Sv") == null &&
-                          (adjustments.save || 0) <= 0)
-                      }
+                      disabled={isSaving}
                     >
                       <LuMinus className="h-4 w-4" />
                     </Button>

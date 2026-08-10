@@ -764,7 +764,12 @@ export default function PrintGang({ gang }: PrintGangProps) {
                          )}
                        </div>
                        <div className="mt-1 [&_table]:text-[9px] [&_th]:text-[9px] [&_td]:text-[9px]">
-                         <StatsTable data={stats} isCrew={isCrew} viewMode={PRINT_GANG_VIEW_MODE} />
+                         <StatsTable
+                           data={stats}
+                           isCrew={isCrew}
+                           viewMode={PRINT_GANG_VIEW_MODE}
+                           editionSlug={fighter.edition_slug ?? edition_slug}
+                         />
                        </div>
                        {skillsText && (
                          <div className="mt-1 text-[10px]">

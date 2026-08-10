@@ -1,8 +1,21 @@
 import { useMemo } from 'react';
 import { FighterProps as Fighter } from '@/types/fighter';
-import { hasSaveCharacteristic } from '@/types/edition';
+import {
+  hasSaveCharacteristic,
+  initiativeAndMentalCharacteristicSuffix,
+} from '@/types/edition';
+
+const EDITION_SUFFIX_STATS = new Set([
+  'initiative',
+  'leadership',
+  'cool',
+  'willpower',
+  'intelligence',
+]);
 
 export function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
+  const initiativeAndMentalSuffix = initiativeAndMentalCharacteristicSuffix(fighter.edition_slug);
+
   const stats = useMemo(() => {
     const baseStats = [
       { key: 'movement', label: 'M' },
@@ -45,7 +58,7 @@ export function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
     if (key === 'wounds' || key === 'attacks' || key === 'strength' || key === 'toughness') {
       return value as number;
     }
-    return `${value}+`;
+    return `${value}${EDITION_SUFFIX_STATS.has(key) ? initiativeAndMentalSuffix : '+'}`;
   };
 
   // Single function to calculate effects for any category

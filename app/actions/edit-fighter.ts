@@ -140,42 +140,20 @@ function normalizeFighterSubtypeNames(subtypes: string[]): string[] {
 }
 
 /**
- * Edition for subtype validation: prefer the type being written in this update,
- * else the fighter's current type, else the gang's edition.
- * Fail closed — query errors or a missing slug reject rather than skipping checks.
+ * Edition for subtype validation. The gang decides, because that is the slug
+ * fighter-page.tsx hands the edit modal — resolving from the fighter type instead
+ * would let the server reach a different verdict than the UI the user just used.
+ * The fighter's own type is the fallback.
+ *
+ * Null means the edition never resolved, which reads as legacy N23 everywhere
+ * else (see hasMasterCraftedWeapons in equipment.ts). Callers must treat it that
+ * way rather than as an error: 34 custom_fighter_types and 9 custom_gang_types
+ * still carry a null edition_id.
  */
 async function resolveFighterEditionSlugForUpdate(
   supabase: any,
-  fighterId: string,
-  params: Pick<UpdateFighterDetailsParams, 'fighter_type_id' | 'custom_fighter_type_id'>
-): Promise<{ ok: true; editionSlug: string } | { ok: false; error: string }> {
-  const fail = {
-    ok: false as const,
-    error: 'Could not resolve edition for fighter subtype validation.',
-  };
-
-  if (params.fighter_type_id) {
-    const { data, error } = await supabase
-      .from('fighter_types')
-      .select('editions:edition_id ( slug )')
-      .eq('id', params.fighter_type_id)
-      .single();
-    if (error || !data) return fail;
-    const editionSlug = editionSlugFromJoin(data.editions);
-    return editionSlug ? { ok: true, editionSlug } : fail;
-  }
-
-  if (params.custom_fighter_type_id) {
-    const { data, error } = await supabase
-      .from('custom_fighter_types')
-      .select('editions:edition_id ( slug )')
-      .eq('id', params.custom_fighter_type_id)
-      .single();
-    if (error || !data) return fail;
-    const editionSlug = editionSlugFromJoin(data.editions);
-    return editionSlug ? { ok: true, editionSlug } : fail;
-  }
-
+  fighterId: string
+): Promise<string | null> {
   const { data, error } = await supabase
     .from('fighters')
     .select(`
@@ -189,21 +167,18 @@ async function resolveFighterEditionSlugForUpdate(
     .eq('id', fighterId)
     .single();
 
-  if (error || !data) return fail;
+  if (error || !data) return null;
 
-  const editionSlug =
-    editionSlugFromJoin(data.fighter_types?.editions) ??
-    editionSlugFromJoin(data.custom_fighter_types?.editions) ??
+  return (
     gangEditionSlug(data.gangs) ??
-    null;
-
-  return editionSlug ? { ok: true, editionSlug } : fail;
+    editionSlugFromJoin(data.fighter_types?.editions) ??
+    editionSlugFromJoin(data.custom_fighter_types?.editions)
+  );
 }
 
 async function validateFighterSubtypesForUpdate(
   supabase: any,
   fighterId: string,
-  params: UpdateFighterDetailsParams,
   subtypes: string[],
   currentSubtypes?: string[] | null
 ): Promise<{ ok: true; subtypes: string[] } | { ok: false; error: string }> {
@@ -220,10 +195,10 @@ async function validateFighterSubtypesForUpdate(
     };
   }
 
-  const editionResult = await resolveFighterEditionSlugForUpdate(supabase, fighterId, params);
-  if (!editionResult.ok) return editionResult;
-  const { editionSlug } = editionResult;
+  const editionSlug = await resolveFighterEditionSlugForUpdate(supabase, fighterId);
 
+  // allowsMultipleSubtypes(null) is false, so an unresolved edition keeps the
+  // legacy single-subtype rule instead of rejecting the save outright.
   if (!allowsMultipleSubtypes(editionSlug) && normalized.length > 1) {
     return {
       ok: false,
@@ -231,28 +206,23 @@ async function validateFighterSubtypesForUpdate(
     };
   }
 
-  if (normalized.length > 0) {
-    const { data: edition, error: editionError } = await supabase
-      .from('editions')
-      .select('id')
-      .eq('slug', editionSlug)
-      .single();
-
-    if (editionError || !edition) {
-      return { ok: false, error: 'Could not resolve edition for fighter subtype validation.' };
-    }
-
+  // No edition means no catalog to check against; legacy rows keep their names.
+  if (editionSlug && normalized.length > 0) {
     const { data: catalog, error: catalogError } = await supabase
       .from('fighter_subtypes')
-      .select('subtype_name')
-      .eq('edition_id', edition.id);
+      .select('subtype_name, editions!inner ( slug )')
+      .eq('editions.slug', editionSlug);
 
     if (catalogError) {
       return { ok: false, error: 'Failed to validate fighter subtypes.' };
     }
 
     const validNames = new Set((catalog ?? []).map((row: { subtype_name: string }) => row.subtype_name));
-    const unknown = normalized.filter(name => !validNames.has(name));
+    // Names the fighter already carries are grandfathered — 133 fighters hold
+    // alliance-crew subtypes that were never rows in fighter_subtypes.
+    const unknown = normalized.filter(
+      name => !validNames.has(name) && !previous.includes(name)
+    );
     if (unknown.length > 0) {
       return {
         ok: false,
@@ -1473,7 +1443,6 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       const validated = await validateFighterSubtypesForUpdate(
         supabase,
         params.fighter_id,
-        params,
         params.fighter_subtypes,
         fighter.fighter_subtypes
       );

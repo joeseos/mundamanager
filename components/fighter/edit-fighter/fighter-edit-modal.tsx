@@ -19,12 +19,13 @@ import { CharacterStatsModal } from './character-stats-modal';
 
 const normalizeSpecialRule = (rule: string) => rule.replace(/^"|"$/g, '');
 
-/** Order-sensitive equality for fighter_subtypes arrays (reference-list order). */
+/** fighter_subtypes is a set of names, so order carries no meaning here. */
 function sameFighterSubtypes(a?: string[] | null, b?: string[] | null): boolean {
   const left = a ?? [];
   const right = b ?? [];
   if (left.length !== right.length) return false;
-  return left.every((name, i) => name === right[i]);
+  const inLeft = new Set(left);
+  return right.every(name => inLeft.has(name));
 }
 
 interface FighterTypesData {
@@ -242,13 +243,23 @@ export function EditFighterModal({
   });
 
   const fighterSubtypesForDisplay = useMemo(() => {
-    return (allFighterSubtypes ?? [])
+    const catalog = (allFighterSubtypes ?? [])
       .filter(fc => !['*', 'Others', 'Special Terrain'].includes(fc.subtype_name))
       .filter(fc =>
         fc.subtype_name !== 'Exotic Beast Specialist' ||
         fighter.fighter_subtypes?.includes('Exotic Beast') ||
         selectedFighterSubtypes.includes('Exotic Beast')
       );
+
+    // Some fighters carry alliance-crew subtypes that were never rows in
+    // fighter_subtypes. Without an option the Combobox falls back to its
+    // placeholder and the fighter looks like it has no subtype at all.
+    const known = new Set(catalog.map(fc => fc.subtype_name));
+    const uncatalogued = selectedFighterSubtypes
+      .filter(name => !known.has(name))
+      .map(name => ({ id: name, subtype_name: name }));
+
+    return [...catalog, ...uncatalogued];
   }, [allFighterSubtypes, fighter.fighter_subtypes, selectedFighterSubtypes]);
 
   // Subtypes not yet selected — for the N26 add Combobox
@@ -784,27 +795,33 @@ export function EditFighterModal({
     setSelectedGangLegacyId(legacyId);
   };
 
+  // Archetypes key off effectiveFighterSubtype, i.e. the first entry, so a saved
+  // archetype only stops applying when that first entry changes.
+  const applySelectedFighterSubtypes = (next: string[]) => {
+    if (next[0] !== selectedFighterSubtypes[0]) setSelectedArchetypeId('');
+    setSelectedFighterSubtypes(next);
+  };
+
   const handleAddFighterSubtype = () => {
     const subtypeName = pendingSubtypeToAdd.trim();
     if (!subtypeName || selectedFighterSubtypes.includes(subtypeName)) return;
 
     const selected = new Set([...selectedFighterSubtypes, subtypeName]);
     // Keep the reference-list order so the stored array doesn't depend on add order
-    setSelectedFighterSubtypes(
+    applySelectedFighterSubtypes(
       fighterSubtypesForDisplay.map(fc => fc.subtype_name).filter(name => selected.has(name))
     );
     setPendingSubtypeToAdd('');
-    setSelectedArchetypeId('');
   };
 
   const handleRemoveFighterSubtype = (subtypeName: string) => {
-    setSelectedFighterSubtypes(prev => prev.filter(name => name !== subtypeName));
-    setSelectedArchetypeId('');
+    applySelectedFighterSubtypes(
+      selectedFighterSubtypes.filter(name => name !== subtypeName)
+    );
   };
 
   const handleSingleFighterSubtypeChange = (subtypeName: string) => {
-    setSelectedFighterSubtypes(subtypeName ? [subtypeName] : []);
-    setSelectedArchetypeId('');
+    applySelectedFighterSubtypes(subtypeName ? [subtypeName] : []);
   };
 
   // Add handler for special rule combobox selection
