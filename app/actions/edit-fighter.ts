@@ -10,6 +10,7 @@ import { logFighterAction } from './logs/fighter-logs';
 import { countsTowardRating, hasKilledStatusFlag } from '@/utils/fighter-status';
 import { updateGangFinancials, updateGangRatingSimple, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 import { insertFighterOoaRecords } from './fighter-ooa-records';
+import { allowsMultipleSubtypes, editionSlugFromJoin, gangEditionSlug } from '@/types/edition';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -123,6 +124,144 @@ export interface UpdateFighterDetailsParams {
   selected_archetype_id?: string | null;
   // New: optional stat adjustments to be applied as user effects
   stat_adjustments?: Record<string, number>;
+}
+
+/** Trim, drop empties, dedupe while preserving first-seen order. */
+function normalizeFighterSubtypeNames(subtypes: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const raw of subtypes) {
+    const name = typeof raw === 'string' ? raw.trim() : '';
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    result.push(name);
+  }
+  return result;
+}
+
+/**
+ * Edition for subtype validation: prefer the type being written in this update,
+ * else the fighter's current type, else the gang's edition.
+ * Fail closed — query errors or a missing slug reject rather than skipping checks.
+ */
+async function resolveFighterEditionSlugForUpdate(
+  supabase: any,
+  fighterId: string,
+  params: Pick<UpdateFighterDetailsParams, 'fighter_type_id' | 'custom_fighter_type_id'>
+): Promise<{ ok: true; editionSlug: string } | { ok: false; error: string }> {
+  const fail = {
+    ok: false as const,
+    error: 'Could not resolve edition for fighter subtype validation.',
+  };
+
+  if (params.fighter_type_id) {
+    const { data, error } = await supabase
+      .from('fighter_types')
+      .select('editions:edition_id ( slug )')
+      .eq('id', params.fighter_type_id)
+      .single();
+    if (error || !data) return fail;
+    const editionSlug = editionSlugFromJoin(data.editions);
+    return editionSlug ? { ok: true, editionSlug } : fail;
+  }
+
+  if (params.custom_fighter_type_id) {
+    const { data, error } = await supabase
+      .from('custom_fighter_types')
+      .select('editions:edition_id ( slug )')
+      .eq('id', params.custom_fighter_type_id)
+      .single();
+    if (error || !data) return fail;
+    const editionSlug = editionSlugFromJoin(data.editions);
+    return editionSlug ? { ok: true, editionSlug } : fail;
+  }
+
+  const { data, error } = await supabase
+    .from('fighters')
+    .select(`
+      fighter_types:fighter_type_id ( editions:edition_id ( slug ) ),
+      custom_fighter_types:custom_fighter_type_id ( editions:edition_id ( slug ) ),
+      gangs!gang_id (
+        gang_types!gang_type_id ( editions:edition_id ( slug ) ),
+        custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
+      )
+    `)
+    .eq('id', fighterId)
+    .single();
+
+  if (error || !data) return fail;
+
+  const editionSlug =
+    editionSlugFromJoin(data.fighter_types?.editions) ??
+    editionSlugFromJoin(data.custom_fighter_types?.editions) ??
+    gangEditionSlug(data.gangs) ??
+    null;
+
+  return editionSlug ? { ok: true, editionSlug } : fail;
+}
+
+async function validateFighterSubtypesForUpdate(
+  supabase: any,
+  fighterId: string,
+  params: UpdateFighterDetailsParams,
+  subtypes: string[],
+  currentSubtypes?: string[] | null
+): Promise<{ ok: true; subtypes: string[] } | { ok: false; error: string }> {
+  const normalized = normalizeFighterSubtypeNames(subtypes);
+  const previous = normalizeFighterSubtypeNames(
+    Array.isArray(currentSubtypes) ? currentSubtypes : []
+  );
+
+  // Mirror client confirmDisabled: do not allow wiping a non-empty subtype list
+  if (normalized.length === 0 && previous.length > 0) {
+    return {
+      ok: false,
+      error: 'At least one fighter subtype is required.',
+    };
+  }
+
+  const editionResult = await resolveFighterEditionSlugForUpdate(supabase, fighterId, params);
+  if (!editionResult.ok) return editionResult;
+  const { editionSlug } = editionResult;
+
+  if (!allowsMultipleSubtypes(editionSlug) && normalized.length > 1) {
+    return {
+      ok: false,
+      error: 'This edition only allows one fighter subtype.',
+    };
+  }
+
+  if (normalized.length > 0) {
+    const { data: edition, error: editionError } = await supabase
+      .from('editions')
+      .select('id')
+      .eq('slug', editionSlug)
+      .single();
+
+    if (editionError || !edition) {
+      return { ok: false, error: 'Could not resolve edition for fighter subtype validation.' };
+    }
+
+    const { data: catalog, error: catalogError } = await supabase
+      .from('fighter_subtypes')
+      .select('subtype_name')
+      .eq('edition_id', edition.id);
+
+    if (catalogError) {
+      return { ok: false, error: 'Failed to validate fighter subtypes.' };
+    }
+
+    const validNames = new Set((catalog ?? []).map((row: { subtype_name: string }) => row.subtype_name));
+    const unknown = normalized.filter(name => !validNames.has(name));
+    if (unknown.length > 0) {
+      return {
+        ok: false,
+        error: `Unknown fighter subtype(s) for this edition: ${unknown.join(', ')}`,
+      };
+    }
+  }
+
+  return { ok: true, subtypes: normalized };
 }
 
 interface EditFighterResult {
@@ -1306,7 +1445,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     // Get fighter data (RLS will handle permissions)
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, user_id, cost_adjustment, kills, kill_count, killed, retired, enslaved, captured, fighter_name')
+      .select('id, gang_id, user_id, cost_adjustment, kills, kill_count, killed, retired, enslaved, captured, fighter_name, fighter_subtypes')
       .eq('id', params.fighter_id)
       .single();
 
@@ -1330,7 +1469,19 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (params.kill_count !== undefined) updateData.kill_count = params.kill_count;
     if (params.cost_adjustment !== undefined) updateData.cost_adjustment = params.cost_adjustment;
     if (params.special_rules !== undefined) updateData.special_rules = params.special_rules;
-    if (params.fighter_subtypes !== undefined) updateData.fighter_subtypes = params.fighter_subtypes;
+    if (params.fighter_subtypes !== undefined) {
+      const validated = await validateFighterSubtypesForUpdate(
+        supabase,
+        params.fighter_id,
+        params,
+        params.fighter_subtypes,
+        fighter.fighter_subtypes
+      );
+      if (!validated.ok) {
+        return { success: false, error: validated.error };
+      }
+      updateData.fighter_subtypes = validated.subtypes;
+    }
     if (params.fighter_type !== undefined) updateData.fighter_type = params.fighter_type;
     if (params.fighter_type_id !== undefined) updateData.fighter_type_id = params.fighter_type_id;
     if (params.custom_fighter_type_id !== undefined) updateData.custom_fighter_type_id = params.custom_fighter_type_id;
@@ -1347,7 +1498,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       .from('fighters')
       .update(updateData)
       .eq('id', params.fighter_id)
-      .select('id, fighter_name, label, kills, kill_count, cost_adjustment')
+      .select('id, fighter_name, label, kills, kill_count, cost_adjustment, fighter_subtypes')
       .single();
 
     if (updateError) throw updateError;
