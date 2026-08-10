@@ -3,15 +3,9 @@ import { NextResponse } from 'next/server';
 import { getEditionIdBySlug } from '@/app/lib/editions';
 
 /**
- * Lists the vehicle lasting damage catalog.
- *
- * fighter_effect_types holds one row per damage per edition, and effect_name is
- * reused across editions — N23 and N26 both have a 'Superficial Damage', on
- * different dice with different meanings. Callers must scope the request to an
- * edition via `edition_slug` or `edition_id`, otherwise a vehicle is offered
- * another ruleset's damages.
- *
- * Both filters are optional; omitting them returns every edition's rows.
+ * Lists the vehicle lasting damage catalog. effect_name is reused across editions
+ * (both have a 'Superficial Damage'), so callers should scope with `edition_slug`
+ * or `edition_id` — omitting both returns every edition's rows.
  */
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -48,8 +42,7 @@ export async function GET(request: Request) {
       query = query.eq('edition_id', resolvedEditionId);
     }
 
-    // An empty list is a valid answer, not an error: an edition may legitimately
-    // have no vehicle damages defined yet.
+    // An empty list is valid: an edition may have no vehicle damages defined yet
     const { data: effects, error: effectsError } = await query;
 
     if (effectsError) throw effectsError;

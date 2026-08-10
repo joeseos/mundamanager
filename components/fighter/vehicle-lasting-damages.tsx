@@ -41,10 +41,7 @@ interface VehicleDamagesListProps {
   /** When addFormOnly, called when user cancels or after successful add (closes parent modal). */
   onRequestClose?: () => void;
   onDamageUpdate: (updatedDamages: FighterEffect[]) => void;
-  /**
-   * N26 damages set fighter status the way lasting injuries do. Omitted on N23,
-   * where the damage sits on the vehicle and the fighter is untouched.
-   */
+  /** Fighter-scoped damages only; an N23 damage sits on the vehicle and never touches the fighter. */
   onFighterStatusUpdate?: (status: {
     recovery?: boolean;
     captured?: boolean;
@@ -52,11 +49,7 @@ interface VehicleDamagesListProps {
     killed?: boolean;
   }) => void;
   fighterId: string;
-  /**
-   * Null on N26, where the vehicle is the fighter and there is no `vehicles` row.
-   * The damage then hangs off fighter_effects.fighter_id and goes through the
-   * fighter-scoped actions; a non-null id keeps the N23 vehicle-scoped path.
-   */
+  /** Null when the vehicle is the fighter itself — see `isFighterScoped`. */
   vehicleId: string | null;
   gangId: string;
   vehicle: any; // Pass the full vehicle object for cost calculation
@@ -100,8 +93,9 @@ export function VehicleDamagesList({
   const [isRepairModalOpen, setIsRepairModalOpen] = useState(false);
   const [selectedRepairTypeId, setSelectedRepairTypeId] = useState<string>('');
   const [damageRollCooldown, setDamageRollCooldown] = useState(false);
-  // N26 Chop Shop: damages are removed individually, so selection is by effect row
-  // id — two instances of the same damage must be paid for separately.
+  const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
+  const [sendToRecoveryChoice, setSendToRecoveryChoice] = useState(true);
+  // By row id, not name: two instances of one damage are repaired separately
   const [selectedRepairIds, setSelectedRepairIds] = useState<string[]>([]);
   const [selectedCapturingGangId, setSelectedCapturingGangId] = useState<string>('');
   const [selectedHatredTargetId, setSelectedHatredTargetId] = useState<string>('');
@@ -112,8 +106,9 @@ export function VehicleDamagesList({
 
   const queryClient = useQueryClient();
 
-  // A vehicle with no `vehicles` row is the fighter itself (N26): its damages live
-  // on fighter_effects.fighter_id and go through the fighter-scoped actions.
+  // No `vehicles` row means the vehicle IS the fighter (N26). Its damages then live on
+  // fighter_effects.fighter_id, which is why this path reuses the lasting-injury actions
+  // throughout — add_vehicle_effect would write vehicle_id and orphan the row.
   const isFighterScoped = vehicleId === null;
 
   const { entries: damageEntries, dice: damageDice } = vehicleDamageTableFor(editionSlug);
@@ -128,7 +123,7 @@ export function VehicleDamagesList({
     [fighterCampaigns]
   );
 
-  // N23 rolls a repair quality on D6. N26's Chop Shop has no roll, so this is empty there.
+  // Empty unless the edition rolls for a repair quality
   const repairTypes = useMemo(
     () =>
       repairModel?.kind === 'roll'
@@ -150,8 +145,7 @@ export function VehicleDamagesList({
       damage_table: string;
       dice_data: { result: number };
     }) => {
-      // verifyAndLogRolledVehicleDamage reads the `vehicles` row, which an N26
-      // vehicle does not have; the fighter-scoped logger takes its place.
+      // The vehicle logger reads a `vehicles` row, so fighter-scoped rolls use the fighter one
       const result = variables.vehicle_id
         ? await verifyAndLogRolledVehicleDamage({
             vehicle_id: variables.vehicle_id,
@@ -195,12 +189,7 @@ export function VehicleDamagesList({
 
   // TanStack Query mutations
   const addDamageMutation = useMutation({
-    /**
-     * Two write paths, one normalised result. An N23 damage belongs to a `vehicles`
-     * row; an N26 damage belongs to the fighter, so it goes through the ordinary
-     * lasting-injury action — which is what puts it on fighter_effects.fighter_id
-     * and applies its Recovery / Captured / destroyed flags.
-     */
+    /** Two write paths, one normalised result. */
     mutationFn: async (variables: {
       vehicleId: string | null;
       fighterId: string;
@@ -290,8 +279,6 @@ export function VehicleDamagesList({
         onDamageUpdate([...context.previousDamages, result.effect]);
       }
 
-      // Recovery / Captured / destroyed are fighter statuses, so only the
-      // fighter-scoped path produces them.
       if (result.status) {
         onFighterStatusUpdate?.(result.status);
       }
@@ -330,12 +317,21 @@ export function VehicleDamagesList({
   });
 
   const removeDamageMutation = useMutation({
-    // An N26 damage is a fighter effect, so deleting it goes through the injury
-    // action — which also reverses a destroyed vehicle's killed status and rating.
-    mutationFn: async (variables: { damageId: string; fighterId: string; gangId: string }) =>
-      isFighterScoped
-        ? await deleteFighterInjury({ fighter_id: variables.fighterId, injury_id: variables.damageId })
-        : await removeVehicleDamage(variables),
+    // deleteFighterInjury also reverses a destroyed vehicle's killed status and rating,
+    // so its resurrection result has to reach the UI or the card stays destroyed.
+    mutationFn: async (variables: { damageId: string; fighterId: string; gangId: string }) => {
+      if (!isFighterScoped) {
+        const result = await removeVehicleDamage(variables);
+        if (!result.success) throw new Error(result.error || 'Failed to remove vehicle damage');
+        return { killedStatus: undefined, gang: undefined };
+      }
+      const result = await deleteFighterInjury({
+        fighter_id: variables.fighterId,
+        injury_id: variables.damageId
+      });
+      if (!result.success) throw new Error(result.error || 'Failed to remove lasting damage');
+      return { killedStatus: result.killed_status, gang: result.gang };
+    },
     onMutate: async (variables) => {
       // Store previous state for rollback
       const previousDamages = [...damages];
@@ -350,16 +346,24 @@ export function VehicleDamagesList({
       return { previousDamages, damageName: damageToRemove?.effect_name || 'damage' };
     },
     onSuccess: (result, variables, context) => {
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to remove vehicle damage');
-      }
-
       // Invalidate related queries in the query client
       queryClient.invalidateQueries({ queryKey: ['fighter', variables.fighterId] });
       queryClient.invalidateQueries({ queryKey: ['gang', variables.gangId] });
       queryClient.invalidateQueries({ queryKey: ['vehicle', vehicleId] });
 
-      toast.success(`${context?.damageName} removed successfully`);
+      // Removing the last killed-status damage resurrects the vehicle and restores rating
+      if (result.killedStatus !== undefined) {
+        onFighterStatusUpdate?.({ killed: result.killedStatus });
+      }
+      if (result.gang) {
+        onGangCreditsUpdate?.(result.gang.credits);
+      }
+
+      toast.success(
+        result.killedStatus === false
+          ? `${context?.damageName} removed — vehicle restored`
+          : `${context?.damageName} removed successfully`
+      );
 
       setDeleteModalData(null);
     },
@@ -382,8 +386,7 @@ export function VehicleDamagesList({
       const previousDamages = [...damages];
       const previousCredits = gangCredits;
 
-      // Remove exactly what was submitted. N23 repairs every damage at once, but
-      // the N26 Chop Shop repairs only the ones selected and paid for.
+      // Remove exactly what was submitted — a per-damage repair clears only the selection
       const repairedIds = new Set(variables.damageIds);
       onDamageUpdate(damages.filter((d: FighterEffect) => !repairedIds.has(d.id)));
 
@@ -401,8 +404,7 @@ export function VehicleDamagesList({
 
       toast.success(`Repaired ${variables.damageIds.length} damage(s) for ${variables.repairCost} credits`);
 
-      // "Almost like new" leaving a Persistent Rattle is an N23 repair-roll rule;
-      // the N26 Chop Shop leaves nothing behind and has no Persistent Rattle row.
+      // Persistent Rattle is a repair-roll rule; a per-damage repair leaves nothing behind
       if (repairModel?.kind === 'roll' && variables.repairType === 'Almost like new') {
         try {
           const match = availableDamages.find((d: any) => d.effect_name === 'Persistent Rattle');
@@ -535,7 +537,7 @@ export function VehicleDamagesList({
 
         for (const gangs of gangResults) {
           for (const g of gangs) {
-            // The helper passes gangId so the vehicle's own gang comes back too.
+            // The helper passes gangId so the vehicle's own gang comes back too
             if (g.gang_id !== gangId && !seenIds.has(g.gang_id)) {
               seenIds.add(g.gang_id);
               allGangs.push(g);
@@ -587,8 +589,7 @@ export function VehicleDamagesList({
     const damage = availableDamages.find((d: any) => d.id === selectedDamageId);
     const damageName = damage?.effect_name || 'Unknown damage';
 
-    // N23 damages are inert catalog rows on the vehicle; only the fighter-scoped
-    // path carries statuses and Hatred (X) targets.
+    // Vehicle-scoped damages carry no statuses or Hatred (X) targets
     if (!isFighterScoped) {
       addDamageMutation.mutate({ vehicleId, fighterId, gangId, damageId: selectedDamageId, damageName });
       return true;
@@ -599,28 +600,49 @@ export function VehicleDamagesList({
       : {};
 
     const hatredKind = requiredHatredTarget(typeSpecificData);
-    // A gang type is global; a gang or fighter target needs campaign opponents,
-    // and skirmish play has none to name.
+    // Gang types are global; gang and fighter targets need campaign opponents to name
     const hatredSelectable = hatredKind === 'gang_type' || campaignGangs.length > 0;
     if (hatredKind && hatredSelectable && !selectedHatredTargetId) {
       toast.error(`Please select the target for ${damageName}`);
       return false;
     }
 
+    // Recovery is the player's call, as it is for lasting injuries: ask before
+    // flagging it, and let them record the damage without it.
+    if (typeSpecificData.recovery === 'true' && !fighterRecovery) {
+      setSendToRecoveryChoice(true);
+      setIsAddModalOpen(false);
+      setIsRecoveryModalOpen(true);
+      return false;
+    }
+
+    submitDamage(false);
+    return true;
+  };
+
+  /** Shared submit for the direct path and the Recovery prompt's No / Yes. */
+  const submitDamage = (sendToRecovery: boolean) => {
+    const damage = availableDamages.find((d: any) => d.id === selectedDamageId);
+    if (!damage) return;
+    const typeSpecificData = damage.type_specific_data && typeof damage.type_specific_data === 'object'
+      ? damage.type_specific_data
+      : {};
+    const hatredKind = requiredHatredTarget(typeSpecificData);
+
+    if (addFormOnly) onRequestClose?.();
+
     addDamageMutation.mutate({
       vehicleId,
       fighterId,
       gangId,
       damageId: selectedDamageId,
-      damageName,
-      sendToRecovery: typeSpecificData.recovery === 'true' && !fighterRecovery,
+      damageName: damage.effect_name || 'Unknown damage',
+      sendToRecovery,
       setKilled: hasKilledStatusFlag(typeSpecificData),
       setCaptured: typeSpecificData.captured === 'true',
       capturedByGangId: selectedCapturingGangId || null,
       hatredTargetId: hatredKind && selectedHatredTargetId ? selectedHatredTargetId : undefined
     });
-
-    return true;
   };
 
   const handleDeleteDamage = async (damageId: string, damageName: string) => {
@@ -641,7 +663,6 @@ export function VehicleDamagesList({
   const handleRepairDamage = async () => {
     if (uniqueDamages.length === 0 || gangCredits === undefined) return false;
 
-    // N23 repairs every damage at once; the N26 Chop Shop repairs the selection.
     const candidates = repairModel?.kind === 'per-damage'
       ? uniqueDamages.filter((d: FighterEffect) => selectedRepairIds.includes(d.id))
       : uniqueDamages;
@@ -662,7 +683,6 @@ export function VehicleDamagesList({
     repairDamageMutation.mutate({
       damageIds: damageIdsToRepair,
       repairCost,
-      // The Chop Shop negotiates no repair quality, so it sends none.
       repairType: repairModel?.kind === 'roll' ? repairType : undefined,
       vehicleId,
       fighterId,
@@ -677,7 +697,7 @@ export function VehicleDamagesList({
     ? damages.filter((d, idx, arr) => arr.findIndex(x => x.id === d.id) === idx)
     : damages;
 
-  // N26 Chop Shop: a flat cost per selected damage, recomputed as the selection changes.
+  // Flat cost per selected damage, recomputed as the selection changes
   const perDamageCost = repairModel?.kind === 'per-damage' ? repairModel.costPerDamage : 0;
   const [prevSelectedRepairCount, setPrevSelectedRepairCount] = useState(selectedRepairIds.length);
   if (repairModel?.kind === 'per-damage' && selectedRepairIds.length !== prevSelectedRepairCount) {
@@ -685,7 +705,7 @@ export function VehicleDamagesList({
     setRepairCost(selectedRepairIds.length * perDamageCost);
   }
 
-  // N23: a percentage of vehicle cost + upgrades (excluding weapons)
+  // Roll model: a percentage of vehicle cost + upgrades (excluding weapons)
   const [prevRepairModalOpen, setPrevRepairModalOpen] = useState(isRepairModalOpen);
   const [prevRepairPercent, setPrevRepairPercent] = useState(repairPercent);
   const [prevVehicle, setPrevVehicle] = useState(vehicle);
@@ -723,8 +743,7 @@ export function VehicleDamagesList({
     toast(`Roll ${roll}: ${match.effect_name}`);
   };
 
-  // One add form, rendered both inline (addFormOnly, from the gang card) and inside
-  // the Add modal — the roller, the picker and the target pickers must not drift.
+  // Shared by the inline (gang card) and modal branches so the two cannot drift
   const addDamageForm = (
     <div className="space-y-4">
       <div>
@@ -826,11 +845,48 @@ export function VehicleDamagesList({
     </div>
   );
 
+  // Rendered from both branches below — the add flow reaches it either way
+  const recoveryPromptModal = isRecoveryModalOpen && (
+    <Modal
+      title="Send vehicle into Recovery?"
+      content={
+        <div className="space-y-3">
+          <p>This Lasting Damage sends the vehicle into Recovery.</p>
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="send-to-recovery"
+              checked={sendToRecoveryChoice}
+              onCheckedChange={(checked) => setSendToRecoveryChoice(!!checked)}
+            />
+            <label htmlFor="send-to-recovery" className="text-sm cursor-pointer">
+              Send to Recovery
+            </label>
+          </div>
+          <p className="text-sm text-amber-500">
+            You will need to manually remove the Recovery flag the next time you update the gang.
+          </p>
+        </div>
+      }
+      onClose={() => {
+        setIsRecoveryModalOpen(false);
+        setSelectedDamageId('');
+      }}
+      onConfirm={() => {
+        setIsRecoveryModalOpen(false);
+        submitDamage(sendToRecoveryChoice);
+        return true;
+      }}
+      confirmText="Add Lasting Damage"
+      confirmDisabled={addDamageMutation.isPending}
+    />
+  );
+
   // When opened directly from gang card menu, render only the add form (no list, no inner modal)
   if (addFormOnly) {
     return (
       <div className="space-y-4">
         {addDamageForm}
+        {recoveryPromptModal}
         <div className="flex justify-end gap-2 pt-2 border-t">
           <Button variant="outline" onClick={onRequestClose} disabled={addDamageMutation.isPending}>
             Cancel
@@ -859,7 +915,7 @@ export function VehicleDamagesList({
               className="bg-card hover:bg-muted text-foreground border border-border"
               disabled={uniqueDamages.length === 0 || !userPermissions.canEdit || !repairModel}
             >
-              {repairModel?.kind === 'per-damage' ? 'Chop Shop' : 'Repair'}
+              Repair
             </Button>
             <Button
               onClick={handleOpenModal}
@@ -937,6 +993,8 @@ export function VehicleDamagesList({
         />
       )}
 
+      {recoveryPromptModal}
+
       {deleteModalData && (
         <Modal
           title="Delete Lasting Damage"
@@ -956,7 +1014,7 @@ export function VehicleDamagesList({
 
       {isRepairModalOpen && (
         <Modal
-          title={repairModel?.kind === 'per-damage' ? 'Visit Chop Shop' : 'Repair Damage'}
+          title="Repair Damage"
           headerContent={
             gangCredits !== undefined && (
               <div className="flex items-center gap-2">
@@ -1009,7 +1067,7 @@ export function VehicleDamagesList({
                     </tbody>
                   </table>
                 </div>
-                {/* Repair type selection — N23 only; the Chop Shop has no roll */}
+                {/* Repair quality applies only to the roll model */}
                 {repairModel?.kind === 'roll' && (
                 <div className="space-y-2 pt-3 border-t">
                   <label htmlFor="repairTypeSelect" className="text-sm font-medium">
@@ -1145,7 +1203,7 @@ export function VehicleDamagesList({
             setRepairType("Superficial Damage");
           }}
           onConfirm={handleRepairDamage}
-          confirmText={repairModel?.kind === 'per-damage' ? 'Pay & Repair' : 'Repair'}
+          confirmText="Repair"
           confirmDisabled={
             uniqueDamages.length === 0 ||
             repairDamageMutation.isPending ||

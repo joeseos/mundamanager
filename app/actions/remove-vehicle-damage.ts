@@ -31,10 +31,7 @@ interface RepairVehicleDamageParams {
   repairCost: number;
   /** Omitted by flat per-damage repairs (the N26 Chop Shop), which negotiate no quality. */
   repairType?: RepairCondition
-  /**
-   * Null on N26, where the vehicle is the fighter and there is no `vehicles` row.
-   * The damages are then fighter-scoped and `fighterId` alone identifies the owner.
-   */
+  /** Null when the vehicle is the fighter itself (N26); `fighterId` then identifies the owner. */
   vehicleId: string | null;
   fighterId: string;
   gangId: string;
@@ -149,9 +146,7 @@ export async function repairVehicleDamage(params: RepairVehicleDamageParams): Pr
       throw new Error('repairCost must be provided');
     }
 
-    // Fetch all required data in parallel BEFORE any mutations. The vehicles row
-    // only exists on N23; on N26 the fighter is the vehicle and params.fighterId
-    // already identifies the owner.
+    // Fetch all required data in parallel BEFORE any mutations
     const [damageResult, gangResult, vehicleResult] = await Promise.all([
       supabase
         .from('fighter_effects')
@@ -195,9 +190,7 @@ export async function repairVehicleDamage(params: RepairVehicleDamageParams): Pr
       return sum + credits;
     }, 0);
 
-    // Determine whether the damages count toward rating. On N23 that means the
-    // vehicle is assigned to an active fighter; on N26 the vehicle IS the fighter,
-    // so the same question is asked of params.fighterId directly.
+    // Whose active status decides whether these damages count toward rating
     const ownerFighterId = params.vehicleId ? vehicleData?.fighter_id : params.fighterId;
 
     let isAssignedToActiveFighter = false;
@@ -215,7 +208,7 @@ export async function repairVehicleDamage(params: RepairVehicleDamageParams): Pr
       fighterName = fighterData?.fighter_name;
     }
 
-    // An N26 vehicle has no vehicle_name of its own — the fighter's name is it.
+    // A vehicle that is the fighter has no name of its own
     const vehicleName = vehicleData?.vehicle_name || fighterName || 'Unknown Vehicle';
 
     // Delete all damage effects (RLS enforces authorization)
@@ -280,9 +273,7 @@ export async function repairVehicleDamage(params: RepairVehicleDamageParams): Pr
       console.error('Failed to log vehicle damage repair:', logError);
     }
 
-    // Invalidate cache for the damages and gang credits. An N26 vehicle's damages
-    // live on fighter_effects.fighter_id, so BASE_FIGHTER_VEHICLES (what
-    // invalidateVehicleRepair revalidates) would be the wrong tag entirely.
+    // Fighter-scoped damages need the fighter effects tag, not BASE_FIGHTER_VEHICLES
     if (params.vehicleId) {
       invalidateVehicleRepair(params.fighterId, params.gangId);
     } else {

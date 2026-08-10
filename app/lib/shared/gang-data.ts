@@ -1989,8 +1989,7 @@ export const getGangFightersList = async (
           } : undefined,
           alliance_crew_name: fighterTypeInfo.alliance_crew_name,
           is_spyrer: fighterTypeInfo.is_spyrer ?? false,
-          // On N26 the vehicle is the fighter, so the gang card needs this to offer
-          // Lasting Damage — there is no `vehicles` row to infer it from.
+          // The gang card needs this to offer Lasting Damage on a vehicle with no `vehicles` row
           is_vehicle: fighter.is_vehicle ?? false,
           kill_count: fighter.kill_count ?? 0,
           position: fighter.position,

@@ -112,8 +112,7 @@ export async function logVehicleAction(params: VehicleLogParams): Promise<GangLo
         break;
       case 'vehicle_damage_repaired':
         actionType = 'vehicle_damage_repaired';
-        // No repair_type means a flat per-damage repair (the N26 Chop Shop), which has
-        // no negotiated repair quality to report.
+        // No repair_type: a flat per-damage repair, with no negotiated quality to report
         const negotiated = params.repair_type ? ` and was negotiated to ${params.repair_type}` : '';
         description = `Vehicle "${vehicleName}" (owned by ${fighterName}) has been repaired for ${params.cost}. This removed ${params.damage_name}${negotiated}.${financialChanges}`;
         break;

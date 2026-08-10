@@ -237,9 +237,7 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
     };
   });
 
-  // Vehicle equipment comes off the `vehicles` row, so this is N23-only. An N26 vehicle
-  // is the fighter, and its gear is ordinary fighter_equipment already in
-  // `transformedEquipment` — it renders through WeaponList like any other fighter's.
+  // N23-only: a vehicle that is itself the fighter already has its gear in transformedEquipment
   const transformedVehicleEquipment = (fighterData.fighter?.vehicles?.[0]?.equipment || []).map((item: any) => ({
     fighter_equipment_id: item.fighter_equipment_id || item.vehicle_weapon_id || item.id,
     equipment_id: item.equipment_id,
@@ -591,11 +589,8 @@ export default function FighterPage({
   const isVehicle = fighterData.fighter.is_vehicle ?? false;
   const editionSlug = fighterData.gang.edition_slug ?? fighterData.fighter.edition_slug ?? null;
 
-  // Where this vehicle's lasting damage lives. N23 hangs a `vehicles` row off a Crew
-  // fighter; N26 makes the vehicle the fighter, so its damages are scoped by fighter_id
-  // and there is no vehicle id — which is exactly what routes them through the
-  // fighter-scoped actions. Precedence: an actual `vehicles` row always wins, since the
-  // two can only coexist as bad data and a real vehicle's damages must not be orphaned.
+  // Where this vehicle's lasting damage lives: an attached `vehicles` row (N23), else the
+  // fighter itself (N26). A real row always wins — the two only coexist as bad data.
   const vehicleView: { vehicleId: string | null; effects: Record<string, FighterEffect[]> } | null = vehicle
     ? { vehicleId: vehicle.id, effects: vehicle.effects ?? {} }
     : isVehicle
@@ -718,9 +713,7 @@ export default function FighterPage({
             selected_archetype={(fighterData as any)?.fighter?.selected_archetype}
           />
 
-          {/* Vehicle Equipment Section - N23 only. An N26 vehicle is a fighter and buys
-              through the ordinary fighter list below; hardpoints and Body/Drive/Engine
-              upgrade slots are concepts that only exist on a `vehicles` row. */}
+          {/* N23 only: hardpoints and Body/Drive/Engine slots exist only on a `vehicles` row */}
           {vehicleView?.vehicleId && (
             <VehicleEquipmentList
               editionSlug={editionSlug}
@@ -772,8 +765,7 @@ export default function FighterPage({
             />
           )}
 
-          {/* Every fighter's own equipment, including an N26 vehicle — it is a fighter,
-              so it buys, stashes and sells exactly like one. */}
+          {/* Every fighter's own equipment, a vehicle-fighter included */}
           <WeaponList
               editionSlug={editionSlug}
               fighterId={fighterId}
@@ -1408,8 +1400,7 @@ export default function FighterPage({
             />
           )}
 
-          {/* N23 only: scoped to the `vehicles` row's vehicle_types catalog. An N26 vehicle
-              has no such row and buys through the ordinary fighter modal above. */}
+          {/* N23 only: scoped to the `vehicles` row's vehicle_types catalog */}
           {uiState.modals.addVehicleEquipment && fighterData.fighter && fighterData.gang && vehicle && (
             <ItemModal
               title="Add Vehicle Equipment"

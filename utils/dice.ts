@@ -260,8 +260,7 @@ export const resolveInjuryRangeByNameFor = (
 // Vehicle Lasting Damage - edition-scoped tables and resolvers
 // ============================================================================
 
-// D6 table for Vehicle Lasting Damage, N23 ruleset. Six mechanical faults that
-// modify the *vehicle* statline on the attached `vehicles` row.
+// D6 table, N23: mechanical faults that modify the attached `vehicles` row's statline.
 export const VEHICLE_DAMAGE_TABLE_N23: TableEntry[] = [
   { range: [1, 1], name: 'Persistent Rattle' },
   { range: [2, 2], name: 'Handling Glitch' },
@@ -271,19 +270,11 @@ export const VEHICLE_DAMAGE_TABLE_N23: TableEntry[] = [
   { range: [6, 6], name: 'Damaged Frame' },
 ];
 
-// D66 table for Vehicle Lasting Damage, N26 ruleset.
-//
-// Not a reskin of N23. N26 makes the vehicle a fighter, so this rolls D66 rather
-// than D6, modifies ordinary fighter characteristics rather than vehicle ones,
-// and carries the Recovery / Captured / destroyed outcomes of the N26 lasting
-// injury table — including the same Hatred (X) Enmity trio at 12-14.
-//
-// Names deliberately collide with N26 *injuries* ('Lesson Learnt', the Enmity
-// trio, 'Captured'); those are separate rows in the 'lasting damages' category.
-// 'Superficial Damage' also collides with an entry in VEHICLE_REPAIR_TABLE_N23,
-// which is a repair quality rather than an effect. effect_name must match
-// supabase/migrations/20260810120000_seed_n26_vehicle_lasting_damages.sql
-// exactly, since ranges are a name-keyed reverse lookup.
+// D66 table, N26. Not a reskin: the vehicle is a fighter here, so this modifies ordinary
+// fighter characteristics and carries the Recovery / Captured / destroyed outcomes of the
+// N26 injury table, Enmity trio included. Several names collide with N26 injuries and with
+// VEHICLE_REPAIR_TABLE_N23; those are separate rows. effect_name must match
+// 20260810120000_seed_n26_vehicle_lasting_damages.sql exactly — ranges reverse-look-up by name.
 export const VEHICLE_DAMAGE_TABLE_N26: TableEntry[] = [
   { range: [11, 11], name: 'Lesson Learnt' },
   { range: [12, 12], name: 'Eternal Enmity' },
@@ -301,31 +292,19 @@ export const VEHICLE_DAMAGE_TABLE_N26: TableEntry[] = [
   { range: [66, 66], name: 'Catastrophic Explosion!' },
 ];
 
-/**
- * The damage table one edition publishes, and how it is rolled. The dice kind
- * travels with the table so callers pick a roll function from data rather than
- * branching on the edition slug.
- */
+/** The dice kind travels with the table so callers never branch on the edition slug. */
 export type VehicleDamageTable = {
   entries: TableEntry[];
   dice: 'd6' | 'd66';
 };
 
-/**
- * Keyed by EditionSlug on purpose, matching INJURY_TABLES_BY_EDITION: adding an
- * edition is a compile error here until it states its vehicle damage table.
- */
+/** Keyed by EditionSlug so a new edition is a compile error until it states its table. */
 const VEHICLE_DAMAGE_BY_EDITION: Record<EditionSlug, VehicleDamageTable> = {
   n23: { entries: VEHICLE_DAMAGE_TABLE_N23, dice: 'd6' },
   n26: { entries: VEHICLE_DAMAGE_TABLE_N26, dice: 'd66' },
 };
 
-/**
- * An unset or unrecognised slug gets no table, so callers show no ranges and
- * resolve no rolls — the same reasoning as NO_INJURY_TABLES. Quietly serving
- * another edition's spread would apply the wrong damage to a vehicle. The dice
- * kind is arbitrary when there are no entries; nothing can be rolled.
- */
+/** No table for an unknown slug: serving another edition's spread would apply the wrong damage. */
 const NO_VEHICLE_DAMAGE: VehicleDamageTable = { entries: [], dice: 'd6' };
 
 /** The vehicle damage table for one edition, with the dice it is rolled on. */
@@ -361,15 +340,10 @@ export const VEHICLE_REPAIR_TABLE_N23: TableEntry[] = [
 ];
 
 /**
- * The two editions repair by genuinely different mechanics, not by different
- * numbers, so this is a discriminated union rather than a shared table:
- *
- *  - `roll` (N23): roll D6 for a repair quality, clear *every* damage, and pay a
- *    percentage of the vehicle's cost. 'Almost like new' leaves a Persistent
- *    Rattle behind.
- *  - `per-damage` (N26): the Chop Shop. Select any number of damages and pay a
- *    flat cost for each; no roll, nothing left behind. Duplicates of the same
- *    damage must be selected separately, so callers key on effect row id.
+ * Different mechanics, not different numbers, hence a union:
+ *  - `roll`: D6 for a repair quality, clears every damage, costs a % of the vehicle.
+ *    'Almost like new' leaves a Persistent Rattle behind.
+ *  - `per-damage`: pick any number of damages, flat cost each, nothing left behind.
  */
 export type VehicleRepairModel =
   | { kind: 'roll'; entries: TableEntry[] }
