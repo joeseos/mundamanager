@@ -142,31 +142,41 @@ function normalizeFighterSubtypeNames(subtypes: string[]): string[] {
 /**
  * Edition for subtype validation: prefer the type being written in this update,
  * else the fighter's current type, else the gang's edition.
+ * Fail closed — query errors or a missing slug reject rather than skipping checks.
  */
 async function resolveFighterEditionSlugForUpdate(
   supabase: any,
   fighterId: string,
   params: Pick<UpdateFighterDetailsParams, 'fighter_type_id' | 'custom_fighter_type_id'>
-): Promise<string | null> {
+): Promise<{ ok: true; editionSlug: string } | { ok: false; error: string }> {
+  const fail = {
+    ok: false as const,
+    error: 'Could not resolve edition for fighter subtype validation.',
+  };
+
   if (params.fighter_type_id) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('fighter_types')
       .select('editions:edition_id ( slug )')
       .eq('id', params.fighter_type_id)
       .single();
-    return editionSlugFromJoin(data?.editions);
+    if (error || !data) return fail;
+    const editionSlug = editionSlugFromJoin(data.editions);
+    return editionSlug ? { ok: true, editionSlug } : fail;
   }
 
   if (params.custom_fighter_type_id) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('custom_fighter_types')
       .select('editions:edition_id ( slug )')
       .eq('id', params.custom_fighter_type_id)
       .single();
-    return editionSlugFromJoin(data?.editions);
+    if (error || !data) return fail;
+    const editionSlug = editionSlugFromJoin(data.editions);
+    return editionSlug ? { ok: true, editionSlug } : fail;
   }
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('fighters')
     .select(`
       fighter_types:fighter_type_id ( editions:edition_id ( slug ) ),
@@ -179,32 +189,49 @@ async function resolveFighterEditionSlugForUpdate(
     .eq('id', fighterId)
     .single();
 
-  return (
-    editionSlugFromJoin(data?.fighter_types?.editions) ??
-    editionSlugFromJoin(data?.custom_fighter_types?.editions) ??
-    gangEditionSlug(data?.gangs) ??
-    null
-  );
+  if (error || !data) return fail;
+
+  const editionSlug =
+    editionSlugFromJoin(data.fighter_types?.editions) ??
+    editionSlugFromJoin(data.custom_fighter_types?.editions) ??
+    gangEditionSlug(data.gangs) ??
+    null;
+
+  return editionSlug ? { ok: true, editionSlug } : fail;
 }
 
 async function validateFighterSubtypesForUpdate(
   supabase: any,
   fighterId: string,
   params: UpdateFighterDetailsParams,
-  subtypes: string[]
+  subtypes: string[],
+  currentSubtypes?: string[] | null
 ): Promise<{ ok: true; subtypes: string[] } | { ok: false; error: string }> {
   const normalized = normalizeFighterSubtypeNames(subtypes);
-  const editionSlug = await resolveFighterEditionSlugForUpdate(supabase, fighterId, params);
+  const previous = normalizeFighterSubtypeNames(
+    Array.isArray(currentSubtypes) ? currentSubtypes : []
+  );
 
-  // Only enforce single-subtype when we know the edition forbids multiples.
-  if (editionSlug != null && !allowsMultipleSubtypes(editionSlug) && normalized.length > 1) {
+  // Mirror client confirmDisabled: do not allow wiping a non-empty subtype list
+  if (normalized.length === 0 && previous.length > 0) {
+    return {
+      ok: false,
+      error: 'At least one fighter subtype is required.',
+    };
+  }
+
+  const editionResult = await resolveFighterEditionSlugForUpdate(supabase, fighterId, params);
+  if (!editionResult.ok) return editionResult;
+  const { editionSlug } = editionResult;
+
+  if (!allowsMultipleSubtypes(editionSlug) && normalized.length > 1) {
     return {
       ok: false,
       error: 'This edition only allows one fighter subtype.',
     };
   }
 
-  if (normalized.length > 0 && editionSlug) {
+  if (normalized.length > 0) {
     const { data: edition, error: editionError } = await supabase
       .from('editions')
       .select('id')
@@ -1418,7 +1445,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     // Get fighter data (RLS will handle permissions)
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, user_id, cost_adjustment, kills, kill_count, killed, retired, enslaved, captured, fighter_name')
+      .select('id, gang_id, user_id, cost_adjustment, kills, kill_count, killed, retired, enslaved, captured, fighter_name, fighter_subtypes')
       .eq('id', params.fighter_id)
       .single();
 
@@ -1447,7 +1474,8 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
         supabase,
         params.fighter_id,
         params,
-        params.fighter_subtypes
+        params.fighter_subtypes,
+        fighter.fighter_subtypes
       );
       if (!validated.ok) {
         return { success: false, error: validated.error };
