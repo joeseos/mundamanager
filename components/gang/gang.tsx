@@ -353,9 +353,12 @@ export default function Gang({
       { label: 'Gang Rating', value: rating },
       { label: 'Credits', value: credits },
       { label: 'Stash', value: totalStashValue },
-      { label: 'Vehicles (without crew)', value: unassignedVehiclesValue },
+      // An edition whose vehicles are fighters has no unassigned vehicles to count.
+      ...(hasVehicles(edition_slug)
+        ? []
+        : [{ label: 'Vehicles (without crew)', value: unassignedVehiclesValue }]),
     ];
-  }, [credits, totalStashValue, unassignedVehiclesValue, rating]);
+  }, [credits, totalStashValue, unassignedVehiclesValue, rating, edition_slug]);
 
   const wealthBreakdownTotal = useMemo(() => {
     return wealthBreakdownRows.reduce((sum, item) => sum + item.value, 0);

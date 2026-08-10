@@ -26,6 +26,7 @@ import { editFighterStatus } from "@/app/actions/edit-fighter";
 import { toast } from 'sonner';
 import type { FighterEffect } from '@/types/fighter';
 import { hasKilledStatusFlag, countsTowardRating } from '@/utils/fighter-status';
+import { hasVehicles } from '@/types/edition';
 
 interface GangPageContentProps {
   initialGangData: any; // We'll type this properly based on the processed data structure
@@ -606,6 +607,133 @@ export default function GangPageContent({
     gangCampaignResources: gangCampaigns[0]?.resources,
   } : {};
 
+  // N26 vehicles are fighter types, so they live on the Gang tab rather than a roster of their own.
+  const showVehicleRoster = !hasVehicles(gangData.processedData.edition_slug);
+
+  // One entry per tab so the titles, icons and panels can never drift out of step.
+  const tabs = [
+    {
+      title: 'Gang',
+      icon: <FaUsers key="users" />,
+      content: (
+        <div key="gang" className="container max-w-full w-full space-y-4 print:print-fighters">
+          <Gang
+            {...gangData.processedData}
+            initialFighters={gangData.processedData.fighters}
+            stash={gangData.stash}
+            onVehicleAdd={handleVehicleAdd}
+            onFighterAdd={handleFighterAdd}
+            onFighterRollback={handleFighterRollback}
+            onFighterReconcile={handleFighterReconcile}
+            onFighterUpdate={handleFighterUpdate}
+            onGangCreditsUpdate={handleGangCreditsUpdate}
+            onGangWealthUpdate={handleGangWealthUpdate}
+            gang_variants={gangData.processedData.gang_variants}
+            vehicles={gangData.processedData.vehicles || []}
+            userPermissions={userPermissions}
+          />
+        </div>
+      ),
+    },
+    {
+      title: 'Stash',
+      icon: <FaBox key="box" />,
+      content: (
+        <GangInventory
+          key="stash"
+          stash={gangData.stash}
+          fighters={gangData.processedData.fighters}
+          title="Stash"
+          onStashUpdate={handleStashUpdate}
+          onFighterUpdate={handleFighterUpdate}
+          vehicles={gangData.processedData.vehicles || []}
+          gangTypeId={gangData.processedData.gang_type_id ?? undefined}
+          gangId={gangId}
+          gangCredits={gangData.processedData.credits}
+          onGangCreditsUpdate={handleGangCreditsUpdate}
+          onGangRatingUpdate={handleGangRatingUpdate}
+          onGangWealthUpdate={handleGangWealthUpdate}
+          userPermissions={userPermissions}
+          {...gangCampaignProps}
+          gangReputation={gangData.processedData.reputation}
+          editionSlug={gangData.processedData.edition_slug}
+          gangTradePoints={gangData.processedData.trade_points}
+          onGangTradePointsUpdate={handleGangTradePointsUpdate}
+          positioning={gangData.processedData.positioning}
+        />
+      ),
+    },
+    ...(showVehicleRoster ? [{
+      title: 'Vehicles',
+      icon: <FaTruckMoving key="car" />,
+      content: (
+        <GangVehicles
+          key="vehicles"
+          vehicles={gangData.processedData.vehicles || []}
+          fighters={gangData.processedData.fighters || []}
+          gangId={gangId}
+          gangTypeId={gangData.processedData.gang_type_id}
+          onVehicleUpdate={handleVehicleUpdate}
+          onFighterUpdate={handleFighterUpdate}
+          userPermissions={userPermissions}
+          onGangCreditsUpdate={handleGangCreditsUpdate}
+          onGangRatingUpdate={handleGangRatingUpdate}
+          onGangWealthUpdate={handleGangWealthUpdate}
+          currentRating={gangData.processedData.rating}
+          currentWealth={gangData.processedData.wealth}
+          positioning={gangData.processedData.positioning}
+        />
+      ),
+    }] : []),
+    {
+      title: 'Campaign',
+      icon: <PiFlagBannerFoldBold key="map" />,
+      content: (
+        <div key="campaign" className="bg-card shadow-md rounded-lg p-4">
+          <h2 className="text-xl md:text-2xl font-bold mb-4">Campaign</h2>
+          <GangTerritories
+            gangId={gangId}
+            campaigns={gangData.processedData.campaigns || []}
+            editionSlug={gangData.processedData.edition_slug}
+          />
+        </div>
+      ),
+    },
+    {
+      title: 'Notes',
+      icon: <LuClipboard key="note" />,
+      content: (
+        <GangNotes
+          key="notes"
+          gangId={gangId}
+          initialNote={gangData.processedData.note || ''}
+          initialNoteBackstory={gangData.processedData.note_backstory || ''}
+          initialNotePrivate={gangData.processedData.note_private || ''}
+          initialNotePrivateUpdatedAt={gangData.processedData.note_private_updated_at}
+          onNoteUpdate={handleNoteUpdate}
+          onNoteBackstoryUpdate={handleNoteBackstoryUpdate}
+          onNotePrivateUpdate={handleNotePrivateUpdate}
+          userPermissions={userPermissions}
+        />
+      ),
+    },
+    {
+      title: 'Battles',
+      icon: <LuSwords key="swords" />,
+      content: (
+        <GangBattleSessions
+          key="battles"
+          sessions={gangData.processedData.battleSessions || []}
+          gangId={gangId}
+          gangName={gangData.processedData.name}
+          editionSlug={gangData.processedData.edition_slug}
+          campaignId={(gangData.processedData.campaigns || [])[0]?.campaign_id}
+          sessionUrl={(id) => `/gang/${gangId}/battle-session/${id}`}
+        />
+      ),
+    },
+  ];
+
   return (
     <FighterCardModalsProvider value={fighterCardModalsValue}>
       {/* Fighter card context modals */}
@@ -868,96 +996,8 @@ export default function GangPageContent({
       })()}
 
       <div>
-      <Tabs tabTitles={['Gang', 'Stash', 'Vehicles', 'Campaign', 'Notes', 'Battles']}
-         tabIcons={[
-           <FaUsers key="users" />,
-           <FaBox key="box" />,
-           <FaTruckMoving key="car" />,
-           <PiFlagBannerFoldBold key="map" />,
-           <LuClipboard key="note" />,
-           <LuSwords key="swords" />
-         ]}
-        >
-        <div className="container max-w-full w-full space-y-4 print:print-fighters">
-          <Gang
-            {...gangData.processedData}
-            initialFighters={gangData.processedData.fighters}
-            stash={gangData.stash}
-            onVehicleAdd={handleVehicleAdd}
-            onFighterAdd={handleFighterAdd}
-            onFighterRollback={handleFighterRollback}
-            onFighterReconcile={handleFighterReconcile}
-            onFighterUpdate={handleFighterUpdate}
-            onGangCreditsUpdate={handleGangCreditsUpdate}
-            onGangWealthUpdate={handleGangWealthUpdate}
-            gang_variants={gangData.processedData.gang_variants}
-            vehicles={gangData.processedData.vehicles || []}
-            userPermissions={userPermissions}
-          />
-        </div>
-        <GangInventory
-          stash={gangData.stash}
-          fighters={gangData.processedData.fighters}
-          title="Stash"
-          onStashUpdate={handleStashUpdate}
-          onFighterUpdate={handleFighterUpdate}
-          vehicles={gangData.processedData.vehicles || []}
-          gangTypeId={gangData.processedData.gang_type_id ?? undefined}
-          gangId={gangId}
-          gangCredits={gangData.processedData.credits}
-          onGangCreditsUpdate={handleGangCreditsUpdate}
-          onGangRatingUpdate={handleGangRatingUpdate}
-          onGangWealthUpdate={handleGangWealthUpdate}
-          userPermissions={userPermissions}
-          {...gangCampaignProps}
-          gangReputation={gangData.processedData.reputation}
-          editionSlug={gangData.processedData.edition_slug}
-          gangTradePoints={gangData.processedData.trade_points}
-          onGangTradePointsUpdate={handleGangTradePointsUpdate}
-          positioning={gangData.processedData.positioning}
-        />
-        <GangVehicles
-          vehicles={gangData.processedData.vehicles || []}
-          fighters={gangData.processedData.fighters || []}
-          gangId={gangId}
-          gangTypeId={gangData.processedData.gang_type_id}
-          onVehicleUpdate={handleVehicleUpdate}
-          onFighterUpdate={handleFighterUpdate}
-          userPermissions={userPermissions}
-          onGangCreditsUpdate={handleGangCreditsUpdate}
-          onGangRatingUpdate={handleGangRatingUpdate}
-          onGangWealthUpdate={handleGangWealthUpdate}
-          currentRating={gangData.processedData.rating}
-          currentWealth={gangData.processedData.wealth}
-          positioning={gangData.processedData.positioning}
-        />
-        <div className="bg-card shadow-md rounded-lg p-4">
-          <h2 className="text-xl md:text-2xl font-bold mb-4">Campaign</h2>
-          <GangTerritories 
-            gangId={gangId} 
-            campaigns={gangData.processedData.campaigns || []}
-            editionSlug={gangData.processedData.edition_slug}
-          />
-        </div>
-        <GangNotes
-          gangId={gangId}
-          initialNote={gangData.processedData.note || ''}
-          initialNoteBackstory={gangData.processedData.note_backstory || ''}
-          initialNotePrivate={gangData.processedData.note_private || ''}
-          initialNotePrivateUpdatedAt={gangData.processedData.note_private_updated_at}
-          onNoteUpdate={handleNoteUpdate}
-          onNoteBackstoryUpdate={handleNoteBackstoryUpdate}
-          onNotePrivateUpdate={handleNotePrivateUpdate}
-          userPermissions={userPermissions}
-        />
-        <GangBattleSessions
-          sessions={gangData.processedData.battleSessions || []}
-          gangId={gangId}
-          gangName={gangData.processedData.name}
-          editionSlug={gangData.processedData.edition_slug}
-          campaignId={(gangData.processedData.campaigns || [])[0]?.campaign_id}
-          sessionUrl={(id) => `/gang/${gangId}/battle-session/${id}`}
-        />
+      <Tabs tabTitles={tabs.map(tab => tab.title)} tabIcons={tabs.map(tab => tab.icon)}>
+        {tabs.map(tab => tab.content)}
       </Tabs>
       </div>
     </FighterCardModalsProvider>
