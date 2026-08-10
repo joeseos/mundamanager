@@ -8,7 +8,7 @@ import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { logFighterAction } from '@/app/actions/logs/fighter-logs';
 import { mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';
 import { assertArchetypeAssignable } from '@/utils/assertArchetypeAssignable';
-import { editionSlugFromJoin, type EditionJoin } from '@/types/edition';
+import { editionSlugFromJoin, gangEditionSlug, type EditionJoin } from '@/types/edition';
 
 interface SelectedEquipment {
   equipment_id: string;
@@ -373,7 +373,11 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
           .single(),
       supabase
         .from('gangs')
-        .select('id, credits, user_id, gang_type_id')
+        .select(`
+          id, credits, user_id, gang_type_id,
+          gang_types!gang_type_id ( editions:edition_id ( slug ) ),
+          custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
+        `)
         .eq('id', params.gang_id)
         .single()
     ]);
@@ -442,11 +446,15 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         ? fighterSource.fighter_subtypes
         : ['Custom'];
 
+      // Prefer fighter-type edition; fall back to gang edition for legacy custom types with null edition_id
+      const editionSlug =
+        editionSlugFromJoin(fighterSource.editions) ?? gangEditionSlug(gangData);
+
       const assignable = await assertArchetypeAssignable(supabase, {
         gangTypeId: gangData.gang_type_id,
         fighterSubtypes,
         archetypeId: params.selected_archetype_id,
-        editionSlug: editionSlugFromJoin(fighterSource.editions),
+        editionSlug,
       });
       if (!assignable.ok) {
         return {

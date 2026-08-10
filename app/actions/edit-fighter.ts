@@ -12,6 +12,7 @@ import { updateGangFinancials, updateGangRatingSimple, GangFinancialUpdateResult
 import { insertFighterOoaRecords } from './fighter-ooa-records';
 import { allowsMultipleSubtypes, editionSlugFromJoin, gangEditionSlug } from '@/types/edition';
 import { assertArchetypeAssignable } from '@/utils/assertArchetypeAssignable';
+import { mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -1503,6 +1504,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     // Archetype: reject illegal assigns; clear when subtypes invalidate the current one
     const previousArchetypeId: string | null = fighter.selected_archetype_id ?? null;
     let clearedArchetype = false;
+    let archetypeIdForOverrides: string | null = null;
 
     const wantsExplicitClear =
       params.selected_archetype_id !== undefined && !params.selected_archetype_id;
@@ -1563,6 +1565,9 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
           }
         } else {
           updateData.selected_archetype_id = params.selected_archetype_id;
+          if (params.selected_archetype_id !== previousArchetypeId) {
+            archetypeIdForOverrides = params.selected_archetype_id;
+          }
         }
       } else if (previousArchetypeId) {
         // Subtypes changed without an explicit archetype write — drop if no longer assignable
@@ -1584,7 +1589,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
 
     if (updateError) throw updateError;
 
-    // Drop skill-access overrides when the archetype is removed (eligibility loss or explicit clear)
+    // Keep skill-access overrides in sync with the persisted archetype (server-derived, not client-supplied)
     if (clearedArchetype) {
       const { error: overrideDeleteError } = await supabase
         .from('fighter_skill_access_override')
@@ -1592,8 +1597,47 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
         .eq('fighter_id', params.fighter_id);
 
       if (overrideDeleteError) {
-        // Fighter row already updated; don't fail the whole save over orphan overrides
         console.error('Failed to clear skill access overrides after archetype removal:', overrideDeleteError);
+      }
+    } else if (archetypeIdForOverrides) {
+      try {
+        const { data: archetypeData, error: archetypeFetchError } = await supabase
+          .from('skill_access_archetypes')
+          .select('skill_access')
+          .eq('id', archetypeIdForOverrides)
+          .single();
+
+        if (archetypeFetchError || !archetypeData) {
+          console.error('Failed to fetch archetype for skill-access overrides:', archetypeFetchError);
+        } else if (archetypeData.skill_access && Array.isArray(archetypeData.skill_access)) {
+          const overrides = mapArchetypeSkillAccessToOverrides(archetypeData.skill_access);
+
+          const { error: overrideDeleteError } = await supabase
+            .from('fighter_skill_access_override')
+            .delete()
+            .eq('fighter_id', params.fighter_id);
+
+          if (overrideDeleteError) {
+            console.error('Failed to clear prior skill access overrides:', overrideDeleteError);
+          } else if (overrides.length > 0) {
+            const overrideRows = overrides.map(sa => ({
+              fighter_id: params.fighter_id,
+              skill_type_id: sa.skill_type_id,
+              access_level: sa.access_level,
+              user_id: fighter.user_id,
+            }));
+
+            const { error: overrideInsertError } = await supabase
+              .from('fighter_skill_access_override')
+              .insert(overrideRows);
+
+            if (overrideInsertError) {
+              console.error('Failed to insert archetype skill-access overrides:', overrideInsertError);
+            }
+          }
+        }
+      } catch (archetypeError) {
+        console.error('Error applying archetype skill-access overrides:', archetypeError);
       }
     }
 

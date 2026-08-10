@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { updateFighterDetails } from '@/app/actions/edit-fighter';
-import { saveFighterSkillAccessOverrides } from '@/app/actions/fighter-skill-access';
 import { Input } from "@/components/ui/input";
 import Modal from "@/components/ui/modal";
 import { FighterProps as Fighter, Archetype } from '@/types/fighter';
@@ -15,7 +14,6 @@ import { allowsMultipleSubtypes } from '@/types/edition';
 import {
   getArchetypeCatalogSubtype,
   isArchetypeEligible,
-  mapArchetypeSkillAccessToOverrides,
 } from '@/utils/archetypeEligibility';
 import { SkillAccessModal } from './skill-access-modal';
 import { FighterCharacteristicTable } from './fighter-characteristic-table';
@@ -548,37 +546,14 @@ export function EditFighterModal({
         onEditSuccess?.(serverFighter, (ctx as any).optimistic, (ctx as any).snapshot);
       }
 
-      // Prefer the persisted archetype — server may clear it when subtypes invalidate the catalog
+      // Prefer the persisted archetype — server may clear it when subtypes invalidate the catalog.
+      // Skill-access overrides are applied server-side from the validated archetype row.
       const persistedArchetypeId: string | null =
         serverFighter && 'selected_archetype_id' in serverFighter
           ? ((serverFighter as { selected_archetype_id?: string | null }).selected_archetype_id ?? null)
           : (submit.selected_archetype_id ?? null);
 
       setSelectedArchetypeId(persistedArchetypeId || '');
-
-      // If archetype changed vs pre-save fighter, save/clear skill access overrides
-      if (persistedArchetypeId !== (fighter.selected_archetype_id ?? null)) {
-        try {
-          if (persistedArchetypeId && archetypesData?.archetypes) {
-            const archetype = (archetypesData.archetypes as Archetype[]).find(
-              (a: Archetype) => a.id === persistedArchetypeId
-            );
-            if (archetype) {
-              const overrides = mapArchetypeSkillAccessToOverrides(archetype.skill_access);
-
-              await saveFighterSkillAccessOverrides({ fighter_id: fighter.id, overrides });
-            }
-          } else if (!persistedArchetypeId && fighter.selected_archetype_id) {
-            // Archetype removed - clear all overrides (reset to default)
-            await saveFighterSkillAccessOverrides({ fighter_id: fighter.id, overrides: [] });
-          }
-        } catch (error) {
-          console.error('Failed to save archetype skill access:', error);
-          toast.error('Fighter updated but skill access save failed. Please try again via Customise Skill Set Access.');
-          return; // Don't show success toast
-        }
-      }
-
       toast.success('Fighter updated successfully');
     }
   });

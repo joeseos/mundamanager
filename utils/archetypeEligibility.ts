@@ -9,7 +9,9 @@ export const N26_UNDERHIVE_OUTCASTS_GANG_TYPE_ID = 'e3a5fbf4-edc8-4d85-be05-6d5a
 /**
  * Eligible subtypes per Outcasts gang type.
  * Array order is catalog priority when several eligible subtypes are selected
- * (e.g. Leader + Champion → Leader; N26 Ganger+Specialist → Ganger).
+ * (Leader > Champion > Ganger). Matches Outcasts skill-access archetype tables:
+ * when a fighter holds more than one qualifying subtype, the higher-priority
+ * catalog drives skill access.
  */
 const ARCHETYPE_ELIGIBLE_SUBTYPES_BY_GANG_TYPE: Record<string, readonly string[]> = {
   [N23_UNDERHIVE_OUTCASTS_GANG_TYPE_ID]: ['Leader', 'Champion'],
