@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient, createServiceRoleClient } from '@/utils/supabase/server'
 import { checkAdmin } from '@/utils/auth'
 import { isSafeNotificationLink } from '@/utils/notifications'
+import { fetchAllRows } from '@/utils/supabase/fetch-all-rows'
 
 const ALLOWED_TYPES = ['info', 'warning', 'error'] as const
 type NotificationType = (typeof ALLOWED_TYPES)[number]
@@ -71,30 +72,21 @@ export async function POST(request: Request) {
     let receiverIds: string[] = []
 
     if (audience === 'all') {
-      const pageSize = 1000
-      let from = 0
-
-      while (true) {
-        const { data: profiles, error: profilesError } = await serviceClient
-          .from('profiles')
-          .select('id')
-          .order('id', { ascending: true })
-          .range(from, from + pageSize - 1)
-
-        if (profilesError) {
-          console.error('Failed to fetch profiles for notifications:', profilesError)
-          return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 })
-        }
-
-        const pageIds = (profiles || []).map((profile) => profile.id).filter(Boolean)
-        receiverIds.push(...pageIds)
-
-        if (pageIds.length < pageSize) {
-          break
-        }
-
-        from += pageSize
+      let profiles: { id: string }[]
+      try {
+        profiles = await fetchAllRows((from, to) =>
+          serviceClient
+            .from('profiles')
+            .select('id')
+            .order('id', { ascending: true })
+            .range(from, to)
+        )
+      } catch (profilesError) {
+        console.error('Failed to fetch profiles for notifications:', profilesError)
+        return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 })
       }
+
+      receiverIds = profiles.map((profile) => profile.id).filter(Boolean)
     } else {
       if (!Array.isArray(body.userIds) || body.userIds.length === 0) {
         return NextResponse.json(

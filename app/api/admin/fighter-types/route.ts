@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
+import { fetchAllRows } from "@/utils/supabase/fetch-all-rows";
 
 // Add type guard at the top of the file
 function isNonEmptyArray(value: unknown): boolean {
@@ -398,9 +399,10 @@ export async function GET(request: Request) {
     }
 
     // Default case - fetch all fighter types, with optional gang filtering
-    let query = supabase
-      .from('fighter_types')
-      .select(`
+    const fighterTypes = await fetchAllRows<any>((from, to) => {
+      let query = supabase
+        .from('fighter_types')
+        .select(`
         id,
         fighter_type,
         gang_type_id,
@@ -439,18 +441,20 @@ export async function GET(request: Request) {
           adjusted_cost
         )
       `)
-      .order('gang_type', { ascending: true })
-      .order('fighter_type', { ascending: true });
-    
-    // Add gang type filter if requested and gang_type_id is provided
-    if (filter_by_gang && gang_type_id) {
-      query = query.eq('gang_type_id', gang_type_id);
-    }
+        .order('gang_type', { ascending: true })
+        .order('fighter_type', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to);
 
-    const { data: fighterTypes, error } = await query;
+      // Add gang type filter if requested and gang_type_id is provided
+      if (filter_by_gang && gang_type_id) {
+        query = query.eq('gang_type_id', gang_type_id);
+      }
 
-    if (error) throw error;
-    
+      return query;
+    });
+
+
     // Process the data to flatten the fighter_specialisations relation
     const processedFighterTypes = fighterTypes?.map((fighter: any) => ({
       ...fighter,
