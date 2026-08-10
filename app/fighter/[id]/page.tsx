@@ -235,9 +235,11 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
                   (fighterBasic.cost_adjustment || 0) + beastCosts.total;
     }
 
-    // Enrich exotic beast equipment with beast's purchased equipment costs and advancements costs
+    // Enrich beast-granting equipment with the beast's purchased equipment costs and
+    // advancements costs. The category is 'Status Items: Exotic Beasts' in N23, 'Pets' in N26.
     equipment.forEach((eq: any) => {
-      if (eq.equipment_category?.toLowerCase() === 'status items: exotic beasts') {
+      const equipmentCategory = eq.equipment_category?.toLowerCase();
+      if (equipmentCategory === 'status items: exotic beasts' || equipmentCategory === 'pets') {
         const breakdown = beastCosts.byEquipmentId[eq.fighter_equipment_id];
         if (breakdown) {
           eq.beast_equipment_cost = breakdown.equipment;

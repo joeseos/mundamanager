@@ -160,7 +160,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
         .single();
       fighterIsActive = countsTowardRating(fighter);
 
-      if (fighterIsActive && fighter?.fighter_subtypes?.some((c: string) => c.toLowerCase().startsWith('exotic beast'))) {
+      if (fighterIsActive && fighter?.fighter_subtypes?.some((c: string) => c.toLowerCase().startsWith('exotic beast') || c.toLowerCase() === 'pet')) {
         const { data: beastOwnership } = await supabase
           .from('fighter_exotic_beasts')
           .select('fighter_owner_id, fighters!fighter_owner_id (killed, retired, enslaved, captured)')
@@ -423,7 +423,9 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       // Beast equipment cost
       let beastEquipmentCost = 0;
       let beastOwnershipData: any[] | null = null;
-      const isExoticBeast = (stashData as any).equipment?.equipment_category?.toLowerCase() === 'status items: exotic beasts';
+      // Beast-granting wargear: 'Status Items: Exotic Beasts' in N23, 'Pets' in N26.
+      const equipmentCategory = (stashData as any).equipment?.equipment_category?.toLowerCase();
+      const isExoticBeast = equipmentCategory === 'status items: exotic beasts' || equipmentCategory === 'pets';
 
       if (params.fighter_id && !isCustomEquipment && stashData.equipment_id && isExoticBeast) {
         hasExoticBeastEquipment = true;

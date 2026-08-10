@@ -15,6 +15,7 @@ import { Tooltip } from 'react-tooltip';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
+import { beastSubtypeName } from '@/types/edition';
 
 interface Fighter {
   id: string;
@@ -33,6 +34,7 @@ interface Fighter {
   is_spyrer?: boolean;
   fighter_subtypes?: string[];
   owner_name?: string;
+  edition_slug?: string | null;
   campaigns?: Array<{
     campaign_id: string;
     resources?: Array<{ resource_name: string }>;
@@ -167,7 +169,8 @@ export function FighterActions({
     ) ?? false;
   }, [fighter.campaigns]);
 
-  const isOwnedExoticBeast = fighter?.fighter_subtypes?.includes('Exotic Beast') && !!fighter?.owner_name;
+  const beastNoun = beastSubtypeName(fighter?.edition_slug);
+  const isOwnedExoticBeast = fighter?.fighter_subtypes?.some(c => c.toLowerCase().startsWith('exotic beast') || c.toLowerCase() === 'pet') && !!fighter?.owner_name;
 
   // Calculate total vehicle equipment cost
   const vehicleEquipmentCost = useMemo(() => {
@@ -358,7 +361,7 @@ export function FighterActions({
             <span
               className="flex-1 inline-block"
               data-tooltip-id="delete-owned-beast-tooltip"
-              data-tooltip-content="This Exotic Beast can't be deleted as it's linked to an Owner. Delete the Exotic Beast wargear on the owner instead. You can still apply other status to an Exotic Beast (Retired, Killed etc.)"
+              data-tooltip-content={`This ${beastNoun} can't be deleted as it's linked to an Owner. Delete the ${beastNoun} wargear on the owner instead. You can still apply other status to a ${beastNoun} (Retired, Killed etc.)`}
             >
               <Button
                 variant="destructive"

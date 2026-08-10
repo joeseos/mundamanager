@@ -905,7 +905,7 @@ export const getGangBeastCount = async (gangId: string, supabase: any): Promise<
         .from('fighters')
         .select('*', { count: 'exact', head: true })
         .eq('gang_id', gangId)
-        .contains('fighter_subtypes', '["Exotic Beast"]')
+        .or('fighter_subtypes.cs.["Exotic Beast"],fighter_subtypes.cs.["Pet"]')
         .eq('killed', false)
         .eq('retired', false)
         .eq('enslaved', false)

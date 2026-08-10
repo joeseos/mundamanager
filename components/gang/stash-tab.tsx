@@ -652,7 +652,7 @@ export default function GangInventory({
       if (result.affected_beast_ids && result.affected_beast_ids.length > 0) {
         const updatedBeasts: FighterProps[] = [];
         setFighters(prev => prev.map(f => {
-          if (result.affected_beast_ids!.includes(f.id) && f.fighter_subtypes?.some(c => c.toLowerCase().startsWith('exotic beast'))) {
+          if (result.affected_beast_ids!.includes(f.id) && f.fighter_subtypes?.some(c => c.toLowerCase().startsWith('exotic beast') || c.toLowerCase() === 'pet')) {
             const updatedBeast = { ...f, beast_equipment_stashed: false };
             updatedBeasts.push(updatedBeast);
             return updatedBeast;

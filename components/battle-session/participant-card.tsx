@@ -52,6 +52,7 @@ import { createGangLog } from '@/app/actions/logs/gang-logs';
 import { updateFighterXp } from '@/app/actions/edit-fighter';
 import FighterCard from '@/components/gang/fighter-card';
 import type { BattleSessionFull, BattleSessionParticipant, BattleSessionFighter, SessionCondition, SessionInjuryRecord } from '@/types/battle-session';
+import { beastSubtypeName } from '@/types/edition';
 
 interface ConditionDefinition {
   key: string;
@@ -1523,14 +1524,14 @@ export default function ParticipantCard({
               {(() => {
                 const exoticBeastCount = localFighters.filter((f) => {
                   const gf = gangFightersList.find((gf) => gf.id === f.fighter_id);
-                  return gf?.fighter_subtypes?.some(c => c.toLowerCase() === 'exotic beast' || c.toLowerCase() === 'exotic beast specialist') || false;
+                  return gf?.fighter_subtypes?.some(c => c.toLowerCase() === 'exotic beast' || c.toLowerCase() === 'exotic beast specialist' || c.toLowerCase() === 'pet') || false;
                 }).length;
                 const crewCount = localFighters.length - exoticBeastCount;
                 return (
                   <span>
                     Crew Size: {crewCount}
                     {exoticBeastCount > 0 && (
-                      <span className="text-neutral-400"> (Excluding {exoticBeastCount} Exotic Beast{exoticBeastCount !== 1 ? 's' : ''})</span>
+                      <span className="text-neutral-400"> (Excluding {exoticBeastCount} {beastSubtypeName(session.edition_slug)}{exoticBeastCount !== 1 ? 's' : ''})</span>
                     )}
                   </span>
                 );
@@ -1727,7 +1728,7 @@ export default function ParticipantCard({
                     ) ?? gangFightersList.find((gf) => gf.id === f.fighter_id);
                     const rawName = match?.fighter_name ?? f.fighter?.fighter_name ?? 'Unknown Fighter';
                     const isAssociatedExoticBeast =
-                      fullMatch?.fighter_subtypes?.some(c => c.toLowerCase() === 'exotic beast' || c.toLowerCase() === 'exotic beast specialist') &&
+                      fullMatch?.fighter_subtypes?.some(c => c.toLowerCase() === 'exotic beast' || c.toLowerCase() === 'exotic beast specialist' || c.toLowerCase() === 'pet') &&
                       Boolean(fullMatch?.owner_id);
                     const name = isAssociatedExoticBeast ? `— ${rawName}` : rawName;
                     const cost = match?.credits ?? f.fighter?.credits;

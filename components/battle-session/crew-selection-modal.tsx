@@ -35,7 +35,7 @@ interface GangFighterOption {
 }
 
 function isBeast(f: GangFighterOption) {
-  return f.fighter_subtypes?.some(c => c.toLowerCase() === 'exotic beast' || c.toLowerCase() === 'exotic beast specialist') || false;
+  return f.fighter_subtypes?.some(c => c.toLowerCase() === 'exotic beast' || c.toLowerCase() === 'exotic beast specialist' || c.toLowerCase() === 'pet') || false;
 }
 
 function formatFighterDetails(f: GangFighterOption): string {

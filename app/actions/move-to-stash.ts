@@ -117,7 +117,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
 
       // Exotic beasts derive their rating contribution from the owner, not themselves.
       // Check the owner's active status instead.
-      if (fighterIsActive && fighter.fighter_subtypes?.some((c: string) => c.toLowerCase().startsWith('exotic beast'))) {
+      if (fighterIsActive && fighter.fighter_subtypes?.some((c: string) => c.toLowerCase().startsWith('exotic beast') || c.toLowerCase() === 'pet')) {
         const { data: beastOwnership } = await supabase
           .from('fighter_exotic_beasts')
           .select('fighter_owner_id, fighters!fighter_owner_id (killed, retired, enslaved, captured)')
@@ -203,9 +203,13 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       throw new Error(`Failed to move equipment to stash: ${updateError?.message || 'No data returned'}`);
     }
 
-    // Query beast equipment cost before clearing ownership (only for exotic beast equipment)
+    // Wargear that grants a beast: 'Status Items: Exotic Beasts' in N23, 'Pets' in N26.
+    const equipmentCategory = (equipmentData.equipment as any)?.equipment_category?.toLowerCase();
+    const isBeastWargear = equipmentCategory === 'status items: exotic beasts' || equipmentCategory === 'pets';
+
+    // Query beast equipment cost before clearing ownership (only for beast-granting equipment)
     let beastEquipmentCost = 0;
-    if ((equipmentData.equipment as any)?.equipment_category?.toLowerCase() === 'status items: exotic beasts') {
+    if (isBeastWargear) {
       const { data: beastData } = await supabase
         .from('fighter_exotic_beasts')
         .select(`
@@ -285,8 +289,8 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
           advancementType: 'effect'
         });
       }
-      // If moving exotic beast equipment to stash, invalidate beast costs cache for the owner
-      if ((equipmentData.equipment as any)?.equipment_category?.toLowerCase() === 'status items: exotic beasts') {
+      // If moving beast-granting equipment to stash, invalidate beast costs cache for the owner
+      if (isBeastWargear) {
         revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(equipmentData.fighter_id), { expire: 0 });
       }
       // If this fighter is a beast, invalidate the owner's cache

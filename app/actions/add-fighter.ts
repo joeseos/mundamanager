@@ -698,7 +698,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                 id,
                 equipment_name,
                 equipment_type,
-                equipment_category_id,
+                equipment_category,
                 cost
               ),
               custom_equipment!custom_equipment_id(
@@ -889,12 +889,12 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                 customWeaponProfiles = customProfilesData || [];
               }
 
-              // Check for exotic beast equipment and create beasts
-              const exoticBeastCategoryId = '6b5eabd8-0865-439c-98bb-09bd78f0fbac';
-              const exoticBeastEquipment = insertedEquipment.filter((item: any) =>
-                (item.equipment as any)?.equipment_category_id === exoticBeastCategoryId ||
-                (item.custom_equipment as any)?.equipment_category === 'exotic beast'
-              );
+              // Beast-granting wargear: 'Status Items: Exotic Beasts' in N23, 'Pets' in N26.
+              const exoticBeastEquipment = insertedEquipment.filter((item: any) => {
+                const category = ((item.equipment as any)?.equipment_category ??
+                  (item.custom_equipment as any)?.equipment_category)?.toLowerCase();
+                return category === 'status items: exotic beasts' || category === 'pets' || category === 'exotic beast';
+              });
 
               // Create exotic beasts for equipment that grants them
               let createdBeasts: any[] = [];

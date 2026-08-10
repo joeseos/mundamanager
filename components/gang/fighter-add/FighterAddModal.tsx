@@ -12,7 +12,7 @@ import { N26_ADDITION_CATEGORIES } from '@/utils/gangAdditionRankN26';
 import { groupAlliancesByType } from '@/utils/allianceRank';
 import { bestRankedLabel } from '@/utils/rankLookup';
 import { fighterTypeRank } from '@/utils/fighterTypeRank';
-import { hasGangAdditionCategories, sameEditionForDisplay } from '@/types/edition';
+import { beastSubtypeName, hasGangAdditionCategories, sameEditionForDisplay } from '@/types/edition';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
 import { ImInfo } from 'react-icons/im';
@@ -518,7 +518,7 @@ export default function FighterAddModal({
         return;
       }
 
-      toast.success(`${data.fighter_name} added successfully${data.created_beasts?.length ? ` with ${data.created_beasts.length} exotic beast(s)` : ''}`);
+      toast.success(`${data.fighter_name} added successfully${data.created_beasts?.length ? ` with ${data.created_beasts.length} ${beastSubtypeName(editionSlug).toLowerCase()}(s)` : ''}`);
     },
   });
 
@@ -892,9 +892,10 @@ export default function FighterAddModal({
             placeholder={isCategoryAdditions ? 'Select Category' : 'Select Fighter Subtype'}
             options={buildSubtypeOptions()}
           />
-          {selectedSubtype === 'Exotic Beast' && (
+          {/* N23 navigates by raw subtype, N26 by category value. */}
+          {(selectedSubtype === 'Exotic Beast' || selectedSubtype === 'pet') && (
             <p className="text-amber-500 text-xs">
-              Exotic Beasts should be acquired by adding them as Equipment to a fighter, which automatically creates their Fighter card. They are listed here to allow flexibility and house rules.
+              {beastSubtypeName(editionSlug)}s should be acquired by adding them as Equipment to a fighter, which automatically creates their Fighter card. They are listed here to allow flexibility and house rules.
             </p>
           )}
         </div>
