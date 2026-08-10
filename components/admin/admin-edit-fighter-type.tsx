@@ -2510,7 +2510,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 </label>
                 <AdminFighterEquipmentSelection
                   key={`equipment-selection-${selectedFighterTypeId}`}
-                  equipment={equipment}
+                  equipment={filteredEquipment}
                   equipmentSelection={equipmentSelection}
                   setEquipmentSelection={(newSelection) => {
                     // Check if this is a removal operation (fewer categories than before)
