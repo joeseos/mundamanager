@@ -2405,7 +2405,9 @@ export function AdvancementModal({
                       onClick={selectN26SkillOutcome}
                       disabled={!userPermissions.canEdit}
                     >
-                      Take a skill instead
+                      {/* Only roll 2 offers characteristics as well, so only
+                          there is a skill taken "instead" of something. */}
+                      {n26SelectedRow.characteristics?.length ? 'Take a skill instead' : 'Take a skill'}
                     </Button>
                   ) : (
                     <p className="text-xs text-muted-foreground">

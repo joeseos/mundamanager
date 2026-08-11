@@ -99,8 +99,10 @@ export default function DiceRoller<T>({
   return (
     <>
       <div className="flex items-center gap-3">
+        {/* shrink-0 so a long inline result wraps rather than squeezing the
+            button until its own label breaks across lines. */}
         <button
-          className={`px-3 py-2 bg-neutral-900 text-white rounded-sm hover:bg-gray-800 disabled:opacity-50 ${className || ''}`}
+          className={`shrink-0 whitespace-nowrap px-3 py-2 bg-neutral-900 text-white rounded-sm hover:bg-gray-800 disabled:opacity-50 ${className || ''}`}
           onClick={performRoll}
           disabled={disabled || rolling}
           type="button"
