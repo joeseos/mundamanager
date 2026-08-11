@@ -1322,6 +1322,7 @@ export async function applyEquipmentEffect(params: {
       m.stat_name === 'strength' ||
       m.stat_name === 'ap' ||
       m.stat_name === 'damage' ||
+      m.stat_name === 'lethality' ||
       m.stat_name === 'ammo'
     ));
 
