@@ -427,12 +427,26 @@ function formatGangerAdvancementRangeLabel(entry: TableEntry): string {
   return a === b ? `${a}` : `${a}-${b}`;
 }
 
-type GangerCharAdv = {
+/**
+ * One entry of the `characteristics` map returned by
+ * get_fighter_available_advancements, keyed by effect_name.
+ *
+ * The RPC resolves the fighter's edition from its gang and returns only that
+ * edition's rows, so this map is the edition-scoped catalog as well as the
+ * per-fighter costs. It is the modal's only source of characteristics — reading
+ * fighter_effect_types directly would offer every edition's rows at once, since
+ * effect_name repeats across editions.
+ */
+type CharacteristicAdvancement = {
   id: string;
   characteristic_code: string;
   xp_cost: number;
+  base_xp_cost: number;
   credits_increase: number;
   times_increased?: number;
+  is_available: boolean;
+  has_enough_xp: boolean;
+  can_purchase: boolean;
 };
 
 type AdvancementTypeValue = 'characteristic' | 'skill' | 'promotion_to_champion' | '';
@@ -464,12 +478,12 @@ export function AdvancementModal({
   onFighterDetailsUpdate
 }: AdvancementModalProps) {
   
-  const [categories, setCategories] = useState<(StatChangeCategory | SkillType)[]>([]);
+  const [skillSetCategories, setSkillSetCategories] = useState<SkillType[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [availableAdvancements, setAvailableAdvancements] = useState<AvailableAdvancement[]>([]);
   const [selectedAdvancement, setSelectedAdvancement] = useState<AvailableAdvancement | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [skillSetsLoading, setSkillSetsLoading] = useState(true);
   const [skillsLoading, setSkillsLoading] = useState(false);
   const [advancementType, setAdvancementType] = useState<AdvancementTypeValue>('');
   const [skillAcquisitionType, setSkillAcquisitionType] = useState<string>('');
@@ -484,7 +498,33 @@ export function AdvancementModal({
   const [gangerSelectedRowId, setGangerSelectedRowId] = useState('');
   const [gangerRollCooldown, setGangerRollCooldown] = useState(false);
   const [n26RollCooldown, setN26RollCooldown] = useState(false);
-  const [gangerCharMap, setGangerCharMap] = useState<Record<string, GangerCharAdv>>({});
+  const [characteristicAdvancements, setCharacteristicAdvancements] = useState<Record<string, CharacteristicAdvancement>>({});
+  /** Whether the RPC has answered — distinct from it having returned rows, so an
+   *  edition with no Advancements ends the spinner instead of hanging on it. */
+  const [characteristicsLoaded, setCharacteristicsLoaded] = useState(false);
+
+  /**
+   * The characteristic list is derived from the RPC's map, not fetched and stored:
+   * the RPC has already scoped the rows to the fighter's edition, and effect_name
+   * repeats across editions, so reading fighter_effect_types directly would list
+   * every characteristic once per edition.
+   */
+  const characteristicCategories = useMemo<StatChangeCategory[]>(
+    () =>
+      Object.entries(characteristicAdvancements).map(([effect_name, info]) => ({
+        id: info.id,
+        effect_name,
+        type: 'characteristic' as const
+      })),
+    [characteristicAdvancements]
+  );
+
+  const categories: (StatChangeCategory | SkillType)[] =
+    advancementType === 'characteristic' ? characteristicCategories : skillSetCategories;
+
+  // Characteristics wait on the RPC, skill sets on their own fetch.
+  const loading =
+    advancementType === 'characteristic' ? !characteristicsLoaded : skillSetsLoading;
   const [gangerSpecialistCosts, setGangerSpecialistCosts] = useState<{ xp_cost: number; credits_increase: number }>({
     xp_cost: 6,
     credits_increase: 20
@@ -710,8 +750,20 @@ export function AdvancementModal({
     staleTime: 10 * 60 * 1000,
   });
 
+  /**
+   * The one read of get_fighter_available_advancements. It feeds the
+   * characteristic dropdown, the cost panel behind it, and the Ganger/Exotic Beast
+   * roll UI, all of which used to fetch for themselves.
+   *
+   * Deliberately uncached: the response carries times_increased, the escalating
+   * xp_cost and has_enough_xp, all of which move the moment an Advancement is
+   * added.
+   */
+  const needsAdvancementCatalog =
+    isGangerOrExoticBeastSubtype || advancementType === 'characteristic';
+
   useEffect(() => {
-    if (!isGangerOrExoticBeastSubtype || !fighterId) return;
+    if (!needsAdvancementCatalog || !fighterId) return;
     let cancelled = false;
     const run = async () => {
       try {
@@ -732,8 +784,8 @@ export function AdvancementModal({
         if (!response.ok || cancelled) return;
         const data = await response.json();
         if (cancelled) return;
-        const ch = data?.characteristics as Record<string, GangerCharAdv> | undefined;
-        if (ch && typeof ch === 'object') setGangerCharMap(ch);
+        const ch = data?.characteristics as Record<string, CharacteristicAdvancement> | undefined;
+        if (ch && typeof ch === 'object') setCharacteristicAdvancements(ch);
         const spec = data?.ganger_to_specialist_advancement as
           | { xp_cost?: number; credits_increase?: number }
           | undefined;
@@ -745,13 +797,16 @@ export function AdvancementModal({
         }
       } catch {
         // non-fatal
+      } finally {
+        // Answered, for better or worse: release anything waiting on the catalog.
+        if (!cancelled) setCharacteristicsLoaded(true);
       }
     };
     void run();
     return () => {
       cancelled = true;
     };
-  }, [fighterId, isGangerOrExoticBeastSubtype]);
+  }, [fighterId, needsAdvancementCatalog]);
 
   const gangerPromotionTypeId = gangerPendingPromotion?.fighter_type_id;
   const shouldFetchPreviewSkillAccess = gangerSelectedRow?.kind === 'specialist' && !!gangerPromotionTypeId;
@@ -1150,7 +1205,7 @@ export function AdvancementModal({
         toast.error('Select a table outcome');
         return false;
       }
-      const det = gangerCharMap[gangerPairStatName];
+      const det = characteristicAdvancements[gangerPairStatName];
       if (!det?.id) {
         toast.error('Could not resolve characteristic data');
         return false;
@@ -1179,7 +1234,7 @@ export function AdvancementModal({
       gangerSelectedRowId,
       gangerSelectedRow,
       gangerPairStatName,
-      gangerCharMap,
+      characteristicAdvancements,
       currentXp,
       fighterId,
       addCharacteristicMutation
@@ -1325,7 +1380,7 @@ export function AdvancementModal({
     if (!gangerSelectedRowId || !gangerSelectedRow) return { canBuy: false, pending };
     if (editableXpCost < 0 || currentXp < editableXpCost) return { canBuy: false, pending };
     if (gangerSelectedRow.kind === 'pair') {
-      const ok = !!(gangerPairStatName && gangerCharMap[gangerPairStatName]?.id);
+      const ok = !!(gangerPairStatName && characteristicAdvancements[gangerPairStatName]?.id);
       return { canBuy: ok, pending };
     }
     if (gangerSelectedRow.kind === 'specialist') {
@@ -1351,7 +1406,7 @@ export function AdvancementModal({
     editableXpCost,
     currentXp,
     gangerPairStatName,
-    gangerCharMap,
+    characteristicAdvancements,
     gangerPendingPromotion,
     gangerSelectedSkillSetId,
     gangerPreviewSkillAccess,
@@ -1363,12 +1418,12 @@ export function AdvancementModal({
   ]);
 
   const gangerCostsDepsKey = `${gangerModalRollBuy}-${gangerSelectedRow?.kind}-${gangerPairStatName}-${gangerCostsUserOverride}`;
-  const [prevGangerCostsDeps, setPrevGangerCostsDeps] = useState({ key: gangerCostsDepsKey, gangerCharMap, gangerSpecialistCosts });
-  if (gangerCostsDepsKey !== prevGangerCostsDeps.key || gangerCharMap !== prevGangerCostsDeps.gangerCharMap || gangerSpecialistCosts !== prevGangerCostsDeps.gangerSpecialistCosts) {
-    setPrevGangerCostsDeps({ key: gangerCostsDepsKey, gangerCharMap, gangerSpecialistCosts });
+  const [prevGangerCostsDeps, setPrevGangerCostsDeps] = useState({ key: gangerCostsDepsKey, characteristicAdvancements, gangerSpecialistCosts });
+  if (gangerCostsDepsKey !== prevGangerCostsDeps.key || characteristicAdvancements !== prevGangerCostsDeps.characteristicAdvancements || gangerSpecialistCosts !== prevGangerCostsDeps.gangerSpecialistCosts) {
+    setPrevGangerCostsDeps({ key: gangerCostsDepsKey, characteristicAdvancements, gangerSpecialistCosts });
     if (gangerModalRollBuy && gangerSelectedRow) {
       if (gangerSelectedRow.kind === 'pair' && gangerPairStatName) {
-        const det = gangerCharMap[gangerPairStatName];
+        const det = characteristicAdvancements[gangerPairStatName];
         if (det && !gangerCostsUserOverride) {
           setEditableXpCost(det.xp_cost ?? 6);
           setEditableCreditsIncrease(det.credits_increase ?? 0);
@@ -1533,7 +1588,7 @@ export function AdvancementModal({
       : '';
 
   const gangerPairDetail =
-    gangerSelectedRow?.kind === 'pair' && gangerPairStatName ? gangerCharMap[gangerPairStatName] : null;
+    gangerSelectedRow?.kind === 'pair' && gangerPairStatName ? characteristicAdvancements[gangerPairStatName] : null;
 
   const advancementTypeComboboxOptions = useMemo(() => {
     const options: Array<{ value: string; label: string }> = [...ADVANCEMENT_TYPE_COMBOBOX_OPTIONS];
@@ -1599,8 +1654,8 @@ export function AdvancementModal({
     statChangeCategories.forEach((category) => {
       const rank = characteristicRank[category.effect_name.toLowerCase()] ?? Infinity;
       let groupLabel = 'Misc.';
-      if (rank <= 8) groupLabel = 'Main Characteristics';
-      else if (rank <= 12) groupLabel = 'Psychology Characteristics';
+      if (rank <= 9) groupLabel = 'Main Characteristics';
+      else if (rank <= 13) groupLabel = 'Psychology Characteristics';
       if (!groupByLabel[groupLabel]) groupByLabel[groupLabel] = [];
       groupByLabel[groupLabel].push(category);
     });
@@ -1736,56 +1791,35 @@ export function AdvancementModal({
     [availableAdvancements]
   );
 
-  // Fetch stat change categories
+  // Fetch skill sets. Characteristics need no fetch here — they are derived from
+  // the advancement RPC above.
   useEffect(() => {
-    const fetchCategories = async () => {
-      if (!advancementType) return;
+    if (advancementType !== 'skill' && advancementType !== 'promotion_to_champion') return;
 
-      setLoading(true);
+    const fetchSkillSets = async () => {
+      setSkillSetsLoading(true);
       try {
-        if (advancementType === 'skill' || advancementType === 'promotion_to_champion') {
-          // Use the API route so both standard and custom skill types (including
-          // campaign-shared customs) are returned.
-          const response = await fetch(`/api/skill-types?fighterId=${encodeURIComponent(fighterId)}`);
-          if (!response.ok) throw new Error('Failed to fetch skill sets');
-          const data = await response.json();
-          const categoriesWithType = (data as Array<{ id: string; name: string; is_custom?: boolean }>).map(
-            (cat) => ({
-              ...cat,
-              type: 'skill' as const
-            })
-          );
-          setCategories(categoriesWithType);
-        } else {
-          const supabase = createClient();
-          const { data: { session } } = await supabase.auth.getSession();
-          const response = await fetch(
-            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/fighter_effect_types?fighter_effect_category_id=eq.789b2065-c26d-453b-a4d5-81c04c5d4419`,
-            {
-              headers: {
-                'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-                'Authorization': `Bearer ${session?.access_token || ''}`,
-                'Content-Type': 'application/json',
-              }
-            }
-          );
-          if (!response.ok) throw new Error('Failed to fetch characteristics');
-          const data = await response.json();
-          const categoriesWithType = data.map((cat: any) => ({
+        // Use the API route so both standard and custom skill types (including
+        // campaign-shared customs) are returned.
+        const response = await fetch(`/api/skill-types?fighterId=${encodeURIComponent(fighterId)}`);
+        if (!response.ok) throw new Error('Failed to fetch skill sets');
+        const data = await response.json();
+        const categoriesWithType = (data as Array<{ id: string; name: string; is_custom?: boolean }>).map(
+          (cat) => ({
             ...cat,
-            type: 'characteristic' as const
-          }));
-          setCategories(categoriesWithType);
-        }
+            type: 'skill' as const
+          })
+        );
+        setSkillSetCategories(categoriesWithType);
       } catch (err) {
         setError(`Failed to load ${advancementType} categories`);
         console.error(err);
       } finally {
-        setLoading(false);
+        setSkillSetsLoading(false);
       }
     };
 
-    fetchCategories();
+    fetchSkillSets();
   }, [advancementType, fighterId]);
 
   // Fetch available advancements when category is selected
@@ -1796,36 +1830,6 @@ export function AdvancementModal({
       try {
 
         if (advancementType === 'characteristic') {
-          // Only fetch characteristics if a category is selected
-          if (!selectedCategory) return;
-
-          
-          const supabase = createClient();
-          const { data: { session } } = await supabase.auth.getSession();
-          const response = await fetch(
-            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_fighter_available_advancements`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-                'Authorization': `Bearer ${session?.access_token || ''}`
-              },
-              body: JSON.stringify({
-                fighter_id: fighterId
-              })
-            }
-          );
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Response status:', response.status);
-            console.error('Response text:', errorText);
-            throw new Error('Failed to fetch available characteristics');
-          }
-
-          const data = await response.json();
-
           // Find the category name from the selected category
           const selectedCategoryObj = categories.find(cat => cat.id === selectedCategory);
           if (!selectedCategoryObj || !isStatChangeCategory(selectedCategoryObj)) {
@@ -1833,9 +1837,9 @@ export function AdvancementModal({
             return;
           }
 
-
-          // Get the advancement details for the selected characteristic
-          const advancementDetails = data.characteristics[selectedCategoryObj.effect_name];
+          // Costs come from the same RPC map that supplied the dropdown, so
+          // selecting a characteristic costs no round trip.
+          const advancementDetails = characteristicAdvancements[selectedCategoryObj.effect_name];
           if (!advancementDetails) {
             console.error('No advancement details found for category:', selectedCategoryObj.effect_name);
             return;
@@ -1920,7 +1924,7 @@ export function AdvancementModal({
     };
 
     fetchAvailableAdvancements();
-  }, [advancementType, selectedCategory, fighterId, currentXp, categories]);
+  }, [advancementType, selectedCategory, fighterId, currentXp, categories, characteristicAdvancements]);
 
   // Set initial values when an advancement/acquisition type is selected
   const [prevSelectedAdvancement, setPrevSelectedAdvancement] = useState(selectedAdvancement);
