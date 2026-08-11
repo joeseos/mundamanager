@@ -5,11 +5,12 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Combobox } from "@/components/ui/combobox"
 
 import { createClient } from "@/utils/supabase/client"
 import { SubmitButton } from "./submit-button"
 import { toast } from 'sonner';
-import { gangListRank } from "@/utils/gangListRank"
+import { getGangListRank } from "@/utils/gangListRank"
 import { gangVariantRank } from "@/utils/gangVariantRank"
 import { createGang } from "@/app/actions/create-gang"
 import { useRouter } from "next/navigation"
@@ -128,6 +129,87 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
     () => availableVariants.filter(variant => sameEditionForDisplay(variant.edition_slug, editionSlug)),
     [availableVariants, editionSlug]
   );
+
+  const gangTypeOptions = useMemo(() => {
+    const gangListRank = getGangListRank(editionSlug);
+    const options: Array<{
+      value: string;
+      label: string | React.ReactNode;
+      displayValue?: string;
+      disabled?: boolean;
+    }> = [];
+
+    const categoryOrder = [
+      "House Gangs",
+      "Enforcers",
+      "Cults",
+      "Others & Outsiders",
+      "Underhive Outcasts",
+      "Misc.",
+    ];
+
+    const systemGroups = editionGangTypes
+      .filter(t => !t.is_custom)
+      .sort((a, b) => {
+        const rankA = gangListRank[a.gang_type.toLowerCase()] ?? Infinity;
+        const rankB = gangListRank[b.gang_type.toLowerCase()] ?? Infinity;
+        return rankA - rankB;
+      })
+      .reduce((groups, type) => {
+        const rank = gangListRank[type.gang_type.toLowerCase()] ?? Infinity;
+        let category = "Misc.";
+
+        if (rank <= 9) category = "House Gangs";
+        else if (rank <= 19) category = "Enforcers";
+        else if (rank <= 29) category = "Cults";
+        else if (rank <= 39) category = "Others & Outsiders";
+        else if (rank <= 49) category = "Underhive Outcasts";
+
+        if (!groups[category]) groups[category] = [];
+        groups[category].push(type);
+        return groups;
+      }, {} as Record<string, GangType[]>);
+
+    for (const category of categoryOrder) {
+      const types = systemGroups[category];
+      if (!types?.length) continue;
+      options.push({
+        value: `header-${category}`,
+        label: <span className="font-bold">{category}</span>,
+        displayValue: category,
+        disabled: true,
+      });
+      for (const type of types) {
+        options.push({
+          value: type.gang_type_id,
+          label: <span className="ml-3">{type.gang_type}</span>,
+          displayValue: type.gang_type,
+        });
+      }
+    }
+
+    const customTypes = editionGangTypes
+      .filter(t => t.is_custom)
+      .sort((a, b) => a.gang_type.localeCompare(b.gang_type));
+
+    if (customTypes.length > 0) {
+      options.push({
+        value: "header-Custom",
+        label: <span className="font-bold">Custom</span>,
+        displayValue: "Custom",
+        disabled: true,
+      });
+      for (const type of customTypes) {
+        options.push({
+          value: type.gang_type_id,
+          label: <span className="ml-3">{type.gang_type}</span>,
+          displayValue: type.gang_type,
+        });
+      }
+    }
+
+    return options;
+  }, [editionGangTypes, editionSlug]);
 
   // Clear selections that no longer belong to the active edition
   const [prevEditionSlug, setPrevEditionSlug] = useState(editionSlug);
@@ -398,61 +480,14 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
             <label htmlFor="gang-type" className="block text-sm font-medium text-muted-foreground mb-1">
               Gang Type *
             </label>
-            <select
+            <Combobox
               id="gang-type"
+              options={gangTypeOptions}
               value={gangType}
-              onChange={(e) => setGangType(e.target.value)}
-              className="w-full px-3 py-2 rounded-md border border-border focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="">Select gang type</option>
-              {/* System gang types */}
-              {Object.entries(
-                editionGangTypes
-                  .filter(t => !t.is_custom)
-                  .sort((a, b) => {
-                    const rankA = gangListRank[a.gang_type.toLowerCase()] ?? Infinity;
-                    const rankB = gangListRank[b.gang_type.toLowerCase()] ?? Infinity;
-                    return rankA - rankB;
-                  })
-                  .reduce((groups, type) => {
-                    const rank = gangListRank[type.gang_type.toLowerCase()];
-                    let category = "Misc."; // Default category if no clear separator
-
-                    if (rank <= 9) category = "House Gangs";
-                    else if (rank <= 19) category = "Enforcers";
-                    else if (rank <= 29) category = "Cults";
-                    else if (rank <= 39) category = "Others & Outsiders";
-                    else if (rank <= 49) category = "Underhive Outcasts";
-
-                    if (!groups[category]) groups[category] = [];
-                    groups[category].push(type);
-                    return groups;
-                  }, {} as Record<string, GangType[]>)
-              ).map(([category, types]) => (
-                types.length > 0 ? (
-                  <optgroup key={category} label={category}>
-                    {types.map((type) => (
-                      <option key={type.gang_type_id} value={type.gang_type_id}>
-                        {type.gang_type}
-                      </option>
-                    ))}
-                  </optgroup>
-                ) : null
-              ))}
-              {/* Custom gang types */}
-              {editionGangTypes.filter(t => t.is_custom).length > 0 && (
-                <optgroup label="Custom">
-                  {editionGangTypes
-                    .filter(t => t.is_custom)
-                    .sort((a, b) => a.gang_type.localeCompare(b.gang_type))
-                    .map((type) => (
-                      <option key={type.gang_type_id} value={type.gang_type_id}>
-                        {type.gang_type}
-                      </option>
-                    ))}
-                </optgroup>
-              )}
-            </select>
+              onValueChange={setGangType}
+              placeholder="Select gang type"
+              disabled={isLoadingGangTypes}
+            />
           </div>
           
           {/* Conditional Affiliation Dropdown - moved to be right after Gang Type */}
