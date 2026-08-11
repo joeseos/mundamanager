@@ -33,7 +33,8 @@ import {
   resolveGangerExoticBeastAdvancementFromUtil,
   N26_ADVANCEMENT_TABLE,
   resolveN26AdvancementFromUtil,
-  type TableEntry
+  type TableEntry,
+  type N26AdvancementEntry
 } from '@/utils/dice';
 import { hasCumulativeXp } from '@/types/edition';
 
@@ -422,10 +423,23 @@ const GANGER_ADVANCEMENT_COMBO_OPTIONS: GangerAdvancementComboRow[] = GANGER_EXO
   })
 );
 
-function formatGangerAdvancementRangeLabel(entry: TableEntry): string {
+/** Both advancement tables key their rows by a 2D6 range, so the label is shared. */
+function formatAdvancementRangeLabel(entry: { range: readonly [number, number] }): string {
   const [a, b] = entry.range;
   return a === b ? `${a}` : `${a}-${b}`;
 }
+
+/**
+ * The N26 Advancement table as picker rows. N26 applies one table to every
+ * subtype — there is no Ganger/Exotic Beast split — so every N26 fighter picks
+ * from these.
+ */
+type N26AdvancementComboRow = N26AdvancementEntry & { id: string };
+
+const N26_ADVANCEMENT_COMBO_OPTIONS: N26AdvancementComboRow[] = N26_ADVANCEMENT_TABLE.map((entry) => ({
+  ...entry,
+  id: `n26-adv-${entry.range[0]}-${entry.range[1]}`
+}));
 
 /**
  * One entry of the `characteristics` map returned by
@@ -498,6 +512,11 @@ export function AdvancementModal({
   const [gangerSelectedRowId, setGangerSelectedRowId] = useState('');
   const [gangerRollCooldown, setGangerRollCooldown] = useState(false);
   const [n26RollCooldown, setN26RollCooldown] = useState(false);
+  /** Selected row of the N26 Advancement table, and the characteristic chosen
+   *  within it. The row drives the ordinary characteristic/skill flow rather than
+   *  running a purchase path of its own. */
+  const [n26SelectedRowId, setN26SelectedRowId] = useState('');
+  const [n26CharacteristicName, setN26CharacteristicName] = useState('');
   const [characteristicAdvancements, setCharacteristicAdvancements] = useState<Record<string, CharacteristicAdvancement>>({});
   /** Whether the RPC has answered — distinct from it having returned rows, so an
    *  edition with no Advancements ends the spinner instead of hanging on it. */
@@ -506,6 +525,12 @@ export function AdvancementModal({
    *  the fetch can fail before an advancement type is picked — the characteristic
    *  UI surfaces it whenever it renders, and the Ganger roll UI ignores it. */
   const [characteristicsError, setCharacteristicsError] = useState<string | null>(null);
+
+  // N26 earns Advancements by rank and spends no XP, so every fighter rolls on
+  // one table and no XP price is ever paid. The N23 subtype-specific tables and
+  // escalating costs do not apply. Declared here because the picker, the catalog
+  // fetch and the cost fields all branch on it.
+  const isCumulativeXp = hasCumulativeXp(editionSlug);
 
   /**
    * The characteristic list is derived from the RPC's map, not fetched and stored:
@@ -732,11 +757,21 @@ export function AdvancementModal({
     [gangerSelectedRowId]
   );
 
+  const n26SelectedRow = useMemo(
+    () => N26_ADVANCEMENT_COMBO_OPTIONS.find((r) => r.id === n26SelectedRowId),
+    [n26SelectedRowId]
+  );
+
   const isGangerOrExoticBeastSubtype =
     fighterSubtypes.includes('Ganger') || fighterSubtypes.includes('Exotic Beast');
 
+  // The N23 Ganger roll-and-buy flow. Edition matters as much as subtype: N26 has
+  // no Ganger table and never renders its picker, so an N26 fighter that happens
+  // to carry a Ganger subtype would otherwise route Buy through a flow whose
+  // preconditions it can never satisfy, leaving the button permanently disabled.
   const gangerModalRollBuy =
     isGangerOrExoticBeastSubtype &&
+    !isCumulativeXp &&
     !!userPermissions &&
     !!onFighterDetailsUpdate;
 
@@ -770,8 +805,11 @@ export function AdvancementModal({
    * xp_cost and has_enough_xp, all of which move the moment an Advancement is
    * added.
    */
+  // N26 resolves a characteristic to its effect type id the moment a table
+  // result's radio is clicked, which happens before an advancement type is set —
+  // so the catalog has to be in hand from the moment the modal opens.
   const needsAdvancementCatalog =
-    isGangerOrExoticBeastSubtype || advancementType === 'characteristic';
+    isGangerOrExoticBeastSubtype || isCumulativeXp || advancementType === 'characteristic';
 
   useEffect(() => {
     if (!needsAdvancementCatalog || !fighterId) return;
@@ -1553,7 +1591,7 @@ export function AdvancementModal({
   const gangerAdvancementComboboxOptions = useMemo(
     () =>
       GANGER_ADVANCEMENT_COMBO_OPTIONS.flatMap((row) => {
-        const range = formatGangerAdvancementRangeLabel(row);
+        const range = formatAdvancementRangeLabel(row);
         const displayText = `${range}: ${row.name}`;
         return [
           {
@@ -1570,6 +1608,63 @@ export function AdvancementModal({
       }),
     []
   );
+
+  const n26AdvancementComboboxOptions = useMemo(
+    () =>
+      N26_ADVANCEMENT_COMBO_OPTIONS.map((row) => {
+        const range = formatAdvancementRangeLabel(row);
+        return {
+          value: row.id,
+          label: (
+            <>
+              <span className="text-muted-foreground inline-block w-14 text-center mr-1">{range}</span>
+              {row.name}
+            </>
+          ),
+          displayValue: `${range}: ${row.name}`
+        };
+      }),
+    []
+  );
+
+  /**
+   * Point the ordinary characteristic flow at one of the row's characteristics.
+   * The effect that watches selectedCategory then fills in costs from the RPC
+   * map, exactly as it does when a characteristic is picked directly.
+   */
+  const selectN26Characteristic = useCallback(
+    (name: string) => {
+      setN26CharacteristicName(name);
+      setAdvancementType('characteristic');
+      setSkillAcquisitionType('');
+      setSkillRollResult(null);
+      setSelectedAdvancement(null);
+      setSelectedCategory(characteristicAdvancements[name]?.id ?? '');
+    },
+    [characteristicAdvancements]
+  );
+
+  /** Hand the row's skill options to the ordinary skill flow. */
+  const selectN26SkillOutcome = useCallback(() => {
+    setN26CharacteristicName('');
+    setAdvancementType('skill');
+    setSelectedCategory('');
+    setSelectedAdvancement(null);
+    setSkillAcquisitionType('');
+    setSkillRollResult(null);
+    setAvailableAdvancements([]);
+  }, []);
+
+  const selectN26Row = useCallback((rowId: string) => {
+    setN26SelectedRowId(rowId);
+    setN26CharacteristicName('');
+    setAdvancementType('');
+    setSelectedCategory('');
+    setSelectedAdvancement(null);
+    setSkillAcquisitionType('');
+    setSkillRollResult(null);
+    setAvailableAdvancements([]);
+  }, []);
 
   const gangerSpecialistSkillSetComboboxOptions = useMemo(
     () =>
@@ -1762,15 +1857,28 @@ export function AdvancementModal({
     const allTypes = sample?.available_acquisition_types ?? [];
     if (allTypes.length === 0) return [];
     const allowedIds = new Set(getAllowedAcquisitionTypeIds(selectedSkillSetAccess, allTypes));
+    // An N26 result names the acquisition types it may award, so the row narrows
+    // the list further. Its credits are fixed per result and no XP is spent, so
+    // the N23 per-type prices are not shown.
+    const rowIds = n26SelectedRow?.skillAcquisitionTypeIds;
     return allTypes
       .filter((t) => allowedIds.has(t.type_id))
+      .filter((t) => !rowIds || rowIds.includes(t.type_id))
       .sort((a, b) => a.xp_cost - b.xp_cost)
-      .map((t) => ({
-        value: t.type_id,
-        label: `${t.name} (${t.xp_cost} XP, ${t.credit_cost} credits)`,
-        displayValue: `${t.name} (${t.xp_cost} XP, ${t.credit_cost} credits)`
-      }));
-  }, [advancementType, selectedCategory, availableAdvancements, selectedSkillSetAccess]);
+      .map((t) => {
+        const label = isCumulativeXp
+          ? t.name
+          : `${t.name} (${t.xp_cost} XP, ${t.credit_cost} credits)`;
+        return { value: t.type_id, label, displayValue: label };
+      });
+  }, [
+    advancementType,
+    selectedCategory,
+    availableAdvancements,
+    selectedSkillSetAccess,
+    n26SelectedRow,
+    isCumulativeXp
+  ]);
 
   /** Skill combobox options for the selected Skill Set; already-owned skills are disabled. */
   const skillComboboxOptions = useMemo(() => {
@@ -1801,6 +1909,13 @@ export function AdvancementModal({
       const sample = availableAdvancements.find(
         (a) => a.available_acquisition_types && a.available_acquisition_types.length > 0
       );
+      // N26 spends no XP and prices a skill by the table result rather than by
+      // acquisition type, so the per-type N23 costs do not apply.
+      if (isCumulativeXp) {
+        setEditableXpCost(0);
+        setEditableCreditsIncrease(n26SelectedRow?.credits ?? 0);
+        return;
+      }
       const matched = sample?.available_acquisition_types?.find((t) => t.type_id === typeId);
       if (matched) {
         setEditableXpCost(matched.xp_cost);
@@ -1810,7 +1925,7 @@ export function AdvancementModal({
         setEditableCreditsIncrease(0);
       }
     },
-    [availableAdvancements]
+    [availableAdvancements, isCumulativeXp, n26SelectedRow]
   );
 
   // Fetch skill sets. Characteristics need no fetch here — they are derived from
@@ -2059,11 +2174,6 @@ export function AdvancementModal({
   const isGangerOrExoticBeastRestricted =
     fighterSubtypes.includes('Ganger') || fighterSubtypes.includes('Exotic Beast');
 
-  // N26 earns Advancements by rank and spends no XP, so every fighter rolls on
-  // one table and no XP price is ever paid. The N23 subtype-specific tables and
-  // escalating costs do not apply.
-  const isCumulativeXp = hasCumulativeXp(editionSlug);
-
   const handleAdvancementPurchase = async () => {
     if (gangerModalRollBuy) {
       setGangerPurchaseBusy(true);
@@ -2206,7 +2316,7 @@ export function AdvancementModal({
           <div className="mb-4">
             <p className="text-sm text-muted-foreground mb-2">
               {isCumulativeXp
-                ? 'Advancements are earned by rank and cost no XP. Roll 2D6, then take any result you rolled high enough for.'
+                ? 'Rating increase is automatically calculated based on the type and number of advancements. The roll is recorded in your gang log. You can select or adjust the outcome below, whether using this roll or applying your own.'
                 : 'XP cost and rating increase are automatically calculated based on the type and number of advancements.'}
             </p>
           </div>
@@ -2225,7 +2335,15 @@ export function AdvancementModal({
                     if (rolled.length > 0) {
                       const { roll: total, dice } = rolled[0];
                       const row = resolveN26AdvancementFromUtil(total);
-                      if (row) logN26RollWithCooldown(row.name, total, dice);
+                      if (row) {
+                        // Preselect what was rolled; the player may still pick a
+                        // lower result, which the table explicitly allows.
+                        const combo = N26_ADVANCEMENT_COMBO_OPTIONS.find(
+                          (o) => o.range[0] === row.range[0] && o.range[1] === row.range[1]
+                        );
+                        if (combo) selectN26Row(combo.id);
+                        logN26RollWithCooldown(row.name, total, dice);
+                      }
                     }
                   }}
                   onRoll={(total, dice) => {
@@ -2237,24 +2355,65 @@ export function AdvancementModal({
                 />
               </div>
 
-              <div className="space-y-1 pt-2 border-t">
-                <p className="text-sm font-medium">Advancement table</p>
-                <p className="text-xs text-muted-foreground">
-                  The roll is recorded in your gang log. Choose the result below — you may take any result you
-                  rolled high enough for.
-                </p>
-                <ul className="text-xs text-muted-foreground pt-1 space-y-0.5">
-                  {N26_ADVANCEMENT_TABLE.map((row) => (
-                    <li key={`${row.range[0]}-${row.range[1]}`} className="flex gap-2">
-                      <span className="font-mono w-10 shrink-0">
-                        {row.range[0] === row.range[1] ? row.range[0] : `${row.range[0]}-${row.range[1]}`}
-                      </span>
-                      <span className="grow">{row.name}</span>
-                      <span className="shrink-0">+{row.credits}</span>
-                    </li>
-                  ))}
-                </ul>
+              <div className="space-y-2 pt-2 border-t">
+                <label className="text-sm font-medium">Advancements</label>
+                <Combobox
+                  value={n26SelectedRowId}
+                  onValueChange={selectN26Row}
+                  placeholder="Select an Advancement"
+                  options={n26AdvancementComboboxOptions}
+                  dropdownPlacement="down"
+                />
               </div>
+
+              {/* A result may offer characteristics, skills or both, so each kind
+                  gets its own section and choosing in one clears the other. */}
+              {n26SelectedRow?.characteristics?.length ? (
+                <div className="space-y-3 border-t pt-3">
+                  <p className="text-sm font-medium">Choose a characteristic</p>
+                  <div className="flex flex-col gap-2">
+                    {n26SelectedRow.characteristics.map((name) => (
+                      <label key={name} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="radio"
+                          name="n26-characteristic"
+                          checked={n26CharacteristicName === name}
+                          onChange={() => selectN26Characteristic(name)}
+                          disabled={!characteristicsLoaded || !characteristicAdvancements[name]}
+                        />
+                        {name}
+                      </label>
+                    ))}
+                  </div>
+                  {n26CharacteristicName && characteristicAdvancements[n26CharacteristicName] && (
+                    <p className="text-xs text-muted-foreground">
+                      Times increased on this characteristic:{' '}
+                      {characteristicAdvancements[n26CharacteristicName].times_increased ?? 0}
+                    </p>
+                  )}
+                </div>
+              ) : null}
+
+              {n26SelectedRow?.skillAcquisitionTypeIds?.length ? (
+                <div className="space-y-3 border-t pt-3">
+                  <p className="text-sm font-medium">Choose a skill</p>
+                  {advancementType !== 'skill' ? (
+                    <Button
+                      type="button"
+                      variant="default"
+                      className="w-full sm:w-auto"
+                      onClick={selectN26SkillOutcome}
+                      disabled={!userPermissions.canEdit}
+                    >
+                      Take a skill instead
+                    </Button>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Pick a Skill Set below, then the skill this result awards.
+                    </p>
+                  )}
+                </div>
+              ) : null}
             </div>
           )}
 
@@ -2469,7 +2628,11 @@ export function AdvancementModal({
           <div className="space-y-4">
           {(!isGangerOrExoticBeastRestricted || isCumulativeXp) && (
             <>
-            <div className="relative">
+            {/* N26 picks a table result first, which sets the advancement type
+                itself, so the free-choice type picker would be a second, untied
+                route to the same purchase. N23 Gangers are hidden from it for the
+                same reason. */}
+            <div className={isCumulativeXp ? 'hidden' : 'relative'}>
               <Combobox
                 value={advancementType}
                 onValueChange={(v) => {
@@ -2613,7 +2776,10 @@ export function AdvancementModal({
               </div>
             )}
 
-            {advancementType === 'characteristic' && !loading && (
+            {/* On N26 the characteristic comes from the chosen table result's
+                radios, so this free-choice list is N23-only. The skill flow below
+                is shared: an N26 result hands off to it. */}
+            {advancementType === 'characteristic' && !loading && !isCumulativeXp && (
               <div className="relative">
                 <Combobox
                   value={selectedCategory}
