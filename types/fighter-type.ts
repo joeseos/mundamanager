@@ -91,6 +91,7 @@ export interface FighterType {
   delegation_cost?: number | null;
   is_dramatis_personae?: boolean;
   is_custom_fighter?: boolean;
-  starting_xp?: number;
+  /** null means N/A: this type cannot gain XP. */
+  starting_xp?: number | null;
   is_vehicle?: boolean;
 }

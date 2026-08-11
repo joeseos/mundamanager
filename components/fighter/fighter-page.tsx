@@ -82,6 +82,8 @@ interface Fighter {
   save?: number | null;
   edition_slug?: string | null;
   xp: number;
+  /** null means N/A: this fighter's type cannot gain XP. */
+  starting_xp?: number | null;
   total_xp: number;
   killed?: boolean;
   retired?: boolean;
@@ -672,8 +674,10 @@ export default function FighterPage({
             save={fighterData.fighter?.save ?? null}
             edition_slug={editionSlug}
             xp={fighterData.fighter?.xp || 0}
+            starting_xp={fighterData.fighter?.starting_xp ?? null}
             total_xp={fighterData.fighter?.total_xp || 0}
             advancements={fighterData.fighter?.advancements || { characteristics: {}, skills: {} }}
+            skills={fighterData.fighter?.skills || {}}
             onNameUpdate={handleNameUpdate}
             onAddXp={() => handleModalToggle('addXp', true)}
             onEdit={canShowEditButtons ? () => handleModalToggle('editFighter', true) : undefined}
@@ -836,6 +840,7 @@ export default function FighterPage({
           <AdvancementsList
             fighterXp={fighterData.fighter?.xp || 0}
             fighterId={fighterData.fighter?.id || ''}
+            editionSlug={fighterData.gang?.edition_slug ?? fighterData.fighter?.edition_slug ?? null}
             fighterSubtypes={fighterData.fighter?.fighter_subtypes || []}
             advancements={fighterData.fighter?.effects?.advancements || []}
             skills={fighterData.fighter?.skills || {}}
@@ -847,7 +852,6 @@ export default function FighterPage({
             fighterTypeName={fighterData.fighter?.fighter_type?.fighter_type || ''}
             fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
             fighterSpecialisationId={fighterData.fighter?.fighter_specialisation?.fighter_specialisation_id || ''}
-            editionSlug={editionSlug}
             onFighterDetailsUpdate={(patch) => {
               setFighterData((prev) => ({
                 ...prev,

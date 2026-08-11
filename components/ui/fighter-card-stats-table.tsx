@@ -16,7 +16,8 @@ type CrewStats = {
   'Cl': string;
   'Wil': string;
   'Int': string;
-  'XP': number;
+  /** 'N/A' when the model's type cannot gain XP and it holds none. */
+  'XP': string | number;
 }
 
 type FighterStats = {
@@ -33,7 +34,8 @@ type FighterStats = {
   'Cl': string;
   'Wil': string;
   'Int': string;
-  'XP': number;
+  /** 'N/A' when the model's type cannot gain XP and it holds none. */
+  'XP': string | number;
 }
 
 export type StatsType = CrewStats | FighterStats;

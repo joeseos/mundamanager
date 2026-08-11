@@ -528,7 +528,7 @@ export async function PATCH(request: Request) {
         willpower: data.willpower,
         intelligence: data.intelligence,
         save: data.save ?? null,
-        starting_xp: data.starting_xp ?? 0,
+        starting_xp: data.starting_xp ?? null,
         special_rules: data.special_rules,
         free_skill: data.free_skill,
         is_gang_addition: data.is_gang_addition,
@@ -829,7 +829,10 @@ export async function POST(request: Request) {
         intelligence: data.intelligence,
         attacks: data.attacks,
         save: data.save ?? null,
-        starting_xp: data.starting_xp ?? 0,
+        // null is N/A: a type that can never gain XP. The column has no default
+        // to fall back on, so an absent value is stored as N/A rather than
+        // inventing a starting value the edition may not grant.
+        starting_xp: data.starting_xp ?? null,
         special_rules: data.special_rules,
         free_skill: data.free_skill,
         is_gang_addition: data.is_gang_addition,

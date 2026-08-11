@@ -192,6 +192,10 @@ export async function createCustomFighter(data: CreateCustomFighterData): Promis
         willpower: data.willpower,
         intelligence: data.intelligence,
         save: data.save ?? null,
+        // Nothing in the customise UI sets Starting XP yet. The column has no
+        // default, so leaving it out would store NULL — N/A, a fighter that can
+        // never gain XP — for every custom type anyone creates.
+        starting_xp: 0,
         special_rules: data.special_rules,
         free_skill: data.free_skill,
         fighter_subtypes: data.fighter_subtypes,

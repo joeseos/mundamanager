@@ -6,6 +6,8 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidateTag } from 'next/cache';
 import { updateGangRatingSimple, updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { countsTowardRating } from '@/utils/fighter-status';
+import { hasCumulativeXp } from '@/types/edition';
+import { openAdvancementsFor } from '@/utils/advancementRanks';
 
 import { 
   logCharacteristicAdvancement, 
@@ -16,6 +18,101 @@ import {
 } from './logs/gang-fighter-logs';
 import type { GangLogActionResult } from './logs/gang-logs';
 import { updateFighterDetails } from './edit-fighter';
+
+// A fighter's edition comes from its gang's (custom) gang type.
+const GANG_EDITION_EMBED = `
+  gangs!gang_id (
+    gang_types!gang_type_id ( editions:edition_id ( slug ) ),
+    custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
+  )
+`;
+
+// Whether an Advancement costs XP is edition-specific, so every action that
+// touches a fighter's XP balance loads the edition alongside the fighter.
+const FIGHTER_WITH_EDITION_SELECT = `
+  id, user_id, gang_id, xp, starting_xp, free_skill, fighter_name, killed, retired, enslaved, captured,
+  ${GANG_EDITION_EMBED}
+`;
+
+// The roll loggers need the edition too, but none of the XP balance.
+const ROLL_LOGGER_FIGHTER_SELECT = `
+  id, gang_id, fighter_name, fighter_subtypes,
+  ${GANG_EDITION_EMBED}
+`;
+
+// Embeds come back as objects for these many-to-one FKs; the untyped client
+// infers arrays, hence the casts (same pattern as equipment.ts).
+function editionSlugOf(fighter: any): string | null {
+  const gang = fighter.gangs as any;
+  return gang?.gang_types?.editions?.slug
+    ?? gang?.custom_gang_types?.editions?.slug
+    ?? null;
+}
+
+/**
+ * How many Advancements a fighter has already taken, counted from the database.
+ *
+ * Mirrors countAdvancementsTaken in utils/advancementRanks.ts, which the cards
+ * apply to data they already hold: a characteristic is an effect in the
+ * 'advancements' category, a skill is a fighter_skill flagged is_advance.
+ */
+async function countAdvancementsTakenFor(supabase: any, fighterId: string): Promise<number> {
+  const [characteristics, skillAdvances] = await Promise.all([
+    supabase
+      .from('fighter_effects')
+      .select('id, fighter_effect_types!inner(fighter_effect_categories!inner(category_name))', {
+        count: 'exact',
+        head: true,
+      })
+      .eq('fighter_id', fighterId)
+      .eq('fighter_effect_types.fighter_effect_categories.category_name', 'advancements'),
+    supabase
+      .from('fighter_skills')
+      .select('id', { count: 'exact', head: true })
+      .eq('fighter_id', fighterId)
+      .eq('is_advance', true),
+  ]);
+
+  // This count is half of a server-side limit, so a failed query must not read
+  // as "nothing taken yet" — that would grant an Advancement on the strength of
+  // an error. Fail closed and let the caller refuse.
+  if (characteristics.error || skillAdvances.error) {
+    throw new Error('Failed to count existing advancements');
+  }
+
+  return (characteristics.count ?? 0) + (skillAdvances.count ?? 0);
+}
+
+/**
+ * Whether the fighter may take another Advancement right now.
+ *
+ * The two editions gate on different things: N23 on whether the fighter can
+ * afford the XP cost, N26 on whether it has earned an Advancement it has not
+ * yet spent. Returns an error message, or null when the Advancement may proceed.
+ */
+async function advancementBlockedReason(
+  supabase: any,
+  fighter: any,
+  spendsXp: boolean,
+  xpCost: number,
+  isAdvance: boolean = true,
+): Promise<string | null> {
+  if (spendsXp) {
+    return fighter.xp < xpCost ? 'Insufficient XP' : null;
+  }
+
+  // A starting or free skill is not an Advancement and consumes none.
+  if (!isAdvance) return null;
+
+  const open = openAdvancementsFor(
+    editionSlugOf(fighter),
+    fighter.starting_xp ?? 0,
+    fighter.xp,
+    await countAdvancementsTakenFor(supabase, fighter.id),
+  );
+
+  return open > 0 ? null : 'No advancements available';
+}
 
 // Type for power boost type_specific_data
 interface PowerBoostTypeData {
@@ -118,7 +215,7 @@ export async function addCharacteristicAdvancement(
     // Verify fighter ownership and get fighter data
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, user_id, gang_id, xp, free_skill, fighter_name, killed, retired, enslaved, captured')
+      .select(FIGHTER_WITH_EDITION_SELECT)
       .eq('id', params.fighter_id)
       .single();
 
@@ -128,9 +225,13 @@ export async function addCharacteristicAdvancement(
 
     // Note: Authorization is enforced by RLS policies on fighters table
 
-    // Check if fighter has enough XP
-    if (fighter.xp < params.xp_cost) {
-      return { success: false, error: 'Insufficient XP' };
+    // N26 earns Advancements by reaching a rank rather than buying them, so its
+    // XP total only ever grows and there is nothing to afford.
+    const spendsXp = !hasCumulativeXp(editionSlugOf(fighter));
+
+    const blockedReason = await advancementBlockedReason(supabase, fighter, spendsXp, params.xp_cost);
+    if (blockedReason) {
+      return { success: false, error: blockedReason };
     }
 
     // Get the effect type details
@@ -211,8 +312,8 @@ export async function addCharacteristicAdvancement(
     // Update fighter's XP only (characteristic is handled by effect modifiers)
     const { data: updatedFighter, error: updateError } = await supabase
       .from('fighters')
-      .update({ 
-        xp: fighter.xp - params.xp_cost,
+      .update({
+        xp: spendsXp ? fighter.xp - params.xp_cost : fighter.xp,
         updated_at: new Date().toISOString()
       })
       .eq('id', params.fighter_id)
@@ -309,7 +410,7 @@ export async function addSkillAdvancement(
     // Verify fighter ownership and get fighter data
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, user_id, gang_id, xp, free_skill, fighter_name, killed, retired, enslaved, captured')
+      .select(FIGHTER_WITH_EDITION_SELECT)
       .eq('id', params.fighter_id)
       .single();
 
@@ -319,9 +420,19 @@ export async function addSkillAdvancement(
 
     // Note: Authorization is enforced by RLS policies on fighters table
 
-    // Check if fighter has enough XP
-    if (fighter.xp < params.xp_cost) {
-      return { success: false, error: 'Insufficient XP' };
+    // N26 earns Advancements by reaching a rank rather than buying them, so its
+    // XP total only ever grows and there is nothing to afford.
+    const spendsXp = !hasCumulativeXp(editionSlugOf(fighter));
+
+    const blockedReason = await advancementBlockedReason(
+      supabase,
+      fighter,
+      spendsXp,
+      params.xp_cost,
+      params.is_advance ?? true,
+    );
+    if (blockedReason) {
+      return { success: false, error: blockedReason };
     }
 
     // Insert the new skill advancement with fighter owner's user_id
@@ -413,7 +524,7 @@ export async function addSkillAdvancement(
 
     // Update fighter's XP and conditionally set free_skill to false
     const updateData: any = {
-      xp: fighter.xp - params.xp_cost,
+      xp: spendsXp ? fighter.xp - params.xp_cost : fighter.xp,
       updated_at: new Date().toISOString()
     };
     
@@ -640,7 +751,7 @@ export async function deleteAdvancement(
     // Verify fighter ownership
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, user_id, gang_id, xp, free_skill, fighter_name, killed, retired, enslaved, captured')
+      .select(FIGHTER_WITH_EDITION_SELECT)
       .eq('id', params.fighter_id)
       .single();
 
@@ -649,6 +760,9 @@ export async function deleteAdvancement(
     }
 
     // Note: Authorization is enforced by RLS policies on fighters table
+
+    // Nothing was spent on an N26 Advancement, so deleting one refunds nothing.
+    const spendsXp = !hasCumulativeXp(editionSlugOf(fighter));
 
     let xpToRefund = 0;
     let ratingDelta = 0;
@@ -848,8 +962,8 @@ export async function deleteAdvancement(
     // Update fighter's XP and free_skill status
     const { data: updatedFighter, error: updateError } = await supabase
       .from('fighters')
-      .update({ 
-        xp: fighter.xp + xpToRefund,
+      .update({
+        xp: spendsXp ? fighter.xp + xpToRefund : fighter.xp,
         free_skill: newFreeSkillStatus,
         updated_at: new Date().toISOString()
       })
@@ -1302,7 +1416,7 @@ export async function deletePowerBoost(
 }
 
 // ---------------------------------------------------------------------------
-// Ganger / Exotic Beast — advancement roll logging (gang log)
+// Advancement roll logging (gang log) — N23 Ganger / Exotic Beast, N26 any model
 // ---------------------------------------------------------------------------
 
 export interface VerifyAndLogRolledGangerAdvancementRollParams {
@@ -1314,6 +1428,25 @@ export interface VerifyAndLogRolledGangerAdvancementRollParams {
 
 const GANGER_ELIGIBLE_SUBTYPES = new Set(['Ganger', 'Exotic Beast']);
 
+/**
+ * Whether the edition splits advancement rolls by fighter subtype.
+ *
+ * N23 does: Gangers and Exotic Beasts roll on their own flat-cost table and log
+ * through the roll logger below, while every other subtype rolls for a skill and
+ * logs through the skill logger. The two guards are the halves of that routing.
+ *
+ * N26 has no such split — every model rolls on the one Advancement table — so
+ * neither guard applies. Left in place it rejects both directions: an N26 model
+ * that is not a Ganger cannot log an Advancement roll, and an N26 Ganger cannot
+ * log a skill roll. 'Exotic Beast' is an N23-only subtype, so the list can never
+ * rescue an N26 fighter.
+ */
+const routesRollsBySubtype = (fighter: any): boolean =>
+  !hasCumulativeXp(editionSlugOf(fighter));
+
+const isGangerEligible = (fighter: any): boolean =>
+  !!fighter.fighter_subtypes?.some((subtype: string) => GANGER_ELIGIBLE_SUBTYPES.has(subtype));
+
 export async function verifyAndLogRolledGangerAdvancementRoll(
   params: VerifyAndLogRolledGangerAdvancementRollParams
 ): Promise<GangLogActionResult> {
@@ -1323,7 +1456,7 @@ export async function verifyAndLogRolledGangerAdvancementRoll(
 
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, fighter_name, fighter_subtypes')
+      .select(ROLL_LOGGER_FIGHTER_SELECT)
       .eq('id', params.fighter_id)
       .single();
 
@@ -1331,7 +1464,7 @@ export async function verifyAndLogRolledGangerAdvancementRoll(
       throw new Error('Fighter not found');
     }
 
-    if (!fighter.fighter_subtypes?.some((c: string) => GANGER_ELIGIBLE_SUBTYPES.has(c))) {
+    if (routesRollsBySubtype(fighter) && !isGangerEligible(fighter)) {
       throw new Error('Advancement roll is only for Gangers and Exotic Beasts');
     }
 
@@ -1373,8 +1506,9 @@ export interface VerifyAndLogRolledSkillAdvancementRollParams {
 }
 
 /**
- * Logs a random skill advancement roll to the gang log. Rejects Ganger / Exotic Beast
- * fighters because they have their own dedicated logging pathway via
+ * Logs a random skill advancement roll to the gang log. Where the edition routes
+ * rolls by subtype, rejects Ganger / Exotic Beast fighters because they have
+ * their own dedicated logging pathway via
  * `verifyAndLogRolledGangerAdvancementRoll`.
  */
 export async function verifyAndLogRolledSkillAdvancementRoll(
@@ -1386,7 +1520,7 @@ export async function verifyAndLogRolledSkillAdvancementRoll(
 
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, fighter_name, fighter_subtypes')
+      .select(ROLL_LOGGER_FIGHTER_SELECT)
       .eq('id', params.fighter_id)
       .single();
 
@@ -1394,7 +1528,7 @@ export async function verifyAndLogRolledSkillAdvancementRoll(
       throw new Error('Fighter not found');
     }
 
-    if (fighter.fighter_subtypes?.some((c: string) => GANGER_ELIGIBLE_SUBTYPES.has(c))) {
+    if (routesRollsBySubtype(fighter) && isGangerEligible(fighter)) {
       throw new Error('Use the Ganger / Exotic Beast advancement roll logger for this fighter subtype');
     }
 

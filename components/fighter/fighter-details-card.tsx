@@ -9,6 +9,7 @@ import {
 } from '@/types/edition';
 import { memo } from 'react';
 import { calculateAdjustedStats } from '@/utils/effect-modifiers';
+import { countAdvancementsTaken, openAdvancementsFor } from '@/utils/advancementRanks';
 import { FighterProps, FighterEffect, Vehicle } from '@/types/fighter';
 import { TbMeatOff } from "react-icons/tb";
 import { GiHandcuffs, GiImprisoned } from "react-icons/gi";
@@ -54,11 +55,19 @@ interface FighterDetailsCardProps {
   save?: number | null;
   edition_slug?: string | null;
   xp: number;
+  /** null means N/A: this fighter's type cannot gain XP. */
+  starting_xp?: number | null;
   total_xp?: number;
   advancements?: {
     characteristics: Record<string, any>;
     skills: Record<string, any>;
   };
+  /**
+   * The fighter's actual skill rows. Distinct from `advancements.skills`, which
+   * is a parallel shape the server does not populate on first load — counting
+   * advancements from it silently misses every skill the fighter already has.
+   */
+  skills?: Record<string, { is_advance?: boolean }>;
   onNameUpdate?: (name: string) => void;
   onAddXp?: () => void;
   onEdit?: () => void;
@@ -246,7 +255,9 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   save,
   edition_slug,
   xp,
+  starting_xp = null,
   advancements,
+  skills,
   onAddXp,
   onEdit,
   killed,
@@ -362,6 +373,15 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   // consistency rather than a live case — but the statline and its limits must agree either way.
   const showsVehicleProfile = isCrew && !isVehicle;
 
+  // Advancements earned but not yet taken. Zero in editions that do not rank by
+  // XP, so the badge is N26-only without an explicit edition check here.
+  const openAdvancements = openAdvancementsFor(
+    edition_slug,
+    starting_xp,
+    xp,
+    countAdvancementsTaken(effects, skills)
+  );
+
   const handleImageClick = () => {
     if (canShowEditButtons) {
       setIsImageModalOpen(true);
@@ -386,6 +406,11 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
 
   const initiativeAndMentalSuffix = initiativeAndMentalCharacteristicSuffix(edition_slug);
 
+  // A model whose type cannot gain XP has no recruitment value, and reads N/A.
+  // The number takes over the moment the model actually holds XP, so a group
+  // house-ruling XP onto it still sees it.
+  const xpDisplay = starting_xp == null && !xp ? 'N/A' : (xp ?? 0);
+
   // Update stats object to handle crew stats - now using modifiedStats instead of adjustedStats
   const stats = useMemo<Record<string, string | number>>(() => ({
     ...(showsVehicleProfile ? {
@@ -401,7 +426,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       'Cl': `${modifiedStats.cool}${initiativeAndMentalSuffix}`,
       'Wil': `${modifiedStats.willpower}${initiativeAndMentalSuffix}`,
       'Int': `${modifiedStats.intelligence}${initiativeAndMentalSuffix}`,
-      'XP': xp ?? 0
+      'XP': xpDisplay
     } : {
       'M': `${modifiedStats.movement}"`,
       'WS': `${modifiedStats.weapon_skill}+`,
@@ -416,9 +441,9 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       'Cl': `${modifiedStats.cool}${initiativeAndMentalSuffix}`,
       'Wil': `${modifiedStats.willpower}${initiativeAndMentalSuffix}`,
       'Int': `${modifiedStats.intelligence}${initiativeAndMentalSuffix}`,
-      'XP': xp ?? 0
+      'XP': xpDisplay
     })
-  }), [showsVehicleProfile, vehicleStats, vehicles, modifiedStats, xp, edition_slug, initiativeAndMentalSuffix]);
+  }), [showsVehicleProfile, vehicleStats, vehicles, modifiedStats, xpDisplay, edition_slug, initiativeAndMentalSuffix]);
 
   return (
     <div className="relative">
@@ -462,6 +487,11 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
             {starved && <TbMeatOff className="text-red-500" />}
             {recovery && <FaMedkit className="text-blue-500" />}
             {captured && <GiHandcuffs className="text-sky-300" />}
+            {openAdvancements > 0 && (
+              <span className="text-xs font-bold text-amber-500 whitespace-nowrap">
+                {openAdvancements} Level Up{openAdvancements === 1 ? '' : 's'}
+              </span>
+            )}
           </div>
 
           {/* Profile picture of the fighter */}

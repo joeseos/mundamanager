@@ -114,6 +114,12 @@ const EDITION_CAPABILITIES = {
   /** Fighter types carry a Starting XP value (feeds N26 advancement ranks) */
   startingXp:               { n23: false, n26: true  },
   /**
+   * XP accumulates and is never spent: Advancements are earned by reaching rank
+   * thresholds. When false, XP is a currency spent on Advancements and refunded
+   * if one is deleted.
+   */
+  cumulativeXp:             { n23: false, n26: true  },
+  /**
    * Weapon profiles use the N26 statline (SR, LR, Str, AP, Lethality) rather
    * than the N23 one (Rng S/L, Acc S/L, Str, AP, D, Am). Ammo and Damage are
    * written into Traits on N26 profiles.
@@ -210,6 +216,9 @@ export const hasTradePoints = (editionSlug?: string | null): boolean =>
 
 export const hasStartingXp = (editionSlug?: string | null): boolean =>
   can('startingXp', editionSlug);
+
+export const hasCumulativeXp = (editionSlug?: string | null): boolean =>
+  can('cumulativeXp', editionSlug);
 
 export const hasLethalityStatline = (editionSlug?: string | null): boolean =>
   can('lethalityStatline', editionSlug);

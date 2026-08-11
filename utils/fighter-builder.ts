@@ -144,6 +144,8 @@ export interface ExoticBeastServerData {
   intelligence: number;
   save?: number | null;
   xp: number;
+  /** null means N/A: this beast's type cannot gain XP. */
+  starting_xp?: number | null;
   kills: number;
   equipment: Array<{
     fighter_equipment_id: string;
@@ -335,6 +337,7 @@ export function buildBeastFromServerData(beast: ExoticBeastServerData): FighterP
     intelligence: stats.intelligence,
     save: stats.save ?? null,
     xp: beast.xp,
+    starting_xp: beast.starting_xp ?? null,
     kills: beast.kills,
     weapons: buildWeaponsFromEquipment(beast.equipment),
     wargear: buildWargearFromEquipment(beast.equipment),

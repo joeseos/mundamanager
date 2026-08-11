@@ -133,7 +133,7 @@ function mapFighterType(type: any): FighterType {
     is_custom_fighter: type.is_custom_fighter || false,
     free_skill: type.free_skill || false,
     is_dramatis_personae: type.is_dramatis_personae || false,
-    starting_xp: type.starting_xp ?? 0,
+    starting_xp: type.starting_xp ?? null,
     is_vehicle: type.is_vehicle ?? false,
   } as FighterType;
 }
@@ -428,6 +428,9 @@ export default function FighterAddModal({
       edition_slug: selectedType?.edition_slug ?? null,
       is_vehicle: selectedType?.is_vehicle ?? false,
       xp: selectedType?.starting_xp ?? 0,
+      // Carried so the optimistic card reads N/A straight away for a type that
+      // cannot gain XP, instead of showing 0 until the server response lands.
+      starting_xp: selectedType?.starting_xp ?? null,
       kills: 0,
       weapons: optimisticWeapons,
       wargear: optimisticWargear,
