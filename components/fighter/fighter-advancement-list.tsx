@@ -502,6 +502,10 @@ export function AdvancementModal({
   /** Whether the RPC has answered — distinct from it having returned rows, so an
    *  edition with no Advancements ends the spinner instead of hanging on it. */
   const [characteristicsLoaded, setCharacteristicsLoaded] = useState(false);
+  /** Why the catalog is missing, when it is. Held separately from `error` because
+   *  the fetch can fail before an advancement type is picked — the characteristic
+   *  UI surfaces it whenever it renders, and the Ganger roll UI ignores it. */
+  const [characteristicsError, setCharacteristicsError] = useState<string | null>(null);
 
   /**
    * The characteristic list is derived from the RPC's map, not fetched and stored:
@@ -525,6 +529,13 @@ export function AdvancementModal({
   // Characteristics wait on the RPC, skill sets on their own fetch.
   const loading =
     advancementType === 'characteristic' ? !characteristicsLoaded : skillSetsLoading;
+
+  // A failed catalog fetch clears the spinner and leaves the dropdown empty, so
+  // say why instead of showing an unexplained empty list. Read at render rather
+  // than branched on inside the fetch, which cannot see the advancement type the
+  // user picks after it has already run.
+  const displayedError =
+    advancementType === 'characteristic' ? (characteristicsError ?? error) : error;
   const [gangerSpecialistCosts, setGangerSpecialistCosts] = useState<{ xp_cost: number; credits_increase: number }>({
     xp_cost: 6,
     credits_increase: 20
@@ -781,11 +792,22 @@ export function AdvancementModal({
             body: JSON.stringify({ fighter_id: fighterId })
           }
         );
-        if (!response.ok || cancelled) return;
+        if (cancelled) return;
+        if (!response.ok) {
+          // 401 here is an expired session: the RPC is granted to authenticated
+          // only. Either way the dropdown would otherwise just come up empty.
+          setCharacteristicsError(
+            response.status === 401
+              ? 'Session expired — reload to load characteristics'
+              : 'Failed to load characteristics'
+          );
+          return;
+        }
         const data = await response.json();
         if (cancelled) return;
         const ch = data?.characteristics as Record<string, CharacteristicAdvancement> | undefined;
         if (ch && typeof ch === 'object') setCharacteristicAdvancements(ch);
+        setCharacteristicsError(null);
         const spec = data?.ganger_to_specialist_advancement as
           | { xp_cost?: number; credits_increase?: number }
           | undefined;
@@ -796,7 +818,7 @@ export function AdvancementModal({
           });
         }
       } catch {
-        // non-fatal
+        if (!cancelled) setCharacteristicsError('Failed to load characteristics');
       } finally {
         // Answered, for better or worse: release anything waiting on the catalog.
         if (!cancelled) setCharacteristicsLoaded(true);
@@ -2740,8 +2762,8 @@ export function AdvancementModal({
               </div>
             </div>
 
-            {error && (
-              <p className="text-red-500 text-sm">{error}</p>
+            {displayedError && (
+              <p className="text-red-500 text-sm">{displayedError}</p>
             )}
             <div className="border-t pt-2 flex justify-end gap-2">
             <button
