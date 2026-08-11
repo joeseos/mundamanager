@@ -9,7 +9,6 @@ import {
 } from '@/types/edition';
 import { memo } from 'react';
 import { calculateAdjustedStats } from '@/utils/effect-modifiers';
-import { countAdvancementsTaken, openAdvancementsFor } from '@/utils/advancementRanks';
 import { FighterProps, FighterEffect, Vehicle } from '@/types/fighter';
 import { TbMeatOff } from "react-icons/tb";
 import { GiHandcuffs, GiImprisoned } from "react-icons/gi";
@@ -373,15 +372,6 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   // consistency rather than a live case — but the statline and its limits must agree either way.
   const showsVehicleProfile = isCrew && !isVehicle;
 
-  // Advancements earned but not yet taken. Zero in editions that do not rank by
-  // XP, so the badge is N26-only without an explicit edition check here.
-  const openAdvancements = openAdvancementsFor(
-    edition_slug,
-    starting_xp,
-    xp,
-    countAdvancementsTaken(effects, skills)
-  );
-
   const handleImageClick = () => {
     if (canShowEditButtons) {
       setIsImageModalOpen(true);
@@ -487,11 +477,6 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
             {starved && <TbMeatOff className="text-red-500" />}
             {recovery && <FaMedkit className="text-blue-500" />}
             {captured && <GiHandcuffs className="text-sky-300" />}
-            {openAdvancements > 0 && (
-              <span className="text-xs font-bold text-amber-500 whitespace-nowrap">
-                {openAdvancements} Level Up{openAdvancements === 1 ? '' : 's'}
-              </span>
-            )}
           </div>
 
           {/* Profile picture of the fighter */}
