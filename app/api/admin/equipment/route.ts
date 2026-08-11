@@ -359,13 +359,13 @@ export async function GET(request: Request) {
         console.warn('Error in fighter types fetch:', error);
       }
 
-      // Fetch all equipment for the grants dropdown
-      let allEquipment: { id: string; equipment_name: string }[] = [];
+      // Fetch all equipment for the grants dropdown; clients filter by edition_id
+      let allEquipment: { id: string; equipment_name: string; edition_id?: string | null }[] = [];
       try {
         allEquipment = await fetchAllRows((from, to) =>
           supabase
             .from('equipment')
-            .select('id, equipment_name')
+            .select('id, equipment_name, edition_id')
             .order('equipment_name')
             .order('id')
             .range(from, to)
