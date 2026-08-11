@@ -1881,6 +1881,8 @@ DECLARE
   v_advancements_category_id UUID;
   v_fighter_subtypes jsonb;
   v_uses_flat_cost boolean; -- Flag for fighters that use flat costs (Ganger and Exotic Beast)
+  v_edition_id UUID;
+  v_cumulative_xp boolean; -- Edition earns Advancements by rank instead of buying them
 BEGIN
   -- Get fighter's current XP and fighter subtypes
   SELECT f.xp, f.fighter_subtypes
@@ -1891,12 +1893,29 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Fighter not found with ID %', get_fighter_available_advancements.fighter_id;
   END IF;
-  
+
+  -- Resolve the fighter's edition from its gang, the same way add_fighter_injury
+  -- does. Advancement rows are edition-scoped, so without this an N23 fighter
+  -- would be offered N26 Advancements and vice versa.
+  SELECT COALESCE(gt.edition_id, cgt.edition_id)
+  INTO v_edition_id
+  FROM fighters f
+  JOIN gangs g ON g.id = f.gang_id
+  LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+  LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
+  WHERE f.id = get_fighter_available_advancements.fighter_id;
+
+  -- SQL cannot read the capability registry in types/edition.ts, so the slug is
+  -- resolved to an id once here rather than compared per row.
+  v_cumulative_xp := v_edition_id IS NOT NULL
+    AND v_edition_id = (SELECT id FROM editions WHERE slug = 'n26');
+
   -- Determine if the fighter uses flat costs based on their subtypes
-  -- Only Gangers and Exotic Beasts use flat costs
-  v_uses_flat_cost :=
-    v_fighter_subtypes ?| array['Ganger', 'Exotic Beast'];
-  
+  -- Only Gangers and Exotic Beasts use flat costs, and only where XP is spent:
+  -- an edition that earns Advancements by rank has no cost to make flat.
+  v_uses_flat_cost := NOT v_cumulative_xp
+    AND v_fighter_subtypes ?| array['Ganger', 'Exotic Beast'];
+
   -- Get the advancements category ID
   SELECT id INTO v_advancements_category_id
   FROM fighter_effect_categories
@@ -1916,6 +1935,7 @@ BEGIN
       COALESCE((fet.type_specific_data->>'credits_increase')::integer, 10) AS base_credits_increase
     FROM fighter_effect_types fet
     WHERE fet.fighter_effect_category_id = v_advancements_category_id
+      AND fet.edition_id IS NOT DISTINCT FROM v_edition_id
   ),
   advancement_counts AS (
     -- Count how many times each fighter has advanced each characteristic
@@ -1937,6 +1957,8 @@ BEGIN
       etc.base_xp_cost,
       -- Calculate XP cost based on fighter subtype and characteristic
       CASE
+        -- Advancements are earned by rank, not bought: nothing to pay
+        WHEN v_cumulative_xp THEN 0
         -- For Gangers and Exotic Beasts: fixed 6 XP cost
         WHEN v_uses_flat_cost THEN 6
         -- For Juves and Prospects: base cost only (no escalating penalty)
@@ -1947,6 +1969,8 @@ BEGIN
       END as xp_cost,
       -- Calculate credits increase based on fighter subtype and characteristic
       CASE
+        -- Flat per characteristic, straight off the edition's own catalog rows
+        WHEN v_cumulative_xp THEN etc.base_credits_increase
         -- For Gangers and Exotic Beasts: credits based on advancement table
         WHEN v_uses_flat_cost THEN
           CASE
@@ -1969,6 +1993,9 @@ BEGIN
       true as is_available,
       -- Check if fighter has enough XP based on the calculated cost
       CASE
+        -- Nothing is spent, so affordability never blocks. Whether an
+        -- Advancement is actually owed is a rank question the caller answers.
+        WHEN v_cumulative_xp THEN true
         WHEN v_uses_flat_cost THEN v_fighter_xp >= 6
         WHEN v_fighter_subtypes ?| array['Juve', 'Prospect'] THEN v_fighter_xp >= etc.base_xp_cost
         WHEN COALESCE(ac.times_increased, 0) = 0 THEN v_fighter_xp >= etc.base_xp_cost
@@ -1999,7 +2026,8 @@ BEGIN
     'current_xp', v_fighter_xp,
     'fighter_subtypes', v_fighter_subtypes,
     'uses_flat_cost', v_uses_flat_cost,
-    -- Ganger/Exotic Beast: Specialist table row (random Primary skill) — same flat costs as other ganger advances
+    -- Ganger/Exotic Beast: Specialist table row (random Primary skill) — same flat costs as other ganger advances.
+    -- v_uses_flat_cost is already false for rank-based editions, which promote Specialists by their own rules.
     'ganger_to_specialist_advancement', CASE WHEN v_uses_flat_cost THEN jsonb_build_object(
       'xp_cost', 6,
       'credits_increase', 20
@@ -4494,7 +4522,7 @@ CREATE TABLE public.custom_fighter_types (
     edition_id uuid,
     save numeric,
     fighter_subtypes jsonb DEFAULT '[]'::jsonb NOT NULL,
-    starting_xp numeric DEFAULT 0 NOT NULL,
+    starting_xp numeric,
     is_vehicle boolean DEFAULT false NOT NULL
 );
 
@@ -4503,7 +4531,7 @@ CREATE TABLE public.custom_fighter_types (
 -- Name: COLUMN custom_fighter_types.starting_xp; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.custom_fighter_types.starting_xp IS 'XP a fighter of this custom type starts with at recruitment. Copied to fighters.xp when the fighter is added.';
+COMMENT ON COLUMN public.custom_fighter_types.starting_xp IS 'XP a fighter of this custom type starts with at recruitment. Copied to fighters.starting_xp and seeds fighters.xp when the fighter is added. NULL means N/A: the type cannot gain XP.';
 
 
 --
@@ -5297,7 +5325,7 @@ CREATE TABLE public.fighter_types (
     edition_id uuid,
     save numeric,
     fighter_subtypes jsonb DEFAULT '[]'::jsonb NOT NULL,
-    starting_xp numeric DEFAULT 0 NOT NULL,
+    starting_xp numeric,
     is_vehicle boolean DEFAULT false NOT NULL
 );
 
@@ -5313,7 +5341,7 @@ COMMENT ON COLUMN public.fighter_types.edition_id IS 'Denormalized from gang_typ
 -- Name: COLUMN fighter_types.starting_xp; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.fighter_types.starting_xp IS 'XP a fighter of this type starts with at recruitment. Copied to fighters.xp when the fighter is added.';
+COMMENT ON COLUMN public.fighter_types.starting_xp IS 'XP a fighter of this type starts with at recruitment. Copied to fighters.starting_xp and seeds fighters.xp when the fighter is added. NULL means N/A: the type cannot gain XP.';
 
 
 --
@@ -5372,6 +5400,7 @@ CREATE TABLE public.fighters (
     save numeric,
     fighter_subtypes jsonb DEFAULT '[]'::jsonb NOT NULL,
     is_vehicle boolean DEFAULT false NOT NULL,
+    starting_xp numeric,
     CONSTRAINT fighters_label_check CHECK ((length(label) <= 5))
 );
 
@@ -5395,6 +5424,13 @@ COMMENT ON COLUMN public.fighters.kill_count IS 'kill_count is used to keep trac
 --
 
 COMMENT ON COLUMN public.fighters.save IS 'N26 Save characteristic (e.g. 4 renders as 4+). NULL for pre-N26 fighters.';
+
+
+--
+-- Name: COLUMN fighters.starting_xp; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighters.starting_xp IS 'XP this fighter was recruited with, copied from its (custom_)fighter_type at recruitment. NULL means N/A: the type cannot gain XP. Fixed thereafter: Advancements are earned on XP above this value, so it must not follow later edits to the fighter type.';
 
 
 --
