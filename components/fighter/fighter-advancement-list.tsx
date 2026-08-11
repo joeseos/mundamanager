@@ -2367,12 +2367,6 @@ export function AdvancementModal({
                       </label>
                     ))}
                   </div>
-                  {n26CharacteristicName && characteristicAdvancements[n26CharacteristicName] && (
-                    <p className="text-xs text-muted-foreground">
-                      Times increased on this characteristic:{' '}
-                      {characteristicAdvancements[n26CharacteristicName].times_increased ?? 0}
-                    </p>
-                  )}
                 </div>
               ) : null}
 
