@@ -84,6 +84,8 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
     [tradingPostTypes, editionSlug]
   );
 
+  const campaignRank = getCampaignRank(editionSlug);
+
   const isFormValid = campaignName.trim() !== "" && campaignType !== ""
 
   // Clear campaign type / trading posts that no longer belong to the active edition
@@ -249,7 +251,6 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
                 .sort((a, b) => {
                   const typeA = a.campaign_type_name.toLowerCase();
                   const typeB = b.campaign_type_name.toLowerCase();
-                  const campaignRank = getCampaignRank(editionSlug);
 
                   const rankA = campaignRank[typeA] ?? Infinity;
                   const rankB = campaignRank[typeB] ?? Infinity;
