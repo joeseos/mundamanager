@@ -36,18 +36,27 @@ interface AdminEditEquipmentModalProps {
 const EQUIPMENT_TYPES = ['wargear', 'weapon', 'vehicle_upgrade'] as const;
 type EquipmentType = typeof EQUIPMENT_TYPES[number];
 
-/** Blank grant options that are missing from the catalog or outside the given edition. */
+/** Blank grant options only when the target is found with a confirmed different edition. */
 function sanitizeGrantsOptionsForEdition(
   grants: EquipmentGrants,
   catalog: Array<{ id: string; edition_id?: string | null }>,
   editionId: string
 ): EquipmentGrants {
+  // Empty catalog can't confirm a mismatch (e.g. fetch failure) — leave options alone
+  if (!catalog.length) return grants;
+
   return {
     ...grants,
     options: (grants.options || []).map(option => {
       if (!option.equipment_id) return option;
       const granted = catalog.find(e => e.id === option.equipment_id);
-      if (!granted || !editionId || granted.edition_id !== editionId) {
+      // Same posture as weapon_group_id: only blank when found AND editions conflict
+      if (
+        granted &&
+        editionId &&
+        granted.edition_id &&
+        granted.edition_id !== editionId
+      ) {
         return { ...option, equipment_id: '' };
       }
       return option;
@@ -243,7 +252,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         }
         return profile;
       }));
-      // Grants options are edition-scoped; blank missing or cross-edition picks
+      // Grants options are edition-scoped; blank confirmed cross-edition picks
       setGrantsEquipment(current =>
         current ? sanitizeGrantsOptionsForEdition(current, allEquipment, newEditionId) : current
       );
@@ -421,7 +430,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   );
 
   const filteredAllEquipment = useMemo(
-    () => editionId ? allEquipment.filter(e => e.edition_id === editionId) : [],
+    () => editionId ? allEquipment.filter(e => e.edition_id === editionId) : allEquipment,
     [allEquipment, editionId]
   );
 
