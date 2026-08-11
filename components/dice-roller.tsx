@@ -99,8 +99,7 @@ export default function DiceRoller<T>({
   return (
     <>
       <div className="flex items-center gap-3">
-        {/* shrink-0 so a long inline result wraps rather than squeezing the
-            button until its own label breaks across lines. */}
+        {/* shrink-0: a long inline result should wrap, not squeeze the button. */}
         <button
           className={`shrink-0 whitespace-nowrap px-3 py-2 bg-neutral-900 text-white rounded-sm hover:bg-gray-800 disabled:opacity-50 ${className || ''}`}
           onClick={performRoll}
