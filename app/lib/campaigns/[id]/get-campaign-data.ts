@@ -5,6 +5,7 @@ import { CACHE_TAGS } from '@/utils/cache-tags';
 import { fetchCampaignAllegiances } from '@/utils/campaigns/allegiances';
 import { getWinnerIdsFromParsed, getClaimerGangIdFromParsed } from '@/utils/battle-winners';
 import { fetchCampaignResources } from '@/utils/campaigns/resources';
+import { editionSlugFromJoin, withEditionSlug } from '@/types/edition';
 
 // No TTL - infinite cache with server action invalidation only
 // Cache only expires when explicitly invalidated via revalidateTag()
@@ -51,7 +52,7 @@ async function _getCampaignBasic(campaignId: string, supabase: SupabaseClient) {
     if (!typeError && campaignType) {
       campaignTypeName = campaignType.campaign_type_name;
       campaignTypeImageUrl = campaignType.image_url || '';
-      campaignTypeEditionSlug = (campaignType as any).editions?.slug ?? null;
+      campaignTypeEditionSlug = editionSlugFromJoin((campaignType as any).editions);
     }
   }
 
@@ -763,15 +764,15 @@ export const getCampaignTypes = async () => {
     async () => {
       const { data, error } = await supabase
         .from('campaign_types')
-        .select('id, campaign_type_name')
+        .select('id, campaign_type_name, editions:edition_id (slug)')
         .order('campaign_type_name');
       
       if (error) throw error;
-      return data || [];
+      return (data || []).map(withEditionSlug);
     },
-    ['campaign-types'],
+    ['campaign-types-with-edition'],
     {
-      tags: ['campaign-types'],
+      tags: [CACHE_TAGS.GLOBAL_CAMPAIGN_TYPES()],
       revalidate: false
     }
   )();
@@ -787,16 +788,19 @@ export const getAllTerritories = async () => {
     async () => {
       const { data, error } = await supabase
         .from('territories')
-        .select('id, territory_name, campaign_type_id, playing_card')
+        .select('id, territory_name, campaign_type_id, playing_card, editions:edition_id (slug)')
         .order('territory_name');
       
       if (error) throw error;
-      return (data || []).map(territory => ({
-        ...territory,
-        territory_id: territory.id
-      }));
+      return (data || []).map(territory => {
+        const withSlug = withEditionSlug(territory);
+        return {
+          ...withSlug,
+          territory_id: withSlug.id
+        };
+      });
     },
-    ['territories-list'],
+    ['territories-list-with-edition'],
     {
       tags: [CACHE_TAGS.GLOBAL_TERRITORIES_LIST()],
       revalidate: false

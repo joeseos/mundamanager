@@ -3,7 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
 import { revalidateTag } from 'next/cache';
-import { CACHE_TAGS, invalidateCampaignCount } from '@/utils/cache-tags';
+import { CACHE_TAGS, invalidateCampaignCount, purgePreEditionCampaignCatalogCachesOnce } from '@/utils/cache-tags';
 
 interface CreateCampaignParams {
   name: string;
@@ -54,6 +54,9 @@ export async function createCampaign({ name, campaignTypeId, trading_posts }: Cr
 
     // Invalidate global campaign count
     invalidateCampaignCount();
+
+    // Drop pre-rename catalog cache keys that share campaign-types / territories tags
+    purgePreEditionCampaignCatalogCachesOnce();
 
     // Invalidate user's campaigns list so the new campaign appears immediately
     revalidateTag(CACHE_TAGS.USER_CAMPAIGNS(user.id), { expire: 0 });

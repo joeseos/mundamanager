@@ -629,7 +629,9 @@ export default function MembersTable({
 
   const gangModalContent = useMemo(() => (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">Select a gang to add to the campaign:</p>
+      <p className="text-sm text-muted-foreground">
+        Choose a gang for <span className="font-bold">{selectedMember?.profile.username}</span>:
+      </p>
       <div className="space-y-2">
         {[...userGangs].sort((a, b) => a.name.localeCompare(b.name)).map(gang => (
           <button
@@ -685,7 +687,7 @@ export default function MembersTable({
         </div>
       )}
     </div>
-  ), [userGangs, selectedGang, availableAllegiances, selectedAllegiance]);
+  ), [userGangs, selectedGang, availableAllegiances, selectedAllegiance, selectedMember]);
 
   const roleModalContent = useMemo(() => (
     <div className="space-y-4">
@@ -1197,6 +1199,15 @@ export default function MembersTable({
       {showGangModal && (
         <Modal
           title="Add Gang to Campaign"
+          helper={
+            campaignEditionSlug ? (
+              <>
+                Only <span className="font-bold">{campaignEditionSlug.toUpperCase()}</span> gangs can be added.
+              </>
+            ) : (
+              <>Only gangs matching this campaign&apos;s edition can be added.</>
+            )
+          }
           content={gangModalContent}
           onClose={() => {
             setShowGangModal(false);

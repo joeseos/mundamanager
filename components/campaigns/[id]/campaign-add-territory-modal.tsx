@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Button } from "@/components/ui/button"
 import Modal from "@/components/ui/modal"
 import TerritoryList from "@/components/campaigns/[id]/campaign-add-territory-list"
 import type { CampaignType } from '@/types/campaign';
@@ -12,6 +11,7 @@ interface Territory {
   territory_name: string;
   campaign_type_id: string | null;
   territory_id?: string | null;
+  edition_slug?: string | null;
 }
 
 interface CampaignTerritory {
@@ -24,6 +24,7 @@ interface CampaignAddTerritoryModalProps {
   onClose: () => void;
   campaignId: string;
   campaignTypeId: string;
+  editionSlug?: string | null;
   campaignTypes: CampaignType[];
   allTerritories: Territory[];
   existingCampaignTerritories: CampaignTerritory[];
@@ -36,6 +37,7 @@ export default function CampaignAddTerritoryModal({
   onClose,
   campaignId,
   campaignTypeId,
+  editionSlug,
   campaignTypes,
   allTerritories,
   existingCampaignTerritories,
@@ -66,6 +68,7 @@ export default function CampaignAddTerritoryModal({
           isAdmin={isAdmin}
           campaignId={campaignId}
           campaignTypeId={campaignTypeId}
+          editionSlug={editionSlug}
           campaignTypes={campaignTypes}
           allTerritories={allTerritories}
           existingCampaignTerritories={existingCampaignTerritories}

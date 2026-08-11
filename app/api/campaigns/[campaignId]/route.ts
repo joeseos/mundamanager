@@ -8,6 +8,7 @@ import {
   getCampaignCaptives
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
 import { revalidateTag } from 'next/cache';
+import { purgePreEditionCampaignCatalogCachesOnce } from '@/utils/cache-tags';
 
 export async function GET(request: Request, props: { params: Promise<{ campaignId: string }> }) {
   const params = await props.params;
@@ -27,6 +28,7 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
     revalidateTag(`campaign-territories-${campaignId}`, { expire: 0 });
     revalidateTag(`campaign-battles-${campaignId}`, { expire: 0 });
     revalidateTag(`campaign-${campaignId}`, { expire: 0 });
+    purgePreEditionCampaignCatalogCachesOnce();
     // Use the same cached functions as the page
     const [
       campaignBasic,
@@ -57,6 +59,7 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       campaign_type_id: campaignBasic.campaign_type_id,
       campaign_type_name: (campaignBasic.campaign_types as any)?.campaign_type_name || '',
       campaign_type_image_url: (campaignBasic.campaign_types as any)?.image_url || '',
+      edition_slug: (campaignBasic.campaign_types as any)?.edition_slug ?? null,
       image_url: campaignBasic.image_url || '',
       status: campaignBasic.status,
       description: campaignBasic.description,

@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { useRouter, useSearchParams } from 'next/navigation'
 import { SubmitButton } from "./submit-button"
 import { tradingPostRank } from "@/utils/tradingPostRank"
-import { campaignRank } from '@/utils/campaigns/campaignRank'
+import { getCampaignRank } from '@/utils/campaigns/campaignRank'
 import { ImInfo } from "react-icons/im"
 import { Tooltip } from 'react-tooltip';
 import React from "react"
@@ -249,6 +249,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
                 .sort((a, b) => {
                   const typeA = a.campaign_type_name.toLowerCase();
                   const typeB = b.campaign_type_name.toLowerCase();
+                  const campaignRank = getCampaignRank(editionSlug);
 
                   const rankA = campaignRank[typeA] ?? Infinity;
                   const rankB = campaignRank[typeB] ?? Infinity;

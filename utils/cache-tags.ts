@@ -115,6 +115,7 @@ export const CACHE_TAGS = {
   GLOBAL_GANG_TYPES: () => `global-gang-types`,                       // gang type options
   GLOBAL_FIGHTER_TYPES: () => `global-fighter-types`,                 // fighter type options
   GLOBAL_TERRITORIES_LIST: () => `global-territories-list`,           // territory options
+  GLOBAL_CAMPAIGN_TYPES: () => `campaign-types`,                      // campaign type options
   GLOBAL_PATREON_SUPPORTERS: () => `global-patreon-supporters`,       // patreon supporters list
   GLOBAL_USER_COUNT: () => `global-user-count`,                       // total user count for homepage
   GLOBAL_GANG_COUNT: () => `global-gang-count`,                       // total gang count for homepage
@@ -366,6 +367,29 @@ export function invalidateCampaignTerritory(params: {
  */
 export function invalidateUserCustomizations() {
   revalidateTag(CACHE_TAGS.GLOBAL_TERRITORIES_LIST(), { expire: 0 });
+}
+
+/**
+ * Global campaign catalog lists (campaign types + territory templates).
+ * Call after admin edits, or to drop every unstable_cache entry that shares these tags
+ * (including older key names after a key rename).
+ */
+export function invalidateCampaignCatalogLists() {
+  revalidateTag(CACHE_TAGS.GLOBAL_CAMPAIGN_TYPES(), { expire: 0 });
+  revalidateTag(CACHE_TAGS.GLOBAL_TERRITORIES_LIST(), { expire: 0 });
+}
+
+let didPurgePreEditionCampaignCatalogCaches = false;
+
+/**
+ * One-shot per process: expire pre-rename catalog cache keys that still share
+ * GLOBAL_CAMPAIGN_TYPES / GLOBAL_TERRITORIES_LIST tags (e.g. `campaign-types`
+ * after the move to `campaign-types-with-edition`).
+ */
+export function purgePreEditionCampaignCatalogCachesOnce() {
+  if (didPurgePreEditionCampaignCatalogCaches) return;
+  didPurgePreEditionCampaignCatalogCaches = true;
+  invalidateCampaignCatalogLists();
 }
 
 /**

@@ -96,6 +96,7 @@ interface AllTerritory {
   territory_name: string;
   campaign_type_id: string | null;
   territory_id?: string | null;
+  edition_slug?: string | null;
 }
 
 
@@ -1150,6 +1151,7 @@ export default function CampaignPageContent({
           onClose={() => setShowTerritoryModal(false)}
           campaignId={campaignData.id}
           campaignTypeId={campaignData.campaign_type_id}
+          editionSlug={campaignData.edition_slug ?? null}
           campaignTypes={campaignTypes}
           allTerritories={allTerritories}
           existingCampaignTerritories={campaignData.territories.map(territory => ({
