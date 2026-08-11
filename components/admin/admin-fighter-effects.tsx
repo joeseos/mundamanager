@@ -35,6 +35,7 @@ const STAT_MAPPINGS = [
   { stat_name: 'initiative', display_name: 'Initiative', short_name: 'I', value_suffix: '+' },
   { stat_name: 'intelligence', display_name: 'Intelligence', short_name: 'Int', value_suffix: '+' },
   { stat_name: 'leadership', display_name: 'Leadership', short_name: 'Ld', value_suffix: '+' },
+  { stat_name: 'lethality', display_name: 'Lethality', short_name: 'L', value_suffix: '' },
   { stat_name: 'movement', display_name: 'Movement', short_name: 'M', value_suffix: '"' },
   { stat_name: 'range_long', display_name: 'Range (Long)', short_name: 'Rng L', value_suffix: '"' },
   { stat_name: 'range_short', display_name: 'Range (Short)', short_name: 'Rng S', value_suffix: '"' },
