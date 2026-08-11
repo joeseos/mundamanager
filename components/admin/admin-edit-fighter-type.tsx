@@ -1918,7 +1918,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 </div>
               </div>
 
-              <div className="flex items-center gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="free-skill"
