@@ -1,3 +1,78 @@
+-- N26 "Advance Models": Advancements are earned by rank instead of bought with XP.
+--
+-- Three independent changes, kept in one migration because none of them has
+-- been applied anywhere yet and splitting them buys nothing:
+--
+--   1. fighters.starting_xp    -- the XP a fighter was recruited with
+--   2. starting_xp is nullable -- NULL means N/A, on all three tables
+--   3. the N26 Advancement catalog
+--
+-- Ordered schema-before-data. (1) and (2) touch different tables and (3)
+-- touches neither, so the order within this file is for reading, not for
+-- correctness.
+
+BEGIN;
+
+-- 1. ------------------------------------------------------------------------
+-- Starting XP recorded on the fighter itself.
+-- fighter_types.starting_xp / custom_fighter_types.starting_xp are the values a
+-- fighter is recruited with, but they are editable: changing a type later would
+-- retroactively change how much XP every existing fighter of that type is
+-- considered to have earned, and therefore how many Advancements they are owed.
+-- Each fighter keeps its own copy so its recruitment value is fixed at the
+-- moment it joined the gang. Stored as numeric to match fighters.xp and the
+-- type-level starting_xp columns.
+--
+-- NULL means N/A: the model's type cannot gain XP, so it has no recruitment
+-- value rather than a value of zero. The column is added carrying a default so
+-- every fighter already on a roster is backfilled to 0 instead of being
+-- reinterpreted as N/A, then the default is dropped so a later insert that
+-- omits the value records N/A rather than inventing a starting value.
+--
+-- The default is a constant, so on PostgreSQL 11+ this is a catalog-only change
+-- and does not rewrite the table.
+ALTER TABLE public.fighters
+  ADD COLUMN IF NOT EXISTS starting_xp numeric DEFAULT 0;
+
+ALTER TABLE public.fighters
+  ALTER COLUMN starting_xp DROP DEFAULT;
+
+COMMENT ON COLUMN public.fighters.starting_xp IS
+  'XP this fighter was recruited with, copied from its (custom_)fighter_type at recruitment. NULL means N/A: the type cannot gain XP. Fixed thereafter: Advancements are earned on XP above this value, so it must not follow later edits to the fighter type.';
+
+-- 2. ------------------------------------------------------------------------
+-- Starting XP is nullable, and NULL means N/A.
+--
+-- The type-level columns were added NOT NULL DEFAULT 0 in
+-- 20260803150605_add_starting_xp_columns.sql, which forces every fighter type in
+-- every edition to claim a starting value. Two cases have no such value: N23 has
+-- no Starting XP concept at all, and N26 has models whose entry reads N/A
+-- because they can never gain XP. Neither is 0, and neither is any other number,
+-- so the column has to be able to hold "no value".
+--
+-- The default goes with the NOT NULL. Any default is one edition's rule written
+-- into the schema, where it silently applies to every other edition and to
+-- editions that do not exist yet; leaving the value to the catalog entries the
+-- data admins write is what keeps this safe as editions are added.
+--
+-- Existing rows are left alone. They are all 0, which stays correct: an N23 row
+-- means "recruited with no XP", and an N26 model recruited on 0 earns its first
+-- Advancement at 4 XP exactly as one recruited on 1 does, so nothing is owed.
+ALTER TABLE public.fighter_types
+  ALTER COLUMN starting_xp DROP DEFAULT,
+  ALTER COLUMN starting_xp DROP NOT NULL;
+
+ALTER TABLE public.custom_fighter_types
+  ALTER COLUMN starting_xp DROP DEFAULT,
+  ALTER COLUMN starting_xp DROP NOT NULL;
+
+COMMENT ON COLUMN public.fighter_types.starting_xp IS
+  'XP a fighter of this type starts with at recruitment. Copied to fighters.starting_xp and seeds fighters.xp when the fighter is added. NULL means N/A: the type cannot gain XP.';
+
+COMMENT ON COLUMN public.custom_fighter_types.starting_xp IS
+  'XP a fighter of this custom type starts with at recruitment. Copied to fighters.starting_xp and seeds fighters.xp when the fighter is added. NULL means N/A: the type cannot gain XP.';
+
+-- 3. ------------------------------------------------------------------------
 -- Seed the N26 characteristic Advancement catalog.
 --
 -- Same tables as N23: fighter_effect_types in the 'advancements' category, with
@@ -5,6 +80,11 @@
 -- edition-scoped via edition_id and effect_name repeats across editions, so
 -- every row here is a NEW row alongside its N23 namesake. The N23 rows are left
 -- untouched.
+--
+-- APPLY get_fighter_available_advancements.sql FIRST. The deployed function has
+-- no edition filter and returns every row in the category, so between this seed
+-- and that function reaching the remote, N23 fighters are offered the N26 rows.
+-- supabase/functions/*.sql is not deployed by this migration or by any other.
 --
 -- What differs from N23 is the numbers, not the shape:
 --
@@ -35,8 +115,6 @@
 -- fighter type data error rather than something to resolve here.
 --
 -- Re-runnable: both inserts are guarded, so applying twice is a no-op.
-
-BEGIN;
 
 WITH target AS (
   SELECT
