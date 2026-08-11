@@ -36,6 +36,34 @@ interface AdminEditEquipmentModalProps {
 const EQUIPMENT_TYPES = ['wargear', 'weapon', 'vehicle_upgrade'] as const;
 type EquipmentType = typeof EQUIPMENT_TYPES[number];
 
+/** Blank grant options only when the target is found with a confirmed different edition. */
+function sanitizeGrantsOptionsForEdition(
+  grants: EquipmentGrants,
+  catalog: Array<{ id: string; edition_id?: string | null }>,
+  editionId: string
+): EquipmentGrants {
+  // Empty catalog can't confirm a mismatch (e.g. fetch failure) — leave options alone
+  if (!catalog.length) return grants;
+
+  return {
+    ...grants,
+    options: (grants.options || []).map(option => {
+      if (!option.equipment_id) return option;
+      const granted = catalog.find(e => e.id === option.equipment_id);
+      // Same posture as weapon_group_id: only blank when found AND editions conflict
+      if (
+        granted &&
+        editionId &&
+        granted.edition_id &&
+        granted.edition_id !== editionId
+      ) {
+        return { ...option, equipment_id: '' };
+      }
+      return option;
+    }),
+  };
+}
+
 interface Equipment {
   id: string;
   equipment_name: string;
@@ -69,7 +97,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [isEditable, setIsEditable] = useState(false);
   const [isConsumable, setIsConsumable] = useState(false);
   const [grantsEquipment, setGrantsEquipment] = useState<EquipmentGrants | null>(null);
-  const [allEquipment, setAllEquipment] = useState<Array<{id: string, equipment_name: string, cost?: number}>>([]);
+  const [allEquipment, setAllEquipment] = useState<Array<{id: string, equipment_name: string, edition_id?: string | null, cost?: number}>>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [weaponProfiles, setWeaponProfiles] = useState<WeaponProfileInput[]>([emptyWeaponProfile(1)]);
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -224,6 +252,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         }
         return profile;
       }));
+      // Grants options are edition-scoped; blank confirmed cross-edition picks
+      setGrantsEquipment(current =>
+        current ? sanitizeGrantsOptionsForEdition(current, allEquipment, newEditionId) : current
+      );
     }
   };
 
@@ -286,7 +318,13 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       setIsConsumable(equipmentDetails.is_consumable || false);
 
       if (equipmentDetails.grants_equipment) {
-        setGrantsEquipment(equipmentDetails.grants_equipment);
+        setGrantsEquipment(
+          sanitizeGrantsOptionsForEdition(
+            equipmentDetails.grants_equipment,
+            equipmentDetails.all_equipment || [],
+            equipmentDetails.edition_id ?? ''
+          )
+        );
       }
 
       if (equipmentDetails.all_equipment) {
@@ -389,6 +427,11 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const filteredWeapons = useMemo(
     () => editionId ? weapons.filter(weapon => weapon.edition_id === editionId) : weapons,
     [weapons, editionId]
+  );
+
+  const filteredAllEquipment = useMemo(
+    () => editionId ? allEquipment.filter(e => e.edition_id === editionId) : allEquipment,
+    [allEquipment, editionId]
   );
 
   const { data: gangTypeOptions = [], isLoading: isGangTypesLoading } = useQuery<Array<{gang_type_id: string, gang_type: string, edition_id?: string | null}>>({
@@ -909,7 +952,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             disabled={!selectedEquipmentId}
                           >
                             <option value="">Select equipment...</option>
-                            {allEquipment
+                            {filteredAllEquipment
                               .filter(e => e.id !== selectedEquipmentId)
                               .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name))
                               .map((equip) => (
