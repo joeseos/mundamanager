@@ -2959,6 +2959,10 @@ export function AdvancementsList({
 
   const showPromoteButton = fighterSubtypes.some(c => ['Ganger', 'Juve', 'Prospect', 'Champion', 'Specialist', 'Exotic Beast', 'Exotic Beast Specialist'].includes(c));
 
+  // N26 earns Advancements by rank and spends no XP, so there is no XP price to
+  // show in the list, and undoing one refunds nothing.
+  const isCumulativeXp = hasCumulativeXp(editionSlug);
+
   const { data: preFetchedFighterTypes = [] } = useQuery({
     queryKey: ['fighter-types-edit', gangId, gangTypeId, customGangTypeId, false],
     queryFn: async () => {
@@ -3258,18 +3262,18 @@ export function AdvancementsList({
           {
             key: 'name',
             label: 'Name',
-            width: '50%'
+            width: isCumulativeXp ? '75%' : '50%'
           },
-          {
+          ...(isCumulativeXp ? [] : [{
             key: 'xp_cost',
             label: 'XP',
-            align: 'right',
+            align: 'right' as const,
             width: '25%'
-          },
+          }]),
           {
             key: 'credits_increase',
             label: 'Cost',
-            align: 'right'
+            align: 'right' as const
           }
         ]}
         actions={[
@@ -3354,7 +3358,11 @@ export function AdvancementsList({
             <div>
               <p>Are you sure you want to undo <strong>{deleteModalData.name}</strong>?</p>
               <br />
-              <p>XP spent will be refunded and the fighter&apos;s value will be adjusted accordingly.</p>
+              <p>
+                {isCumulativeXp
+                  ? <>The fighter&apos;s value will be adjusted accordingly.</>
+                  : <>XP spent will be refunded and the fighter&apos;s value will be adjusted accordingly.</>}
+              </p>
             </div>
           }
           onClose={() => setDeleteModalData(null)}
