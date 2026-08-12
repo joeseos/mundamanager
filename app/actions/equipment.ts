@@ -21,6 +21,7 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { countsTowardRating } from '@/utils/fighter-status';
 import { EquipmentGrants, ResourceCost, CostResourcePayload } from '@/types/equipment';
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
+import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
 import { clearHardpointReference } from './vehicle-hardpoints';
 import { deductGangResource, returnGangResource, parseTradePointsCost, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
 import { gangEditionSlug, hasMasterCraftedWeapons, hasTradePoints } from '@/types/edition';
@@ -656,6 +657,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       }
     }
 
+    await syncSubtypeGrants(supabase, params.fighter_id, { granted: appliedEffects });
+
     // Get fighter name for beast creation (if applicable)
     let fighterName: string | null = null;
     if (params.fighter_id && !params.buy_for_gang_stash && !params.custom_equipment_id && params.equipment_id) {
@@ -1154,6 +1157,9 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
     if (deleteError) {
       throw new Error(`Failed to delete equipment: ${deleteError.message}`);
     }
+
+    // After the cascade, so the remaining-grant check sees only survivors
+    await syncSubtypeGrants(supabase, equipmentBefore.fighter_id, { revoked: associatedEffects });
 
     // Log equipment deletion
     try {

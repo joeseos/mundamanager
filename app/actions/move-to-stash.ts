@@ -7,6 +7,7 @@ import { revalidateTag } from 'next/cache';
 import { updateGangFinancials, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { countsTowardRating } from '@/utils/fighter-status';
+import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -185,6 +186,9 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       if (deleteEffectsError) {
         throw new Error(`Failed to remove associated effects: ${deleteEffectsError.message}`);
       }
+
+      // After the delete above, so the remaining-grant check sees only survivors
+      await syncSubtypeGrants(supabase, equipmentData.fighter_id, { revoked: associatedEffects });
     }
 
     // Update the equipment to move it to stash

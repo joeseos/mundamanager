@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -77,6 +78,7 @@ interface AdminFighterEffectsProps {
   onUpdate?: () => void;
   onChange?: (effects: FighterEffectType[]) => void;
   hideEquipmentOption?: boolean; // Hide "Applies to Equipment" option (for lasting injuries/rig glitches)
+  editionId?: string | null; // Scopes the subtype grant picker; unset shows every edition's rows
 }
 
 export function AdminFighterEffects({
@@ -86,7 +88,8 @@ export function AdminFighterEffects({
   fighterEffectCategories = [],
   onUpdate,
   onChange,
-  hideEquipmentOption = false
+  hideEquipmentOption = false,
+  editionId
 }: AdminFighterEffectsProps) {
   const [fighterEffectTypes, setFighterEffectTypes] = useState<FighterEffectType[]>(fighterEffects);
   const [categories, setCategories] = useState<FighterEffectCategory[]>(fighterEffectCategories);
@@ -97,6 +100,28 @@ export function AdminFighterEffects({
   const [showAddModifierDialog, setShowAddModifierDialog] = useState(false);
   const [selectedEffectTypeId, setSelectedEffectTypeId] = useState<string | null>(null);
   const tempIdCounter = useRef(0);
+
+  const { data: fighterSubtypes = [] } = useQuery<Array<{ id: string; subtype_name: string; edition_id?: string | null }>>({
+    queryKey: ['admin-fighter-subtypes'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/fighter-subtypes');
+      if (!response.ok) throw new Error('Failed to fetch fighter subtypes');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Same rule as the category and equipment filters above: scope to the selected
+  // edition when there is one, since subtype_name repeats across editions
+  const fighterSubtypesForDisplay = useMemo(
+    () => editionId ? fighterSubtypes.filter(fs => fs.edition_id === editionId) : fighterSubtypes,
+    [fighterSubtypes, editionId]
+  );
+
+  const subtypeNameById = useMemo(
+    () => new Map(fighterSubtypes.map(fs => [fs.id, fs.subtype_name])),
+    [fighterSubtypes]
+  );
   
   // New effect form state
   const [newEffect, setNewEffect] = useState({
@@ -110,6 +135,10 @@ export function AdminFighterEffects({
     traits_to_remove: '',
     special_rules_to_add: '',
     special_rules_to_remove: '',
+    // Subtype grants are picked by id, not typed as names — subtype_name is only
+    // unique per edition, so a name would be ambiguous
+    fighter_subtype_ids_to_add: [] as string[],
+    fighter_subtype_ids_to_remove: [] as string[],
     credits_increase: '',
     cost: '',
     is_editable: false,
@@ -184,6 +213,8 @@ export function AdminFighterEffects({
         ...(traitsToRemove.length > 0 && { traits_to_remove: traitsToRemove }),
         ...(specialRulesToAdd.length > 0 && { special_rules_to_add: specialRulesToAdd }),
         ...(specialRulesToRemove.length > 0 && { special_rules_to_remove: specialRulesToRemove }),
+        ...(newEffect.fighter_subtype_ids_to_add.length > 0 && { fighter_subtype_ids_to_add: newEffect.fighter_subtype_ids_to_add }),
+        ...(newEffect.fighter_subtype_ids_to_remove.length > 0 && { fighter_subtype_ids_to_remove: newEffect.fighter_subtype_ids_to_remove }),
         ...(newEffect.credits_increase && { credits_increase: parseInt(newEffect.credits_increase) }),
         ...(newEffect.cost && { cost: parseInt(newEffect.cost) }),
         ...(newEffect.is_editable && { is_editable: true }),
@@ -227,6 +258,8 @@ export function AdminFighterEffects({
         traits_to_remove: '',
         special_rules_to_add: '',
         special_rules_to_remove: '',
+        fighter_subtype_ids_to_add: [],
+        fighter_subtype_ids_to_remove: [],
         credits_increase: '',
         cost: '',
         is_editable: false,
@@ -266,6 +299,8 @@ export function AdminFighterEffects({
       traits_to_remove: '',
       special_rules_to_add: '',
       special_rules_to_remove: '',
+      fighter_subtype_ids_to_add: [],
+      fighter_subtype_ids_to_remove: [],
       credits_increase: '',
       cost: '',
       is_editable: false,
@@ -290,6 +325,8 @@ export function AdminFighterEffects({
       traits_to_remove: effect.type_specific_data?.traits_to_remove?.join(', ') || '',
       special_rules_to_add: effect.type_specific_data?.special_rules_to_add?.join(', ') || '',
       special_rules_to_remove: effect.type_specific_data?.special_rules_to_remove?.join(', ') || '',
+      fighter_subtype_ids_to_add: effect.type_specific_data?.fighter_subtype_ids_to_add || [],
+      fighter_subtype_ids_to_remove: effect.type_specific_data?.fighter_subtype_ids_to_remove || [],
       credits_increase: effect.type_specific_data?.credits_increase?.toString() || '',
       cost: effect.type_specific_data?.cost?.toString() || '',
       is_editable: effect.type_specific_data?.is_editable === true,
@@ -340,6 +377,8 @@ export function AdminFighterEffects({
       traits_to_remove: traitsToRemove.length > 0 ? traitsToRemove : undefined,
       special_rules_to_add: specialRulesToAdd.length > 0 ? specialRulesToAdd : undefined,
       special_rules_to_remove: specialRulesToRemove.length > 0 ? specialRulesToRemove : undefined,
+      fighter_subtype_ids_to_add: newEffect.fighter_subtype_ids_to_add.length > 0 ? newEffect.fighter_subtype_ids_to_add : undefined,
+      fighter_subtype_ids_to_remove: newEffect.fighter_subtype_ids_to_remove.length > 0 ? newEffect.fighter_subtype_ids_to_remove : undefined,
       // Set credits_increase or remove it if empty
       ...(newEffect.credits_increase ? { credits_increase: parseInt(newEffect.credits_increase) } : { credits_increase: undefined }),
       // Set cost or remove it if empty
@@ -595,6 +634,18 @@ export function AdminFighterEffects({
                         {effect.type_specific_data?.special_rules_to_remove && effect.type_specific_data.special_rules_to_remove.length > 0 && (
                           <Badge variant="destructive">
                             -Rules: {effect.type_specific_data.special_rules_to_remove.join(', ')}
+                          </Badge>
+                        )}
+
+                        {effect.type_specific_data?.fighter_subtype_ids_to_add && effect.type_specific_data.fighter_subtype_ids_to_add.length > 0 && (
+                          <Badge variant="default" className="bg-green-600">
+                            +Subtypes: {effect.type_specific_data.fighter_subtype_ids_to_add.map(id => subtypeNameById.get(id) ?? id).join(', ')}
+                          </Badge>
+                        )}
+
+                        {effect.type_specific_data?.fighter_subtype_ids_to_remove && effect.type_specific_data.fighter_subtype_ids_to_remove.length > 0 && (
+                          <Badge variant="destructive">
+                            -Subtypes: {effect.type_specific_data.fighter_subtype_ids_to_remove.map(id => subtypeNameById.get(id) ?? id).join(', ')}
                           </Badge>
                         )}
 
@@ -1000,6 +1051,30 @@ export function AdminFighterEffects({
                     Enter special rule names separated by commas
                   </p>
                 </div>
+
+                {(['fighter_subtype_ids_to_add', 'fighter_subtype_ids_to_remove'] as const).map(field => (
+                  <div key={field} className="space-y-2">
+                    <label className="block text-sm font-medium text-muted-foreground">
+                      {field === 'fighter_subtype_ids_to_add' ? 'Subtypes to Add' : 'Subtypes to Remove'} (optional)
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2">
+                      {fighterSubtypesForDisplay.map(fighterSubtype => (
+                        <label key={fighterSubtype.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                          <Checkbox
+                            checked={newEffect[field].includes(fighterSubtype.id)}
+                            onCheckedChange={(checked) => setNewEffect(prev => ({
+                              ...prev,
+                              [field]: checked === true
+                                ? [...prev[field], fighterSubtype.id]
+                                : prev[field].filter(id => id !== fighterSubtype.id)
+                            }))}
+                          />
+                          <span>{fighterSubtype.subtype_name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </>
             )}
           </div>

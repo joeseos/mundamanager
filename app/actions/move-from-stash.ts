@@ -16,6 +16,7 @@ import {
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { insertEffectWithModifiers } from './equipment';
+import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
 import { countsTowardRating } from '@/utils/fighter-status';
 
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -304,6 +305,8 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
               if (insertErr) {
                 console.error(`Failed to insert effects for ${item.stash_id}: ${insertErr.message}`);
               } else if (insertedEffects && insertedEffects.length > 0) {
+                await syncSubtypeGrants(supabase, params.fighter_id, { granted: toApply });
+
                 const allModifiers: any[] = [];
                 toApply.forEach((et, index) => {
                   const effId = insertedEffects[index].id;

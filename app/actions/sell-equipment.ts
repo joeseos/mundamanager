@@ -6,6 +6,7 @@ import { invalidateFighterData, invalidateFighterVehicleData, invalidateEquipmen
 import { revalidateTag } from 'next/cache';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { countsTowardRating } from '@/utils/fighter-status';
+import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { clearHardpointReference } from './vehicle-hardpoints';
 import { returnCostResource } from '@/utils/campaigns/resources';
@@ -239,6 +240,9 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
     if (deleteError) {
       throw new Error(`Failed to delete equipment: ${deleteError.message}`);
     }
+
+    // After the cascade, so the remaining-grant check sees only survivors
+    await syncSubtypeGrants(supabase, equipmentData.fighter_id, { revoked: associatedEffects });
 
     if (isResourcePurchase) {
       try {

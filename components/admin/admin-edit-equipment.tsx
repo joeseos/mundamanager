@@ -1737,8 +1737,9 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
               {/* Fighter Effects Section */}
               {selectedEquipmentId && (
                 <div className="col-span-3">
-                  <AdminFighterEffects 
+                  <AdminFighterEffects
                     equipmentId={selectedEquipmentId}
+                    editionId={editionId}
                     fighterEffects={fighterEffects}
                     fighterEffectCategories={fighterEffectCategories}
                     onUpdate={() => {
