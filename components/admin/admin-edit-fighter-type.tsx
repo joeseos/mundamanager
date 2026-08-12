@@ -16,7 +16,7 @@ import { compareEquipmentCategories } from "@/utils/getEquipmentCategoryRank";
 import { AdminFighterEquipmentSelection, EquipmentSelection, guiToDataModel, dataModelToGui } from "@/components/admin/admin-fighter-equipment-selection";
 import { EditionSelect, useEditions } from '@/components/edition-select';
 import { hasAlignment, hasSaveCharacteristic, allowsMultipleSubtypes, hasStartingXp, hasVehicles } from '@/types/edition';
-import { toggleFighterSubtype } from '@/utils/fighter-subtypes';
+import { toggleFighterSubtype } from '@/utils/allowedFighterSubtypes';
 import Modal from '@/components/ui/modal';
 
 interface FighterSpecialisation {

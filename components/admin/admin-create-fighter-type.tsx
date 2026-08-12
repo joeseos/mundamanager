@@ -10,7 +10,7 @@ import { HiX } from "react-icons/hi";
 import { GangType, Equipment } from "@/types/gang";
 import { EditionSelect, useEditions } from '@/components/edition-select';
 import { hasAlignment, hasSaveCharacteristic, allowsMultipleSubtypes, hasStartingXp, hasVehicles } from '@/types/edition';
-import { toggleFighterSubtype } from '@/utils/fighter-subtypes';
+import { toggleFighterSubtype } from '@/utils/allowedFighterSubtypes';
 import { getSkillSetRank } from "@/utils/skillSetRank";
 import { compareEquipmentCategories } from "@/utils/getEquipmentCategoryRank";
 

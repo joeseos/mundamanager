@@ -34,7 +34,7 @@ import {
   hasVehicles,
   sameEditionForDisplay,
 } from '@/types/edition';
-import { toggleFighterSubtype } from '@/utils/fighter-subtypes';
+import { toggleFighterSubtype } from '@/utils/allowedFighterSubtypes';
 
 interface CustomiseFightersProps {
   className?: string;
