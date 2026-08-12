@@ -10,7 +10,8 @@ import { logFighterAction } from './logs/fighter-logs';
 import { countsTowardRating, hasKilledStatusFlag } from '@/utils/fighter-status';
 import { updateGangFinancials, updateGangRatingSimple, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 import { insertFighterOoaRecords } from './fighter-ooa-records';
-import { allowsMultipleSubtypes, editionSlugFromJoin, gangEditionSlug } from '@/types/edition';
+import { allowsMultipleSubtypes } from '@/types/edition';
+import { resolveFighterEditionSlug } from '@/utils/fighter-subtype-grants';
 import { assertArchetypeAssignable } from '@/utils/assertArchetypeAssignable';
 import { mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';
 
@@ -141,42 +142,6 @@ function normalizeFighterSubtypeNames(subtypes: string[]): string[] {
   return result;
 }
 
-/**
- * Edition for subtype validation. The gang decides, because that is the slug
- * fighter-page.tsx hands the edit modal — resolving from the fighter type instead
- * would let the server reach a different verdict than the UI the user just used.
- * The fighter's own type is the fallback.
- *
- * Null means the edition never resolved, which reads as legacy N23 everywhere
- * else (see hasMasterCraftedWeapons in equipment.ts). Callers must treat it that
- * way rather than as an error: 34 custom_fighter_types and 9 custom_gang_types
- * still carry a null edition_id.
- */
-async function resolveFighterEditionSlugForUpdate(
-  supabase: any,
-  fighterId: string
-): Promise<string | null> {
-  const { data, error } = await supabase
-    .from('fighters')
-    .select(`
-      fighter_types:fighter_type_id ( editions:edition_id ( slug ) ),
-      custom_fighter_types:custom_fighter_type_id ( editions:edition_id ( slug ) ),
-      gangs!gang_id (
-        gang_types!gang_type_id ( editions:edition_id ( slug ) ),
-        custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
-      )
-    `)
-    .eq('id', fighterId)
-    .single();
-
-  if (error || !data) return null;
-
-  return (
-    gangEditionSlug(data.gangs) ??
-    editionSlugFromJoin(data.fighter_types?.editions) ??
-    editionSlugFromJoin(data.custom_fighter_types?.editions)
-  );
-}
 
 async function validateFighterSubtypesForUpdate(
   supabase: any,
@@ -201,7 +166,7 @@ async function validateFighterSubtypesForUpdate(
     };
   }
 
-  const editionSlug = await resolveFighterEditionSlugForUpdate(supabase, fighterId);
+  const editionSlug = await resolveFighterEditionSlug(supabase, fighterId);
 
   // allowsMultipleSubtypes(null) is false, so an unresolved edition keeps the
   // legacy single-subtype rule instead of rejecting the save outright.
@@ -1507,7 +1472,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       const checkArchetypeAssignable = async (archetypeId: string) => {
         // undefined, not falsy: null is a resolved answer (legacy N23), not a cache miss
         if (resolvedEditionSlug === undefined) {
-          resolvedEditionSlug = await resolveFighterEditionSlugForUpdate(supabase, params.fighter_id);
+          resolvedEditionSlug = await resolveFighterEditionSlug(supabase, params.fighter_id);
         }
         return assertArchetypeAssignable(supabase, {
           gangTypeId: gangData.gang_type_id,

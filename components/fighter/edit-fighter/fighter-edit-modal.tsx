@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { HiX } from "react-icons/hi";
 import { toast } from 'sonner';
-import { applySpecialRulesModifiers } from '@/utils/effect-modifiers';
+import { applySpecialRulesModifiers, subtypeGrantsFromEffects } from '@/utils/effect-modifiers';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { allowsMultipleSubtypes } from '@/types/edition';
 import {
@@ -264,6 +264,17 @@ export function EditFighterModal({
     return [...catalog, ...uncatalogued];
   }, [allFighterSubtypes, fighter.fighter_subtypes, selectedFighterSubtypes]);
 
+  // Subtypes an effect granted, e.g. a Dirt bike granting Mounted. They sit in
+  // fighter_subtypes like any other, so mark them read-only — removing one here
+  // would only last until the next time the equipment resynced it.
+  const effectGrantedSubtypes = useMemo(() => {
+    const allEffects = fighter.effects ? Object.values(fighter.effects).flat() : [];
+    const { add } = subtypeGrantsFromEffects(allEffects);
+    if (add.length === 0) return new Set<string>();
+    const nameFor = new Map((allFighterSubtypes ?? []).map(fc => [fc.id, fc.subtype_name]));
+    return new Set(add.map(id => nameFor.get(id)).filter((name): name is string => !!name));
+  }, [fighter.effects, allFighterSubtypes]);
+
   // Subtypes not yet selected — for the N26 add Combobox
   const availableSubtypeComboboxOptions = useMemo(() => {
     const selected = new Set(selectedFighterSubtypes);
@@ -434,23 +445,19 @@ export function EditFighterModal({
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
 
-  // Drop stale selection when ineligible, or when a settled non-empty catalog no longer includes it
-  useEffect(() => {
-    if (!selectedArchetypeId) return;
-
-    if (!canUseArchetypes) {
-      setSelectedArchetypeId('');
-      return;
-    }
+  // Drop a stale selection when the fighter is ineligible, or when a settled
+  // non-empty catalog no longer includes it. Derived rather than corrected in an
+  // effect, so there is no intermediate render holding an archetype the fighter
+  // cannot have — and no cascading re-render to get rid of it.
+  const effectiveArchetypeId = useMemo(() => {
+    if (!selectedArchetypeId || !canUseArchetypes) return '';
 
     const archetypes = archetypesData?.archetypes as Archetype[] | undefined;
     // Wait for a real catalog payload; empty/missing lists must not wipe a valid selection
-    if (!archetypes || archetypes.length === 0) return;
+    if (!archetypes || archetypes.length === 0) return selectedArchetypeId;
 
-    if (!archetypes.some((a) => a.id === selectedArchetypeId)) {
-      setSelectedArchetypeId('');
-    }
-  }, [canUseArchetypes, archetypesData, selectedArchetypeId]);
+    return archetypes.some((a) => a.id === selectedArchetypeId) ? selectedArchetypeId : '';
+  }, [selectedArchetypeId, canUseArchetypes, archetypesData]);
 
   // TanStack mutation for editing fighter details
   const mutation = useMutation({
@@ -1034,7 +1041,7 @@ export function EditFighterModal({
         costAdjustment: formValues.costAdjustment,
         special_rules: formValues.special_rules,
         fighter_gang_legacy_id: selectedGangLegacyId || null,
-        selected_archetype_id: canUseArchetypes ? (selectedArchetypeId || null) : null
+        selected_archetype_id: effectiveArchetypeId || null
       };
 
       // Only include fighter type fields if we're actually updating the fighter type
@@ -1254,19 +1261,29 @@ export function EditFighterModal({
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {selectedFighterSubtypes.map((subtypeName) => (
-                      <div
-                        key={subtypeName}
-                        className="bg-muted px-3 py-1 rounded-full flex items-center text-sm"
-                      >
-                        <span>{subtypeName}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveFighterSubtype(subtypeName)}
-                          className="ml-2 text-muted-foreground hover:text-muted-foreground focus:outline-hidden"
+                      effectGrantedSubtypes.has(subtypeName) ? (
+                        <div
+                          key={subtypeName}
+                          className="bg-muted/50 px-3 py-1 rounded-full flex items-center text-sm text-muted-foreground italic"
                         >
-                          <HiX size={14} />
-                        </button>
-                      </div>
+                          <span>{subtypeName}</span>
+                          <span className="ml-2 text-xs">(from equipment)</span>
+                        </div>
+                      ) : (
+                        <div
+                          key={subtypeName}
+                          className="bg-muted px-3 py-1 rounded-full flex items-center text-sm"
+                        >
+                          <span>{subtypeName}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveFighterSubtype(subtypeName)}
+                            className="ml-2 text-muted-foreground hover:text-muted-foreground focus:outline-hidden"
+                          >
+                            <HiX size={14} />
+                          </button>
+                        </div>
+                      )
                     ))}
                   </div>
                 </>
@@ -1330,7 +1347,7 @@ export function EditFighterModal({
                 </label>
                 <Combobox
                   id="archetype"
-                  value={selectedArchetypeId}
+                  value={effectiveArchetypeId}
                   onValueChange={setSelectedArchetypeId}
                   placeholder="None"
                   clearable
