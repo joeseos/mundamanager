@@ -21,6 +21,8 @@ import { CustomGangType } from "@/app/actions/customise/custom-gang-types";
 import { CustomTradingPost } from "@/app/actions/customise/custom-trading-posts";
 import { CustomCollectionWithItems } from "@/app/lib/customise/custom-collections";
 import { useClaims } from "@/hooks/use-claims";
+import { useHomeEdition } from "@/hooks/use-home-edition";
+import { sameEditionForDisplay } from "@/types/edition";
 import { toast } from 'sonner';
 
 import Link from "next/link";
@@ -93,6 +95,9 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
   });
 
   const { userId: currentUserId } = useClaims();
+  // Same edition the home Custom Assets tab is on, so a profile never renders an
+  // N26 asset under N23 rules.
+  const { editionSlug } = useHomeEdition();
 
   // Scroll to top when component mounts
   useEffect(() => {
@@ -122,6 +127,18 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
   }
 
   const { profile, gangs, campaigns, customAssets, customAssetsData } = userData;
+
+  const byEdition = <T extends { edition_slug?: string | null }>(items: T[]) =>
+    items.filter(item => sameEditionForDisplay(item.edition_slug, editionSlug));
+
+  const editionAssets = {
+    gangTypes: byEdition(customAssetsData.gangTypes),
+    tradingPosts: byEdition(customAssetsData.tradingPosts),
+    equipment: byEdition(customAssetsData.equipment),
+    fighters: byEdition(customAssetsData.fighters),
+    skills: byEdition(customAssetsData.skills),
+    collections: byEdition(customAssetsData.collections ?? []),
+  };
 
   // Get arbitrator campaigns for sharing custom assets (only when viewing own profile)
   const userCampaigns = currentUserId === profile.id
@@ -291,9 +308,10 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
             
             <div className="space-y-6">
               {/* Custom Gang Types */}
-              {customAssetsData.gangTypes.length > 0 && (
+              {editionAssets.gangTypes.length > 0 && (
                 <CustomiseGangTypes
-                  initialGangTypes={customAssetsData.gangTypes}
+                  initialGangTypes={editionAssets.gangTypes}
+                  editionSlug={editionSlug}
                   readOnly={currentUserId !== profile.id}
                   userId={currentUserId || undefined}
                   userCampaigns={userCampaigns}
@@ -301,9 +319,10 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
               )}
 
               {/* Custom Trading Posts */}
-              {customAssetsData.tradingPosts.length > 0 && (
+              {editionAssets.tradingPosts.length > 0 && (
                 <CustomiseTradingPosts
-                  initialTradingPosts={customAssetsData.tradingPosts}
+                  initialTradingPosts={editionAssets.tradingPosts}
+                  editionSlug={editionSlug}
                   readOnly={currentUserId !== profile.id}
                   userId={currentUserId || undefined}
                   userCampaigns={userCampaigns}
@@ -311,9 +330,10 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
               )}
 
               {/* Custom Equipment */}
-              {customAssetsData.equipment.length > 0 && (
+              {editionAssets.equipment.length > 0 && (
                 <CustomiseEquipment
-                  initialEquipment={customAssetsData.equipment}
+                  initialEquipment={editionAssets.equipment}
+                  editionSlug={editionSlug}
                   readOnly={currentUserId !== profile.id}
                   userId={currentUserId || undefined}
                   userCampaigns={userCampaigns}
@@ -321,17 +341,19 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
               )}
 
               {/* Custom Fighters */}
-              {customAssetsData.fighters.length > 0 && (
-                <CustomiseFighters 
-                  initialFighters={customAssetsData.fighters} 
+              {editionAssets.fighters.length > 0 && (
+                <CustomiseFighters
+                  initialFighters={editionAssets.fighters}
+                  editionSlug={editionSlug}
                   readOnly={currentUserId !== profile.id}
                 />
               )}
 
               {/* Custom Skills */}
-              {customAssetsData.skills.length > 0 && (
+              {editionAssets.skills.length > 0 && (
                 <CustomiseSkills
-                  initialSkills={customAssetsData.skills}
+                  initialSkills={editionAssets.skills}
+                  editionSlug={editionSlug}
                   readOnly={currentUserId !== profile.id}
                   userId={currentUserId || undefined}
                   userCampaigns={userCampaigns}
@@ -339,9 +361,10 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
               )}
 
               {/* Collections */}
-              {(customAssetsData.collections?.length || 0) > 0 && (
+              {editionAssets.collections.length > 0 && (
                 <CustomiseCollections
-                  initialCollections={customAssetsData.collections}
+                  initialCollections={editionAssets.collections}
+                  editionSlug={editionSlug}
                   readOnly={currentUserId !== profile.id}
                   userId={currentUserId || undefined}
                   userCampaigns={userCampaigns}

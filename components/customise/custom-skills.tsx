@@ -21,7 +21,7 @@ import { Tooltip } from 'react-tooltip';
 import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants';
 import type { UserCampaign } from '@/types/campaign';
-import { EDITION_N23 } from '@/types/edition';
+
 
 interface CustomiseSkillsProps {
   className?: string;
@@ -29,6 +29,8 @@ interface CustomiseSkillsProps {
   readOnly?: boolean;
   userId?: string;
   userCampaigns?: UserCampaign[];
+  /** Edition of everything shown here, and of anything created. */
+  editionSlug: string;
 }
 
 interface SkillType {
@@ -37,7 +39,7 @@ interface SkillType {
   is_custom?: boolean;
 }
 
-export function CustomiseSkills({ className, initialSkills = [], readOnly = false, userId, userCampaigns = [] }: CustomiseSkillsProps) {
+export function CustomiseSkills({ className, initialSkills = [], readOnly = false, userId, userCampaigns = [], editionSlug }: CustomiseSkillsProps) {
   const [skills, setSkills] = useState<CustomSkill[]>(initialSkills);
   const [prevInitialSkills, setPrevInitialSkills] = useState(initialSkills);
   if (initialSkills !== prevInitialSkills) {
@@ -60,22 +62,19 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
   const [showNewSkillTypeInput, setShowNewSkillTypeInput] = useState<'create' | 'edit' | null>(null);
   const [skillTypesToDelete, setSkillTypesToDelete] = useState<string[]>([]);
 
-  const supabase = createClient();
-
+  // /api/skill-types returns the edition's standard types plus the user's own
+  // custom types, already flagged with is_custom -- the two direct table reads
+  // this replaces were unscoped and mixed both editions together.
   const fetchSkillTypes = async () => {
     if (!userId) return;
     try {
-      const [standardResult, customResult] = await Promise.all([
-        supabase.from('skill_types').select('id, name').order('name', { ascending: true }),
-        supabase.from('custom_skill_types').select('id, name').eq('user_id', userId).order('name', { ascending: true }),
+      const response = await fetch(`/api/skill-types?edition_slug=${editionSlug}`);
+      if (!response.ok) throw new Error('Failed to fetch skill types');
+      const data: SkillType[] = await response.json();
+      setSkillTypes([
+        ...data.filter(t => t.is_custom),
+        ...data.filter(t => !t.is_custom),
       ]);
-
-      if (standardResult.error) throw standardResult.error;
-      if (customResult.error) throw customResult.error;
-
-      const standard = (standardResult.data || []).map(t => ({ ...t, is_custom: false }));
-      const custom = (customResult.data || []).map(t => ({ ...t, is_custom: true }));
-      setSkillTypes([...custom, ...standard]);
     } catch (error) {
       console.error('Error fetching skill types:', error);
       toast.error('Failed to load skill types');
@@ -103,7 +102,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
   // Returns the skill type ID to use, or null on failure
   const resolveSkillTypeId = async (form: { skill_type_id: string; is_custom_type: boolean }): Promise<{ id: string; is_custom: boolean } | null> => {
     if (showNewSkillTypeInput === 'create' && newSkillTypeName.trim()) {
-      const created = await createCustomSkillType({ name: newSkillTypeName.trim(), edition_slug: EDITION_N23 });
+      const created = await createCustomSkillType({ name: newSkillTypeName.trim(), edition_slug: editionSlug });
       const newType: SkillType = { id: created.id, name: created.name, is_custom: true };
       setSkillTypes(prev => [newType, ...prev.filter(t => t.id !== created.id)]);
       return { id: created.id, is_custom: true };
@@ -335,7 +334,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
       ];
 
   const renderSkillTypeOptions = () => {
-    const skillSetRank = getSkillSetRank(EDITION_N23);
+    const skillSetRank = getSkillSetRank(editionSlug);
     const customTypes = skillTypes.filter(t => t.is_custom);
     const standardTypes = skillTypes.filter(t => !t.is_custom);
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { getUserIdFromClaims } from "@/utils/auth";
+import { editionSlugFromJoin } from "@/types/edition";
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -20,12 +21,12 @@ export async function GET(request: NextRequest) {
     // Fetch regular equipment and user's custom equipment in parallel
     let regularQuery = supabase
       .from('equipment')
-      .select('id, equipment_name, equipment_category, equipment_type, core_equipment')
+      .select('id, equipment_name, equipment_category, equipment_type, core_equipment, editions:edition_id (slug)')
       .order('equipment_name');
 
     let customQuery = supabase
       .from('custom_equipment')
-      .select('id, equipment_name, equipment_category, equipment_type')
+      .select('id, equipment_name, equipment_category, equipment_type, editions:edition_id (slug)')
       .eq('user_id', userId)
       .order('equipment_name');
 
@@ -46,12 +47,14 @@ export async function GET(request: NextRequest) {
     if (regularEquipmentResult.error) throw regularEquipmentResult.error;
     if (customEquipmentResult.error) throw customEquipmentResult.error;
 
-    // Transform custom equipment to match the expected format and mark them as custom
+    // Transform custom equipment to match the expected format and mark them as custom.
+    // Both branches carry edition_slug so callers can scope pickers to one edition.
     const regularEquipment = (regularEquipmentResult.data || []).map(item => ({
       id: item.id,
       equipment_name: item.equipment_name,
       equipment_category: item.equipment_category,
       equipment_type: item.equipment_type,
+      edition_slug: editionSlugFromJoin(item.editions),
       is_custom: false,
     }));
 
@@ -60,6 +63,7 @@ export async function GET(request: NextRequest) {
       equipment_name: `${item.equipment_name} (Custom)`,
       equipment_category: item.equipment_category,
       equipment_type: item.equipment_type,
+      edition_slug: editionSlugFromJoin(item.editions),
       is_custom: true,
       original_id: item.id,
     }));

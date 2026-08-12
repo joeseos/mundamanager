@@ -28,6 +28,8 @@ export interface CreateCustomFighterData {
   willpower?: number;
   intelligence?: number;
   save?: number | null;
+  starting_xp?: number | null;
+  is_vehicle?: boolean;
   special_rules: string[];
   free_skill: boolean;
   fighter_subtypes: string[];
@@ -192,10 +194,10 @@ export async function createCustomFighter(data: CreateCustomFighterData): Promis
         willpower: data.willpower,
         intelligence: data.intelligence,
         save: data.save ?? null,
-        // Nothing in the customise UI sets Starting XP yet. The column has no
-        // default, so leaving it out would store NULL — N/A, a fighter that can
-        // never gain XP — for every custom type anyone creates.
-        starting_xp: 0,
+        // The column has no default, and NULL means N/A — a fighter that can never
+        // gain XP. Editions without the concept send an explicit 0.
+        starting_xp: data.starting_xp ?? 0,
+        is_vehicle: data.is_vehicle ?? false,
         special_rules: data.special_rules,
         free_skill: data.free_skill,
         fighter_subtypes: data.fighter_subtypes,
@@ -407,9 +409,12 @@ export async function updateCustomFighter(id: string, data: CreateCustomFighterD
         willpower: data.willpower,
         intelligence: data.intelligence,
         save: data.save ?? null,
+        starting_xp: data.starting_xp ?? 0,
+        is_vehicle: data.is_vehicle ?? false,
         special_rules: data.special_rules,
         free_skill: data.free_skill,
         fighter_subtypes: data.fighter_subtypes,
+        // edition_id is deliberately absent: an asset's edition is immutable.
         updated_at: new Date().toISOString()
       })
       .eq('id', id)

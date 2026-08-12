@@ -22,7 +22,7 @@ import {
 } from '@/app/actions/customise/custom-gang-types';
 import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants';
 import type { UserCampaign } from '@/types/campaign';
-import { EDITION_N23 } from '@/types/edition';
+import { hasAlignment } from '@/types/edition';
 
 interface CustomiseGangTypesProps {
   className?: string;
@@ -30,6 +30,8 @@ interface CustomiseGangTypesProps {
   userId?: string;
   userCampaigns?: UserCampaign[];
   readOnly?: boolean;
+  /** Edition of everything shown here, and of anything created. */
+  editionSlug: string;
   onGangTypeUpdated?: (gangTypeId: string, newName: string) => any[] | undefined;
   onGangTypeUpdateRollback?: (previousFighters: any[]) => void;
 }
@@ -42,9 +44,11 @@ export function CustomiseGangTypes({
   userId,
   userCampaigns = [],
   readOnly = false,
+  editionSlug,
   onGangTypeUpdated,
   onGangTypeUpdateRollback,
 }: CustomiseGangTypesProps) {
+  const showAlignment = hasAlignment(editionSlug);
   const [gangTypes, setGangTypes] = useState<CustomGangType[]>(initialGangTypes);
   const [prevInitialGangTypes, setPrevInitialGangTypes] = useState(initialGangTypes);
   if (initialGangTypes !== prevInitialGangTypes) {
@@ -211,13 +215,21 @@ export function CustomiseGangTypes({
 
   const handleCreateConfirm = async () => {
     if (!isFormValid()) return false;
-    createMutation.mutate({ ...formData, edition_slug: EDITION_N23 });
+    createMutation.mutate({
+      ...formData,
+      // Guard the value rather than relying on the field being hidden
+      alignment: showAlignment ? formData.alignment : null,
+      edition_slug: editionSlug,
+    });
     return true;
   };
 
   const handleEditConfirm = async () => {
     if (!editModalData || !isFormValid()) return false;
-    updateMutation.mutate({ id: editModalData.id, data: formData });
+    updateMutation.mutate({
+      id: editModalData.id,
+      data: { ...formData, alignment: showAlignment ? formData.alignment : null },
+    });
     return true;
   };
 
@@ -236,14 +248,14 @@ export function CustomiseGangTypes({
       align: 'left',
       width: '50%',
     },
-    {
+    ...(showAlignment ? [{
       key: 'alignment',
       label: 'Alignment',
-      align: 'left',
+      align: 'left' as const,
       width: '35%',
       cellClassName: 'text-sm text-muted-foreground',
-      render: (value) => value || '-',
-    },
+      render: (value: any) => value || '-',
+    }] : []),
     {
       key: 'description',
       label: 'Desc.',
@@ -311,27 +323,29 @@ export function CustomiseGangTypes({
         />
       </div>
 
-      <div>
-        <label className="block text-sm font-medium mb-1">Alignment</label>
-        <select
-          className="w-full border rounded-md p-2 bg-background"
-          value={formData.alignment || ''}
-          onChange={(e) =>
-            setFormData({
-              ...formData,
-              alignment: (e.target.value || null) as CustomGangTypeData['alignment'],
-            })
-          }
-          disabled={isReadOnly}
-        >
-          <option value="">None</option>
-          {ALIGNMENT_OPTIONS.map((opt) => (
-            <option key={opt} value={opt}>
-              {opt}
-            </option>
-          ))}
-        </select>
-      </div>
+      {showAlignment && (
+        <div>
+          <label className="block text-sm font-medium mb-1">Alignment</label>
+          <select
+            className="w-full border rounded-md p-2 bg-background"
+            value={formData.alignment || ''}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                alignment: (e.target.value || null) as CustomGangTypeData['alignment'],
+              })
+            }
+            disabled={isReadOnly}
+          >
+            <option value="">None</option>
+            {ALIGNMENT_OPTIONS.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div>
         <label htmlFor="gt-description" className="flex justify-between items-center text-sm font-medium mb-1">

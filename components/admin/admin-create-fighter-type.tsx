@@ -10,6 +10,7 @@ import { HiX } from "react-icons/hi";
 import { GangType, Equipment } from "@/types/gang";
 import { EditionSelect, useEditions } from '@/components/edition-select';
 import { hasAlignment, hasSaveCharacteristic, allowsMultipleSubtypes, hasStartingXp, hasVehicles } from '@/types/edition';
+import { toggleFighterSubtype } from '@/utils/fighter-subtypes';
 import { getSkillSetRank } from "@/utils/skillSetRank";
 import { compareEquipmentCategories } from "@/utils/getEquipmentCategoryRank";
 
@@ -205,12 +206,10 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
     [equipment, editionId]
   );
 
-  const toggleFighterSubtype = (subtypeName: string, checked: boolean) => {
-    const selected = new Set(selectedFighterSubtypes);
-    if (checked) selected.add(subtypeName); else selected.delete(subtypeName);
-    // Keep the reference-list order so the stored array doesn't depend on the
-    // order the boxes happened to be ticked in
-    setSelectedFighterSubtypes(filteredFighterSubtypes.map(fc => fc.subtype_name).filter(name => selected.has(name)));
+  const handleToggleFighterSubtype = (subtypeName: string, checked: boolean) => {
+    setSelectedFighterSubtypes(
+      toggleFighterSubtype(selectedFighterSubtypes, filteredFighterSubtypes, subtypeName, checked)
+    );
   };
 
   const handleEditionChange = (newEditionId: string) => {
@@ -535,7 +534,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                     <label key={fighterSubtype.id} className="flex items-center gap-2 text-sm cursor-pointer">
                       <Checkbox
                         checked={selectedFighterSubtypes.includes(fighterSubtype.subtype_name)}
-                        onCheckedChange={(checked) => toggleFighterSubtype(fighterSubtype.subtype_name, checked === true)}
+                        onCheckedChange={(checked) => handleToggleFighterSubtype(fighterSubtype.subtype_name, checked === true)}
                       />
                       <span>{fighterSubtype.subtype_name}</span>
                     </label>

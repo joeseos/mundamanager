@@ -33,7 +33,7 @@ import type { CustomSkill } from '@/app/lib/customise/custom-skills';
 import type { CustomGangType } from '@/app/actions/customise/custom-gang-types';
 import type { CustomTradingPost } from '@/app/actions/customise/custom-trading-posts';
 import type { UserCampaign } from '@/types/campaign';
-import { EDITION_N23 } from '@/types/edition';
+
 
 const TYPE_LABELS: Record<CollectionItemType, string> = {
   gang_type: 'Gang Type',
@@ -54,8 +54,11 @@ interface CustomiseCollectionsProps {
   userId?: string;
   userCampaigns?: UserCampaign[];
   readOnly?: boolean;
+  /** Edition of everything shown here, and of anything created. */
+  editionSlug: string;
   // Candidate custom assets to add into a collection — the same arrays the Custom Assets
-  // tab already holds, so the editor needs no extra fetch.
+  // tab already holds, already filtered to editionSlug, so the item picker is
+  // edition-correct without filtering again here.
   customEquipment?: CustomEquipment[];
   customFighterTypes?: CustomFighterType[];
   customSkills?: CustomSkill[];
@@ -69,6 +72,7 @@ export function CustomiseCollections({
   userId,
   userCampaigns = [],
   readOnly = false,
+  editionSlug,
   customEquipment = [],
   customFighterTypes = [],
   customSkills = [],
@@ -269,7 +273,7 @@ export function CustomiseCollections({
 
   const handleCreateConfirm = () => {
     if (!isFormValid()) return false;
-    createMutation.mutate({ name: formData.name, description: formData.description || null, edition_slug: EDITION_N23 });
+    createMutation.mutate({ name: formData.name, description: formData.description || null, edition_slug: editionSlug });
     setIsAddModalOpen(false);
     resetForm();
     return true;

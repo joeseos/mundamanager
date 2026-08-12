@@ -5,23 +5,15 @@ import { Button } from '@/components/ui/button';
 import { ImInfo } from "react-icons/im";
 import { HiX } from "react-icons/hi";
 import { LuChevronUp, LuChevronDown } from "react-icons/lu";
+import { WeaponProfileFields } from '@/components/ui/weapon-profile-fields';
+import { WeaponProfileInput, emptyWeaponProfile } from '@/types/equipment';
 
-export interface CustomWeaponProfile {
-  id?: string;
-  profile_name?: string;
-  range_short: string;
-  range_long: string;
-  acc_short: string;
-  acc_long: string;
-  strength: string;
-  ap: string;
-  damage: string;
-  lethality?: string;
-  ammo: string;
-  traits?: string;
-  sort_order?: number;
-  weapon_group_id?: string | null;
-}
+/**
+ * A custom weapon profile is the admin form shape plus the row id. Sharing
+ * WeaponProfileInput keeps every stat a plain string, which is what the NOT NULL
+ * columns on custom_weapon_profiles need — only lethality and traits are nullable.
+ */
+export type CustomWeaponProfile = WeaponProfileInput & { id?: string };
 
 export interface AvailableWeapon {
   id: string;
@@ -36,6 +28,8 @@ interface CustomWeaponProfilesProps {
   disabled?: boolean;
   availableWeapons?: AvailableWeapon[];
   showTargetWeapon?: boolean;
+  /** N26 statline: SR, LR, Str, AP, Lethality. N23: Rng S/L, Acc S/L, Str, AP, D, Am. */
+  usesLethality?: boolean;
 }
 
 interface ProfileCardProps {
@@ -43,13 +37,14 @@ interface ProfileCardProps {
   index: number;
   isFirst: boolean;
   isLast: boolean;
+  usesLethality: boolean;
   onUpdate: (index: number, field: keyof CustomWeaponProfile, value: string | number) => void;
   onDelete: (index: number) => void;
   onMoveUp: (index: number) => void;
   onMoveDown: (index: number) => void;
 }
 
-const ProfileCard = memo(({ profile, index, isFirst, isLast, onUpdate, onDelete, onMoveUp, onMoveDown }: ProfileCardProps) => {
+const ProfileCard = memo(({ profile, index, isFirst, isLast, usesLethality, onUpdate, onDelete, onMoveUp, onMoveDown }: ProfileCardProps) => {
   return (
     <div className="border rounded-lg p-3 space-y-3">
       <div className="flex justify-between items-center">
@@ -110,113 +105,14 @@ const ProfileCard = memo(({ profile, index, isFirst, isLast, onUpdate, onDelete,
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">
-              Range (Short)
-            </label>
-            <input
-              type="text"
-              value={profile.range_short}
-              onChange={(e) => onUpdate(index, 'range_short', e.target.value)}
-              className="w-full p-2 border rounded-md text-sm"
-              placeholder="e.g. 6"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">
-              Range (Long)
-            </label>
-            <input
-              type="text"
-              value={profile.range_long}
-              onChange={(e) => onUpdate(index, 'range_long', e.target.value)}
-              className="w-full p-2 border rounded-md text-sm"
-              placeholder="e.g. 18"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">
-              Accuracy (Short)
-            </label>
-            <input
-              type="text"
-              value={profile.acc_short}
-              onChange={(e) => onUpdate(index, 'acc_short', e.target.value)}
-              className="w-full p-2 border rounded-md text-sm"
-              placeholder="e.g. +1"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">
-              Accuracy (Long)
-            </label>
-            <input
-              type="text"
-              value={profile.acc_long}
-              onChange={(e) => onUpdate(index, 'acc_long', e.target.value)}
-              className="w-full p-2 border rounded-md text-sm"
-              placeholder="e.g. -1"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">
-              Strength
-            </label>
-            <input
-              type="text"
-              value={profile.strength}
-              onChange={(e) => onUpdate(index, 'strength', e.target.value)}
-              className="w-full p-2 border rounded-md text-sm"
-              placeholder="e.g. 3, S+1"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">
-              AP
-            </label>
-            <input
-              type="text"
-              value={profile.ap}
-              onChange={(e) => onUpdate(index, 'ap', e.target.value)}
-              className="w-full p-2 border rounded-md text-sm"
-              placeholder="e.g. -1, -"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">
-              Damage
-            </label>
-            <input
-              type="text"
-              value={profile.damage}
-              onChange={(e) => onUpdate(index, 'damage', e.target.value)}
-              className="w-full p-2 border rounded-md text-sm"
-              placeholder="e.g. 1, D3"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">
-              Ammo
-            </label>
-            <input
-              type="text"
-              value={profile.ammo}
-              onChange={(e) => onUpdate(index, 'ammo', e.target.value)}
-              className="w-full p-2 border rounded-md text-sm"
-              placeholder="e.g. 6+, -"
-            />
-          </div>
-        </div>
+        {/* Which stats the edition uses is decided once in WeaponProfileFields,
+            shared with the admin equipment modals. */}
+        <WeaponProfileFields
+          profile={profile}
+          index={index}
+          onChange={onUpdate}
+          usesLethality={usesLethality}
+        />
 
         <div>
           <label className="block text-xs font-medium text-muted-foreground mb-1">
@@ -237,7 +133,7 @@ const ProfileCard = memo(({ profile, index, isFirst, isLast, onUpdate, onDelete,
 
 ProfileCard.displayName = 'ProfileCard';
 
-export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = false, availableWeapons, showTargetWeapon = false }: CustomWeaponProfilesProps) {
+export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = false, availableWeapons, showTargetWeapon = false, usesLethality = false }: CustomWeaponProfilesProps) {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [storedTargetWeaponId, setStoredTargetWeaponId] = useState<string | null>(
     () => (profiles.length > 0 ? profiles[0].weapon_group_id ?? null : null)
@@ -277,25 +173,12 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
     }
   };
 
-  const createEmptyProfile = (): CustomWeaponProfile => ({
-    profile_name: '',
-    range_short: '',
-    range_long: '',
-    acc_short: '',
-    acc_long: '',
-    strength: '',
-    ap: '',
-    damage: '',
-    ammo: '',
-    traits: '',
-    sort_order: profiles.length,
-    weapon_group_id: targetWeaponId || null,
-  });
-
   const handleAddProfile = () => {
-    const newProfile = createEmptyProfile();
-    const updatedProfiles = [...profiles, newProfile];
-    onProfilesChange(updatedProfiles);
+    const newProfile: CustomWeaponProfile = {
+      ...emptyWeaponProfile(profiles.length),
+      weapon_group_id: targetWeaponId || null,
+    };
+    onProfilesChange([...profiles, newProfile]);
   };
 
   const handleUpdateProfile = useCallback((index: number, field: keyof CustomWeaponProfile, value: string | number) => {
@@ -432,6 +315,7 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
               index={index}
               isFirst={index === 0}
               isLast={index === profiles.length - 1}
+              usesLethality={usesLethality}
               onUpdate={handleUpdateProfile}
               onDelete={handleDeleteProfile}
               onMoveUp={handleMoveUp}
