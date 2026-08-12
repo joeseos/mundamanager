@@ -882,7 +882,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                       }
                     }
 
-                    // Default gear can grant a subtype, e.g. a fighter type shipping a Dirt bike
+                    // Default gear can grant a subtype, e.g. a type shipping a Dirt bike
                     await syncSubtypeGrants(supabase, fighterId, { granted: allAppliedEffects });
                   }
                 } catch (batchError) {

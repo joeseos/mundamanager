@@ -264,9 +264,8 @@ export function EditFighterModal({
     return [...catalog, ...uncatalogued];
   }, [allFighterSubtypes, fighter.fighter_subtypes, selectedFighterSubtypes]);
 
-  // Subtypes an effect granted, e.g. a Dirt bike granting Mounted. They sit in
-  // fighter_subtypes like any other, so mark them read-only — removing one here
-  // would only last until the next time the equipment resynced it.
+  // Effect-granted subtypes sit in fighter_subtypes like any other, so mark them
+  // read-only — removing one would only last until the equipment resynced it.
   const effectGrantedSubtypes = useMemo(() => {
     const allEffects = fighter.effects ? Object.values(fighter.effects).flat() : [];
     const { add } = subtypeGrantsFromEffects(allEffects);
@@ -445,10 +444,9 @@ export function EditFighterModal({
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
 
-  // Drop a stale selection when the fighter is ineligible, or when a settled
-  // non-empty catalog no longer includes it. Derived rather than corrected in an
-  // effect, so there is no intermediate render holding an archetype the fighter
-  // cannot have — and no cascading re-render to get rid of it.
+  // Drop a stale selection when the fighter is ineligible, or a settled non-empty
+  // catalog no longer lists it. Derived, not corrected in an effect, so no render
+  // ever holds an archetype the fighter cannot have.
   const effectiveArchetypeId = useMemo(() => {
     if (!selectedArchetypeId || !canUseArchetypes) return '';
 

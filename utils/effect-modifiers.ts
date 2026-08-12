@@ -405,11 +405,9 @@ export function applySpecialRulesModifiers(
  * Subtype ids an effect list grants or strips, e.g. a Dirt bike granting
  * "Mounted". Ids, not names — resolving them needs the fighter_subtypes catalog.
  *
- * Unlike special rules, subtypes are not merged for display: they are written to
- * fighters.fighter_subtypes by utils/fighter-subtype-grants.ts, because raw SQL
- * reads that column for skill cost tiers and the XP model. This extractor is the
- * shared read half — the server uses it to apply grants, the edit modal to mark
- * the resulting chips read-only.
+ * Unlike special rules these are not merged for display: the server writes them
+ * to fighters.fighter_subtypes (see utils/fighter-subtype-grants.ts). Shared with
+ * the edit modal, which uses them to mark the resulting chips read-only.
  */
 export function subtypeGrantsFromEffects(
   effects: Array<{ type_specific_data?: TraitModificationData | string | null }> | null | undefined

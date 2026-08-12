@@ -13,12 +13,7 @@ export interface TraitModificationData {
   traits_to_remove?: string[];
   special_rules_to_add?: string[];
   special_rules_to_remove?: string[];
-  /**
-   * Subtype grants, as uuids into fighter_subtypes. Ids rather than names
-   * because subtype_name is only unique per edition. Read with
-   * subtypeGrantsFromEffects; written onto fighters.fighter_subtypes by
-   * utils/fighter-subtype-grants.ts.
-   */
+  /** uuids into fighter_subtypes; ids not names, as subtype_name repeats across editions */
   fighter_subtype_ids_to_add?: string[];
   fighter_subtype_ids_to_remove?: string[];
 }
