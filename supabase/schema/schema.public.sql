@@ -1494,7 +1494,11 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             ELSE COALESCE(bac.best_adjusted_cost, e.cost::numeric)
         END AS adjusted_cost,
 
-        COALESCE(bac.best_trade_points, e.trade_points) AS trade_points,
+        -- Trade Points: a Trading Post price, so the fighter's-list-only request pays none
+        CASE
+            WHEN $4 = true AND $5 IS NULL THEN '0'
+            ELSE COALESCE(bac.best_trade_points, e.trade_points)
+        END AS trade_points,
 
         e.equipment_category,
         e.equipment_type,
@@ -1706,7 +1710,10 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
               OR custom_tp.cost_reputation THEN ce.cost::numeric
             ELSE COALESCE(custom_tp.adjusted_cost, custom_tp.cost_override, ce.cost::numeric)
         END AS adjusted_cost,
-        ce.trade_points,
+        CASE
+            WHEN $4 = true AND $5 IS NULL THEN '0'
+            ELSE ce.trade_points
+        END AS trade_points,
         ce.equipment_category,
         ce.equipment_type,
         ce.created_at,
@@ -7058,6 +7065,13 @@ CREATE INDEX equipment_availability_gang_origin_id_idx ON public.equipment_avail
 
 
 --
+-- Name: equipment_categories_category_name_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX equipment_categories_category_name_idx ON public.equipment_categories USING btree (category_name);
+
+
+--
 -- Name: equipment_categories_edition_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7853,6 +7867,13 @@ CREATE INDEX scenarios_scenario_name_idx ON public.scenarios USING btree (scenar
 --
 
 CREATE INDEX skill_types_edition_id_idx ON public.skill_types USING btree (edition_id);
+
+
+--
+-- Name: skill_types_name_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX skill_types_name_idx ON public.skill_types USING btree (name);
 
 
 --
