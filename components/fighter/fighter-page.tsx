@@ -479,6 +479,15 @@ export default function FighterPage({
     });
   }, []);
 
+  // Trade Points are spent from the gang, not the fighter, so a purchase reports them
+  // back separately from the credits carried by handleEquipmentUpdate.
+  const handleGangTradePointsUpdate = useCallback((newTradePoints: number) => {
+    setFighterData(prev => ({
+      ...prev,
+      gang: prev.gang ? { ...prev.gang, trade_points: newTradePoints } : null
+    }));
+  }, []);
+
   const handleEquipmentBought = useCallback((
     newFighterCredits: number,
     newGangCredits: number,
@@ -781,6 +790,7 @@ export default function FighterPage({
               onAddEquipment={() => handleModalToggle('addWeapon', true)}
               userPermissions={userPermissions}
               onRegisterPurchase={(fn) => { purchaseHandlerRef.current = fn; }}
+              onGangTradePointsUpdate={handleGangTradePointsUpdate}
               fighterEffects={fighterData.fighter?.effects || {}}
               onEffectsUpdate={(updatedEffects) => {
                 setFighterData(prev => ({
