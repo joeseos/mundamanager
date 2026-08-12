@@ -8,6 +8,14 @@ import { getCustomDescriptionLengthError, normalizeCustomDescription } from './c
 import { removeItemFromAllCollections } from './custom-collections';
 import { invalidateUserCustomFighters, invalidateUserCustomCollections } from '@/utils/cache-tags';
 
+/**
+ * Starting XP has three states, and `?? 0` would collapse two of them: null is a
+ * real value (N/A — the fighter can never gain XP), while an omitted field means
+ * the caller has no opinion and gets the editions-without-the-concept default.
+ */
+const startingXpFor = (value?: number | null): number | null =>
+  value === undefined ? 0 : value;
+
 export interface CreateCustomFighterData {
   fighter_type: string;
   gang_type: string;
@@ -194,9 +202,7 @@ export async function createCustomFighter(data: CreateCustomFighterData): Promis
         willpower: data.willpower,
         intelligence: data.intelligence,
         save: data.save ?? null,
-        // The column has no default, and NULL means N/A — a fighter that can never
-        // gain XP. Editions without the concept send an explicit 0.
-        starting_xp: data.starting_xp ?? 0,
+        starting_xp: startingXpFor(data.starting_xp),
         is_vehicle: data.is_vehicle ?? false,
         special_rules: data.special_rules,
         free_skill: data.free_skill,
@@ -409,7 +415,7 @@ export async function updateCustomFighter(id: string, data: CreateCustomFighterD
         willpower: data.willpower,
         intelligence: data.intelligence,
         save: data.save ?? null,
-        starting_xp: data.starting_xp ?? 0,
+        starting_xp: startingXpFor(data.starting_xp),
         is_vehicle: data.is_vehicle ?? false,
         special_rules: data.special_rules,
         free_skill: data.free_skill,

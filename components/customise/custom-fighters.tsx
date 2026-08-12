@@ -824,36 +824,11 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       setEquipment(existingEquipment);
     }
 
-    // Load gang types and fighter subtypes if not already loaded
-    if (gangTypes.length === 0) {
-      const fetchGangTypes = async () => {
-        try {
-          const response = await fetch('/api/gang-types?includeAll=true');
-          if (response.ok) {
-            const data = await response.json();
-            setGangTypes(data.filter((gt: any) => sameEditionForDisplay(gt.edition_slug, editionSlug)));
-          }
-        } catch (error) {
-          console.error('Error fetching gang types:', error);
-        }
-      };
-      fetchGangTypes();
-    }
-
-    if (fighterSubtypes.length === 0) {
-      const fetchFighterSubtypes = async () => {
-        try {
-          const response = await fetch(`/api/fighter-subtypes?edition_slug=${editionSlug}`);
-          if (response.ok) {
-            const data = await response.json();
-            setFighterSubtypes(data);
-          }
-        } catch (error) {
-          console.error('Error fetching fighter subtypes:', error);
-        }
-      };
-      fetchFighterSubtypes();
-    }
+    // No gang-type or subtype fetch here: the View modal renders gang_type and
+    // fighter_subtypes straight off the fighter. Populating those lists only
+    // served to satisfy the `length === 0` guard on the Add/Edit fetch, which
+    // then skipped its own curated fetch and left the authoring pickers showing
+    // placeholder and alliance-only subtypes.
   };
 
   const handleCopy = (fighter: CustomFighterType) => {
@@ -901,7 +876,9 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         willpower: copyModalData.willpower,
         intelligence: copyModalData.intelligence,
         save: copyModalData.save ?? null,
-        starting_xp: copyModalData.starting_xp ?? 0,
+        // ?? 0 here would turn a copied N/A into "starts at 0 XP", which is a
+        // different fighter. The copy mirrors the source.
+        starting_xp: copyModalData.starting_xp ?? null,
         is_vehicle: copyModalData.is_vehicle ?? false,
         special_rules: copyModalData.special_rules || [],
         free_skill: copyModalData.free_skill || false,
