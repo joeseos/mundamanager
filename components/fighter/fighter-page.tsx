@@ -479,8 +479,6 @@ export default function FighterPage({
     });
   }, []);
 
-  // Trade Points are spent from the gang, not the fighter, so a purchase reports them
-  // back separately from the credits carried by handleEquipmentUpdate.
   const handleGangTradePointsUpdate = useCallback((newTradePoints: number) => {
     setFighterData(prev => ({
       ...prev,

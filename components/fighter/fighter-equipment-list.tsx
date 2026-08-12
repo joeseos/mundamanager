@@ -76,7 +76,6 @@ interface WeaponListProps {
   onAddEquipment: () => void;
   userPermissions: UserPermissions;
   onRegisterPurchase?: (fn: (payload: { params: any; item: Equipment }) => void) => void;
-  /** Trade Points live on the gang row, so a purchase that spends them has to report back. */
   onGangTradePointsUpdate?: (newTradePoints: number) => void;
   fighterEffects?: Record<string, FighterEffect[]>;
   onEffectsUpdate?: (updatedEffects: Record<string, FighterEffect[]>) => void;
@@ -179,8 +178,6 @@ export function WeaponList({
           const baseCostText = item.cost_resource_name
             ? `${item.cost_resource_amount} ${item.cost_resource_name}`
             : `${serverPurchaseCost} credits`;
-          // Only what was actually charged: the catalog value on the item is a
-          // Trading Post price and is not paid on every purchase path.
           const tradePointsCost = parseTradePointsCost(params.manual_trade_points);
           const costText = tradePointsCost > 0
             ? `${baseCostText} and ${tradePointsCost} TP`
