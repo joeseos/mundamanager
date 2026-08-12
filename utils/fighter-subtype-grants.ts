@@ -5,25 +5,12 @@ import type { TraitModificationData } from '@/types/fighter-effect';
 /**
  * Equipment-granted fighter subtypes, e.g. a Dirt bike granting "Mounted".
  *
- * Subtypes are functional, not cosmetic — raw SQL reads fighters.fighter_subtypes
- * to pick skill cost tiers (get_available_skills) and the XP model
- * (get_fighter_available_advancements), and archetypes, promotion and roster
- * sorting all key off it. So a render-time merge like applySpecialRulesModifiers
- * would not reach them; the grant has to be written to the column.
- *
- * The effect row is the provenance. Every path that creates or destroys an
- * equipment effect already holds its type_specific_data for rating math, so
- * applying and reverting piggybacks on queries that already run.
- *
- * Lives here rather than in app/actions/equipment.ts because that file is
- * 'use server', where every export becomes a publicly callable endpoint; and
- * rather than in utils/effect-modifiers.ts, which imports nothing but types and
- * is pulled into five client components. The pure half of this feature — reading
- * the ids off type_specific_data — is in effect-modifiers.ts as
- * subtypeGrantsFromEffects, shared with the edit modal.
+ * Written to fighters.fighter_subtypes rather than merged at render like special
+ * rules, because raw SQL reads that column for skill cost tiers and the XP model.
+ * The effect row is the provenance, and every path that creates or destroys one
+ * already holds its type_specific_data for rating math.
  */
 
-/** Shape shared by effect types and effect instances — both carry type_specific_data. */
 type EffectWithData = { type_specific_data?: TraitModificationData | string | null };
 
 /**
@@ -64,33 +51,30 @@ export async function resolveFighterEditionSlug(
 }
 
 /**
- * Apply or revert subtype grants on fighters.fighter_subtypes.
- *
  * `granted` are effects that now exist on the fighter, `revoked` are effects that
- * no longer do. Callers pass whichever applies; both are optional.
+ * no longer do; callers pass whichever applies.
  *
- * Call revoked AFTER the effect rows are gone. Delete and sell get that for free
- * from the fighter_equipment cascade, but move-to-stash reads its effects before
- * deleting them, so it must call this afterwards.
+ * Call revoked AFTER the effect rows are gone — delete and sell get that from the
+ * fighter_equipment cascade, but move-to-stash deletes its own effects first.
  */
 export async function syncSubtypeGrants(
   supabase: any,
   fighterId: string | null | undefined,
   effects: { granted?: EffectWithData[] | null; revoked?: EffectWithData[] | null }
 ): Promise<void> {
+  // No vehicle branch needed: vehicle_id is N23-only, and N23 fails the edition
+  // check below. On N26 a vehicle IS a fighter, so it arrives here as fighterId.
   if (!fighterId) return;
 
   const granted = subtypeGrantsFromEffects(effects.granted);
   const revoked = subtypeGrantsFromEffects(effects.revoked);
 
-  // The overwhelmingly common case: equipment that grants no subtype at all.
-  // Bail before touching the database so ordinary purchases cost nothing.
+  // Ordinary purchases grant no subtype, so cost them nothing.
   const touched = [...granted.add, ...granted.remove, ...revoked.add, ...revoked.remove];
   if (touched.length === 0) return;
 
-  // A grant stacks a subtype on top of the fighter's own, so it only makes sense
-  // where the edition allows several. allowsMultipleSubtypes(null) is false, so
-  // an unresolved edition stays legacy rather than silently granting.
+  // A grant stacks a subtype, so it needs an edition that allows several.
+  // allowsMultipleSubtypes(null) is false, keeping an unresolved edition legacy.
   const editionSlug = await resolveFighterEditionSlug(supabase, fighterId);
   if (!allowsMultipleSubtypes(editionSlug)) return;
 
@@ -98,9 +82,8 @@ export async function syncSubtypeGrants(
   const idsToAdd = new Set([...granted.add, ...revoked.remove]);
   const idsToRemove = new Set([...granted.remove, ...revoked.add]);
 
-  // A subtype another item still grants must survive: selling one of two Dirt
-  // bikes keeps Mounted. Only the revoked side can be contested, and the effect
-  // rows are already gone by now, so what remains is what still counts.
+  // Selling one of two Dirt bikes must keep Mounted. The revoked rows are already
+  // gone by now, so whatever remains is what still counts.
   if (revoked.add.length > 0 || revoked.remove.length > 0) {
     const { data: remaining } = await supabase
       .from('fighter_effects')
@@ -141,5 +124,7 @@ export async function syncSubtypeGrants(
 
   if (next.length === current.length && next.every((name, i) => name === current[i])) return;
 
+  // Read-modify-write: two grant-bearing mutations racing on one fighter could
+  // clobber each other. Atomicity would need a jsonb merge in SQL.
   await supabase.from('fighters').update({ fighter_subtypes: next }).eq('id', fighterId);
 }

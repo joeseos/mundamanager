@@ -110,8 +110,7 @@ export function AdminFighterEffects({
     staleTime: 5 * 60 * 1000,
   });
 
-  // Same rule as the category and equipment filters above: scope to the selected
-  // edition when there is one, since subtype_name repeats across editions
+  // Same rule as the category and equipment filters: scope to the selected edition
   const fighterSubtypesForDisplay = useMemo(
     () => editionId ? fighterSubtypes.filter(fs => fs.edition_id === editionId) : fighterSubtypes,
     [fighterSubtypes, editionId]
@@ -134,8 +133,7 @@ export function AdminFighterEffects({
     traits_to_remove: '',
     special_rules_to_add: '',
     special_rules_to_remove: '',
-    // Subtype grants are picked by id, not typed as names — subtype_name is only
-    // unique per edition, so a name would be ambiguous
+    // Picked by id: subtype_name repeats across editions
     fighter_subtype_ids_to_add: [] as string[],
     fighter_subtype_ids_to_remove: [] as string[],
     credits_increase: '',

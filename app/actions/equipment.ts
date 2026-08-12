@@ -1158,7 +1158,7 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
       throw new Error(`Failed to delete equipment: ${deleteError.message}`);
     }
 
-    // After the cascade, so the remaining-grant check sees only survivors
+    // After the cascade, so the survivor check sees only what remains
     await syncSubtypeGrants(supabase, equipmentBefore.fighter_id, { revoked: associatedEffects });
 
     // Log equipment deletion

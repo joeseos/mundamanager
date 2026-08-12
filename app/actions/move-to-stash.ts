@@ -187,7 +187,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
         throw new Error(`Failed to remove associated effects: ${deleteEffectsError.message}`);
       }
 
-      // After the delete above, so the remaining-grant check sees only survivors
+      // After the delete above, so the survivor check sees only what remains
       await syncSubtypeGrants(supabase, equipmentData.fighter_id, { revoked: associatedEffects });
     }
 
