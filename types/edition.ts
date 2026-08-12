@@ -110,7 +110,7 @@ const EDITION_CAPABILITIES = {
    * Custom fighter authoring offers a curated shortlist of subtypes rather than
    * every row the edition defines. The N23 table mixes real subtypes with
    * placeholders ('*', 'Others', 'Special Terrain') and alliance-only entries, so
-   * it needs the shortlist in utils/allowedFighterSubtypes.ts. N26's subtypes are
+   * it needs the shortlist in utils/fighter-subtype-picker.ts. N26's subtypes are
    * all authorable traits (abhuman types, vehicle locomotion, archetypes), and a
    * shortlist would hide most of them.
    */

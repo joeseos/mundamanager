@@ -1,3 +1,8 @@
+/**
+ * Helpers for the fighter subtype picker: which subtypes a form may offer, and
+ * how ticking one updates the selection. Selection only — subtype ranking lives
+ * in fighterSubtypeRank.ts and subtype-driven effects in fighter-subtype-grants.ts.
+ */
 import { hasCuratedFighterSubtypes } from '@/types/edition';
 
 export const allowedFighterSubtypes: { [key: string]: boolean } = {

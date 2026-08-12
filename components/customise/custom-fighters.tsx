@@ -21,7 +21,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createCustomFighter, deleteCustomFighter, updateCustomFighter } from '@/app/actions/customise/custom-fighters';
 import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants';
-import { filterAllowedFighterSubtypes } from '@/utils/allowedFighterSubtypes';
 import { ShareCustomFighterModal } from '@/components/customise/custom-shared';
 import { getSkillSetRank } from '@/utils/skillSetRank';
 import type { UserCampaign } from '@/types/campaign';
@@ -34,7 +33,7 @@ import {
   hasVehicles,
   sameEditionForDisplay,
 } from '@/types/edition';
-import { toggleFighterSubtype } from '@/utils/allowedFighterSubtypes';
+import { filterAllowedFighterSubtypes, toggleFighterSubtype } from '@/utils/fighter-subtype-picker';
 
 interface CustomiseFightersProps {
   className?: string;
