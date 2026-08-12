@@ -80,10 +80,12 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
         )?.quantity ?? 0
     : undefined;
 
-  const showTradePoints = hasTradePoints(editionSlug);
+  const editionHasTradePoints = hasTradePoints(editionSlug);
+  // Trade Points buy from the Trading Post; the fighter's own list is paid in credits alone.
+  const showTradePoints = editionHasTradePoints && equipmentListType !== 'fighters-list';
   const showMasterCrafted = hasMasterCraftedWeapons(editionSlug);
   const [manualTradePoints, setManualTradePoints] = useState<string>(
-    String(item.trade_points ?? '0')
+    showTradePoints ? String(item.trade_points ?? '0') : '0'
   );
   const tradePointsCost = showTradePoints ? parseTradePointsCost(manualTradePoints) : 0;
   const availableTradePoints = gangTradePoints ?? 0;
@@ -96,7 +98,8 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
     selectedEffectIds: [],
     selectedGrantEquipmentIds: [],
     resourceCost,
-    ...(showTradePoints && { tradePoints: manualTradePoints.trim() }),
+    // Explicit even when hidden: omitting it makes the server charge the catalog cost.
+    ...(editionHasTradePoints && { tradePoints: showTradePoints ? manualTradePoints.trim() : '0' }),
     ...overrides,
   });
 

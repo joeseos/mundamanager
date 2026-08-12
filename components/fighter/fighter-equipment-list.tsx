@@ -76,6 +76,7 @@ interface WeaponListProps {
   onAddEquipment: () => void;
   userPermissions: UserPermissions;
   onRegisterPurchase?: (fn: (payload: { params: any; item: Equipment }) => void) => void;
+  onGangTradePointsUpdate?: (newTradePoints: number) => void;
   fighterEffects?: Record<string, FighterEffect[]>;
   onEffectsUpdate?: (updatedEffects: Record<string, FighterEffect[]>) => void;
   loadouts?: FighterLoadout[];
@@ -95,6 +96,7 @@ export function WeaponList({
   onAddEquipment,
   userPermissions,
   onRegisterPurchase,
+  onGangTradePointsUpdate,
   fighterEffects = {},
   onEffectsUpdate,
   loadouts = [],
@@ -168,10 +170,15 @@ export function WeaponList({
 
           onEquipmentUpdate(updated, previousFighterCredits + serverRatingCost, newGangCredits);
 
+          const newGangTradePoints = data?.updategangsCollection?.records?.[0]?.trade_points;
+          if (onGangTradePointsUpdate && newGangTradePoints !== undefined) {
+            onGangTradePointsUpdate(newGangTradePoints);
+          }
+
           const baseCostText = item.cost_resource_name
             ? `${item.cost_resource_amount} ${item.cost_resource_name}`
             : `${serverPurchaseCost} credits`;
-          const tradePointsCost = parseTradePointsCost(params.manual_trade_points ?? item.trade_points);
+          const tradePointsCost = parseTradePointsCost(params.manual_trade_points);
           const costText = tradePointsCost > 0
             ? `${baseCostText} and ${tradePointsCost} TP`
             : baseCostText;
@@ -182,7 +189,7 @@ export function WeaponList({
         }
       });
     }
-  }, [onRegisterPurchase, equipment, fighterCredits, gangCredits, onEquipmentUpdate]);
+  }, [onRegisterPurchase, equipment, fighterCredits, gangCredits, onEquipmentUpdate, onGangTradePointsUpdate]);
 
   const handleDeleteEquipment = async (fighterEquipmentId: string, equipmentId: string) => {
     // Snapshot for rollback

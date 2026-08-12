@@ -178,7 +178,7 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
       const baseCostDescription = resourceCost
         ? `${resourceCost.amount} ${resourceCost.resourceName}`
         : `${serverPurchaseCost} credits`;
-      const tradePointsCost = parseTradePointsCost(tradePoints ?? item.trade_points);
+      const tradePointsCost = parseTradePointsCost(tradePoints);
       const costDescription = tradePointsCost > 0
         ? `${baseCostDescription} and ${tradePointsCost} TP`
         : baseCostDescription;

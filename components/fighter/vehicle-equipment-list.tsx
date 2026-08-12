@@ -572,7 +572,7 @@ export function VehicleEquipmentList({
           const baseCostText = item.cost_resource_name
             ? `${item.cost_resource_amount} ${item.cost_resource_name}`
             : `${serverPurchaseCost} credits`;
-          const tradePointsCost = parseTradePointsCost(params.manual_trade_points ?? item.trade_points);
+          const tradePointsCost = parseTradePointsCost(params.manual_trade_points);
           const costText = tradePointsCost > 0
             ? `${baseCostText} and ${tradePointsCost} TP`
             : baseCostText;

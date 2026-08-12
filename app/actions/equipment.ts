@@ -928,7 +928,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
               id: params.gang_id,
               credits: financialResult.newValues?.credits ?? (gang.credits - finalPurchaseCost),
               rating: financialResult.newValues?.rating ?? Math.max(0, (gang.rating || 0) + totalRatingDelta),
-              wealth: financialResult.newValues?.wealth ?? Math.max(0, (gang.wealth || 0) + totalRatingDelta + (-finalPurchaseCost))
+              wealth: financialResult.newValues?.wealth ?? Math.max(0, (gang.wealth || 0) + totalRatingDelta + (-finalPurchaseCost)),
+              trade_points: newGangTradePoints ?? gang.trade_points
             }]
           },
           insertIntofighter_equipmentCollection: {

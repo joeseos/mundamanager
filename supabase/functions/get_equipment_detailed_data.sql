@@ -284,7 +284,11 @@ AS $$
             ELSE COALESCE(bac.best_adjusted_cost, e.cost::numeric)
         END AS adjusted_cost,
 
-        COALESCE(bac.best_trade_points, e.trade_points) AS trade_points,
+        -- Trade Points: a Trading Post price, so the fighter's-list-only request pays none
+        CASE
+            WHEN $4 = true AND $5 IS NULL THEN '0'
+            ELSE COALESCE(bac.best_trade_points, e.trade_points)
+        END AS trade_points,
 
         e.equipment_category,
         e.equipment_type,
@@ -496,7 +500,10 @@ AS $$
               OR custom_tp.cost_reputation THEN ce.cost::numeric
             ELSE COALESCE(custom_tp.adjusted_cost, custom_tp.cost_override, ce.cost::numeric)
         END AS adjusted_cost,
-        ce.trade_points,
+        CASE
+            WHEN $4 = true AND $5 IS NULL THEN '0'
+            ELSE ce.trade_points
+        END AS trade_points,
         ce.equipment_category,
         ce.equipment_type,
         ce.created_at,
