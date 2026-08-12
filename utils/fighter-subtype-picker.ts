@@ -5,7 +5,7 @@
  */
 import { hasCuratedFighterSubtypes } from '@/types/edition';
 
-export const allowedFighterSubtypes: { [key: string]: boolean } = {
+const allowedFighterSubtypes: { [key: string]: boolean } = {
   // Core fighter subtypes (allowed)
   "Leader": true,
   "Champion": true,
