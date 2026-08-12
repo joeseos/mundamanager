@@ -284,7 +284,13 @@ AS $$
             ELSE COALESCE(bac.best_adjusted_cost, e.cost::numeric)
         END AS adjusted_cost,
 
-        COALESCE(bac.best_trade_points, e.trade_points) AS trade_points,
+        -- Trade Points are a Trading Post price. Buying from the fighter's own
+        -- equipment list costs credits only, so the fighter's-list-only request
+        -- ($4 = true, $5 unset) reports 0 TP regardless of the catalog value.
+        CASE
+            WHEN $4 = true AND $5 IS NULL THEN '0'
+            ELSE COALESCE(bac.best_trade_points, e.trade_points)
+        END AS trade_points,
 
         e.equipment_category,
         e.equipment_type,
@@ -496,7 +502,11 @@ AS $$
               OR custom_tp.cost_reputation THEN ce.cost::numeric
             ELSE COALESCE(custom_tp.adjusted_cost, custom_tp.cost_override, ce.cost::numeric)
         END AS adjusted_cost,
-        ce.trade_points,
+        -- Same rule as above: no Trade Points when browsing the fighter's own list.
+        CASE
+            WHEN $4 = true AND $5 IS NULL THEN '0'
+            ELSE ce.trade_points
+        END AS trade_points,
         ce.equipment_category,
         ce.equipment_type,
         ce.created_at,

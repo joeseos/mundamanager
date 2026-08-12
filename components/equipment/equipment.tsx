@@ -154,6 +154,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const rarityFilter: 'none' | 'tradePoints' | 'availability' =
     equipmentListType === 'fighters-list' ? 'none' : showTradePoints ? 'tradePoints' : 'availability';
 
+  // Trade Points are the Trading Post's currency: an item on the fighter's own
+  // equipment list is bought with credits alone, even when the same item carries
+  // a TP cost in the Trading Post.
+  const chargesTradePoints = showTradePoints && equipmentListType !== 'fighters-list';
+
   const { purchaseEquipment } = usePurchaseEquipment({
     session,
     gangId,
@@ -479,7 +484,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
   const canAffordEquipment = (item: Equipment) => {
     const canAffordCredits = gangCredits >= (item.adjusted_cost ?? item.cost);
-    if (!showTradePoints) return canAffordCredits;
+    if (!chargesTradePoints) return canAffordCredits;
     const tradePointsCost = parseTradePointsCost(item.trade_points);
     return canAffordCredits && tradePointsCost <= (gangTradePoints ?? 0);
   };

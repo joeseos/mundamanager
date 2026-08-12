@@ -178,7 +178,9 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
       const baseCostDescription = resourceCost
         ? `${resourceCost.amount} ${resourceCost.resourceName}`
         : `${serverPurchaseCost} credits`;
-      const tradePointsCost = parseTradePointsCost(tradePoints ?? item.trade_points);
+      // Only what was actually charged: the catalog value on the item is a Trading
+      // Post price and is not paid on every purchase path.
+      const tradePointsCost = parseTradePointsCost(tradePoints);
       const costDescription = tradePointsCost > 0
         ? `${baseCostDescription} and ${tradePointsCost} TP`
         : baseCostDescription;
