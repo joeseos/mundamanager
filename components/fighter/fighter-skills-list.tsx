@@ -22,8 +22,10 @@ import {
   isN26GangerChampionPromotionSkillGrant,
   isN26LeaderPromotionSkillGrant,
   isN26ProspectPromotionSkillGrant,
+  isN26ProspectPromotionUndoCandidate,
   N26_PROSPECT_PROMOTION_CREDITS,
 } from '@/utils/keepTypePromotionN26';
+import { hasProspectSpecialisationPromotion } from '@/types/edition';
 
 // Interface for individual skill when displayed in table
 interface Skill {
@@ -55,6 +57,8 @@ interface SkillsListProps {
   fighterSpecialisationId?: string | null;
   fighterSpecialisationName?: string | null;
   fighterSubtypes?: string[];
+  /** Catalog fighter_types.fighter_subtypes for keep-type Prospect undo detection. */
+  fighterCatalogSubtypes?: string[];
   onSkillsUpdate: (updatedSkills: FighterSkills) => void;
   onGangCreditsUpdate?: (creditsDelta: number) => void;
   /** Rating / fighter-credits delta (e.g. −15 when undoing Prospect promotion). */
@@ -487,11 +491,13 @@ export function SkillsList({
   fighterSpecialisationId = null,
   fighterSpecialisationName = null,
   fighterSubtypes = [],
+  fighterCatalogSubtypes = [],
   onSkillsUpdate,
   onGangCreditsUpdate,
   onXpCreditsUpdate,
   onFighterDetailsUpdate,
 }: SkillsListProps) {
+  const editionAllowsProspectPromotion = hasProspectSpecialisationPromotion(editionSlug);
   const [skillToDelete, setSkillToDelete] = useState<{ id: string; name: string } | null>(null);
   const [isAddSkillModalOpen, setIsAddSkillModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -527,11 +533,15 @@ export function SkillsList({
       const previousSkills = { ...localSkills };
       const [skillName, skillDataRaw] = skillEntry;
       const skillData = skillDataRaw as any;
-      const isProspectPromotionGrant = isN26ProspectPromotionSkillGrant(
+      const isProspectPromotionGrant = isN26ProspectPromotionUndoCandidate({
+        editionSlug,
+        currentSubtypes: fighterSubtypes,
+        catalogSubtypes: fighterCatalogSubtypes,
         fighterSpecialisationId,
-        null,
-        skillName
-      );
+        skillId: null,
+        skillName,
+        editionAllowsProspectPromotion,
+      });
       // Optimistic only — server also verifies catalog type for demotion.
       const isGangerChampionPromotionGrant = isN26GangerChampionPromotionSkillGrant(
         fighterSubtypes,
@@ -606,17 +616,22 @@ export function SkillsList({
       if (result.fighter_details) {
         onFighterDetailsUpdate?.(result.fighter_details);
       } else if (
-        (context?.isGangerChampionPromotionGrant || context?.isLeaderPromotionGrant) &&
+        (context?.isProspectPromotionGrant ||
+          context?.isGangerChampionPromotionGrant ||
+          context?.isLeaderPromotionGrant) &&
         context.previousFighterDetails
       ) {
-        // Server did not demote (e.g. starting Champion/Leader with Inspiring) — undo optimistic demotion.
+        // Server did not demote (false-positive optimistic / starting type with Inspiring).
         onFighterDetailsUpdate?.({
           fighter_subtypes: context.previousFighterDetails.fighter_subtypes,
           fighter_specialisation: context.previousFighterDetails.fighter_specialisation,
           fighter_specialisation_id: context.previousFighterDetails.fighter_specialisation_id,
         });
+        if (context.isProspectPromotionGrant && context.ratingCreditsRemoved > 0) {
+          onXpCreditsUpdate?.(0, context.ratingCreditsRemoved);
+        }
       }
-      if (context?.isProspectPromotionGrant) {
+      if (context?.isProspectPromotionGrant && result.fighter_details) {
         toast.success(`${context?.skillName} removed — Prospect promotion undone`);
       } else if (context?.isGangerChampionPromotionGrant && result.fighter_details) {
         toast.success(`${context?.skillName} removed — Champion promotion undone`);
@@ -805,7 +820,17 @@ export function SkillsList({
                   </span>
                 );
               }
-              if (isN26ProspectPromotionSkillGrant(fighterSpecialisationId, null, item.name)) {
+              if (
+                isN26ProspectPromotionUndoCandidate({
+                  editionSlug,
+                  currentSubtypes: fighterSubtypes,
+                  catalogSubtypes: fighterCatalogSubtypes,
+                  fighterSpecialisationId,
+                  skillId: null,
+                  skillName: item.name,
+                  editionAllowsProspectPromotion,
+                })
+              ) {
                 return (
                   <span className="text-muted-foreground text-sm italic whitespace-nowrap">
                     Promotion: Ganger
@@ -831,9 +856,12 @@ export function SkillsList({
               if (!!item.fighter_injury_id || !!item.is_advance || !userPermissions.canEdit || deleteSkillMutation.isPending) {
                 return true;
               }
-              // After Champion/Leader promotion, the Prospect (Promotion: Ganger) skill cannot be undone first.
+              // After Champion/Leader promotion, Prospect grant cannot be undone first.
               if (
+                editionAllowsProspectPromotion &&
                 isN26ProspectPromotionSkillGrant(fighterSpecialisationId, null, item.name) &&
+                fighterCatalogSubtypes.includes('Prospect') &&
+                !fighterCatalogSubtypes.includes('Ganger') &&
                 (fighterSubtypes.includes('Champion') || fighterSubtypes.includes('Leader'))
               ) {
                 return true;

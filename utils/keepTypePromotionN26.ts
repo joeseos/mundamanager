@@ -86,8 +86,9 @@ export function isN26ProspectPromotionSkillName(skillName: string): boolean {
 }
 
 /**
- * True when deleting this skill should undo an N26 Prospect promotion:
- * the fighter's specialisation maps to this skill (by id or name).
+ * True when this skill matches the fighter's specialisation map (name/id).
+ * Not sufficient alone for undo — native specialised Gangers share these
+ * specialisations. Use {@link isN26ProspectPromotionUndoCandidate} for demotion.
  */
 export function isN26ProspectPromotionSkillGrant(
   fighterSpecialisationId: string | null | undefined,
@@ -98,6 +99,38 @@ export function isN26ProspectPromotionSkillGrant(
   const spec = getN26ProspectSpecialisation(fighterSpecialisationId);
   if (!spec) return false;
   return skillId === spec.preferredSkillId || skillName === spec.skillName;
+}
+
+/**
+ * True when deleting this skill should undo an N26 Prospect keep-type promotion.
+ * Requires: specialisation→skill match, post-promo subtypes (Ganger+Specialist),
+ * and a Prospect catalog type (keep-type left fighter_type_id on a Prospect row;
+ * native specialised Gangers are Ganger+Specialist in catalog).
+ */
+export function isN26ProspectPromotionUndoCandidate(args: {
+  editionSlug?: string | null;
+  currentSubtypes?: string[] | null;
+  catalogSubtypes?: string[] | null;
+  fighterSpecialisationId?: string | null;
+  skillId?: string | null;
+  skillName: string;
+  /** When true, edition has prospectSpecialisationPromotion. */
+  editionAllowsProspectPromotion: boolean;
+}): boolean {
+  if (!args.editionAllowsProspectPromotion) return false;
+  if (!isN26ProspectPromotionSkillGrant(
+    args.fighterSpecialisationId,
+    args.skillId,
+    args.skillName
+  )) {
+    return false;
+  }
+  const current = args.currentSubtypes ?? [];
+  if (!current.includes('Ganger') || !current.includes('Specialist')) return false;
+  const catalog = args.catalogSubtypes ?? [];
+  // Keep-type: catalog stayed Prospect. Native specialists are Ganger in catalog.
+  if (!catalog.includes('Prospect') || catalog.includes('Ganger')) return false;
+  return true;
 }
 
 /** Drop Prospect; ensure Ganger + Specialist; keep every other subtype. */

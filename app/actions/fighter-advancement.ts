@@ -27,6 +27,7 @@ import {
   isN26GangerChampionPromotionSkillGrant,
   isN26LeaderPromotionSkillGrant,
   isN26ProspectPromotionSkillGrant,
+  isN26ProspectPromotionUndoCandidate,
 } from '@/utils/keepTypePromotionN26';
 
 import { 
@@ -1132,19 +1133,12 @@ export async function applyN26GangerChampionPromotion(
       return { success: false, error: skillResolved.error };
     }
 
-    if (
-      await fighterAlreadyHasSkill(
-        supabase,
-        params.fighter_id,
-        skillResolved.skillId,
-        N26_CHAMPION_PROMOTION_SKILL_NAME
-      )
-    ) {
-      return {
-        success: false,
-        error: `This fighter already has the skill ${N26_CHAMPION_PROMOTION_SKILL_NAME}`,
-      };
-    }
+    const alreadyHasInspiring = await fighterAlreadyHasSkill(
+      supabase,
+      params.fighter_id,
+      skillResolved.skillId,
+      N26_CHAMPION_PROMOTION_SKILL_NAME
+    );
 
     // Always rebuild subtypes server-side — never trust client-supplied lists.
     const newSubtypes = buildN26GangerChampionPromotionSubtypes(currentSubtypes);
@@ -1158,7 +1152,8 @@ export async function applyN26GangerChampionPromotion(
       newSubtypes,
       specialRules,
       // Keep existing specialisation (if any); do not clear or overwrite.
-      skillId: skillResolved.skillId,
+      // Skip Inspiring grant when already owned — still promote (mirror Leader).
+      skillId: alreadyHasInspiring ? undefined : skillResolved.skillId,
       creditsIncrease: 0,
     });
   } catch (error) {
@@ -1366,28 +1361,9 @@ export async function deleteAdvancement(
       const currentSubtypesForGrant: string[] = Array.isArray(fighter.fighter_subtypes)
         ? fighter.fighter_subtypes
         : [];
+      const editionSlugForUndo = editionSlugOf(fighter);
 
-      // N26 Prospect promotion grant: rating-only (no stash refund) and full demotion
-      const isProspectPromotionGrant = isN26ProspectPromotionSkillGrant(
-        fighter.fighter_specialisation_id,
-        skillData.skill_id,
-        deletedSkillName
-      );
-
-      // Must undo Champion/Leader first — demoting Prospect while promoted would conflict.
-      if (
-        isProspectPromotionGrant &&
-        (currentSubtypesForGrant.includes('Champion') || currentSubtypesForGrant.includes('Leader'))
-      ) {
-        return {
-          success: false,
-          error: currentSubtypesForGrant.includes('Leader')
-            ? 'Undo the Leader promotion before undoing the Ganger promotion'
-            : 'Undo the Champion promotion (Inspiring) before undoing the Ganger promotion',
-        };
-      }
-
-      // Load catalog subtypes once for Ganger→Champion / Champion→Leader undo checks.
+      // Load catalog subtypes once for N26 promotion undo checks.
       let catalogSubtypesForUndo: string[] = [];
       if (fighter.fighter_type_id) {
         const { data: catalogType } = await supabase
@@ -1398,6 +1374,44 @@ export async function deleteAdvancement(
         catalogSubtypesForUndo = Array.isArray(catalogType?.fighter_subtypes)
           ? catalogType!.fighter_subtypes
           : [];
+      }
+
+      // N26 Prospect keep-type grant: edition + catalog Prospect + post-promo subtypes.
+      // Do not use skill/specialisation match alone — native specialised Gangers share those.
+      let isProspectPromotionGrant = isN26ProspectPromotionUndoCandidate({
+        editionSlug: editionSlugForUndo,
+        currentSubtypes: currentSubtypesForGrant,
+        catalogSubtypes: catalogSubtypesForUndo,
+        fighterSpecialisationId: fighter.fighter_specialisation_id,
+        skillId: skillData.skill_id,
+        skillName: deletedSkillName,
+        editionAllowsProspectPromotion: hasProspectSpecialisationPromotion(editionSlugForUndo),
+      });
+      if (isProspectPromotionGrant && !fighter.fighter_type_id) {
+        isProspectPromotionGrant = false;
+      }
+
+      // Must undo Champion/Leader first — demoting Prospect while promoted would conflict.
+      // Uses skill match (not full undo candidate) so ordering still applies after Champion promo
+      // when current subtypes are no longer Ganger+Specialist.
+      const looksLikeProspectPromotionSkill = isN26ProspectPromotionSkillGrant(
+        fighter.fighter_specialisation_id,
+        skillData.skill_id,
+        deletedSkillName
+      );
+      if (
+        looksLikeProspectPromotionSkill &&
+        hasProspectSpecialisationPromotion(editionSlugForUndo) &&
+        catalogSubtypesForUndo.includes('Prospect') &&
+        !catalogSubtypesForUndo.includes('Ganger') &&
+        (currentSubtypesForGrant.includes('Champion') || currentSubtypesForGrant.includes('Leader'))
+      ) {
+        return {
+          success: false,
+          error: currentSubtypesForGrant.includes('Leader')
+            ? 'Undo the Leader promotion before undoing the Prospect promotion'
+            : 'Undo the Champion promotion (Inspiring) before undoing the Prospect promotion',
+        };
       }
 
       // N26 Ganger→Champion keep-type grant: only demote when catalog type is a

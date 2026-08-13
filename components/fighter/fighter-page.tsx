@@ -56,6 +56,8 @@ interface Fighter {
   fighter_type: {
     fighter_type: string;
     fighter_type_id: string;
+    /** Catalog subtypes for the fighter's type row (keep-type promotion undo). */
+    fighter_subtypes?: string[];
     gang_type_id?: string | null;
     custom_gang_type_id?: string | null;
   };
@@ -330,6 +332,9 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
       fighter_type: {
         fighter_type: fighterData.fighter.fighter_type.fighter_type,
         fighter_type_id: fighterData.fighter.fighter_type.fighter_type_id,
+        fighter_subtypes: Array.isArray(fighterData.fighter.fighter_type.fighter_subtypes)
+          ? fighterData.fighter.fighter_type.fighter_subtypes
+          : [],
         gang_type_id: fighterData.fighter.fighter_type.gang_type_id ?? null,
         custom_gang_type_id: fighterData.fighter.fighter_type.custom_gang_type_id ?? null,
       },
@@ -824,6 +829,7 @@ export default function FighterPage({
             fighterSpecialisationId={fighterData.fighter?.fighter_specialisation?.fighter_specialisation_id || null}
             fighterSpecialisationName={fighterData.fighter?.fighter_specialisation?.fighter_specialisation || null}
             fighterSubtypes={fighterData.fighter?.fighter_subtypes || []}
+            fighterCatalogSubtypes={fighterData.fighter?.fighter_type?.fighter_subtypes || []}
             onSkillsUpdate={(updatedSkills) => {
               setFighterData(prev => ({
                 ...prev,
@@ -912,6 +918,8 @@ export default function FighterPage({
                           ? {
                               fighter_type: patch.fighter_type,
                               fighter_type_id: patch.fighter_type_id,
+                              // Keep catalog subtypes unless a future patch supplies new ones.
+                              fighter_subtypes: prev.fighter.fighter_type?.fighter_subtypes ?? [],
                               gang_type_id: prev.fighter.fighter_type?.gang_type_id ?? null,
                               custom_gang_type_id: prev.fighter.fighter_type?.custom_gang_type_id ?? null,
                             }
