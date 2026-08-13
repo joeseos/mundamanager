@@ -8,6 +8,14 @@ import { getCustomDescriptionLengthError, normalizeCustomDescription } from './c
 import { removeItemFromAllCollections } from './custom-collections';
 import { invalidateUserCustomFighters, invalidateUserCustomCollections } from '@/utils/cache-tags';
 
+/**
+ * Starting XP has three states, and `?? 0` would collapse two of them: null is a
+ * real value (N/A — the fighter can never gain XP), while an omitted field means
+ * the caller has no opinion and gets the editions-without-the-concept default.
+ */
+const startingXpFor = (value?: number | null): number | null =>
+  value === undefined ? 0 : value;
+
 export interface CreateCustomFighterData {
   fighter_type: string;
   gang_type: string;
@@ -28,6 +36,8 @@ export interface CreateCustomFighterData {
   willpower?: number;
   intelligence?: number;
   save?: number | null;
+  starting_xp?: number | null;
+  is_vehicle?: boolean;
   special_rules: string[];
   free_skill: boolean;
   fighter_subtypes: string[];
@@ -192,10 +202,8 @@ export async function createCustomFighter(data: CreateCustomFighterData): Promis
         willpower: data.willpower,
         intelligence: data.intelligence,
         save: data.save ?? null,
-        // Nothing in the customise UI sets Starting XP yet. The column has no
-        // default, so leaving it out would store NULL — N/A, a fighter that can
-        // never gain XP — for every custom type anyone creates.
-        starting_xp: 0,
+        starting_xp: startingXpFor(data.starting_xp),
+        is_vehicle: data.is_vehicle ?? false,
         special_rules: data.special_rules,
         free_skill: data.free_skill,
         fighter_subtypes: data.fighter_subtypes,
@@ -407,9 +415,12 @@ export async function updateCustomFighter(id: string, data: CreateCustomFighterD
         willpower: data.willpower,
         intelligence: data.intelligence,
         save: data.save ?? null,
+        starting_xp: startingXpFor(data.starting_xp),
+        is_vehicle: data.is_vehicle ?? false,
         special_rules: data.special_rules,
         free_skill: data.free_skill,
         fighter_subtypes: data.fighter_subtypes,
+        // edition_id is deliberately absent: an asset's edition is immutable.
         updated_at: new Date().toISOString()
       })
       .eq('id', id)

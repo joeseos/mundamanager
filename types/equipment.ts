@@ -150,6 +150,8 @@ export interface EquipmentListItem {
   equipment_name: string;
   equipment_category: string;
   equipment_type?: string;
+  /** From /api/equipment, so pickers can scope to one edition. */
+  edition_slug?: string | null;
   is_custom: boolean;
   original_id?: string;
 }

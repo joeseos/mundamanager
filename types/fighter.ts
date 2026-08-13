@@ -302,6 +302,12 @@ export interface CustomFighterType {
   intelligence?: number;
   gang_type_id?: string;
   custom_gang_type_id?: string | null;
+  /** N26 Sv. Null on editions without the characteristic. */
+  save?: number | null;
+  /** N26 starting XP. Null means N/A — the fighter can never gain XP. */
+  starting_xp?: number | null;
+  /** N26 makes vehicles fighter types rather than a catalog of their own. */
+  is_vehicle?: boolean;
   special_rules?: string[];
   free_skill?: boolean;
   delegation_cost?: number | null;

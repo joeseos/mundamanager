@@ -21,12 +21,19 @@ import { Textarea } from '@/components/ui/textarea';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createCustomFighter, deleteCustomFighter, updateCustomFighter } from '@/app/actions/customise/custom-fighters';
 import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants';
-import { filterAllowedFighterSubtypes } from '@/utils/allowedFighterSubtypes';
 import { ShareCustomFighterModal } from '@/components/customise/custom-shared';
 import { getSkillSetRank } from '@/utils/skillSetRank';
 import type { UserCampaign } from '@/types/campaign';
 import type { EquipmentListItem } from '@/types/equipment';
-import { EDITION_N23 } from '@/types/edition';
+import {
+  EDITION_N23,
+  allowsMultipleSubtypes,
+  hasSaveCharacteristic,
+  hasStartingXp,
+  hasVehicles,
+  sameEditionForDisplay,
+} from '@/types/edition';
+import { filterAllowedFighterSubtypes, toggleFighterSubtype } from '@/utils/fighter-subtype-picker';
 
 interface CustomiseFightersProps {
   className?: string;
@@ -34,16 +41,18 @@ interface CustomiseFightersProps {
   userId?: string;
   userCampaigns?: UserCampaign[];
   readOnly?: boolean;
+  /** Edition of everything shown here, and of anything created. */
+  editionSlug: string;
 }
 
 type SkillTypeItem = { id: string; skill_type: string; is_custom?: boolean };
 
-function SkillSetOptions({ skillTypes, excludeIds }: {
+function SkillSetOptions({ skillTypes, excludeIds, editionSlug }: {
   skillTypes: SkillTypeItem[];
   excludeIds?: Set<string>;
+  editionSlug: string;
 }) {
-  // Customise is N23-only for now (same as create/copy paths below).
-  const skillSetRank = getSkillSetRank(EDITION_N23);
+  const skillSetRank = getSkillSetRank(editionSlug);
   const available = excludeIds
     ? skillTypes.filter(st => !excludeIds.has(st.id))
     : skillTypes;
@@ -111,7 +120,12 @@ interface FighterSubtype {
   subtype_name: string;
 }
 
-export function CustomiseFighters({ className, initialFighters, userId, userCampaigns = [], readOnly = false }: CustomiseFightersProps) {
+export function CustomiseFighters({ className, initialFighters, userId, userCampaigns = [], readOnly = false, editionSlug }: CustomiseFightersProps) {
+  const showSave = hasSaveCharacteristic(editionSlug);
+  const showStartingXp = hasStartingXp(editionSlug);
+  const showVehicle = hasVehicles(editionSlug);
+  const allowMultipleSubtypes = allowsMultipleSubtypes(editionSlug);
+
   const [fighters, setFighters] = useState<CustomFighterType[]>(initialFighters);
 
   const [prevInitialFighters, setPrevInitialFighters] = useState(initialFighters);
@@ -318,7 +332,8 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
   const [fighterType, setFighterType] = useState('');
   const [cost, setCost] = useState('');
   const [selectedGangType, setSelectedGangType] = useState('');
-  const [selectedFighterSubtype, setSelectedFighterSubtype] = useState<FighterSubtype | ''>('');
+  // Names, not ids: N26 fighters carry several subtypes, and the column stores names.
+  const [selectedFighterSubtypes, setSelectedFighterSubtypes] = useState<string[]>([]);
   const [gangTypes, setGangTypes] = useState<GangType[]>([]);
   const [fighterSubtypes, setFighterSubtypes] = useState<FighterSubtype[]>([]);
 
@@ -335,6 +350,10 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
   const [willpower, setWillpower] = useState('');
   const [intelligence, setIntelligence] = useState('');
   const [attacks, setAttacks] = useState('');
+  // N26-only fields; the submit path guards them so a hidden one is never stored.
+  const [save, setSave] = useState('');
+  const [startingXp, setStartingXp] = useState('');
+  const [isVehicle, setIsVehicle] = useState(false);
   const [specialRules, setSpecialRules] = useState<string[]>([]);
   const [newSpecialRule, setNewSpecialRule] = useState('');
   const [freeSkill, setFreeSkill] = useState(false);
@@ -369,8 +388,20 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
   const [selectedEquipmentListCategory, setSelectedEquipmentListCategory] = useState('');
   const [selectedEquipmentList, setSelectedEquipmentList] = useState<string[]>([]);
 
-  // Check if selected fighter subtype is Crew (simplified stats)
-  const isCrew = Boolean(selectedFighterSubtype && selectedFighterSubtype.subtype_name === 'Crew');
+  // Crew fighters get simplified stats. 'Crew' is an N23-only subtype — N26 makes
+  // vehicles fighter types instead, so this is false there by construction.
+  const isCrew = selectedFighterSubtypes.includes('Crew');
+
+  // The dropdown fetches below only run while their list is empty, so an edition
+  // change has to clear them or the first edition's options would stick.
+  const [prevEditionSlug, setPrevEditionSlug] = useState(editionSlug);
+  if (editionSlug !== prevEditionSlug) {
+    setPrevEditionSlug(editionSlug);
+    setGangTypes([]);
+    setFighterSubtypes([]);
+    setSkillTypes([]);
+    setEquipment([]);
+  }
 
   const [prevIsCrew, setPrevIsCrew] = useState(isCrew);
   if (isCrew !== prevIsCrew) {
@@ -390,13 +421,9 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
   const editSubtypeKey = `${editModalData?.id}:${fighterSubtypes.length}`;
   if (editSubtypeKey !== prevEditSubtypeKey) {
     setPrevEditSubtypeKey(editSubtypeKey);
-    if (editModalData && fighterSubtypes.length > 0 && !selectedFighterSubtype) {
-      const fighterSubtype = fighterSubtypes.find(fc =>
-        editModalData.fighter_subtypes?.includes(fc.subtype_name)
-      );
-      if (fighterSubtype) {
-        setSelectedFighterSubtype(fighterSubtype);
-      }
+    if (editModalData && fighterSubtypes.length > 0 && selectedFighterSubtypes.length === 0) {
+      const stored = editModalData.fighter_subtypes ?? [];
+      setSelectedFighterSubtypes(allowMultipleSubtypes ? stored : stored.slice(0, 1));
     }
   }
 
@@ -538,7 +565,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
           const response = await fetch('/api/gang-types?includeAll=true');
           if (!response.ok) throw new Error('Failed to fetch gang types');
           const data = await response.json();
-          setGangTypes(data);
+          setGangTypes(data.filter((gt: any) => sameEditionForDisplay(gt.edition_slug, editionSlug)));
         } catch (error) {
           console.error('Error fetching gang types:', error);
           toast.error('Failed to load gang types');
@@ -547,7 +574,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
 
       fetchGangTypes();
     }
-  }, [isAddModalOpen, editModalData, gangTypes.length]);
+  }, [isAddModalOpen, editModalData, gangTypes.length, editionSlug]);
 
   useEffect(() => {
     if ((isAddModalOpen || editModalData) && !isLoadingDropdownData && (fighterSubtypes.length === 0 || skillTypes.length === 0 || equipment.length === 0)) {
@@ -559,10 +586,10 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
           // Fetch fighter subtypes if not loaded
           if (fighterSubtypes.length === 0) {
             promises.push(
-              fetch('/api/fighter-subtypes').then(async (response) => {
+              fetch(`/api/fighter-subtypes?edition_slug=${editionSlug}`).then(async (response) => {
                 if (response.ok) {
                   const subtypeData = await response.json();
-                  setFighterSubtypes(filterAllowedFighterSubtypes(subtypeData));
+                  setFighterSubtypes(filterAllowedFighterSubtypes(subtypeData, editionSlug));
                 }
               })
             );
@@ -571,7 +598,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
           // Fetch skill types if not loaded
           if (skillTypes.length === 0) {
             promises.push(
-              fetch('/api/skill-types').then(async (response) => {
+              fetch(`/api/skill-types?edition_slug=${editionSlug}`).then(async (response) => {
                 if (response.ok) {
                   const skillData = await response.json();
                   const transformedData = skillData.map((type: any) => ({
@@ -592,7 +619,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
               fetch('/api/equipment?core_equipment=false').then(async (response) => {
                 if (response.ok) {
                   const equipData: EquipmentListItem[] = await response.json();
-                  setEquipment(equipData);
+                  setEquipment(equipData.filter(e => sameEditionForDisplay(e.edition_slug, editionSlug)));
                 }
               })
             );
@@ -609,7 +636,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
 
       fetchData();
     }
-  }, [isAddModalOpen, editModalData, fighterSubtypes.length, skillTypes.length, equipment.length, isLoadingDropdownData]);
+  }, [isAddModalOpen, editModalData, fighterSubtypes.length, skillTypes.length, equipment.length, isLoadingDropdownData, editionSlug]);
 
   // useEffect to fetch skills based on selected skill type
   useEffect(() => {
@@ -653,7 +680,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     setFighterType('');
     setCost('');
     setSelectedGangType('');
-    setSelectedFighterSubtype('');
+    setSelectedFighterSubtypes([]);
     setMovement('');
     setWeaponSkill('');
     setBallisticSkill('');
@@ -666,6 +693,9 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     setWillpower('');
     setIntelligence('');
     setAttacks('');
+    setSave('');
+    setStartingXp('');
+    setIsVehicle(false);
     setSpecialRules([]);
     setNewSpecialRule('');
     setFreeSkill(false);
@@ -719,6 +749,9 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     setCool(fighter.cool?.toString() || '');
     setWillpower(fighter.willpower?.toString() || '');
     setIntelligence(fighter.intelligence?.toString() || '');
+    setSave(fighter.save != null ? fighter.save.toString() : '');
+    setStartingXp(fighter.starting_xp != null ? fighter.starting_xp.toString() : '');
+    setIsVehicle(fighter.is_vehicle ?? false);
     setSpecialRules(fighter.special_rules || []);
     setFreeSkill(fighter.free_skill || false);
     setDescription(fighter.description || null);
@@ -790,36 +823,11 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       setEquipment(existingEquipment);
     }
 
-    // Load gang types and fighter subtypes if not already loaded
-    if (gangTypes.length === 0) {
-      const fetchGangTypes = async () => {
-        try {
-          const response = await fetch('/api/gang-types');
-          if (response.ok) {
-            const data = await response.json();
-            setGangTypes(data);
-          }
-        } catch (error) {
-          console.error('Error fetching gang types:', error);
-        }
-      };
-      fetchGangTypes();
-    }
-
-    if (fighterSubtypes.length === 0) {
-      const fetchFighterSubtypes = async () => {
-        try {
-          const response = await fetch('/api/fighter-subtypes');
-          if (response.ok) {
-            const data = await response.json();
-            setFighterSubtypes(data);
-          }
-        } catch (error) {
-          console.error('Error fetching fighter subtypes:', error);
-        }
-      };
-      fetchFighterSubtypes();
-    }
+    // No gang-type or subtype fetch here: the View modal renders gang_type and
+    // fighter_subtypes straight off the fighter. Populating those lists only
+    // served to satisfy the `length === 0` guard on the Add/Edit fetch, which
+    // then skipped its own curated fetch and left the authoring pickers showing
+    // placeholder and alliance-only subtypes.
   };
 
   const handleCopy = (fighter: CustomFighterType) => {
@@ -866,6 +874,11 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         cool: copyModalData.cool,
         willpower: copyModalData.willpower,
         intelligence: copyModalData.intelligence,
+        save: copyModalData.save ?? null,
+        // ?? 0 here would turn a copied N/A into "starts at 0 XP", which is a
+        // different fighter. The copy mirrors the source.
+        starting_xp: copyModalData.starting_xp ?? null,
+        is_vehicle: copyModalData.is_vehicle ?? false,
         special_rules: copyModalData.special_rules || [],
         free_skill: copyModalData.free_skill || false,
         gang_type: copyModalData.gang_type || '',
@@ -877,7 +890,9 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         default_equipment: copyModalData.default_equipment?.map(eq => eq.equipment_id) || [],
         equipment_list: copyModalData.equipment_list?.map(eq => eq.equipment_id) || [],
         description: copyModalData.description,
-        edition_slug: EDITION_N23,
+        // The copy keeps the source's edition: an N26 fighter has N26 stats, so
+        // re-badging it with whatever the tab shows would corrupt it.
+        edition_slug: copyModalData.edition_slug ?? EDITION_N23,
       };
 
       if (readOnly) {
@@ -907,7 +922,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
 
   const handleSubmit = () => {
     // Validation
-    if (!selectedGangType || !selectedFighterSubtype || !fighterType || !cost) {
+    if (!selectedGangType || selectedFighterSubtypes.length === 0 || !fighterType || !cost) {
       toast.error('Please fill in all required fields');
       return false;
     }
@@ -939,7 +954,9 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       gang_type_id: isCustomGangType ? undefined : selectedGangType,
       custom_gang_type_id: isCustomGangType ? selectedGangType : undefined,
       gang_type: selectedGang?.gang_type || '',
-      fighter_subtypes: [selectedFighterSubtype.subtype_name],
+      fighter_subtypes: allowMultipleSubtypes
+        ? selectedFighterSubtypes
+        : selectedFighterSubtypes.slice(0, 1),
       movement: isCrew ? 0 : (movement ? parseInt(movement) : undefined),
       weapon_skill: isCrew ? 0 : (weaponSkill ? parseInt(weaponSkill) : undefined),
       ballistic_skill: ballisticSkill ? parseInt(ballisticSkill) : undefined,
@@ -959,7 +976,12 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       default_equipment: selectedEquipment,
       equipment_list: selectedEquipmentList,
       description,
-      edition_slug: EDITION_N23,
+      // Guard each value rather than relying on the field being hidden — anything
+      // typed before an edition switch would otherwise still be submitted.
+      save: showSave && save ? parseInt(save) : null,
+      starting_xp: showStartingXp ? (startingXp === '' ? null : parseInt(startingXp)) : 0,
+      is_vehicle: showVehicle ? isVehicle : false,
+      edition_slug: editionSlug,
     };
 
     // Check if we're editing or creating
@@ -1016,6 +1038,16 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       </div>
     );
   };
+
+  /** The read-only counterpart of renderStatInput, for the view modal. */
+  const renderStatView = (label: string, value?: number | null) => (
+    <div key={label}>
+      <label className="block text-xs text-muted-foreground mb-1">{label}</label>
+      <div className="w-full p-2 border rounded-md bg-muted text-center">
+        {value ?? '-'}
+      </div>
+    </div>
+  );
 
   const renderDescriptionField = (isReadOnly = false) => {
     const descCharCount = description?.length ?? 0;
@@ -1121,33 +1153,9 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     </div>
   );
 
-  return (
-    <div className={className}>
-      <List
-        title="Fighters"
-        items={fighters}
-        columns={columns}
-        actions={actions}
-        onAdd={readOnly ? undefined : () => setIsAddModalOpen(true)}
-        addButtonText="Create"
-        addButtonDisabled={createFighterMutation.isPending || deleteFighterMutation.isPending || updateFighterMutation.isPending}
-        emptyMessage="No custom fighters created yet."
-        isLoading={deleteFighterMutation.isPending}
-      />
-
-      {isAddModalOpen && (
-        <Modal
-          title="Create Custom Fighter"
-          helper="Create your own custom fighter with unique characteristics and abilities."
-          onClose={() => {
-            setIsAddModalOpen(false);
-            resetForm();
-          }}
-          onConfirm={handleSubmit}
-          confirmText={createFighterMutation.isPending ? 'Creating...' : 'Create Fighter'}
-          confirmDisabled={createFighterMutation.isPending}
-          width="xl"
-        >
+  // The create and edit modals render an identical form over the same state.
+  // Defined once here so a new field is added in one place, not two.
+  const renderFighterFormFields = () => (
           <div className="space-y-4">
             {/* Fighter Type and Subtype */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1164,27 +1172,47 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                 />
               </div>
 
+              {!allowMultipleSubtypes && (
+                <div>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    Fighter Subtype *
+                  </label>
+                  <select
+                    value={selectedFighterSubtypes[0] ?? ''}
+                    onChange={(e) => setSelectedFighterSubtypes(e.target.value ? [e.target.value] : [])}
+                    className="w-full p-2 border rounded-md"
+                  >
+                    <option value="">Select fighter subtype</option>
+                    {fighterSubtypes.map((fighterSubtype) => (
+                      <option key={fighterSubtype.id} value={fighterSubtype.subtype_name}>
+                        {fighterSubtype.subtype_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {allowMultipleSubtypes && (
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Fighter Subtype *
                 </label>
-                <select
-                  value={selectedFighterSubtype ? selectedFighterSubtype.id : ''}
-                  onChange={(e) => {
-                    const selectedSubtype = fighterSubtypes.find(fc => fc.id === e.target.value);
-                    setSelectedFighterSubtype(selectedSubtype || '');
-                  }}
-                  className="w-full p-2 border rounded-md"
-                >
-                  <option value="">Select fighter subtype</option>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-2">
                   {fighterSubtypes.map((fighterSubtype) => (
-                    <option key={fighterSubtype.id} value={fighterSubtype.id}>
-                      {fighterSubtype.subtype_name}
-                    </option>
+                    <label key={fighterSubtype.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <Checkbox
+                        checked={selectedFighterSubtypes.includes(fighterSubtype.subtype_name)}
+                        onCheckedChange={(checked) => setSelectedFighterSubtypes(
+                          toggleFighterSubtype(selectedFighterSubtypes, fighterSubtypes, fighterSubtype.subtype_name, checked === true)
+                        )}
+                      />
+                      <span>{fighterSubtype.subtype_name}</span>
+                    </label>
                   ))}
-                </select>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Gang Type and Cost */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1215,6 +1243,22 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                   min="0"
                 />
               </div>
+
+              {showStartingXp && (
+                <div>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    Starting XP
+                  </label>
+                  <Input
+                    type="number"
+                    value={startingXp}
+                    onChange={(e) => setStartingXp(e.target.value)}
+                    placeholder="Leave blank for N/A"
+                    className="w-full"
+                    min="0"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Combat Stats */}
@@ -1227,6 +1271,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
               {renderStatInput('W', wounds, setWounds, !isCrew, isCrew)}
               {renderStatInput('I', initiative, setInitiative, !isCrew, isCrew)}
               {renderStatInput('A', attacks, setAttacks, !isCrew, isCrew)}
+              {showSave && renderStatInput('Sv', save, setSave)}
               {renderStatInput('Ld', leadership, setLeadership, true)}
               {renderStatInput('Cl', cool, setCool, true)}
               {renderStatInput('Wil', willpower, setWillpower, true)}
@@ -1346,7 +1391,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                   className="p-1 border rounded-sm"
                 >
                   <option value="">Add Skill Set</option>
-                  <SkillSetOptions skillTypes={skillTypes} excludeIds={new Set(skillAccess.map(sa => sa.skill_type_id))} />
+                  <SkillSetOptions skillTypes={skillTypes} excludeIds={new Set(skillAccess.map(sa => sa.skill_type_id))} editionSlug={editionSlug} />
                 </select>
                 <Button
                   type="button"
@@ -1383,7 +1428,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                   className="w-full p-2 border rounded-md"
                 >
                   <option value="">Select a skill set</option>
-                  <SkillSetOptions skillTypes={skillTypes} />
+                  <SkillSetOptions skillTypes={skillTypes} editionSlug={editionSlug} />
                 </select>
 
                 <select
@@ -1516,8 +1561,51 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
               </label>
             </div>
 
+            {showVehicle && (
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="isVehicle"
+                  checked={isVehicle}
+                  onCheckedChange={(checked) => setIsVehicle(checked === true)}
+                />
+                <label htmlFor="isVehicle" className="text-sm font-medium text-muted-foreground">
+                  Vehicle
+                </label>
+              </div>
+            )}
+
             {renderDescriptionField()}
           </div>
+  );
+
+  return (
+    <div className={className}>
+      <List
+        title="Fighters"
+        items={fighters}
+        columns={columns}
+        actions={actions}
+        onAdd={readOnly ? undefined : () => setIsAddModalOpen(true)}
+        addButtonText="Create"
+        addButtonDisabled={createFighterMutation.isPending || deleteFighterMutation.isPending || updateFighterMutation.isPending}
+        emptyMessage="No custom fighters created yet."
+        isLoading={deleteFighterMutation.isPending}
+      />
+
+      {isAddModalOpen && (
+        <Modal
+          title="Create Custom Fighter"
+          helper="Create your own custom fighter with unique characteristics and abilities."
+          onClose={() => {
+            setIsAddModalOpen(false);
+            resetForm();
+          }}
+          onConfirm={handleSubmit}
+          confirmText={createFighterMutation.isPending ? 'Creating...' : 'Create Fighter'}
+          confirmDisabled={createFighterMutation.isPending}
+          width="xl"
+        >
+          {renderFighterFormFields()}
         </Modal>
       )}
 
@@ -1534,375 +1622,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
           confirmDisabled={createFighterMutation.isPending}
           width="xl"
         >
-          <div className="space-y-4">
-            {/* Fighter Type and Subtype */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Fighter Type *
-                </label>
-                <Input
-                  type="text"
-                  value={fighterType}
-                  onChange={(e) => setFighterType(e.target.value)}
-                  placeholder="e.g. Custom Warrior"
-                  className="w-full"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Fighter Subtype *
-                </label>
-                <select
-                  value={selectedFighterSubtype ? selectedFighterSubtype.id : ''}
-                  onChange={(e) => {
-                    const selectedSubtype = fighterSubtypes.find(fc => fc.id === e.target.value);
-                    setSelectedFighterSubtype(selectedSubtype || '');
-                  }}
-                  className="w-full p-2 border rounded-md"
-                >
-                  <option value="">Select fighter subtype</option>
-                  {fighterSubtypes.map((fighterSubtype) => (
-                    <option key={fighterSubtype.id} value={fighterSubtype.id}>
-                      {fighterSubtype.subtype_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Gang Type and Cost */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Gang Type *
-                </label>
-                <select
-                  value={selectedGangType}
-                  onChange={(e) => setSelectedGangType(e.target.value)}
-                  className="w-full p-2 border rounded-md"
-                >
-                  <option value="">Select gang type</option>
-                  {renderGangTypeOptions()}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Cost (credits) *
-                </label>
-                <Input
-                  type="number"
-                  value={cost}
-                  onChange={(e) => setCost(e.target.value)}
-                  placeholder="e.g. 125"
-                  className="w-full"
-                  min="0"
-                />
-              </div>
-            </div>
-
-            {/* Combat Stats */}
-            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 md:gap-2">
-              {renderStatInput('M', movement, setMovement, !isCrew, isCrew)}
-              {renderStatInput('WS', weaponSkill, setWeaponSkill, !isCrew, isCrew)}
-              {renderStatInput('BS', ballisticSkill, setBallisticSkill, true)}
-              {renderStatInput('S', strength, setStrength, !isCrew, isCrew)}
-              {renderStatInput('T', toughness, setToughness, !isCrew, isCrew)}
-              {renderStatInput('W', wounds, setWounds, !isCrew, isCrew)}
-              {renderStatInput('I', initiative, setInitiative, !isCrew, isCrew)}
-              {renderStatInput('A', attacks, setAttacks, !isCrew, isCrew)}
-              {renderStatInput('Ld', leadership, setLeadership, true)}
-              {renderStatInput('Cl', cool, setCool, true)}
-              {renderStatInput('Wil', willpower, setWillpower, true)}
-              {renderStatInput('Int', intelligence, setIntelligence, true)}
-            </div>
-
-            {/* Special Rules Section */}
-            <div>
-              <label className="block text-sm font-medium text-muted-foreground mb-1">
-                Special Rules
-              </label>
-              <div className="flex space-x-2 mb-2">
-                <Input
-                  type="text"
-                  value={newSpecialRule}
-                  onChange={(e) => setNewSpecialRule(e.target.value)}
-                  placeholder="Add a Special Rule"
-                  className="grow"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddSpecialRule();
-                    }
-                  }}
-                />
-                <Button
-                  onClick={handleAddSpecialRule}
-                  type="button"
-                >
-                  Add
-                </Button>
-              </div>
-
-              <div className="flex flex-wrap gap-2 mt-2">
-                {specialRules.map((rule, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center text-sm rounded-full px-3 py-1 bg-muted"
-                  >
-                    <span>{rule}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveSpecialRule(rule)}
-                      className="ml-2 text-gray-500 hover:text-red-500 focus:outline-hidden"
-                    >
-                      <HiX size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Skill Access */}
-            <div>
-              <label className="block text-sm font-medium text-muted-foreground mb-1">
-                Skill Access
-              </label>
-              <div className="overflow-hidden rounded-md border mb-2">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-muted border-b">
-                      <th className="px-4 py-2 text-left font-medium">Skill Set</th>
-                      <th className="px-4 py-2 text-left font-medium">Access Level</th>
-                      <th className="px-4 py-2 text-center font-medium">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {skillAccess.map((row, idx) => {
-                      const skillType = skillTypes.find(st => st.id === row.skill_type_id);
-                      const skillTypeName = row.skill_type_name || skillType?.skill_type || 'Unknown';
-                      return (
-                        <tr key={row.skill_type_id} className="border-b last:border-0">
-                          <td className="px-4 py-2">{skillTypeName}</td>
-                          <td className="px-4 py-2">
-                            <select
-                              value={row.access_level}
-                              onChange={e => {
-                                const newLevel = e.target.value as 'primary' | 'secondary' | 'allowed';
-                                setSkillAccess(prev =>
-                                  prev.map((r, i) =>
-                                    i === idx ? { ...r, access_level: newLevel } : r
-                                  )
-                                );
-                              }}
-                              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
-                            >
-                              <option value="primary">Primary</option>
-                              <option value="secondary">Secondary</option>
-                              <option value="allowed">Allowed</option>
-                            </select>
-                          </td>
-                          <td className="px-4 py-2 text-center">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setSkillAccess(prev =>
-                                  prev.filter((_, i) => i !== idx)
-                                )
-                              }
-                              className="text-gray-400 hover:text-red-600 transition-colors"
-                              title="Remove"
-                            >
-                              <LuTrash2 className="h-4 w-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <div className="flex items-center gap-2">
-                <select
-                  value={skillTypeToAdd}
-                  onChange={e => setSkillTypeToAdd(e.target.value)}
-                  className="p-1 border rounded-sm"
-                >
-                  <option value="">Add Skill Set</option>
-                  <SkillSetOptions skillTypes={skillTypes} excludeIds={new Set(skillAccess.map(sa => sa.skill_type_id))} />
-                </select>
-                <Button
-                  type="button"
-                  onClick={() => {
-                    if (
-                      skillTypeToAdd &&
-                      !skillAccess.some(sa => sa.skill_type_id === skillTypeToAdd)
-                    ) {
-                      const skillTypeData = skillTypes.find(st => st.id === skillTypeToAdd);
-                      setSkillAccess(prev => [
-                        ...prev,
-                        { skill_type_id: skillTypeToAdd, access_level: 'allowed', is_custom: skillTypeData?.is_custom || false }
-                      ]);
-                      setSkillTypeToAdd('');
-                    }
-                  }}
-                  disabled={!skillTypeToAdd}
-                  size="sm"
-                >
-                  Add
-                </Button>
-              </div>
-            </div>
-
-            {/* Default Skills */}
-            <div>
-              <label className="block text-sm font-medium text-muted-foreground mb-1">
-                Default Skills
-              </label>
-              <div className="space-y-2">
-                <select
-                  value={selectedSkillType}
-                  onChange={(e) => setSelectedSkillType(e.target.value)}
-                  className="w-full p-2 border rounded-md"
-                >
-                  <option value="">Select a skill set</option>
-                  <SkillSetOptions skillTypes={skillTypes} />
-                </select>
-
-                <select
-                  value=""
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (value) {
-                      setSelectedSkills([...selectedSkills, value]);
-                    }
-                    e.target.value = "";
-                  }}
-                  className="w-full p-2 border rounded-md"
-                  disabled={!selectedSkillType}
-                >
-                  <option value="">Select a skill to add</option>
-                  {skills
-                    .filter(skill => skill.skill_type_id === selectedSkillType)
-                    .map((skill) => (
-                      <option key={skill.id} value={skill.id}>
-                        {skill.skill_name}
-                      </option>
-                    ))}
-                </select>
-
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {selectedSkills.map((skillId, index) => {
-                    const skill = skills.find(s => s.id === skillId);
-                    if (!skill) return null;
-
-                    return (
-                      <div
-                        key={index}
-                        className="flex items-center text-sm rounded-full px-3 py-1 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 gap-2"
-                      >
-                        <span>{skill.skill_name}</span>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedSkills(selectedSkills.filter((_, i) => i !== index))}
-                          className="text-gray-600 dark:text-gray-400 hover:text-red-500 focus:outline-hidden"
-                        >
-                          <HiX size={14} />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* Default Equipment */}
-            <div>
-              <label className="block text-sm font-medium text-muted-foreground mb-1">
-                Default Equipment
-              </label>
-              <div className="space-y-2">
-                <select
-                  value={selectedEquipmentCategory}
-                  onChange={(e) => setSelectedEquipmentCategory(e.target.value)}
-                  className="w-full p-2 border rounded-md"
-                >
-                  <option value="">Select an equipment category</option>
-                  {Array.from(new Set(equipment.map(eq => eq.equipment_category)))
-                    .sort()
-                    .map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                </select>
-
-                <select
-                  value=""
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (value && !selectedEquipment.includes(value)) {
-                      setSelectedEquipment([...selectedEquipment, value]);
-                    }
-                    e.target.value = "";
-                  }}
-                  className="w-full p-2 border rounded-md"
-                  disabled={!selectedEquipmentCategory}
-                >
-                  <option value="">Select equipment to add</option>
-                  {equipment
-                    .filter(eq => eq.equipment_category === selectedEquipmentCategory && !selectedEquipment.includes(eq.id))
-                    .map((eq) => (
-                      <option key={eq.id} value={eq.id}>
-                        {eq.equipment_name}
-                      </option>
-                    ))}
-                </select>
-
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {selectedEquipment.map((equipmentId, index) => {
-                    const eq = equipment.find(e => e.id === equipmentId);
-                    if (!eq) return null;
-
-                    return (
-                      <div
-                        key={index}
-                        className="flex items-center text-sm rounded-full px-3 py-1 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 gap-2"
-                      >
-                        <span>{eq.equipment_name}</span>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedEquipment(selectedEquipment.filter((_, i) => i !== index))}
-                          className="text-gray-600 dark:text-gray-400 hover:text-red-500 focus:outline-hidden"
-                        >
-                          <HiX size={14} />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* Equipment List */}
-            {renderEquipmentListSection()}
-
-            {/* Free Skill Checkbox */}
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="freeSkillEdit"
-                checked={freeSkill}
-                onCheckedChange={(checked) => setFreeSkill(checked === true)}
-              />
-              <label htmlFor="freeSkillEdit" className="text-sm font-medium text-muted-foreground">
-                Free Skill
-              </label>
-            </div>
-
-            {renderDescriptionField()}
-          </div>
+          {renderFighterFormFields()}
         </Modal>
       )}
 
@@ -1955,78 +1675,19 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                 Characteristics
               </label>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">M</label>
-                  <div className="w-full p-2 border rounded-md bg-muted text-center">
-                    {viewModalData.movement}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">WS</label>
-                  <div className="w-full p-2 border rounded-md bg-muted text-center">
-                    {viewModalData.weapon_skill}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">BS</label>
-                  <div className="w-full p-2 border rounded-md bg-muted text-center">
-                    {viewModalData.ballistic_skill}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">S</label>
-                  <div className="w-full p-2 border rounded-md bg-muted text-center">
-                    {viewModalData.strength}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">T</label>
-                  <div className="w-full p-2 border rounded-md bg-muted text-center">
-                    {viewModalData.toughness}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">W</label>
-                  <div className="w-full p-2 border rounded-md bg-muted text-center">
-                    {viewModalData.wounds}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">I</label>
-                  <div className="w-full p-2 border rounded-md bg-muted text-center">
-                    {viewModalData.initiative}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">A</label>
-                  <div className="w-full p-2 border rounded-md bg-muted text-center">
-                    {viewModalData.attacks}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Ld</label>
-                  <div className="w-full p-2 border rounded-md bg-muted text-center">
-                    {viewModalData.leadership}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Cl</label>
-                  <div className="w-full p-2 border rounded-md bg-muted text-center">
-                    {viewModalData.cool}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Wil</label>
-                  <div className="w-full p-2 border rounded-md bg-muted text-center">
-                    {viewModalData.willpower}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Int</label>
-                  <div className="w-full p-2 border rounded-md bg-muted text-center">
-                    {viewModalData.intelligence}
-                  </div>
-                </div>
+                {renderStatView('M', viewModalData.movement)}
+                {renderStatView('WS', viewModalData.weapon_skill)}
+                {renderStatView('BS', viewModalData.ballistic_skill)}
+                {renderStatView('S', viewModalData.strength)}
+                {renderStatView('T', viewModalData.toughness)}
+                {renderStatView('W', viewModalData.wounds)}
+                {renderStatView('I', viewModalData.initiative)}
+                {renderStatView('A', viewModalData.attacks)}
+                {showSave && renderStatView('Sv', viewModalData.save)}
+                {renderStatView('Ld', viewModalData.leadership)}
+                {renderStatView('Cl', viewModalData.cool)}
+                {renderStatView('Wil', viewModalData.willpower)}
+                {renderStatView('Int', viewModalData.intelligence)}
               </div>
             </div>
 

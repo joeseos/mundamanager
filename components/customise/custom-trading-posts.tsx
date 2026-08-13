@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useId } from 'react';
+import React, { useState, useEffect, useId, createContext, useContext } from 'react';
 import { List, ListColumn, ListAction } from '@/components/ui/list';
 import Modal from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
@@ -40,7 +40,7 @@ import type { CampaignResource } from '@/utils/campaigns/resources';
 import type { UserCampaign } from '@/types/campaign';
 import type { EquipmentListItem } from '@/types/equipment';
 import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
-import { EDITION_N23 } from '@/types/edition';
+import { hasTradePoints, sameEditionForDisplay } from '@/types/edition';
 
 interface EquipmentPendingChanges {
   costOverride: number | null;
@@ -61,7 +61,17 @@ interface CustomiseTradingPostsProps {
   userId?: string;
   userCampaigns?: UserCampaign[];
   readOnly?: boolean;
+  /** Edition of everything shown here, and of anything created. */
+  editionSlug: string;
 }
+
+/**
+ * The edition every picker and override field in this file is scoped to. The
+ * equipment and availability modals sit three levels below the component that
+ * knows it, so a context beats threading one string through six signatures.
+ */
+const TradingPostEditionContext = createContext<string | undefined>(undefined);
+const useTradingPostEdition = () => useContext(TradingPostEditionContext);
 
 export function CustomiseTradingPosts({
   className,
@@ -69,6 +79,7 @@ export function CustomiseTradingPosts({
   userId,
   userCampaigns = [],
   readOnly = false,
+  editionSlug,
 }: CustomiseTradingPostsProps) {
   const [tradingPosts, setTradingPosts] = useState<CustomTradingPost[]>(initialTradingPosts);
   const [prevInitialTradingPosts, setPrevInitialTradingPosts] = useState(initialTradingPosts);
@@ -228,7 +239,7 @@ export function CustomiseTradingPosts({
 
   const handleCreateConfirm = async () => {
     if (!isFormValid()) return false;
-    createMutation.mutate({ data: { ...formData, edition_slug: EDITION_N23 } });
+    createMutation.mutate({ data: { ...formData, edition_slug: editionSlug } });
     setIsAddModalOpen(false);
     resetForm();
     return true;
@@ -618,6 +629,7 @@ export function CustomiseTradingPosts({
   );
 
   return (
+    <TradingPostEditionContext.Provider value={editionSlug}>
     <div className={className}>
       <List
         title="Trading Posts"
@@ -735,6 +747,7 @@ export function CustomiseTradingPosts({
         }}
       />
     </div>
+    </TradingPostEditionContext.Provider>
   );
 }
 
@@ -762,6 +775,7 @@ function EquipmentItemsSection({
   onRemoveEquipment?: (itemId: string) => void;
 }) {
   const isEditable = !!(onAddEquipment || onRemoveEquipment || onEquipmentOverrideChange);
+  const hidesAvailability = hasTradePoints(useTradingPostEdition());
   const [isAddEquipOpen, setIsAddEquipOpen] = useState(false);
   const tooltipId = useId();
   const [editOverridesItem, setEditOverridesItem] = useState<CustomTPEquipment | null>(null);
@@ -851,7 +865,7 @@ function EquipmentItemsSection({
                   <th className="py-2 pr-2 font-medium">Equipment</th>
                   <th className="py-2 pr-2 font-medium">Category</th>
                   <th className="py-2 pr-2 font-medium text-center">Cost</th>
-                  <th className="py-2 pr-2 font-medium text-center">AL</th>
+                  {!hidesAvailability && <th className="py-2 pr-2 font-medium text-center">AL</th>}
                   <th className="py-2 pr-2 font-medium text-center">Banned</th>
                   {isEditable && <th className="py-2 font-medium text-right">Actions</th>}
                 </tr>
@@ -869,7 +883,7 @@ function EquipmentItemsSection({
                         ? `${item.cost_resource_amount} ${item.cost_reputation ? 'Reputation' : 'Resource'}`
                         : item.cost_override != null ? item.cost_override : '-'}
                     </td>
-                    <td className="py-2 pr-2 text-center">{item.availability_override || '-'}</td>
+                    {!hidesAvailability && <td className="py-2 pr-2 text-center">{item.availability_override || '-'}</td>}
                     <td className="py-2 pr-2 text-center">{item.banned ? 'Yes' : '-'}</td>
                     {isEditable && (
                       <td className="py-2 text-right">
@@ -1039,22 +1053,27 @@ function ViewTradingPostModal({
 // ---------------------------------------------------------------------------
 
 function useEquipmentData() {
+  const editionSlug = useTradingPostEdition();
+
   const { data: categories = [], error: categoriesError } = useQuery({
-    queryKey: ['equipmentCategories'],
+    // Keyed on edition because the result below is edition-filtered
+    queryKey: ['equipmentCategories', editionSlug],
     queryFn: async () => {
       const res = await fetch('/api/equipment/categories');
       if (!res.ok) throw new Error('Failed to fetch categories');
-      return res.json() as Promise<Array<{ id: string; category_name: string }>>;
+      const data = await res.json() as Array<{ id: string; category_name: string; edition_slug?: string | null }>;
+      return data.filter(c => sameEditionForDisplay(c.edition_slug, editionSlug));
     },
     staleTime: 10 * 60 * 1000,
   });
 
   const { data: allEquipment = [], error: equipmentError } = useQuery({
-    queryKey: ['equipment', { core_equipment: false }],
+    queryKey: ['equipment', { core_equipment: false, editionSlug }],
     queryFn: async () => {
       const res = await fetch('/api/equipment?core_equipment=false');
       if (!res.ok) throw new Error('Failed to fetch equipment');
-      return res.json() as Promise<EquipmentOption[]>;
+      const data = await res.json() as EquipmentOption[];
+      return data.filter(e => sameEditionForDisplay(e.edition_slug, editionSlug));
     },
     staleTime: 10 * 60 * 1000,
   });
@@ -1174,6 +1193,8 @@ function EditEquipmentModal({
 }) {
   type ResourceOption = { id: string; name: string; type: 'campaign_type' | 'campaign' | 'reputation' };
 
+  const hidesAvailability = hasTradePoints(useTradingPostEdition());
+
   const [costOverride, setCostOverride] = useState(
     pendingChanges ? (pendingChanges.costOverride?.toString() ?? '') : (item.cost_override?.toString() ?? '')
   );
@@ -1283,8 +1304,9 @@ function EditEquipmentModal({
       costCampaignResourceId: selectedResource?.type === 'campaign' ? selectedResource.id : null,
       costReputation: selectedResource?.type === 'reputation',
       costResourceAmount: hasResourceCost && costResourceAmount.trim() ? Number(costResourceAmount) : null,
-      availabilityOverride: combineAvailability(availLetter, availNumber),
-      availRules,
+      // Guard the value rather than relying on the field being hidden
+      availabilityOverride: hidesAvailability ? null : combineAvailability(availLetter, availNumber),
+      availRules: hidesAvailability ? [] : availRules,
       pricingRules,
       rulesModified: localAvailRules !== null || localPricingRules !== null,
       banned: isBanned,
@@ -1382,17 +1404,22 @@ function EditEquipmentModal({
                 placeholder="Leave empty for default cost"
               />
             </div>
-            <AvailabilityPicker
-              label="General Availability Override"
-              letter={availLetter}
-              number={availNumber}
-              onLetterChange={setAvailLetter}
-              onNumberChange={setAvailNumber}
-              allowEmpty
-            />
+            {/* Availability is an N23 concept; trade-point editions price
+                equipment in TP, and there is no trade-points override column. */}
+            {!hidesAvailability && (
+              <AvailabilityPicker
+                label="General Availability Override"
+                letter={availLetter}
+                number={availNumber}
+                onLetterChange={setAvailLetter}
+                onNumberChange={setAvailNumber}
+                allowEmpty
+              />
+            )}
           </div>
 
-          {/* Availability Rules */}
+          {!hidesAvailability && (
+          /* Availability Rules */
           <div className="border-t pt-4">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-semibold">Availability Rules</h4>
@@ -1452,6 +1479,7 @@ function EditEquipmentModal({
               </div>
             )}
           </div>
+          )}
 
           {/* Cost Rules */}
           <div className="border-t pt-4">
@@ -1568,12 +1596,14 @@ function GangScopeFields({
   onGangTypeChange: (id: string, isCustom: boolean, name: string | null) => void;
   onGangOriginChange: (id: string, name: string | null) => void;
 }) {
+  const editionSlug = useTradingPostEdition();
   const { data: gangTypes = [] } = useQuery({
-    queryKey: ['gangTypes'],
+    queryKey: ['gangTypes', editionSlug],
     queryFn: async () => {
       const res = await fetch('/api/gang-types?includeAll=true');
       if (!res.ok) throw new Error('Failed to fetch gang types');
-      return res.json() as Promise<GangTypeOption[]>;
+      const data = await res.json() as GangTypeOption[];
+      return data.filter(gt => sameEditionForDisplay((gt as any).edition_slug, editionSlug));
     },
     staleTime: 10 * 60 * 1000,
   });
@@ -1666,12 +1696,14 @@ function AddAvailabilityRuleModal({
   const [availLetter, setAvailLetter] = useState(parsedAvail.letter);
   const [availNumber, setAvailNumber] = useState(parsedAvail.number);
 
+  const editionSlug = useTradingPostEdition();
   const { data: variants = [] } = useQuery({
-    queryKey: ['gangVariantTypes'],
+    queryKey: ['gangVariantTypes', editionSlug],
     queryFn: async () => {
       const res = await fetch('/api/gang-variant-types');
       if (!res.ok) throw new Error('Failed to fetch variants');
-      return res.json() as Promise<Array<{ id: string; variant: string }>>;
+      const data = await res.json() as Array<{ id: string; variant: string; edition_slug?: string | null }>;
+      return data.filter(v => sameEditionForDisplay(v.edition_slug, editionSlug));
     },
     staleTime: 10 * 60 * 1000,
   });
