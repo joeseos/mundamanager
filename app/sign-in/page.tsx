@@ -119,9 +119,6 @@ function SignInContent() {
         return;
       }
 
-      // refresh() first, or the destination can come from the Router Cache as it
-      // was rendered for a signed-out visitor. Stay submitting through both.
-      router.refresh();
       router.replace(safePostSignInPath(formData.get('next') as string | null));
     } catch (error) {
       console.error('Unexpected error during sign in:', error);
