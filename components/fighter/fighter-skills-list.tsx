@@ -21,7 +21,7 @@ import {
   buildN26ProspectDemotionSubtypes,
   isN26GangerChampionPromotionSkillGrant,
   isN26LeaderPromotionSkillGrant,
-  isN26ProspectPromotionSkillGrant,
+  isN26ProspectPromotionSkillBlockedByHigherRank,
   isN26ProspectPromotionUndoCandidate,
   N26_PROSPECT_PROMOTION_CREDITS,
 } from '@/utils/keepTypePromotionN26';
@@ -857,16 +857,14 @@ export function SkillsList({
                 return true;
               }
               // After Champion/Leader promotion, Prospect grant cannot be undone first.
-              if (
-                editionAllowsProspectPromotion &&
-                isN26ProspectPromotionSkillGrant(fighterSpecialisationId, null, item.name) &&
-                fighterCatalogSubtypes.includes('Prospect') &&
-                !fighterCatalogSubtypes.includes('Ganger') &&
-                (fighterSubtypes.includes('Champion') || fighterSubtypes.includes('Leader'))
-              ) {
-                return true;
-              }
-              return false;
+              return isN26ProspectPromotionSkillBlockedByHigherRank({
+                editionAllowsProspectPromotion,
+                fighterSpecialisationId,
+                skillId: null,
+                skillName: item.name,
+                currentSubtypes: fighterSubtypes,
+                catalogSubtypes: fighterCatalogSubtypes,
+              });
             }
           }
         ]}

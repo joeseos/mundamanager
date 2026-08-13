@@ -133,6 +133,42 @@ export function isN26ProspectPromotionUndoCandidate(args: {
   return true;
 }
 
+/**
+ * True when deleting this Prospect-promotion skill must be blocked until
+ * Champion/Leader is undone first.
+ *
+ * Catalog Prospect holds through Ganger/Champion keep-type, but Champion→Leader
+ * rewrites fighter_type_id to a Leader row — and Leader undo does not restore
+ * the previous type. Provenance:
+ * - Leader subtype: block (type may already be Leader catalog)
+ * - Champion subtype: block when catalog is keep-type Prospect, or catalog is
+ *   Leader (post type-change / post Leader-undo)
+ */
+export function isN26ProspectPromotionSkillBlockedByHigherRank(args: {
+  editionAllowsProspectPromotion: boolean;
+  fighterSpecialisationId?: string | null;
+  skillId?: string | null;
+  skillName: string;
+  currentSubtypes?: string[] | null;
+  catalogSubtypes?: string[] | null;
+}): boolean {
+  if (!args.editionAllowsProspectPromotion) return false;
+  if (!isN26ProspectPromotionSkillGrant(
+    args.fighterSpecialisationId,
+    args.skillId,
+    args.skillName
+  )) {
+    return false;
+  }
+  const current = args.currentSubtypes ?? [];
+  const catalog = args.catalogSubtypes ?? [];
+  if (current.includes('Leader')) return true;
+  if (!current.includes('Champion')) return false;
+  const keepTypeProspect =
+    catalog.includes('Prospect') && !catalog.includes('Ganger');
+  return keepTypeProspect || catalog.includes('Leader');
+}
+
 /** Drop Prospect; ensure Ganger + Specialist; keep every other subtype. */
 export function buildN26ProspectPromotionSubtypes(currentSubtypes: string[]): string[] {
   const next = currentSubtypes.filter((s) => s !== 'Prospect');

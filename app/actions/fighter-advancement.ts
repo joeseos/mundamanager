@@ -26,7 +26,7 @@ import {
   getN26ProspectSpecialisation,
   isN26GangerChampionPromotionSkillGrant,
   isN26LeaderPromotionSkillGrant,
-  isN26ProspectPromotionSkillGrant,
+  isN26ProspectPromotionSkillBlockedByHigherRank,
   isN26ProspectPromotionUndoCandidate,
 } from '@/utils/keepTypePromotionN26';
 
@@ -1392,19 +1392,16 @@ export async function deleteAdvancement(
       }
 
       // Must undo Champion/Leader first — demoting Prospect while promoted would conflict.
-      // Uses skill match (not full undo candidate) so ordering still applies after Champion promo
-      // when current subtypes are no longer Ganger+Specialist.
-      const looksLikeProspectPromotionSkill = isN26ProspectPromotionSkillGrant(
-        fighter.fighter_specialisation_id,
-        skillData.skill_id,
-        deletedSkillName
-      );
+      // Does not rely on catalog Prospect alone: Champion→Leader rewrites fighter_type_id.
       if (
-        looksLikeProspectPromotionSkill &&
-        hasProspectSpecialisationPromotion(editionSlugForUndo) &&
-        catalogSubtypesForUndo.includes('Prospect') &&
-        !catalogSubtypesForUndo.includes('Ganger') &&
-        (currentSubtypesForGrant.includes('Champion') || currentSubtypesForGrant.includes('Leader'))
+        isN26ProspectPromotionSkillBlockedByHigherRank({
+          editionAllowsProspectPromotion: hasProspectSpecialisationPromotion(editionSlugForUndo),
+          fighterSpecialisationId: fighter.fighter_specialisation_id,
+          skillId: skillData.skill_id,
+          skillName: deletedSkillName,
+          currentSubtypes: currentSubtypesForGrant,
+          catalogSubtypes: catalogSubtypesForUndo,
+        })
       ) {
         return {
           success: false,
