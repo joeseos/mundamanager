@@ -821,6 +821,9 @@ export default function FighterPage({
             userPermissions={userPermissions}
             gangCredits={fighterData.gang?.credits}
             editionSlug={editionSlug}
+            fighterSpecialisationId={fighterData.fighter?.fighter_specialisation?.fighter_specialisation_id || null}
+            fighterSpecialisationName={fighterData.fighter?.fighter_specialisation?.fighter_specialisation || null}
+            fighterSubtypes={fighterData.fighter?.fighter_subtypes || []}
             onSkillsUpdate={(updatedSkills) => {
               setFighterData(prev => ({
                 ...prev,
@@ -842,6 +845,42 @@ export default function FighterPage({
                   gang: prev.gang ? { ...prev.gang, credits: prev.gang.credits + creditsDelta } : null
                 };
               });
+            }}
+            onXpCreditsUpdate={(xpChange, creditsChange) => {
+              setFighterData(prev => {
+                const isOwnedBeast = !!prev.fighter?.owner_name;
+                return {
+                  ...prev,
+                  fighter: prev.fighter ? {
+                    ...prev.fighter,
+                    xp: (prev.fighter.xp || 0) + xpChange,
+                    credits: isOwnedBeast
+                      ? prev.fighter.credits
+                      : (prev.fighter.credits || 0) + creditsChange
+                  } : null
+                };
+              });
+            }}
+            onFighterDetailsUpdate={(patch) => {
+              setFighterData((prev) => ({
+                ...prev,
+                fighter: prev.fighter
+                  ? {
+                      ...prev.fighter,
+                      fighter_subtypes: patch.fighter_subtypes ?? prev.fighter.fighter_subtypes,
+                      special_rules: patch.special_rules ?? prev.fighter.special_rules,
+                      fighter_specialisation:
+                        patch.fighter_specialisation !== undefined || patch.fighter_specialisation_id !== undefined
+                          ? patch.fighter_specialisation_id
+                            ? {
+                                fighter_specialisation: patch.fighter_specialisation ?? '',
+                                fighter_specialisation_id: patch.fighter_specialisation_id,
+                              }
+                            : undefined
+                          : prev.fighter.fighter_specialisation
+                    }
+                  : null
+              }));
             }}
           />
 

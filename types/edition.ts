@@ -147,6 +147,25 @@ const EDITION_CAPABILITIES = {
    * itself comes from the beast's fighter type; this is for copy about it.
    */
   beastSubtype:             { n23: 'Exotic Beast', n26: 'Pet' },
+  /**
+   * Prospect promotion keeps fighter type, swaps Prospect for Ganger+Specialist,
+   * requires a specialisation pick, and grants the mapped skill (+15 rating).
+   * When false, Prospect uses the standard promote-to-Champion type picker.
+   */
+  prospectSpecialisationPromotion: { n23: false, n26: true },
+  /**
+   * Ganger→Champion promotion keeps fighter type, swaps Ganger for Champion,
+   * grants Inspiring, and does not change rating. When false, Ganger uses the
+   * standard promote-to-Specialist type picker (or Advancement for Specialist→Champion).
+   */
+  gangerChampionKeepTypePromotion: { n23: false, n26: true },
+  /**
+   * Champion→Leader promotion picks a Leader fighter type, rebuilds subtypes
+   * (drop Loner/Champion/Ganger/Prospect, add Leader), grants Inspiring if
+   * missing, and does not change rating. When false, Champion uses the
+   * standard promote-to-Leader type picker with catalog subtypes.
+   */
+  championLeaderTypePromotion: { n23: false, n26: true },
 } as const satisfies Record<string, Record<EditionSlug, unknown>>;
 
 type EditionCapability = keyof typeof EDITION_CAPABILITIES;
@@ -242,6 +261,18 @@ export const hasGangAdditionCategories = (
 
 export const beastSubtypeName = (editionSlug?: string | null): string =>
   answerFor('beastSubtype', editionSlug) ?? EDITION_CAPABILITIES.beastSubtype.n23;
+
+export const hasProspectSpecialisationPromotion = (
+  editionSlug?: string | null
+): boolean => can('prospectSpecialisationPromotion', editionSlug);
+
+export const hasGangerChampionKeepTypePromotion = (
+  editionSlug?: string | null
+): boolean => can('gangerChampionKeepTypePromotion', editionSlug);
+
+export const hasChampionLeaderTypePromotion = (
+  editionSlug?: string | null
+): boolean => can('championLeaderTypePromotion', editionSlug);
 
 export interface Edition {
   id: string;

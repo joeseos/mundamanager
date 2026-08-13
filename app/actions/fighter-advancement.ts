@@ -6,8 +6,28 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidateTag } from 'next/cache';
 import { updateGangRatingSimple, updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { countsTowardRating } from '@/utils/fighter-status';
-import { hasCumulativeXp } from '@/types/edition';
+import {
+  hasChampionLeaderTypePromotion,
+  hasCumulativeXp,
+  hasGangerChampionKeepTypePromotion,
+  hasProspectSpecialisationPromotion,
+} from '@/types/edition';
 import { openAdvancementsFor } from '@/utils/advancementRanks';
+import {
+  N26_CHAMPION_PROMOTION_SKILL_ID,
+  N26_CHAMPION_PROMOTION_SKILL_NAME,
+  N26_PROSPECT_PROMOTION_CREDITS,
+  buildN26ChampionLeaderDemotionSubtypes,
+  buildN26ChampionLeaderPromotionSubtypes,
+  buildN26GangerChampionDemotionSubtypes,
+  buildN26GangerChampionPromotionSubtypes,
+  buildN26ProspectDemotionSubtypes,
+  buildN26ProspectPromotionSubtypes,
+  getN26ProspectSpecialisation,
+  isN26GangerChampionPromotionSkillGrant,
+  isN26LeaderPromotionSkillGrant,
+  isN26ProspectPromotionSkillGrant,
+} from '@/utils/keepTypePromotionN26';
 
 import { 
   logCharacteristicAdvancement, 
@@ -157,6 +177,18 @@ export interface AddSkillAdvancementParams {
   is_advance?: boolean;
 }
 
+/**
+ * Server-only options for {@link addSkillAdvancementInternal}. Never expose on
+ * the exported `addSkillAdvancement` action params — clients must not set these.
+ */
+type AddSkillAdvancementInternalOptions = {
+  /**
+   * When true with is_advance false: increase rating without deducting stash,
+   * and do not clear free_skill. Used for N26 keep-type promotion grants.
+   */
+  ratingOnly?: boolean;
+};
+
 export interface PromotionWithSkillAdvancementParams {
   fighter_id: string;
   skill_id: string;
@@ -170,6 +202,23 @@ export interface PromotionWithSkillAdvancementParams {
     fighter_specialisation?: string | null;
     fighter_specialisation_id?: string | null;
   };
+}
+
+export interface N26ProspectPromotionParams {
+  fighter_id: string;
+  fighter_specialisation_id: string;
+  special_rules?: string[];
+}
+
+export interface N26GangerChampionPromotionParams {
+  fighter_id: string;
+  special_rules?: string[];
+}
+
+export interface N26ChampionLeaderPromotionParams {
+  fighter_id: string;
+  fighter_type_id: string;
+  special_rules?: string[];
 }
 
 export interface DeleteAdvancementParams {
@@ -187,8 +236,22 @@ export interface AdvancementResult {
   };
   advancement?: {
     credits_increase: number;
+    /** fighter_skills.id when a skill was inserted */
+    id?: string;
   };
   remaining_xp?: number;
+  /**
+   * When deleting an N26 keep-type promotion skill, the demoted fighter details
+   * so the client can patch local state without a full reload.
+   */
+  fighter_details?: {
+    fighter_subtypes: string[];
+    fighter_specialisation: string | null;
+    fighter_specialisation_id: string | null;
+    special_rules: string[];
+  };
+  /** False when rating changed without a stash refund (e.g. Prospect promotion undo). */
+  refund_stash?: boolean;
   effect?: {
     id: string;
     effect_name: string;
@@ -397,6 +460,17 @@ export async function addCharacteristicAdvancement(
 export async function addSkillAdvancement(
   params: AddSkillAdvancementParams
 ): Promise<AdvancementResult> {
+  return addSkillAdvancementInternal(params);
+}
+
+/**
+ * Internal skill grant. Accepts server-only options that must never be part of
+ * the exported action's public params (clients can invent any field on the
+ * exported action).
+ */
+async function addSkillAdvancementInternal(
+  params: AddSkillAdvancementParams & AddSkillAdvancementInternalOptions
+): Promise<AdvancementResult> {
   try {
     if (!params.skill_id && !params.custom_skill_id) {
       return { success: false, error: 'Either skill_id or custom_skill_id must be provided' };
@@ -528,9 +602,13 @@ export async function addSkillAdvancement(
       updated_at: new Date().toISOString()
     };
     
+    const isAdvance = params.is_advance ?? true;
+    const ratingOnly = Boolean(params.ratingOnly);
+
     // Set free_skill to false only for regular skills (is_advance: false) when fighter currently has free_skill: true (missing starting skill)
     // Do NOT set free_skill to false for advancement skills (is_advance: true) as those are purchased with XP, not starting skills
-    if (!(params.is_advance ?? true) && fighter.free_skill) {
+    // ratingOnly grants (N26 Prospect promotion) also leave free_skill alone
+    if (!isAdvance && !ratingOnly && fighter.free_skill) {
       updateData.free_skill = false;
     }
     
@@ -551,8 +629,8 @@ export async function addSkillAdvancement(
     let financialsBefore: { rating: number; wealth: number } | undefined;
     let financialsAfter: { rating: number; wealth: number } | undefined;
     if (creditsIncrease > 0) {
-      if (params.is_advance ?? true) {
-        // Advancement path (XP purchase): only increase rating, no stash deduction
+      if (isAdvance || ratingOnly) {
+        // Advancement / rating-only grant: only increase rating, no stash deduction
         if (countsTowardRating(fighter)) {
           const result = await updateGangRatingSimple(supabase, fighter.gang_id, creditsIncrease);
           if (result.oldValues && result.newValues) {
@@ -626,11 +704,11 @@ export async function addSkillAdvancement(
       xp_cost: params.xp_cost,
       credits_increase: params.credits_increase,
       remaining_xp: updatedFighter.xp,
-      is_advance: params.is_advance ?? true,
+      is_advance: isAdvance,
       ...(financialsBefore && financialsAfter
         ? { gang_financials_before: financialsBefore, gang_financials_after: financialsAfter }
         : {}),
-      ...(!(params.is_advance ?? true) && creditsIncrease > 0 ? { credits_deducted: creditsIncrease } : {})
+      ...(!isAdvance && !ratingOnly && creditsIncrease > 0 ? { credits_deducted: creditsIncrease } : {})
     });
 
     // Invalidate cache for fighter advancement
@@ -653,7 +731,8 @@ export async function addSkillAdvancement(
       success: true,
       fighter: updatedFighter,
       advancement: {
-        credits_increase: params.credits_increase
+        credits_increase: params.credits_increase,
+        id: insertedSkill.id,
       },
       remaining_xp: updatedFighter.xp
     };
@@ -739,6 +818,468 @@ export async function applyPromotionWithSkillAdvancement(
   }
 }
 
+type KeepTypePromotionFighterSnapshot = {
+  fighter_subtypes: string[] | null;
+  fighter_type: string | null;
+  fighter_type_id: string | null;
+  fighter_specialisation: string | null;
+  fighter_specialisation_id: string | null;
+  special_rules: string[] | null;
+};
+
+const KEEP_TYPE_PROMOTION_FIGHTER_SELECT = `
+  id, user_id, gang_id,
+  fighter_subtypes, fighter_type, fighter_type_id,
+  fighter_specialisation, fighter_specialisation_id, special_rules,
+  ${GANG_EDITION_EMBED}
+`;
+
+/** Resolve a catalog skill by preferred id, falling back to unique name match. */
+async function resolveCatalogSkillId(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  preferredSkillId: string,
+  skillName: string
+): Promise<{ skillId: string } | { error: string }> {
+  const { data: preferredSkill } = await supabase
+    .from('skills')
+    .select('id, name')
+    .eq('id', preferredSkillId)
+    .maybeSingle();
+
+  if (preferredSkill && preferredSkill.name === skillName) {
+    return { skillId: preferredSkill.id };
+  }
+
+  const { data: skillsByName, error: skillLookupError } = await supabase
+    .from('skills')
+    .select('id, name')
+    .eq('name', skillName);
+
+  if (skillLookupError || !skillsByName?.length) {
+    return { error: `Could not resolve skill "${skillName}"` };
+  }
+  if (skillsByName.length > 1) {
+    return {
+      error: `Ambiguous skill name "${skillName}" — expected a single catalog match`,
+    };
+  }
+  return { skillId: skillsByName[0].id };
+}
+
+async function fighterAlreadyHasSkill(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  fighterId: string,
+  skillId: string,
+  skillName: string
+): Promise<boolean> {
+  const [{ data: existingBySkillId }, { data: existingByName }, { data: existingCustomByName }] =
+    await Promise.all([
+      supabase
+        .from('fighter_skills')
+        .select('id')
+        .eq('fighter_id', fighterId)
+        .eq('skill_id', skillId)
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('fighter_skills')
+        .select('id, skills!inner(name)')
+        .eq('fighter_id', fighterId)
+        .eq('skills.name', skillName)
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('fighter_skills')
+        .select('id, custom_skills!inner(skill_name)')
+        .eq('fighter_id', fighterId)
+        .eq('custom_skills.skill_name', skillName)
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+  return Boolean(existingBySkillId || existingByName || existingCustomByName);
+}
+
+/**
+ * Shared N26 promotion path: update fighter details, optionally grant a
+ * non-Advancement skill (ratingOnly), revert details if the skill grant fails.
+ */
+async function applyKeepTypePromotionWithSkillGrant(args: {
+  fighterId: string;
+  before: KeepTypePromotionFighterSnapshot;
+  newSubtypes: string[];
+  specialRules: string[];
+  fighterSpecialisation?: string | null;
+  fighterSpecialisationId?: string | null;
+  /** When set, overrides before.fighter_type (Champion→Leader type change). */
+  fighterType?: string | null;
+  /** When set, overrides before.fighter_type_id. */
+  fighterTypeId?: string | null;
+  /** Omit to update details only (e.g. Inspiring already present). */
+  skillId?: string;
+  creditsIncrease: number;
+}): Promise<AdvancementResult> {
+  const nextFighterType =
+    args.fighterType !== undefined ? args.fighterType : args.before.fighter_type;
+  const nextFighterTypeId =
+    args.fighterTypeId !== undefined ? args.fighterTypeId : args.before.fighter_type_id;
+
+  const promotionResult = await updateFighterDetails({
+    fighter_id: args.fighterId,
+    fighter_subtypes: args.newSubtypes,
+    fighter_type: nextFighterType ?? undefined,
+    fighter_type_id: nextFighterTypeId ?? undefined,
+    fighter_specialisation:
+      args.fighterSpecialisation !== undefined
+        ? args.fighterSpecialisation
+        : (args.before.fighter_specialisation ?? null),
+    fighter_specialisation_id:
+      args.fighterSpecialisationId !== undefined
+        ? args.fighterSpecialisationId
+        : (args.before.fighter_specialisation_id ?? null),
+    special_rules: args.specialRules,
+  });
+
+  if (!promotionResult.success) {
+    return { success: false, error: promotionResult.error || 'Failed to promote fighter' };
+  }
+
+  if (!args.skillId) {
+    return { success: true };
+  }
+
+  // Not an Advancement: is_advance false so it does not consume a rank slot.
+  // ratingOnly: rating delta without stash deduction (internal option only).
+  const skillResult = await addSkillAdvancementInternal({
+    fighter_id: args.fighterId,
+    skill_id: args.skillId,
+    xp_cost: 0,
+    credits_increase: args.creditsIncrease,
+    is_advance: false,
+    ratingOnly: true,
+  });
+
+  if (!skillResult.success) {
+    const revertResult = await updateFighterDetails({
+      fighter_id: args.fighterId,
+      fighter_subtypes: args.before.fighter_subtypes ?? undefined,
+      fighter_type: args.before.fighter_type ?? undefined,
+      fighter_type_id: args.before.fighter_type_id ?? undefined,
+      fighter_specialisation: args.before.fighter_specialisation ?? null,
+      fighter_specialisation_id: args.before.fighter_specialisation_id ?? null,
+      special_rules: args.before.special_rules ?? [],
+    });
+
+    if (!revertResult.success) {
+      return {
+        success: false,
+        error: `${skillResult.error}. Promotion could not be reverted automatically — please check this fighter in Edit Fighter.`,
+      };
+    }
+
+    return { success: false, error: skillResult.error || 'Failed to add skill' };
+  }
+
+  return {
+    success: true,
+    fighter: skillResult.fighter,
+    advancement: {
+      credits_increase: args.creditsIncrease,
+      id: skillResult.advancement?.id,
+    },
+    remaining_xp: skillResult.remaining_xp,
+  };
+}
+
+/**
+ * N26-only: promote a Prospect without changing fighter type.
+ * Removes Prospect, adds Ganger + Specialist, sets specialisation, and grants the
+ * specialisation skill with +15 credits_increase (rating only).
+ * The grant is not an Advancement (is_advance: false), so it does not consume an
+ * N26 rank slot; rating-only financials avoid a stash deduction.
+ */
+export async function applyN26ProspectPromotion(
+  params: N26ProspectPromotionParams
+): Promise<AdvancementResult> {
+  try {
+    const supabase = await createClient();
+    await getAuthenticatedUser(supabase);
+
+    const specialisation = getN26ProspectSpecialisation(params.fighter_specialisation_id);
+    if (!specialisation) {
+      return { success: false, error: 'Invalid specialisation for Prospect promotion' };
+    }
+
+    const { data: before, error: beforeError } = await supabase
+      .from('fighters')
+      .select(KEEP_TYPE_PROMOTION_FIGHTER_SELECT)
+      .eq('id', params.fighter_id)
+      .single();
+
+    if (beforeError || !before) {
+      return { success: false, error: 'Fighter not found' };
+    }
+
+    const editionSlug = editionSlugOf(before);
+    if (!hasProspectSpecialisationPromotion(editionSlug)) {
+      return { success: false, error: 'Prospect specialisation promotion is not available for this edition' };
+    }
+
+    const currentSubtypes: string[] = Array.isArray(before.fighter_subtypes)
+      ? before.fighter_subtypes
+      : [];
+    if (!currentSubtypes.includes('Prospect')) {
+      return { success: false, error: 'Only Prospect fighters can use this promotion' };
+    }
+
+    const skillResolved = await resolveCatalogSkillId(
+      supabase,
+      specialisation.preferredSkillId,
+      specialisation.skillName
+    );
+    if ('error' in skillResolved) {
+      return {
+        success: false,
+        error: `${skillResolved.error} for ${specialisation.name}`,
+      };
+    }
+
+    if (
+      await fighterAlreadyHasSkill(
+        supabase,
+        params.fighter_id,
+        skillResolved.skillId,
+        specialisation.skillName
+      )
+    ) {
+      return {
+        success: false,
+        error: `This fighter already has the skill ${specialisation.skillName}`,
+      };
+    }
+
+    // Always rebuild subtypes server-side — never trust client-supplied lists.
+    const newSubtypes = buildN26ProspectPromotionSubtypes(currentSubtypes);
+    const specialRules =
+      params.special_rules ??
+      (Array.isArray(before.special_rules) ? before.special_rules : []);
+
+    return await applyKeepTypePromotionWithSkillGrant({
+      fighterId: params.fighter_id,
+      before,
+      newSubtypes,
+      specialRules,
+      fighterSpecialisation: specialisation.name,
+      fighterSpecialisationId: specialisation.id,
+      skillId: skillResolved.skillId,
+      creditsIncrease: N26_PROSPECT_PROMOTION_CREDITS,
+    });
+  } catch (error) {
+    console.error('Error applying N26 Prospect promotion:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
+  }
+}
+
+/**
+ * N26-only: promote a Ganger to Champion without changing fighter type.
+ * Removes Ganger, adds Champion, grants Inspiring. Rating unchanged.
+ * The grant is not an Advancement (is_advance: false).
+ */
+export async function applyN26GangerChampionPromotion(
+  params: N26GangerChampionPromotionParams
+): Promise<AdvancementResult> {
+  try {
+    const supabase = await createClient();
+    await getAuthenticatedUser(supabase);
+
+    const { data: before, error: beforeError } = await supabase
+      .from('fighters')
+      .select(KEEP_TYPE_PROMOTION_FIGHTER_SELECT)
+      .eq('id', params.fighter_id)
+      .single();
+
+    if (beforeError || !before) {
+      return { success: false, error: 'Fighter not found' };
+    }
+
+    const editionSlug = editionSlugOf(before);
+    if (!hasGangerChampionKeepTypePromotion(editionSlug)) {
+      return {
+        success: false,
+        error: 'Ganger to Champion keep-type promotion is not available for this edition',
+      };
+    }
+
+    const currentSubtypes: string[] = Array.isArray(before.fighter_subtypes)
+      ? before.fighter_subtypes
+      : [];
+    if (!currentSubtypes.includes('Ganger')) {
+      return { success: false, error: 'Only Ganger fighters can use this promotion' };
+    }
+    if (currentSubtypes.includes('Champion')) {
+      return { success: false, error: 'This fighter is already a Champion' };
+    }
+
+    const skillResolved = await resolveCatalogSkillId(
+      supabase,
+      N26_CHAMPION_PROMOTION_SKILL_ID,
+      N26_CHAMPION_PROMOTION_SKILL_NAME
+    );
+    if ('error' in skillResolved) {
+      return { success: false, error: skillResolved.error };
+    }
+
+    if (
+      await fighterAlreadyHasSkill(
+        supabase,
+        params.fighter_id,
+        skillResolved.skillId,
+        N26_CHAMPION_PROMOTION_SKILL_NAME
+      )
+    ) {
+      return {
+        success: false,
+        error: `This fighter already has the skill ${N26_CHAMPION_PROMOTION_SKILL_NAME}`,
+      };
+    }
+
+    // Always rebuild subtypes server-side — never trust client-supplied lists.
+    const newSubtypes = buildN26GangerChampionPromotionSubtypes(currentSubtypes);
+    const specialRules =
+      params.special_rules ??
+      (Array.isArray(before.special_rules) ? before.special_rules : []);
+
+    return await applyKeepTypePromotionWithSkillGrant({
+      fighterId: params.fighter_id,
+      before,
+      newSubtypes,
+      specialRules,
+      // Keep existing specialisation (if any); do not clear or overwrite.
+      skillId: skillResolved.skillId,
+      creditsIncrease: 0,
+    });
+  } catch (error) {
+    console.error('Error applying N26 Ganger→Champion promotion:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
+  }
+}
+
+/**
+ * N26-only: promote a Champion to Leader by selecting a Leader fighter type.
+ * Rebuilds subtypes (drop Loner/Champion/Ganger/Prospect, add Leader), keeps
+ * existing specialisation, grants Inspiring if missing. Rating unchanged.
+ */
+export async function applyN26ChampionLeaderPromotion(
+  params: N26ChampionLeaderPromotionParams
+): Promise<AdvancementResult> {
+  try {
+    const supabase = await createClient();
+    await getAuthenticatedUser(supabase);
+
+    if (!params.fighter_type_id) {
+      return { success: false, error: 'A Leader fighter type is required' };
+    }
+
+    const { data: before, error: beforeError } = await supabase
+      .from('fighters')
+      .select(KEEP_TYPE_PROMOTION_FIGHTER_SELECT)
+      .eq('id', params.fighter_id)
+      .single();
+
+    if (beforeError || !before) {
+      return { success: false, error: 'Fighter not found' };
+    }
+
+    const editionSlug = editionSlugOf(before);
+    if (!hasChampionLeaderTypePromotion(editionSlug)) {
+      return {
+        success: false,
+        error: 'Champion to Leader promotion is not available for this edition',
+      };
+    }
+
+    const currentSubtypes: string[] = Array.isArray(before.fighter_subtypes)
+      ? before.fighter_subtypes
+      : [];
+    if (!currentSubtypes.includes('Champion')) {
+      return { success: false, error: 'Only Champion fighters can use this promotion' };
+    }
+    if (currentSubtypes.includes('Leader')) {
+      return { success: false, error: 'This fighter is already a Leader' };
+    }
+
+    const { data: leaderType, error: leaderTypeError } = await supabase
+      .from('fighter_types')
+      .select('id, fighter_type, fighter_subtypes, editions:edition_id ( slug )')
+      .eq('id', params.fighter_type_id)
+      .maybeSingle();
+
+    if (leaderTypeError || !leaderType) {
+      return { success: false, error: 'Leader fighter type not found' };
+    }
+
+    const leaderEditionSlug = Array.isArray(leaderType.editions)
+      ? leaderType.editions[0]?.slug
+      : (leaderType.editions as { slug?: string } | null)?.slug;
+    if (editionSlug && leaderEditionSlug && leaderEditionSlug !== editionSlug) {
+      return { success: false, error: 'Selected fighter type is not available for this edition' };
+    }
+
+    const catalogSubtypes: string[] = Array.isArray(leaderType.fighter_subtypes)
+      ? leaderType.fighter_subtypes
+      : [];
+    if (!catalogSubtypes.includes('Leader')) {
+      return { success: false, error: 'Selected fighter type is not a Leader' };
+    }
+
+    const skillResolved = await resolveCatalogSkillId(
+      supabase,
+      N26_CHAMPION_PROMOTION_SKILL_ID,
+      N26_CHAMPION_PROMOTION_SKILL_NAME
+    );
+    if ('error' in skillResolved) {
+      return { success: false, error: skillResolved.error };
+    }
+
+    const alreadyHasInspiring = await fighterAlreadyHasSkill(
+      supabase,
+      params.fighter_id,
+      skillResolved.skillId,
+      N26_CHAMPION_PROMOTION_SKILL_NAME
+    );
+
+    // Always rebuild subtypes server-side — never trust client-supplied lists.
+    const newSubtypes = buildN26ChampionLeaderPromotionSubtypes(currentSubtypes);
+    const specialRules =
+      params.special_rules ??
+      (Array.isArray(before.special_rules) ? before.special_rules : []);
+
+    return await applyKeepTypePromotionWithSkillGrant({
+      fighterId: params.fighter_id,
+      before,
+      newSubtypes,
+      specialRules,
+      fighterType: leaderType.fighter_type,
+      fighterTypeId: leaderType.id,
+      // Keep existing specialisation (if any); do not clear or overwrite.
+      skillId: alreadyHasInspiring ? undefined : skillResolved.skillId,
+      creditsIncrease: 0,
+    });
+  } catch (error) {
+    console.error('Error applying N26 Champion→Leader promotion:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
+  }
+}
+
 export async function deleteAdvancement(
   params: DeleteAdvancementParams
 ): Promise<AdvancementResult> {
@@ -751,7 +1292,11 @@ export async function deleteAdvancement(
     // Verify fighter ownership
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select(FIGHTER_WITH_EDITION_SELECT)
+      .select(`
+        ${FIGHTER_WITH_EDITION_SELECT},
+        fighter_subtypes, fighter_type, fighter_type_id,
+        fighter_specialisation, fighter_specialisation_id, special_rules
+      `)
       .eq('id', params.fighter_id)
       .single();
 
@@ -770,6 +1315,7 @@ export async function deleteAdvancement(
     let newFreeSkillStatus = fighter.free_skill;
     let deletedSkillName: string = '';
     let deletedEffectName: string = '';
+    let demotedFighterDetails: AdvancementResult['fighter_details'] | undefined;
 
     if (params.advancement_type === 'skill') {
       // Handle skill deletion
@@ -815,6 +1361,75 @@ export async function deleteAdvancement(
             : [fighterSkillData.skills];
           deletedSkillName = skills[0].name;
         }
+      }
+
+      const currentSubtypesForGrant: string[] = Array.isArray(fighter.fighter_subtypes)
+        ? fighter.fighter_subtypes
+        : [];
+
+      // N26 Prospect promotion grant: rating-only (no stash refund) and full demotion
+      const isProspectPromotionGrant = isN26ProspectPromotionSkillGrant(
+        fighter.fighter_specialisation_id,
+        skillData.skill_id,
+        deletedSkillName
+      );
+
+      // Must undo Champion/Leader first — demoting Prospect while promoted would conflict.
+      if (
+        isProspectPromotionGrant &&
+        (currentSubtypesForGrant.includes('Champion') || currentSubtypesForGrant.includes('Leader'))
+      ) {
+        return {
+          success: false,
+          error: currentSubtypesForGrant.includes('Leader')
+            ? 'Undo the Leader promotion before undoing the Ganger promotion'
+            : 'Undo the Champion promotion (Inspiring) before undoing the Ganger promotion',
+        };
+      }
+
+      // Load catalog subtypes once for Ganger→Champion / Champion→Leader undo checks.
+      let catalogSubtypesForUndo: string[] = [];
+      if (fighter.fighter_type_id) {
+        const { data: catalogType } = await supabase
+          .from('fighter_types')
+          .select('fighter_subtypes')
+          .eq('id', fighter.fighter_type_id)
+          .maybeSingle();
+        catalogSubtypesForUndo = Array.isArray(catalogType?.fighter_subtypes)
+          ? catalogType!.fighter_subtypes
+          : [];
+      }
+
+      // N26 Ganger→Champion keep-type grant: only demote when catalog type is a
+      // Ganger row currently wearing Champion (not a starting Champion type).
+      let isGangerChampionPromotionGrant = isN26GangerChampionPromotionSkillGrant(
+        currentSubtypesForGrant,
+        skillData.skill_id,
+        deletedSkillName
+      );
+      if (isGangerChampionPromotionGrant && fighter.fighter_type_id) {
+        isGangerChampionPromotionGrant =
+          catalogSubtypesForUndo.includes('Ganger') &&
+          !catalogSubtypesForUndo.includes('Champion');
+      } else if (isGangerChampionPromotionGrant && !fighter.fighter_type_id) {
+        // Custom fighters have no catalog Ganger row to verify — do not demote.
+        isGangerChampionPromotionGrant = false;
+      }
+
+      // N26 Champion→Leader grant: demote subtypes when catalog type is a Leader row.
+      let isLeaderPromotionGrant = isN26LeaderPromotionSkillGrant(
+        currentSubtypesForGrant,
+        skillData.skill_id,
+        deletedSkillName
+      );
+      if (isLeaderPromotionGrant && fighter.fighter_type_id) {
+        isLeaderPromotionGrant = catalogSubtypesForUndo.includes('Leader');
+      } else if (isLeaderPromotionGrant && !fighter.fighter_type_id) {
+        isLeaderPromotionGrant = false;
+      }
+
+      if (isProspectPromotionGrant || isGangerChampionPromotionGrant || isLeaderPromotionGrant) {
+        refundStash = false;
       }
 
       // Get fighter type info - handle both regular and custom fighters
@@ -866,6 +1481,53 @@ export async function deleteAdvancement(
           gangId: fighter.gang_id,
           advancementType: 'effect'
         });
+      }
+
+      // Undo N26 promotion grants (subtypes; Leader undo does not restore previous type)
+      if (isProspectPromotionGrant || isGangerChampionPromotionGrant || isLeaderPromotionGrant) {
+        const currentSubtypes: string[] = Array.isArray(fighter.fighter_subtypes)
+          ? fighter.fighter_subtypes
+          : [];
+        const specialRules = Array.isArray(fighter.special_rules) ? fighter.special_rules : [];
+        const demotedSubtypes = isProspectPromotionGrant
+          ? buildN26ProspectDemotionSubtypes(currentSubtypes)
+          : isLeaderPromotionGrant
+            ? buildN26ChampionLeaderDemotionSubtypes(currentSubtypes)
+            : buildN26GangerChampionDemotionSubtypes(currentSubtypes);
+        const demoteResult = await updateFighterDetails({
+          fighter_id: params.fighter_id,
+          fighter_subtypes: demotedSubtypes,
+          fighter_type: fighter.fighter_type ?? undefined,
+          fighter_type_id: fighter.fighter_type_id ?? undefined,
+          fighter_specialisation: isProspectPromotionGrant
+            ? null
+            : (fighter.fighter_specialisation ?? null),
+          fighter_specialisation_id: isProspectPromotionGrant
+            ? null
+            : (fighter.fighter_specialisation_id ?? null),
+          special_rules: specialRules,
+        });
+        if (!demoteResult.success) {
+          return {
+            success: false,
+            error: demoteResult.error
+              || (isProspectPromotionGrant
+                ? 'Skill removed but Prospect demotion failed — please restore Prospect subtypes in Edit Fighter.'
+                : isLeaderPromotionGrant
+                  ? 'Skill removed but Leader demotion failed — please restore Champion subtype in Edit Fighter.'
+                  : 'Skill removed but Ganger demotion failed — please restore Ganger subtype in Edit Fighter.'),
+          };
+        }
+        demotedFighterDetails = {
+          fighter_subtypes: demotedSubtypes,
+          fighter_specialisation: isProspectPromotionGrant
+            ? null
+            : (fighter.fighter_specialisation ?? null),
+          fighter_specialisation_id: isProspectPromotionGrant
+            ? null
+            : (fighter.fighter_specialisation_id ?? null),
+          special_rules: specialRules,
+        };
       }
 
       // Update free_skill status for both standard and custom fighter types
@@ -1027,14 +1689,16 @@ export async function deleteAdvancement(
     return {
       success: true,
       fighter: updatedFighter,
-      remaining_xp: updatedFighter.xp
+      remaining_xp: updatedFighter.xp,
+      refund_stash: refundStash,
+      ...(demotedFighterDetails ? { fighter_details: demotedFighterDetails } : {}),
     };
 
   } catch (error) {
     console.error('Error deleting advancement:', error);
     return { 
       success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
+      error: error instanceof Error ? error.message : 'Unknown error occurred' 
     };
   }
 }

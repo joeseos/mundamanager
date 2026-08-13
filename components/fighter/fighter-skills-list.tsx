@@ -15,6 +15,15 @@ import {
 import { LuTrash2 } from 'react-icons/lu';
 import Link from 'next/link';
 import { hatredTargetHref } from '@/utils/injuryTarget';
+import {
+  buildN26ChampionLeaderDemotionSubtypes,
+  buildN26GangerChampionDemotionSubtypes,
+  buildN26ProspectDemotionSubtypes,
+  isN26GangerChampionPromotionSkillGrant,
+  isN26LeaderPromotionSkillGrant,
+  isN26ProspectPromotionSkillGrant,
+  N26_PROSPECT_PROMOTION_CREDITS,
+} from '@/utils/keepTypePromotionN26';
 
 // Interface for individual skill when displayed in table
 interface Skill {
@@ -42,8 +51,20 @@ interface SkillsListProps {
   userPermissions: UserPermissions;
   gangCredits?: number;
   editionSlug?: string | null;
+  /** Used to detect N26 Prospect / Ganger→Champion keep-type skill grants on delete. */
+  fighterSpecialisationId?: string | null;
+  fighterSpecialisationName?: string | null;
+  fighterSubtypes?: string[];
   onSkillsUpdate: (updatedSkills: FighterSkills) => void;
   onGangCreditsUpdate?: (creditsDelta: number) => void;
+  /** Rating / fighter-credits delta (e.g. −15 when undoing Prospect promotion). */
+  onXpCreditsUpdate?: (xpChange: number, creditsChange: number) => void;
+  onFighterDetailsUpdate?: (patch: {
+    fighter_subtypes?: string[];
+    fighter_specialisation?: string | null;
+    fighter_specialisation_id?: string | null;
+    special_rules?: string[];
+  }) => void;
 }
 
 // SkillModal Interfaces
@@ -463,8 +484,13 @@ export function SkillsList({
   userPermissions,
   gangCredits,
   editionSlug,
+  fighterSpecialisationId = null,
+  fighterSpecialisationName = null,
+  fighterSubtypes = [],
   onSkillsUpdate,
-  onGangCreditsUpdate
+  onGangCreditsUpdate,
+  onXpCreditsUpdate,
+  onFighterDetailsUpdate,
 }: SkillsListProps) {
   const [skillToDelete, setSkillToDelete] = useState<{ id: string; name: string } | null>(null);
   const [isAddSkillModalOpen, setIsAddSkillModalOpen] = useState(false);
@@ -493,46 +519,133 @@ export function SkillsList({
     },
     onMutate: async (variables) => {
       // Find the skill being deleted
-      const skillToDelete = Object.entries(localSkills).find(([name, skill]) => (skill as any).id === variables.advancement_id);
-      if (!skillToDelete) return {};
+      const skillEntry = Object.entries(localSkills).find(
+        ([, skill]) => (skill as any).id === variables.advancement_id
+      );
+      if (!skillEntry) return {};
 
-      // Store previous state for rollback
       const previousSkills = { ...localSkills };
+      const [skillName, skillDataRaw] = skillEntry;
+      const skillData = skillDataRaw as any;
+      const isProspectPromotionGrant = isN26ProspectPromotionSkillGrant(
+        fighterSpecialisationId,
+        null,
+        skillName
+      );
+      // Optimistic only — server also verifies catalog type for demotion.
+      const isGangerChampionPromotionGrant = isN26GangerChampionPromotionSkillGrant(
+        fighterSubtypes,
+        null,
+        skillName
+      );
+      const isLeaderPromotionGrant = isN26LeaderPromotionSkillGrant(
+        fighterSubtypes,
+        null,
+        skillName
+      );
+      const isKeepTypePromotionGrant =
+        isProspectPromotionGrant || isGangerChampionPromotionGrant || isLeaderPromotionGrant;
 
-      // Calculate credits to refund (non-advancement skills with cost > 0)
-      const skillData = skillToDelete[1] as any;
-      const creditsRefunded = (!skillData.is_advance && skillData.credits_increase > 0) ? skillData.credits_increase : 0;
+      // Stash refund only for normal purchased skills — not keep-type promotion grants
+      const creditsRefunded =
+        !isKeepTypePromotionGrant && !skillData.is_advance && skillData.credits_increase > 0
+          ? skillData.credits_increase
+          : 0;
+      const ratingCreditsRemoved = isProspectPromotionGrant
+        ? (skillData.credits_increase || N26_PROSPECT_PROMOTION_CREDITS)
+        : 0;
 
-      // Optimistically remove the skill
       const updatedSkills = { ...localSkills };
-      delete updatedSkills[skillToDelete[0]];
+      delete updatedSkills[skillName];
       setLocalSkills(updatedSkills);
       onSkillsUpdate(updatedSkills);
 
-      // Optimistically refund gang credits
       if (creditsRefunded > 0) {
         onGangCreditsUpdate?.(creditsRefunded);
       }
+      if (ratingCreditsRemoved > 0) {
+        onXpCreditsUpdate?.(0, -ratingCreditsRemoved);
+      }
 
-      return { skillName: skillToDelete[0], previousSkills, creditsRefunded };
+      const previousFighterDetails = isKeepTypePromotionGrant
+        ? {
+            fighter_subtypes: fighterSubtypes,
+            fighter_specialisation: fighterSpecialisationName,
+            fighter_specialisation_id: fighterSpecialisationId,
+          }
+        : undefined;
+
+      if (isProspectPromotionGrant) {
+        onFighterDetailsUpdate?.({
+          fighter_subtypes: buildN26ProspectDemotionSubtypes(fighterSubtypes),
+          fighter_specialisation: null,
+          fighter_specialisation_id: null,
+        });
+      } else if (isGangerChampionPromotionGrant) {
+        onFighterDetailsUpdate?.({
+          fighter_subtypes: buildN26GangerChampionDemotionSubtypes(fighterSubtypes),
+        });
+      } else if (isLeaderPromotionGrant) {
+        onFighterDetailsUpdate?.({
+          fighter_subtypes: buildN26ChampionLeaderDemotionSubtypes(fighterSubtypes),
+        });
+      }
+
+      return {
+        skillName,
+        previousSkills,
+        creditsRefunded,
+        ratingCreditsRemoved,
+        isProspectPromotionGrant,
+        isGangerChampionPromotionGrant,
+        isLeaderPromotionGrant,
+        previousFighterDetails,
+      };
     },
-    onSuccess: (result, variables, context) => {
-      if (context?.creditsRefunded && context.creditsRefunded > 0) {
+    onSuccess: (result, _variables, context) => {
+      if (result.fighter_details) {
+        onFighterDetailsUpdate?.(result.fighter_details);
+      } else if (
+        (context?.isGangerChampionPromotionGrant || context?.isLeaderPromotionGrant) &&
+        context.previousFighterDetails
+      ) {
+        // Server did not demote (e.g. starting Champion/Leader with Inspiring) — undo optimistic demotion.
+        onFighterDetailsUpdate?.({
+          fighter_subtypes: context.previousFighterDetails.fighter_subtypes,
+          fighter_specialisation: context.previousFighterDetails.fighter_specialisation,
+          fighter_specialisation_id: context.previousFighterDetails.fighter_specialisation_id,
+        });
+      }
+      if (context?.isProspectPromotionGrant) {
+        toast.success(`${context?.skillName} removed — Prospect promotion undone`);
+      } else if (context?.isGangerChampionPromotionGrant && result.fighter_details) {
+        toast.success(`${context?.skillName} removed — Champion promotion undone`);
+      } else if (context?.isLeaderPromotionGrant && result.fighter_details) {
+        toast.success(`${context?.skillName} removed — Leader promotion undone`);
+      } else if (context?.creditsRefunded && context.creditsRefunded > 0) {
         toast.success(`${context?.skillName} removed, ${context.creditsRefunded} credits refunded`);
       } else {
         toast.success(`${context?.skillName} removed successfully`);
       }
     },
-    onError: (error, variables, context) => {
-      // Rollback optimistic update
+    onError: (_error, _variables, context) => {
       if (context?.previousSkills) {
         setLocalSkills(context.previousSkills);
         onSkillsUpdate(context.previousSkills);
       }
 
-      // Rollback gang credits
       if (context?.creditsRefunded && context.creditsRefunded > 0) {
         onGangCreditsUpdate?.(-context.creditsRefunded);
+      }
+      if (context?.ratingCreditsRemoved && context.ratingCreditsRemoved > 0) {
+        onXpCreditsUpdate?.(0, context.ratingCreditsRemoved);
+      }
+      if (context?.previousFighterDetails) {
+        onFighterDetailsUpdate?.({
+          fighter_subtypes: context.previousFighterDetails.fighter_subtypes,
+          fighter_specialisation: context.previousFighterDetails.fighter_specialisation,
+          fighter_specialisation_id: context.previousFighterDetails.fighter_specialisation_id,
+        });
       }
 
       toast.error('Failed to delete skill');
@@ -677,6 +790,28 @@ export function SkillsList({
                   </span>
                 );
               }
+              // N26 promotion grants
+              if (isN26LeaderPromotionSkillGrant(fighterSubtypes, null, item.name)) {
+                return (
+                  <span className="text-muted-foreground text-sm italic whitespace-nowrap">
+                    Promotion: Leader
+                  </span>
+                );
+              }
+              if (isN26GangerChampionPromotionSkillGrant(fighterSubtypes, null, item.name)) {
+                return (
+                  <span className="text-muted-foreground text-sm italic whitespace-nowrap">
+                    Promotion: Champion
+                  </span>
+                );
+              }
+              if (isN26ProspectPromotionSkillGrant(fighterSpecialisationId, null, item.name)) {
+                return (
+                  <span className="text-muted-foreground text-sm italic whitespace-nowrap">
+                    Promotion: Ganger
+                  </span>
+                );
+              }
               return null;
             }
           },
@@ -692,7 +827,19 @@ export function SkillsList({
             title: "Delete",
             variant: 'outline_remove' as const,
             onClick: (item: any) => handleDeleteClick(item.id, item.name),
-            disabled: (item: any) => !!item.fighter_injury_id || !!item.is_advance || !userPermissions.canEdit || deleteSkillMutation.isPending
+            disabled: (item: any) => {
+              if (!!item.fighter_injury_id || !!item.is_advance || !userPermissions.canEdit || deleteSkillMutation.isPending) {
+                return true;
+              }
+              // After Champion/Leader promotion, the Prospect (Promotion: Ganger) skill cannot be undone first.
+              if (
+                isN26ProspectPromotionSkillGrant(fighterSpecialisationId, null, item.name) &&
+                (fighterSubtypes.includes('Champion') || fighterSubtypes.includes('Leader'))
+              ) {
+                return true;
+              }
+              return false;
+            }
           }
         ]}
         onAdd={() => setIsAddSkillModalOpen(true)}
