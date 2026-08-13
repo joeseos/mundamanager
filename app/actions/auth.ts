@@ -3,7 +3,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { headers } from "next/headers";
 import { cookies } from 'next/headers';
-import { revalidatePath } from 'next/cache';
 import { invalidateUserCount } from '@/utils/cache-tags';
 import { safePostSignInPath } from '@/utils/auth';
 
@@ -133,8 +132,7 @@ export const signInAction = async (formData: FormData): Promise<AuthActionResult
     return { error: error.message };
   }
 
-  revalidatePath('/', 'layout');
-
+  // No revalidatePath - see the note in signOutAction.
   return { redirectTo: safePostSignInPath(nextParam) };
 };
 
@@ -215,8 +213,9 @@ export const signOutAction = async (): Promise<AuthRedirect> => {
     }
   });
 
-  // Revalidate the root layout to clear any cached user data
-  revalidatePath('/', 'layout');
-
+  // No revalidatePath: revalidatePath('/', 'layout') emits the implicit tag
+  // _N_T_/layout, which every route carries and unstable_cache reads as a soft
+  // tag, so it evicts the whole shared Data Cache. User-scoped entries are keyed
+  // per user id, so an account switch needs no invalidation.
   return { redirectTo: "/sign-in" };
 };
