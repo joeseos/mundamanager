@@ -12,7 +12,7 @@ import {
   PASSWORD_ERROR_MESSAGE,
   checkPasswordRequirements,
   isPasswordValid,
-} from "@/utils/password";
+} from "@/utils/auth";
 import { LuEye, LuEyeOff } from "react-icons/lu";
 
 export default function Page(props: { searchParams: Promise<Message> }) {

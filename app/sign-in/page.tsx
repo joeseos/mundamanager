@@ -83,16 +83,13 @@ function SignInContent() {
 
     if ('error' in result) {
       setErrorMessage(result.error);
-      // The token was consumed by this attempt, so a retry with the same one
-      // would always fail verification - re-challenge for a fresh token.
+      // This attempt consumed the token, so a retry needs a fresh one.
       turnstileRef.current?.reset();
       return;
     }
 
-    // A full document load, not a client-side navigation: it's the only thing
-    // that rebuilds the browser Supabase client, the useClaims state in the
-    // header and the query cache from the newly-set cookies. Without it the UI
-    // keeps showing the previously signed-in account until a manual refresh.
+    // Full document load, not a client-side navigation: it's what rebuilds the
+    // browser Supabase client and useClaims from the newly-set cookies.
     window.location.assign(result.redirectTo);
   }
 

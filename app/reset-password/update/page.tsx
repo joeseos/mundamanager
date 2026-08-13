@@ -12,7 +12,7 @@ import {
   PASSWORD_ERROR_MESSAGE,
   checkPasswordRequirements,
   isPasswordValid,
-} from "@/utils/password";
+} from "@/utils/auth";
 import { LuEye, LuEyeOff } from "react-icons/lu";
 
 function UpdatePasswordFormContent() {
@@ -23,8 +23,7 @@ function UpdatePasswordFormContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
-  // verifyOtp consumes a one-time token, so the effect must not run twice
-  // (React StrictMode double-mounts effects in development).
+  // verifyOtp spends a one-time token, so this must not run twice under StrictMode.
   const hasVerifiedRef = useRef(false);
 
   useEffect(() => {
@@ -43,14 +42,11 @@ function UpdatePasswordFormContent() {
         const token_hash = searchParams.get('token_hash');
         const type = searchParams.get('type');
 
-        // Which of these applies depends on the recovery email template.
-        // A {{ .TokenHash }} template sends the one-time token here for us to
-        // exchange; a default {{ .ConfirmationURL }} template has GoTrue verify
-        // it and redirect here with the recovery session already established.
+        // A {{ .TokenHash }} template sends the token here to exchange; a
+        // {{ .ConfirmationURL }} one arrives with the session already established.
         if (token_hash && type === 'recovery') {
-          // Never reuse whatever session is already on this browser - otherwise
-          // following a reset link while signed in as someone else changes that
-          // account's password instead.
+          // Drop any existing session, or a reset link followed while signed in
+          // as someone else changes that account's password.
           await supabase.auth.signOut({ scope: 'local' });
 
           const { error: verifyError } = await supabase.auth.verifyOtp({
@@ -66,8 +62,7 @@ function UpdatePasswordFormContent() {
           return;
         }
 
-        // No token to exchange, so the only thing that authorises the update is
-        // a session GoTrue established on the way here.
+        // No token, so the session GoTrue established is the only authorisation.
         const { data: { session } } = await supabase.auth.getSession();
 
         if (!session) {
@@ -103,10 +98,8 @@ function UpdatePasswordFormContent() {
       if (error) {
         setMessage({ error: error.message });
       } else {
-        // Sign out after password update
         await supabase.auth.signOut();
-        // Full document load so the header's auth state is rebuilt from the
-        // now-cleared cookies rather than keeping the recovery session.
+        // Full document load so the header rebuilds from the cleared cookies.
         window.location.assign('/sign-in?success=' + encodeURIComponent('Password updated successfully. Please sign in with your new password.'));
       }
     } catch (error) {

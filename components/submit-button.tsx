@@ -20,9 +20,8 @@ export function SubmitButton({
     <Button
       type="submit"
       aria-disabled={pending}
-      // Actually disabled, not just aria-disabled: a second click while a
-      // submit is in flight resubmits the form, which on sign-in burns the
-      // single-use Turnstile token.
+      // Actually disabled, not just aria-disabled: a second click while a submit
+      // is in flight resubmits, which on sign-in burns the Turnstile token.
       disabled={pending || disabled}
       {...props}
     >

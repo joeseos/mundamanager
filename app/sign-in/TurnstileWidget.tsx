@@ -32,17 +32,14 @@ export default function TurnstileWidget({ onToken, ref }: TurnstileWidgetProps) 
   // Get sitekey once at component initialization
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '';
 
-  // Held in a ref so the callbacks handed to turnstile.render() never read a
-  // stale closure, and so the mount effect can keep empty deps.
+  // In a ref so turnstile.render()'s callbacks never read a stale closure.
   const onTokenRef = useRef(onToken);
   useEffect(() => {
     onTokenRef.current = onToken;
   }, [onToken]);
 
-  // Turnstile tokens are single-use and expire after ~300s, so any spent or
-  // stale token has to be cleared and re-issued rather than resubmitted.
-  // Stable across renders (it only touches refs), so the callbacks handed to
-  // turnstile.render() can close over it safely.
+  // Tokens are single-use and expire after ~300s, so a spent one must be
+  // re-issued rather than resubmitted. Stable, so render()'s callbacks can hold it.
   const resetWidget = useCallback(() => {
     onTokenRef.current(null);
     if (window.turnstile && widgetIdRef.current) {
@@ -70,7 +67,6 @@ export default function TurnstileWidget({ onToken, ref }: TurnstileWidgetProps) 
           setHasError(false);
           onTokenRef.current(token);
         },
-        // Re-challenge rather than leaving an unusable token in place.
         'expired-callback': resetWidget,
         'timeout-callback': resetWidget,
         'error-callback': function(error: any) {
@@ -119,8 +115,7 @@ export default function TurnstileWidget({ onToken, ref }: TurnstileWidgetProps) 
       return;
     }
 
-    // A page restored from the back/forward cache carries a token that was
-    // already spent (or has since expired) - re-challenge instead.
+    // A bfcache restore carries a token that is already spent or expired.
     const handlePageShow = (event: PageTransitionEvent) => {
       if (event.persisted) {
         resetWidget();

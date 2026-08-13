@@ -9,7 +9,7 @@ import {
   PASSWORD_ERROR_MESSAGE,
   checkPasswordRequirements,
   isPasswordValid,
-} from "@/utils/password";
+} from "@/utils/auth";
 import { AuthApiError } from '@supabase/supabase-js';
 import Modal from "@/components/ui/modal";
 import { LuEye, LuEyeOff } from "react-icons/lu";
@@ -117,13 +117,7 @@ export default function PasswordChange() {
                 setIsEditing(false);
                 setNewPassword('');
                 setError(null);
-                setPasswordRequirements({
-                  hasLowerCase: false,
-                  hasUpperCase: false,
-                  hasNumber: false,
-                  hasSpecialChar: false,
-                  hasMinLength: false,
-                });
+                setPasswordRequirements(EMPTY_PASSWORD_REQUIREMENTS);
               }}
               variant="outline"
               size="sm"
