@@ -4,12 +4,10 @@ import { createClient } from "@/utils/supabase/server";
 import { headers } from "next/headers";
 import { cookies } from 'next/headers';
 import { invalidateUserCount } from '@/utils/cache-tags';
-import { safePostSignInPath } from '@/utils/auth';
 
-// Returned instead of calling redirect(), so the caller can do a full document
-// load - a client-side navigation leaves the browser Supabase client stale.
+// Returned instead of calling redirect(), so sign-out can do a full document
+// load - it is what guarantees the cleared cookies are gone from every client.
 type AuthRedirect = { redirectTo: string };
-type AuthActionResult = { error: string } | AuthRedirect;
 
 export const signUpAction = async (formData: FormData) => {
   const origin = (await headers()).get("origin");
@@ -94,46 +92,33 @@ export const signUpAction = async (formData: FormData) => {
   }
 };
 
-export const signInAction = async (formData: FormData): Promise<AuthActionResult> => {
-  const email = formData.get("email") as string;
-  const password = formData.get("password") as string;
-  const turnstileToken = formData.get("cf-turnstile-response") as string;
-  const nextParam = formData.get('next') as string | undefined;
-
-  // Check if Turnstile is configured
-  const hasTurnstileConfig = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && process.env.TURNSTILE_SECRET_KEY;
-
+// Only the challenge is checked here - the sign-in itself runs on the browser
+// client, so it holds the session it created and needs no page reload to see it.
+// TURNSTILE_SECRET_KEY is why this half stays on the server.
+export const verifySignInChallenge = async (
+  turnstileToken: string,
+): Promise<{ ok: true } | { error: string }> => {
   if (process.env.NODE_ENV === "development") {
     console.log("Skipping Turnstile verification in development mode.");
+    return { ok: true };
   }
-  else if (hasTurnstileConfig) {
-    if (!turnstileToken) {
-      return { error: "Please complete the security verification challenge" };
-    }
 
-    // Verify Turnstile token
-    const turnstileVerification = await verifyTurnstileToken(turnstileToken);
-    if (!turnstileVerification.success) {
-      console.error('Turnstile verification failed:', turnstileVerification);
-      return { error: "Security verification failed. Please try again." };
-    }
-  } else {
+  if (!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || !process.env.TURNSTILE_SECRET_KEY) {
     console.warn('Turnstile not configured - proceeding without verification');
+    return { ok: true };
   }
 
-  const supabase = await createClient();
-
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-
-  if (error) {
-    return { error: error.message };
+  if (!turnstileToken) {
+    return { error: "Please complete the security verification challenge" };
   }
 
-  // No revalidatePath - see the note in signOutAction.
-  return { redirectTo: safePostSignInPath(nextParam) };
+  const turnstileVerification = await verifyTurnstileToken(turnstileToken);
+  if (!turnstileVerification.success) {
+    console.error('Turnstile verification failed:', turnstileVerification);
+    return { error: "Security verification failed. Please try again." };
+  }
+
+  return { ok: true };
 };
 
 async function verifyTurnstileToken(token: string) {
