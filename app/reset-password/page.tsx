@@ -83,7 +83,7 @@ function ResetPasswordContent() {
                 <SubmitButton 
                   pendingText="Sending..." 
                   className="mt-2"
-                  disabled={isSubmitting}
+                  pending={isSubmitting}
                 >
                   Send Reset Instructions
                 </SubmitButton>
