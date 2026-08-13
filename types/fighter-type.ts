@@ -85,6 +85,9 @@ export interface FighterType {
     specialisation_name: string;
   };
   fighter_specialisation_id?: string;
+  /** Variant family and this row's name within it, both set by /api/fighter-types. */
+  typeSubtypeKey?: string;
+  variantLabel?: string;
   available_legacies?: Array<{id: string, name: string}>;
   is_spyrer?: boolean;
   free_skill?: boolean;

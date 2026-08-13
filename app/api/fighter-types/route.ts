@@ -95,6 +95,65 @@ function transformCustomFighter(cf: any) {
   };
 }
 
+const subtypeKey = (row: any) =>
+  ((row.fighter_subtypes ?? []) as string[]).map(s => s.toLowerCase().trim()).sort().join(',');
+
+const containsAllSubtypes = (subtypes: string[], base: string[]) => {
+  const have = new Set(subtypes.map(s => s.toLowerCase().trim()));
+  return base.every(name => have.has(name.toLowerCase().trim()));
+};
+
+/**
+ * Tags each row with its variant family — same fighter_type, and one row's subtype set
+ * containing the other's — named after the family's smallest (base) set. N26 variants can
+ * add a subtype, "Master of Shadow (Leader)" next to "(Leader, Wyrd)", which an exact
+ * subtype match lists as unrelated fighters. Disjoint sets stay apart, so N23's
+ * "Gunner (Ganger)" and "Gunner (Specialist)" keep their own entries.
+ */
+function withVariantGroups(rows: any[]) {
+  const byFighterType = new Map<string, any[]>();
+  for (const row of rows) {
+    const group = byFighterType.get(row.fighter_type);
+    if (group) group.push(row);
+    else byFighterType.set(row.fighter_type, [row]);
+  }
+
+  const baseOfSet = new Map<string, { key: string; names: string[] }>();
+
+  for (const [fighterType, group] of byFighterType) {
+    const sets = new Map<string, string[]>();
+    for (const row of group) {
+      if (!sets.has(subtypeKey(row))) sets.set(subtypeKey(row), row.fighter_subtypes ?? []);
+    }
+
+    const bases: Array<{ key: string; names: string[] }> = [];
+    const smallestFirst = [...sets].sort(([keyA, a], [keyB, b]) =>
+      a.length - b.length || keyA.localeCompare(keyB)
+    );
+
+    for (const [key, names] of smallestFirst) {
+      const base = bases
+        .filter(candidate => containsAllSubtypes(names, candidate.names))
+        .sort((a, b) => b.names.length - a.names.length)[0];
+      if (!base) bases.push({ key, names });
+      baseOfSet.set(`${fighterType}::${key}`, base ?? { key, names });
+    }
+  }
+
+  return rows.map(row => {
+    const base = baseOfSet.get(`${row.fighter_type}::${subtypeKey(row)}`)!;
+    const inBase = new Set(base.names.map(name => name.toLowerCase().trim()));
+    const added = ((row.fighter_subtypes ?? []) as string[]).filter(
+      name => !inBase.has(name.toLowerCase().trim())
+    );
+    return {
+      ...row,
+      typeSubtypeKey: `${row.fighter_type}::${base.key}`,
+      variantLabel: row.specialisation?.specialisation_name || added.join(', ') || 'Default',
+    };
+  });
+}
+
 // null means "no filter", which is what callers outside the gang add-modals want.
 function filterByIsVehicle(rows: any[], isVehicleParam: string | null) {
   if (isVehicleParam === null) return rows;
@@ -212,7 +271,7 @@ export async function GET(request: Request) {
         data = mergeById(data, await getAvailableToAllFighterTypes(supabase, gangTypeId, customGangTypeId));
       }
 
-      return NextResponse.json(filterByIsVehicle(data, isVehicleParam));
+      return NextResponse.json(withVariantGroups(filterByIsVehicle(data, isVehicleParam)));
     }
 
     if (includeAllTypes) {
@@ -392,7 +451,7 @@ export async function GET(request: Request) {
       data = mergeById(data, await getAvailableToAllFighterTypes(supabase, gangTypeId, customGangTypeId));
     }
 
-    return NextResponse.json(filterByIsVehicle(data, isVehicleParam));
+    return NextResponse.json(withVariantGroups(filterByIsVehicle(data, isVehicleParam)));
   } catch (error) {
     console.error('Error fetching fighter types:', error);
     return NextResponse.json({ error: 'Error fetching fighter types' }, { status: 500 });

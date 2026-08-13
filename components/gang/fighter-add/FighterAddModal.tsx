@@ -129,6 +129,8 @@ function mapFighterType(type: any): FighterType {
     equipment_selection: type.equipment_selection,
     specialisation: type.specialisation,
     fighter_specialisation_id: type.specialisation?.id,
+    typeSubtypeKey: type.typeSubtypeKey,
+    variantLabel: type.variantLabel,
     available_legacies: type.available_legacies || [],
     is_custom_fighter: type.is_custom_fighter || false,
     free_skill: type.free_skill || false,
@@ -337,15 +339,13 @@ export default function FighterAddModal({
       }
     }
 
-    const fighterTypeGroup = fighterTypes.filter(t =>
-      t.fighter_type === selectedType?.fighter_type &&
-      t.fighter_subtypes?.[0] === selectedType?.fighter_subtypes?.[0]
-    );
+    const familyKey = selectedType?.typeSubtypeKey ?? typeId;
+    const fighterTypeGroup = filteredTypes.filter(t => (t.typeSubtypeKey ?? t.id) === familyKey);
 
     if (fighterTypeGroup.length > 1) {
       const specialisations = fighterTypeGroup.map(ft => ({
         id: ft.id,
-        specialisation_name: ft.specialisation?.specialisation_name || 'Default',
+        specialisation_name: ft.variantLabel || 'Default',
         cost: ft.total_cost,
       }));
       setAvailableSpecialisations(specialisations);
@@ -734,7 +734,8 @@ export default function FighterAddModal({
   const buildTypeOptions = () => {
     const typeSubtypeMap = new Map<string, { fighter: FighterType; cost: number }>();
     filteredTypes.forEach(fighter => {
-      const key = `${fighter.fighter_type}-${fighter.fighter_subtypes?.join(',')}`;
+      // Variants of one fighter share a key, so the list shows the family once.
+      const key = fighter.typeSubtypeKey ?? fighter.id;
       if (!typeSubtypeMap.has(key)) {
         typeSubtypeMap.set(key, { fighter, cost: fighter.total_cost });
       } else {
