@@ -7,35 +7,25 @@ import { Label } from "@/components/ui/label";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useState, useEffect, useMemo, useRef, Suspense } from "react";
 import { createClient } from "@/utils/supabase/client";
+import {
+  EMPTY_PASSWORD_REQUIREMENTS,
+  PASSWORD_ERROR_MESSAGE,
+  checkPasswordRequirements,
+  isPasswordValid,
+} from "@/utils/password";
 import { LuEye, LuEyeOff } from "react-icons/lu";
 
 function UpdatePasswordFormContent() {
   const [message, setMessage] = useState<Message>({} as Message);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [passwordRequirements, setPasswordRequirements] = useState({
-    hasLowerCase: false,
-    hasUpperCase: false,
-    hasNumber: false,
-    hasSpecialChar: false,
-    hasMinLength: false,
-  });
+  const [passwordRequirements, setPasswordRequirements] = useState(EMPTY_PASSWORD_REQUIREMENTS);
   const searchParams = useSearchParams();
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   // verifyOtp consumes a one-time token, so the effect must not run twice
   // (React StrictMode double-mounts effects in development).
   const hasVerifiedRef = useRef(false);
-
-  const checkPasswordRequirements = (password: string) => {
-    setPasswordRequirements({
-      hasLowerCase: /[a-z]/.test(password),
-      hasUpperCase: /[A-Z]/.test(password),
-      hasNumber: /\d/.test(password),
-      hasSpecialChar: /[!@#$%^&*()_+\-=\[\]{}|;:,.<>?~]/.test(password),
-      hasMinLength: password.length >= 6,
-    });
-  };
 
   useEffect(() => {
     if (hasVerifiedRef.current) return;
@@ -83,14 +73,8 @@ function UpdatePasswordFormContent() {
     const formData = new FormData(e.currentTarget);
     const password = formData.get('password') as string;
 
-    const hasLowerCase = /[a-z]/.test(password);
-    const hasUpperCase = /[A-Z]/.test(password);
-    const hasNumber = /\d/.test(password);
-    const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{}|;:,.<>?~]/.test(password);
-    const hasMinLength = password.length >= 6;
-
-    if (!hasLowerCase || !hasUpperCase || !hasNumber || !hasSpecialChar || !hasMinLength) {
-      setMessage({ error: 'Password must contain at least 6 characters, including uppercase, lowercase, number, and special character' });
+    if (!isPasswordValid(password)) {
+      setMessage({ error: PASSWORD_ERROR_MESSAGE });
       setIsSubmitting(false);
       return;
     }
@@ -133,7 +117,7 @@ function UpdatePasswordFormContent() {
               required
               className="text-foreground pr-10"
               minLength={6}
-              onChange={(e) => checkPasswordRequirements(e.target.value)}
+              onChange={(e) => setPasswordRequirements(checkPasswordRequirements(e.target.value))}
             />
             <button
               type="button"

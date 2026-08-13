@@ -63,23 +63,16 @@ export default function TurnstileWidget({ onToken, ref }: TurnstileWidgetProps) 
     }
 
     try {
-      console.log('Rendering Turnstile widget');
       const widgetId = window.turnstile.render(widgetRef.current, {
         sitekey: siteKey,
         theme: 'dark',
         callback: function(token: string) {
-          console.log("Turnstile verification successful");
           setHasError(false);
           onTokenRef.current(token);
         },
-        'expired-callback': function() {
-          console.log("Turnstile token expired, re-challenging");
-          resetWidget();
-        },
-        'timeout-callback': function() {
-          console.log("Turnstile challenge timed out, re-challenging");
-          resetWidget();
-        },
+        // Re-challenge rather than leaving an unusable token in place.
+        'expired-callback': resetWidget,
+        'timeout-callback': resetWidget,
         'error-callback': function(error: any) {
           console.error("Turnstile error:", error);
           onTokenRef.current(null);
@@ -90,7 +83,6 @@ export default function TurnstileWidget({ onToken, ref }: TurnstileWidgetProps) 
       widgetIdRef.current = widgetId;
       isRenderedRef.current = true;
       setHasError(false);
-      console.log('Turnstile widget rendered successfully');
       return true;
     } catch (e) {
       console.error('Error rendering Turnstile widget:', e);
@@ -124,7 +116,6 @@ export default function TurnstileWidget({ onToken, ref }: TurnstileWidgetProps) 
   useEffect(() => {
     // Skip if no site key
     if (!siteKey) {
-      console.log('No Turnstile site key provided');
       return;
     }
 
@@ -157,7 +148,6 @@ export default function TurnstileWidget({ onToken, ref }: TurnstileWidgetProps) 
     // Check if script is already loaded
     const existingScript = document.querySelector('script[src*="turnstile"]');
     if (existingScript || scriptLoadedRef.current) {
-      console.log('Turnstile script already loaded');
       attemptRender();
       return cleanUp;
     }
@@ -169,7 +159,6 @@ export default function TurnstileWidget({ onToken, ref }: TurnstileWidgetProps) 
     script.defer = true;
 
     script.onload = () => {
-      console.log('Turnstile script loaded');
       scriptLoadedRef.current = true;
       attemptRender();
     };

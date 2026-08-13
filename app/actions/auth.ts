@@ -148,9 +148,6 @@ async function verifyTurnstileToken(token: string) {
     return { success: false, error: 'No token provided' };
   }
 
-  console.log('Verifying Turnstile token:', token.substring(0, 10) + '...');
-  console.log('TURNSTILE_SECRET_KEY:', process.env.TURNSTILE_SECRET_KEY ? 'Set' : 'Not set');
-
   try {
     const response = await fetch(
       "https://challenges.cloudflare.com/turnstile/v0/siteverify",
@@ -166,9 +163,7 @@ async function verifyTurnstileToken(token: string) {
       }
     );
 
-    const data = await response.json();
-    console.log('Turnstile verification response:', data);
-    return data;
+    return await response.json();
   } catch (error) {
     console.error('Error verifying Turnstile token:', error);
     return { success: false, error: 'Verification failed' };
@@ -194,7 +189,7 @@ export const forgotPasswordAction = async (formData: FormData) => {
     return { error: "Something went wrong. Please try again." };
   }
 
-  const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${origin}/reset-password/update`,
   });
 
