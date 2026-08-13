@@ -195,17 +195,24 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode, ed
         </colgroup>
         <thead>
           {usesLethality ? (
-            <tr>
-              <th className={`${pClass} text-left`}>
-                {entity === 'vehicle' ? 'Vehicle Weapon' : entity === 'crew' ? 'Crew Weapon' : 'Weapon'}
-              </th>
-              <th className={`${pClass} text-center border-l border-black`}>SR</th>
-              <th className={`${pClass} text-center border-l border-black`}>LR</th>
-              <th className={`${pClass} text-center border-l border-black`}>Str</th>
-              <th className={`${pClass} text-center border-l border-black`}>AP</th>
-              <th className={`${pClass} text-center border-l border-black`}>L</th>
-              <th className={`${pClass} text-left border-l border-black`}>Traits</th>
-            </tr>
+            <>
+              {/* Empty stand-in for N23's Rng/Acc group row, so both editions leave
+                  the same gap under the characteristics table. */}
+              <tr aria-hidden="true">
+                <th className={`${pClass} ${rngAccHeaderSizeClass}`} colSpan={7}>&nbsp;</th>
+              </tr>
+              <tr>
+                <th className={`${pClass} text-left`}>
+                  {entity === 'vehicle' ? 'Vehicle Weapon' : entity === 'crew' ? 'Crew Weapon' : 'Weapon'}
+                </th>
+                <th className={`${pClass} text-center border-l border-black`}>SR</th>
+                <th className={`${pClass} text-center border-l border-black`}>LR</th>
+                <th className={`${pClass} text-center border-l border-black`}>Str</th>
+                <th className={`${pClass} text-center border-l border-black`}>AP</th>
+                <th className={`${pClass} text-center border-l border-black`}>L</th>
+                <th className={`${pClass} text-left border-l border-black`}>Traits</th>
+              </tr>
+            </>
           ) : (
             <>
               <tr>
