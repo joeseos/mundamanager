@@ -97,15 +97,17 @@ function UpdatePasswordFormContent() {
 
       if (error) {
         setMessage({ error: error.message });
-      } else {
-        await supabase.auth.signOut();
-        // Full document load so the header rebuilds from the cleared cookies.
-        window.location.assign('/sign-in?success=' + encodeURIComponent('Password updated successfully. Please sign in with your new password.'));
+        setIsSubmitting(false);
+        return;
       }
+
+      await supabase.auth.signOut();
+      // Full document load so the header rebuilds from the cleared cookies. It
+      // only schedules the navigation, so stay submitting until it commits.
+      window.location.assign('/sign-in?success=' + encodeURIComponent('Password updated successfully. Please sign in with your new password.'));
     } catch (error) {
       console.error('Error updating password:', error);
       setMessage({ error: 'Failed to update password. Please try again.' });
-    } finally {
       setIsSubmitting(false);
     }
   };
@@ -168,7 +170,7 @@ function UpdatePasswordFormContent() {
 
         <SubmitButton 
           type="submit"
-          disabled={isSubmitting}
+          pending={isSubmitting}
           pendingText="Updating..." 
           className="mt-2"
         >
