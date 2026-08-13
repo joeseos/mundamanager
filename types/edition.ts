@@ -146,6 +146,8 @@ const EDITION_CAPABILITIES = {
   masterCraftedWeapons:     { n23: true,  n26: false },
   /** Gang / fighter-type Law Abiding vs Outlaw alignment */
   alignment:                { n23: true,  n26: false },
+  /** Fighters can be sold to the Guilders (the enslaved status) */
+  sellToGuilders:           { n23: true,  n26: false },
   /**
    * Gang additions are picked by category (Brutes, Hangers-on, Pets, Hired
    * Guns, then one entry per alliance) rather than by raw fighter subtype.
@@ -247,6 +249,9 @@ export const hasMasterCraftedWeapons = (editionSlug?: string | null): boolean =>
 
 export const hasAlignment = (editionSlug?: string | null): boolean =>
   can('alignment', editionSlug);
+
+export const hasGuilderSales = (editionSlug?: string | null): boolean =>
+  can('sellToGuilders', editionSlug);
 
 export const hasGangAdditionCategories = (
   editionSlug?: string | null

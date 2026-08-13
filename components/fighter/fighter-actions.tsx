@@ -15,7 +15,7 @@ import { Tooltip } from 'react-tooltip';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
-import { beastSubtypeName } from '@/types/edition';
+import { beastSubtypeName, hasGuilderSales } from '@/types/edition';
 
 interface Fighter {
   id: string;
@@ -34,7 +34,6 @@ interface Fighter {
   is_spyrer?: boolean;
   fighter_subtypes?: string[];
   owner_name?: string;
-  edition_slug?: string | null;
   campaigns?: Array<{
     campaign_id: string;
     resources?: Array<{ resource_name: string }>;
@@ -57,6 +56,7 @@ interface FighterActionsProps {
   fighter: Fighter;
   gang: Gang;
   fighterId: string;
+  editionSlug: string | null;
   userPermissions: UserPermissions;
   onFighterUpdate?: () => void;
   onStatusMutate?: (optimistic: Partial<Fighter>, gangCreditsDelta?: number, action?: 'kill' | 'retire' | 'sell' | 'release' | 'rescue' | 'starve' | 'recover' | 'capture' | 'delete') => any;
@@ -76,9 +76,10 @@ interface ActionModals {
 }
 
 export function FighterActions({ 
-  fighter, 
-  gang, 
-  fighterId, 
+  fighter,
+  gang,
+  fighterId,
+  editionSlug,
   userPermissions,
   onFighterUpdate,
   onStatusMutate,
@@ -169,7 +170,9 @@ export function FighterActions({
     ) ?? false;
   }, [fighter.campaigns]);
 
-  const beastNoun = beastSubtypeName(fighter?.edition_slug);
+  const beastNoun = beastSubtypeName(editionSlug);
+  // Selling a fighter to the Guilders is an N23 rule; N26 has no Guilders.
+  const showGuilderSale = hasGuilderSales(editionSlug);
   const isOwnedExoticBeast = fighter?.fighter_subtypes?.some(c => c.toLowerCase().startsWith('exotic beast') || c.toLowerCase() === 'pet') && !!fighter?.owner_name;
 
   // Calculate total vehicle equipment cost
@@ -306,15 +309,17 @@ export function FighterActions({
           >
             {fighter?.retired ? 'Unretire Fighter' : 'Retire Fighter'}
           </Button>
-          <Button
-            variant={fighter?.enslaved ? 'success' : 'default'}
-            className="flex-1"
-            onClick={() => handleModalToggle('enslave', true)}
-            disabled={!userPermissions.canEdit || isStatusIncompatible(fighter, 'enslave')}
-            title={isStatusIncompatible(fighter, 'enslave') ? 'Cannot sell to guilders: fighter is killed, retired, captured, or in recovery' : undefined}
-          >
-            {fighter?.enslaved ? 'Release from Guilders' : 'Sell to Guilders'}
-          </Button>
+          {showGuilderSale && (
+            <Button
+              variant={fighter?.enslaved ? 'success' : 'default'}
+              className="flex-1"
+              onClick={() => handleModalToggle('enslave', true)}
+              disabled={!userPermissions.canEdit || isStatusIncompatible(fighter, 'enslave')}
+              title={isStatusIncompatible(fighter, 'enslave') ? 'Cannot sell to guilders: fighter is killed, retired, captured, or in recovery' : undefined}
+            >
+              {fighter?.enslaved ? 'Release from Guilders' : 'Sell to Guilders'}
+            </Button>
+          )}
           {isMeatEnabled() && (
             <Button
               variant={fighter?.starved ? 'success' : 'default'}

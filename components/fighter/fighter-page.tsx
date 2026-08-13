@@ -1238,7 +1238,6 @@ export default function FighterPage({
               is_spyrer: fighterData.fighter.is_spyrer,
               // Both feed the owned-beast delete guard.
               fighter_subtypes: fighterData.fighter?.fighter_subtypes,
-              edition_slug: fighterData.fighter?.edition_slug,
               owner_name: fighterData.fighter?.owner_name,
               campaigns: fighterData.fighter?.campaigns,
               vehicles: fighterData.fighter?.vehicles?.map(v => ({
@@ -1252,6 +1251,7 @@ export default function FighterPage({
             }}
             gang={{ id: fighterData.gang?.id || '', gang_name: fighterData.gang?.gang_affiliation_name || '', credits: fighterData.gang?.credits }}
             fighterId={fighterId}
+            editionSlug={editionSlug}
             userPermissions={userPermissions}
             onFighterUpdate={() => {}}
             onStatusMutate={(optimistic, gangCreditsDelta, action) => {
