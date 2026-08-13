@@ -21,6 +21,14 @@ import { CharacterStatsModal } from './character-stats-modal';
 
 const normalizeSpecialRule = (rule: string) => rule.replace(/^"|"$/g, '');
 
+/** Variants of one fighter share a typeSubtypeKey; see /api/fighter-types. */
+function sameVariantFamily(
+  a: { id: string; typeSubtypeKey?: string },
+  b: { id: string; typeSubtypeKey?: string }
+): boolean {
+  return (a.typeSubtypeKey ?? a.id) === (b.typeSubtypeKey ?? b.id);
+}
+
 /** fighter_subtypes is a set of names, so order carries no meaning here. */
 function sameFighterSubtypes(a?: string[] | null, b?: string[] | null): boolean {
   const left = a ?? [];
@@ -150,6 +158,7 @@ export function EditFighterModal({
     custom_gang_type_id?: string | null;
     total_cost: number;
     typeSubtypeKey?: string;
+    variantLabel?: string;
     is_gang_variant?: boolean;
     gang_variant_name?: string;
     fighter_specialisation?: string | null;
@@ -169,6 +178,7 @@ export function EditFighterModal({
       custom_gang_type_id: type.custom_gang_type_id ?? null,
       total_cost: type.total_cost,
       typeSubtypeKey: type.typeSubtypeKey,
+      variantLabel: type.variantLabel,
       is_gang_variant: type.is_gang_variant,
       gang_variant_name: type.gang_variant_name,
       specialisation: type.specialisation || {},
@@ -371,12 +381,13 @@ export function EditFighterModal({
     return options;
   }, [availableDefaultSpecialRules]);
 
-  // Group by type+subtype, prefer default (empty specialisation) versions, then cheapest
+  // One entry per variant family, preferring the default (empty specialisation) version,
+  // then the cheapest.
   const fighterTypeComboboxOptions = useMemo(() => {
     const typeSubtypeMap = new Map<string, { fighter: typeof fighterTypes[number]; cost: number }>();
 
     fighterTypes.forEach(ft => {
-      const key = `${ft.fighter_type}-${ft.fighter_subtypes.join(',')}`;
+      const key = ft.typeSubtypeKey ?? ft.id;
 
       if (!typeSubtypeMap.has(key)) {
         typeSubtypeMap.set(key, { fighter: ft, cost: ft.total_cost });
@@ -612,27 +623,20 @@ export function EditFighterModal({
     const currentType = fighterTypes.find(ft => ft.id === currentFighterTypeId);
     if (!currentType) return null;
 
-    const allVariantsOfType = fighterTypes.filter(ft =>
-      ft.fighter_type === currentType.fighter_type &&
-      sameFighterSubtypes(ft.fighter_subtypes, currentType.fighter_subtypes)
-    );
+    // The fighter's own type may be a variant, so the dropdown lands on its family.
+    const fighterTypeGroup = fighterTypes.filter(t => sameVariantFamily(t, currentType));
 
-    let dropdownType = allVariantsOfType.find(ft =>
+    let dropdownType = fighterTypeGroup.find(ft =>
       !(ft as any).specialisation || Object.keys((ft as any).specialisation).length === 0
     );
 
-    if (!dropdownType && allVariantsOfType.length > 0) {
-      dropdownType = allVariantsOfType.reduce((cheapest, current) =>
+    if (!dropdownType && fighterTypeGroup.length > 0) {
+      dropdownType = fighterTypeGroup.reduce((cheapest, current) =>
         current.total_cost < cheapest.total_cost ? current : cheapest
       );
     }
 
     const dropdownId = dropdownType ? dropdownType.id : currentFighterTypeId;
-
-    const fighterTypeGroup = fighterTypes.filter(t =>
-      t.fighter_type === currentType.fighter_type &&
-      sameFighterSubtypes(t.fighter_subtypes, currentType.fighter_subtypes)
-    );
 
     const specialisationOptions: Array<{ value: string; label: string; cost: number; fighterTypeId: string }> = [];
     const defaultFighterType = fighterTypeGroup.find(ft => !(ft as any).specialisation || Object.keys((ft as any).specialisation).length === 0);
@@ -652,7 +656,7 @@ export function EditFighterModal({
       if (specialisationName && specialisationId) {
         specialisationOptions.push({
           value: specialisationId,
-          label: specialisationName,
+          label: ft.variantLabel || specialisationName,
           cost: (ft as any).specialisation?.cost || 0,
           fighterTypeId: ft.id
         });
@@ -735,13 +739,10 @@ export function EditFighterModal({
       // Update available legacies for the selected fighter type
       setAvailableLegacies(selectedType.available_legacies || []);
 
-      // Get all fighters with the same fighter_type name and fighter_subtypes to check for specialisations
-      const fighterTypeGroup = fighterTypes.filter(t =>
-        t.fighter_type === selectedType.fighter_type &&
-        sameFighterSubtypes(t.fighter_subtypes, selectedType.fighter_subtypes)
-      );
-      
-      // If we have multiple entries with the same fighter_type + subtype, they represent different specialisations
+      // Get all variants of the selected fighter to check for specialisations
+      const fighterTypeGroup = fighterTypes.filter(t => sameVariantFamily(t, selectedType));
+
+      // If we have multiple entries in the family, they represent different specialisations
       if (fighterTypeGroup.length > 1) {
         // Create specialisation options from all variants
         const specialisationOptions: Array<{ value: string; label: string; cost: number; fighterTypeId: string }> = [];
@@ -767,7 +768,7 @@ export function EditFighterModal({
           if (specialisationName && specialisationId) {
             specialisationOptions.push({
               value: specialisationId,
-              label: specialisationName,
+              label: ft.variantLabel || specialisationName,
               cost: (ft as any).specialisation?.cost || 0,
               fighterTypeId: ft.id
             });
@@ -815,6 +816,23 @@ export function EditFighterModal({
     setSelectedSpecialisationId(specialisationId);
     setSelectedSpecialRuleOption('');
     setCustomSpecialRule('');
+
+    // A variant can carry subtypes the base row does not, so the selection follows the
+    // chosen row. Subtypes no row in the family owns were granted or hand-added; keep them.
+    const option = availableSpecialisations.find(st => st.value === specialisationId);
+    const variantType = fighterTypes.find(ft => ft.id === option?.fighterTypeId);
+    if (!variantType) return;
+
+    const familySubtypes = new Set(
+      fighterTypes.filter(ft => sameVariantFamily(ft, variantType)).flatMap(ft => ft.fighter_subtypes)
+    );
+    const next = [
+      ...variantType.fighter_subtypes,
+      ...selectedFighterSubtypes.filter(name => !familySubtypes.has(name)),
+    ];
+
+    setFormValues(prev => ({ ...prev, fighter_subtypes: next }));
+    applySelectedFighterSubtypes(allowMultipleSubtypes ? next : next.slice(0, 1));
   };
 
   // Add handler for gang legacy change
@@ -997,24 +1015,13 @@ export function EditFighterModal({
       } else if (selectedSpecialisation) {
         // User changed specialisation (either explicitly or implicitly) - always update fighter type ID
         if (selectedSpecialisation.fighter_specialisation !== 'Default' && selectedSpecialisation.id) {
-          // User selected a specific specialisation - find the fighter type with that specialisation
-          
-          // Get the actual fighter type and subtype values
-          const currentFighterType = (fighter.fighter_type as any)?.fighter_type || fighter.fighter_type;
-          // Prefer the selected catalog type's subtypes for group matching so N26
-          // multi-subtype types resolve correctly even if the fighter override differs.
+          // User selected a specific specialisation - find the fighter type with that
+          // specialisation, within the selected catalog entry's family.
           const typeForGroup = fighterTypes.find(ft => ft.id === selectedFighterTypeId);
-          const groupSubtypes = typeForGroup?.fighter_subtypes ?? fighter.fighter_subtypes ?? [];
 
-          const availableFighterTypes = fighterTypes.filter(ft =>
-            ft.fighter_type === currentFighterType &&
-            sameFighterSubtypes(ft.fighter_subtypes, groupSubtypes)
-          );
-
-          const fighterTypeWithSpecialisation = fighterTypes.find(ft =>
+          const fighterTypeWithSpecialisation = typeForGroup && fighterTypes.find(ft =>
             ft.fighter_specialisation_id === selectedSpecialisation!.id &&
-            ft.fighter_type === currentFighterType &&
-            sameFighterSubtypes(ft.fighter_subtypes, groupSubtypes)
+            sameVariantFamily(ft, typeForGroup)
           );
           if (fighterTypeWithSpecialisation) {
             fighterTypeToUse = fighterTypeWithSpecialisation;
