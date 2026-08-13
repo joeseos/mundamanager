@@ -1,15 +1,14 @@
 'use client';
 
-import { verifySignInChallenge } from "@/app/actions/auth";
+import { signInAction } from "@/app/actions/auth";
 import { safePostSignInPath } from "@/utils/auth";
-import { createClient } from "@/utils/supabase/client";
 import { FormMessage, Message } from "@/components/form-message";
 import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState, useEffect, useMemo, useRef } from 'react';
+import { useSearchParams } from "next/navigation";
+import { Suspense, useState, useEffect, useRef } from 'react';
 import TurnstileWidget, { type TurnstileHandle } from './TurnstileWidget';
 import { FaUsers } from "react-icons/fa";
 import { MdAppShortcut } from "react-icons/md";
@@ -27,8 +26,6 @@ export default function SignIn() {
 
 function SignInContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
   const urlError = searchParams.get('error');
   const [errorMessage, setErrorMessage] = useState<string | null>(urlError);
   const [activeTab, setActiveTab] = useState(0);
@@ -98,28 +95,17 @@ function SignInContent() {
     };
 
     try {
-      const challenge = await verifySignInChallenge(
-        formData.get('cf-turnstile-response') as string,
-      );
-      if ('error' in challenge) {
-        failed(challenge.error);
+      const result = await signInAction(formData);
+
+      if ('error' in result) {
+        failed(result.error);
         return;
       }
 
-      // Signing in on the browser client, not the server, is what lets this be a
-      // client-side navigation: the client that holds the session created it, so
-      // there is nothing stale to rebuild with a page reload.
-      const { error } = await supabase.auth.signInWithPassword({
-        email: formData.get('email') as string,
-        password: formData.get('password') as string,
-      });
-
-      if (error) {
-        failed(error.message);
-        return;
-      }
-
-      router.replace(safePostSignInPath(formData.get('next') as string | null));
+      // Full document load: the one thing that resets the router cache, the root
+      // layout and the browser Supabase client together. It only schedules the
+      // navigation, so stay submitting until the document unloads.
+      window.location.assign(result.redirectTo);
     } catch (error) {
       console.error('Unexpected error during sign in:', error);
       failed('Something went wrong. Please try again');
@@ -146,7 +132,7 @@ function SignInContent() {
           className="flex flex-col w-full max-w-sm mx-auto text-white"
           onSubmit={handleSubmit}
         >
-          {/* Carry next through to the submit handler */}
+          {/* Carry next through to the server action */}
           {(() => {
             const nextParam = searchParams.get('next');
             const safeNext = safePostSignInPath(nextParam);

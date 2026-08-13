@@ -4,10 +4,13 @@ import { createClient } from "@/utils/supabase/server";
 import { headers } from "next/headers";
 import { cookies } from 'next/headers';
 import { invalidateUserCount } from '@/utils/cache-tags';
+import { safePostSignInPath } from '@/utils/auth';
 
-// Returned instead of calling redirect(), so sign-out can do a full document
-// load - it is what guarantees the cleared cookies are gone from every client.
+// Returned instead of calling redirect(), so the caller can do a full document
+// load - the one thing that resets the router cache, the layout and the browser
+// Supabase client together, which is what an identity change should do.
 type AuthRedirect = { redirectTo: string };
+type AuthActionResult = { error: string } | AuthRedirect;
 
 export const signUpAction = async (formData: FormData) => {
   const origin = (await headers()).get("origin");
@@ -92,12 +95,35 @@ export const signUpAction = async (formData: FormData) => {
   }
 };
 
-// Only the challenge is checked here - the sign-in itself runs on the browser
-// client, so it holds the session it created and needs no page reload to see it.
-// TURNSTILE_SECRET_KEY is why this half stays on the server.
-export const verifySignInChallenge = async (
+// Challenge and grant stay in one action: splitting them costs a browser round
+// trip and leaves the challenge gating nothing in particular.
+export const signInAction = async (formData: FormData): Promise<AuthActionResult> => {
+  const turnstileToken = formData.get("cf-turnstile-response") as string;
+  const nextParam = formData.get('next') as string | undefined;
+
+  const challenge = await verifySignInChallenge(turnstileToken);
+  if ('error' in challenge) {
+    return challenge;
+  }
+
+  const supabase = await createClient();
+
+  const { error } = await supabase.auth.signInWithPassword({
+    email: formData.get("email") as string,
+    password: formData.get("password") as string,
+  });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  // No revalidatePath - see the note in signOutAction.
+  return { redirectTo: safePostSignInPath(nextParam) };
+};
+
+async function verifySignInChallenge(
   turnstileToken: string,
-): Promise<{ ok: true } | { error: string }> => {
+): Promise<{ ok: true } | { error: string }> {
   if (process.env.NODE_ENV === "development") {
     console.log("Skipping Turnstile verification in development mode.");
     return { ok: true };
@@ -119,7 +145,7 @@ export const verifySignInChallenge = async (
   }
 
   return { ok: true };
-};
+}
 
 async function verifyTurnstileToken(token: string) {
   if (!token) {

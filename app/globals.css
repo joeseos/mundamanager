@@ -45,6 +45,7 @@
     --input: var(--light-input);
     --ring: var(--light-ring);
     --radius: 0.5rem;
+    color-scheme: light;
   }
 
   .dark {
@@ -103,6 +104,9 @@ Enforcing `cursor: pointer` has the default value. */
 @layer base {
   * {
     @apply border-border;
+  }
+  html {
+    @apply bg-background;
   }
   body {
     @apply bg-background text-foreground;
