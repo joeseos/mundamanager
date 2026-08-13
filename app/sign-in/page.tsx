@@ -102,10 +102,8 @@ function SignInContent() {
         return;
       }
 
-      // Full document load, not a client-side navigation: it's what rebuilds the
-      // browser Supabase client and useClaims from the newly-set cookies. It only
-      // schedules the navigation, so stay submitting until the document unloads -
-      // clearing it here would blank the form for the rest of the load.
+      // Full document load, not a client-side nav: it rebuilds the browser
+      // Supabase client and useClaims. It only schedules, so stay submitting.
       window.location.assign(result.redirectTo);
     } catch (error) {
       console.error('Unexpected error during sign in:', error);

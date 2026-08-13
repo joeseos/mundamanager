@@ -102,8 +102,7 @@ function UpdatePasswordFormContent() {
       }
 
       await supabase.auth.signOut();
-      // Full document load so the header rebuilds from the cleared cookies. It
-      // only schedules the navigation, so stay submitting until it commits.
+      // Full document load so the header rebuilds; it only schedules, so stay submitting.
       window.location.assign('/sign-in?success=' + encodeURIComponent('Password updated successfully. Please sign in with your new password.'));
     } catch (error) {
       console.error('Error updating password:', error);
