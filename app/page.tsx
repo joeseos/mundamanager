@@ -1,5 +1,5 @@
-// This page uses server components with ISR caching for optimal performance
-// Server actions should trigger revalidation of this data using revalidatePath
+// Server actions invalidate this data with revalidateTag via the helpers in
+// utils/cache-tags.ts - not revalidatePath, which evicts every cached entry.
 
 import { createClient } from "@/utils/supabase/server";
 import { CreateGangButton } from '@/components/create-gang-modal';
