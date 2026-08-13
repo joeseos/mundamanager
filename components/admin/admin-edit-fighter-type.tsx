@@ -546,10 +546,18 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         );
 
         if (missingSkills.length > 0) {
-          setSkills(prevSkills => [...prevSkills, ...missingSkills]);
-          // Mark these skills as fetched
-          missingSkillIds.forEach(id => fetchedSkillDetailsRef.current.add(id));
+          // Key by id: skills accumulate across every fighter type opened in
+          // this modal, so appending blindly repeats a skill once per fighter
+          // type that carries it as a default.
+          setSkills(previous => {
+            const merged = new Map([...previous, ...missingSkills].map(skill => [skill.id, skill]));
+            return Array.from(merged.values());
+          });
         }
+
+        // Mark these skills as fetched even when the lookup returned nothing
+        // for them, so it is not retried on every selection change.
+        missingSkillIds.forEach(id => fetchedSkillDetailsRef.current.add(id));
       } catch (error) {
         console.error('Error fetching selected skill details:', error);
       }
