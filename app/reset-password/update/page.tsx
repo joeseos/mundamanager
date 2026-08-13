@@ -33,27 +33,45 @@ function UpdatePasswordFormContent() {
 
     const setupPasswordReset = async () => {
       try {
-        const token_hash = searchParams.get('token_hash');
-        const type = searchParams.get('type');
-
-        if (!token_hash || !type) {
-          router.push('/sign-in?error=' + encodeURIComponent('Invalid password reset link'));
+        // GoTrue reports a dead link (expired, already used) on the redirect itself.
+        if (searchParams.get('error')) {
+          console.error('Recovery link rejected:', searchParams.get('error_description') ?? searchParams.get('error'));
+          router.push('/sign-in?error=' + encodeURIComponent('Invalid or expired password reset link'));
           return;
         }
 
-        // Always exchange the recovery token, never reuse whatever session is
-        // already on this browser - otherwise following a reset link while
-        // signed in as someone else changes that account's password instead.
-        await supabase.auth.signOut({ scope: 'local' });
+        const token_hash = searchParams.get('token_hash');
+        const type = searchParams.get('type');
 
-        const { error: verifyError } = await supabase.auth.verifyOtp({
-          token_hash,
-          type: 'recovery'
-        });
+        // Which of these applies depends on the recovery email template.
+        // A {{ .TokenHash }} template sends the one-time token here for us to
+        // exchange; a default {{ .ConfirmationURL }} template has GoTrue verify
+        // it and redirect here with the recovery session already established.
+        if (token_hash && type === 'recovery') {
+          // Never reuse whatever session is already on this browser - otherwise
+          // following a reset link while signed in as someone else changes that
+          // account's password instead.
+          await supabase.auth.signOut({ scope: 'local' });
 
-        if (verifyError) {
-          console.error('Error verifying token:', verifyError);
-          router.push('/sign-in?error=' + encodeURIComponent('Invalid or expired password reset link'));
+          const { error: verifyError } = await supabase.auth.verifyOtp({
+            token_hash,
+            type: 'recovery'
+          });
+
+          if (verifyError) {
+            console.error('Error verifying token:', verifyError);
+            router.push('/sign-in?error=' + encodeURIComponent('Invalid or expired password reset link'));
+            return;
+          }
+          return;
+        }
+
+        // No token to exchange, so the only thing that authorises the update is
+        // a session GoTrue established on the way here.
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (!session) {
+          router.push('/sign-in?error=' + encodeURIComponent('Invalid password reset link'));
           return;
         }
       } catch (error) {
