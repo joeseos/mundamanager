@@ -52,6 +52,17 @@ interface Skill {
   skill_type_id: string;
 }
 
+/**
+ * Folds newly fetched skills into the ones already held, keyed by id. The
+ * skills list accumulates across every fighter type opened in the modal, so
+ * appending blindly repeats a skill once per fighter type that carries it as a
+ * default. Later entries win, keeping the freshest copy of a skill's metadata.
+ */
+function mergeSkillsById(previous: Skill[], incoming: Skill[]): Skill[] {
+  const merged = new Map([...previous, ...incoming].map(skill => [skill.id, skill]));
+  return Array.from(merged.values());
+}
+
 interface Specialisation {
   id: string;
   specialisation_name: string;
@@ -509,10 +520,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         const skillsArray = Array.isArray(data) ? data : data.skills || [];
         // Preserve metadata for saved selections while the fighter record is
         // loading so their chips can still be rendered.
-        setSkills(previous => {
-          const merged = new Map([...previous, ...skillsArray].map(skill => [skill.id, skill]));
-          return Array.from(merged.values());
-        });
+        setSkills(previous => mergeSkillsById(previous, skillsArray));
       } catch (error) {
         console.error('Error fetching skills:', error);
         toast.error('Failed to load skills');
@@ -546,13 +554,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         );
 
         if (missingSkills.length > 0) {
-          // Key by id: skills accumulate across every fighter type opened in
-          // this modal, so appending blindly repeats a skill once per fighter
-          // type that carries it as a default.
-          setSkills(previous => {
-            const merged = new Map([...previous, ...missingSkills].map(skill => [skill.id, skill]));
-            return Array.from(merged.values());
-          });
+          setSkills(previous => mergeSkillsById(previous, missingSkills));
         }
 
         // Mark these skills as fetched even when the lookup returned nothing
