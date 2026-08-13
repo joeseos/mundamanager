@@ -8,8 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useState, useEffect } from 'react';
-import TurnstileWidget from './TurnstileWidget';
+import { Suspense, useState, useEffect, useRef } from 'react';
+import TurnstileWidget, { type TurnstileHandle } from './TurnstileWidget';
 import { FaUsers } from "react-icons/fa";
 import { MdAppShortcut } from "react-icons/md";
 import { LuEye, LuEyeOff } from "react-icons/lu";
@@ -33,7 +33,9 @@ function SignInContent() {
   const [gangCount, setGangCount] = useState<number | undefined>(undefined);
   const [campaignCount, setCampaignCount] = useState<number | undefined>(undefined);
   const [showPassword, setShowPassword] = useState(false);
-  
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileHandle>(null);
+
   useEffect(() => {
     // Fetch stats (non-blocking, cached)
     async function fetchStats() {
@@ -79,9 +81,19 @@ function SignInContent() {
   async function clientAction(formData: FormData) {
     const result = await signInAction(formData);
 
-    if (result && 'error' in result) {
+    if ('error' in result) {
       setErrorMessage(result.error);
+      // The token was consumed by this attempt, so a retry with the same one
+      // would always fail verification - re-challenge for a fresh token.
+      turnstileRef.current?.reset();
+      return;
     }
+
+    // A full document load, not a client-side navigation: it's the only thing
+    // that rebuilds the browser Supabase client, the useClaims state in the
+    // header and the query cache from the newly-set cookies. Without it the UI
+    // keeps showing the previously signed-in account until a manual refresh.
+    window.location.assign(result.redirectTo);
   }
 
   return (
@@ -169,8 +181,13 @@ function SignInContent() {
             >
               Forgot your password?
             </Link>
+            <input
+              type="hidden"
+              name="cf-turnstile-response"
+              value={turnstileToken ?? ''}
+            />
             <div className="mt-2 flex justify-center">
-              <TurnstileWidget />
+              <TurnstileWidget ref={turnstileRef} onToken={setTurnstileToken} />
             </div>
             <SubmitButton pendingText="Signing In..." className="mt-2">
               Sign In

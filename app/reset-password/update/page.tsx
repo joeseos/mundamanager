@@ -5,7 +5,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useMemo, useRef, Suspense } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { LuEye, LuEyeOff } from "react-icons/lu";
 
@@ -22,7 +22,10 @@ function UpdatePasswordFormContent() {
   });
   const searchParams = useSearchParams();
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
+  // verifyOtp consumes a one-time token, so the effect must not run twice
+  // (React StrictMode double-mounts effects in development).
+  const hasVerifiedRef = useRef(false);
 
   const checkPasswordRequirements = (password: string) => {
     setPasswordRequirements({
@@ -35,6 +38,9 @@ function UpdatePasswordFormContent() {
   };
 
   useEffect(() => {
+    if (hasVerifiedRef.current) return;
+    hasVerifiedRef.current = true;
+
     const setupPasswordReset = async () => {
       try {
         const token_hash = searchParams.get('token_hash');
@@ -45,21 +51,20 @@ function UpdatePasswordFormContent() {
           return;
         }
 
-        // Exchange the token for a session
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (!session) {
-          // If no session, verify the OTP to create one
-          const { error: verifyError } = await supabase.auth.verifyOtp({
-            token_hash,
-            type: 'recovery'
-          });
+        // Always exchange the recovery token, never reuse whatever session is
+        // already on this browser - otherwise following a reset link while
+        // signed in as someone else changes that account's password instead.
+        await supabase.auth.signOut({ scope: 'local' });
 
-          if (verifyError) {
-            console.error('Error verifying token:', verifyError);
-            router.push('/sign-in?error=' + encodeURIComponent('Invalid or expired password reset link'));
-            return;
-          }
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+          token_hash,
+          type: 'recovery'
+        });
+
+        if (verifyError) {
+          console.error('Error verifying token:', verifyError);
+          router.push('/sign-in?error=' + encodeURIComponent('Invalid or expired password reset link'));
+          return;
         }
       } catch (error) {
         console.error('Error in recovery flow:', error);
@@ -68,7 +73,7 @@ function UpdatePasswordFormContent() {
     };
 
     setupPasswordReset();
-  }, [searchParams, router, supabase.auth]);
+  }, [searchParams, router, supabase]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -98,7 +103,9 @@ function UpdatePasswordFormContent() {
       } else {
         // Sign out after password update
         await supabase.auth.signOut();
-        router.push('/sign-in?success=' + encodeURIComponent('Password updated successfully. Please sign in with your new password.'));
+        // Full document load so the header's auth state is rebuilt from the
+        // now-cleared cookies rather than keeping the recovery session.
+        window.location.assign('/sign-in?success=' + encodeURIComponent('Password updated successfully. Please sign in with your new password.'));
       }
     } catch (error) {
       console.error('Error updating password:', error);

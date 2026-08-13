@@ -2,11 +2,18 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { invalidateUserCount } from '@/utils/cache-tags';
 import { safePostSignInPath } from '@/utils/auth';
+
+// Auth transitions return a destination for the caller to navigate to rather
+// than calling redirect(). A server-side redirect is a client-side navigation,
+// which leaves the browser Supabase client holding the previous session in
+// memory - the caller does a full document load instead so every client-side
+// cache is rebuilt from the new cookies.
+type AuthRedirect = { redirectTo: string };
+type AuthActionResult = { error: string } | AuthRedirect;
 
 export const signUpAction = async (formData: FormData) => {
   const origin = (await headers()).get("origin");
@@ -91,7 +98,7 @@ export const signUpAction = async (formData: FormData) => {
   }
 };
 
-export const signInAction = async (formData: FormData) => {
+export const signInAction = async (formData: FormData): Promise<AuthActionResult> => {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
   const turnstileToken = formData.get("cf-turnstile-response") as string;
@@ -131,9 +138,8 @@ export const signInAction = async (formData: FormData) => {
 
   revalidatePath('/', 'layout');
 
-  const destination = safePostSignInPath(nextParam);
-
-  return redirect(destination);
+  // Sanitise here rather than trusting whatever the client sends back.
+  return { redirectTo: safePostSignInPath(nextParam) };
 };
 
 async function verifyTurnstileToken(token: string) {
@@ -177,8 +183,19 @@ export const forgotPasswordAction = async (formData: FormData) => {
     return { error: "Email is required" };
   }
 
+  // Derive the origin from the request (same as signUpAction). Interpolating an
+  // unset env var here produces a plausible-looking "undefined/reset-password/update",
+  // which GoTrue silently ignores in favour of the project's Site URL - so the
+  // email still sends but the link never reaches the set-a-new-password form.
+  const origin = (await headers()).get("origin") ?? process.env.NEXT_PUBLIC_APP_URL;
+
+  if (!origin) {
+    console.error('Cannot resolve origin for password reset redirect');
+    return { error: "Something went wrong. Please try again." };
+  }
+
   const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_BASE_URL}/reset-password/update`,
+    redirectTo: `${origin}/reset-password/update`,
   });
 
   if (error) {
@@ -190,12 +207,20 @@ export const forgotPasswordAction = async (formData: FormData) => {
   return { success: "Check your email for the password reset link." };
 };
 
-export const signOutAction = async () => {
-  const cookieStore = await cookies();
+export const signOutAction = async (): Promise<AuthRedirect> => {
+  // Revoke the refresh token at GoTrue while the cookies are still present.
+  // Without this the token stays valid, so a stale browser client can refresh
+  // it and write the session cookies straight back.
+  try {
+    const supabase = await createClient();
+    await supabase.auth.signOut();
+  } catch (error) {
+    console.error('Error revoking session on sign out:', error);
+  }
 
-  // Manually delete all Supabase auth cookies
-  // This is necessary because supabase.auth.signOut() can't read the session
-  // in Server Actions due to cookie handling limitations in Server Components
+  // Then sweep the auth cookies ourselves - this is the guarantee, regardless
+  // of whether the call above succeeded.
+  const cookieStore = await cookies();
   const allCookies = cookieStore.getAll();
   allCookies.forEach(cookie => {
     if (cookie.name.startsWith('sb-')) {
@@ -206,30 +231,5 @@ export const signOutAction = async () => {
   // Revalidate the root layout to clear any cached user data
   revalidatePath('/', 'layout');
 
-  return redirect("/sign-in");
-};
-
-
-export const updatePasswordAction = async (formData: FormData) => {
-  const password = formData.get("password") as string;
-  const confirmPassword = formData.get("confirmPassword") as string;
-  const supabase = await createClient();
-
-  if (password !== confirmPassword) {
-    return { error: "Passwords do not match" };
-  }
-
-  try {
-    const { error } = await supabase.auth.updateUser({ password });
-
-    if (error) {
-      console.error('Error updating password:', error);
-      return { error: error.message };
-    }
-
-    return { success: "Password updated successfully" };
-  } catch (error) {
-    console.error('Error updating password:', error);
-    return { error: "Failed to update password. Please try again." };
-  }
+  return { redirectTo: "/sign-in" };
 };
