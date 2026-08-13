@@ -5,17 +5,19 @@ import { toast } from 'sonner';
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox";
-import { campaignRank } from '@/utils/campaigns/campaignRank';
+import { getCampaignRank } from '@/utils/campaigns/campaignRank';
 import { addTerritoryToCampaign, createCustomCampaignTerritory } from "@/app/actions/campaigns/[id]/campaign-territories";
 import { ImInfo } from "react-icons/im";
 import { Tooltip } from 'react-tooltip';
 import type { CampaignType } from '@/types/campaign';
+import { sameEditionForDisplay } from '@/types/edition';
 
 interface Territory {
   id: string;
   territory_name: string;
   campaign_type_id: string | null;
   territory_id?: string | null;
+  edition_slug?: string | null;
 }
 
 interface CampaignTerritory {
@@ -27,6 +29,7 @@ interface TerritoryListProps {
   isAdmin: boolean;
   campaignId: string;
   campaignTypeId: string;
+  editionSlug?: string | null;
   campaignTypes: CampaignType[];
   allTerritories: Territory[];
   existingCampaignTerritories: CampaignTerritory[];
@@ -36,7 +39,8 @@ interface TerritoryListProps {
 export default function TerritoryList({ 
   isAdmin, 
   campaignId, 
-  campaignTypeId, 
+  campaignTypeId,
+  editionSlug,
   campaignTypes, 
   allTerritories, 
   existingCampaignTerritories,
@@ -48,6 +52,8 @@ export default function TerritoryList({
   const [isAdding, setIsAdding] = useState<string | null>(null);
   const [newTerritoryName, setNewTerritoryName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+
+  const campaignRank = getCampaignRank(editionSlug);
 
   const [prevCampaignTypeId, setPrevCampaignTypeId] = useState(campaignTypeId);
   if (campaignTypeId !== prevCampaignTypeId) {
@@ -75,7 +81,6 @@ export default function TerritoryList({
       const result = await addTerritoryToCampaign({
         campaignId,
         territoryId: territory.territory_id || territory.id,
-        territoryName: territory.territory_name
       });
 
       if (!result.success) {
@@ -96,7 +101,7 @@ export default function TerritoryList({
       toast.success(`Added ${territory.territory_name} to campaign`);
     } catch (error) {
       console.error('Error adding territory:', error);
-      toast.error("Failed to add territory");
+      toast.error(error instanceof Error ? error.message : "Failed to add territory");
     } finally {
       setIsAdding(null);
     }
@@ -139,6 +144,9 @@ export default function TerritoryList({
 
   const filteredTerritories = allTerritories
     .filter(territory => {
+      if (!sameEditionForDisplay(territory.edition_slug, editionSlug)) {
+        return false;
+      }
       if (territory.campaign_type_id && selectedTypes.includes(territory.campaign_type_id)) {
         return true;
       }
@@ -187,9 +195,12 @@ export default function TerritoryList({
           </span>
         </h3>
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {[...campaignTypes]
-              .filter(type => type.campaign_type_name.toLowerCase() !== 'custom')
+              .filter(type =>
+                type.campaign_type_name.toLowerCase() !== 'custom' &&
+                sameEditionForDisplay(type.edition_slug, editionSlug)
+              )
               .sort((a, b) => {
                 const rankA = campaignRank[a.campaign_type_name.toLowerCase()] ?? Infinity;
                 const rankB = campaignRank[b.campaign_type_name.toLowerCase()] ?? Infinity;

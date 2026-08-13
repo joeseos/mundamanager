@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { checkAdmin } from "@/utils/auth";
+import { invalidateCampaignCatalogLists } from "@/utils/cache-tags";
 
 export async function GET() {
   const supabase = await createClient();
@@ -109,6 +110,7 @@ export async function POST(request: Request) {
       }
     }
 
+    invalidateCampaignCatalogLists();
     return NextResponse.json(campaignType);
   } catch (error) {
     console.error('Error creating campaign type:', error);
@@ -240,6 +242,7 @@ export async function PATCH(request: Request) {
       .eq('id', id)
       .single();
     if (fetchError) throw fetchError;
+    invalidateCampaignCatalogLists();
     return NextResponse.json(updatedCampaignType);
   } catch (error) {
     console.error('Error updating campaign type:', error);

@@ -2,10 +2,11 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { revalidateTag } from "next/cache";
-import { CACHE_TAGS } from "@/utils/cache-tags";
+import { CACHE_TAGS, purgePreEditionCampaignCatalogCachesOnce } from "@/utils/cache-tags";
 import { logTerritoryLost, logTerritoryClaimed } from "../../logs/gang-campaign-logs";
 import { getAuthenticatedUser } from '@/utils/auth';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
+import { editionsConflict, editionSlugFromJoin } from '@/types/edition';
 
 export interface AssignGangToTerritoryParams {
   campaignId: string;
@@ -21,7 +22,6 @@ export interface RemoveGangFromTerritoryParams {
 export interface AddTerritoryParams {
   campaignId: string;
   territoryId: string;
-  territoryName: string;
 }
 
 export interface CreateCustomCampaignTerritoryParams {
@@ -248,33 +248,67 @@ export async function removeGangFromTerritory(params: RemoveGangFromTerritoryPar
 }
 
 /**
- * Add a territory to a campaign with targeted cache invalidation
+ * Add a territory to a campaign with targeted cache invalidation.
+ * Only campaign owners, arbitrators, and system admins may call this.
  */
 export async function addTerritoryToCampaign(params: AddTerritoryParams) {
   try {
     const supabase = await createClient();
-    const { campaignId, territoryId, territoryName } = params;
+    const { campaignId, territoryId } = params;
 
     if (!territoryId) {
       throw new Error('Territory ID is required');
     }
 
+    const user = await getAuthenticatedUser(supabase);
+
+    const hasPermission = await checkCampaignArbitrator(user.id, campaignId);
+    if (!hasPermission) {
+      return { success: false, error: 'Only campaign owners and arbitrators can add territories' };
+    }
+
+    const [{ data: campaign, error: campaignError }, { data: templateTerritory, error: templateError }] =
+      await Promise.all([
+        supabase
+          .from('campaigns')
+          .select('campaign_types!campaign_type_id(editions:edition_id(slug))')
+          .eq('id', campaignId)
+          .single(),
+        supabase
+          .from('territories')
+          .select('territory_name, playing_card, editions:edition_id(slug)')
+          .eq('id', territoryId)
+          .maybeSingle(),
+      ]);
+
+    if (campaignError || !campaign) {
+      return { success: false, error: 'Campaign not found' };
+    }
+    if (templateError) {
+      console.error('Error fetching territory template:', templateError);
+      return { success: false, error: 'Failed to load territory template' };
+    }
+    if (!templateTerritory) {
+      return { success: false, error: 'Territory not found' };
+    }
+
+    const campaignEdition = editionSlugFromJoin((campaign as any).campaign_types?.editions);
+    const territoryEdition = editionSlugFromJoin((templateTerritory as any).editions);
+
+    if (editionsConflict(campaignEdition, territoryEdition)) {
+      return {
+        success: false,
+        error: 'This territory is from a different edition than the campaign',
+      };
+    }
+
     const insertData: Record<string, unknown> = {
       campaign_id: campaignId,
       territory_id: territoryId,
-      territory_name: territoryName
+      territory_name: templateTerritory.territory_name
     };
 
-    const { data: templateTerritory, error: templateError } = await supabase
-      .from('territories')
-      .select('playing_card')
-      .eq('id', territoryId)
-      .maybeSingle();
-
-    if (templateError) {
-      console.error('Error fetching territory template for playing_card:', templateError);
-    }
-    const rawCard = templateTerritory?.playing_card;
+    const rawCard = templateTerritory.playing_card;
     insertData.playing_card =
       typeof rawCard === 'string' && rawCard.trim() ? rawCard.trim() : null;
 
@@ -286,6 +320,7 @@ export async function addTerritoryToCampaign(params: AddTerritoryParams) {
 
     revalidateTag(`campaign-territories-${campaignId}`, { expire: 0 });
     revalidateTag(`campaign-${campaignId}`, { expire: 0 });
+    purgePreEditionCampaignCatalogCachesOnce();
 
     return { success: true };
   } catch (error) {

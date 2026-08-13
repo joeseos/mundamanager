@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { checkAdmin } from "@/utils/auth";
+import { invalidateCampaignCatalogLists } from "@/utils/cache-tags";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -75,6 +76,7 @@ export async function POST(request: Request) {
       .single();
 
     if (error) throw error;
+    invalidateCampaignCatalogLists();
     return NextResponse.json(territory);
   } catch (error) {
     console.error('Error creating territory:', error);
@@ -140,6 +142,7 @@ export async function PATCH(request: Request) {
       .single();
 
     if (error) throw error;
+    invalidateCampaignCatalogLists();
     return NextResponse.json(territory);
   } catch (error) {
     console.error('Error updating territory:', error);

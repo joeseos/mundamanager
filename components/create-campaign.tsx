@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { useRouter, useSearchParams } from 'next/navigation'
 import { SubmitButton } from "./submit-button"
 import { tradingPostRank } from "@/utils/tradingPostRank"
-import { campaignRank } from '@/utils/campaigns/campaignRank'
+import { getCampaignRank } from '@/utils/campaigns/campaignRank'
 import { ImInfo } from "react-icons/im"
 import { Tooltip } from 'react-tooltip';
 import React from "react"
@@ -83,6 +83,8 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
     () => tradingPostTypes.filter(type => sameEditionForDisplay(type.edition_slug, editionSlug)),
     [tradingPostTypes, editionSlug]
   );
+
+  const campaignRank = getCampaignRank(editionSlug);
 
   const isFormValid = campaignName.trim() !== "" && campaignType !== ""
 
