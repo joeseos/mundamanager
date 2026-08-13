@@ -7,6 +7,12 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, use } from "react";
+import {
+  EMPTY_PASSWORD_REQUIREMENTS,
+  PASSWORD_ERROR_MESSAGE,
+  checkPasswordRequirements,
+  isPasswordValid,
+} from "@/utils/auth";
 import { LuEye, LuEyeOff } from "react-icons/lu";
 
 export default function Page(props: { searchParams: Promise<Message> }) {
@@ -17,23 +23,7 @@ export default function Page(props: { searchParams: Promise<Message> }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
-  const [passwordRequirements, setPasswordRequirements] = useState({
-    hasLowerCase: false,
-    hasUpperCase: false,
-    hasNumber: false,
-    hasSpecialChar: false,
-    hasMinLength: false,
-  });
-
-  const checkPasswordRequirements = (password: string) => {
-    setPasswordRequirements({
-      hasLowerCase: /[a-z]/.test(password),
-      hasUpperCase: /[A-Z]/.test(password),
-      hasNumber: /\d/.test(password),
-      hasSpecialChar: /[!@#$%^&*()_+\-=\[\]{}|;:,.<>?~]/.test(password),
-      hasMinLength: password.length >= 6,
-    });
-  };
+  const [passwordRequirements, setPasswordRequirements] = useState(EMPTY_PASSWORD_REQUIREMENTS);
 
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -103,14 +93,8 @@ export default function Page(props: { searchParams: Promise<Message> }) {
       return;
     }
 
-    const hasLowerCase = /[a-z]/.test(password);
-    const hasUpperCase = /[A-Z]/.test(password);
-    const hasNumber = /\d/.test(password);
-    const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{}|;:,.<>?~]/.test(password);
-    const hasMinLength = password.length >= 6;
-
-    if (!hasLowerCase || !hasUpperCase || !hasNumber || !hasSpecialChar || !hasMinLength) {
-      setPasswordError("Password must contain at least 6 characters, including uppercase, lowercase, number, and special character");
+    if (!isPasswordValid(password)) {
+      setPasswordError(PASSWORD_ERROR_MESSAGE);
       setIsSubmitting(false);
       return;
     }
@@ -204,7 +188,7 @@ export default function Page(props: { searchParams: Promise<Message> }) {
                   minLength={6}
                   required
                   className="text-foreground pr-10"
-                  onChange={(e) => checkPasswordRequirements(e.target.value)}
+                  onChange={(e) => setPasswordRequirements(checkPasswordRequirements(e.target.value))}
                   autoComplete="new-password"
                 />
                 <button

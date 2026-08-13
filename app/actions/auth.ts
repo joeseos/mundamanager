@@ -2,11 +2,15 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { invalidateUserCount } from '@/utils/cache-tags';
 import { safePostSignInPath } from '@/utils/auth';
+
+// Returned instead of calling redirect(), so the caller can do a full document
+// load - a client-side navigation leaves the browser Supabase client stale.
+type AuthRedirect = { redirectTo: string };
+type AuthActionResult = { error: string } | AuthRedirect;
 
 export const signUpAction = async (formData: FormData) => {
   const origin = (await headers()).get("origin");
@@ -91,7 +95,7 @@ export const signUpAction = async (formData: FormData) => {
   }
 };
 
-export const signInAction = async (formData: FormData) => {
+export const signInAction = async (formData: FormData): Promise<AuthActionResult> => {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
   const turnstileToken = formData.get("cf-turnstile-response") as string;
@@ -131,9 +135,7 @@ export const signInAction = async (formData: FormData) => {
 
   revalidatePath('/', 'layout');
 
-  const destination = safePostSignInPath(nextParam);
-
-  return redirect(destination);
+  return { redirectTo: safePostSignInPath(nextParam) };
 };
 
 async function verifyTurnstileToken(token: string) {
@@ -141,9 +143,6 @@ async function verifyTurnstileToken(token: string) {
     console.error('No Turnstile token provided');
     return { success: false, error: 'No token provided' };
   }
-
-  console.log('Verifying Turnstile token:', token.substring(0, 10) + '...');
-  console.log('TURNSTILE_SECRET_KEY:', process.env.TURNSTILE_SECRET_KEY ? 'Set' : 'Not set');
 
   try {
     const response = await fetch(
@@ -160,9 +159,7 @@ async function verifyTurnstileToken(token: string) {
       }
     );
 
-    const data = await response.json();
-    console.log('Turnstile verification response:', data);
-    return data;
+    return await response.json();
   } catch (error) {
     console.error('Error verifying Turnstile token:', error);
     return { success: false, error: 'Verification failed' };
@@ -177,8 +174,17 @@ export const forgotPasswordAction = async (formData: FormData) => {
     return { error: "Email is required" };
   }
 
-  const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_BASE_URL}/reset-password/update`,
+  // From the request, as signUpAction does - an unset env var here silently
+  // interpolates to "undefined/reset-password/update".
+  const origin = (await headers()).get("origin") ?? process.env.NEXT_PUBLIC_APP_URL;
+
+  if (!origin) {
+    console.error('Cannot resolve origin for password reset redirect');
+    return { error: "Something went wrong. Please try again." };
+  }
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${origin}/reset-password/update`,
   });
 
   if (error) {
@@ -190,12 +196,18 @@ export const forgotPasswordAction = async (formData: FormData) => {
   return { success: "Check your email for the password reset link." };
 };
 
-export const signOutAction = async () => {
-  const cookieStore = await cookies();
+export const signOutAction = async (): Promise<AuthRedirect> => {
+  // Revoke the refresh token while the cookies still exist, otherwise it stays
+  // valid and a stale browser client can refresh it back into place.
+  try {
+    const supabase = await createClient();
+    await supabase.auth.signOut();
+  } catch (error) {
+    console.error('Error revoking session on sign out:', error);
+  }
 
-  // Manually delete all Supabase auth cookies
-  // This is necessary because supabase.auth.signOut() can't read the session
-  // in Server Actions due to cookie handling limitations in Server Components
+  // The sweep is the guarantee, whether or not the revoke above succeeded.
+  const cookieStore = await cookies();
   const allCookies = cookieStore.getAll();
   allCookies.forEach(cookie => {
     if (cookie.name.startsWith('sb-')) {
@@ -206,30 +218,5 @@ export const signOutAction = async () => {
   // Revalidate the root layout to clear any cached user data
   revalidatePath('/', 'layout');
 
-  return redirect("/sign-in");
-};
-
-
-export const updatePasswordAction = async (formData: FormData) => {
-  const password = formData.get("password") as string;
-  const confirmPassword = formData.get("confirmPassword") as string;
-  const supabase = await createClient();
-
-  if (password !== confirmPassword) {
-    return { error: "Passwords do not match" };
-  }
-
-  try {
-    const { error } = await supabase.auth.updateUser({ password });
-
-    if (error) {
-      console.error('Error updating password:', error);
-      return { error: error.message };
-    }
-
-    return { success: "Password updated successfully" };
-  } catch (error) {
-    console.error('Error updating password:', error);
-    return { error: "Failed to update password. Please try again." };
-  }
+  return { redirectTo: "/sign-in" };
 };
