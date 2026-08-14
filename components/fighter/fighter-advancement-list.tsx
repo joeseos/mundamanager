@@ -2965,6 +2965,10 @@ export function AdvancementsList({
   const [isStandalonePromotionOpen, setIsStandalonePromotionOpen] = useState(false);
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string; type: string } | null>(null);
 
+  // No XP is spent on Advancements in a rank-based edition, so there is no XP
+  // cost to list and nothing to refund when one is undone.
+  const isCumulativeXp = hasCumulativeXp(editionSlug);
+
   const showPromoteButton = fighterSubtypes.some(c => ['Ganger', 'Juve', 'Prospect', 'Champion', 'Specialist', 'Exotic Beast', 'Exotic Beast Specialist'].includes(c));
 
   const { data: preFetchedFighterTypes = [] } = useQuery({
@@ -3380,7 +3384,18 @@ export function AdvancementsList({
       <List
         title={title}
         items={transformedAdvancements}
-        columns={[
+        columns={isCumulativeXp ? [
+          {
+            key: 'name',
+            label: 'Name',
+            width: '75%'
+          },
+          {
+            key: 'credits_increase',
+            label: 'Cost',
+            align: 'right'
+          }
+        ] : [
           {
             key: 'name',
             label: 'Name',
@@ -3480,7 +3495,11 @@ export function AdvancementsList({
             <div>
               <p>Are you sure you want to undo <strong>{deleteModalData.name}</strong>?</p>
               <br />
-              <p>XP spent will be refunded and the fighter&apos;s value will be adjusted accordingly.</p>
+              <p>
+                {isCumulativeXp
+                  ? "The fighter's value will be adjusted accordingly."
+                  : "XP spent will be refunded and the fighter's value will be adjusted accordingly."}
+              </p>
             </div>
           }
           onClose={() => setDeleteModalData(null)}
