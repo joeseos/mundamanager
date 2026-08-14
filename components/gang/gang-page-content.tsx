@@ -26,7 +26,8 @@ import { editFighterStatus } from "@/app/actions/edit-fighter";
 import { toast } from 'sonner';
 import type { FighterEffect } from '@/types/fighter';
 import { hasKilledStatusFlag, countsTowardRating } from '@/utils/fighter-status';
-import { hasVehicles } from '@/types/edition';
+import { hasVehicles, hasPostCycleActions } from '@/types/edition';
+import PostCycleActions from "@/components/gang/post-cycle-actions";
 
 interface GangPageContentProps {
   initialGangData: any; // We'll type this properly based on the processed data structure
@@ -696,6 +697,20 @@ export default function GangPageContent({
             campaigns={gangData.processedData.campaigns || []}
             editionSlug={gangData.processedData.edition_slug}
           />
+          {/* The Post-cycle Sequence is an N26 rule and only means anything to a
+              gang that is actually playing a campaign. */}
+          {hasPostCycleActions(gangData.processedData.edition_slug) && gangCampaigns.length > 0 && (
+            <PostCycleActions
+              gangId={gangId}
+              fighters={gangData.processedData.fighters}
+              gangCredits={gangData.processedData.credits}
+              userPermissions={userPermissions}
+              onFighterUpdate={handleFighterUpdate}
+              onGangCreditsUpdate={handleGangCreditsUpdate}
+              onGangRatingUpdate={handleGangRatingUpdate}
+              onGangWealthUpdate={handleGangWealthUpdate}
+            />
+          )}
         </div>
       ),
     },
