@@ -261,11 +261,12 @@ export default function PostCycleActions({
         onGangWealthUpdate?.(result.gang.wealth);
       }
 
-      if (result.results.length > 0) {
-        setOutcomes(result.results);
-      }
-
       if (!result.success) {
+        // Only a partial application needs a modal: it is the one case where the
+        // player has to know which fighters did not get their action.
+        if (result.results.length > 0) {
+          setOutcomes(result.results);
+        }
         toast.error(result.error || 'Failed to apply Post-cycle Actions');
         // A partial application still clears the rows it managed to apply.
         if (result.results.length > 0) {
@@ -280,10 +281,18 @@ export default function PostCycleActions({
         return result.results.length > 0;
       }
 
+      // Server-rolled results are the one thing the player cannot read off the
+      // page afterwards, so they ride along on the toast rather than costing a
+      // modal. Everything else is already visible on the fighter cards.
+      const rolled = result.results.filter((r) => r.roll);
+
       toast.success(
         `Applied ${result.results.length} Post-cycle Action${
           result.results.length === 1 ? '' : 's'
-        }`
+        }`,
+        rolled.length > 0
+          ? { description: rolled.map((r) => r.outcome).join('\n') }
+          : undefined
       );
       setRows({});
       return true;
@@ -670,10 +679,12 @@ export default function PostCycleActions({
         </Modal>
       )}
 
-      {/* Results */}
+      {/* Only shown when part of the sequence failed — a clean run reports
+          through the toast instead. */}
       {outcomes && (
         <Modal
-          title="Post-Cycle Sequence Resolved"
+          title="Some Post-Cycle Actions Could Not Be Applied"
+          helper="The rest were applied and have been logged."
           onClose={() => setOutcomes(null)}
           hideCancel
           width="lg"
