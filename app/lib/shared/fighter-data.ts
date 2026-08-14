@@ -1188,6 +1188,7 @@ export const getFighterOwnedBeastsCost = async (fighterId: string, supabase: any
 export const getFighterTypeInfo = async (fighterTypeId: string | null, supabase: any): Promise<{
   id: string;
   fighter_type: string;
+  fighter_subtypes?: string[];
   alliance_crew_name?: string;
   is_spyrer?: boolean;
   is_vehicle?: boolean;
@@ -1200,7 +1201,7 @@ export const getFighterTypeInfo = async (fighterTypeId: string | null, supabase:
     async () => {
       const { data, error } = await supabase
         .from('fighter_types')
-        .select('id, fighter_type, alliance_crew_name, is_spyrer, is_vehicle, gang_type_id, editions:edition_id (slug)')
+        .select('id, fighter_type, fighter_subtypes, alliance_crew_name, is_spyrer, is_vehicle, gang_type_id, editions:edition_id (slug)')
         .eq('id', fighterTypeId)
         .single();
 

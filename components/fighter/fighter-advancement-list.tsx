@@ -16,6 +16,9 @@ import {
   addCharacteristicAdvancement, 
   addSkillAdvancement, 
   applyPromotionWithSkillAdvancement,
+  applyN26ProspectPromotion,
+  applyN26GangerChampionPromotion,
+  applyN26ChampionLeaderPromotion,
   deleteAdvancement,
   verifyAndLogRolledGangerAdvancementRoll,
   verifyAndLogRolledSkillAdvancementRoll
@@ -37,6 +40,11 @@ import {
   type N26AdvancementEntry
 } from '@/utils/dice';
 import { hasCumulativeXp } from '@/types/edition';
+import {
+  N26_CHAMPION_PROMOTION_SKILL_NAME,
+  N26_PROSPECT_PROMOTION_CREDITS,
+  getN26ProspectSpecialisation,
+} from '@/utils/keepTypePromotionN26';
 
 // AdvancementModal Interfaces
 interface AdvancementModalProps {
@@ -2988,6 +2996,47 @@ export function AdvancementsList({
 
   const standalonePromotionMutation = useMutation({
     mutationFn: async (promotion: FighterPromotionResult) => {
+      if (promotion.kind === 'n26_prospect') {
+        if (!promotion.fighter_specialisation_id) {
+          throw new Error('Specialisation is required for Prospect promotion');
+        }
+        const result = await applyN26ProspectPromotion({
+          fighter_id: fighterId,
+          fighter_specialisation_id: promotion.fighter_specialisation_id,
+          special_rules: promotion.special_rules,
+        });
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to promote fighter');
+        }
+        return result;
+      }
+
+      if (promotion.kind === 'n26_ganger_champion') {
+        const result = await applyN26GangerChampionPromotion({
+          fighter_id: fighterId,
+          special_rules: promotion.special_rules,
+        });
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to promote fighter');
+        }
+        return result;
+      }
+
+      if (promotion.kind === 'n26_champion_leader') {
+        if (!promotion.fighter_type_id) {
+          throw new Error('A Leader fighter type is required');
+        }
+        const result = await applyN26ChampionLeaderPromotion({
+          fighter_id: fighterId,
+          fighter_type_id: promotion.fighter_type_id,
+          special_rules: promotion.special_rules,
+        });
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to promote fighter');
+        }
+        return result;
+      }
+
       const result = await updateFighterDetails({
         fighter_id: fighterId,
         fighter_subtypes: promotion.fighter_subtypes,
@@ -3010,16 +3059,93 @@ export function AdvancementsList({
         special_rules: fighterSpecialRules,
         ...currentPromotionSpecialisation,
       };
+      const previousSkills = { ...skills };
+      const creditsIncrease =
+        promotion.kind === 'n26_prospect'
+          ? (promotion.credits_increase ?? N26_PROSPECT_PROMOTION_CREDITS)
+          : 0;
+      const optimisticSkillName =
+        promotion.kind === 'n26_prospect' && promotion.fighter_specialisation_id
+          ? getN26ProspectSpecialisation(promotion.fighter_specialisation_id)?.skillName
+          : promotion.kind === 'n26_ganger_champion' || promotion.kind === 'n26_champion_leader'
+            ? N26_CHAMPION_PROMOTION_SKILL_NAME
+            : undefined;
+
       onFighterDetailsUpdate?.(promotion);
-      return { previousPatch };
+
+      // Grant is not an Advancement (is_advance: false) — lands in Skills.
+      // Champion→Leader skips optimistic grant when Inspiring is already present.
+      if (optimisticSkillName && onSkillUpdate && !skills[optimisticSkillName]) {
+        const optimisticId =
+          promotion.kind === 'n26_prospect'
+            ? `optimistic-n26-prospect-${promotion.fighter_specialisation_id}`
+            : promotion.kind === 'n26_champion_leader'
+              ? 'optimistic-n26-champion-leader'
+              : 'optimistic-n26-ganger-champion';
+        onSkillUpdate({
+          ...skills,
+          [optimisticSkillName]: {
+            id: optimisticId,
+            name: optimisticSkillName,
+            xp_cost: 0,
+            credits_increase: creditsIncrease,
+            is_advance: false,
+            acquired_at: new Date().toISOString(),
+          } as any,
+        });
+      }
+
+      if (creditsIncrease > 0 && onXpCreditsUpdate) {
+        onXpCreditsUpdate(0, creditsIncrease);
+      }
+
+      return { previousPatch, previousSkills, creditsIncrease, optimisticSkillName };
     },
-    onSuccess: () => {
+    onSuccess: (result, promotion, context) => {
+      // Replace optimistic skill id with the real fighter_skills row id
+      const isPromotionSkillGrant =
+        promotion.kind === 'n26_prospect' ||
+        promotion.kind === 'n26_ganger_champion' ||
+        promotion.kind === 'n26_champion_leader';
+      const skillId =
+        isPromotionSkillGrant && result && 'advancement' in result
+          ? result.advancement?.id
+          : undefined;
+      if (
+        isPromotionSkillGrant &&
+        context?.optimisticSkillName &&
+        skillId &&
+        onSkillUpdate &&
+        context.previousSkills
+      ) {
+        const skillName = context.optimisticSkillName;
+        onSkillUpdate({
+          ...context.previousSkills,
+          [skillName]: {
+            id: skillId,
+            name: skillName,
+            xp_cost: 0,
+            credits_increase:
+              promotion.kind === 'n26_prospect'
+                ? (context.creditsIncrease ?? N26_PROSPECT_PROMOTION_CREDITS)
+                : 0,
+            is_advance: false,
+            acquired_at: new Date().toISOString(),
+          } as any,
+        });
+      }
       setIsStandalonePromotionOpen(false);
       toast.success('Fighter promoted successfully');
     },
     onError: (error, _promotion, context) => {
       if (context?.previousPatch) {
         onFighterDetailsUpdate?.(context.previousPatch);
+      }
+      if (context?.previousSkills && onSkillUpdate) {
+        onSkillUpdate(context.previousSkills);
+      }
+      if (context?.creditsIncrease && onXpCreditsUpdate) {
+        onXpCreditsUpdate(0, -context.creditsIncrease);
       }
       toast.error(error instanceof Error ? error.message : 'Failed to promote fighter');
     },
