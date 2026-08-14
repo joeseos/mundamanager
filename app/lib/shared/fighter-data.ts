@@ -1208,8 +1208,7 @@ export const getFighterTypeInfo = async (fighterTypeId: string | null, supabase:
       if (error) return null;
       return data;
     },
-    // v2: includes fighter_subtypes (needed for N26 keep-type promotion undo).
-    [`fighter-type-${fighterTypeId}-v2`],
+    [`fighter-type-${fighterTypeId}`],
     {
       tags: [CACHE_TAGS.GLOBAL_FIGHTER_TYPES()],
       revalidate: 3600 // Fighter types rarely change
