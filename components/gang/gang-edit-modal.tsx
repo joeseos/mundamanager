@@ -304,9 +304,12 @@ export default function GangEditModal({
       if (!response.ok) throw new Error('Failed to fetch gang types');
       const data = await response.json();
       
-      // Extract all available affiliations from the first gang type that has them
+      // Extract all available affiliations from the first gang type of this
+      // gang's edition that has them
       if (!affiliationListLoaded) {
-        const gangTypeWithAffiliations = data.find((type: any) => type.available_affiliations && type.available_affiliations.length > 0);
+        const gangTypeWithAffiliations = data.find((type: any) =>
+          sameEditionForDisplay(type.edition_slug, editionSlug)
+          && type.available_affiliations && type.available_affiliations.length > 0);
         if (gangTypeWithAffiliations) {
           setAffiliationList(gangTypeWithAffiliations.available_affiliations);
         }

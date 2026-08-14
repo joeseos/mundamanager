@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { getUserIdFromClaims } from "@/utils/auth";
-import { editionSlugFromJoin, withEditionSlug } from "@/types/edition";
+import { editionSlugFromJoin, sameEditionForDisplay, withEditionSlug } from "@/types/edition";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
     // Run gang_types and affiliations in parallel (independent queries)
     const [gangTypesResult, affiliationsResult] = await Promise.all([
       query,
-      supabase.from('gang_affiliation').select('id, name').order('name'),
+      supabase.from('gang_affiliation').select('id, name, editions:edition_id (slug)').order('name'),
     ]);
 
     const { data: gangTypes, error } = gangTypesResult;
@@ -55,7 +55,11 @@ export async function GET(request: Request) {
     let allAffiliations: any[] = [];
     const { data: affiliations, error: affiliationError } = affiliationsResult;
     if (!affiliationError && affiliations) {
-      allAffiliations = affiliations;
+      allAffiliations = affiliations.map((affiliation) => ({
+        id: affiliation.id,
+        name: affiliation.name,
+        edition_slug: editionSlugFromJoin((affiliation as any).editions)
+      }));
     }
 
     // Get unique origin category IDs from gang types that have them
@@ -104,9 +108,13 @@ export async function GET(request: Request) {
         ? (originsByCategory[gangType.gang_origin_category_id] || [])
         : [];
 
+      const gangTypeWithEdition = withEditionSlug(gangType);
+
       return {
-        ...withEditionSlug(gangType),
-        available_affiliations: gangType.affiliation ? allAffiliations : [],
+        ...gangTypeWithEdition,
+        available_affiliations: gangType.affiliation
+          ? allAffiliations.filter(a => sameEditionForDisplay(a.edition_slug, gangTypeWithEdition.edition_slug))
+          : [],
         available_origins: availableOrigins
       };
     });
