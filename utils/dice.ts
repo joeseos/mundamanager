@@ -187,6 +187,41 @@ export const RIG_GLITCH_TABLE: TableEntry[] = [
   { range: [66, 66], name: 'Critical Overload' },
 ];
 
+// D66 table for Rig Glitches (Spyrers), N26 ruleset.
+//
+// Not a reskin of the N23 rig glitch table: N26 opens with the same six results
+// as its lasting injury table (Lesson Learnt, the Enmity trio, the two Scars),
+// widens Superficial Damage to 21-26, replaces Convalescence with Grievous
+// Wound over 31-46, and drops Weakened Polymers, Jammed Articulation, Disrupted
+// Ammo Cables, System Downgrade, Cracked Power Cell and Reduced Power
+// Distribution. Only 51-64 raise the Glitch Count.
+//
+// effect_name must match the edition's fighter_effect_types rows exactly, since
+// ranges are a name-keyed reverse lookup. Note 11 is 'Lesson Learnt' here and
+// 'Lesson Learned' in RIG_GLITCH_TABLE; both are correct for their own edition.
+export const RIG_GLITCH_TABLE_N26: TableEntry[] = [
+  { range: [11, 11], name: 'Lesson Learnt' },
+  { range: [12, 12], name: 'Eternal Enmity' },
+  { range: [13, 13], name: BITTER_ENMITY_EFFECT_NAME },
+  { range: [14, 14], name: 'Personal Enmity' },
+  { range: [15, 15], name: 'Horrid Scars' },
+  { range: [16, 16], name: 'Impressive Scars' },
+  { range: [21, 26], name: 'Superficial Damage' },
+  { range: [31, 46], name: 'Grievous Wound' },
+  { range: [51, 51], name: 'Anxiety Suppression Damaged' },
+  { range: [52, 52], name: 'Neural Feedback' },
+  { range: [53, 53], name: 'Humbled' },
+  { range: [54, 54], name: 'Vox Ghosts' },
+  { range: [55, 55], name: 'Gyroscopic Destabilisation' },
+  { range: [56, 56], name: 'Seized Locomotors' },
+  { range: [61, 61], name: 'Targeting Uplink Disruption' },
+  { range: [62, 62], name: 'Stuttering Servos' },
+  { range: [63, 63], name: 'Damaged Musculature' },
+  { range: [64, 64], name: 'Reduced Plate Density' },
+  { range: [65, 65], name: 'Multiple Glitches' },
+  { range: [66, 66], name: 'Critical Overload' },
+];
+
 // ============================================================================
 // Edition-scoped injury table selection
 // ============================================================================
@@ -208,7 +243,7 @@ type InjuryTables = {
  */
 const INJURY_TABLES_BY_EDITION: Record<EditionSlug, InjuryTables> = {
   n23: { base: LASTING_INJURY_TABLE, crew: LASTING_INJURY_CREW_TABLE, spyrer: RIG_GLITCH_TABLE },
-  n26: { base: LASTING_INJURY_TABLE_N26, crew: null, spyrer: null },
+  n26: { base: LASTING_INJURY_TABLE_N26, crew: null, spyrer: RIG_GLITCH_TABLE_N26 },
 };
 
 /**
