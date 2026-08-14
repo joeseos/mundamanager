@@ -20,7 +20,7 @@ import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import Modal from '@/components/ui/modal';
 import { Badge } from '@/components/ui/badge';
-import { LuStethoscope } from 'react-icons/lu';
+import { LuListChecks } from 'react-icons/lu';
 import { FighterProps } from '@/types/fighter';
 import { UserPermissions } from '@/types/user-permissions';
 import { EDITION_N26 } from '@/types/edition';
@@ -307,7 +307,7 @@ export default function PostCycleActions({
     <div className="mt-8">
       <h3 className="text-lg font-semibold mb-4 flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
-          <LuStethoscope className="h-5 w-5" />
+          <LuListChecks className="h-5 w-5" />
           Post-Cycle Actions
         </div>
         {assignments.length > 0 && (
