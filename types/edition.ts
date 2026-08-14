@@ -246,6 +246,12 @@ const EDITION_CAPABILITIES = {
   spyrerRecovery:           { n23: false, n26: true  },
   /** Spyrers spend kills on Power Boosts for their hunting rig. */
   spyrerPowerBoosts:        { n23: true,  n26: false },
+  /**
+   * The Post-cycle Sequence: between battles each model may perform one
+   * Post-cycle Action (Medical Escort, Fit Bionics, Work Territory, Train, …).
+   * The catalog and its rules live in utils/postCycleActions.ts.
+   */
+  postCycleActions:         { n23: false, n26: true  },
 } as const satisfies Record<string, Record<EditionSlug, unknown>>;
 
 type EditionCapability = keyof typeof EDITION_CAPABILITIES;
@@ -444,6 +450,9 @@ export const hasSpyrerRecovery = (editionSlug?: string | null): boolean =>
 
 export const hasSpyrerPowerBoosts = (editionSlug?: string | null): boolean =>
   can('spyrerPowerBoosts', editionSlug);
+
+export const hasPostCycleActions = (editionSlug?: string | null): boolean =>
+  can('postCycleActions', editionSlug);
 
 export interface Edition {
   id: string;
