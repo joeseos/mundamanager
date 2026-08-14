@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { createGangLog, GangLogActionResult } from "./gang-logs";
 import { formatFinancialChanges, formatXpBreakdown } from "./log-helpers";
+import { downtimePhaseName } from "@/types/edition";
 
 export interface FighterLogParams {
   gang_id: string;
@@ -13,6 +14,11 @@ export interface FighterLogParams {
               'fighter_rescued' | 'fighter_starved' | 'fighter_fed' | 'fighter_captured' | 'fighter_released' | 'fighter_copied' |
               'rig_glitches_cleared_downtime';
   user_id?: string;
+  /**
+   * The gang's edition, for action types whose wording differs between editions
+   * (see downtimePhaseName). Omitted logs read as N23.
+   */
+  edition_slug?: string | null;
   old_value?: number | string;
   new_value?: number | string;
   fighter_credits?: number;
@@ -144,7 +150,7 @@ export async function logFighterAction(params: FighterLogParams): Promise<GangLo
         description = `Fighter "${params.fighter_name}" was released from captivity.${financialChanges}`;
         break;
       case 'rig_glitches_cleared_downtime':
-        description = `Fighter "${params.fighter_name}" cleared ${params.old_value} rig glitch${Number(params.old_value) !== 1 ? 'es' : ''} via Downtime.${financialChanges}`;
+        description = `Fighter "${params.fighter_name}" cleared ${params.old_value} rig glitch${Number(params.old_value) !== 1 ? 'es' : ''} via ${downtimePhaseName(params.edition_slug)}.${financialChanges}`;
         break;
       case 'fighter_copied':
         const copyTypeLabel = params.copy_type === 'experienced' ? 'experienced fighter' : 'base fighter';

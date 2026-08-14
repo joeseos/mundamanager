@@ -30,6 +30,8 @@ interface LogModalProps {
   onClose: () => void;
   fighters?: Array<{ id: string; name: string }>;
   vehicles?: Array<{ id: string; name: string }>;
+  /** Scopes action-type labels whose wording differs between editions. */
+  editionSlug?: string | null;
 }
 
 // Mirrors the `.limit(100)` cap applied server-side in the logs API routes.
@@ -43,6 +45,7 @@ export default function LogModal({
   onClose,
   fighters,
   vehicles,
+  editionSlug = null,
 }: LogModalProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const logsPerPage = 10;
@@ -93,15 +96,15 @@ export default function LogModal({
     setPrevIsOpen(isOpen);
   }
 
-  const getActionTypeDisplay = (actionType: string) => getLogTypeLabel(actionType);
+  const getActionTypeDisplay = (actionType: string) => getLogTypeLabel(actionType, editionSlug);
 
   const actionTypeOptions = useMemo(() => {
     const unique = Array.from(new Set(logs.map(l => l.action_type))).sort();
     return [
       { value: '', label: 'All Action Types' },
-      ...unique.map(type => ({ value: type, label: getLogTypeLabel(type) })),
+      ...unique.map(type => ({ value: type, label: getLogTypeLabel(type, editionSlug) })),
     ];
-  }, [logs]);
+  }, [logs, editionSlug]);
 
   const filteredLogs = useMemo(() => {
     let result = logs;

@@ -666,6 +666,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
         emptyMessage="No activity logs found for this fighter."
         isOpen={isLogsModalOpen}
         onClose={() => setIsLogsModalOpen(false)}
+        editionSlug={edition_slug}
       />
 
       {/* OOA / Wreck Records Modal */}

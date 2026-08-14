@@ -11,6 +11,7 @@ import { revalidateTag } from 'next/cache';
 import type { GangLogActionResult } from './logs/gang-logs';
 import { countsTowardRating, hasKilledStatusFlag } from '@/utils/fighter-status';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
+import { gangEditionSlug } from '@/types/edition';
 
 export interface AddFighterInjuryParams {
   fighter_id: string;
@@ -575,9 +576,15 @@ export async function clearRigGlitchesDowntime(params: {
       return { success: false, clearedCount: 0, creditCost: params.credit_cost, error: 'Credit cost cannot be negative' };
     }
 
+    // The edition joins ride along with the affordability check so the log line
+    // can name the phase the way this gang's edition does.
     const { data: gang, error: gangError } = await supabase
       .from('gangs')
-      .select('credits')
+      .select(`
+        credits,
+        gang_types!gang_type_id ( editions:edition_id ( slug ) ),
+        custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
+      `)
       .eq('id', fighter.gang_id)
       .single();
 
@@ -608,6 +615,7 @@ export async function clearRigGlitchesDowntime(params: {
       fighter_id: params.fighter_id,
       fighter_name: fighter.fighter_name,
       action_type: 'rig_glitches_cleared_downtime',
+      edition_slug: gangEditionSlug(gang),
       old_value: deletedCount,
       oldCredits: financialResult.oldValues?.credits,
       oldRating:  financialResult.oldValues?.rating,

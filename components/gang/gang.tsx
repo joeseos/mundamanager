@@ -1367,6 +1367,7 @@ export default function Gang({
             onClose={() => setShowLogsModal(false)}
             fighters={allFightersForLogs}
             vehicles={allVehiclesForLogs}
+            editionSlug={edition_slug}
           />
           <CopyGangModal
             gangId={id}

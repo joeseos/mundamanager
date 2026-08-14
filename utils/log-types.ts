@@ -1,3 +1,5 @@
+import { downtimePhaseName } from '@/types/edition';
+
 /**
  * Shared action type → display label map for log UIs.
  */
@@ -54,6 +56,7 @@ export const LOG_TYPE_LABELS: Record<string, string> = {
   'injury_roll': 'Lasting Injury roll',
   'skill_advancement_roll': 'Skill Advancement roll',
   'ganger_advancement_roll': 'Ganger Advancement roll',
+  // N23 wording; getLogTypeLabel re-words this one per edition.
   'rig_glitches_cleared_downtime': 'Downtime glitch removal',
 
   // Equipment
@@ -112,7 +115,29 @@ export const LOG_TYPE_LABELS: Record<string, string> = {
   'territory_lost': 'Territory lost',
 };
 
-/** Look up a display label for an action type, falling back to the raw value. */
-export function getLogTypeLabel(actionType: string): string {
+/**
+ * Action types whose label wording differs between editions. Kept out of
+ * LOG_TYPE_LABELS so that stays a plain constant map; each builder falls back to
+ * the N23 wording when no slug is known.
+ */
+const EDITION_LOG_TYPE_LABELS: Record<
+  string,
+  (editionSlug?: string | null) => string
+> = {
+  'rig_glitches_cleared_downtime': (editionSlug) =>
+    `${downtimePhaseName(editionSlug)} glitch removal`,
+};
+
+/**
+ * Look up a display label for an action type, falling back to the raw value.
+ * Pass the gang's (or campaign's) edition slug so edition-specific terminology
+ * reads correctly; omitting it yields the N23 wording.
+ */
+export function getLogTypeLabel(
+  actionType: string,
+  editionSlug?: string | null
+): string {
+  const editionLabel = EDITION_LOG_TYPE_LABELS[actionType];
+  if (editionLabel) return editionLabel(editionSlug);
   return LOG_TYPE_LABELS[actionType] || actionType;
 }

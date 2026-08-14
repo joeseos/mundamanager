@@ -1170,6 +1170,7 @@ export default function CampaignPageContent({
         emptyMessage="No activity logs found for this campaign."
         isOpen={showLogsModal}
         onClose={() => setShowLogsModal(false)}
+        editionSlug={campaignData.edition_slug ?? null}
       />
 
       {/* View Campaign Data Modal */}
