@@ -428,16 +428,11 @@ export function EquipmentSelection({
 
                               setSelectedEquipment((prev) => {
                                 const currentCategoryOptions = categoryData.options || [];
-                                const previouslySelectedInThisCategory = selectedEquipmentIds.filter(id =>
-                                  currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
+                                let filtered = prev.filter(item =>
+                                  !currentCategoryOptions.some((o: any) =>
+                                    o.id === item.equipment_id && selectedEquipmentIds.includes(`${categoryId}-${o.id}`)
+                                  )
                                 );
-                                let filtered = prev.filter(item => {
-                                  const wasSelectedFromThisCategory = previouslySelectedInThisCategory.some(selectedId => {
-                                    const equipmentIdFromSelected = selectedId.split('-').pop();
-                                    return equipmentIdFromSelected === item.equipment_id;
-                                  });
-                                  return !wasSelectedFromThisCategory;
-                                });
                                 if (categoryData.select_type === 'optional_single' && categoryData.default && categoryData.default.length > 0) {
                                   categoryData.default.forEach((defaultItem: any) => {
                                     filtered = filtered.filter(item => item.equipment_id !== defaultItem.id);
