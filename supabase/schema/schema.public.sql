@@ -1525,6 +1525,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
                     'strength', wp.strength,
                     'ap', wp.ap,
                     'damage', wp.damage,
+                    'lethality', wp.lethality,
                     'ammo', wp.ammo,
                     'traits', wp.traits,
                     'sort_order', wp.sort_order
@@ -1734,6 +1735,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
                     'strength', cwp.strength,
                     'ap', cwp.ap,
                     'damage', cwp.damage,
+                    'lethality', cwp.lethality,
                     'ammo', cwp.ammo,
                     'traits', cwp.traits,
                     'sort_order', cwp.sort_order
@@ -5067,7 +5069,8 @@ CREATE TABLE public.fighter_gang_legacy (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone,
     name text,
-    fighter_type_id uuid
+    fighter_type_id uuid,
+    edition_id uuid
 );
 
 
@@ -6764,6 +6767,13 @@ CREATE INDEX battle_session_fighters_fighter_idx ON public.battle_session_fighte
 
 
 --
+-- Name: battle_session_fighters_loadout_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX battle_session_fighters_loadout_id_idx ON public.battle_session_fighters USING btree (loadout_id) WHERE (loadout_id IS NOT NULL);
+
+
+--
 -- Name: battle_session_fighters_participant_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7191,6 +7201,13 @@ CREATE INDEX fighter_effects_fighter_equipment_id_idx ON public.fighter_effects 
 
 
 --
+-- Name: fighter_effects_fighter_skill_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_effects_fighter_skill_id_idx ON public.fighter_effects USING btree (fighter_skill_id) WHERE (fighter_skill_id IS NOT NULL);
+
+
+--
 -- Name: fighter_equipment_custom_equipment_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7219,10 +7236,38 @@ CREATE INDEX fighter_equipment_vehicle_id_idx ON public.fighter_equipment USING 
 
 
 --
+-- Name: fighter_exotic_beasts_fighter_equipment_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_exotic_beasts_fighter_equipment_id_idx ON public.fighter_exotic_beasts USING btree (fighter_equipment_id);
+
+
+--
+-- Name: fighter_exotic_beasts_fighter_owner_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_exotic_beasts_fighter_owner_id_idx ON public.fighter_exotic_beasts USING btree (fighter_owner_id);
+
+
+--
 -- Name: fighter_exotic_beasts_fighter_pet_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX fighter_exotic_beasts_fighter_pet_id_idx ON public.fighter_exotic_beasts USING btree (fighter_pet_id);
+
+
+--
+-- Name: fighter_gang_legacy_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_gang_legacy_edition_id_idx ON public.fighter_gang_legacy USING btree (edition_id);
+
+
+--
+-- Name: fighter_injuries_fighter_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_injuries_fighter_id_idx ON public.fighter_injuries USING btree (fighter_id);
 
 
 --
@@ -7233,10 +7278,24 @@ CREATE INDEX fighter_ooa_records_causing_fighter_id_idx ON public.fighter_ooa_re
 
 
 --
+-- Name: fighter_ooa_records_causing_gang_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_ooa_records_causing_gang_id_idx ON public.fighter_ooa_records USING btree (causing_gang_id);
+
+
+--
 -- Name: fighter_ooa_records_injured_fighter_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX fighter_ooa_records_injured_fighter_id_idx ON public.fighter_ooa_records USING btree (injured_fighter_id);
+
+
+--
+-- Name: fighter_ooa_records_injured_gang_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_ooa_records_injured_gang_id_idx ON public.fighter_ooa_records USING btree (injured_gang_id) WHERE (injured_gang_id IS NOT NULL);
 
 
 --
@@ -7251,6 +7310,27 @@ CREATE INDEX fighter_skill_access_override_fighter_id_idx ON public.fighter_skil
 --
 
 CREATE INDEX fighter_skills_custom_skill_id_idx ON public.fighter_skills USING btree (custom_skill_id);
+
+
+--
+-- Name: fighter_skills_fighter_effect_skill_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_skills_fighter_effect_skill_id_idx ON public.fighter_skills USING btree (fighter_effect_skill_id) WHERE (fighter_effect_skill_id IS NOT NULL);
+
+
+--
+-- Name: fighter_skills_fighter_injury_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_skills_fighter_injury_id_idx ON public.fighter_skills USING btree (fighter_injury_id) WHERE (fighter_injury_id IS NOT NULL);
+
+
+--
+-- Name: fighter_specialisations_specialisation_name_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_specialisations_specialisation_name_idx ON public.fighter_specialisations USING btree (specialisation_name);
 
 
 --
@@ -7324,10 +7404,31 @@ CREATE INDEX fighter_types_save_idx ON public.fighter_types USING btree (save);
 
 
 --
+-- Name: fighters_active_loadout_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighters_active_loadout_id_idx ON public.fighters USING btree (active_loadout_id) WHERE (active_loadout_id IS NOT NULL);
+
+
+--
+-- Name: fighters_captured_by_gang_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighters_captured_by_gang_id_idx ON public.fighters USING btree (captured_by_gang_id);
+
+
+--
 -- Name: fighters_fighter_name_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX fighters_fighter_name_idx ON public.fighters USING btree (fighter_name);
+
+
+--
+-- Name: fighters_fighter_pet_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighters_fighter_pet_id_idx ON public.fighters USING btree (fighter_pet_id) WHERE (fighter_pet_id IS NOT NULL);
 
 
 --
@@ -7356,6 +7457,13 @@ CREATE INDEX gang_origins_edition_id_idx ON public.gang_origins USING btree (edi
 --
 
 CREATE INDEX gang_origins_gang_origin_category_id_idx ON public.gang_origins USING btree (gang_origin_category_id);
+
+
+--
+-- Name: gang_stash_gang_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gang_stash_gang_id_idx ON public.gang_stash USING btree (gang_id);
 
 
 --
@@ -7391,6 +7499,13 @@ CREATE INDEX gang_variant_types_edition_id_idx ON public.gang_variant_types USIN
 --
 
 CREATE INDEX gangs_custom_gang_type_id_idx ON public.gangs USING btree (custom_gang_type_id);
+
+
+--
+-- Name: gangs_is_favourite_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gangs_is_favourite_idx ON public.gangs USING btree (is_favourite);
 
 
 --
@@ -8950,6 +9065,14 @@ ALTER TABLE ONLY public.fighter_equipment
 
 ALTER TABLE ONLY public.fighter_exotic_beasts
     ADD CONSTRAINT fighter_exotic_beasts_fighter_owner_id_fkey FOREIGN KEY (fighter_owner_id) REFERENCES public.fighters(id) ON DELETE CASCADE;
+
+
+--
+-- Name: fighter_gang_legacy fighter_gang_legacy_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_gang_legacy
+    ADD CONSTRAINT fighter_gang_legacy_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
 
 
 --
