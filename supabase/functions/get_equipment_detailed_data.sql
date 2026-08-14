@@ -315,6 +315,7 @@ AS $$
                     'strength', wp.strength,
                     'ap', wp.ap,
                     'damage', wp.damage,
+                    'lethality', wp.lethality,
                     'ammo', wp.ammo,
                     'traits', wp.traits,
                     'sort_order', wp.sort_order
@@ -524,6 +525,7 @@ AS $$
                     'strength', cwp.strength,
                     'ap', cwp.ap,
                     'damage', cwp.damage,
+                    'lethality', cwp.lethality,
                     'ammo', cwp.ammo,
                     'traits', cwp.traits,
                     'sort_order', cwp.sort_order
