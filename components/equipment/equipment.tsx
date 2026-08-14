@@ -143,6 +143,14 @@ const ItemModal: React.FC<ItemModalProps> = ({
     fighter: {},
     all: {}
   });
+  // Whether a bucket has been fetched, tracked separately from its contents: a
+  // fighter with no equipment list caches a legitimately empty result, and an
+  // emptiness test cannot tell that apart from "never fetched".
+  const [loadedBuckets, setLoadedBuckets] = useState<{ all: boolean; fighter: boolean; tradingpost: boolean }>({
+    all: false,
+    fighter: false,
+    tradingpost: false
+  });
   const [isLoadingAllEquipment, setIsLoadingAllEquipment] = useState(false);
   const [costRange, setCostRange] = useState<[number, number]>([10, 160]);
   const [availabilityRange, setAvailabilityRange] = useState<[number, number]>([6, 12]);
@@ -263,6 +271,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
         ? `Vehicle type information is missing. Vehicle: ${vehicleType || 'unknown'}`
         : 'Fighter type information is missing';
       setError(errorMessage);
+      // Returns before the try below, so release the in-flight flag here or the
+      // modal stays wedged with no way to retry.
+      setIsLoadingAllEquipment(false);
       return;
     }
 
@@ -404,14 +415,17 @@ const ItemModal: React.FC<ItemModalProps> = ({
       if (equipmentListType === 'unrestricted') {
         setCachedAllCategories(uniqueCategories);
         setCachedEquipment(prev => ({ ...prev, all: equipmentByCategory }));
+        setLoadedBuckets(prev => ({ ...prev, all: true }));
       } else if (equipmentListType === 'fighters-list') {
         setCachedFighterCategories(uniqueCategories);
         setCachedEquipment(prev => ({ ...prev, fighter: equipmentByCategory }));
+        setLoadedBuckets(prev => ({ ...prev, fighter: true }));
       } else if (equipmentListType === 'fighters-tradingpost') {
         // Only cache when not using campaign filter (campaign-filtered results would overwrite unfiltered cache)
         if (campaignTradingPostIds === undefined) {
           setCachedFighterTPCategories(uniqueCategories);
           setCachedEquipment(prev => ({ ...prev, tradingpost: equipmentByCategory }));
+          setLoadedBuckets(prev => ({ ...prev, tradingpost: true }));
         }
       }
 
@@ -486,19 +500,19 @@ const ItemModal: React.FC<ItemModalProps> = ({
     return canAffordCredits && tradePointsCost <= (gangTradePoints ?? 0);
   };
 
-  const cacheRestorationKey = `${equipmentListType}:${cachedAllCategories.length}:${cachedFighterCategories.length}:${cachedFighterTPCategories.length}:${campaignTradingPostIds === undefined ? 'no-campaign' : 'campaign'}`;
+  const cacheRestorationKey = `${equipmentListType}:${loadedBuckets.all}:${loadedBuckets.fighter}:${loadedBuckets.tradingpost}:${campaignTradingPostIds === undefined ? 'no-campaign' : 'campaign'}`;
   const [prevCacheRestorationKey, setPrevCacheRestorationKey] = useState(cacheRestorationKey);
   if (cacheRestorationKey !== prevCacheRestorationKey) {
     setPrevCacheRestorationKey(cacheRestorationKey);
-    if (equipmentListType === 'unrestricted' && cachedAllCategories.length > 0 && cachedEquipment.all && Object.keys(cachedEquipment.all).length > 0) {
+    if (equipmentListType === 'unrestricted' && loadedBuckets.all) {
       setAvailableCategories(cachedAllCategories);
-      setEquipment(cachedEquipment.all);
-    } else if (equipmentListType === 'fighters-list' && cachedFighterCategories.length > 0 && cachedEquipment.fighter && Object.keys(cachedEquipment.fighter).length > 0) {
+      setEquipment(cachedEquipment.all ?? {});
+    } else if (equipmentListType === 'fighters-list' && loadedBuckets.fighter) {
       setAvailableCategories(cachedFighterCategories);
-      setEquipment(cachedEquipment.fighter);
-    } else if (equipmentListType === 'fighters-tradingpost' && campaignTradingPostIds === undefined && cachedFighterTPCategories.length > 0 && cachedEquipment.tradingpost && Object.keys(cachedEquipment.tradingpost).length > 0) {
+      setEquipment(cachedEquipment.fighter ?? {});
+    } else if (equipmentListType === 'fighters-tradingpost' && campaignTradingPostIds === undefined && loadedBuckets.tradingpost) {
       setAvailableCategories(cachedFighterTPCategories);
-      setEquipment(cachedEquipment.tradingpost);
+      setEquipment(cachedEquipment.tradingpost ?? {});
     }
   }
 
@@ -510,16 +524,19 @@ const ItemModal: React.FC<ItemModalProps> = ({
     const contextKey = `${equipmentListType}:${campaignTPKey}:${campaignCustomTPKey}`;
 
     // Skip if cache was already restored during render
-    if (equipmentListType === 'unrestricted' && cachedAllCategories.length > 0 && cachedEquipment.all && Object.keys(cachedEquipment.all).length > 0) return;
-    if (equipmentListType === 'fighters-list' && cachedFighterCategories.length > 0 && cachedEquipment.fighter && Object.keys(cachedEquipment.fighter).length > 0) return;
-    if (equipmentListType === 'fighters-tradingpost' && campaignTradingPostIds === undefined && cachedFighterTPCategories.length > 0 && cachedEquipment.tradingpost && Object.keys(cachedEquipment.tradingpost).length > 0) return;
+    if (equipmentListType === 'unrestricted' && loadedBuckets.all) return;
+    if (equipmentListType === 'fighters-list' && loadedBuckets.fighter) return;
+    if (equipmentListType === 'fighters-tradingpost' && campaignTradingPostIds === undefined && loadedBuckets.tradingpost) return;
 
-    if (fetchedContextsRef.current.has(contextKey) && Object.keys(equipment).length > 0) return;
+    // Authoritative on its own: an empty result is still a fetched result, and the
+    // campaign-filtered Trading Post has no cache bucket to fall back on. Tab
+    // switches clear this ref, so a deliberate reload still goes through.
+    if (fetchedContextsRef.current.has(contextKey)) return;
 
     fetchedContextsRef.current.add(contextKey);
     fetchAllCategories();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, equipmentListType, cachedAllCategories.length, cachedFighterCategories.length, cachedFighterTPCategories.length, isLoadingAllEquipment, campaignTPKey]);
+  }, [session, equipmentListType, loadedBuckets.all, loadedBuckets.fighter, loadedBuckets.tradingpost, isLoadingAllEquipment, campaignTPKey, campaignCustomTPKey]);
 
   const { computedMinCost, computedMaxCost, computedMinAvailability, computedMaxAvailability, computedMinTradePoints, computedMaxTradePoints } = useMemo(() => {
     const allEquipment = Object.values(equipment).flat();
