@@ -159,6 +159,11 @@ const EDITION_CAPABILITIES = {
    */
   beastSubtype:             { n23: 'Exotic Beast', n26: 'Pet' },
   /**
+   * What the edition calls the between-battle phase a fighter can spend to
+   * recover, as used in copy about paying with it (Spyrer rig glitches).
+   */
+  downtimePhase:            { n23: 'Downtime', n26: 'Post-Cycle' },
+  /**
    * Prospect promotion keeps fighter type, swaps Prospect for Ganger+Specialist,
    * requires a specialisation pick, and grants the mapped skill (+15 rating).
    * When false, Prospect uses the standard promote-to-Champion type picker.
@@ -278,6 +283,9 @@ export const hasGangAdditionCategories = (
 
 export const beastSubtypeName = (editionSlug?: string | null): string =>
   answerFor('beastSubtype', editionSlug) ?? EDITION_CAPABILITIES.beastSubtype.n23;
+
+export const downtimePhaseName = (editionSlug?: string | null): string =>
+  answerFor('downtimePhase', editionSlug) ?? EDITION_CAPABILITIES.downtimePhase.n23;
 
 export const hasProspectSpecialisationPromotion = (
   editionSlug?: string | null

@@ -28,6 +28,7 @@ import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { useMutation } from '@tanstack/react-query';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import { hasKilledStatusFlag } from '@/utils/fighter-status';
+import { downtimePhaseName } from '@/types/edition';
 
 interface InjuriesListProps {
   injuries: Array<FighterEffect>;
@@ -92,6 +93,8 @@ export function InjuriesList({
   fighterWeapons,
   editionSlug = null
 }: InjuriesListProps) {
+  // N23 calls the recovery phase Downtime; N26 calls it Post-Cycle.
+  const downtimeLabel = downtimePhaseName(editionSlug);
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
@@ -557,7 +560,7 @@ export function InjuriesList({
       if (result.gangFinancials && onGangFinancialsUpdate) {
         onGangFinancialsUpdate(result.gangFinancials);
       }
-      toast.success(`Cleared ${result.clearedCount} rig glitch${result.clearedCount !== 1 ? 'es' : ''} via Downtime (-${result.creditCost} credits)`);
+      toast.success(`Cleared ${result.clearedCount} rig glitch${result.clearedCount !== 1 ? 'es' : ''} via ${downtimeLabel} (-${result.creditCost} credits)`);
       setIsClearAllModalOpen(false);
     },
     onError: (error, _params, context) => {
@@ -1505,7 +1508,7 @@ export function InjuriesList({
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  Downtime
+                  {downtimeLabel}
                 </button>
               </div>
 
