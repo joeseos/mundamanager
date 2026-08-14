@@ -141,7 +141,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const [cachedAllCategories, setCachedAllCategories] = useState<string[]>([]);
   const [cachedEquipment, setCachedEquipment] = useState<Record<string, Record<string, Equipment[]>>>({
     fighter: {},
-    all: {}
+    all: {},
+    tradingpost: {}
   });
   // Whether a bucket has been fetched, tracked separately from its contents: a
   // fighter with no equipment list caches a legitimately empty result, and an
@@ -506,13 +507,13 @@ const ItemModal: React.FC<ItemModalProps> = ({
     setPrevCacheRestorationKey(cacheRestorationKey);
     if (equipmentListType === 'unrestricted' && loadedBuckets.all) {
       setAvailableCategories(cachedAllCategories);
-      setEquipment(cachedEquipment.all ?? {});
+      setEquipment(cachedEquipment.all);
     } else if (equipmentListType === 'fighters-list' && loadedBuckets.fighter) {
       setAvailableCategories(cachedFighterCategories);
-      setEquipment(cachedEquipment.fighter ?? {});
+      setEquipment(cachedEquipment.fighter);
     } else if (equipmentListType === 'fighters-tradingpost' && campaignTradingPostIds === undefined && loadedBuckets.tradingpost) {
       setAvailableCategories(cachedFighterTPCategories);
-      setEquipment(cachedEquipment.tradingpost ?? {});
+      setEquipment(cachedEquipment.tradingpost);
     }
   }
 
