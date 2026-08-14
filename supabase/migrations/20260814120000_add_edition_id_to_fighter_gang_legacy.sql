@@ -14,6 +14,13 @@ WHERE ft.id = fgl.fighter_type_id
   AND fgl.edition_id IS NULL
   AND ft.edition_id IS NOT NULL;
 
-UPDATE public.fighter_gang_legacy
-SET edition_id = (SELECT id FROM public.editions WHERE slug = 'n23')
-WHERE edition_id IS NULL;
+DO $$
+DECLARE
+  base_edition_id uuid;
+BEGIN
+  SELECT id INTO STRICT base_edition_id FROM public.editions WHERE slug = 'n23';
+
+  UPDATE public.fighter_gang_legacy
+  SET edition_id = base_edition_id
+  WHERE edition_id IS NULL;
+END $$;

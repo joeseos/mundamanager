@@ -17,6 +17,22 @@ function getTableName(type: LineageType) {
 // Always uses fighter_gang_legacy_id as the foreign key
 const JUNCTION_FK_COLUMN = 'fighter_gang_legacy_id';
 
+// edition_id is derived from the associated fighter type, never taken from the
+// client, so a lineage can never disagree with the edition it belongs to
+async function getFighterTypeEditionId(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  fighterTypeId: string
+) {
+  const { data, error } = await supabase
+    .from('fighter_types')
+    .select('edition_id')
+    .eq('id', fighterTypeId)
+    .single();
+
+  if (error) throw error;
+  return data.edition_id ?? null;
+}
+
 // GET - Fetch gang lineages (requires type param); with id returns one, without returns list
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -169,6 +185,7 @@ export async function POST(request: Request) {
     }
 
     const table = getTableName(data.type as LineageType);
+    const editionId = await getFighterTypeEditionId(supabase, data.fighter_type_id);
 
     // Create the lineage in the specific table
     const { data: newLineage, error: insertError } = await supabase
@@ -176,7 +193,7 @@ export async function POST(request: Request) {
       .insert({
         name: data.name,
         fighter_type_id: data.fighter_type_id,
-        edition_id: data.edition_id || null
+        edition_id: editionId
       })
       .select()
       .single();
@@ -239,6 +256,7 @@ export async function PATCH(request: Request) {
     }
 
     const currentTable = getTableName(currentType);
+    const editionId = await getFighterTypeEditionId(supabase, data.fighter_type_id);
 
     const newType = data.type as LineageType;
 
@@ -249,7 +267,7 @@ export async function PATCH(request: Request) {
         .update({
           name: data.name,
           fighter_type_id: data.fighter_type_id,
-          edition_id: data.edition_id || null,
+          edition_id: editionId,
           updated_at: new Date().toISOString()
         })
         .eq('id', id);
@@ -289,7 +307,7 @@ export async function PATCH(request: Request) {
       .insert({
         name: data.name,
         fighter_type_id: data.fighter_type_id,
-        edition_id: data.edition_id || null
+        edition_id: editionId
       })
       .select()
       .single();

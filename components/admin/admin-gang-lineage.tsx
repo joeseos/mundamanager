@@ -260,7 +260,6 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
           name: gangLineageName,
           fighter_type_id: associatedFighterTypeId,
           type: lineageType,
-          edition_id: editionId || null,
           fighter_type_access: fighterTypeAccess
         }),
       });
@@ -302,7 +301,6 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
           name: gangLineageName,
           fighter_type_id: associatedFighterTypeId,
           type: lineageType,
-          edition_id: editionId || null,
           fighter_type_access: fighterTypeAccess
         }),
       });
