@@ -520,9 +520,14 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
 
       const hasEditedFighterTypes = selectedFighterTypes.length !== fighterTypes.filter(ft => selectedFighterTypes.includes(ft.id)).length;
 
-      // Validate and normalize grants_equipment - treat empty options as no grants
-      const normalizedGrantsEquipment = grantsEquipment?.options?.length
-        ? grantsEquipment
+      // Validate and normalize grants_equipment - treat empty options as no grants.
+      // An option with no equipment picked is dropped: a blank equipment_id can never
+      // be granted, and it is not a uuid, so anything casting it downstream breaks.
+      const grantsEquipmentOptions = (grantsEquipment?.options || []).filter(
+        option => Boolean(option.equipment_id)
+      );
+      const normalizedGrantsEquipment = grantsEquipment && grantsEquipmentOptions.length
+        ? { ...grantsEquipment, options: grantsEquipmentOptions }
         : null;
 
       const requestBody = {
