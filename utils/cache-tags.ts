@@ -84,6 +84,7 @@ export const CACHE_TAGS = {
 
   // User permissions
   CHECK_PERMISSION: (userId: string, gangId: string) => `check-permission-${userId}-${gangId}`,
+  USER_PERMISSIONS: (userId: string) => `user-permissions-${userId}`,  // all gangs, one user
 
   // User dashboard data
   USER_DASHBOARD: (userId: string) => `user-dashboard-${userId}`,    // home page data
@@ -417,6 +418,15 @@ export function invalidatePermissionForUser(params: {
 }) {
   revalidateTag(CACHE_TAGS.CHECK_PERMISSION(params.userId, params.gangId), { expire: 0 });
   revalidateTag(CACHE_TAGS.USER_DASHBOARD(params.userId), { expire: 0 });
+}
+
+/**
+ * All Permissions Invalidation Pattern
+ * Triggered when: A user signs in
+ * Data changed: Every cached permission entry for that user, across all gangs
+ */
+export function invalidateUserPermissions(userId: string) {
+  revalidateTag(CACHE_TAGS.USER_PERMISSIONS(userId), { expire: 0 });
 }
 
 // =============================================================================

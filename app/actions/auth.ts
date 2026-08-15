@@ -3,7 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { headers } from "next/headers";
 import { cookies } from 'next/headers';
-import { invalidateUserCount } from '@/utils/cache-tags';
+import { invalidateUserCount, invalidateUserPermissions } from '@/utils/cache-tags';
 import { safePostSignInPath } from '@/utils/auth';
 
 // Returned instead of calling redirect(), so the caller can do a full document
@@ -123,7 +123,7 @@ export const signInAction = async (formData: FormData): Promise<AuthActionResult
 
   const supabase = await createClient();
 
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
@@ -132,7 +132,11 @@ export const signInAction = async (formData: FormData): Promise<AuthActionResult
     return { error: error.message };
   }
 
-  // No revalidatePath - see the note in signOutAction.
+  // Clear this user's permission entries - they are cached with revalidate: false.
+  if (data.user) {
+    invalidateUserPermissions(data.user.id);
+  }
+
   return { redirectTo: safePostSignInPath(nextParam) };
 };
 
