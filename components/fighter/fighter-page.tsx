@@ -892,6 +892,7 @@ export default function FighterPage({
 
           <AdvancementsList
             fighterXp={fighterData.fighter?.xp || 0}
+            fighterStartingXp={fighterData.fighter?.starting_xp ?? null}
             fighterId={fighterData.fighter?.id || ''}
             editionSlug={fighterData.gang?.edition_slug ?? fighterData.fighter?.edition_slug ?? null}
             fighterSubtypes={fighterData.fighter?.fighter_subtypes || []}
