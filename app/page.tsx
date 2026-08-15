@@ -10,7 +10,6 @@ import { FaDiscord, FaPatreon } from "react-icons/fa6";
 import HomeTabs from '@/components/home-tabs';
 import { getAuthenticatedUser, signInPath } from '@/utils/auth';
 import { GrHelpBook } from "react-icons/gr";
-import { Button } from '@/components/ui/button';
 import { PwaInstallButton } from '@/components/pwa-install-button';
 import { getUserCustomEquipment } from "@/app/lib/customise/custom-equipment";
 import { getUserCustomFighterTypes } from "@/app/lib/customise/custom-fighters";
@@ -20,11 +19,12 @@ import { getUserCustomTradingPosts } from "@/app/lib/customise/custom-trading-po
 import { getUserCustomCollections } from "@/app/lib/customise/custom-collections";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { Suspense } from "react";
 import { withEditionSlug } from "@/types/edition";
 
 export default async function Home() {
   const supabase = await createClient();
-  
+
   let user;
   try {
     user = await getAuthenticatedUser(supabase);
@@ -32,68 +32,8 @@ export default async function Home() {
     redirect(signInPath("/"));
   }
 
-  // Single invocation that gets gangs, campaigns, and customise data
-  const [
-    gangs,
-    campaigns,
-    customEquipment,
-    customFighterTypes,
-    customSkills,
-    customGangTypes,
-    customTradingPosts,
-    customCollections
-  ] = await Promise.all([
-    getUserGangs(user.id, supabase),
-    getUserCampaigns(user.id, supabase),
-    getUserCustomEquipment(user.id, supabase),
-    getUserCustomFighterTypes(user.id, supabase),
-    getUserCustomSkills(user.id, supabase),
-    getUserCustomGangTypes(user.id, supabase),
-    getUserCustomTradingPosts(user.id, supabase),
-    getUserCustomCollections(user.id, supabase)
-  ]);
-  
-  // Fetch campaign types and trading post types for the create campaign modal
-  const [campaignTypesResult, tradingPostTypesResult] = await Promise.all([
-    supabase
-      .from('campaign_types')
-      .select('id, campaign_type_name, trading_posts, editions:edition_id (slug)'),
-    supabase
-      .from('trading_post_types')
-      .select('id, trading_post_name, editions:edition_id (slug)')
-      .order('trading_post_name')
-  ]);
-
-  const campaignTypes = (campaignTypesResult.data || []).map(withEditionSlug);
-  const tradingPostTypes = (tradingPostTypesResult.data || []).map(withEditionSlug);
-
-  // Fetch user's campaigns for sharing (where user is owner or arbitrator)
-  const { data: campaignMembers } = await supabase
-    .from('campaign_members')
-    .select('campaign_id')
-    .eq('user_id', user.id)
-    .in('role', ['OWNER', 'ARBITRATOR']);
-
-  const campaignIds = campaignMembers?.map(cm => cm.campaign_id) || [];
-
-  let userCampaigns: Array<{ id: string; campaign_name: string; status: string | null }> = [];
-  if (campaignIds.length > 0) {
-    const { data: campaignsForShare } = await supabase
-      .from('campaigns')
-      .select('id, campaign_name, status')
-      .in('id', campaignIds)
-      .order('campaign_name');
-
-    userCampaigns = campaignsForShare || [];
-  }
-
-  if (campaignTypesResult.error) {
-    console.error('Error fetching campaign types:', campaignTypesResult.error);
-  }
-  if (tradingPostTypesResult.error) {
-    console.error('Error fetching trading post types:', tradingPostTypesResult.error);
-  }
-
+  // Only the auth check blocks the shell. Everything that needs a query sits
+  // behind a boundary below, so this paints before any of them resolve.
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container ml-[10px] mr-[10px] max-w-4xl w-full space-y-4">
@@ -127,26 +67,122 @@ export default async function Home() {
                   <CreateGangButton />
                 </div>
                 <div className="flex-1 min-w-[135px] sm:w-auto w-full">
-                  <CreateCampaignButton initialCampaignTypes={campaignTypes} initialTradingPostTypes={tradingPostTypes} userId={user.id} />
+                  <Suspense fallback={<ButtonPlaceholder />}>
+                    <CreateCampaignSection userId={user.id} />
+                  </Suspense>
                 </div>
               </div>
             </div>
           </div>
         </div>
-        
-        <HomeTabs
-          gangs={gangs}
-          campaigns={campaigns}
-          userId={user.id}
-          customEquipment={customEquipment}
-          customFighterTypes={customFighterTypes}
-          customSkills={customSkills}
-          customGangTypes={customGangTypes}
-          customTradingPosts={customTradingPosts}
-          customCollections={customCollections}
-          userCampaigns={userCampaigns}
-        />
+
+        <Suspense fallback={<HomeTabsPlaceholder />}>
+          <HomeTabsSection userId={user.id} />
+        </Suspense>
       </div>
     </main>
   )
+}
+
+async function CreateCampaignSection({ userId }: { userId: string }) {
+  const supabase = await createClient();
+
+  const [campaignTypesResult, tradingPostTypesResult] = await Promise.all([
+    supabase
+      .from('campaign_types')
+      .select('id, campaign_type_name, trading_posts, editions:edition_id (slug)'),
+    supabase
+      .from('trading_post_types')
+      .select('id, trading_post_name, editions:edition_id (slug)')
+      .order('trading_post_name')
+  ]);
+
+  if (campaignTypesResult.error) {
+    console.error('Error fetching campaign types:', campaignTypesResult.error);
+  }
+  if (tradingPostTypesResult.error) {
+    console.error('Error fetching trading post types:', tradingPostTypesResult.error);
+  }
+
+  return (
+    <CreateCampaignButton
+      initialCampaignTypes={(campaignTypesResult.data || []).map(withEditionSlug)}
+      initialTradingPostTypes={(tradingPostTypesResult.data || []).map(withEditionSlug)}
+      userId={userId}
+    />
+  );
+}
+
+async function HomeTabsSection({ userId }: { userId: string }) {
+  const supabase = await createClient();
+
+  // Single invocation that gets gangs, campaigns, and customise data
+  const [
+    gangs,
+    campaigns,
+    customEquipment,
+    customFighterTypes,
+    customSkills,
+    customGangTypes,
+    customTradingPosts,
+    customCollections
+  ] = await Promise.all([
+    getUserGangs(userId, supabase),
+    getUserCampaigns(userId, supabase),
+    getUserCustomEquipment(userId, supabase),
+    getUserCustomFighterTypes(userId, supabase),
+    getUserCustomSkills(userId, supabase),
+    getUserCustomGangTypes(userId, supabase),
+    getUserCustomTradingPosts(userId, supabase),
+    getUserCustomCollections(userId, supabase)
+  ]);
+
+  // Fetch user's campaigns for sharing (where user is owner or arbitrator)
+  const { data: campaignMembers } = await supabase
+    .from('campaign_members')
+    .select('campaign_id')
+    .eq('user_id', userId)
+    .in('role', ['OWNER', 'ARBITRATOR']);
+
+  const campaignIds = campaignMembers?.map(cm => cm.campaign_id) || [];
+
+  let userCampaigns: Array<{ id: string; campaign_name: string; status: string | null }> = [];
+  if (campaignIds.length > 0) {
+    const { data: campaignsForShare } = await supabase
+      .from('campaigns')
+      .select('id, campaign_name, status')
+      .in('id', campaignIds)
+      .order('campaign_name');
+
+    userCampaigns = campaignsForShare || [];
+  }
+
+  return (
+    <HomeTabs
+      gangs={gangs}
+      campaigns={campaigns}
+      userId={userId}
+      customEquipment={customEquipment}
+      customFighterTypes={customFighterTypes}
+      customSkills={customSkills}
+      customGangTypes={customGangTypes}
+      customTradingPosts={customTradingPosts}
+      customCollections={customCollections}
+      userCampaigns={userCampaigns}
+    />
+  );
+}
+
+function ButtonPlaceholder() {
+  return <div className="h-10 w-full rounded-md bg-muted animate-pulse" />;
+}
+
+function HomeTabsPlaceholder() {
+  return (
+    <div className="bg-card shadow-md rounded-lg p-4 space-y-3">
+      <div className="h-10 w-full rounded-md bg-muted animate-pulse" />
+      <div className="h-20 w-full rounded-md bg-muted animate-pulse" />
+      <div className="h-20 w-full rounded-md bg-muted animate-pulse" />
+    </div>
+  );
 }

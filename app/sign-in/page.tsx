@@ -34,6 +34,7 @@ function SignInContent() {
   const [campaignCount, setCampaignCount] = useState<number | undefined>(undefined);
   const [showPassword, setShowPassword] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const turnstileRef = useRef<TurnstileHandle>(null);
 
   useEffect(() => {
@@ -78,19 +79,37 @@ function SignInContent() {
     topMessage = { message };
   }
 
-  async function clientAction(formData: FormData) {
-    const result = await signInAction(formData);
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (isSubmitting) return;
 
-    if ('error' in result) {
-      setErrorMessage(result.error);
+    setIsSubmitting(true);
+    // Read before the first await - currentTarget is nulled once this returns.
+    const formData = new FormData(e.currentTarget);
+
+    const failed = (error: string) => {
+      setErrorMessage(error);
       // This attempt consumed the token, so a retry needs a fresh one.
       turnstileRef.current?.reset();
-      return;
-    }
+      setIsSubmitting(false);
+    };
 
-    // Full document load, not a client-side navigation: it's what rebuilds the
-    // browser Supabase client and useClaims from the newly-set cookies.
-    window.location.assign(result.redirectTo);
+    try {
+      const result = await signInAction(formData);
+
+      if ('error' in result) {
+        failed(result.error);
+        return;
+      }
+
+      // Full document load: the one thing that resets the router cache, the root
+      // layout and the browser Supabase client together. It only schedules the
+      // navigation, so stay submitting until the document unloads.
+      window.location.assign(result.redirectTo);
+    } catch (error) {
+      console.error('Unexpected error during sign in:', error);
+      failed('Something went wrong. Please try again');
+    }
   }
 
   return (
@@ -111,7 +130,7 @@ function SignInContent() {
         )}
         <form 
           className="flex flex-col w-full max-w-sm mx-auto text-white"
-          action={clientAction}
+          onSubmit={handleSubmit}
         >
           {/* Carry next through to the server action */}
           {(() => {
@@ -186,7 +205,7 @@ function SignInContent() {
             <div className="mt-2 flex justify-center">
               <TurnstileWidget ref={turnstileRef} onToken={setTurnstileToken} />
             </div>
-            <SubmitButton pendingText="Signing In..." className="mt-2">
+            <SubmitButton pending={isSubmitting} pendingText="Signing In..." className="mt-2">
               Sign In
             </SubmitButton>
           </div>

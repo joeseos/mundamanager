@@ -97,6 +97,8 @@ export default function RootLayout({
     <html lang="en" className={`${inter.className}`} suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/site.webmanifest" />
+        {/* Lets the browser paint the canvas in the right scheme before any CSS loads. */}
+        <meta name="color-scheme" content="light dark" />
         <WebsiteStructuredData />
         <OrganizationStructuredData />
         <script
@@ -108,6 +110,8 @@ export default function RootLayout({
                   const isDark = theme === 'dark' || ((theme === 'system' || !theme) && window.matchMedia('(prefers-color-scheme: dark)').matches);
                   const currentClass = document.documentElement.className;
                   document.documentElement.className = currentClass + (isDark ? ' dark' : '');
+                  // Before first paint, so the canvas is never the wrong colour.
+                  document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
                 } catch (_) {}
               })();
             `,

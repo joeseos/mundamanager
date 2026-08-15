@@ -45,6 +45,7 @@
     --input: var(--light-input);
     --ring: var(--light-ring);
     --radius: 0.5rem;
+    color-scheme: light;
   }
 
   .dark {

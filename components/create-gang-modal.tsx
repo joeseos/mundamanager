@@ -759,6 +759,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
             onClick={handleCreateGang} 
             className="w-full" 
             disabled={!isFormValid()}
+            pending={isLoading}
             pendingText="Creating..."
           >
             Create Gang

@@ -7,7 +7,8 @@ import { invalidateUserCount } from '@/utils/cache-tags';
 import { safePostSignInPath } from '@/utils/auth';
 
 // Returned instead of calling redirect(), so the caller can do a full document
-// load - a client-side navigation leaves the browser Supabase client stale.
+// load - the one thing that resets the router cache, the layout and the browser
+// Supabase client together, which is what an identity change should do.
 type AuthRedirect = { redirectTo: string };
 type AuthActionResult = { error: string } | AuthRedirect;
 
@@ -94,38 +95,22 @@ export const signUpAction = async (formData: FormData) => {
   }
 };
 
+// Challenge and grant stay in one action: splitting them costs a browser round
+// trip and leaves the challenge gating nothing in particular.
 export const signInAction = async (formData: FormData): Promise<AuthActionResult> => {
-  const email = formData.get("email") as string;
-  const password = formData.get("password") as string;
   const turnstileToken = formData.get("cf-turnstile-response") as string;
   const nextParam = formData.get('next') as string | undefined;
 
-  // Check if Turnstile is configured
-  const hasTurnstileConfig = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && process.env.TURNSTILE_SECRET_KEY;
-
-  if (process.env.NODE_ENV === "development") {
-    console.log("Skipping Turnstile verification in development mode.");
-  }
-  else if (hasTurnstileConfig) {
-    if (!turnstileToken) {
-      return { error: "Please complete the security verification challenge" };
-    }
-
-    // Verify Turnstile token
-    const turnstileVerification = await verifyTurnstileToken(turnstileToken);
-    if (!turnstileVerification.success) {
-      console.error('Turnstile verification failed:', turnstileVerification);
-      return { error: "Security verification failed. Please try again." };
-    }
-  } else {
-    console.warn('Turnstile not configured - proceeding without verification');
+  const challenge = await verifySignInChallenge(turnstileToken);
+  if ('error' in challenge) {
+    return challenge;
   }
 
   const supabase = await createClient();
 
   const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
+    email: formData.get("email") as string,
+    password: formData.get("password") as string,
   });
 
   if (error) {
@@ -135,6 +120,32 @@ export const signInAction = async (formData: FormData): Promise<AuthActionResult
   // No revalidatePath - see the note in signOutAction.
   return { redirectTo: safePostSignInPath(nextParam) };
 };
+
+async function verifySignInChallenge(
+  turnstileToken: string,
+): Promise<{ ok: true } | { error: string }> {
+  if (process.env.NODE_ENV === "development") {
+    console.log("Skipping Turnstile verification in development mode.");
+    return { ok: true };
+  }
+
+  if (!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || !process.env.TURNSTILE_SECRET_KEY) {
+    console.warn('Turnstile not configured - proceeding without verification');
+    return { ok: true };
+  }
+
+  if (!turnstileToken) {
+    return { error: "Please complete the security verification challenge" };
+  }
+
+  const turnstileVerification = await verifyTurnstileToken(turnstileToken);
+  if (!turnstileVerification.success) {
+    console.error('Turnstile verification failed:', turnstileVerification);
+    return { error: "Security verification failed. Please try again." };
+  }
+
+  return { ok: true };
+}
 
 async function verifyTurnstileToken(token: string) {
   if (!token) {

@@ -344,6 +344,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
             onClick={handleCreateCampaign} 
             className="w-full" 
             disabled={isLoading || !isFormValid}
+            pending={isLoading}
             pendingText="Creating..."
           >
             Create Campaign
