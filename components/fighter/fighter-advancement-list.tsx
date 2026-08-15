@@ -9,7 +9,7 @@ import { TypeSpecificData } from '@/types/fighter-effect';
 import { createClient } from '@/utils/supabase/client';
 import { getSkillSetRank } from "@/utils/skillSetRank";
 import { characteristicRank } from "@/utils/characteristicRank";
-import { nextTierStartFor } from "@/utils/advancementRanks";
+import { nextTierStartFor, openAdvancementsFor } from "@/utils/advancementRanks";
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -180,6 +180,7 @@ interface FighterChanges {
 
 interface AdvancementsListProps {
   fighterXp: number;
+  fighterStartingXp?: number | null;
   fighterChanges?: FighterChanges;
   fighterId: string;
   editionSlug?: string | null;
@@ -2942,6 +2943,7 @@ export function AdvancementModal({
 // AdvancementsList Component
 export function AdvancementsList({
   fighterXp,
+  fighterStartingXp = null,
   fighterChanges = { advancement: [], characteristics: [], skills: [] },
   fighterId,
   editionSlug = null,
@@ -3371,6 +3373,14 @@ export function AdvancementsList({
   const nextTierStart = nextTierStartFor(editionSlug, fighterXp);
   const xpProgress = `${fighterXp}/${nextTierStart ?? '–'}`;
 
+  // advancementCount is the taken count: effects plus is_advance skills.
+  const openAdvancements = openAdvancementsFor(
+    editionSlug,
+    fighterStartingXp,
+    fighterXp,
+    advancementCount,
+  );
+
   const title = (
     <>
       <span className="sm:hidden">Advanc.</span>
@@ -3380,6 +3390,14 @@ export function AdvancementsList({
           {' '}
           <span className="text-sm sm:hidden">({xpProgress})</span>
           <span className="text-sm hidden sm:inline">(XP: {xpProgress})</span>
+          {openAdvancements > 0 && (
+            <>
+              {' '}
+              <span className="align-middle inline-flex items-center rounded-full bg-amber-500 px-2 py-0.5 text-xs font-semibold text-white">
+                {openAdvancements}
+              </span>
+            </>
+          )}
         </>
       ) : advancementCount > 0 ? (
         <>
