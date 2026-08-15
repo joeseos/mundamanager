@@ -9,6 +9,7 @@ import { TypeSpecificData } from '@/types/fighter-effect';
 import { createClient } from '@/utils/supabase/client';
 import { getSkillSetRank } from "@/utils/skillSetRank";
 import { characteristicRank } from "@/utils/characteristicRank";
+import { nextTierStartFor } from "@/utils/advancementRanks";
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -3365,17 +3366,28 @@ export function AdvancementsList({
   }, [advancements, advancementSkills]);
 
   const advancementCount = advancements.length + advancementSkills.length;
+  // Advancements are earned by XP rank rather than bought, so the header tracks
+  // progress toward the next tier instead of counting what has been taken.
+  const nextTierStart = nextTierStartFor(editionSlug, fighterXp);
+  const xpProgress = `${fighterXp}/${nextTierStart ?? '–'}`;
+
   const title = (
     <>
       <span className="sm:hidden">Advanc.</span>
       <span className="hidden sm:inline">Advancements</span>
-      {advancementCount > 0 && (
+      {isCumulativeXp ? (
+        <>
+          {' '}
+          <span className="text-sm sm:hidden">({xpProgress})</span>
+          <span className="text-sm hidden sm:inline">(XP: {xpProgress})</span>
+        </>
+      ) : advancementCount > 0 ? (
         <>
           {' '}
           <span className="text-sm sm:hidden">({advancementCount})</span>
           <span className="text-sm hidden sm:inline">(Adv. count: {advancementCount})</span>
         </>
-      )}
+      ) : null}
     </>
   );
 
