@@ -16,6 +16,9 @@ interface CharacteristicAdvancementLogParams {
   credits_increase: number;
   remaining_xp: number;
   include_gang_rating?: boolean;
+  /** False in a rank-based edition, where nothing is paid and no XP is left
+   *  over, so the description drops its cost and remaining-XP wording. */
+  spends_xp?: boolean;
 }
 
 interface SkillAdvancementLogParams {
@@ -32,6 +35,8 @@ interface SkillAdvancementLogParams {
    *  "Gang Rating: A → B | Wealth: C → D" segment to the summary line. */
   gang_financials_before?: { rating: number; wealth: number };
   gang_financials_after?: { rating: number; wealth: number };
+  /** False in a rank-based edition, where the skill is not paid for. */
+  spends_xp?: boolean;
 }
 
 interface AdvancementDeletionLogParams {
@@ -44,6 +49,8 @@ interface AdvancementDeletionLogParams {
   new_xp_total: number;
   include_gang_rating?: boolean;
   credits_refunded?: number;
+  /** False in a rank-based edition, where undoing an Advancement returns no XP. */
+  spends_xp?: boolean;
 }
 
 interface FighterInjuryLogParams {
@@ -106,8 +113,10 @@ export async function logCharacteristicAdvancement(params: CharacteristicAdvance
   try {
     const supabase = await createClient();
     
-    let description = `Fighter "${params.fighter_name}" advanced "${params.characteristic_name}" for ${params.xp_cost} XP (+${params.credits_increase} credits). Remaining XP: ${params.remaining_xp}`;
-    
+    let description = (params.spends_xp ?? true)
+      ? `Fighter "${params.fighter_name}" advanced "${params.characteristic_name}" for ${params.xp_cost} XP (+${params.credits_increase} credits). Remaining XP: ${params.remaining_xp}`
+      : `Fighter "${params.fighter_name}" advanced "${params.characteristic_name}" (+${params.credits_increase} credits)`;
+
     if (params.include_gang_rating) {
       const gangRating = await calculateGangRating(supabase, params.gang_id);
       description += `. New gang rating: ${gangRating}`;
@@ -131,7 +140,8 @@ export async function logCharacteristicAdvancement(params: CharacteristicAdvance
 export async function logSkillAdvancement(params: SkillAdvancementLogParams): Promise<GangLogActionResult> {
   try {
     const advancementType = params.is_advance ? 'gained' : 'learned';
-    let description = `Fighter "${params.fighter_name}" ${advancementType} skill "${params.skill_name}" for ${params.xp_cost} XP (+${params.credits_increase} credits)`;
+    const xpCostClause = (params.spends_xp ?? true) ? ` for ${params.xp_cost} XP` : '';
+    let description = `Fighter "${params.fighter_name}" ${advancementType} skill "${params.skill_name}"${xpCostClause} (+${params.credits_increase} credits)`;
 
     if (params.credits_deducted && params.credits_deducted > 0) {
       description += `. Gang stash: -${params.credits_deducted} credits`;
@@ -177,7 +187,9 @@ export async function logSkillAdvancementDeletion(params: AdvancementDeletionLog
   try {
     const supabase = await createClient();
     
-    let description = `Fighter "${params.fighter_name}" removed ${params.advancement_type} "${params.advancement_name}" (refunded ${params.xp_refunded} XP). New XP total: ${params.new_xp_total}`;
+    let description = (params.spends_xp ?? true)
+      ? `Fighter "${params.fighter_name}" removed ${params.advancement_type} "${params.advancement_name}" (refunded ${params.xp_refunded} XP). New XP total: ${params.new_xp_total}`
+      : `Fighter "${params.fighter_name}" removed ${params.advancement_type} "${params.advancement_name}"`;
 
     if (params.credits_refunded && params.credits_refunded > 0) {
       description += `. Gang stash: +${params.credits_refunded} credits`;
