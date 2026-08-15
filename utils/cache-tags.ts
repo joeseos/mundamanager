@@ -84,6 +84,9 @@ export const CACHE_TAGS = {
 
   // User permissions
   CHECK_PERMISSION: (userId: string, gangId: string) => `check-permission-${userId}-${gangId}`,
+  // Carried by every CHECK_PERMISSION entry so a user's permissions can be cleared
+  // without enumerating their gangs. See invalidateUserPermissions.
+  USER_PERMISSIONS: (userId: string) => `user-permissions-${userId}`,
 
   // User dashboard data
   USER_DASHBOARD: (userId: string) => `user-dashboard-${userId}`,    // home page data
@@ -417,6 +420,20 @@ export function invalidatePermissionForUser(params: {
 }) {
   revalidateTag(CACHE_TAGS.CHECK_PERMISSION(params.userId, params.gangId), { expire: 0 });
   revalidateTag(CACHE_TAGS.USER_DASHBOARD(params.userId), { expire: 0 });
+}
+
+/**
+ * All Permissions Invalidation Pattern
+ * Triggered when: A user signs in
+ * Data changed: Every cached permission entry for that user, across all gangs
+ *
+ * Permission entries are cached with revalidate: false, so signing in is the only
+ * way a user can clear one that has gone bad. Scoped to a single user's tag rather
+ * than the revalidatePath('/', 'layout') this replaced, which evicted the entire
+ * shared Data Cache for everyone.
+ */
+export function invalidateUserPermissions(userId: string) {
+  revalidateTag(CACHE_TAGS.USER_PERMISSIONS(userId), { expire: 0 });
 }
 
 // =============================================================================

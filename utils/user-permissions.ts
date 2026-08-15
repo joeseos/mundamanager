@@ -37,32 +37,52 @@ export async function checkPermissionCached(
 ): Promise<UserPermissions> {
   const supabase = await createClient();
 
-  return unstable_cache(
-    async (uid: string, gid: string, ownerId: string | null) => {
-      try {
+  // Ownership is a plain id comparison, so it is settled outside the cache: an owner
+  // keeps canEdit even if the cached entry, the RPC behind it, or Supabase itself is
+  // broken. Only isOwner/canEdit/canDelete are overridden - isAdmin still comes from
+  // the RPC, because an owner who is also an admin sees extra fields in the UI.
+  const withOwnership = (permissions: UserPermissions): UserPermissions =>
+    gangOwnerId !== null && gangOwnerId === userId
+      ? { ...permissions, isOwner: true, canEdit: true, canDelete: true }
+      : permissions;
+
+  try {
+    const permissions = await unstable_cache(
+      async (uid: string, gid: string, ownerId: string | null) => {
         const { data, error } = await supabase.rpc('check_permission', {
           p_user_id: uid,
           p_campaign_id: null,
           p_gang_id: gid,
         });
 
+        // Throw rather than returning a deny. unstable_cache cannot tell a failure
+        // from an answer, so a returned deny is written to the shared Data Cache and,
+        // with revalidate: false, stays there until the user signs in again.
         if (error) {
-          console.error('Error in checkPermissionCached RPC:', error);
-          return { isOwner: false, isAdmin: false, canEdit: false, canDelete: false, canView: true, userId: uid };
+          throw new Error(`check_permission RPC failed: ${error.message}`);
         }
 
         return deriveGangPermissions(uid, ownerId, data as CheckPermissionResult);
-      } catch (err) {
-        console.error('Exception in checkPermissionCached:', err);
-        return { isOwner: false, isAdmin: false, canEdit: false, canDelete: false, canView: true, userId: uid };
+      },
+      [`check-permission-${userId}-${gangId}`],
+      {
+        tags: [
+          CACHE_TAGS.CHECK_PERMISSION(userId, gangId),
+          CACHE_TAGS.USER_PERMISSIONS(userId),
+        ],
+        revalidate: false,
       }
-    },
-    [`check-permission-${userId}-${gangId}`],
-    {
-      tags: [CACHE_TAGS.CHECK_PERMISSION(userId, gangId)],
-      revalidate: false,
-    }
-  )(userId, gangId, gangOwnerId);
+    )(userId, gangId, gangOwnerId);
+
+    return withOwnership(permissions);
+  } catch (err) {
+    // Degrade for this request only, never for the cache entry. checkPermission
+    // absorbs its own errors and falls back to non-admin/non-member, so the worst
+    // case is one render without campaign-derived rights.
+    console.error('checkPermissionCached failed, falling back to an uncached check:', err);
+    const result = await checkPermission(userId, { gangId });
+    return withOwnership(deriveGangPermissions(userId, gangOwnerId, result));
+  }
 }
 
 export function isArbitrator(result: CheckPermissionResult): boolean {

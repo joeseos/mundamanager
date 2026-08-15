@@ -137,7 +137,10 @@ export const getUserCampaigns = async (userId: string, supabase: any): Promise<C
           // captureException(error)
         }
 
-        return [];
+        // Rethrow rather than returning []. unstable_cache cannot tell a failure
+        // from an answer, so with revalidate: false a transient error here would
+        // cache "this user has no campaigns" until they sign in again.
+        throw error;
       }
     },
     [`user-campaigns-${userId}`],

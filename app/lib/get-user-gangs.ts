@@ -195,7 +195,10 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
           // captureException(error)
         }
 
-        return [];
+        // Rethrow rather than returning []. unstable_cache cannot tell a failure
+        // from an answer, so with revalidate: false a transient error here would
+        // cache "this user has no gangs" until they sign in again.
+        throw error;
       }
     },
     [`user-gangs-${userId}`],

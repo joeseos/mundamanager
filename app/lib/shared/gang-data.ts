@@ -2051,6 +2051,10 @@ export const getGangFightersList = async (
           }
         } catch (error) {
           console.error(`Error processing fighter ${fighter.id}:`, error);
+          // Rethrow rather than dropping the fighter. unstable_cache would store the
+          // partial roster, and with revalidate: false the fighter would stay missing
+          // from the gang until something invalidates COMPOSITE_GANG_FIGHTERS_LIST.
+          throw error;
         }
       }
       return results.filter((f: any) => f !== null);
