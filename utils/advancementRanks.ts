@@ -71,6 +71,18 @@ export function advancementsEarnedFor(
 }
 
 /**
+ * The XP total that moves a model onto its next tier, or null when there is
+ * none: a Legend of the Underhive has nothing above it, and an edition without
+ * tiers has nothing to reach.
+ */
+export function nextTierStartFor(
+  editionSlug: string | null | undefined,
+  currentXp: number,
+): number | null {
+  return tierStartsFor(editionSlug).find((tierStart) => tierStart > currentXp) ?? null;
+}
+
+/**
  * How many Advancements a model has already taken.
  *
  * A characteristic lands as a fighter_effect in the 'advancements' category, a
