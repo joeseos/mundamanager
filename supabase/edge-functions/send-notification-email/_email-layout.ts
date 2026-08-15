@@ -12,6 +12,15 @@
 // the Next files are extensionless, so the worker carries its own copy rather than
 // importing across the runtime boundary.
 
+// The CTA is deliberately a DARK fill with a LIGHT label — do not "restore" a white button.
+// Android dark-mode recolouring (Gmail's own transform, and WebView force-dark) repaints light
+// *backgrounds* but leaves authored *text* colours alone. A white button therefore arrived as a
+// darkened pill still carrying its near-black label, i.e. an empty-looking outline, while the
+// white wordmark and headings on the same dark card came through untouched. So nothing here may
+// depend on a light background for its contrast: the button gets light-on-dark like every other
+// element in this layout, which is also the app's own primary button (bg-neutral-900 text-white,
+// components/ui/button.tsx). Mid-tones are additionally the range dark-mode transforms leave
+// alone, so #404040 is stable whether or not a client repaints it.
 const BRAND = {
   name: "Munda Manager",
   bg: "#0a0a0a", // page background
@@ -21,8 +30,9 @@ const BRAND = {
   body: "#a1a1a1", // body copy
   footer: "#525252", // footer copy
   link: "#a1a1a1", // footer links
-  buttonBg: "#ffffff",
-  buttonText: "#0a0a0a",
+  buttonBg: "#404040",
+  buttonBorder: "#737373",
+  buttonText: "#ffffff",
   font:
     "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
 };
@@ -85,8 +95,8 @@ export function emailLayout(input: EmailLayoutInput): { html: string; text: stri
   const button = safeCtaUrl
     ? `<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-top:8px;">
                 <tr>
-                  <td align="center" bgcolor="${BRAND.buttonBg}" style="border-radius:6px;">
-                    <a href="${safeCtaUrl}" target="_blank" style="background-color:${BRAND.buttonBg};border:1px solid ${BRAND.buttonBg};border-radius:6px;color:${BRAND.buttonText};display:inline-block;font-size:14px;font-weight:600;line-height:1;padding:14px 28px;text-decoration:none;font-family:sans-serif;">${escapeHtml(ctaLabel)}</a>
+                  <td class="mm-button-cell" align="center" bgcolor="${BRAND.buttonBg}" style="border-radius:6px;">
+                    <a class="mm-button" href="${safeCtaUrl}" target="_blank" style="background-color:${BRAND.buttonBg};border:1px solid ${BRAND.buttonBorder};border-radius:6px;color:${BRAND.buttonText};display:inline-block;font-size:14px;font-weight:600;line-height:1;padding:14px 28px;text-decoration:none;font-family:sans-serif;">${escapeHtml(ctaLabel)}</a>
                   </td>
                 </tr>
               </table>`
@@ -98,8 +108,22 @@ export function emailLayout(input: EmailLayoutInput): { html: string; text: stri
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(subject)}</title>
-  <meta name="color-scheme" content="light dark">
-  <meta name="supported-color-schemes" content="light dark">
+  <meta name="color-scheme" content="dark">
+  <meta name="supported-color-schemes" content="dark">
+  <style>
+    /* This layout is dark by design, so it declares "dark" rather than "light dark": clients
+       that honour the declaration (Apple Mail, iOS Mail, Outlook for Mac) then leave the palette
+       alone instead of running their own transform over an already-dark email. Gmail on Android
+       ignores this entirely — the button's own colours are what protect it there. */
+    :root { color-scheme: dark; supported-color-schemes: dark; }
+
+    /* Outlook.com's dark mode tags whatever it recolours with data-ogsc (text) / data-ogsb
+       (background), so senders can put it back. Scoped to the CTA only — the rest of the layout
+       is already dark and survives the transform. */
+    [data-ogsc] .mm-button, .mm-button[data-ogsc] { color: ${BRAND.buttonText} !important; }
+    [data-ogsb] .mm-button, .mm-button[data-ogsb],
+    [data-ogsb] .mm-button-cell, .mm-button-cell[data-ogsb] { background-color: ${BRAND.buttonBg} !important; }
+  </style>
 </head>
 <body style="margin:0;padding:0;background-color:${BRAND.bg};font-family:${BRAND.font};-webkit-font-smoothing:antialiased;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:${BRAND.bg};">
