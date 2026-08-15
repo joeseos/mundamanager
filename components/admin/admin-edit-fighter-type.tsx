@@ -99,6 +99,7 @@ interface GangAffiliation {
   id: string;
   name: string;
   fighter_type_id: string;
+  edition_id?: string | null;
 }
 
 export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighterTypeModalProps) {
@@ -332,6 +333,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const filteredGangTypes = useMemo(
     () => editionId ? gangTypes.filter(type => type.edition_id === editionId) : gangTypes,
     [gangTypes, editionId]
+  );
+
+  const filteredGangAffiliations = useMemo(
+    () => editionId ? gangAffiliations.filter(a => a.edition_id === editionId) : gangAffiliations,
+    [gangAffiliations, editionId]
   );
 
   const filteredFighterSubtypes = useMemo(
@@ -1411,7 +1417,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
           className="w-full p-2 border rounded-md"
         >
           <option value="">Select a gang type</option>
-          {gangTypes.map((gangType) => (
+          {filteredGangTypes.map((gangType) => (
             <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
               {gangType.gang_type}
             </option>
@@ -1427,7 +1433,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
           className="w-full p-2 border rounded-md"
         >
           <option value="">None (applies to all gangs of this type)</option>
-          {gangAffiliations.map((affiliation) => (
+          {filteredGangAffiliations.map((affiliation) => (
             <option key={affiliation.id} value={affiliation.id}>
               {affiliation.name}
             </option>
@@ -2473,9 +2479,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 {gangTypeCosts.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {gangTypeCosts.map((gangCost, index) => {
-                      const gangType = gangTypes.find(g => g.gang_type_id === gangCost.gang_type_id);
-                      const affiliation = gangCost.gang_affiliation_id 
-                        ? gangAffiliations.find(a => a.id === gangCost.gang_affiliation_id)
+                      const gangType = filteredGangTypes.find(g => g.gang_type_id === gangCost.gang_type_id)
+                        ?? gangTypes.find(g => g.gang_type_id === gangCost.gang_type_id);
+                      const affiliation = gangCost.gang_affiliation_id
+                        ? filteredGangAffiliations.find(a => a.id === gangCost.gang_affiliation_id)
+                          ?? gangAffiliations.find(a => a.id === gangCost.gang_affiliation_id)
                         : null;
                       
                       const displayText = affiliation
