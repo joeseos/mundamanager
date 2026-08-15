@@ -195,7 +195,8 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
           // captureException(error)
         }
 
-        return [];
+        // Rethrow: unstable_cache would persist a returned [] with no TTL.
+        throw error;
       }
     },
     [`user-gangs-${userId}`],

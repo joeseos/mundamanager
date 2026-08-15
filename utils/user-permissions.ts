@@ -37,32 +37,45 @@ export async function checkPermissionCached(
 ): Promise<UserPermissions> {
   const supabase = await createClient();
 
-  return unstable_cache(
-    async (uid: string, gid: string, ownerId: string | null) => {
-      try {
+  // Settled outside the cache so an owner keeps canEdit even if the RPC or cache is broken.
+  const withOwnership = (permissions: UserPermissions): UserPermissions =>
+    gangOwnerId !== null && gangOwnerId === userId
+      ? { ...permissions, isOwner: true, canEdit: true, canDelete: true }
+      : permissions;
+
+  try {
+    const permissions = await unstable_cache(
+      async (uid: string, gid: string, ownerId: string | null) => {
         const { data, error } = await supabase.rpc('check_permission', {
           p_user_id: uid,
           p_campaign_id: null,
           p_gang_id: gid,
         });
 
+        // Must throw: unstable_cache persists a returned deny, and revalidate: false
+        // makes it permanent.
         if (error) {
-          console.error('Error in checkPermissionCached RPC:', error);
-          return { isOwner: false, isAdmin: false, canEdit: false, canDelete: false, canView: true, userId: uid };
+          throw new Error(`check_permission RPC failed: ${error.message}`);
         }
 
         return deriveGangPermissions(uid, ownerId, data as CheckPermissionResult);
-      } catch (err) {
-        console.error('Exception in checkPermissionCached:', err);
-        return { isOwner: false, isAdmin: false, canEdit: false, canDelete: false, canView: true, userId: uid };
+      },
+      [`check-permission-${userId}-${gangId}`],
+      {
+        tags: [
+          CACHE_TAGS.CHECK_PERMISSION(userId, gangId),
+          CACHE_TAGS.USER_PERMISSIONS(userId),
+        ],
+        revalidate: false,
       }
-    },
-    [`check-permission-${userId}-${gangId}`],
-    {
-      tags: [CACHE_TAGS.CHECK_PERMISSION(userId, gangId)],
-      revalidate: false,
-    }
-  )(userId, gangId, gangOwnerId);
+    )(userId, gangId, gangOwnerId);
+
+    return withOwnership(permissions);
+  } catch (err) {
+    console.error('checkPermissionCached failed, falling back to an uncached check:', err);
+    const result = await checkPermission(userId, { gangId });
+    return withOwnership(deriveGangPermissions(userId, gangOwnerId, result));
+  }
 }
 
 export function isArbitrator(result: CheckPermissionResult): boolean {
