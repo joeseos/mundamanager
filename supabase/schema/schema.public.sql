@@ -725,6 +725,7 @@ DECLARE
   v_new_items jsonb;
   v_name text;
   v_description text;
+  v_edition uuid;
   v_before bigint;
   v_after bigint;
   -- closure id-sets
@@ -747,8 +748,8 @@ BEGIN
     RAISE EXCEPTION 'Not authenticated';
   END IF;
 
-  SELECT p.items, p.name, p.description
-    INTO v_items, v_name, v_description
+  SELECT p.items, p.name, p.description, p.edition_id
+    INTO v_items, v_name, v_description, v_edition
   FROM public.custom_collections p
   WHERE p.id = p_collection_id;
 
@@ -838,8 +839,8 @@ BEGIN
 
   -- Clone in topological order. Custom FKs remapped via maps; standard/global FKs kept.
 
-  INSERT INTO public.custom_skill_types (id, created_at, user_id, name)
-  SELECT (v_map_st ->> st.id::text)::uuid, now(), v_user, st.name
+  INSERT INTO public.custom_skill_types (id, created_at, user_id, name, edition_id)
+  SELECT (v_map_st ->> st.id::text)::uuid, now(), v_user, st.name, st.edition_id
   FROM public.custom_skill_types st WHERE st.id = ANY(v_st);
 
   INSERT INTO public.custom_skills (id, created_at, user_id, skill_name, skill_type_id, custom_skill_type_id, description)
@@ -849,10 +850,10 @@ BEGIN
 
   INSERT INTO public.custom_equipment (id, created_at, user_id, equipment_name, availability, cost, variant,
                                        equipment_category, equipment_category_id, equipment_type, is_editable,
-                                       is_consumable, description)
+                                       is_consumable, description, edition_id)
   SELECT (v_map_eq ->> ce.id::text)::uuid, now(), v_user, ce.equipment_name, ce.availability, ce.cost, ce.variant,
          ce.equipment_category, ce.equipment_category_id, ce.equipment_type, true,
-         ce.is_consumable, ce.description
+         ce.is_consumable, ce.description, ce.edition_id
   FROM public.custom_equipment ce WHERE ce.id = ANY(v_eq);
 
   INSERT INTO public.custom_weapon_profiles (id, custom_equipment_id, created_at, profile_name, range_short,
@@ -864,9 +865,9 @@ BEGIN
   FROM public.custom_weapon_profiles wp WHERE wp.custom_equipment_id = ANY(v_eq);
 
   INSERT INTO public.custom_gang_types (id, created_at, user_id, gang_type, alignment, trading_post_type_id,
-                                        default_image_urls, description)
+                                        default_image_urls, description, edition_id)
   SELECT (v_map_gt ->> gt.id::text)::uuid, now(), v_user, gt.gang_type, gt.alignment, gt.trading_post_type_id,
-         gt.default_image_urls, gt.description
+         gt.default_image_urls, gt.description, gt.edition_id
   FROM public.custom_gang_types gt WHERE gt.id = ANY(v_gt);
 
   INSERT INTO public.custom_fighter_types (id, created_at, user_id, fighter_type, gang_type, cost, movement,
@@ -901,8 +902,8 @@ BEGIN
          (v_map_ft ->> fe.custom_fighter_type_id::text)::uuid
   FROM public.custom_fighter_type_equipment fe WHERE fe.custom_fighter_type_id = ANY(v_ft);
 
-  INSERT INTO public.custom_trading_posts (id, created_at, user_id, custom_trading_post_name, description)
-  SELECT (v_map_tp ->> tp.id::text)::uuid, now(), v_user, tp.custom_trading_post_name, tp.description
+  INSERT INTO public.custom_trading_posts (id, created_at, user_id, custom_trading_post_name, description, edition_id)
+  SELECT (v_map_tp ->> tp.id::text)::uuid, now(), v_user, tp.custom_trading_post_name, tp.description, tp.edition_id
   FROM public.custom_trading_posts tp WHERE tp.id = ANY(v_tp);
 
   INSERT INTO public.custom_trading_post_equipment (id, created_at, user_id, custom_trading_post_id, equipment_id,
@@ -950,8 +951,8 @@ BEGIN
     WHERE mapped.nid IS NOT NULL
   ), '[]'::jsonb);
 
-  INSERT INTO public.custom_collections (id, created_at, user_id, name, description, items)
-  VALUES (v_new_collection, now(), v_user, COALESCE(p_name, v_name), v_description, v_new_items);
+  INSERT INTO public.custom_collections (id, created_at, user_id, name, description, items, edition_id)
+  VALUES (v_new_collection, now(), v_user, COALESCE(p_name, v_name), v_description, v_new_items, v_edition);
   RETURN v_new_collection;
 END;
 $$;
@@ -1000,6 +1001,58 @@ BEGIN
   event := jsonb_set(event, '{claims}', claims);
 
   RETURN event;
+END;
+$$;
+
+
+--
+-- Name: custom_shared_set_edition(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.custom_shared_set_edition() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_campaign_edition uuid;
+  v_item_edition uuid;
+BEGIN
+  IF NEW.campaign_id IS NULL THEN
+    RAISE EXCEPTION 'custom_shared.campaign_id is required to resolve the share edition';
+  END IF;
+
+  SELECT ct.edition_id INTO v_campaign_edition
+  FROM public.campaigns c
+  JOIN public.campaign_types ct ON ct.id = c.campaign_type_id
+  WHERE c.id = NEW.campaign_id;
+
+  SELECT COALESCE(
+    (SELECT edition_id FROM public.custom_equipment     WHERE id = NEW.custom_equipment_id),
+    (SELECT edition_id FROM public.custom_fighter_types WHERE id = NEW.custom_fighter_type_id),
+    (SELECT edition_id FROM public.custom_gang_types    WHERE id = NEW.custom_gang_type_id),
+    (SELECT edition_id FROM public.custom_trading_posts WHERE id = NEW.custom_trading_post_id),
+    -- A custom skill hangs off either a custom skill type or an official one; the edition
+    -- lives on whichever applies. Custom wins, matching getUserCustomSkills.
+    (SELECT COALESCE(cst.edition_id, st.edition_id)
+       FROM public.custom_skills s
+       LEFT JOIN public.custom_skill_types cst ON cst.id = s.custom_skill_type_id
+       LEFT JOIN public.skill_types        st  ON st.id  = s.skill_type_id
+      WHERE s.id = NEW.custom_skill_id)
+  ) INTO v_item_edition;
+
+  -- A null on either side makes no claim, so it must not block.
+  IF v_campaign_edition IS NOT NULL
+     AND v_item_edition IS NOT NULL
+     AND v_campaign_edition <> v_item_edition THEN
+    RAISE EXCEPTION 'Cannot share a custom asset to a campaign from a different edition';
+  END IF;
+
+  IF v_campaign_edition IS NULL THEN
+    RAISE EXCEPTION 'Campaign % has no edition; cannot resolve the share edition', NEW.campaign_id;
+  END IF;
+
+  NEW.edition_id := v_campaign_edition;
+  RETURN NEW;
 END;
 $$;
 
@@ -4583,8 +4636,16 @@ CREATE TABLE public.custom_shared (
     custom_skill_id uuid,
     custom_gang_type_id uuid,
     custom_trading_post_id uuid,
-    custom_collection_id uuid
+    custom_collection_id uuid,
+    edition_id uuid NOT NULL
 );
+
+
+--
+-- Name: COLUMN custom_shared.edition_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.custom_shared.edition_id IS 'Ruleset this share applies under, derived from the campaign by the custom_shared_set_edition trigger. The shared item''s own edition must not conflict.';
 
 
 --
@@ -6886,6 +6947,13 @@ CREATE INDEX campaign_map_objects_campaign_map_id_idx ON public.campaign_map_obj
 
 
 --
+-- Name: campaign_members_campaign_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_members_campaign_id_idx ON public.campaign_members USING btree (campaign_id);
+
+
+--
 -- Name: campaign_territories_territory_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6893,10 +6961,24 @@ CREATE INDEX campaign_territories_territory_id_idx ON public.campaign_territorie
 
 
 --
+-- Name: campaign_territories_territory_name_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_territories_territory_name_idx ON public.campaign_territories USING btree (territory_name);
+
+
+--
 -- Name: campaign_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX campaign_types_edition_id_idx ON public.campaign_types USING btree (edition_id);
+
+
+--
+-- Name: campaigns_campaign_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaigns_campaign_type_id_idx ON public.campaigns USING btree (campaign_type_id);
 
 
 --
@@ -7002,6 +7084,13 @@ CREATE INDEX custom_shared_campaign_id_idx ON public.custom_shared USING btree (
 --
 
 CREATE INDEX custom_shared_custom_equipment_id_idx ON public.custom_shared USING btree (custom_equipment_id);
+
+
+--
+-- Name: custom_shared_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_shared_edition_id_idx ON public.custom_shared USING btree (edition_id);
 
 
 --
@@ -8075,6 +8164,13 @@ CREATE INDEX weapon_profiles_weapon_id_idx ON public.weapon_profiles USING btree
 
 
 --
+-- Name: custom_shared custom_shared_set_edition; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER custom_shared_set_edition BEFORE INSERT OR UPDATE ON public.custom_shared FOR EACH ROW EXECUTE FUNCTION public.custom_shared_set_edition();
+
+
+--
 -- Name: campaign_join_requests on_campaign_join_request; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -8585,6 +8681,14 @@ ALTER TABLE ONLY public.custom_shared
 
 ALTER TABLE ONLY public.custom_shared
     ADD CONSTRAINT custom_shared_custom_trading_post_id_fkey FOREIGN KEY (custom_trading_post_id) REFERENCES public.custom_trading_posts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_shared custom_shared_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_shared
+    ADD CONSTRAINT custom_shared_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
 
 
 --
