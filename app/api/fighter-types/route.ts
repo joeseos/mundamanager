@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
-import { gangVariantFighterModifiers } from '@/utils/gangVariantMap';
 import { getUserCustomFighterTypes } from '@/app/lib/customise/custom-fighters';
 import { getUserIdFromClaims } from "@/utils/auth";
 import { withEditionSlug } from '@/types/edition';
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
+
+const variantGangTypeName = (variant: string) => `Variant: ${variant}`;
+
+// Keyed by name so a later edition's re-issue of the variant inherits the rule.
+const variantsWithoutLeaders = new Set(['secundan incursion']);
 
 // Fetch the user's own custom fighters plus any shared with them through campaigns,
 // de-duplicated by id.
@@ -356,7 +360,7 @@ export async function GET(request: Request) {
     }
 
     // Fetch gang variants from the database
-    let gangVariants: Array<{id: string, variant: string}> = [];
+    let gangVariants: Array<{id: string, variant: string, edition_id: string | null}> = [];
     if (!isGangAddition) {
       try {
         // Get gang data including gang_variants
@@ -375,7 +379,7 @@ export async function GET(request: Request) {
         if (gangData.gang_variants && Array.isArray(gangData.gang_variants) && gangData.gang_variants.length > 0) {
           const { data: variantDetails, error: variantError } = await supabase
             .from('gang_variant_types')
-            .select('id, variant')
+            .select('id, variant, edition_id')
             .in('id', gangData.gang_variants);
 
           if (variantError) {
@@ -391,18 +395,26 @@ export async function GET(request: Request) {
       }
 
       if (gangVariants.length > 0) {
-        for (const variant of gangVariants) {
-          const variantModifier = gangVariantFighterModifiers[variant.id];
-          if (!variantModifier) continue;
+        // Match on edition too — "Malstrain Corrupted" exists in both N23 and N26.
+        const { data: variantGangTypes } = await supabase
+          .from('gang_types')
+          .select('gang_type_id, gang_type, edition_id')
+          .in('gang_type', gangVariants.map(v => variantGangTypeName(v.variant)));
 
-          // Apply variant rules (like removing Leaders)
-          if (variantModifier.removeLeaders) {
+        for (const variant of gangVariants) {
+          if (variantsWithoutLeaders.has(variant.variant.toLowerCase())) {
             data = data.filter((type: any) => !(type.fighter_subtypes ?? []).includes('Leader'));
           }
 
+          const variantGangTypeId = (variantGangTypes ?? []).find(gt =>
+            gt.gang_type === variantGangTypeName(variant.variant) &&
+            gt.edition_id === variant.edition_id
+          )?.gang_type_id;
+          if (!variantGangTypeId) continue;
+
           // Fetch variant-specific fighter types and merge
           const { data: variantData, error: variantError } = await supabase.rpc('get_fighter_types_with_cost', {
-            p_gang_type_id: variantModifier.variantGangTypeId,
+            p_gang_type_id: variantGangTypeId,
             p_gang_affiliation_id: null,
             p_is_gang_addition: false
           });
