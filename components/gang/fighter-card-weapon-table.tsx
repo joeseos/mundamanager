@@ -134,8 +134,28 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode, ed
     
     const hardpointKey = weapon.hardpoint_location || 'no-hp';
 
+    // The ids that mean "this weapon". A weapon's own profiles spell that two
+    // ways: weapons saved through the admin edit form group under their own
+    // catalog id, weapons saved through the create form leave it null. The
+    // server attaches grouped ammo (separately owned equipment whose profiles
+    // point at this weapon) onto this weapon's profile list, and those always
+    // carry the catalog id -- so both spellings have to resolve to one block,
+    // otherwise the ammo forms a base-less block and is discarded below.
+    const ownGroupIds = new Set<string>(
+      [weapon.weapon_id, ...baseProfilesForWeapon.map(p => p.weapon_group_id)]
+        .filter((id): id is string => !!id)
+    );
+    // Keep the weapon's existing anchor: a self-grouping weapon stays keyed on
+    // its catalog id (so two copies still collapse to one "(x2)" row), and a
+    // weapon with no group stays keyed per instance.
+    const ownAnchor = baseProfilesForWeapon.find(p => p.weapon_group_id)?.weapon_group_id
+      || weapon.fighter_weapon_id;
+
     weapon.weapon_profiles?.forEach((profile) => {
-      const groupId = profile.weapon_group_id || weapon.fighter_weapon_id;
+      // Only a profile pointing at a *different* weapon groups elsewhere.
+      const groupId = profile.weapon_group_id && !ownGroupIds.has(profile.weapon_group_id)
+        ? profile.weapon_group_id
+        : ownAnchor;
       // Use the weapon's profile signature for all profiles (base and special) so they stay together
       // Include weapon instance master-crafted status, profile signature, effect signature, and hardpoint to properly separate weapons
       const key: VariantKey = `${groupId}|${isWeaponMasterCrafted ? 'mc' : 'reg'}|${weaponProfileSignature}|${effectSignature}|${hardpointKey}`;

@@ -394,8 +394,11 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
         standardProfilesMap.get(profile.weapon_id)!.push(profile);
         
         // Also add profile to the map under weapon_group_id if it exists (for grouped weapons)
-        // But only if the fighter owns the weapon that owns this profile
-        if (profile.weapon_group_id && standardEquipmentIds.includes(profile.weapon_id)) {
+        // But only if the fighter owns the weapon that owns this profile.
+        // A self-grouping profile is already under this key -- re-adding it would
+        // list the same profile twice on the weapon.
+        if (profile.weapon_group_id && profile.weapon_group_id !== profile.weapon_id
+            && standardEquipmentIds.includes(profile.weapon_id)) {
           if (!standardProfilesMap.has(profile.weapon_group_id)) {
             standardProfilesMap.set(profile.weapon_group_id, []);
           }
