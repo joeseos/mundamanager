@@ -396,10 +396,16 @@ export async function GET(request: Request) {
 
       if (gangVariants.length > 0) {
         // Match on edition too — "Malstrain Corrupted" exists in both N23 and N26.
-        const { data: variantGangTypes } = await supabase
+        const { data: variantGangTypes, error: variantGangTypesError } = await supabase
           .from('gang_types')
           .select('gang_type_id, gang_type, edition_id')
           .in('gang_type', gangVariants.map(v => variantGangTypeName(v.variant)));
+
+        // Falling through to "no variant fighters" is a fine degradation, but a failure here
+        // looks identical to a variant having no pool, so say so rather than vanish silently.
+        if (variantGangTypesError) {
+          console.error('Error fetching variant gang types:', variantGangTypesError);
+        }
 
         for (const variant of gangVariants) {
           if (variantsWithoutLeaders.has(variant.variant.toLowerCase())) {
