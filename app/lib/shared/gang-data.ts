@@ -1297,24 +1297,32 @@ export const getGangFightersList = async (
       const seenCustIds = new Set<string>();
 
       (allEquipment.data || []).forEach((item: any) => {
-        if (item.equipment_id && item.equipment?.equipment_type === 'weapon') {
-          for (const p of (item.equipment.weapon_profiles || []) as RawWeaponProfile[]) {
+        if (item.equipment_id) {
+          for (const p of (item.equipment?.weapon_profiles || []) as RawWeaponProfile[]) {
             if (seenStdIds.has(p.id)) continue;
             seenStdIds.add(p.id);
-            if (!standardProfilesMap.has(p.weapon_id)) standardProfilesMap.set(p.weapon_id, []);
-            standardProfilesMap.get(p.weapon_id)!.push(p);
+            // Native profiles (the weapon's own defaults) only apply when the
+            // owning catalog item is itself a weapon.
+            if (item.equipment?.equipment_type === 'weapon') {
+              if (!standardProfilesMap.has(p.weapon_id)) standardProfilesMap.set(p.weapon_id, []);
+              standardProfilesMap.get(p.weapon_id)!.push(p);
+            }
+            // Grouped/ammo profiles (e.g. purchased grenade types) attach via
+            // weapon_group_id regardless of the owning item's equipment_type.
             if (p.weapon_group_id && p.weapon_group_id !== p.weapon_id) {
               if (!standardAmmoByParentWeapon.has(p.weapon_group_id)) standardAmmoByParentWeapon.set(p.weapon_group_id, []);
               standardAmmoByParentWeapon.get(p.weapon_group_id)!.push(p);
             }
           }
         }
-        if (item.custom_equipment_id && item.custom_equipment?.equipment_type === 'weapon') {
-          for (const p of (item.custom_equipment.custom_weapon_profiles || []) as RawCustomWeaponProfile[]) {
+        if (item.custom_equipment_id) {
+          for (const p of (item.custom_equipment?.custom_weapon_profiles || []) as RawCustomWeaponProfile[]) {
             if (seenCustIds.has(p.id)) continue;
             seenCustIds.add(p.id);
-            if (!customProfilesMap.has(p.custom_equipment_id)) customProfilesMap.set(p.custom_equipment_id, []);
-            customProfilesMap.get(p.custom_equipment_id)!.push(p);
+            if (item.custom_equipment?.equipment_type === 'weapon') {
+              if (!customProfilesMap.has(p.custom_equipment_id)) customProfilesMap.set(p.custom_equipment_id, []);
+              customProfilesMap.get(p.custom_equipment_id)!.push(p);
+            }
             if (p.weapon_group_id && p.weapon_group_id !== p.custom_equipment_id) {
               if (!customAmmoByParentWeapon.has(p.weapon_group_id)) customAmmoByParentWeapon.set(p.weapon_group_id, []);
               customAmmoByParentWeapon.get(p.weapon_group_id)!.push(p);
