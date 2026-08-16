@@ -395,7 +395,8 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
         
         // Also add profile to the map under weapon_group_id if it exists (for grouped weapons)
         // But only if the fighter owns the weapon that owns this profile
-        if (profile.weapon_group_id && standardEquipmentIds.includes(profile.weapon_id)) {
+        if (profile.weapon_group_id && profile.weapon_group_id !== profile.weapon_id
+            && standardEquipmentIds.includes(profile.weapon_id)) {
           if (!standardProfilesMap.has(profile.weapon_group_id)) {
             standardProfilesMap.set(profile.weapon_group_id, []);
           }

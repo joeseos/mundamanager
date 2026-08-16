@@ -1830,7 +1830,11 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             Attach this profile to an existing weapon, or leave it as is to use with this weapon.
                           </p>
                           <select
-                            value={profile.weapon_group_id || ''}
+                            value={
+                              profile.weapon_group_id && profile.weapon_group_id !== selectedEquipmentId
+                                ? profile.weapon_group_id
+                                : ''
+                            }
                             onChange={(e) => handleProfileChange(index, 'weapon_group_id', e.target.value)}
                             className="w-full p-2 border rounded-md"
                             disabled={!selectedEquipmentId}
