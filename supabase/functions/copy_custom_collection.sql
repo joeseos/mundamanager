@@ -18,6 +18,7 @@ DECLARE
   v_new_items jsonb;
   v_name text;
   v_description text;
+  v_edition uuid;
   v_before bigint;
   v_after bigint;
   -- closure id-sets
@@ -40,8 +41,8 @@ BEGIN
     RAISE EXCEPTION 'Not authenticated';
   END IF;
 
-  SELECT p.items, p.name, p.description
-    INTO v_items, v_name, v_description
+  SELECT p.items, p.name, p.description, p.edition_id
+    INTO v_items, v_name, v_description, v_edition
   FROM public.custom_collections p
   WHERE p.id = p_collection_id;
 
@@ -131,8 +132,8 @@ BEGIN
 
   -- Clone in topological order. Custom FKs remapped via maps; standard/global FKs kept.
 
-  INSERT INTO public.custom_skill_types (id, created_at, user_id, name)
-  SELECT (v_map_st ->> st.id::text)::uuid, now(), v_user, st.name
+  INSERT INTO public.custom_skill_types (id, created_at, user_id, name, edition_id)
+  SELECT (v_map_st ->> st.id::text)::uuid, now(), v_user, st.name, st.edition_id
   FROM public.custom_skill_types st WHERE st.id = ANY(v_st);
 
   INSERT INTO public.custom_skills (id, created_at, user_id, skill_name, skill_type_id, custom_skill_type_id, description)
@@ -142,10 +143,10 @@ BEGIN
 
   INSERT INTO public.custom_equipment (id, created_at, user_id, equipment_name, availability, cost, variant,
                                        equipment_category, equipment_category_id, equipment_type, is_editable,
-                                       is_consumable, description)
+                                       is_consumable, description, edition_id)
   SELECT (v_map_eq ->> ce.id::text)::uuid, now(), v_user, ce.equipment_name, ce.availability, ce.cost, ce.variant,
          ce.equipment_category, ce.equipment_category_id, ce.equipment_type, true,
-         ce.is_consumable, ce.description
+         ce.is_consumable, ce.description, ce.edition_id
   FROM public.custom_equipment ce WHERE ce.id = ANY(v_eq);
 
   INSERT INTO public.custom_weapon_profiles (id, custom_equipment_id, created_at, profile_name, range_short,
@@ -157,9 +158,9 @@ BEGIN
   FROM public.custom_weapon_profiles wp WHERE wp.custom_equipment_id = ANY(v_eq);
 
   INSERT INTO public.custom_gang_types (id, created_at, user_id, gang_type, alignment, trading_post_type_id,
-                                        default_image_urls, description)
+                                        default_image_urls, description, edition_id)
   SELECT (v_map_gt ->> gt.id::text)::uuid, now(), v_user, gt.gang_type, gt.alignment, gt.trading_post_type_id,
-         gt.default_image_urls, gt.description
+         gt.default_image_urls, gt.description, gt.edition_id
   FROM public.custom_gang_types gt WHERE gt.id = ANY(v_gt);
 
   INSERT INTO public.custom_fighter_types (id, created_at, user_id, fighter_type, gang_type, cost, movement,
@@ -194,8 +195,8 @@ BEGIN
          (v_map_ft ->> fe.custom_fighter_type_id::text)::uuid
   FROM public.custom_fighter_type_equipment fe WHERE fe.custom_fighter_type_id = ANY(v_ft);
 
-  INSERT INTO public.custom_trading_posts (id, created_at, user_id, custom_trading_post_name, description)
-  SELECT (v_map_tp ->> tp.id::text)::uuid, now(), v_user, tp.custom_trading_post_name, tp.description
+  INSERT INTO public.custom_trading_posts (id, created_at, user_id, custom_trading_post_name, description, edition_id)
+  SELECT (v_map_tp ->> tp.id::text)::uuid, now(), v_user, tp.custom_trading_post_name, tp.description, tp.edition_id
   FROM public.custom_trading_posts tp WHERE tp.id = ANY(v_tp);
 
   INSERT INTO public.custom_trading_post_equipment (id, created_at, user_id, custom_trading_post_id, equipment_id,
@@ -243,8 +244,8 @@ BEGIN
     WHERE mapped.nid IS NOT NULL
   ), '[]'::jsonb);
 
-  INSERT INTO public.custom_collections (id, created_at, user_id, name, description, items)
-  VALUES (v_new_collection, now(), v_user, COALESCE(p_name, v_name), v_description, v_new_items);
+  INSERT INTO public.custom_collections (id, created_at, user_id, name, description, items, edition_id)
+  VALUES (v_new_collection, now(), v_user, COALESCE(p_name, v_name), v_description, v_new_items, v_edition);
   RETURN v_new_collection;
 END;
 $$;

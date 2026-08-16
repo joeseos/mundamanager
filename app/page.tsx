@@ -20,7 +20,8 @@ import { getUserCustomTradingPosts } from "@/app/lib/customise/custom-trading-po
 import { getUserCustomCollections } from "@/app/lib/customise/custom-collections";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { withEditionSlug } from "@/types/edition";
+import { editionSlugFromJoin, withEditionSlug } from "@/types/edition";
+import type { UserCampaign } from "@/types/campaign";
 
 export default async function Home() {
   const supabase = await createClient();
@@ -76,15 +77,18 @@ export default async function Home() {
 
   const campaignIds = campaignMembers?.map(cm => cm.campaign_id) || [];
 
-  let userCampaigns: Array<{ id: string; campaign_name: string; status: string | null }> = [];
+  let userCampaigns: UserCampaign[] = [];
   if (campaignIds.length > 0) {
     const { data: campaignsForShare } = await supabase
       .from('campaigns')
-      .select('id, campaign_name, status')
+      .select('id, campaign_name, status, campaign_types!campaign_type_id (editions:edition_id (slug))')
       .in('id', campaignIds)
       .order('campaign_name');
 
-    userCampaigns = campaignsForShare || [];
+    userCampaigns = (campaignsForShare || []).map(({ campaign_types, ...campaign }: any) => ({
+      ...campaign,
+      edition_slug: editionSlugFromJoin(campaign_types?.editions),
+    }));
   }
 
   if (campaignTypesResult.error) {

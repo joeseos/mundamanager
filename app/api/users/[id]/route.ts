@@ -1,7 +1,8 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextRequest } from 'next/server'
 import { getUserCustomCollections } from '@/app/lib/customise/custom-collections'
-import { gangEditionSlug } from '@/types/edition'
+import { editionSlugFromJoin, gangEditionSlug } from '@/types/edition'
+import type { UserCampaign } from '@/types/campaign'
 
 export async function GET(
   request: NextRequest,
@@ -65,21 +66,22 @@ export async function GET(
     }
 
     // Step 2: fetch campaigns by ids (if any)
-    let campaignsById: Record<string, { id: string; campaign_name: string; status: string | null }> = {}
+    let campaignsById: Record<string, UserCampaign> = {}
     if (campaignMembers && campaignMembers.length > 0) {
       const ids = Array.from(new Set(campaignMembers.map((m: any) => m.campaign_id).filter(Boolean)))
       if (ids.length > 0) {
         const { data: campaignsData, error: campaignsFetchError } = await supabase
           .from('campaigns')
-          .select('id, campaign_name, status')
+          .select('id, campaign_name, status, campaign_types!campaign_type_id (editions:edition_id (slug))')
           .in('id', ids)
         if (campaignsFetchError) {
           console.error('Error fetching campaigns:', campaignsFetchError)
         } else if (campaignsData) {
-          campaignsById = campaignsData.reduce((acc: any, c: any) => {
-            acc[c.id] = c
+          campaignsById = campaignsData.reduce((acc: Record<string, UserCampaign>, c: any) => {
+            const { campaign_types, ...campaign } = c
+            acc[c.id] = { ...campaign, edition_slug: editionSlugFromJoin(campaign_types?.editions) }
             return acc
-          }, {} as Record<string, { id: string; campaign_name: string; status: string | null }>)
+          }, {} as Record<string, UserCampaign>)
         }
       }
     }

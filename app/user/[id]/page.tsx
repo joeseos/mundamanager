@@ -23,6 +23,7 @@ import { CustomCollectionWithItems } from "@/app/lib/customise/custom-collection
 import { useClaims } from "@/hooks/use-claims";
 import { useHomeEdition } from "@/hooks/use-home-edition";
 import { sameEditionForDisplay } from "@/types/edition";
+import type { UserCampaign } from "@/types/campaign";
 import { toast } from 'sonner';
 
 import Link from "next/link";
@@ -52,11 +53,7 @@ interface UserData {
     role: string;
     joined_at: string;
     campaign_id: string;
-    campaign: {
-      id: string;
-      campaign_name: string;
-      status: string | null;
-    } | null;
+    campaign: UserCampaign | null;
   }>;
   customAssets: {
     equipment: number;
@@ -147,7 +144,8 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
         .map(c => ({
           id: c.campaign!.id,
           campaign_name: c.campaign!.campaign_name,
-          status: c.campaign!.status
+          status: c.campaign!.status,
+          edition_slug: c.campaign!.edition_slug
         }))
     : [];
 
