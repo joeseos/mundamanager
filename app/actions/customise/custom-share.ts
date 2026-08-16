@@ -147,6 +147,9 @@ export async function shareCustomFighter(customFighterTypeId: string, campaignId
               .from('custom_shared')
               .insert(newSkillShares);
 
+            // Non-fatal by design: the fighter is already shared. Note that a skill whose type
+            // is from another edition would be rejected by the custom_shared trigger, and one
+            // bad row aborts the whole insert, so every skill here fails together.
             if (shareSkillsError) {
               console.error('Error auto-sharing custom skills for fighter:', shareSkillsError);
             }

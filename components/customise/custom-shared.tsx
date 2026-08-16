@@ -13,7 +13,7 @@ import { CustomTradingPost } from '@/app/actions/customise/custom-trading-posts'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/utils/supabase/client';
 import type { UserCampaign } from '@/types/campaign';
-import { EDITION_N23, sameEditionForDisplay } from '@/types/edition';
+import { editionsConflict } from '@/types/edition';
 
 // custom_shared columns that hold a shareable item id.
 type ShareColumn =
@@ -74,8 +74,10 @@ function ShareToCampaignsModal({
   const queryClient = useQueryClient();
   const sharedQueryKey = ['customSharedCampaigns', queryKind, itemId];
 
+  // editionsConflict, not sameEditionForDisplay: this gates an action, and edition_id is still
+  // nullable on the shareable tables, so an unresolved edition must not turn anyone away.
   const eligibleCampaigns = useMemo(
-    () => userCampaigns.filter(c => sameEditionForDisplay(c.edition_slug, itemEditionSlug)),
+    () => userCampaigns.filter(c => !editionsConflict(c.edition_slug, itemEditionSlug)),
     [userCampaigns, itemEditionSlug]
   );
 
@@ -156,7 +158,7 @@ function ShareToCampaignsModal({
               </>
             ) : (
               <>
-                <p>None of your campaigns are {(itemEditionSlug ?? EDITION_N23).toUpperCase()} campaigns.</p>
+                <p>None of your campaigns are {itemEditionSlug?.toUpperCase()} campaigns.</p>
                 <p className="text-sm mt-2">A custom asset can only be shared to a campaign of its own edition.</p>
               </>
             )}
