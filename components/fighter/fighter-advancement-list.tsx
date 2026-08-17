@@ -1854,13 +1854,14 @@ export function AdvancementModal({
     );
     const allTypes = sample?.available_acquisition_types ?? [];
     if (allTypes.length === 0) return [];
+    // Only the Skill Set's access level narrows this list, as in N23. An N26 result is
+    // deliberately not a second filter: the table is an upper bound the player chooses
+    // from, not a restriction (see N26_ADVANCEMENT_TABLE), and intersecting the two left
+    // valid combinations with no option at all. The result still prices the advancement,
+    // so the N23 per-type prices stay hidden below.
     const allowedIds = new Set(getAllowedAcquisitionTypeIds(selectedSkillSetAccess, allTypes));
-    // An N26 result names the acquisition types it may award, so the row narrows
-    // the list; it prices them itself, so the N23 per-type prices are hidden.
-    const rowIds = n26SelectedRow?.skillAcquisitionTypeIds;
     return allTypes
       .filter((t) => allowedIds.has(t.type_id))
-      .filter((t) => !rowIds || rowIds.includes(t.type_id))
       .sort((a, b) => a.xp_cost - b.xp_cost)
       .map((t) => {
         const label = isCumulativeXp
@@ -1873,7 +1874,6 @@ export function AdvancementModal({
     selectedCategory,
     availableAdvancements,
     selectedSkillSetAccess,
-    n26SelectedRow,
     isCumulativeXp
   ]);
 

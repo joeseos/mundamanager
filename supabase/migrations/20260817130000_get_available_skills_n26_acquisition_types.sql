@@ -1,3 +1,14 @@
+-- N26 skill advancements: stop gating the acquisition types by fighter subtype.
+--
+-- The subtype list gating `available_acquisition_types` is an N23 rule about who
+-- pays these prices. N26 applies one Advancement table to every subtype and prices
+-- the result itself, so the gate only had the effect of returning '[]' for every
+-- subtype outside the list — Pets, Gangers, Hangers-on, vehicles — leaving the
+-- Advancement modal with no acquisition type to offer and therefore no skill list.
+--
+-- The edition is resolved from the fighter's gang as in
+-- get_fighter_available_advancements. The N23 array is unchanged.
+
 CREATE OR REPLACE FUNCTION public.get_available_skills(
     fighter_id UUID
 )
