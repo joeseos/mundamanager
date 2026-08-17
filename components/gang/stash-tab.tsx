@@ -1162,6 +1162,7 @@ export default function GangInventory({
             itemName={getItemName(sellItem)}
             initialCost={isResourceItem ? (sellItem.cost_resource!.amount ?? 0) : (sellItem.cost || 0)}
             showD6Roll={!isResourceItem}
+            editionSlug={editionSlug}
             costLabel={isResourceItem ? sellItem.cost_resource!.name : 'Sale Price'}
             confirmText="Sell"
             onClose={() => setSellModalItemIdx(null)}

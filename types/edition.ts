@@ -149,6 +149,11 @@ const EDITION_CAPABILITIES = {
   /** Fighters can be sold to the Guilders (the enslaved status) */
   sellToGuilders:           { n23: true,  n26: false },
   /**
+   * Selling an item deducts 10× a D6 roll from its cost. When false it sells for
+   * half its cost rounded up, with nothing to roll. Both floor at 5 credits.
+   */
+  itemSaleD6Deduction:      { n23: true,  n26: false },
+  /**
    * Gang additions are picked by category (Brutes, Hangers-on, Pets, Hired
    * Guns, then one entry per alliance) rather than by raw fighter subtype.
    */
@@ -271,6 +276,9 @@ export const hasAlignment = (editionSlug?: string | null): boolean =>
 
 export const hasGuilderSales = (editionSlug?: string | null): boolean =>
   can('sellToGuilders', editionSlug);
+
+export const hasItemSaleD6Deduction = (editionSlug?: string | null): boolean =>
+  can('itemSaleD6Deduction', editionSlug);
 
 export const hasGangAdditionCategories = (
   editionSlug?: string | null

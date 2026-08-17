@@ -970,6 +970,7 @@ export function WeaponList({
                 : sellModalData.cost ?? 0
           }
           showD6Roll={!sellModalData.cost_resource_name}
+          editionSlug={editionSlug}
           costLabel={sellModalData.cost_resource_name || 'Cost'}
           onClose={() => setSellModalData(null)}
           onConfirm={(cost) => { void handleSellEquipment(

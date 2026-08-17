@@ -5,16 +5,19 @@ import { toast } from 'sonner';
 import Modal from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
 import { rollD6 } from '@/utils/dice';
+import { hasItemSaleD6Deduction } from '@/types/edition';
 
 interface SellConfirmModalProps {
   itemName: string;
   initialCost: number;
   title?: string;
+  /** A credits sale rather than a resource refund. The edition decides how it is priced. */
   showD6Roll?: boolean;
   costLabel?: string;
   showMinimumHint?: boolean;
   description?: string;
   confirmText?: string;
+  editionSlug?: string | null;
   onConfirm: (cost: number) => void;
   onClose: () => void;
 }
@@ -28,10 +31,18 @@ export function SellConfirmModal({
   showMinimumHint,
   description,
   confirmText = 'Sell',
+  editionSlug,
   onConfirm,
   onClose,
 }: SellConfirmModalProps) {
-  const [manualCost, setManualCost] = useState(initialCost);
+  // An unresolved slug keeps the roll: legacy rows predate edition_id and are N23,
+  // so the capability answering false for them must not switch the formula.
+  const halvesOnSale =
+    showD6Roll && editionSlug != null && !hasItemSaleD6Deduction(editionSlug);
+  const showRoll = showD6Roll && !halvesOnSale;
+  const halfPrice = Math.max(5, Math.ceil(initialCost / 2));
+
+  const [manualCost, setManualCost] = useState(halvesOnSale ? halfPrice : initialCost);
   const [lastRoll, setLastRoll] = useState<number | null>(null);
 
   const shouldShowMinimumHint = showMinimumHint ?? showD6Roll;
@@ -51,7 +62,7 @@ export function SellConfirmModal({
       content={
         <div className="space-y-4">
           <p>Are you sure you want to sell <strong>{itemName}</strong>?</p>
-          {showD6Roll && (
+          {showRoll && (
             <div className="flex items-center gap-3">
               <button
                 type="button"
@@ -69,6 +80,11 @@ export function SellConfirmModal({
                 <p className="text-sm text-muted-foreground">(Minimum 5 credits)</p>
               )}
             </div>
+          )}
+          {halvesOnSale && shouldShowMinimumHint && (
+            <p className="text-sm text-muted-foreground">
+              Half of {initialCost} rounded up (minimum 5 credits)
+            </p>
           )}
           <div className="flex items-center gap-4">
             <div className="flex-1">
