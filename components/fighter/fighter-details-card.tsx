@@ -4,10 +4,12 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { FighterDetailsStatsTable } from '../ui/fighter-details-stats-table';
 import {
+  hasCumulativeXp,
   hasSaveCharacteristic,
   initiativeAndMentalCharacteristicSuffix,
 } from '@/types/edition';
 import { memo } from 'react';
+import { nextTierStartFor } from '@/utils/advancementRanks';
 import { calculateAdjustedStats } from '@/utils/effect-modifiers';
 import { FighterProps, FighterEffect, Vehicle } from '@/types/fighter';
 import { TbMeatOff } from "react-icons/tb";
@@ -399,7 +401,16 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   // A model whose type cannot gain XP has no recruitment value, and reads N/A.
   // The number takes over the moment the model actually holds XP, so a group
   // house-ruling XP onto it still sees it.
-  const xpDisplay = starting_xp == null && !xp ? 'N/A' : (xp ?? 0);
+  // Rank-based editions show progress toward the next Advancement tier.
+  const xpDisplay = (() => {
+    if (starting_xp == null && !xp) return 'N/A';
+    const currentXp = xp ?? 0;
+    if (hasCumulativeXp(edition_slug)) {
+      const nextTierStart = nextTierStartFor(edition_slug, currentXp);
+      return `${currentXp}/${nextTierStart ?? '–'}`;
+    }
+    return currentXp;
+  })();
 
   // Update stats object to handle crew stats - now using modifiedStats instead of adjustedStats
   const stats = useMemo<Record<string, string | number>>(() => ({
@@ -551,7 +562,13 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
         </div>
       </div>
       <div className="mt-2">
-        <FighterDetailsStatsTable data={stats} isCrew={showsVehicleProfile} editionSlug={edition_slug} />
+        <FighterDetailsStatsTable
+          data={stats}
+          isCrew={showsVehicleProfile}
+          editionSlug={edition_slug}
+          currentXp={xp ?? 0}
+          fighterId={id}
+        />
       </div>
 
       {/* Show owner information for owned fighters */}
