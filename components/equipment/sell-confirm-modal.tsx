@@ -13,7 +13,7 @@ interface SellConfirmModalProps {
   itemName: string;
   initialCost: number;
   title?: string;
-  /** A credits sale rather than a resource refund. The edition decides how it is priced. */
+  /** A credits sale rather than a resource refund. The edition picks which discount it offers. */
   showD6Roll?: boolean;
   costLabel?: string;
   showMinimumHint?: boolean;
@@ -38,7 +38,7 @@ export function SellConfirmModal({
   onClose,
 }: SellConfirmModalProps) {
   // An unresolved slug keeps the roll: legacy rows predate edition_id and are N23,
-  // so the capability answering false for them must not switch the formula.
+  // so the capability answering false for them must not swap in the other option.
   const offersHalfValue =
     showD6Roll && editionSlug != null && !hasItemSaleD6Deduction(editionSlug);
   const showRoll = showD6Roll && !offersHalfValue;

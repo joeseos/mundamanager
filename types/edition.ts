@@ -149,8 +149,9 @@ const EDITION_CAPABILITIES = {
   /** Fighters can be sold to the Guilders (the enslaved status) */
   sellToGuilders:           { n23: true,  n26: false },
   /**
-   * Selling an item deducts 10× a D6 roll from its cost. When false it sells for
-   * half its cost rounded up, with nothing to roll. Both floor at 5 credits.
+   * A sale is discounted by 10× a D6 roll. When false it is discounted to half
+   * the item's cost rounded up instead, with nothing to roll. Both floor at 5
+   * credits, and both are offered against a price that defaults to full value.
    */
   itemSaleD6Deduction:      { n23: true,  n26: false },
   /**
