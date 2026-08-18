@@ -168,12 +168,15 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
         <div className="bg-card shadow-md rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
-                {profile.username}
-                {profile.user_role === 'admin' && (
-                  <Badge variant="destructive">Admin</Badge>
-                )}
-              </h1>
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
+                  {profile.username}
+                  {profile.user_role === 'admin' && (
+                    <Badge variant="destructive">Admin</Badge>
+                  )}
+                </h1>
+                <EditionToggle value={editionSlug} onChange={setEditionSlug} />
+              </div>
               <p className="text-muted-foreground mt-2">
                 Member since: {new Date(profile.created_at).toISOString().split('T')[0]}
               </p>
@@ -307,13 +310,10 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
         {hasAnyCustomAssets && (
           <div className="bg-card shadow-md rounded-lg p-4">
             <div className="mb-4">
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <h2 className="text-xl md:text-2xl font-bold flex items-center gap-2">
-                  <MdOutlineColorLens className="h-5 w-5" />
-                  Custom Assets
-                </h2>
-                <EditionToggle value={editionSlug} onChange={setEditionSlug} />
-              </div>
+              <h2 className="text-xl md:text-2xl font-bold flex items-center gap-2">
+                <MdOutlineColorLens className="h-5 w-5" />
+                Custom Assets
+              </h2>
               <p className="text-muted-foreground">
                 Custom content created by {profile.username}
               </p>
