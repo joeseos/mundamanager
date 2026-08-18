@@ -48,6 +48,7 @@ interface UserData {
     reputation: number;
     rating?: number;
     created_at: string;
+    edition_slug: string | null;
   }>;
   campaigns: Array<{
     id: string; // campaign_members id
@@ -137,6 +138,13 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
     skills: byEdition(customAssetsData.skills),
     collections: byEdition(customAssetsData.collections ?? []),
   };
+  const editionGangs = gangs.filter(gang =>
+    sameEditionForDisplay(gang.edition_slug, editionSlug)
+  );
+  const editionCampaigns = campaigns.filter(campaign =>
+    campaign.campaign != null &&
+    sameEditionForDisplay(campaign.campaign?.edition_slug, editionSlug)
+  );
   const editionAssetCount = Object.values(editionAssets).reduce(
     (total, assets) => total + assets.length,
     0
@@ -151,7 +159,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
 
   // Get arbitrator campaigns for sharing custom assets (only when viewing own profile)
   const userCampaigns = currentUserId === profile.id
-    ? campaigns
+    ? editionCampaigns
         .filter(c => c.role === 'arbitrator' && c.campaign)
         .map(c => ({
           id: c.campaign!.id,
@@ -199,7 +207,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
             <div className="flex items-center gap-3">
               <FaUsers className="h-8 w-8 text-muted-foreground" />
               <div>
-                <p className="text-2xl font-bold">{gangs.length}</p>
+                <p className="text-2xl font-bold">{editionGangs.length}</p>
                 <p className="text-sm text-muted-foreground">Gangs</p>
               </div>
             </div>
@@ -209,7 +217,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
             <div className="flex items-center gap-3">
               <PiFlagBannerFoldBold className="h-8 w-8 text-muted-foreground" />
               <div>
-                <p className="text-2xl font-bold">{campaigns.length}</p>
+                <p className="text-2xl font-bold">{editionCampaigns.length}</p>
                 <p className="text-sm text-muted-foreground">Campaigns</p>
               </div>
             </div>
@@ -229,7 +237,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
         </div>
 
         {/* Gangs Section */}
-        {gangs.length > 0 && (
+        {editionGangs.length > 0 && (
           <div className="bg-card shadow-md rounded-lg p-4">
             <div className="mb-4">
               <h2 className="text-xl md:text-2xl font-bold flex items-center gap-2">
@@ -241,7 +249,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
               </p>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
-              {gangs.map((gang) => (
+              {editionGangs.map((gang) => (
                 <Link
                   key={gang.id}
                   href={`/gang/${gang.id}`}
@@ -266,7 +274,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
         )}
 
         {/* Campaigns Section */}
-        {campaigns.length > 0 && (
+        {editionCampaigns.length > 0 && (
           <div className="bg-card shadow-md rounded-lg p-4">
             <div className="mb-4">
               <h2 className="text-xl md:text-2xl font-bold flex items-center gap-2">
@@ -278,7 +286,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
               </p>
             </div>
             <div className="space-y-1">
-              {campaigns.map((campaign) => (
+              {editionCampaigns.map((campaign) => (
                 <Link
                   key={campaign.id}
                   href={`/campaigns/${campaign.campaign_id}`}
@@ -393,7 +401,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
         )}
 
         {/* Empty State */}
-        {gangs.length === 0 && campaigns.length === 0 && customAssets.equipment === 0 && customAssets.fighters === 0 && customAssets.skills === 0 && customAssets.gangTypes === 0 && customAssets.tradingPosts === 0 && (customAssets.collections || 0) === 0 && (
+        {editionGangs.length === 0 && editionCampaigns.length === 0 && editionAssetCount === 0 && (
           <div className="bg-card shadow-md rounded-lg p-8 text-center">
             <FaUser className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">No Public Activity</h3>
