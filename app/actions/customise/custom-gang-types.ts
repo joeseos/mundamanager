@@ -6,6 +6,7 @@ import { getEditionIdBySlug } from '@/app/lib/editions';
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
 import { removeItemFromAllCollections } from './custom-collections';
 import { invalidateUserCustomGangTypes, invalidateUserCustomFighters, invalidateUserCustomCollections } from '@/utils/cache-tags';
+import { getCustomGangTypeEditionFields } from './custom-gang-type-editions';
 
 export interface CustomGangTypeData {
   gang_type: string;
@@ -13,8 +14,6 @@ export interface CustomGangTypeData {
   description?: string | null;
   edition_slug?: string;
 }
-
-const DEFAULT_TRADING_POST_TYPE_ID = 'cada4005-66e3-4e3c-8a77-146329bd1eda';
 
 export interface CustomGangType {
   id: string;
@@ -43,6 +42,10 @@ export async function createCustomGangType(
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
+    const editionFields = getCustomGangTypeEditionFields(
+      data.edition_slug,
+      await getEditionIdBySlug(data.edition_slug)
+    );
 
     const { data: newGangType, error: insertError } = await supabase
       .from('custom_gang_types')
@@ -51,8 +54,7 @@ export async function createCustomGangType(
         gang_type: data.gang_type.trimEnd(),
         alignment: data.alignment || null,
         description,
-        trading_post_type_id: DEFAULT_TRADING_POST_TYPE_ID,
-        edition_id: await getEditionIdBySlug(data.edition_slug),
+        ...editionFields,
         created_at: new Date().toISOString(),
       })
       .select()
@@ -87,6 +89,10 @@ export async function updateCustomGangType(
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
+    const editionFields = getCustomGangTypeEditionFields(
+      data.edition_slug,
+      await getEditionIdBySlug(data.edition_slug)
+    );
 
     // Verify ownership
     const { data: existing, error: fetchError } = await supabase
@@ -106,7 +112,7 @@ export async function updateCustomGangType(
         gang_type: data.gang_type.trimEnd(),
         alignment: data.alignment || null,
         description,
-        trading_post_type_id: DEFAULT_TRADING_POST_TYPE_ID,
+        ...editionFields,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
