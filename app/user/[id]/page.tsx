@@ -166,30 +166,30 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
       <div className="container ml-[10px] mr-[10px] max-w-4xl w-full space-y-6 mt-2">
         {/* User Profile Header */}
         <div className="bg-card shadow-md rounded-lg p-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
-                  {profile.username}
-                  {profile.user_role === 'admin' && (
-                    <Badge variant="destructive">Admin</Badge>
-                  )}
-                </h1>
-                <EditionToggle value={editionSlug} onChange={setEditionSlug} />
-              </div>
+              <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
+                {profile.username}
+                {profile.user_role === 'admin' && (
+                  <Badge variant="destructive">Admin</Badge>
+                )}
+              </h1>
               <p className="text-muted-foreground mt-2">
                 Member since: {new Date(profile.created_at).toISOString().split('T')[0]}
               </p>
             </div>
-            {profile.patreon_tier_id && profile.patron_status === 'active_patron' && (
-              <Badge variant="outline" className="flex items-center gap-1">
-                <PatreonSupporterIcon
-                  patreonTierId={profile.patreon_tier_id}
-                  patreonTierTitle={profile.patreon_tier_title}
-                />
-                {profile.patreon_tier_title || 'Patreon Supporter'}
-              </Badge>
-            )}
+            <div className="flex shrink-0 items-center gap-3">
+              {profile.patreon_tier_id && profile.patron_status === 'active_patron' && (
+                <Badge variant="outline" className="flex items-center gap-1">
+                  <PatreonSupporterIcon
+                    patreonTierId={profile.patreon_tier_id}
+                    patreonTierTitle={profile.patreon_tier_title}
+                  />
+                  {profile.patreon_tier_title || 'Patreon Supporter'}
+                </Badge>
+              )}
+              <EditionToggle value={editionSlug} onChange={setEditionSlug} />
+            </div>
           </div>
         </div>
 
