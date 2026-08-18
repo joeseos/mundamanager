@@ -228,7 +228,11 @@ export function CustomiseGangTypes({
     if (!editModalData || !isFormValid()) return false;
     updateMutation.mutate({
       id: editModalData.id,
-      data: { ...formData, alignment: showAlignment ? formData.alignment : null },
+      data: {
+        ...formData,
+        alignment: showAlignment ? formData.alignment : null,
+        edition_slug: editionSlug,
+      },
     });
     return true;
   };
