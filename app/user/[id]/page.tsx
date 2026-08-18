@@ -22,6 +22,7 @@ import { CustomTradingPost } from "@/app/actions/customise/custom-trading-posts"
 import { CustomCollectionWithItems } from "@/app/lib/customise/custom-collections";
 import { useClaims } from "@/hooks/use-claims";
 import { useHomeEdition } from "@/hooks/use-home-edition";
+import { EditionToggle } from "@/components/home/edition-toggle";
 import { sameEditionForDisplay } from "@/types/edition";
 import type { UserCampaign } from "@/types/campaign";
 import { toast } from 'sonner';
@@ -94,7 +95,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
   const { userId: currentUserId } = useClaims();
   // Same edition the home Custom Assets tab is on, so a profile never renders an
   // N26 asset under N23 rules.
-  const { editionSlug } = useHomeEdition();
+  const { editionSlug, setEditionSlug } = useHomeEdition();
 
   // Scroll to top when component mounts
   useEffect(() => {
@@ -136,6 +137,17 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
     skills: byEdition(customAssetsData.skills),
     collections: byEdition(customAssetsData.collections ?? []),
   };
+  const editionAssetCount = Object.values(editionAssets).reduce(
+    (total, assets) => total + assets.length,
+    0
+  );
+  const hasAnyCustomAssets =
+    customAssets.equipment > 0 ||
+    customAssets.fighters > 0 ||
+    customAssets.skills > 0 ||
+    customAssets.gangTypes > 0 ||
+    customAssets.tradingPosts > 0 ||
+    (customAssets.collections || 0) > 0;
 
   // Get arbitrator campaigns for sharing custom assets (only when viewing own profile)
   const userCampaigns = currentUserId === profile.id
@@ -205,7 +217,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
               <MdOutlineColorLens className="h-8 w-8 text-muted-foreground" />
               <div>
                 <p className="text-2xl font-bold">
-                  {customAssets.equipment + customAssets.fighters + customAssets.skills + customAssets.gangTypes + customAssets.tradingPosts + (customAssets.collections || 0)}
+                  {editionAssetCount}
                 </p>
                 <p className="text-sm text-muted-foreground">Custom Assets</p>
               </div>
@@ -292,19 +304,27 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
         )}
 
         {/* Custom Assets Section */}
-        {(customAssets.equipment > 0 || customAssets.fighters > 0 || customAssets.skills > 0 || customAssets.gangTypes > 0 || customAssets.tradingPosts > 0 || (customAssets.collections || 0) > 0) && (
+        {hasAnyCustomAssets && (
           <div className="bg-card shadow-md rounded-lg p-4">
             <div className="mb-4">
-              <h2 className="text-xl md:text-2xl font-bold flex items-center gap-2">
-                <MdOutlineColorLens className="h-5 w-5" />
-                Custom Assets
-              </h2>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <h2 className="text-xl md:text-2xl font-bold flex items-center gap-2">
+                  <MdOutlineColorLens className="h-5 w-5" />
+                  Custom Assets
+                </h2>
+                <EditionToggle value={editionSlug} onChange={setEditionSlug} />
+              </div>
               <p className="text-muted-foreground">
                 Custom content created by {profile.username}
               </p>
             </div>
             
             <div className="space-y-6">
+              {editionAssetCount === 0 && (
+                <p className="text-muted-foreground">
+                  No custom assets for {editionSlug.toUpperCase()}
+                </p>
+              )}
               {/* Custom Gang Types */}
               {editionAssets.gangTypes.length > 0 && (
                 <CustomiseGangTypes
