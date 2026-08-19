@@ -3,7 +3,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { createClient } from '@/utils/supabase/client';
 import { Tooltip } from 'react-tooltip';
 import { BiSolidNotepad } from 'react-icons/bi';
 import { LuSquarePen, LuTrash2 } from 'react-icons/lu';
@@ -13,7 +12,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { List, ListAction, ListColumn } from '@/components/ui/list';
 import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import { UserPermissions } from '@/types/user-permissions';
-import { withEditionSlug } from '@/types/edition';
 import {
   compareTacticsCards,
   formatD66Range,
@@ -60,19 +58,13 @@ export default function GangTacticsCards({
     [tacticsCards]
   );
 
-  // RLS opens tactics_cards to any authenticated user, so the picker reads it
-  // directly, only once the modal is opened.
+  // Only fetched once the Add modal is opened.
   const { data: catalogue = [], isLoading: isLoadingCatalogue, error: catalogueError } = useQuery<TacticsCard[]>({
     queryKey: ['tactics-cards', editionSlug],
     queryFn: async () => {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from('tactics_cards')
-        .select('id, name, d66_min, d66_max, editions!inner ( slug )')
-        .eq('editions.slug', editionSlug);
-
-      if (error) throw error;
-      return (data ?? []).map(withEditionSlug).sort(compareTacticsCards) as TacticsCard[];
+      const response = await fetch(`/api/tactics-cards?edition_slug=${editionSlug}`);
+      if (!response.ok) throw new Error('Failed to fetch tactics cards');
+      return response.json();
     },
     staleTime: 5 * 60 * 1000,
     enabled: isAddModalOpen && !!editionSlug
