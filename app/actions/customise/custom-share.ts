@@ -44,98 +44,6 @@ async function assertCampaignsMatchEdition(
   return { ok: true };
 }
 
-/**
- * Cascade queries walk relationships, not editions. One child of another edition
- * makes the custom_shared trigger abort the whole batch, so drop it and name it.
- */
-function partitionByEdition<T extends Record<string, any>>(
-  rows: T[],
-  editionSlug: string | null
-): { kept: T[]; dropped: T[] } {
-  const kept: T[] = [];
-  const dropped: T[] = [];
-  for (const row of rows) {
-    if (editionsConflict(editionSlug, editionSlugFromJoin(row.editions))) {
-      dropped.push(row);
-    } else {
-      kept.push(row);
-    }
-  }
-  return { kept, dropped };
-}
-
-function droppedWarning(dropped: { name?: string | null }[], kind: string): string | undefined {
-  if (dropped.length === 0) return undefined;
-  const summary = `Skipped ${dropped.length} ${kind} from a different edition`;
-  const names = dropped.map(d => d.name).filter(Boolean);
-  // Only name them when every dropped row has one, so the count and the list agree.
-  if (names.length !== dropped.length) return summary;
-  const rest = names.length > 3 ? ` and ${names.length - 3} more` : '';
-  return `${summary}: ${names.slice(0, 3).join(', ')}${rest}`;
-}
-
-/**
- * Items the user put in a collection directly, filtered like the cascaded ones.
- * A cross-edition row here fails the whole batch after the delete has already run,
- * which leaves the collection unshared rather than partially shared.
- */
-async function dropConflictingItems(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  table: string,
-  nameColumn: string,
-  ids: Set<string>,
-  editionSlug: string | null,
-  kind: string,
-  warnings: string[]
-): Promise<void> {
-  if (ids.size === 0) return;
-
-  // Cast: the generated types cannot parse a select built from a variable column.
-  const { data } = (await supabase
-    .from(table)
-    .select(`id, name:${nameColumn}, editions:edition_id (slug)`)
-    .in('id', Array.from(ids))) as {
-      data: { id: string; name: string | null; editions?: unknown }[] | null;
-    };
-
-  const { dropped } = partitionByEdition(data ?? [], editionSlug);
-  dropped.forEach(row => ids.delete(row.id));
-  const warning = droppedWarning(dropped, kind);
-  if (warning) warnings.push(warning);
-}
-
-/** Skills carry no edition of their own, so this resolves through the skill type. */
-async function dropConflictingSkills(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  ids: Set<string>,
-  editionSlug: string | null,
-  warnings: string[]
-): Promise<void> {
-  if (ids.size === 0) return;
-
-  const { data } = await supabase
-    .from('custom_skills')
-    .select(`
-      id,
-      name:skill_name,
-      skill_types (editions:edition_id (slug)),
-      custom_skill_types (editions:edition_id (slug))
-    `)
-    .in('id', Array.from(ids));
-
-  const dropped = (data ?? []).filter((skill: any) =>
-    editionsConflict(
-      editionSlug,
-      editionSlugFromJoin(skill.custom_skill_types?.editions)
-        ?? editionSlugFromJoin(skill.skill_types?.editions)
-    )
-  );
-
-  dropped.forEach((row: any) => ids.delete(row.id));
-  const warning = droppedWarning(dropped as { name?: string | null }[], 'skills');
-  if (warning) warnings.push(warning);
-}
-
 /** The custom_shared trigger's exceptions would otherwise reach the toast verbatim. */
 function friendlyShareError(prefix: string, message: string): string {
   if (message.includes('from a different edition')) {
@@ -150,7 +58,7 @@ function friendlyShareError(prefix: string, message: string): string {
 /**
  * Share a custom fighter to selected campaigns
  */
-export async function shareCustomFighter(customFighterTypeId: string, campaignIds: string[]): Promise<{ success: boolean; error?: string; warning?: string }> {
+export async function shareCustomFighter(customFighterTypeId: string, campaignIds: string[]): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
@@ -167,11 +75,10 @@ export async function shareCustomFighter(customFighterTypeId: string, campaignId
       return { success: false, error: 'Custom fighter not found or not owned by user' };
     }
 
-    const fighterEdition = editionSlugFromJoin((customFighter as any).editions);
-    const editionCheck = await assertCampaignsMatchEdition(supabase, fighterEdition, campaignIds);
+    const editionCheck = await assertCampaignsMatchEdition(
+      supabase, editionSlugFromJoin((customFighter as any).editions), campaignIds
+    );
     if (!editionCheck.ok) return { success: false, error: editionCheck.error };
-
-    const warnings: string[] = [];
 
     // Delete existing shares for this fighter
     const { error: deleteError } = await supabase
@@ -209,22 +116,9 @@ export async function shareCustomFighter(customFighterTypeId: string, campaignId
         .eq('custom_fighter_type_id', customFighterTypeId)
         .not('custom_skill_type_id', 'is', null);
 
-      const referencedSkillTypeIds = (fighterSkillAccess ?? [])
+      const customSkillTypeIds = (fighterSkillAccess ?? [])
         .map(a => a.custom_skill_type_id)
         .filter(Boolean) as string[];
-
-      let customSkillTypeIds: string[] = [];
-      if (referencedSkillTypeIds.length > 0) {
-        const { data: skillTypes } = await supabase
-          .from('custom_skill_types')
-          .select('id, name, editions:edition_id (slug)')
-          .in('id', referencedSkillTypeIds);
-
-        const { kept, dropped } = partitionByEdition(skillTypes ?? [], fighterEdition);
-        customSkillTypeIds = kept.map(t => t.id);
-        const skillWarning = droppedWarning(dropped, 'skill types');
-        if (skillWarning) warnings.push(skillWarning);
-      }
 
       if (customSkillTypeIds.length > 0) {
         // Find all custom skills belonging to these custom skill types (owned by user)
@@ -264,18 +158,18 @@ export async function shareCustomFighter(customFighterTypeId: string, campaignId
               .from('custom_shared')
               .insert(newSkillShares);
 
-            // Non-fatal: the fighter is already shared. Surfaced, not swallowed —
-            // one bad row fails every cascaded skill together.
+            // Non-fatal by design: the fighter is already shared. Note that a skill whose type
+            // is from another edition would be rejected by the custom_shared trigger, and one
+            // bad row aborts the whole insert, so every skill here fails together.
             if (shareSkillsError) {
               console.error('Error auto-sharing custom skills for fighter:', shareSkillsError);
-              warnings.push('The fighter was shared, but its custom skills could not be shared');
             }
           }
         }
       }
     }
 
-    return { success: true, warning: warnings.join('. ') || undefined };
+    return { success: true };
   } catch (error) {
     console.error('Error in shareCustomFighter:', error);
     return {
@@ -290,7 +184,7 @@ export async function shareCustomFighter(customFighterTypeId: string, campaignId
  * Cascades: also shares all custom_fighter_types belonging to this gang type,
  * and their custom skills.
  */
-export async function shareCustomGangType(customGangTypeId: string, campaignIds: string[]): Promise<{ success: boolean; error?: string; warning?: string }> {
+export async function shareCustomGangType(customGangTypeId: string, campaignIds: string[]): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
@@ -307,11 +201,10 @@ export async function shareCustomGangType(customGangTypeId: string, campaignIds:
       return { success: false, error: 'Custom gang type not found or not owned by user' };
     }
 
-    const gangTypeEdition = editionSlugFromJoin((customGangType as any).editions);
-    const editionCheck = await assertCampaignsMatchEdition(supabase, gangTypeEdition, campaignIds);
+    const editionCheck = await assertCampaignsMatchEdition(
+      supabase, editionSlugFromJoin((customGangType as any).editions), campaignIds
+    );
     if (!editionCheck.ok) return { success: false, error: editionCheck.error };
-
-    const warnings: string[] = [];
 
     // Delete existing shares for this gang type
     const { error: deleteError } = await supabase
@@ -345,14 +238,11 @@ export async function shareCustomGangType(customGangTypeId: string, campaignIds:
       // --- Cascade: share all custom fighters belonging to this gang type ---
       const { data: relatedFighters } = await supabase
         .from('custom_fighter_types')
-        .select('id, name:fighter_type, editions:edition_id (slug)')
+        .select('id')
         .eq('custom_gang_type_id', customGangTypeId)
         .eq('user_id', user.id);
 
-      const fighterSplit = partitionByEdition(relatedFighters ?? [], gangTypeEdition);
-      const fighterIds = fighterSplit.kept.map(f => f.id);
-      const fighterWarning = droppedWarning(fighterSplit.dropped, 'fighter types');
-      if (fighterWarning) warnings.push(fighterWarning);
+      const fighterIds = (relatedFighters ?? []).map(f => f.id);
 
       if (fighterIds.length > 0) {
         // Check which fighter shares already exist
@@ -384,7 +274,6 @@ export async function shareCustomGangType(customGangTypeId: string, campaignIds:
 
           if (shareFightersError) {
             console.error('Error auto-sharing custom fighters for gang type:', shareFightersError);
-            warnings.push('The gang type was shared, but its fighter types could not be');
           }
         }
 
@@ -395,24 +284,11 @@ export async function shareCustomGangType(customGangTypeId: string, campaignIds:
           .in('custom_fighter_type_id', fighterIds)
           .not('custom_skill_type_id', 'is', null);
 
-        const referencedSkillTypeIds = Array.from(new Set(
+        const customSkillTypeIds = Array.from(new Set(
           (fighterSkillAccess ?? [])
             .map(a => a.custom_skill_type_id)
             .filter(Boolean) as string[]
         ));
-
-        let customSkillTypeIds: string[] = [];
-        if (referencedSkillTypeIds.length > 0) {
-          const { data: skillTypes } = await supabase
-            .from('custom_skill_types')
-            .select('id, name, editions:edition_id (slug)')
-            .in('id', referencedSkillTypeIds);
-
-          const split = partitionByEdition(skillTypes ?? [], gangTypeEdition);
-          customSkillTypeIds = split.kept.map(t => t.id);
-          const skillWarning = droppedWarning(split.dropped, 'skill types');
-          if (skillWarning) warnings.push(skillWarning);
-        }
 
         if (customSkillTypeIds.length > 0) {
           const { data: customSkills } = await supabase
@@ -452,7 +328,6 @@ export async function shareCustomGangType(customGangTypeId: string, campaignIds:
 
               if (shareSkillsError) {
                 console.error('Error auto-sharing custom skills for gang type:', shareSkillsError);
-                warnings.push('The gang type was shared, but its custom skills could not be');
               }
             }
           }
@@ -460,7 +335,7 @@ export async function shareCustomGangType(customGangTypeId: string, campaignIds:
       }
     }
 
-    return { success: true, warning: warnings.join('. ') || undefined };
+    return { success: true };
   } catch (error) {
     console.error('Error in shareCustomGangType:', error);
     return {
@@ -546,7 +421,12 @@ export async function shareCustomSkill(customSkillId: string, campaignIds: strin
     // Verify the custom skill belongs to the user
     const { data: customSkill, error: skillError } = await supabase
       .from('custom_skills')
-      .select('id, user_id, custom_skill_types:custom_skill_type_id (editions:edition_id (slug))')
+      .select(`
+        id,
+        user_id,
+        skill_types:skill_type_id (editions:edition_id (slug)),
+        custom_skill_types:custom_skill_type_id (editions:edition_id (slug))
+      `)
       .eq('id', customSkillId)
       .eq('user_id', user.id)
       .single();
@@ -555,9 +435,14 @@ export async function shareCustomSkill(customSkillId: string, campaignIds: strin
       return { success: false, error: 'Custom skill not found or not owned by user' };
     }
 
-    const editionCheck = await assertCampaignsMatchEdition(
-      supabase, editionSlugFromJoin((customSkill as any).custom_skill_types?.editions), campaignIds
-    );
+    // A quarter of custom skills are built on a system skill type. Resolving only the
+    // custom one leaves those with no edition, which this check reads as "no claim"
+    // and accepts into any campaign. Custom wins, matching getUserCustomSkills.
+    const skillEdition =
+      editionSlugFromJoin((customSkill as any).custom_skill_types?.editions)
+      ?? editionSlugFromJoin((customSkill as any).skill_types?.editions);
+
+    const editionCheck = await assertCampaignsMatchEdition(supabase, skillEdition, campaignIds);
     if (!editionCheck.ok) return { success: false, error: editionCheck.error };
 
     // Delete existing shares for this skill
@@ -718,7 +603,7 @@ interface CollectionShareRow {
  * all match the collection's edition (enforced here).
  * Passing an empty campaignIds unshares the collection from all campaigns.
  */
-export async function shareCollection(collectionId: string, campaignIds: string[]): Promise<{ success: boolean; error?: string; warning?: string }> {
+export async function shareCollection(collectionId: string, campaignIds: string[]): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
@@ -734,11 +619,10 @@ export async function shareCollection(collectionId: string, campaignIds: string[
       return { success: false, error: 'Collection not found or not owned by user' };
     }
 
-    const collectionEdition = editionSlugFromJoin((collection as any).editions);
-    const editionCheck = await assertCampaignsMatchEdition(supabase, collectionEdition, campaignIds);
+    const editionCheck = await assertCampaignsMatchEdition(
+      supabase, editionSlugFromJoin((collection as any).editions), campaignIds
+    );
     if (!editionCheck.ok) return { success: false, error: editionCheck.error };
-
-    const warnings: string[] = [];
 
     const items = ((collection.items as { type: string; id: string }[]) || []);
     const equipmentIds = new Set(items.filter(i => i.type === 'equipment').map(i => i.id));
@@ -747,27 +631,14 @@ export async function shareCollection(collectionId: string, campaignIds: string[
     const skillIds = new Set(items.filter(i => i.type === 'skill').map(i => i.id));
     const tradingPostIds = new Set(items.filter(i => i.type === 'trading_post').map(i => i.id));
 
-    // Before the cascades, so a dropped gang type does not pull its fighters in either.
-    await Promise.all([
-      dropConflictingItems(supabase, 'custom_equipment', 'equipment_name', equipmentIds, collectionEdition, 'equipment', warnings),
-      dropConflictingItems(supabase, 'custom_gang_types', 'gang_type', gangTypeIds, collectionEdition, 'gang types', warnings),
-      dropConflictingItems(supabase, 'custom_fighter_types', 'fighter_type', fighterTypeIds, collectionEdition, 'fighter types', warnings),
-      dropConflictingItems(supabase, 'custom_trading_posts', 'custom_trading_post_name', tradingPostIds, collectionEdition, 'trading posts', warnings),
-      dropConflictingSkills(supabase, skillIds, collectionEdition, warnings),
-    ]);
-
     // Cascade: gang types -> their custom fighter types
     if (gangTypeIds.size > 0) {
       const { data: fighters } = await supabase
         .from('custom_fighter_types')
-        .select('id, name:fighter_type, editions:edition_id (slug)')
+        .select('id')
         .in('custom_gang_type_id', Array.from(gangTypeIds))
         .eq('user_id', user.id);
-
-      const split = partitionByEdition(fighters ?? [], collectionEdition);
-      split.kept.forEach(f => fighterTypeIds.add(f.id));
-      const warning = droppedWarning(split.dropped, 'fighter types');
-      if (warning) warnings.push(warning);
+      (fighters ?? []).forEach(f => fighterTypeIds.add(f.id));
     }
 
     // Cascade: fighter types -> their custom skills (via custom skill types)
@@ -778,22 +649,9 @@ export async function shareCollection(collectionId: string, campaignIds: string[
         .in('custom_fighter_type_id', Array.from(fighterTypeIds))
         .not('custom_skill_type_id', 'is', null);
 
-      const referencedSkillTypeIds = Array.from(new Set(
+      const skillTypeIds = Array.from(new Set(
         (access ?? []).map(a => a.custom_skill_type_id).filter(Boolean) as string[]
       ));
-
-      let skillTypeIds: string[] = [];
-      if (referencedSkillTypeIds.length > 0) {
-        const { data: skillTypes } = await supabase
-          .from('custom_skill_types')
-          .select('id, name, editions:edition_id (slug)')
-          .in('id', referencedSkillTypeIds);
-
-        const split = partitionByEdition(skillTypes ?? [], collectionEdition);
-        skillTypeIds = split.kept.map(t => t.id);
-        const warning = droppedWarning(split.dropped, 'skill types');
-        if (warning) warnings.push(warning);
-      }
 
       if (skillTypeIds.length > 0) {
         const { data: skills } = await supabase
@@ -920,7 +778,7 @@ export async function shareCollection(collectionId: string, campaignIds: string[
     for (const cid of campaignIds) {
       revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(cid), { expire: 0 });
     }
-    return { success: true, warning: warnings.join('. ') || undefined };
+    return { success: true };
   } catch (error) {
     console.error('Error in shareCollection:', error);
     return {

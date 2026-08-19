@@ -37,7 +37,7 @@ interface ShareToCampaignsModalProps {
   emptyHint: string;          // sentence shown when the user arbitrates no campaigns
   idPrefix: string;           // checkbox id prefix
   invalidateKeys?: string[][];
-  share: (campaignIds: string[]) => Promise<{ success: boolean; error?: string; warning?: string }>;
+  share: (campaignIds: string[]) => Promise<{ success: boolean; error?: string }>;
   userCampaigns: UserCampaign[];
   itemEditionSlug: string | null;
   onClose: () => void;
@@ -117,7 +117,6 @@ function ShareToCampaignsModal({
         toast.success(campaignIds.length > 0
           ? `${noun} shared to ${campaignIds.length} campaign${campaignIds.length !== 1 ? 's' : ''}`
           : `${noun} unshared from all campaigns`);
-        if (result.warning) toast.warning(result.warning);
         for (const key of invalidateKeys) queryClient.invalidateQueries({ queryKey: key });
         queryClient.invalidateQueries({ queryKey: sharedQueryKey });
         onSuccess?.();
