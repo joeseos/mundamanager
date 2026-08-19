@@ -775,10 +775,14 @@ BEGIN
     v_before := cardinality(v_eq) + cardinality(v_st) + cardinality(v_sk)
               + cardinality(v_gt) + cardinality(v_ft) + cardinality(v_tp);
 
-    -- fighter types belonging to in-scope gang types
+    -- fighter types belonging to in-scope gang types, as their author defined them.
+    -- Scoped to the owner: SELECT RLS here is USING (true), so an unscoped pull also
+    -- clones fighters other users attached to the same gang type.
     v_ft := ARRAY(SELECT DISTINCT f FROM (
               SELECT unnest(v_ft) AS f
-              UNION SELECT cft.id FROM public.custom_fighter_types cft WHERE cft.custom_gang_type_id = ANY(v_gt)
+              UNION SELECT cft.id FROM public.custom_fighter_types cft
+                    JOIN public.custom_gang_types cgt ON cgt.id = cft.custom_gang_type_id
+                    WHERE cft.custom_gang_type_id = ANY(v_gt) AND cft.user_id = cgt.user_id
             ) s WHERE f IS NOT NULL);
 
     -- gang types referenced by in-scope fighter types and trading posts
@@ -803,10 +807,13 @@ BEGIN
                     WHERE cs.id = ANY(v_sk) AND cs.custom_skill_type_id IS NOT NULL
             ) s WHERE t IS NOT NULL);
 
-    -- all skills belonging to in-scope skill types (clone the whole set)
+    -- all skills belonging to in-scope skill types, as their author defined them.
+    -- Owner-scoped for the same reason as the fighter closure above.
     v_sk := ARRAY(SELECT DISTINCT k FROM (
               SELECT unnest(v_sk) AS k
-              UNION SELECT cs.id FROM public.custom_skills cs WHERE cs.custom_skill_type_id = ANY(v_st)
+              UNION SELECT cs.id FROM public.custom_skills cs
+                    JOIN public.custom_skill_types cst ON cst.id = cs.custom_skill_type_id
+                    WHERE cs.custom_skill_type_id = ANY(v_st) AND cs.user_id = cst.user_id
             ) s WHERE k IS NOT NULL);
 
     -- equipment referenced by fighter defaults / fighter equipment / trading posts
@@ -1031,27 +1038,30 @@ BEGIN
     (SELECT edition_id FROM public.custom_fighter_types WHERE id = NEW.custom_fighter_type_id),
     (SELECT edition_id FROM public.custom_gang_types    WHERE id = NEW.custom_gang_type_id),
     (SELECT edition_id FROM public.custom_trading_posts WHERE id = NEW.custom_trading_post_id),
-    -- A custom skill hangs off either a custom skill type or an official one; the edition
-    -- lives on whichever applies. Custom wins, matching getUserCustomSkills.
-    (SELECT COALESCE(cst.edition_id, st.edition_id)
+    (SELECT COALESCE(ct.edition_id, st.edition_id)
        FROM public.custom_skills s
-       LEFT JOIN public.custom_skill_types cst ON cst.id = s.custom_skill_type_id
-       LEFT JOIN public.skill_types        st  ON st.id  = s.skill_type_id
-      WHERE s.id = NEW.custom_skill_id)
+       LEFT JOIN public.custom_skill_types ct ON ct.id = s.custom_skill_type_id
+       LEFT JOIN public.skill_types        st ON st.id = s.skill_type_id
+      WHERE s.id = NEW.custom_skill_id),
+    (SELECT edition_id FROM public.custom_collections  WHERE id = NEW.custom_collection_id)
   ) INTO v_item_edition;
 
-  -- A null on either side makes no claim, so it must not block.
+  -- A null on either side makes no claim, so it must not block: legacy rows and items whose
+  -- edition was dropped by copy_custom_collection have none and stay writable.
   IF v_campaign_edition IS NOT NULL
      AND v_item_edition IS NOT NULL
      AND v_campaign_edition <> v_item_edition THEN
     RAISE EXCEPTION 'Cannot share a custom asset to a campaign from a different edition';
   END IF;
 
+  -- Never default an unresolved edition to n23: outside display filtering an unknown
+  -- edition makes no claim, so refuse rather than record one the campaign does not have.
   IF v_campaign_edition IS NULL THEN
     RAISE EXCEPTION 'Campaign % has no edition; cannot resolve the share edition', NEW.campaign_id;
   END IF;
 
   NEW.edition_id := v_campaign_edition;
+
   RETURN NEW;
 END;
 $$;
@@ -4525,7 +4535,7 @@ CREATE TABLE public.custom_equipment (
     is_editable boolean DEFAULT false,
     is_consumable boolean DEFAULT false,
     description text,
-    edition_id uuid,
+    edition_id uuid NOT NULL,
     trade_points text DEFAULT '0'::text NOT NULL
 );
 
@@ -4581,7 +4591,7 @@ CREATE TABLE public.custom_fighter_types (
     user_id uuid,
     custom_gang_type_id uuid,
     description text,
-    edition_id uuid,
+    edition_id uuid NOT NULL,
     save numeric,
     fighter_subtypes jsonb DEFAULT '[]'::jsonb NOT NULL,
     starting_xp numeric,
@@ -4610,7 +4620,7 @@ CREATE TABLE public.custom_gang_types (
     trading_post_type_id uuid,
     default_image_urls jsonb DEFAULT '[{"url": "https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_gang_cropped_web.webp"}, {"url": "https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_cropped_web_foy9m7.avif", "credit": {"url": "https://www.ashenquarter.com/", "name": "Djidiouf", "suffix": "(AI-assisted)"}}]'::jsonb,
     description text,
-    edition_id uuid
+    edition_id uuid NOT NULL
 );
 
 
@@ -4658,7 +4668,7 @@ CREATE TABLE public.custom_skill_types (
     updated_at timestamp with time zone,
     name text,
     user_id uuid,
-    edition_id uuid
+    edition_id uuid NOT NULL
 );
 
 
@@ -5592,6 +5602,20 @@ CREATE TABLE public.gang_stash (
 
 
 --
+-- Name: gang_tactics_cards; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.gang_tactics_cards (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    gang_id uuid NOT NULL,
+    tactics_cards_id uuid NOT NULL,
+    description text
+);
+
+
+--
 -- Name: gang_types; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5794,6 +5818,23 @@ CREATE TABLE public.skills (
     name text,
     skill_type_id uuid,
     gang_origin_id uuid
+);
+
+
+--
+-- Name: tactics_cards; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tactics_cards (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    edition_id uuid NOT NULL,
+    name text NOT NULL,
+    d66_min smallint,
+    d66_max smallint,
+    CONSTRAINT tactics_cards_d66_order_check CHECK (((d66_min IS NULL) OR (d66_min <= d66_max))),
+    CONSTRAINT tactics_cards_d66_pair_check CHECK ((((d66_min IS NULL) AND (d66_max IS NULL)) OR ((d66_min IS NOT NULL) AND (d66_max IS NOT NULL))))
 );
 
 
@@ -6624,6 +6665,22 @@ ALTER TABLE ONLY public.gang_stash
 
 
 --
+-- Name: gang_tactics_cards gang_tactics_cards_gang_id_tactics_cards_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_tactics_cards
+    ADD CONSTRAINT gang_tactics_cards_gang_id_tactics_cards_id_key UNIQUE (gang_id, tactics_cards_id);
+
+
+--
+-- Name: gang_tactics_cards gang_tactics_cards_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_tactics_cards
+    ADD CONSTRAINT gang_tactics_cards_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: gang_types gang_types_gang_type_id_edition_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6740,6 +6797,22 @@ ALTER TABLE ONLY public.skill_types
 
 ALTER TABLE ONLY public.skills
     ADD CONSTRAINT skills_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tactics_cards tactics_cards_edition_id_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tactics_cards
+    ADD CONSTRAINT tactics_cards_edition_id_name_key UNIQUE (edition_id, name);
+
+
+--
+-- Name: tactics_cards tactics_cards_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tactics_cards
+    ADD CONSTRAINT tactics_cards_pkey PRIMARY KEY (id);
 
 
 --
@@ -7553,6 +7626,13 @@ CREATE INDEX gang_origins_gang_origin_category_id_idx ON public.gang_origins USI
 --
 
 CREATE INDEX gang_stash_gang_id_idx ON public.gang_stash USING btree (gang_id);
+
+
+--
+-- Name: gang_tactics_cards_tactics_cards_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gang_tactics_cards_tactics_cards_id_idx ON public.gang_tactics_cards USING btree (tactics_cards_id);
 
 
 --
@@ -9644,6 +9724,22 @@ ALTER TABLE ONLY public.gang_stash
 
 
 --
+-- Name: gang_tactics_cards gang_tactics_cards_gang_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_tactics_cards
+    ADD CONSTRAINT gang_tactics_cards_gang_id_fkey FOREIGN KEY (gang_id) REFERENCES public.gangs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: gang_tactics_cards gang_tactics_cards_tactics_cards_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_tactics_cards
+    ADD CONSTRAINT gang_tactics_cards_tactics_cards_id_fkey FOREIGN KEY (tactics_cards_id) REFERENCES public.tactics_cards(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: gang_types gang_types_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9777,6 +9873,14 @@ ALTER TABLE ONLY public.skills
 
 ALTER TABLE ONLY public.skills
     ADD CONSTRAINT skills_skill_type_id_fkey FOREIGN KEY (skill_type_id) REFERENCES public.skill_types(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: tactics_cards tactics_cards_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tactics_cards
+    ADD CONSTRAINT tactics_cards_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
 
 
 --
@@ -10379,6 +10483,13 @@ CREATE POLICY "Allow authenticated users to view fighters" ON public.fighters FO
 
 
 --
+-- Name: gang_tactics_cards Allow authenticated users to view gang tactic cards; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view gang tactic cards" ON public.gang_tactics_cards FOR SELECT TO authenticated USING (true);
+
+
+--
 -- Name: gang_affiliation Allow authenticated users to view gang_affiliation; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -10460,6 +10571,13 @@ CREATE POLICY "Allow authenticated users to view skill_types" ON public.skill_ty
 --
 
 CREATE POLICY "Allow authenticated users to view skills" ON public.skills FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: tactics_cards Allow authenticated users to view tactic cards; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view tactic cards" ON public.tactics_cards FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -10869,6 +10987,13 @@ CREATE POLICY "Only admin can create skills entries" ON public.skills FOR INSERT
 
 
 --
+-- Name: tactics_cards Only admin can create tactic cards; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can create tactic cards" ON public.tactics_cards FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
 -- Name: territories Only admin can create territories entries; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -11013,6 +11138,13 @@ CREATE POLICY "Only admin can delete skill_types" ON public.skill_types FOR DELE
 --
 
 CREATE POLICY "Only admin can delete skills" ON public.skills FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: tactics_cards Only admin can delete tactic cards; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can delete tactic cards" ON public.tactics_cards FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -11181,6 +11313,13 @@ CREATE POLICY "Only admin can update skill_types" ON public.skill_types FOR UPDA
 --
 
 CREATE POLICY "Only admin can update skills" ON public.skills FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: tactics_cards Only admin can update tactic cards; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can update tactic cards" ON public.tactics_cards FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -11813,6 +11952,17 @@ CREATE POLICY "Users can create skills for their own fighters" ON public.fighter
 
 
 --
+-- Name: gang_tactics_cards Users can create tactic cards for their gang; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can create tactic cards for their gang" ON public.gang_tactics_cards FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
+   FROM public.gangs g
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
+   FROM public.campaign_gangs cg
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+
+
+--
 -- Name: user_notification_preferences Users can create their own notification preferences; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -11850,6 +12000,17 @@ CREATE POLICY "Users can delete loadout equipment for their fighters" ON public.
 CREATE POLICY "Users can delete loadouts for their gang fighters" ON public.fighter_loadouts FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+
+
+--
+-- Name: gang_tactics_cards Users can delete tactic cards from their gang; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can delete tactic cards from their gang" ON public.gang_tactics_cards FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
+   FROM public.gangs g
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
+   FROM public.campaign_gangs cg
   WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
@@ -12016,6 +12177,21 @@ CREATE POLICY "Users can update loadouts for their gang fighters" ON public.figh
 --
 
 CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE TO authenticated USING ((id = ( SELECT auth.uid() AS uid)));
+
+
+--
+-- Name: gang_tactics_cards Users can update tactic cards in their gang; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can update tactic cards in their gang" ON public.gang_tactics_cards FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
+   FROM public.gangs g
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
+   FROM public.campaign_gangs cg
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
+   FROM public.gangs g
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
+   FROM public.campaign_gangs cg
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -12870,6 +13046,12 @@ ALTER TABLE public.gang_origins ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.gang_stash ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: gang_tactics_cards; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.gang_tactics_cards ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: gang_types; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -12964,6 +13146,12 @@ ALTER TABLE public.skill_types ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.skills ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: tactics_cards; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.tactics_cards ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: territories; Type: ROW SECURITY; Schema: public; Owner: -
