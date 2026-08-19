@@ -6,7 +6,7 @@ import { WeaponProfile } from '@/types/equipment';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang';
 import { gangEditionSlug } from '@/types/edition';
-import { GangTacticsCard } from '@/types/tactics-card';
+import { GangTacticsCard, GANG_TACTICS_CARD_SELECT, toGangTacticsCard } from '@/types/tactics-card';
 
 // =============================================================================
 // TYPES - Shared interfaces for gang data
@@ -334,28 +334,12 @@ export const getGangTacticsCards = async (gangId: string, supabase: any): Promis
     async () => {
       const { data, error } = await supabase
         .from('gang_tactics_cards')
-        .select(`
-          id,
-          description,
-          tactics_cards_id,
-          tactics_cards:tactics_cards_id ( name, d66_min, d66_max )
-        `)
+        .select(GANG_TACTICS_CARD_SELECT)
         .eq('gang_id', gangId);
 
       if (error) throw error;
 
-      return (data ?? []).map((row: any) => {
-        // A to-one embed comes back as an object, but can be widened to an array.
-        const card = Array.isArray(row.tactics_cards) ? row.tactics_cards[0] : row.tactics_cards;
-        return {
-          id: row.id,
-          tactics_cards_id: row.tactics_cards_id,
-          name: card?.name ?? 'Unknown Tactic',
-          d66_min: card?.d66_min ?? null,
-          d66_max: card?.d66_max ?? null,
-          description: row.description ?? null
-        };
-      });
+      return (data ?? []).map(toGangTacticsCard);
     },
     [`gang-tactics-cards-${gangId}`],
     {

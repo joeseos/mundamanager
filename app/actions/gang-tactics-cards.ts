@@ -6,8 +6,10 @@ import { checkPermissionCached } from '@/utils/user-permissions';
 import { invalidateGangTacticsCards } from '@/utils/cache-tags';
 import { gangEditionJoin, gangEditionSlug, hasGangTacticsCards } from '@/types/edition';
 import {
+  GANG_TACTICS_CARD_SELECT,
   normaliseTacticsDescription,
   TACTICS_DESCRIPTION_CHAR_LIMIT,
+  toGangTacticsCard,
   type GangTacticsCard
 } from '@/types/tactics-card';
 
@@ -72,28 +74,13 @@ async function selectGangTacticsCards(
 
   const { data, error } = await supabase
     .from('gang_tactics_cards')
-    .select(`
-      id,
-      description,
-      tactics_cards_id,
-      tactics_cards:tactics_cards_id ( name, d66_min, d66_max )
-    `)
+    .select(GANG_TACTICS_CARD_SELECT)
     .eq('gang_id', gangId)
     .in('tactics_cards_id', tacticsCardIds);
 
   if (error) throw error;
 
-  return (data ?? []).map((row: any) => {
-    const card = Array.isArray(row.tactics_cards) ? row.tactics_cards[0] : row.tactics_cards;
-    return {
-      id: row.id,
-      tactics_cards_id: row.tactics_cards_id,
-      name: card?.name ?? 'Unknown Tactic',
-      d66_min: card?.d66_min ?? null,
-      d66_max: card?.d66_max ?? null,
-      description: row.description ?? null
-    };
-  });
+  return (data ?? []).map(toGangTacticsCard);
 }
 
 export async function addGangTacticsCards(params: {
