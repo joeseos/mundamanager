@@ -182,14 +182,6 @@ export default function GangTacticsCards({
   };
 
   const columns: ListColumn[] = [
-    {
-      key: 'd66',
-      label: 'D66',
-      align: 'center',
-      width: '4rem',
-      cellClassName: 'tabular-nums text-muted-foreground',
-      render: (_value, item: GangTacticsCard) => formatD66Range(item.d66_min, item.d66_max)
-    },
     { key: 'name', label: 'Name', align: 'left' },
     {
       key: 'description',
