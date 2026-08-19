@@ -26,6 +26,8 @@ export interface ListAction {
 
 export interface ListProps<T = any> {
   title: React.ReactNode;
+  /** Extra classes on the title heading (e.g. flex layout for a trailing badge). */
+  titleClassName?: string;
   description?: React.ReactNode;
   items: T[];
   columns: ListColumn[];
@@ -42,6 +44,7 @@ export interface ListProps<T = any> {
 
 export function List<T = any>({
   title,
+  titleClassName,
   description,
   items,
   columns,
@@ -84,7 +87,7 @@ export function List<T = any>({
   return (
     <div className={`mt-6 ${className}`}>
       <div className="flex flex-wrap justify-between items-center mb-2">
-        <h2 className="text-xl md:text-2xl font-bold">{title}</h2>
+        <h2 className={`text-xl md:text-2xl font-bold${titleClassName ? ` ${titleClassName}` : ''}`}>{title}</h2>
         {(headerActions || onAdd) && (
           <div className="flex flex-wrap items-center gap-2">
             {headerActions}

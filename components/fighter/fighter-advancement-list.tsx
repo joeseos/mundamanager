@@ -9,7 +9,7 @@ import { TypeSpecificData } from '@/types/fighter-effect';
 import { createClient } from '@/utils/supabase/client';
 import { getSkillSetRank } from "@/utils/skillSetRank";
 import { characteristicRank } from "@/utils/characteristicRank";
-import { nextTierStartFor, openAdvancementsFor } from "@/utils/advancementRanks";
+import { openAdvancementsFor } from "@/utils/advancementRanks";
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -51,6 +51,7 @@ import {
 interface AdvancementModalProps {
   fighterId: string;
   currentXp: number;
+  openAdvancements: number;
   editionSlug?: string | null;
   fighterSubtypes: string[];
   advancements: Array<FighterEffectType>;
@@ -477,6 +478,7 @@ type ChampionPendingPromotion = FighterPromotionResult;
 export function AdvancementModal({
   fighterId,
   currentXp,
+  openAdvancements,
   editionSlug = null,
   fighterSubtypes,
   advancements,
@@ -2296,8 +2298,16 @@ export function AdvancementModal({
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <h3 className="text-xl md:text-2xl font-bold text-foreground">Advancements</h3>
           <div className="flex items-center">
-            <span className="mr-2 text-sm text-muted-foreground">XP</span>
-            <span className="bg-green-500 text-white text-sm rounded-full px-2 py-1">{currentXp}</span>
+            {isCumulativeXp ? (
+              <span className="align-middle inline-flex items-center rounded-full bg-green-500 px-2 py-0.5 text-xs font-semibold text-white">
+                Available: {openAdvancements}
+              </span>
+            ) : (
+              <>
+                <span className="mr-2 text-sm text-muted-foreground">XP</span>
+                <span className="bg-green-500 text-white text-sm rounded-full px-2 py-1">{currentXp}</span>
+              </>
+            )}
             <button
               onClick={onClose}
               className="ml-3 text-muted-foreground hover:text-muted-foreground text-xl"
@@ -2930,7 +2940,7 @@ export function AdvancementModal({
               }`}
                 disabled={buyAdvancementDisabled}
               >
-                Buy Advancement
+                Confirm
               </Button>
             </div>
           </div>
@@ -3368,10 +3378,6 @@ export function AdvancementsList({
   }, [advancements, advancementSkills]);
 
   const advancementCount = advancements.length + advancementSkills.length;
-  // Advancements are earned by XP rank rather than bought, so the header tracks
-  // progress toward the next tier instead of counting what has been taken.
-  const nextTierStart = nextTierStartFor(editionSlug, fighterXp);
-  const xpProgress = `${fighterXp}/${nextTierStart ?? '–'}`;
 
   // advancementCount is the taken count: effects plus is_advance skills.
   const openAdvancements = openAdvancementsFor(
@@ -3386,25 +3392,19 @@ export function AdvancementsList({
       <span className="sm:hidden">Advanc.</span>
       <span className="hidden sm:inline">Advancements</span>
       {isCumulativeXp ? (
-        <>
-          {' '}
-          <span className="text-sm sm:hidden">({xpProgress})</span>
-          <span className="text-sm hidden sm:inline">(XP: {xpProgress})</span>
-          {openAdvancements > 0 && (
-            <>
-              {' '}
-              <span className="align-middle inline-flex items-center rounded-full bg-amber-500 px-2 py-0.5 text-xs font-semibold text-white">
-                {openAdvancements}
-              </span>
-            </>
-          )}
-        </>
+        openAdvancements > 0 ? (
+          <span className="ml-auto inline-flex items-center gap-1 mr-1 whitespace-nowrap">
+            <span className="align-middle inline-flex items-center rounded-full bg-green-500 px-2 py-0.5 text-xs font-semibold text-white">
+              <span className="sm:hidden">Avail: {openAdvancements}</span>
+              <span className="hidden sm:inline">Available: {openAdvancements}</span>
+            </span>
+          </span>
+        ) : null
       ) : advancementCount > 0 ? (
-        <>
-          {' '}
+        <span className="ml-auto whitespace-nowrap">
           <span className="text-sm sm:hidden">({advancementCount})</span>
           <span className="text-sm hidden sm:inline">(Adv. count: {advancementCount})</span>
-        </>
+        </span>
       ) : null}
     </>
   );
@@ -3413,6 +3413,7 @@ export function AdvancementsList({
     <>
       <List
         title={title}
+        titleClassName="flex flex-1 items-center min-w-0"
         items={transformedAdvancements}
         columns={isCumulativeXp ? [
           {
@@ -3496,6 +3497,7 @@ export function AdvancementsList({
         <AdvancementModal
           fighterId={fighterId}
           currentXp={fighterXp}
+          openAdvancements={openAdvancements}
           editionSlug={editionSlug}
           fighterSubtypes={fighterSubtypes}
           advancements={advancements}
