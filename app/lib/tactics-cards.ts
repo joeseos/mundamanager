@@ -2,6 +2,7 @@ import { unstable_cache } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import { createServiceRoleClient } from '@/utils/supabase/server';
 import { withEditionSlug } from '@/types/edition';
+import { getEditionIdBySlug } from '@/app/lib/editions';
 import { compareTacticsCards, type TacticsCard } from '@/types/tactics-card';
 
 /**
@@ -34,6 +35,8 @@ const getCachedTacticsCards = unstable_cache(
   }
 );
 
-export async function getTacticsCards(editionId: string): Promise<TacticsCard[]> {
-  return getCachedTacticsCards(editionId);
+export async function getTacticsCards(editionSlug?: string | null): Promise<TacticsCard[]> {
+  if (!editionSlug) return [];
+  const editionId = await getEditionIdBySlug(editionSlug);
+  return editionId ? getCachedTacticsCards(editionId) : [];
 }

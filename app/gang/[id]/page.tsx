@@ -21,6 +21,7 @@ import {
   getUserProfile
 } from '@/app/lib/shared/gang-data';
 import { getGangBattleSessionsCached } from '@/app/lib/battle-sessions/get-battle-session-data';
+import { getTacticsCards } from '@/app/lib/tactics-cards';
 import { hasGangTacticsCards } from '@/types/edition';
 
 export default async function GangPage(props: { params: Promise<{ id: string }> }) {
@@ -69,7 +70,8 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       userProfile,
       userPermissions,
       battleSessions,
-      tacticsCards
+      tacticsCards,
+      tacticsCatalogue
     ] = await Promise.all([
       getGangPositioning(params.id, supabase),
       getGangType(gangBasic, supabase),
@@ -87,6 +89,9 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       // Editions without Gang Tactics never render the section.
       hasGangTacticsCards(gangBasic.edition_slug)
         ? getGangTacticsCards(params.id, supabase)
+        : Promise.resolve([]),
+      hasGangTacticsCards(gangBasic.edition_slug)
+        ? getTacticsCards(gangBasic.edition_slug)
         : Promise.resolve([])
     ]);
 
@@ -151,7 +156,8 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       patron_status: userProfile?.patron_status,
       hidden: gangBasic.hidden,
       battleSessions: battleSessions,
-      tacticsCards: tacticsCards
+      tacticsCards: tacticsCards,
+      tacticsCatalogue: tacticsCatalogue
     };
 
     return (

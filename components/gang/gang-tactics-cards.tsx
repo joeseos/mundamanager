@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Tooltip } from 'react-tooltip';
 import { BiSolidNotepad } from 'react-icons/bi';
@@ -28,8 +27,9 @@ import {
 
 interface GangTacticsCardsProps {
   gangId: string;
-  editionSlug?: string | null;
   tacticsCards: GangTacticsCard[];
+  /** The edition's catalogue, for the Add picker. */
+  catalogue: TacticsCard[];
   /** Tab bodies unmount on switch, so the list itself lives in the page. */
   onTacticsCardsUpdate: (cards: GangTacticsCard[]) => void;
   userPermissions: UserPermissions;
@@ -39,8 +39,8 @@ const TOOLTIP_ID = 'gang-tactics-description-tooltip';
 
 export default function GangTacticsCards({
   gangId,
-  editionSlug,
   tacticsCards,
+  catalogue,
   onTacticsCardsUpdate,
   userPermissions
 }: GangTacticsCardsProps) {
@@ -57,17 +57,6 @@ export default function GangTacticsCards({
     () => new Set(tacticsCards.map(card => card.tactics_cards_id)),
     [tacticsCards]
   );
-
-  const { data: catalogue = [], isLoading: isLoadingCatalogue, error: catalogueError } = useQuery<TacticsCard[]>({
-    queryKey: ['tactics-cards', editionSlug],
-    queryFn: async () => {
-      const response = await fetch(`/api/tactics-cards?edition_slug=${editionSlug}`);
-      if (!response.ok) throw new Error('Failed to fetch tactics cards');
-      return response.json();
-    },
-    staleTime: 5 * 60 * 1000,
-    enabled: isAddModalOpen && !!editionSlug
-  });
 
   const handleOpenAddModal = () => {
     setSelectedCardIds(new Set());
@@ -249,11 +238,7 @@ export default function GangTacticsCards({
           helper="Pick the tactics cards this gang holds."
           content={
             <div>
-              {isLoadingCatalogue ? (
-                <p className="text-muted-foreground italic text-center py-4">Loading tactics cards...</p>
-              ) : catalogueError ? (
-                <p className="text-muted-foreground italic text-center py-4">Failed to load tactics cards.</p>
-              ) : catalogue.length === 0 ? (
+              {catalogue.length === 0 ? (
                 <p className="text-muted-foreground italic text-center py-4">No tactics cards available.</p>
               ) : (
                 <div className="max-h-96 overflow-y-auto border border-border rounded-lg">
