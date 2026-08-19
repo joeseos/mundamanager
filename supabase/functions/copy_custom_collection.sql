@@ -100,10 +100,13 @@ BEGIN
                     WHERE cs.id = ANY(v_sk) AND cs.custom_skill_type_id IS NOT NULL
             ) s WHERE t IS NOT NULL);
 
-    -- all skills belonging to in-scope skill types (clone the whole set)
+    -- all skills belonging to in-scope skill types, as their author defined them.
+    -- Owner-scoped for the same reason as the fighter closure above.
     v_sk := ARRAY(SELECT DISTINCT k FROM (
               SELECT unnest(v_sk) AS k
-              UNION SELECT cs.id FROM public.custom_skills cs WHERE cs.custom_skill_type_id = ANY(v_st)
+              UNION SELECT cs.id FROM public.custom_skills cs
+                    JOIN public.custom_skill_types cst ON cst.id = cs.custom_skill_type_id
+                    WHERE cs.custom_skill_type_id = ANY(v_st) AND cs.user_id = cst.user_id
             ) s WHERE k IS NOT NULL);
 
     -- equipment referenced by fighter defaults / fighter equipment / trading posts

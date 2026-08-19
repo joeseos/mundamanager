@@ -129,7 +129,7 @@ export async function GET(
           description,
           created_at,
           updated_at,
-          skill_types (name),
+          skill_types (name, editions:edition_id (slug)),
           custom_skill_types (name, editions:edition_id (slug))
         `)
         .eq('user_id', userId)
@@ -156,8 +156,9 @@ export async function GET(
       description: skill.description,
       created_at: skill.created_at,
       updated_at: skill.updated_at,
-      // A custom skill inherits its type's edition.
-      edition_slug: editionSlugFromJoin(skill.custom_skill_types?.editions),
+      // A custom skill inherits its type's edition. Custom wins, matching getUserCustomSkills.
+      edition_slug: editionSlugFromJoin(skill.custom_skill_types?.editions)
+        ?? editionSlugFromJoin(skill.skill_types?.editions),
     }));
 
     // Fetch the user's collections (with resolved item names)
