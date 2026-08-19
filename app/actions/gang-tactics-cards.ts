@@ -9,6 +9,7 @@ import {
   GANG_TACTICS_CARD_SELECT,
   normaliseTacticsDescription,
   TACTICS_DESCRIPTION_CHAR_LIMIT,
+  toGangTacticsCard,
   type GangTacticsCard
 } from '@/types/tactics-card';
 
@@ -79,7 +80,7 @@ async function selectGangTacticsCards(
 
   if (error) throw error;
 
-  return (data ?? []) as unknown as GangTacticsCard[];
+  return (data ?? []).map(toGangTacticsCard);
 }
 
 export async function addGangTacticsCards(params: {
@@ -97,11 +98,10 @@ export async function addGangTacticsCards(params: {
       return { success: false, error: 'No tactics cards selected' };
     }
 
-    // The browser can post any uuid, so don't trust what the picker sent. The
-    // same read supplies the name and D66 snapshotted onto the gang row.
+    // The browser can post any uuid, so don't trust what the picker sent.
     let catalogueQuery = supabase
       .from('tactics_cards')
-      .select('id, name, d66_min, d66_max')
+      .select('id')
       .in('id', tacticsCardIds);
 
     if (auth.context.editionId) {
@@ -119,13 +119,7 @@ export async function addGangTacticsCards(params: {
     const { error: insertError } = await supabase
       .from('gang_tactics_cards')
       .upsert(
-        (catalogue ?? []).map((card: any) => ({
-          gang_id: params.gangId,
-          tactics_cards_id: card.id,
-          name: card.name,
-          d66_min: card.d66_min,
-          d66_max: card.d66_max
-        })),
+        tacticsCardIds.map(id => ({ gang_id: params.gangId, tactics_cards_id: id })),
         { onConflict: 'gang_id,tactics_cards_id', ignoreDuplicates: true }
       );
 
