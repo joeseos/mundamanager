@@ -117,7 +117,6 @@ export const CACHE_TAGS = {
   GLOBAL_GANG_TYPES: () => `global-gang-types`,                       // gang type options
   GLOBAL_FIGHTER_TYPES: () => `global-fighter-types`,                 // fighter type options
   GLOBAL_TERRITORIES_LIST: () => `global-territories-list`,           // territory options
-  GLOBAL_TACTICS_CARDS: () => `global-tactics-cards`,                 // tactics card catalogue (migration-only)
   GLOBAL_CAMPAIGN_TYPES: () => `campaign-types`,                      // campaign type options
   GLOBAL_PATREON_SUPPORTERS: () => `global-patreon-supporters`,       // patreon supporters list
   GLOBAL_USER_COUNT: () => `global-user-count`,                       // total user count for homepage

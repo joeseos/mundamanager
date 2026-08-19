@@ -22,26 +22,12 @@ export interface GangTacticsCard {
 
 export const TACTICS_DESCRIPTION_CHAR_LIMIT = 1500;
 
-/** The gang_tactics_cards select every fetcher of these rows uses. */
-export const GANG_TACTICS_CARD_SELECT = `
-  id,
-  description,
-  tactics_cards_id,
-  tactics_cards:tactics_cards_id ( name, d66_min, d66_max )
-`;
-
-/** Flattens a GANG_TACTICS_CARD_SELECT row; the to-one embed may widen to an array. */
-export function toGangTacticsCard(row: any): GangTacticsCard {
-  const card = Array.isArray(row.tactics_cards) ? row.tactics_cards[0] : row.tactics_cards;
-  return {
-    id: row.id,
-    tactics_cards_id: row.tactics_cards_id,
-    name: card?.name ?? 'Unknown Tactic',
-    d66_min: card?.d66_min ?? null,
-    d66_max: card?.d66_max ?? null,
-    description: row.description ?? null
-  };
-}
+/**
+ * Name and D66 are snapshotted onto gang_tactics_cards when the card is added,
+ * so reading a gang's tactics never touches the catalogue.
+ */
+export const GANG_TACTICS_CARD_SELECT =
+  'id, tactics_cards_id, name, d66_min, d66_max, description';
 
 export function formatD66Range(
   min: number | null | undefined,

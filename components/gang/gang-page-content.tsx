@@ -18,7 +18,7 @@ import { LuClipboard, LuSwords } from 'react-icons/lu';
 import GangBattleSessions from "@/components/gang/battle-sessions-tab";
 import GangTacticsCards from "@/components/gang/gang-tactics-cards";
 import type { BattleSession } from "@/types/battle-session";
-import type { GangTacticsCard, TacticsCard } from "@/types/tactics-card";
+import type { GangTacticsCard } from "@/types/tactics-card";
 import { FighterCardModalsProvider } from "@/components/gang/fighter-card-modals-context";
 import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { InjuriesList } from "@/components/fighter/fighter-injury-list";
@@ -82,7 +82,6 @@ interface GangDataState {
     hidden: boolean;
     battleSessions?: BattleSession[];
     tacticsCards?: GangTacticsCard[];
-    tacticsCatalogue?: TacticsCard[];
   };
   stash: StashItem[];
 }
@@ -748,8 +747,8 @@ export default function GangPageContent({
             <div className="bg-card shadow-md rounded-lg p-4">
               <GangTacticsCards
                 gangId={gangId}
+                editionSlug={gangData.processedData.edition_slug}
                 tacticsCards={gangData.processedData.tacticsCards || []}
-                catalogue={gangData.processedData.tacticsCatalogue || []}
                 onTacticsCardsUpdate={handleTacticsCardsUpdate}
                 userPermissions={userPermissions}
               />

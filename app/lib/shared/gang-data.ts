@@ -6,7 +6,7 @@ import { WeaponProfile } from '@/types/equipment';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang';
 import { gangEditionSlug } from '@/types/edition';
-import { GangTacticsCard, GANG_TACTICS_CARD_SELECT, toGangTacticsCard } from '@/types/tactics-card';
+import { GangTacticsCard, GANG_TACTICS_CARD_SELECT } from '@/types/tactics-card';
 
 // =============================================================================
 // TYPES - Shared interfaces for gang data
@@ -325,8 +325,8 @@ export const getGangPositioning = async (gangId: string, supabase: any): Promise
 };
 
 /**
- * Get the Gang Tactics cards a gang holds, flattened with their catalogue name
- * and D66 range. Callers gate on hasGangTacticsCards(), not this.
+ * Get the Gang Tactics cards a gang holds. Callers gate on
+ * hasGangTacticsCards(), not this.
  * Cache: BASE_GANG_TACTICS_CARDS
  */
 export const getGangTacticsCards = async (gangId: string, supabase: any): Promise<GangTacticsCard[]> => {
@@ -339,7 +339,7 @@ export const getGangTacticsCards = async (gangId: string, supabase: any): Promis
 
       if (error) throw error;
 
-      return (data ?? []).map(toGangTacticsCard);
+      return (data ?? []) as GangTacticsCard[];
     },
     [`gang-tactics-cards-${gangId}`],
     {

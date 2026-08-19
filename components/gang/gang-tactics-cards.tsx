@@ -1,7 +1,9 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { createClient } from '@/utils/supabase/client';
 import { Tooltip } from 'react-tooltip';
 import { BiSolidNotepad } from 'react-icons/bi';
 import { LuSquarePen, LuTrash2 } from 'react-icons/lu';
@@ -11,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { List, ListAction, ListColumn } from '@/components/ui/list';
 import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import { UserPermissions } from '@/types/user-permissions';
+import { withEditionSlug } from '@/types/edition';
 import {
   compareTacticsCards,
   formatD66Range,
@@ -27,9 +30,8 @@ import {
 
 interface GangTacticsCardsProps {
   gangId: string;
+  editionSlug?: string | null;
   tacticsCards: GangTacticsCard[];
-  /** The edition's catalogue, for the Add picker. */
-  catalogue: TacticsCard[];
   /** Tab bodies unmount on switch, so the list itself lives in the page. */
   onTacticsCardsUpdate: (cards: GangTacticsCard[]) => void;
   userPermissions: UserPermissions;
@@ -39,8 +41,8 @@ const TOOLTIP_ID = 'gang-tactics-description-tooltip';
 
 export default function GangTacticsCards({
   gangId,
+  editionSlug,
   tacticsCards,
-  catalogue,
   onTacticsCardsUpdate,
   userPermissions
 }: GangTacticsCardsProps) {
@@ -57,6 +59,24 @@ export default function GangTacticsCards({
     () => new Set(tacticsCards.map(card => card.tactics_cards_id)),
     [tacticsCards]
   );
+
+  // RLS opens tactics_cards to any authenticated user, so the picker reads it
+  // directly rather than through a route of its own.
+  const { data: catalogue = [], isLoading: isLoadingCatalogue, error: catalogueError } = useQuery<TacticsCard[]>({
+    queryKey: ['tactics-cards', editionSlug],
+    queryFn: async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('tactics_cards')
+        .select('id, name, d66_min, d66_max, editions!inner ( slug )')
+        .eq('editions.slug', editionSlug);
+
+      if (error) throw error;
+      return (data ?? []).map(withEditionSlug).sort(compareTacticsCards) as TacticsCard[];
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: isAddModalOpen && !!editionSlug
+  });
 
   const handleOpenAddModal = () => {
     setSelectedCardIds(new Set());
@@ -238,7 +258,11 @@ export default function GangTacticsCards({
           helper="Pick the tactics cards this gang holds."
           content={
             <div>
-              {catalogue.length === 0 ? (
+              {isLoadingCatalogue ? (
+                <p className="text-muted-foreground italic text-center py-4">Loading tactics cards...</p>
+              ) : catalogueError ? (
+                <p className="text-muted-foreground italic text-center py-4">Failed to load tactics cards.</p>
+              ) : catalogue.length === 0 ? (
                 <p className="text-muted-foreground italic text-center py-4">No tactics cards available.</p>
               ) : (
                 <div className="max-h-96 overflow-y-auto border border-border rounded-lg">
