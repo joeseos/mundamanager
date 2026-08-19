@@ -1168,6 +1168,7 @@ export default function CampaignPageContent({
         fetchUrl={`/api/campaigns/${campaignData.id}/logs`}
         title="Campaign Activity Logs"
         emptyMessage="No activity logs found for this campaign."
+        editionSlug={campaignData.edition_slug ?? null}
         isOpen={showLogsModal}
         onClose={() => setShowLogsModal(false)}
       />

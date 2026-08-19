@@ -1363,6 +1363,7 @@ export default function Gang({
 
           <LogModal
             fetchUrl={`/api/gangs/${id}/logs`}
+            editionSlug={edition_slug}
             isOpen={showLogsModal}
             onClose={() => setShowLogsModal(false)}
             fighters={allFightersForLogs}
