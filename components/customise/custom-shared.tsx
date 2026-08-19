@@ -117,8 +117,6 @@ function ShareToCampaignsModal({
         toast.success(campaignIds.length > 0
           ? `${noun} shared to ${campaignIds.length} campaign${campaignIds.length !== 1 ? 's' : ''}`
           : `${noun} unshared from all campaigns`);
-        // A cascade that skipped assets still counts as success, but silently sharing
-        // less than the user selected is the failure mode this reports.
         if (result.warning) toast.warning(result.warning);
         for (const key of invalidateKeys) queryClient.invalidateQueries({ queryKey: key });
         queryClient.invalidateQueries({ queryKey: sharedQueryKey });

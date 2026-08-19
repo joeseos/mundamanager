@@ -156,7 +156,7 @@ export async function GET(
       description: skill.description,
       created_at: skill.created_at,
       updated_at: skill.updated_at,
-      // A custom skill has no edition of its own; it inherits its type's.
+      // A custom skill inherits its type's edition.
       edition_slug: editionSlugFromJoin(skill.custom_skill_types?.editions),
     }));
 
@@ -306,9 +306,8 @@ export async function GET(
       }));
     }
 
-    // Every custom asset carries its edition_slug: the profile filters these by
-    // edition and the copy action stamps the copy with it, so a missing slug
-    // would read as N23 and mis-stamp a copy of an N26 asset.
+    // edition_slug on every asset: the profile filters on it and the copy action
+    // stamps the copy with it, so a missing one reads as N23.
     const customAssetsData = {
       equipment: (customEquipmentResult.data || []).map(withEditionSlug),
       fighters: fightersWithExtendedData,

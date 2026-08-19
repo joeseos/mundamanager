@@ -37,9 +37,8 @@ export async function createChemAlchemy({
     // Get the current user with optimized getClaims()
     const user = await getAuthenticatedUser(supabase);
 
-    // The gang's edition comes with the credits read: an elixir is custom_equipment,
-    // which needs an edition_id, and the gang it is crafted for is the only context
-    // that has one. Gangs have no edition of their own — it derives via the gang type.
+    // Elixirs are custom_equipment and need an edition; the gang is the only context
+    // that has one, derived via its gang type.
     const { data: gangData, error: gangFetchError } = await supabase
       .from('gangs')
       .select(`
@@ -55,8 +54,6 @@ export async function createChemAlchemy({
       throw new Error('Failed to fetch gang information');
     }
 
-    // Gate on the capability, not on the caller: the button is also hidden client-side,
-    // but a gang type id alone does not say which edition it belongs to.
     const gangEdition = gangEditionJoin(gangData);
     if (!hasChemAlchemy(gangEdition?.slug)) {
       throw new Error('Chem-Alchemy is not available for this gang edition');

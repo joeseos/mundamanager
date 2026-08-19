@@ -69,9 +69,8 @@ BEGIN
               + cardinality(v_gt) + cardinality(v_ft) + cardinality(v_tp);
 
     -- fighter types belonging to in-scope gang types, as their author defined them.
-    -- Scoped to the gang type's owner: RLS SELECT here is USING (true), so an
-    -- unscoped pull also clones fighters that other users attached to the same
-    -- gang type -- foreign rows, in whatever edition they happen to carry.
+    -- Scoped to the owner: SELECT RLS here is USING (true), so an unscoped pull also
+    -- clones fighters other users attached to the same gang type.
     v_ft := ARRAY(SELECT DISTINCT f FROM (
               SELECT unnest(v_ft) AS f
               UNION SELECT cft.id FROM public.custom_fighter_types cft

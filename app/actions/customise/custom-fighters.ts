@@ -122,8 +122,6 @@ async function getCompleteCustomFighter(
   const defaultsData = (completeFighter.fighter_defaults || []) as any[];
   const equipmentListData = (completeFighter.custom_fighter_type_equipment || []) as any[];
 
-  // withEditionSlug, not a bare spread: the copy action stamps a copy with the
-  // source's edition_slug, so a row that lost it here would be re-badged N23.
   const transformedFighter: CustomFighterType = {
     ...withEditionSlug(completeFighter),
     skill_access: skillAccessData.map((sa) => ({
@@ -173,11 +171,8 @@ async function getCompleteCustomFighter(
 }
 
 /**
- * A fighter attached to a custom gang type belongs to that gang type's edition,
- * whatever the caller says. The caller's slug reflects whichever tab it was on,
- * and a stale or missing one used to stamp an N26 fighter as N23 -- which then
- * blocks sharing the gang type, since one cross-edition row aborts the batch.
- * Falls back to the slug only when there is no custom parent to ask.
+ * A fighter belongs to its custom gang type's edition, not to whichever tab the
+ * caller was on. Falls back to the slug only when there is no custom parent.
  */
 async function resolveFighterEditionId(
   supabase: Awaited<ReturnType<typeof createClient>>,

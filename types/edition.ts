@@ -144,11 +144,7 @@ const EDITION_CAPABILITIES = {
   equipmentSuperCategories: { n23: false, n26: true  },
   /** Weapons can be bought master-crafted, at a higher rating cost */
   masterCraftedWeapons:     { n23: true,  n26: false },
-  /**
-   * Chem-Alchemy: House Escher crafts custom elixirs into the gang stash. The
-   * button was previously reachable only via a hardcoded N23 Escher gang type id,
-   * which gated the edition by accident — N26 Escher is a different row.
-   */
+  /** House Escher crafts custom elixirs into the gang stash */
   chemAlchemy:              { n23: true,  n26: false },
   /** Gang / fighter-type Law Abiding vs Outlaw alignment */
   alignment:                { n23: true,  n26: false },

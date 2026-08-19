@@ -45,11 +45,8 @@ async function assertCampaignsMatchEdition(
 }
 
 /**
- * Cascaded children are shared under the root item's edition, but the cascade
- * queries walk relationships, not editions, so a child of another edition can be
- * swept in. The custom_shared trigger rejects it and one bad row aborts the whole
- * batch insert -- so drop it here and name it, rather than losing the entire share
- * to a stray asset.
+ * Cascade queries walk relationships, not editions. One child of another edition
+ * makes the custom_shared trigger abort the whole batch, so drop it and name it.
  */
 function partitionByEdition<T extends Record<string, any>>(
   rows: T[],
@@ -67,7 +64,6 @@ function partitionByEdition<T extends Record<string, any>>(
   return { kept, dropped };
 }
 
-/** Human-readable summary of what a cascade filter skipped, or undefined if nothing was. */
 function droppedWarning(dropped: { name?: string | null }[], kind: string): string | undefined {
   if (dropped.length === 0) return undefined;
   const names = dropped.map(d => d.name).filter(Boolean);
@@ -78,11 +74,7 @@ function droppedWarning(dropped: { name?: string | null }[], kind: string): stri
     : `Skipped ${dropped.length} ${kind} from a different edition`;
 }
 
-/**
- * The custom_shared trigger raises plain-text exceptions that would otherwise reach
- * the user's toast verbatim. Everything else passes through -- an unmapped Postgres
- * message is still more useful than a generic failure.
- */
+/** The custom_shared trigger's exceptions would otherwise reach the toast verbatim. */
 function friendlyShareError(prefix: string, message: string): string {
   if (message.includes('from a different edition')) {
     return `${prefix}: one of the shared assets is from a different edition than the campaign`;
@@ -159,8 +151,6 @@ export async function shareCustomFighter(customFighterTypeId: string, campaignId
         .map(a => a.custom_skill_type_id)
         .filter(Boolean) as string[];
 
-      // A skill type from another edition would be rejected by the trigger and take
-      // every other cascaded skill down with it, so filter before building the batch.
       let customSkillTypeIds: string[] = [];
       if (referencedSkillTypeIds.length > 0) {
         const { data: skillTypes } = await supabase
@@ -211,9 +201,8 @@ export async function shareCustomFighter(customFighterTypeId: string, campaignId
               .from('custom_shared')
               .insert(newSkillShares);
 
-            // Non-fatal: the fighter itself is already shared. Surfaced rather than
-            // swallowed, because one bad row fails every cascaded skill together and
-            // the user would otherwise see an unqualified success.
+            // Non-fatal: the fighter is already shared. Surfaced, not swallowed —
+            // one bad row fails every cascaded skill together.
             if (shareSkillsError) {
               console.error('Error auto-sharing custom skills for fighter:', shareSkillsError);
               warning = 'The fighter was shared, but its custom skills could not be shared';
@@ -297,8 +286,6 @@ export async function shareCustomGangType(customGangTypeId: string, campaignIds:
         .eq('custom_gang_type_id', customGangTypeId)
         .eq('user_id', user.id);
 
-      // Owning the fighter is not enough: a copy path could have stamped it with a
-      // different edition, and the trigger would then fail the whole batch.
       const fighterSplit = partitionByEdition(
         (relatedFighters ?? []).map(f => ({ ...f, name: (f as any).fighter_type })),
         gangTypeEdition
@@ -700,10 +687,7 @@ export async function shareCollection(collectionId: string, campaignIds: string[
     const skillIds = new Set(items.filter(i => i.type === 'skill').map(i => i.id));
     const tradingPostIds = new Set(items.filter(i => i.type === 'trading_post').map(i => i.id));
 
-    // Cascade: gang types -> their custom fighter types.
-    // Filtered by edition, not just ownership: a fighter copied from another user's
-    // profile could be stamped with a different edition than the gang type it hangs
-    // off, and one such row makes the trigger abort the entire batch insert below.
+    // Cascade: gang types -> their custom fighter types
     if (gangTypeIds.size > 0) {
       const { data: fighters } = await supabase
         .from('custom_fighter_types')
