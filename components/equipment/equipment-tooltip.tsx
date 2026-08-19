@@ -4,29 +4,7 @@ import React from 'react';
 import { Tooltip, type TooltipRefProps } from 'react-tooltip';
 import { Equipment, WeaponProfile } from '@/types/equipment';
 import { hasLethalityStatline } from '@/types/edition';
-
-const COARSE_MQ = '(hover: none) and (pointer: coarse)';
-let _coarseMql: MediaQueryList | null = null;
-const getCoarseMql = () => {
-  if (typeof window === 'undefined') return null;
-  return (_coarseMql ??= window.matchMedia(COARSE_MQ));
-};
-
-const subscribeCoarsePointer = (onStoreChange: () => void) => {
-  const mql = getCoarseMql();
-  mql?.addEventListener('change', onStoreChange);
-  return () => mql?.removeEventListener('change', onStoreChange);
-};
-const getCoarsePointerSnapshot = () => getCoarseMql()?.matches ?? false;
-const getCoarsePointerServerSnapshot = () => false;
-
-function useCoarsePointer() {
-  return React.useSyncExternalStore(
-    subscribeCoarsePointer,
-    getCoarsePointerSnapshot,
-    getCoarsePointerServerSnapshot,
-  );
-}
+import { useCoarsePointer } from '@/hooks/use-coarse-pointer';
 
 export interface EquipmentTooltipOptions {
   equipmentListType?: 'fighters-list' | 'fighters-tradingpost' | 'unrestricted';

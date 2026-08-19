@@ -51,7 +51,7 @@ import {
 interface AdvancementModalProps {
   fighterId: string;
   currentXp: number;
-  fighterStartingXp?: number | null;
+  openAdvancements: number;
   editionSlug?: string | null;
   fighterSubtypes: string[];
   advancements: Array<FighterEffectType>;
@@ -478,7 +478,7 @@ type ChampionPendingPromotion = FighterPromotionResult;
 export function AdvancementModal({
   fighterId,
   currentXp,
-  fighterStartingXp = null,
+  openAdvancements,
   editionSlug = null,
   fighterSubtypes,
   advancements,
@@ -536,20 +536,6 @@ export function AdvancementModal({
   // one table and no XP price is ever paid. The N23 subtype-specific tables and
   // escalating costs do not apply.
   const isCumulativeXp = hasCumulativeXp(editionSlug);
-
-  const advancementCount = useMemo(() => {
-    const advanceSkillCount = Object.values(skills).filter(
-      (skill) => skill && (skill as { is_advance?: boolean }).is_advance
-    ).length;
-    return advancements.length + advanceSkillCount;
-  }, [advancements, skills]);
-
-  const openAdvancements = openAdvancementsFor(
-    editionSlug,
-    fighterStartingXp,
-    currentXp,
-    advancementCount,
-  );
 
   /**
    * The characteristic list is derived from the RPC's map, not fetched and stored:
@@ -3511,7 +3497,7 @@ export function AdvancementsList({
         <AdvancementModal
           fighterId={fighterId}
           currentXp={fighterXp}
-          fighterStartingXp={fighterStartingXp}
+          openAdvancements={openAdvancements}
           editionSlug={editionSlug}
           fighterSubtypes={fighterSubtypes}
           advancements={advancements}

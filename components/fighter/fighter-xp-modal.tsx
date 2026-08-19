@@ -16,7 +16,7 @@ import { useCampaignGangFighterOptions } from '@/utils/campaign-gang-fighter-opt
 import { XP_CASES, xpAwardsFor, type XpCaseDef, type XpCaseId } from '@/utils/xpCases';
 import { hasCumulativeXp } from '@/types/edition';
 import { nextTierStartFor } from '@/utils/advancementRanks';
-import { XpLadderTooltip } from '@/components/ui/fighter-details-stats-table';
+import { XpLadderTooltip } from '@/components/ui/xp-ladder-tooltip';
 import { toast } from 'sonner';
 
 type OoaEventType = 'out_of_action' | 'vehicle_wrecked';
