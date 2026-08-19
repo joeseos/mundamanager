@@ -150,8 +150,7 @@ export const invalidateUserGangsList = (userId: string) => {
 /**
  * Gang Tactics invalidation.
  * Triggered when: a gang's tactics cards are added, described or removed.
- * Data changed: the gang's tactics card list only — nothing feeds rating,
- * credits or the fighters list, so this stays a single tag.
+ * Data changed: that list only — nothing feeds rating, credits or fighters.
  */
 export const invalidateGangTacticsCards = (gangId: string) => {
   revalidateTag(CACHE_TAGS.BASE_GANG_TACTICS_CARDS(gangId), { expire: 0 });

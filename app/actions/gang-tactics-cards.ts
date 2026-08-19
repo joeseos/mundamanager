@@ -21,16 +21,14 @@ interface AddGangTacticsCardsResult extends GangTacticsResult {
   data?: GangTacticsCard[];
 }
 
-/** What every action here needs once the caller has been cleared. */
 interface GangTacticsContext {
-  /** The gang's edition uuid, for scoping which catalogue cards it may hold. */
   editionId: string | null;
 }
 
 /**
- * Authenticate, confirm the caller may edit this gang, and confirm the gang's
- * edition actually has Gang Tactics. RLS enforces the first two again at the
- * database, but failing here returns a usable message instead of a raw error.
+ * Authenticate, confirm the caller may edit this gang, and confirm the edition
+ * has Gang Tactics. RLS enforces the first two again, but failing here returns
+ * a usable message instead of a raw error.
  */
 async function authoriseGangTactics(
   supabase: any,
@@ -65,7 +63,6 @@ async function authoriseGangTactics(
   return { context: { editionId: gangEditionJoin(gang)?.id ?? null } };
 }
 
-/** Re-reads gang rows joined to the catalogue, flattened for the client. */
 async function selectGangTacticsCards(
   supabase: any,
   gangId: string,
@@ -114,8 +111,7 @@ export async function addGangTacticsCards(params: {
       return { success: false, error: 'No tactics cards selected' };
     }
 
-    // The browser can post any uuid, so confirm every id is a real card in this
-    // gang's edition rather than trusting what the picker sent.
+    // The browser can post any uuid, so don't trust what the picker sent.
     let catalogueQuery = supabase
       .from('tactics_cards')
       .select('id')
@@ -132,8 +128,7 @@ export async function addGangTacticsCards(params: {
       return { success: false, error: 'One or more tactics cards are not available for this gang' };
     }
 
-    // ignoreDuplicates so a stale picker can't 23505 on the
-    // (gang_id, tactics_cards_id) unique constraint.
+    // ignoreDuplicates so a stale picker can't 23505 on (gang_id, tactics_cards_id).
     const { error: insertError } = await supabase
       .from('gang_tactics_cards')
       .upsert(

@@ -84,8 +84,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       getUserProfile(gangBasic.user_id, supabase),
       checkPermissionCached(user.id, params.id, gangBasic.user_id),
       getGangBattleSessionsCached(params.id, supabase),
-      // Editions without a tactics catalogue never render the section, so skip
-      // the query entirely rather than caching an always-empty list.
+      // Editions without Gang Tactics never render the section.
       hasGangTacticsCards(gangBasic.edition_slug)
         ? getGangTacticsCards(params.id, supabase)
         : Promise.resolve([])

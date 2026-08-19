@@ -58,7 +58,6 @@ export default function GangTacticsCards({
     [tacticsCards]
   );
 
-  // Only the picker needs the catalogue, so it stays unfetched until opened.
   const { data: catalogue = [], isLoading: isLoadingCatalogue, error: catalogueError } = useQuery<TacticsCard[]>({
     queryKey: ['tactics-cards', editionSlug],
     queryFn: async () => {
@@ -100,8 +99,7 @@ export default function GangTacticsCards({
       if (!result.success) throw new Error(result.error);
 
       const added = result.data ?? [];
-      // Re-adding an existing card is a no-op server-side, so merge on id
-      // rather than appending blindly.
+      // Re-adding an existing card is a server-side no-op, so merge rather than append.
       const byId = new Map(tacticsCards.map(card => [card.id, card]));
       added.forEach(card => byId.set(card.id, card));
       onTacticsCardsUpdate(Array.from(byId.values()));

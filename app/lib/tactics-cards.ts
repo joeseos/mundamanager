@@ -6,11 +6,8 @@ import { compareTacticsCards, type TacticsCard } from '@/types/tactics-card';
 
 /**
  * The tactics_cards catalogue for one edition. Service role because every user
- * of that edition reads the same rows.
- *
- * Like editions, revalidation has to be time-based: the catalogue is seeded by
- * migration and RLS restricts writes to admins, so no app code path can call
- * revalidateTag on it.
+ * of that edition reads the same rows. Revalidation is time-based for the same
+ * reason as editions: nothing in the app can call revalidateTag on it.
  */
 const getCachedTacticsCards = unstable_cache(
   async (editionId: string): Promise<TacticsCard[]> => {
@@ -33,7 +30,7 @@ const getCachedTacticsCards = unstable_cache(
   ['global-tactics-cards'],
   {
     tags: [CACHE_TAGS.GLOBAL_TACTICS_CARDS()],
-    revalidate: 3600, // 1 hour — the catalogue only ever changes via migration
+    revalidate: 3600, // 1 hour — the catalogue only changes via migration
   }
 );
 

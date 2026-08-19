@@ -326,8 +326,7 @@ export const getGangPositioning = async (gangId: string, supabase: any): Promise
 
 /**
  * Get the Gang Tactics cards a gang holds, flattened with their catalogue name
- * and D66 range. Callers gate on hasGangTacticsCards() — this does not, so it
- * stays usable for any edition whose catalogue is seeded later.
+ * and D66 range. Callers gate on hasGangTacticsCards(), not this.
  * Cache: BASE_GANG_TACTICS_CARDS
  */
 export const getGangTacticsCards = async (gangId: string, supabase: any): Promise<GangTacticsCard[]> => {
@@ -346,8 +345,7 @@ export const getGangTacticsCards = async (gangId: string, supabase: any): Promis
       if (error) throw error;
 
       return (data ?? []).map((row: any) => {
-        // PostgREST returns a to-one embed as an object, but generated types
-        // sometimes widen it to an array.
+        // A to-one embed comes back as an object, but can be widened to an array.
         const card = Array.isArray(row.tactics_cards) ? row.tactics_cards[0] : row.tactics_cards;
         return {
           id: row.id,

@@ -7,8 +7,7 @@ import { hasGangTacticsCards } from '@/types/edition';
 
 /**
  * The Gang Tactics catalogue for one edition, for the "Add Gang Tactics" picker.
- * The caller passes the slug it already holds (a gang page knows its own
- * edition), so this never has to resolve a gang.
+ * The caller passes the slug it already holds, so this never resolves a gang.
  */
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -27,8 +26,8 @@ export async function GET(request: Request) {
       );
     }
 
-    // An edition without a catalogue would otherwise return an empty list,
-    // which reads as "none seeded yet" rather than "not a thing here".
+    // Otherwise an edition without Gang Tactics returns an empty list, which
+    // reads as "none seeded yet" rather than "not a thing here".
     if (!hasGangTacticsCards(editionSlug)) {
       return NextResponse.json(
         { error: 'Unsupported edition', details: `Gang Tactics are not available for '${editionSlug}'` },
