@@ -1,6 +1,5 @@
 export const allianceRankN26: { [key: string]: number } = {
 "psi-syndica": 1,
-"rogue factoria": 2,
 //
 "mercator pallidus": 10,
 "mercator nautica": 11,
