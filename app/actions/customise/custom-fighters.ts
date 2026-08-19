@@ -4,6 +4,7 @@ import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { getEditionIdBySlug } from '@/app/lib/editions';
 import { CustomFighterType } from '@/types/fighter';
+import { withEditionSlug } from '@/types/edition';
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
 import { removeItemFromAllCollections } from './custom-collections';
 import { invalidateUserCustomFighters, invalidateUserCustomCollections } from '@/utils/cache-tags';
@@ -63,6 +64,7 @@ async function getCompleteCustomFighter(
     .from('custom_fighter_types')
     .select(`
       *,
+      editions:edition_id (slug),
       fighter_type_skill_access (
         skill_type_id,
         custom_skill_type_id,
@@ -120,8 +122,10 @@ async function getCompleteCustomFighter(
   const defaultsData = (completeFighter.fighter_defaults || []) as any[];
   const equipmentListData = (completeFighter.custom_fighter_type_equipment || []) as any[];
 
+  // withEditionSlug, not a bare spread: the copy action stamps a copy with the
+  // source's edition_slug, so a row that lost it here would be re-badged N23.
   const transformedFighter: CustomFighterType = {
-    ...completeFighter,
+    ...withEditionSlug(completeFighter),
     skill_access: skillAccessData.map((sa) => ({
       skill_type_id: sa.skill_type_id || sa.custom_skill_type_id,
       access_level: sa.access_level,
@@ -168,6 +172,42 @@ async function getCompleteCustomFighter(
   return { data: transformedFighter };
 }
 
+/**
+ * A fighter attached to a custom gang type belongs to that gang type's edition,
+ * whatever the caller says. The caller's slug reflects whichever tab it was on,
+ * and a stale or missing one used to stamp an N26 fighter as N23 -- which then
+ * blocks sharing the gang type, since one cross-edition row aborts the batch.
+ * Falls back to the slug only when there is no custom parent to ask.
+ */
+async function resolveFighterEditionId(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  data: CreateCustomFighterData
+): Promise<string | null> {
+  if (!data.custom_gang_type_id) {
+    return getEditionIdBySlug(data.edition_slug);
+  }
+
+  const { data: parent, error } = await supabase
+    .from('custom_gang_types')
+    .select('edition_id, editions:edition_id (slug)')
+    .eq('id', data.custom_gang_type_id)
+    .single();
+
+  if (error || !parent?.edition_id) {
+    return getEditionIdBySlug(data.edition_slug);
+  }
+
+  const parentSlug = withEditionSlug(parent).edition_slug;
+  if (data.edition_slug && parentSlug && data.edition_slug !== parentSlug) {
+    console.warn(
+      `createCustomFighter: edition_slug "${data.edition_slug}" conflicts with custom gang type ` +
+      `${data.custom_gang_type_id} (${parentSlug}); using the gang type's edition.`
+    );
+  }
+
+  return parent.edition_id;
+}
+
 export async function createCustomFighter(data: CreateCustomFighterData): Promise<{ success: boolean; data?: CustomFighterType; error?: string }> {
   const description = normalizeCustomDescription(data.description);
   const lengthError = getCustomDescriptionLengthError(description);
@@ -207,7 +247,7 @@ export async function createCustomFighter(data: CreateCustomFighterData): Promis
         special_rules: data.special_rules,
         free_skill: data.free_skill,
         fighter_subtypes: data.fighter_subtypes,
-        edition_id: await getEditionIdBySlug(data.edition_slug),
+        edition_id: await resolveFighterEditionId(supabase, data),
         created_at: new Date().toISOString()
       })
       .select()
