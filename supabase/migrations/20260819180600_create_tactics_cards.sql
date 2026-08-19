@@ -37,9 +37,6 @@ CREATE TABLE public.tactics_cards (
         )
 );
 
-CREATE INDEX tactics_cards_edition_id_idx
-    ON public.tactics_cards(edition_id);
-
 
 -- ============================================================================
 -- GANG TACTICS CARDS
@@ -68,9 +65,6 @@ CREATE TABLE public.gang_tactics_cards (
     CONSTRAINT gang_tactics_cards_gang_id_tactics_cards_id_key
         UNIQUE (gang_id, tactics_cards_id)
 );
-
-CREATE INDEX gang_tactics_cards_gang_id_idx
-    ON public.gang_tactics_cards(gang_id);
 
 CREATE INDEX gang_tactics_cards_tactics_cards_id_idx
     ON public.gang_tactics_cards(tactics_cards_id);
