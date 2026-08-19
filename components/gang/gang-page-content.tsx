@@ -735,14 +735,6 @@ export default function GangPageContent({
       icon: <LuSwords key="swords" />,
       content: (
         <div key="battles" className="space-y-4">
-          <GangBattleSessions
-            sessions={gangData.processedData.battleSessions || []}
-            gangId={gangId}
-            gangName={gangData.processedData.name}
-            editionSlug={gangData.processedData.edition_slug}
-            campaignId={(gangData.processedData.campaigns || [])[0]?.campaign_id}
-            sessionUrl={(id) => `/gang/${gangId}/battle-session/${id}`}
-          />
           {hasGangTacticsCards(gangData.processedData.edition_slug) && (
             <div className="bg-card shadow-md rounded-lg p-4">
               <GangTacticsCards
@@ -754,6 +746,14 @@ export default function GangPageContent({
               />
             </div>
           )}
+          <GangBattleSessions
+            sessions={gangData.processedData.battleSessions || []}
+            gangId={gangId}
+            gangName={gangData.processedData.name}
+            editionSlug={gangData.processedData.edition_slug}
+            campaignId={(gangData.processedData.campaigns || [])[0]?.campaign_id}
+            sessionUrl={(id) => `/gang/${gangId}/battle-session/${id}`}
+          />
         </div>
       ),
     },
