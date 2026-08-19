@@ -11,6 +11,7 @@ import { revalidateTag } from 'next/cache';
 import type { GangLogActionResult } from './logs/gang-logs';
 import { countsTowardRating, hasKilledStatusFlag } from '@/utils/fighter-status';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
+import { gangEditionSlug } from '@/types/edition';
 
 export interface AddFighterInjuryParams {
   fighter_id: string;
@@ -577,7 +578,11 @@ export async function clearRigGlitchesDowntime(params: {
 
     const { data: gang, error: gangError } = await supabase
       .from('gangs')
-      .select('credits')
+      .select(`
+        credits,
+        gang_types ( editions:edition_id ( slug ) ),
+        custom_gang_types ( editions:edition_id ( slug ) )
+      `)
       .eq('id', fighter.gang_id)
       .single();
 
@@ -609,6 +614,7 @@ export async function clearRigGlitchesDowntime(params: {
       fighter_name: fighter.fighter_name,
       action_type: 'rig_glitches_cleared_downtime',
       old_value: deletedCount,
+      edition_slug: gangEditionSlug(gang),
       oldCredits: financialResult.oldValues?.credits,
       oldRating:  financialResult.oldValues?.rating,
       oldWealth:  financialResult.oldValues?.wealth,
