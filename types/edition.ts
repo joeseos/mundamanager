@@ -148,6 +148,12 @@ const EDITION_CAPABILITIES = {
   chemAlchemy:              { n23: true,  n26: false },
   /** Gang / fighter-type Law Abiding vs Outlaw alignment */
   alignment:                { n23: true,  n26: false },
+  /**
+   * Gangs hold Gang Tactics cards drawn from an edition's `tactics_cards`
+   * catalogue. Only N26's catalogue is seeded, so the section is hidden rather
+   * than shown empty for N23.
+   */
+  gangTacticsCards:         { n23: false, n26: true  },
   /** Fighters can be sold to the Guilders (the enslaved status) */
   sellToGuilders:           { n23: true,  n26: false },
   /**
@@ -279,6 +285,9 @@ export const hasChemAlchemy = (editionSlug?: string | null): boolean =>
 
 export const hasAlignment = (editionSlug?: string | null): boolean =>
   can('alignment', editionSlug);
+
+export const hasGangTacticsCards = (editionSlug?: string | null): boolean =>
+  can('gangTacticsCards', editionSlug);
 
 export const hasGuilderSales = (editionSlug?: string | null): boolean =>
   can('sellToGuilders', editionSlug);

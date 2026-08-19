@@ -16,7 +16,9 @@ import { FaUsers, FaBox, FaTruckMoving } from 'react-icons/fa';
 import { PiFlagBannerFoldBold } from 'react-icons/pi';
 import { LuClipboard, LuSwords } from 'react-icons/lu';
 import GangBattleSessions from "@/components/gang/battle-sessions-tab";
+import GangTacticsCards from "@/components/gang/gang-tactics-cards";
 import type { BattleSession } from "@/types/battle-session";
+import type { GangTacticsCard } from "@/types/tactics-card";
 import { FighterCardModalsProvider } from "@/components/gang/fighter-card-modals-context";
 import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { InjuriesList } from "@/components/fighter/fighter-injury-list";
@@ -26,7 +28,7 @@ import { editFighterStatus } from "@/app/actions/edit-fighter";
 import { toast } from 'sonner';
 import type { FighterEffect } from '@/types/fighter';
 import { hasKilledStatusFlag, countsTowardRating } from '@/utils/fighter-status';
-import { hasVehicles } from '@/types/edition';
+import { hasVehicles, hasGangTacticsCards } from '@/types/edition';
 
 interface GangPageContentProps {
   initialGangData: any; // We'll type this properly based on the processed data structure
@@ -79,6 +81,7 @@ interface GangDataState {
     patron_status?: string;
     hidden: boolean;
     battleSessions?: BattleSession[];
+    tacticsCards?: GangTacticsCard[];
   };
   stash: StashItem[];
 }
@@ -380,6 +383,16 @@ export default function GangPageContent({
       processedData: {
         ...prev.processedData,
         note: updatedNote
+      }
+    }));
+  }, []);
+
+  const handleTacticsCardsUpdate = useCallback((updatedTacticsCards: GangTacticsCard[]) => {
+    setGangData((prev: GangDataState) => ({
+      ...prev,
+      processedData: {
+        ...prev.processedData,
+        tacticsCards: updatedTacticsCards
       }
     }));
   }, []);
@@ -721,15 +734,27 @@ export default function GangPageContent({
       title: 'Battles',
       icon: <LuSwords key="swords" />,
       content: (
-        <GangBattleSessions
-          key="battles"
-          sessions={gangData.processedData.battleSessions || []}
-          gangId={gangId}
-          gangName={gangData.processedData.name}
-          editionSlug={gangData.processedData.edition_slug}
-          campaignId={(gangData.processedData.campaigns || [])[0]?.campaign_id}
-          sessionUrl={(id) => `/gang/${gangId}/battle-session/${id}`}
-        />
+        <div key="battles" className="space-y-4">
+          <GangBattleSessions
+            sessions={gangData.processedData.battleSessions || []}
+            gangId={gangId}
+            gangName={gangData.processedData.name}
+            editionSlug={gangData.processedData.edition_slug}
+            campaignId={(gangData.processedData.campaigns || [])[0]?.campaign_id}
+            sessionUrl={(id) => `/gang/${gangId}/battle-session/${id}`}
+          />
+          {hasGangTacticsCards(gangData.processedData.edition_slug) && (
+            <div className="bg-card shadow-md rounded-lg p-4">
+              <GangTacticsCards
+                gangId={gangId}
+                editionSlug={gangData.processedData.edition_slug}
+                tacticsCards={gangData.processedData.tacticsCards || []}
+                onTacticsCardsUpdate={handleTacticsCardsUpdate}
+                userPermissions={userPermissions}
+              />
+            </div>
+          )}
+        </div>
       ),
     },
   ];

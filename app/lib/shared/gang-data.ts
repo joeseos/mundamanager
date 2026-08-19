@@ -6,6 +6,7 @@ import { WeaponProfile } from '@/types/equipment';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang';
 import { gangEditionSlug } from '@/types/edition';
+import { GangTacticsCard } from '@/types/tactics-card';
 
 // =============================================================================
 // TYPES - Shared interfaces for gang data
@@ -318,6 +319,49 @@ export const getGangPositioning = async (gangId: string, supabase: any): Promise
     [`gang-positioning-${gangId}`],
     {
       tags: [CACHE_TAGS.BASE_GANG_POSITIONING(gangId)],
+      revalidate: false
+    }
+  )();
+};
+
+/**
+ * Get the Gang Tactics cards a gang holds, flattened with their catalogue name
+ * and D66 range. Callers gate on hasGangTacticsCards() — this does not, so it
+ * stays usable for any edition whose catalogue is seeded later.
+ * Cache: BASE_GANG_TACTICS_CARDS
+ */
+export const getGangTacticsCards = async (gangId: string, supabase: any): Promise<GangTacticsCard[]> => {
+  return unstable_cache(
+    async () => {
+      const { data, error } = await supabase
+        .from('gang_tactics_cards')
+        .select(`
+          id,
+          description,
+          tactics_cards_id,
+          tactics_cards:tactics_cards_id ( name, d66_min, d66_max )
+        `)
+        .eq('gang_id', gangId);
+
+      if (error) throw error;
+
+      return (data ?? []).map((row: any) => {
+        // PostgREST returns a to-one embed as an object, but generated types
+        // sometimes widen it to an array.
+        const card = Array.isArray(row.tactics_cards) ? row.tactics_cards[0] : row.tactics_cards;
+        return {
+          id: row.id,
+          tactics_cards_id: row.tactics_cards_id,
+          name: card?.name ?? 'Unknown Tactic',
+          d66_min: card?.d66_min ?? null,
+          d66_max: card?.d66_max ?? null,
+          description: row.description ?? null
+        };
+      });
+    },
+    [`gang-tactics-cards-${gangId}`],
+    {
+      tags: [CACHE_TAGS.BASE_GANG_TACTICS_CARDS(gangId)],
       revalidate: false
     }
   )();
