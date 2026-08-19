@@ -144,6 +144,8 @@ const EDITION_CAPABILITIES = {
   equipmentSuperCategories: { n23: false, n26: true  },
   /** Weapons can be bought master-crafted, at a higher rating cost */
   masterCraftedWeapons:     { n23: true,  n26: false },
+  /** House Escher crafts custom elixirs into the gang stash */
+  chemAlchemy:              { n23: true,  n26: false },
   /** Gang / fighter-type Law Abiding vs Outlaw alignment */
   alignment:                { n23: true,  n26: false },
   /** Fighters can be sold to the Guilders (the enslaved status) */
@@ -271,6 +273,9 @@ export const hasEquipmentSuperCategories = (
 
 export const hasMasterCraftedWeapons = (editionSlug?: string | null): boolean =>
   can('masterCraftedWeapons', editionSlug);
+
+export const hasChemAlchemy = (editionSlug?: string | null): boolean =>
+  can('chemAlchemy', editionSlug);
 
 export const hasAlignment = (editionSlug?: string | null): boolean =>
   can('alignment', editionSlug);

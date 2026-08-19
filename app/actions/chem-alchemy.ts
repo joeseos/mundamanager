@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { invalidateGangStash, invalidateGangCredits } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { logEquipmentAction } from '@/app/actions/logs/equipment-logs';
+import { gangEditionJoin, hasChemAlchemy } from '@/types/edition';
 
 interface ChemEffect {
   name: string;
@@ -36,16 +37,26 @@ export async function createChemAlchemy({
     // Get the current user with optimized getClaims()
     const user = await getAuthenticatedUser(supabase);
 
-    // Check if gang has enough credits
+    // Elixirs are custom_equipment and need an edition; the gang is the only context
+    // that has one, derived via its gang type.
     const { data: gangData, error: gangFetchError } = await supabase
       .from('gangs')
-      .select('credits')
+      .select(`
+        credits,
+        gang_types!gang_type_id ( editions:edition_id ( id, slug ) ),
+        custom_gang_type:custom_gang_types!custom_gang_type_id ( editions:edition_id ( id, slug ) )
+      `)
       .eq('id', gangId)
       .single();
 
     if (gangFetchError) {
       console.error('Error fetching gang credits:', gangFetchError);
       throw new Error('Failed to fetch gang information');
+    }
+
+    const gangEdition = gangEditionJoin(gangData);
+    if (!hasChemAlchemy(gangEdition?.slug)) {
+      throw new Error('Chem-Alchemy is not available for this gang edition');
     }
 
     if (gangData.credits < totalCost) {
@@ -64,7 +75,8 @@ export async function createChemAlchemy({
         equipment_type: 'wargear',
         user_id: user.id,
         variant: `${type} - ${effects.map(e => e.name).join(', ')}`,
-        is_consumable: true
+        is_consumable: true,
+        edition_id: gangEdition?.id ?? null
       }])
       .select()
       .single();

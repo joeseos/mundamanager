@@ -44,6 +44,17 @@ async function assertCampaignsMatchEdition(
   return { ok: true };
 }
 
+/** The custom_shared trigger's exceptions would otherwise reach the toast verbatim. */
+function friendlyShareError(prefix: string, message: string): string {
+  if (message.includes('from a different edition')) {
+    return `${prefix}: one of the shared assets is from a different edition than the campaign`;
+  }
+  if (message.includes('cannot resolve the share edition')) {
+    return `${prefix}: that campaign has no edition set`;
+  }
+  return `${prefix}: ${message}`;
+}
+
 /**
  * Share a custom fighter to selected campaigns
  */
@@ -95,7 +106,7 @@ export async function shareCustomFighter(customFighterTypeId: string, campaignId
 
       if (insertError) {
         console.error('Error inserting shares:', insertError);
-        return { success: false, error: `Failed to share fighter: ${insertError.message}` };
+        return { success: false, error: friendlyShareError('Failed to share fighter', insertError.message) };
       }
 
       // Auto-share custom skill types referenced by this fighter's skill access
@@ -221,7 +232,7 @@ export async function shareCustomGangType(customGangTypeId: string, campaignIds:
 
       if (insertError) {
         console.error('Error inserting gang type shares:', insertError);
-        return { success: false, error: `Failed to share gang type: ${insertError.message}` };
+        return { success: false, error: friendlyShareError('Failed to share gang type', insertError.message) };
       }
 
       // --- Cascade: share all custom fighters belonging to this gang type ---
@@ -385,7 +396,7 @@ export async function shareCustomEquipment(customEquipmentId: string, campaignId
 
       if (insertError) {
         console.error('Error inserting shares:', insertError);
-        return { success: false, error: `Failed to share equipment: ${insertError.message}` };
+        return { success: false, error: friendlyShareError('Failed to share equipment', insertError.message) };
       }
     }
 
@@ -410,7 +421,12 @@ export async function shareCustomSkill(customSkillId: string, campaignIds: strin
     // Verify the custom skill belongs to the user
     const { data: customSkill, error: skillError } = await supabase
       .from('custom_skills')
-      .select('id, user_id, custom_skill_types:custom_skill_type_id (editions:edition_id (slug))')
+      .select(`
+        id,
+        user_id,
+        skill_types:skill_type_id (editions:edition_id (slug)),
+        custom_skill_types:custom_skill_type_id (editions:edition_id (slug))
+      `)
       .eq('id', customSkillId)
       .eq('user_id', user.id)
       .single();
@@ -419,9 +435,14 @@ export async function shareCustomSkill(customSkillId: string, campaignIds: strin
       return { success: false, error: 'Custom skill not found or not owned by user' };
     }
 
-    const editionCheck = await assertCampaignsMatchEdition(
-      supabase, editionSlugFromJoin((customSkill as any).custom_skill_types?.editions), campaignIds
-    );
+    // A quarter of custom skills are built on a system skill type. Resolving only the
+    // custom one leaves those with no edition, which this check reads as "no claim"
+    // and accepts into any campaign. Custom wins, matching getUserCustomSkills.
+    const skillEdition =
+      editionSlugFromJoin((customSkill as any).custom_skill_types?.editions)
+      ?? editionSlugFromJoin((customSkill as any).skill_types?.editions);
+
+    const editionCheck = await assertCampaignsMatchEdition(supabase, skillEdition, campaignIds);
     if (!editionCheck.ok) return { success: false, error: editionCheck.error };
 
     // Delete existing shares for this skill
@@ -450,7 +471,7 @@ export async function shareCustomSkill(customSkillId: string, campaignIds: strin
 
       if (insertError) {
         console.error('Error inserting shares:', insertError);
-        return { success: false, error: `Failed to share skill: ${insertError.message}` };
+        return { success: false, error: friendlyShareError('Failed to share skill', insertError.message) };
       }
     }
 
@@ -517,7 +538,7 @@ export async function shareCustomTradingPost(customTradingPostId: string, campai
 
       if (insertError) {
         console.error('Error inserting shares:', insertError);
-        return { success: false, error: `Failed to share trading post: ${insertError.message}` };
+        return { success: false, error: friendlyShareError('Failed to share trading post', insertError.message) };
       }
     }
 
@@ -700,7 +721,7 @@ export async function shareCollection(collectionId: string, campaignIds: string[
         const { error: insertError } = await supabase.from('custom_shared').insert(rows);
         if (insertError) {
           console.error('Error inserting collection shares:', insertError);
-          return { success: false, error: `Failed to share collection: ${insertError.message}` };
+          return { success: false, error: friendlyShareError('Failed to share collection', insertError.message) };
         }
       }
     }

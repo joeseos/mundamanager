@@ -68,10 +68,14 @@ BEGIN
     v_before := cardinality(v_eq) + cardinality(v_st) + cardinality(v_sk)
               + cardinality(v_gt) + cardinality(v_ft) + cardinality(v_tp);
 
-    -- fighter types belonging to in-scope gang types
+    -- fighter types belonging to in-scope gang types, as their author defined them.
+    -- Scoped to the owner: SELECT RLS here is USING (true), so an unscoped pull also
+    -- clones fighters other users attached to the same gang type.
     v_ft := ARRAY(SELECT DISTINCT f FROM (
               SELECT unnest(v_ft) AS f
-              UNION SELECT cft.id FROM public.custom_fighter_types cft WHERE cft.custom_gang_type_id = ANY(v_gt)
+              UNION SELECT cft.id FROM public.custom_fighter_types cft
+                    JOIN public.custom_gang_types cgt ON cgt.id = cft.custom_gang_type_id
+                    WHERE cft.custom_gang_type_id = ANY(v_gt) AND cft.user_id = cgt.user_id
             ) s WHERE f IS NOT NULL);
 
     -- gang types referenced by in-scope fighter types and trading posts
@@ -96,10 +100,13 @@ BEGIN
                     WHERE cs.id = ANY(v_sk) AND cs.custom_skill_type_id IS NOT NULL
             ) s WHERE t IS NOT NULL);
 
-    -- all skills belonging to in-scope skill types (clone the whole set)
+    -- all skills belonging to in-scope skill types, as their author defined them.
+    -- Owner-scoped for the same reason as the fighter closure above.
     v_sk := ARRAY(SELECT DISTINCT k FROM (
               SELECT unnest(v_sk) AS k
-              UNION SELECT cs.id FROM public.custom_skills cs WHERE cs.custom_skill_type_id = ANY(v_st)
+              UNION SELECT cs.id FROM public.custom_skills cs
+                    JOIN public.custom_skill_types cst ON cst.id = cs.custom_skill_type_id
+                    WHERE cs.custom_skill_type_id = ANY(v_st) AND cs.user_id = cst.user_id
             ) s WHERE k IS NOT NULL);
 
     -- equipment referenced by fighter defaults / fighter equipment / trading posts
