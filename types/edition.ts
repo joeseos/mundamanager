@@ -167,6 +167,11 @@ const EDITION_CAPABILITIES = {
    */
   beastSubtype:             { n23: 'Exotic Beast', n26: 'Pet' },
   /**
+   * What the edition calls the between-battles phase, for UI copy only. The
+   * code path behind it keeps the N23 "downtime" naming across every edition.
+   */
+  downtimePhase:            { n23: 'Downtime', n26: 'Post-Cycle' },
+  /**
    * Prospect promotion keeps fighter type, swaps Prospect for Ganger+Specialist,
    * requires a specialisation pick, and grants the mapped skill (+15 rating).
    * When false, Prospect uses the standard promote-to-Champion type picker.
@@ -292,6 +297,18 @@ export const hasGangAdditionCategories = (
 
 export const beastSubtypeName = (editionSlug?: string | null): string =>
   answerFor('beastSubtype', editionSlug) ?? EDITION_CAPABILITIES.beastSubtype.n23;
+
+/**
+ * Wording for an edition that failed to resolve. Its own value rather than a
+ * reach into a real edition's row: an edition missing from the registry must not
+ * silently inherit another's naming, the same reason an unknown slug gets
+ * NO_CAPABILITIES rather than an alias. Editions the registry does know answer
+ * this row themselves — the completeness check makes that a compile error to skip.
+ */
+const UNRESOLVED_EDITION_DOWNTIME_PHASE = 'Downtime';
+
+export const downtimePhaseName = (editionSlug?: string | null): string =>
+  answerFor('downtimePhase', editionSlug) ?? UNRESOLVED_EDITION_DOWNTIME_PHASE;
 
 export const hasProspectSpecialisationPromotion = (
   editionSlug?: string | null
