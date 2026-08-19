@@ -333,7 +333,8 @@ export default function GangTacticsCards({
           title="Remove Tactics Card"
           content={
             <p>
-              Remove <strong>{deleteCard.name}</strong> from this gang&apos;s tactics?
+              Remove <strong>{deleteCard.name}</strong>{' '}
+              from this gang&apos;s tactics?
             </p>
           }
           onClose={() => setDeleteCard(null)}
