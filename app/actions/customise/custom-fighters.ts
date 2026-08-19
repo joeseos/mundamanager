@@ -172,22 +172,27 @@ async function getCompleteCustomFighter(
 
 /**
  * A fighter belongs to its custom gang type's edition, not to whichever tab the
- * caller was on. Falls back to the slug only when there is no custom parent.
+ * caller was on. Falls back to the slug only when there is no gang type to ask.
  */
 async function resolveFighterEditionId(
   supabase: Awaited<ReturnType<typeof createClient>>,
   data: CreateCustomFighterData
 ): Promise<string | null> {
-  if (!data.custom_gang_type_id) {
-    return getEditionIdBySlug(data.edition_slug);
-  }
+  const parentQuery = data.custom_gang_type_id
+    ? supabase
+        .from('custom_gang_types')
+        .select('edition_id, editions:edition_id (slug)')
+        .eq('id', data.custom_gang_type_id)
+    : data.gang_type_id
+      ? supabase
+          .from('gang_types')
+          .select('edition_id, editions:edition_id (slug)')
+          .eq('gang_type_id', data.gang_type_id)
+      : null;
 
-  const { data: parent, error } = await supabase
-    .from('custom_gang_types')
-    .select('edition_id, editions:edition_id (slug)')
-    .eq('id', data.custom_gang_type_id)
-    .single();
+  if (!parentQuery) return getEditionIdBySlug(data.edition_slug);
 
+  const { data: parent, error } = await parentQuery.single();
   if (error || !parent?.edition_id) {
     return getEditionIdBySlug(data.edition_slug);
   }
@@ -195,8 +200,8 @@ async function resolveFighterEditionId(
   const parentSlug = withEditionSlug(parent).edition_slug;
   if (data.edition_slug && parentSlug && data.edition_slug !== parentSlug) {
     console.warn(
-      `createCustomFighter: edition_slug "${data.edition_slug}" conflicts with custom gang type ` +
-      `${data.custom_gang_type_id} (${parentSlug}); using the gang type's edition.`
+      `createCustomFighter: edition_slug "${data.edition_slug}" conflicts with the gang type's ` +
+      `edition (${parentSlug}); using the gang type's.`
     );
   }
 
