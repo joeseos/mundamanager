@@ -830,6 +830,8 @@ export default function FighterPage({
             fighterSpecialisationName={fighterData.fighter?.fighter_specialisation?.fighter_specialisation || null}
             fighterSubtypes={fighterData.fighter?.fighter_subtypes || []}
             fighterCatalogSubtypes={fighterData.fighter?.fighter_type?.fighter_subtypes || []}
+            loadouts={fighterData.loadouts}
+            activeLoadoutId={fighterData.activeLoadoutId}
             onSkillsUpdate={(updatedSkills) => {
               setFighterData(prev => ({
                 ...prev,

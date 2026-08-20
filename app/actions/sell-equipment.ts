@@ -244,6 +244,10 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
     // After the cascade, so the survivor check sees only what remains
     await syncSubtypeGrants(supabase, equipmentData.fighter_id, { revoked: associatedEffects });
 
+    if (equipmentData.fighter_id) {
+      revalidateTag(CACHE_TAGS.BASE_FIGHTER_SKILLS(equipmentData.fighter_id), { expire: 0 });
+    }
+
     if (isResourcePurchase) {
       try {
         await returnCostResource(supabase, gangId, equipmentData.cost_resource as CostResourcePayload);

@@ -114,6 +114,7 @@ export interface FighterSkill {
   injury_name?: string;
   acquired_at: string;
   custom_skill_id?: string;
+  granted_by_equipment_id?: string;
   /** Hatred (X) target of the granting injury. See utils/injuryTarget.ts. */
   hatred_target_kind?: 'gang' | 'gang_type' | 'fighter';
   hatred_target_id?: string;
@@ -552,7 +553,8 @@ export const getFighterSkills = async (fighterId: string, supabase: any): Promis
           fighter_effect_skills!fighter_effect_skill_id (
             fighter_effects (
               effect_name,
-              type_specific_data
+              type_specific_data,
+              fighter_equipment_id
             )
           )
         `)
@@ -575,7 +577,7 @@ export const getFighterSkills = async (fighterId: string, supabase: any): Promis
           // bitter_enmity_* keys, which were deliberately never backfilled.
           const hatredTarget = readHatredTarget(tsd);
 
-          skills[skillName] = {
+          const mapped: FighterSkill = {
             id: skillData.id,
             name: skillName,
             credits_increase: skillData.credits_increase || 0,
@@ -585,6 +587,7 @@ export const getFighterSkills = async (fighterId: string, supabase: any): Promis
             injury_name: injuryName || undefined,
             acquired_at: skillData.created_at,
             custom_skill_id: skillData.custom_skill_id || undefined,
+            granted_by_equipment_id: fe?.fighter_equipment_id || undefined,
             ...(hatredTarget
               ? {
                   hatred_target_kind: hatredTarget.kind,
@@ -594,6 +597,11 @@ export const getFighterSkills = async (fighterId: string, supabase: any): Promis
                 }
               : {})
           };
+
+          // A granted skill never hides one the fighter bought
+          if (!skills[skillName] || skills[skillName].fighter_injury_id) {
+            skills[skillName] = mapped;
+          }
         }
       });
 

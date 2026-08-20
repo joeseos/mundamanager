@@ -1500,11 +1500,14 @@ export async function deleteAdvancement(
             .eq(isCustom ? 'custom_fighter_type_id' : 'fighter_type_id', typeId)
             .not('skill_id', 'is', null);
 
-          // Count remaining skills for this fighter
+          // Count remaining skills for this fighter. Effect-granted ones (injuries,
+          // equipment) are not chosen starting skills, so they must not count
+          // against the type's default allowance and strand free_skill at false.
           const { count: remainingSkillCount } = await supabase
             .from('fighter_skills')
             .select('*', { count: 'exact', head: true })
-            .eq('fighter_id', params.fighter_id);
+            .eq('fighter_id', params.fighter_id)
+            .is('fighter_effect_skill_id', null);
 
           // Check if deleted skill was a default skill
           const { count: wasDefaultSkill } = await supabase

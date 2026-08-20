@@ -29,6 +29,18 @@ import { EquipmentTooltipTrigger } from '@/components/equipment/equipment-toolti
 import { Tooltip } from 'react-tooltip';
 import { getTooltipAttribute } from '@/components/ui/tooltip-renderers';
 
+// No active loadout, or one we can't resolve, means nothing is out of it.
+export function isEquipmentInActiveLoadout(
+  fighterEquipmentId: string,
+  loadouts: FighterLoadout[],
+  activeLoadoutId: string | null | undefined
+): boolean {
+  if (!activeLoadoutId) return true;
+  const activeLoadout = loadouts.find(l => l.id === activeLoadoutId);
+  if (!activeLoadout) return true;
+  return activeLoadout.equipment_ids.includes(fighterEquipmentId);
+}
+
 function renderExoticBeastCostTooltip({ content, activeAnchor }: { content: React.ReactNode; activeAnchor: Element | null }) {
   const base = getTooltipAttribute(activeAnchor, 'data-tooltip-cost-base');
   const advancements = getTooltipAttribute(activeAnchor, 'data-tooltip-cost-advancements');
@@ -647,22 +659,9 @@ export function WeaponList({
     setActiveLoadoutMutation.mutate(loadoutId);
   };
 
-  // Helper function to check if equipment is in the active loadout
-  const isEquipmentInActiveLoadout = (fighterEquipmentId: string): boolean => {
-    // If no loadout is active, all equipment is "in" the loadout (show normally)
-    if (!activeLoadoutId) return true;
-
-    // Find the active loadout
-    const activeLoadout = loadouts.find(l => l.id === activeLoadoutId);
-    if (!activeLoadout) return true;
-
-    // Check if this equipment is in the loadout's equipment_ids
-    return activeLoadout.equipment_ids.includes(fighterEquipmentId);
-  };
-
   const renderRow = (item: Equipment, isChild: boolean = false) => {
     // Check if this equipment is in the active loadout (or if no loadout is active)
-    const isInActiveLoadout = isEquipmentInActiveLoadout(item.fighter_equipment_id);
+    const isInActiveLoadout = isEquipmentInActiveLoadout(item.fighter_equipment_id, loadouts, activeLoadoutId);
     // Apply muted styling if a loadout is active and this equipment is not in it
     const shouldMute = activeLoadoutId !== null && !isInActiveLoadout;
     const mutedClass = shouldMute ? "text-muted-foreground" : "";
@@ -782,7 +781,7 @@ export function WeaponList({
     if (equipmentEffects.length === 0) return null;
 
     // Check if parent equipment is in active loadout (effects should match parent's muted state)
-    const isInActiveLoadout = isEquipmentInActiveLoadout(item.fighter_equipment_id);
+    const isInActiveLoadout = isEquipmentInActiveLoadout(item.fighter_equipment_id, loadouts, activeLoadoutId);
     const shouldMute = activeLoadoutId !== null && !isInActiveLoadout;
     const mutedClass = shouldMute ? "text-muted-foreground" : "";
 

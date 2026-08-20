@@ -111,6 +111,22 @@ export function AdminFighterEffects({
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: skills = [] } = useQuery<Array<{ id: string; skill_name: string }>>({
+    queryKey: ['admin-skills', editionId],
+    queryFn: async () => {
+      const response = await fetch(`/api/admin/skills${editionId ? `?edition_id=${editionId}` : ''}`);
+      if (!response.ok) throw new Error('Failed to fetch skills');
+      return response.json();
+    },
+    enabled: !isSkill,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const skillNameById = useMemo(
+    () => new Map(skills.map(skill => [skill.id, skill.skill_name])),
+    [skills]
+  );
+
   // Same rule as the category and equipment filters: scope to the selected edition
   const fighterSubtypesForDisplay = useMemo(
     () => editionId ? fighterSubtypes.filter(fs => fs.edition_id === editionId) : fighterSubtypes,
@@ -137,6 +153,7 @@ export function AdminFighterEffects({
     // Picked by id: subtype_name repeats across editions
     fighter_subtype_ids_to_add: [] as string[],
     fighter_subtype_ids_to_remove: [] as string[],
+    grants_skill_id: '',
     credits_increase: '',
     cost: '',
     is_editable: false,
@@ -202,7 +219,12 @@ export function AdminFighterEffects({
         : [];
 
       const typeSpecificData: any = {
-        ...(isSkill ? { skill_id: equipmentId } : { equipment_id: equipmentId }),
+        ...(isSkill
+          ? { skill_id: equipmentId }
+          : {
+              equipment_id: equipmentId,
+              ...(newEffect.grants_skill_id && { skill_id: newEffect.grants_skill_id })
+            }),
         ...(newEffect.applies_to && { applies_to: newEffect.applies_to }),
         effect_selection: newEffect.effect_selection,
         ...(newEffect.effect_selection === 'multiple_select' && { max_selections: newEffect.max_selections }),
@@ -258,6 +280,7 @@ export function AdminFighterEffects({
         special_rules_to_remove: '',
         fighter_subtype_ids_to_add: [],
         fighter_subtype_ids_to_remove: [],
+        grants_skill_id: '',
         credits_increase: '',
         cost: '',
         is_editable: false,
@@ -299,6 +322,7 @@ export function AdminFighterEffects({
       special_rules_to_remove: '',
       fighter_subtype_ids_to_add: [],
       fighter_subtype_ids_to_remove: [],
+      grants_skill_id: '',
       credits_increase: '',
       cost: '',
       is_editable: false,
@@ -325,6 +349,7 @@ export function AdminFighterEffects({
       special_rules_to_remove: effect.type_specific_data?.special_rules_to_remove?.join(', ') || '',
       fighter_subtype_ids_to_add: effect.type_specific_data?.fighter_subtype_ids_to_add || [],
       fighter_subtype_ids_to_remove: effect.type_specific_data?.fighter_subtype_ids_to_remove || [],
+      grants_skill_id: isSkill ? '' : (effect.type_specific_data?.skill_id || ''),
       credits_increase: effect.type_specific_data?.credits_increase?.toString() || '',
       cost: effect.type_specific_data?.cost?.toString() || '',
       is_editable: effect.type_specific_data?.is_editable === true,
@@ -383,6 +408,8 @@ export function AdminFighterEffects({
       ...(newEffect.cost ? { cost: parseInt(newEffect.cost) } : { cost: undefined }),
       // Set is_editable or remove it if false
       ...(newEffect.is_editable ? { is_editable: true } : { is_editable: undefined }),
+      // On the skill page skill_id is the owning skill, set at creation and never edited here
+      ...(isSkill ? {} : { skill_id: newEffect.grants_skill_id || undefined }),
       // Hardpoint fields - always include when category is hardpoint, clear when not
       // default_arcs = immutable template baseline for cost calc; arcs = current player-facing state.
       // At creation they're identical; arcs diverges later when the player modifies the hardpoint.
@@ -644,6 +671,12 @@ export function AdminFighterEffects({
                         {effect.type_specific_data?.fighter_subtype_ids_to_remove && effect.type_specific_data.fighter_subtype_ids_to_remove.length > 0 && (
                           <Badge variant="destructive">
                             -Subtypes: {effect.type_specific_data.fighter_subtype_ids_to_remove.map(id => subtypeNameById.get(id) ?? id).join(', ')}
+                          </Badge>
+                        )}
+
+                        {!isSkill && effect.type_specific_data?.skill_id && (
+                          <Badge variant="secondary" className="text-xs">
+                            Grants: {skillNameById.get(effect.type_specific_data.skill_id) ?? effect.type_specific_data.skill_id}
                           </Badge>
                         )}
 
@@ -980,6 +1013,27 @@ export function AdminFighterEffects({
                 />
                 <p className="text-xs text-muted-foreground">
                   Credits deducted from gang stash when this skill is purchased. Increases rating by the same amount (net zero wealth change).
+                </p>
+              </div>
+            )}
+
+            {!isSkill && (
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-muted-foreground">
+                  Grants Skill (optional)
+                </label>
+                <select
+                  value={newEffect.grants_skill_id}
+                  onChange={(e) => setNewEffect(prev => ({ ...prev, grants_skill_id: e.target.value }))}
+                  className="w-full p-2 border rounded-md"
+                >
+                  <option value="">None</option>
+                  {skills.map(skill => (
+                    <option key={skill.id} value={skill.id}>{skill.skill_name}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  The fighter gains this skill while the effect is applied, at no XP or credit cost.
                 </p>
               </div>
             )}
