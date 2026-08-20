@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Tooltip } from 'react-tooltip';
 import { BiSolidNotepad } from 'react-icons/bi';
@@ -25,7 +25,8 @@ import {
 import {
   addGangTacticsCards,
   deleteGangTacticsCard,
-  updateGangTacticsCardDescription
+  updateGangTacticsCardDescription,
+  verifyAndLogRolledTacticsCard
 } from '@/app/actions/gang-tactics-cards';
 
 interface GangTacticsCardsProps {
@@ -52,6 +53,7 @@ export default function GangTacticsCards({
   const [editDescription, setEditDescription] = useState('');
   const [deleteCard, setDeleteCard] = useState<GangTacticsCard | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [rollLogCooldown, setRollLogCooldown] = useState(false);
 
   const canEdit = userPermissions.canEdit;
 
@@ -73,6 +75,21 @@ export default function GangTacticsCards({
   });
 
   const hasRollableCard = catalogue.some(card => card.d66_min != null && !ownedCardIds.has(card.id));
+
+  const logRollMutation = useMutation({
+    mutationFn: (outcome: RollOutcome) =>
+      verifyAndLogRolledTacticsCard({ gangId, total: outcome.total, dice: outcome.dice })
+  });
+
+  const logRollWithCooldown = (outcome: RollOutcome) => {
+    if (rollLogCooldown || logRollMutation.isPending) return;
+    setRollLogCooldown(true);
+    try {
+      logRollMutation.mutate(outcome);
+    } finally {
+      setTimeout(() => setRollLogCooldown(false), 2000);
+    }
+  };
 
   const cardForRoll = (total: number) =>
     catalogue.find(
@@ -276,8 +293,10 @@ export default function GangTacticsCards({
                   buttonText="Roll D66"
                   disabled={isLoadingCatalogue || !hasRollableCard}
                   onRolled={(rolled) => {
-                    const card = rolled[0]?.item;
+                    const result = rolled[0];
+                    const card = result?.item;
                     if (!card) return;
+                    logRollWithCooldown({ total: result.roll, dice: result.dice });
                     setSelectedCardIds(new Set([card.id]));
                     document
                       .getElementById(`tactics-card-${card.id}`)

@@ -4,6 +4,12 @@ import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { checkPermissionCached } from '@/utils/user-permissions';
 import { invalidateGangTacticsCards } from '@/utils/cache-tags';
+import type { GangLogActionResult } from './logs/gang-logs';
+import {
+  logRolledTacticsCard,
+  logTacticsCardAdded,
+  logTacticsCardRemoved
+} from './logs/gang-tactics-logs';
 import { gangEditionJoin, gangEditionSlug, hasGangTacticsCards } from '@/types/edition';
 import {
   GANG_TACTICS_CARD_SELECT,
@@ -101,7 +107,7 @@ export async function addGangTacticsCards(params: {
     // The browser can post any uuid, so don't trust what the picker sent.
     let catalogueQuery = supabase
       .from('tactics_cards')
-      .select('id')
+      .select('id, name')
       .in('id', tacticsCardIds);
 
     if (auth.context.editionId) {
@@ -116,22 +122,73 @@ export async function addGangTacticsCards(params: {
     }
 
     // ignoreDuplicates so a stale picker can't 23505 on (gang_id, tactics_cards_id).
-    const { error: insertError } = await supabase
+    // The returned rows are only the ones actually inserted, which is what gets logged.
+    const { data: inserted, error: insertError } = await supabase
       .from('gang_tactics_cards')
       .upsert(
         tacticsCardIds.map(id => ({ gang_id: params.gangId, tactics_cards_id: id })),
         { onConflict: 'gang_id,tactics_cards_id', ignoreDuplicates: true }
-      );
+      )
+      .select('tactics_cards_id');
 
     if (insertError) throw insertError;
 
     const added = await selectGangTacticsCards(supabase, params.gangId, tacticsCardIds);
+
+    const nameById = new Map((catalogue ?? []).map((card: any) => [card.id, card.name]));
+    await Promise.all(
+      (inserted ?? []).map((row: any) =>
+        logTacticsCardAdded({
+          gang_id: params.gangId,
+          card_name: nameById.get(row.tactics_cards_id) ?? 'Unknown Tactic'
+        })
+      )
+    );
 
     invalidateGangTacticsCards(params.gangId);
 
     return { success: true, data: added };
   } catch (error) {
     console.error('Error adding gang tactics cards:', error);
+    return { success: false, error: 'An unexpected error occurred' };
+  }
+}
+
+export async function verifyAndLogRolledTacticsCard(params: {
+  gangId: string;
+  total: number;
+  dice: number[];
+}): Promise<GangLogActionResult> {
+  try {
+    const supabase = await createClient();
+
+    const auth = await authoriseGangTactics(supabase, params.gangId);
+    if ('error' in auth) return { success: false, error: auth.error };
+
+    // Resolved from the dice rather than a posted id, so a roll can't be
+    // credited to a card it didn't produce.
+    let query = supabase
+      .from('tactics_cards')
+      .select('name')
+      .lte('d66_min', params.total)
+      .gte('d66_max', params.total);
+
+    if (auth.context.editionId) {
+      query = query.eq('edition_id', auth.context.editionId);
+    }
+
+    const { data: card, error } = await query.maybeSingle();
+    if (error) throw error;
+    if (!card) return { success: false, error: 'No tactics card matches that roll' };
+
+    return await logRolledTacticsCard({
+      gang_id: params.gangId,
+      card_name: card.name,
+      total: params.total,
+      dice: params.dice
+    });
+  } catch (error) {
+    console.error('Error logging tactics card roll:', error);
     return { success: false, error: 'An unexpected error occurred' };
   }
 }
@@ -182,6 +239,13 @@ export async function deleteGangTacticsCard(params: {
     const auth = await authoriseGangTactics(supabase, params.gangId);
     if ('error' in auth) return { success: false, error: auth.error };
 
+    const { data: existing } = await supabase
+      .from('gang_tactics_cards')
+      .select('tactics_cards:tactics_cards_id ( name )')
+      .eq('id', params.gangTacticsCardId)
+      .eq('gang_id', params.gangId)
+      .maybeSingle();
+
     const { error } = await supabase
       .from('gang_tactics_cards')
       .delete()
@@ -189,6 +253,11 @@ export async function deleteGangTacticsCard(params: {
       .eq('gang_id', params.gangId);
 
     if (error) throw error;
+
+    const card = Array.isArray(existing?.tactics_cards) ? existing?.tactics_cards[0] : existing?.tactics_cards;
+    if (card?.name) {
+      await logTacticsCardRemoved({ gang_id: params.gangId, card_name: card.name });
+    }
 
     invalidateGangTacticsCards(params.gangId);
 
