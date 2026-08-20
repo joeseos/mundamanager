@@ -20,6 +20,7 @@ export default function ResetPassword() {
 function ResetPasswordContent() {
   const searchParams = useSearchParams();
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
   const [emailSent, setEmailSent] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -65,21 +66,39 @@ function ResetPasswordContent() {
         <form onSubmit={handleSubmit} className="flex flex-col w-full max-w-sm mx-auto text-white">
           {!emailSent ? (
             <>
-              <h1 className="text-2xl font-medium text-white mb-2">Reset Password</h1>
-              <p className="text-sm text-white mb-8">
+              <h1 className="text-2xl font-medium text-white mb-2 text-center">Reset Password</h1>
+              <p className="text-sm text-white mb-8 text-center">
                 Enter your email address and we&apos;ll send you instructions to reset your password.
               </p>
               <div className="flex flex-col gap-4">
                 <Label htmlFor="email">Email</Label>
-                <Input 
-                  id="email" 
-                  name="email" 
-                  type="email"
-                  placeholder="you@example.com" 
-                  required 
-                  className="text-foreground mt-1"
-                  autoComplete="email"
-                />
+                <div>
+                  <Input 
+                    id="email" 
+                    name="email" 
+                    type="email"
+                    placeholder="you@example.com" 
+                    required 
+                    className="text-foreground mt-1"
+                    autoComplete="email"
+                    aria-invalid={!!emailError}
+                    aria-describedby={emailError ? "email-error" : undefined}
+                    onInvalid={(e) => {
+                      e.preventDefault();
+                      setEmailError("Must be an email address");
+                    }}
+                    onChange={(e) => {
+                      if (e.target.validity.valid) {
+                        setEmailError(null);
+                      }
+                    }}
+                  />
+                  {emailError && (
+                    <p id="email-error" className="text-red-500 text-sm mt-1">
+                      {emailError}
+                    </p>
+                  )}
+                </div>
                 <SubmitButton 
                   pendingText="Sending..." 
                   className="mt-2"
