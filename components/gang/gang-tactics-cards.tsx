@@ -72,9 +72,7 @@ export default function GangTacticsCards({
     enabled: isAddModalOpen && !!editionSlug
   });
 
-  const isTaken = (cardId: string) => ownedCardIds.has(cardId) || selectedCardIds.has(cardId);
-
-  const hasRollableCard = catalogue.some(card => card.d66_min != null && !isTaken(card.id));
+  const hasRollableCard = catalogue.some(card => card.d66_min != null && !ownedCardIds.has(card.id));
 
   const cardForRoll = (total: number) =>
     catalogue.find(
@@ -86,7 +84,7 @@ export default function GangTacticsCards({
     for (let attempt = 0; attempt < 50; attempt++) {
       const card = cardForRoll(outcome.total);
       // No match is a gap in the catalogue's ranges — report it rather than loop past it.
-      if (!card || !isTaken(card.id)) return outcome;
+      if (!card || !ownedCardIds.has(card.id)) return outcome;
       outcome = rollD66Outcome();
     }
     return outcome;
@@ -280,7 +278,7 @@ export default function GangTacticsCards({
                   onRolled={(rolled) => {
                     const card = rolled[0]?.item;
                     if (!card) return;
-                    setSelectedCardIds(prev => new Set(prev).add(card.id));
+                    setSelectedCardIds(new Set([card.id]));
                     document
                       .getElementById(`tactics-card-${card.id}`)
                       ?.scrollIntoView({ block: 'nearest' });
