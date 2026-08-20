@@ -7,11 +7,13 @@ import { Tooltip } from 'react-tooltip';
 import { BiSolidNotepad } from 'react-icons/bi';
 import { LuSquarePen, LuTrash2 } from 'react-icons/lu';
 import Modal from '@/components/ui/modal';
+import DiceRoller from '@/components/dice-roller';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { List, ListAction, ListColumn } from '@/components/ui/list';
 import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import { UserPermissions } from '@/types/user-permissions';
+import { rollD66Outcome, type RollOutcome } from '@/utils/dice';
 import {
   compareTacticsCards,
   formatD66Range,
@@ -69,6 +71,26 @@ export default function GangTacticsCards({
     staleTime: 5 * 60 * 1000,
     enabled: isAddModalOpen && !!editionSlug
   });
+
+  const isTaken = (cardId: string) => ownedCardIds.has(cardId) || selectedCardIds.has(cardId);
+
+  const hasRollableCard = catalogue.some(card => card.d66_min != null && !isTaken(card.id));
+
+  const cardForRoll = (total: number) =>
+    catalogue.find(
+      card => card.d66_min != null && card.d66_max != null && total >= card.d66_min && total <= card.d66_max
+    );
+
+  const rollUnownedD66 = (): RollOutcome => {
+    let outcome = rollD66Outcome();
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const card = cardForRoll(outcome.total);
+      // No match is a gap in the catalogue's ranges — report it rather than loop past it.
+      if (!card || !isTaken(card.id)) return outcome;
+      outcome = rollD66Outcome();
+    }
+    return outcome;
+  };
 
   const handleOpenAddModal = () => {
     setSelectedCardIds(new Set());
@@ -242,6 +264,29 @@ export default function GangTacticsCards({
           helper="Pick the tactics cards this gang holds."
           content={
             <div>
+              <div className="mb-3">
+                <DiceRoller<TacticsCard>
+                  items={catalogue}
+                  getRange={(card) =>
+                    card.d66_min != null && card.d66_max != null
+                      ? { min: card.d66_min, max: card.d66_max }
+                      : null
+                  }
+                  getName={(card) => card.name}
+                  inline
+                  rollFn={rollUnownedD66}
+                  buttonText="Roll D66"
+                  disabled={isLoadingCatalogue || !hasRollableCard}
+                  onRolled={(rolled) => {
+                    const card = rolled[0]?.item;
+                    if (!card) return;
+                    setSelectedCardIds(prev => new Set(prev).add(card.id));
+                    document
+                      .getElementById(`tactics-card-${card.id}`)
+                      ?.scrollIntoView({ block: 'nearest' });
+                  }}
+                />
+              </div>
               {isLoadingCatalogue ? (
                 <p className="text-muted-foreground italic text-center py-4">Loading tactics cards...</p>
               ) : catalogueError ? (
