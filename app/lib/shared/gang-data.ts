@@ -1156,7 +1156,8 @@ export const getGangFightersList = async (
             fighter_effect_skills!fighter_effect_skill_id (
               fighter_effects (
                 effect_name,
-                type_specific_data
+                type_specific_data,
+                fighter_equipment_id
               )
             )
           `)
@@ -1608,6 +1609,16 @@ export const getGangFightersList = async (
           const skillName = (skillData.skill as any)?.name || (skillData.custom_skill as any)?.skill_name;
           if (skillName) {
             const fe = skillData.fighter_effect_skills?.fighter_effects;
+
+            // Same rule as the effects filter below
+            if (
+              activeLoadoutEquipmentIds !== null &&
+              fe?.fighter_equipment_id &&
+              !activeLoadoutEquipmentIds.has(fe.fighter_equipment_id)
+            ) {
+              return;
+            }
+
             const injuryName = fe?.effect_name;
             const tsd =
               fe?.type_specific_data && typeof fe.type_specific_data === 'object'

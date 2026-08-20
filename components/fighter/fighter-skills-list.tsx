@@ -3,6 +3,7 @@ import Modal from "@/components/ui/modal";
 import { toast } from 'sonner';
 import { getSkillSetRank } from "@/utils/skillSetRank";
 import { FighterSkills } from '@/types/fighter';
+import { FighterLoadout } from '@/types/equipment';
 import { createClient } from '@/utils/supabase/client';
 import { List } from "@/components/ui/list";
 import { Combobox } from '@/components/ui/combobox';
@@ -37,6 +38,7 @@ interface Skill {
   is_advance: boolean;
   fighter_injury_id: string | null;
   injury_name?: string;
+  granted_by_equipment_id?: string;
   /** Hatred (X) target of the granting injury. See utils/injuryTarget.ts. */
   hatred_target_kind?: 'gang' | 'gang_type' | 'fighter';
   hatred_target_id?: string;
@@ -59,6 +61,8 @@ interface SkillsListProps {
   fighterSubtypes?: string[];
   /** Catalog fighter_types.fighter_subtypes for keep-type Prospect undo detection. */
   fighterCatalogSubtypes?: string[];
+  loadouts?: FighterLoadout[];
+  activeLoadoutId?: string | null;
   onSkillsUpdate: (updatedSkills: FighterSkills) => void;
   onGangCreditsUpdate?: (creditsDelta: number) => void;
   /** Rating / fighter-credits delta (e.g. −15 when undoing Prospect promotion). */
@@ -492,6 +496,8 @@ export function SkillsList({
   fighterSpecialisationName = null,
   fighterSubtypes = [],
   fighterCatalogSubtypes = [],
+  loadouts = [],
+  activeLoadoutId = null,
   onSkillsUpdate,
   onGangCreditsUpdate,
   onXpCreditsUpdate,
@@ -722,6 +728,7 @@ export function SkillsList({
       is_advance: typedData.is_advance ?? false,
       fighter_injury_id: typedData.fighter_injury_id,
       injury_name: typedData.injury_name,
+      granted_by_equipment_id: typedData.granted_by_equipment_id,
       hatred_target_kind: typedData.hatred_target_kind,
       hatred_target_id: typedData.hatred_target_id,
       hatred_target_name: typedData.hatred_target_name,
@@ -730,6 +737,13 @@ export function SkillsList({
   });
 
   const hasAnyCost = skillsArray.some(s => s.credits_increase > 0);
+
+  // Mirrors isEquipmentInActiveLoadout: an unknown loadout mutes nothing
+  const activeLoadout = activeLoadoutId ? loadouts.find(l => l.id === activeLoadoutId) : null;
+  const isOutOfLoadout = (skill: Skill) =>
+    !!activeLoadout &&
+    !!skill.granted_by_equipment_id &&
+    !activeLoadout.equipment_ids.includes(skill.granted_by_equipment_id);
 
   // Custom empty message based on free_skill status
   const getEmptyMessage = () => {
@@ -744,6 +758,7 @@ export function SkillsList({
       <List
         title="Skills"
         items={skillsArray}
+        rowClassName={(item) => (isOutOfLoadout(item) ? 'text-muted-foreground' : '')}
         columns={[
           {
             key: 'name',

@@ -40,6 +40,7 @@ export interface ListProps<T = any> {
   isLoading?: boolean;
   sortBy?: (a: T, b: T) => number;
   headerActions?: React.ReactNode;
+  rowClassName?: (item: T) => string;
 }
 
 export function List<T = any>({
@@ -56,7 +57,8 @@ export function List<T = any>({
   className = "",
   isLoading = false,
   sortBy,
-  headerActions
+  headerActions,
+  rowClassName
 }: ListProps<T>) {
   // Sort items if sortBy function is provided
   const sortedItems = sortBy ? [...items].sort(sortBy) : items;
@@ -139,7 +141,7 @@ export function List<T = any>({
                 </tr>
               ) : (
                 sortedItems.map((item, index) => (
-                  <tr key={index} className="border-t">
+                  <tr key={index} className={`border-t ${rowClassName?.(item) || ''}`}>
                     {columns.map((column) => (
                       <td 
                         key={column.key}
