@@ -102,6 +102,11 @@ export const LOG_TYPE_LABELS: Record<string, string> = {
   'name_changed': 'Name changed',
   'gang_type_changed': 'Gang type changed',
 
+  // Gang Tactics
+  'tactics_card_roll': 'Gang Tactics roll',
+  'tactics_card_added': 'Gang Tactic added',
+  'tactics_card_removed': 'Gang Tactic removed',
+
   // Campaign
   'campaign_joined': 'Campaign joined',
   'campaign_left': 'Campaign left',
