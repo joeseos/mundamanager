@@ -28,6 +28,7 @@ function SignInContent() {
   const searchParams = useSearchParams();
   const urlError = searchParams.get('error');
   const [errorMessage, setErrorMessage] = useState<string | null>(urlError);
+  const [emailError, setEmailError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(0);
   const [userCount, setUserCount] = useState<number | undefined>(undefined);
   const [gangCount, setGangCount] = useState<number | undefined>(undefined);
@@ -121,24 +122,42 @@ function SignInContent() {
               <input type="hidden" name="next" value={safeNext} />
             ) : null;
           })()}
-          <h1 className="text-2xl font-medium text-white mb-2">Sign In</h1>
-          <p className="text-sm text-white mb-8">
-            Don&apos;t have an account?{" "}
+          <h1 className="text-2xl font-medium text-white mb-2 text-center">Sign In</h1>
+          <p className="text-sm text-white mb-8 text-center">
+            Don't have an account yet?{" "}
             <Link className="text-white font-medium underline" href="/sign-up">
               Sign up
             </Link>
           </p>
           <div className="flex flex-col gap-4">
             <Label htmlFor="email">Email</Label>
-            <Input 
-              id="email" 
-              name="email" 
-              type="email"
-              placeholder="you@example.com" 
-              required 
-              className="text-foreground" 
-              autoComplete="email"
-            />
+            <div>
+              <Input 
+                id="email" 
+                name="email" 
+                type="email"
+                placeholder="you@example.com" 
+                required 
+                className="text-foreground" 
+                autoComplete="email"
+                aria-invalid={!!emailError}
+                aria-describedby={emailError ? "email-error" : undefined}
+                onInvalid={(e) => {
+                  e.preventDefault();
+                  setEmailError("Must be an email address");
+                }}
+                onChange={(e) => {
+                  if (e.target.validity.valid) {
+                    setEmailError(null);
+                  }
+                }}
+              />
+              {emailError && (
+                <p id="email-error" className="text-red-500 text-sm mt-1">
+                  {emailError}
+                </p>
+              )}
+            </div>
             <Label htmlFor="password">Password</Label>
             <div className="relative">
               <Input
@@ -174,7 +193,7 @@ function SignInContent() {
             )}
             <Link 
               href="/reset-password" 
-              className="text-sm text-white hover:underline self-end"
+              className="text-sm text-white underline self-end"
             >
               Forgot your password?
             </Link>
