@@ -99,6 +99,11 @@ type GrantingEffect = {
  * fighter_effects -> fighter_effect_skills -> fighter_skills is ON DELETE CASCADE
  * throughout.
  *
+ * One deliberate difference from that function: it reuses an existing row for the
+ * same skill, this always inserts. Reusing means selling the equipment cascades
+ * away a skill the fighter bought with XP. The duplicate is resolved for display
+ * in fighter-data.ts and gang-data.ts, where the bought row wins.
+ *
  * Returns whether anything was granted, so callers can revalidate BASE_FIGHTER_SKILLS.
  */
 export async function grantSkillsForEffects(
@@ -117,13 +122,20 @@ export async function grantSkillsForEffects(
   // skill_id on a 'skills'-category type means the skill this effect BELONGS TO
   // (fighter-advancement.ts), not one it grants. addEquipmentEffect takes an
   // effect_type_id from the client, so this decides a real request.
-  const { data: types } = await supabase
+  const { data: types, error: typesError } = await supabase
     .from('fighter_effect_types')
     .select('id, fighter_effect_categories ( category_name )')
     .in('id', candidates.map(effect => effect.fighter_effect_type_id));
 
+  // Grant nothing rather than fail open: an empty set here would exclude nothing
+  // and let a 'skills'-category effect grant its owning skill.
+  if (typesError || !types) {
+    console.error('Failed to read effect type categories, skipping skill grants:', typesError);
+    return false;
+  }
+
   const skillCategoryTypeIds = new Set(
-    (types ?? [])
+    types
       .filter((row: any) => row.fighter_effect_categories?.category_name === 'skills')
       .map((row: any) => row.id)
   );
@@ -171,10 +183,19 @@ export async function grantSkillsForEffects(
       continue;
     }
 
-    await supabase
+    // The cascade reaches fighter_skills through this column, so a row that never
+    // gets it survives the effect as a free skill nobody bought. Same cleanup.
+    const { error: backfillError } = await supabase
       .from('fighter_skills')
       .update({ fighter_effect_skill_id: link.id })
       .eq('id', skill.id);
+
+    if (backfillError) {
+      console.error('Failed to back-fill granted skill provenance:', backfillError);
+      await supabase.from('fighter_skills').delete().eq('id', skill.id);
+      await serviceClient.from('fighter_effect_skills').delete().eq('id', link.id);
+      continue;
+    }
 
     granted = true;
   }
