@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { getSkillSetRank } from "@/utils/skillSetRank";
 import { FighterSkills } from '@/types/fighter';
 import { FighterLoadout } from '@/types/equipment';
+import { isEquipmentInActiveLoadout } from '@/components/fighter/fighter-equipment-list';
 import { createClient } from '@/utils/supabase/client';
 import { List } from "@/components/ui/list";
 import { Combobox } from '@/components/ui/combobox';
@@ -738,12 +739,9 @@ export function SkillsList({
 
   const hasAnyCost = skillsArray.some(s => s.credits_increase > 0);
 
-  // Mirrors isEquipmentInActiveLoadout: an unknown loadout mutes nothing
-  const activeLoadout = activeLoadoutId ? loadouts.find(l => l.id === activeLoadoutId) : null;
   const isOutOfLoadout = (skill: Skill) =>
-    !!activeLoadout &&
     !!skill.granted_by_equipment_id &&
-    !activeLoadout.equipment_ids.includes(skill.granted_by_equipment_id);
+    !isEquipmentInActiveLoadout(skill.granted_by_equipment_id, loadouts, activeLoadoutId);
 
   // Custom empty message based on free_skill status
   const getEmptyMessage = () => {
