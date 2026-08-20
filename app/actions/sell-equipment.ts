@@ -244,7 +244,6 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
     // After the cascade, so the survivor check sees only what remains
     await syncSubtypeGrants(supabase, equipmentData.fighter_id, { revoked: associatedEffects });
 
-    // An effect-granted skill went with the cascade; no equipment invalidator covers this tag
     if (equipmentData.fighter_id) {
       revalidateTag(CACHE_TAGS.BASE_FIGHTER_SKILLS(equipmentData.fighter_id), { expire: 0 });
     }

@@ -410,12 +410,10 @@ export function applySpecialRulesModifiers(
  * the edit modal, which uses them to mark the resulting chips read-only.
  */
 /**
- * Skill an effect grants, e.g. a bionic arm granting "Iron Jaw". Null when the
- * effect grants none.
+ * Skill an effect grants, e.g. a bionic arm granting "Iron Jaw".
  *
- * On a 'skills'-category effect type the same key means the opposite — the skill
- * the effect BELONGS TO (see fighter-advancement.ts) — so callers must exclude
- * that category before treating the result as a grant.
+ * On a 'skills'-category type the same key means the opposite — the skill the
+ * effect BELONGS TO — so callers must exclude that category first.
  */
 export function grantedSkillFromEffect(
   effect: { type_specific_data?: unknown } | null | undefined

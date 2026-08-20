@@ -25,7 +25,6 @@ import { FighterLoadout } from '@/types/equipment';
 import FighterLoadoutsModal from '@/components/fighter/fighter-loadouts-modal';
 
 // No active loadout, or one we can't resolve, means nothing is out of it.
-// Shared with the skills list, which mutes skills granted by absent equipment.
 export function isEquipmentInActiveLoadout(
   fighterEquipmentId: string,
   loadouts: FighterLoadout[],
