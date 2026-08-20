@@ -8,7 +8,6 @@ import { updateGangFinancials, GangFinancialUpdateResult } from '@/utils/gang-ra
 import { logEquipmentAction } from './logs/equipment-logs';
 import { countsTowardRating } from '@/utils/fighter-status';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
-import { revalidateRevokedSkillGrants } from '@/utils/fighter-effect-skill-grants';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -190,7 +189,11 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
 
       // After the delete above, so the survivor check sees only what remains
       await syncSubtypeGrants(supabase, equipmentData.fighter_id, { revoked: associatedEffects });
-      revalidateRevokedSkillGrants(equipmentData.fighter_id, associatedEffects);
+
+      // An effect-granted skill went with the cascade; no equipment invalidator covers this tag
+      if (equipmentData.fighter_id) {
+        revalidateTag(CACHE_TAGS.BASE_FIGHTER_SKILLS(equipmentData.fighter_id), { expire: 0 });
+      }
     }
 
     // Update the equipment to move it to stash

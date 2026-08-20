@@ -1,7 +1,6 @@
 import { unstable_cache } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import { readHatredTarget } from '@/utils/injuryTarget';
-import { skillRowSupersedes } from '@/utils/fighter-effect-skill-grants';
 import { WeaponProps, WargearItem } from '@/types/fighter';
 import { WeaponProfile } from '@/types/equipment';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
@@ -1639,7 +1638,8 @@ export const getGangFightersList = async (
                 : {})
             };
 
-            if (skillRowSupersedes(mapped, skills[skillName])) {
+            // A granted skill never hides one the fighter bought
+            if (!skills[skillName] || skills[skillName].fighter_injury_id) {
               skills[skillName] = mapped;
             }
           }

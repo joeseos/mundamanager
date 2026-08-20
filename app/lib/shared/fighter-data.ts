@@ -1,7 +1,6 @@
 import { unstable_cache } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import { readHatredTarget } from '@/utils/injuryTarget';
-import { skillRowSupersedes } from '@/utils/fighter-effect-skill-grants';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { FighterEffect } from '@/types/fighter';
 import { FighterLoadout } from '@/types/equipment';
@@ -596,7 +595,8 @@ export const getFighterSkills = async (fighterId: string, supabase: any): Promis
               : {})
           };
 
-          if (skillRowSupersedes(mapped, skills[skillName])) {
+          // A granted skill never hides one the fighter bought
+          if (!skills[skillName] || skills[skillName].fighter_injury_id) {
             skills[skillName] = mapped;
           }
         }

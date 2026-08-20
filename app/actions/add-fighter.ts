@@ -5,7 +5,7 @@ import { getAuthenticatedUser } from "@/utils/auth";
 import { invalidateFighterAddition, invalidateUserGangsList } from '@/utils/cache-tags';
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
-import { grantSkillsForEffects } from '@/utils/fighter-effect-skill-grants';
+import { grantSkillsForEffects } from './equipment';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { logFighterAction } from '@/app/actions/logs/fighter-logs';
 import { mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';

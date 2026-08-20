@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from "@/utils/supabase/server";
+import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
 import {
   invalidateFighterData,
   invalidateFighterDataWithFinancials,
@@ -22,7 +22,7 @@ import { countsTowardRating } from '@/utils/fighter-status';
 import { EquipmentGrants, ResourceCost, CostResourcePayload } from '@/types/equipment';
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
-import { grantSkillsForEffects, revalidateRevokedSkillGrants } from '@/utils/fighter-effect-skill-grants';
+import { grantedSkillFromEffect } from '@/utils/effect-modifiers';
 import { clearHardpointReference } from './vehicle-hardpoints';
 import { deductGangResource, returnGangResource, parseTradePointsCost, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
 import { gangEditionSlug, hasMasterCraftedWeapons, hasTradePoints } from '@/types/edition';
@@ -84,6 +84,102 @@ interface StashActionResult {
   success: boolean;
   data?: any;
   error?: string;
+}
+
+type GrantingEffect = {
+  id: string;
+  fighter_effect_type_id: string;
+  type_specific_data?: any;
+};
+
+/**
+ * Effect-granted skills, e.g. a bionic arm granting "Iron Jaw". Same shape as the
+ * injury grant in add_fighter_injury.sql: a fighter_skills row owned by the effect
+ * through fighter_effect_skills. Removal needs no code -- fighter_equipment ->
+ * fighter_effects -> fighter_effect_skills -> fighter_skills is ON DELETE CASCADE
+ * throughout.
+ *
+ * Returns whether anything was granted, so callers can revalidate BASE_FIGHTER_SKILLS.
+ */
+export async function grantSkillsForEffects(
+  supabase: any,
+  fighterId: string | null | undefined,
+  effects: GrantingEffect[] | null | undefined,
+  userId: string
+): Promise<boolean> {
+  // Skills are fighter-scoped, so an N23 vehicle-only effect grants nothing. On
+  // N26 a vehicle is a fighter and arrives here as fighterId.
+  if (!fighterId) return false;
+
+  const candidates = (effects ?? []).filter(effect => grantedSkillFromEffect(effect));
+  if (candidates.length === 0) return false;
+
+  // skill_id on a 'skills'-category type means the skill this effect BELONGS TO
+  // (fighter-advancement.ts), not one it grants. addEquipmentEffect takes an
+  // effect_type_id from the client, so this decides a real request.
+  const { data: types } = await supabase
+    .from('fighter_effect_types')
+    .select('id, fighter_effect_categories ( category_name )')
+    .in('id', candidates.map(effect => effect.fighter_effect_type_id));
+
+  const skillCategoryTypeIds = new Set(
+    (types ?? [])
+      .filter((row: any) => row.fighter_effect_categories?.category_name === 'skills')
+      .map((row: any) => row.id)
+  );
+
+  // fighter_effect_skills has no user-facing writes: nothing updates or deletes it,
+  // and add_fighter_injury reaches it as SECURITY DEFINER. The link is derived
+  // rather than user-directed -- both rows it joins were just written under RLS by
+  // this user -- so it goes through the service role instead of opening the table up.
+  const serviceClient = createServiceRoleClient();
+  let granted = false;
+
+  for (const effect of candidates) {
+    if (skillCategoryTypeIds.has(effect.fighter_effect_type_id)) continue;
+
+    // Zero cost: the equipment's price and the effect's own credits_increase
+    // already drive rating.
+    const { data: skill, error: skillError } = await supabase
+      .from('fighter_skills')
+      .insert({
+        fighter_id: fighterId,
+        skill_id: grantedSkillFromEffect(effect),
+        user_id: userId,
+        credits_increase: 0,
+        xp_cost: 0,
+        is_advance: false
+      })
+      .select('id')
+      .single();
+
+    if (!skill) {
+      console.error('Failed to insert granted skill:', skillError);
+      continue;
+    }
+
+    const { data: link, error: linkError } = await serviceClient
+      .from('fighter_effect_skills')
+      .insert({ fighter_effect_id: effect.id, fighter_skill_id: skill.id })
+      .select('id')
+      .single();
+
+    // Without the link the skill has no provenance and no cascade, so it goes.
+    if (!link) {
+      console.error('Failed to link granted skill to effect:', linkError);
+      await supabase.from('fighter_skills').delete().eq('id', skill.id);
+      continue;
+    }
+
+    await supabase
+      .from('fighter_skills')
+      .update({ fighter_effect_skill_id: link.id })
+      .eq('id', skill.id);
+
+    granted = true;
+  }
+
+  return granted;
 }
 
 /**
@@ -1177,7 +1273,11 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
 
     // After the cascade, so the survivor check sees only what remains
     await syncSubtypeGrants(supabase, equipmentBefore.fighter_id, { revoked: associatedEffects });
-    revalidateRevokedSkillGrants(equipmentBefore.fighter_id, associatedEffects);
+
+    // An effect-granted skill went with the cascade; no equipment invalidator covers this tag
+    if (equipmentBefore.fighter_id) {
+      revalidateTag(CACHE_TAGS.BASE_FIGHTER_SKILLS(equipmentBefore.fighter_id), { expire: 0 });
+    }
 
     // Log equipment deletion
     try {

@@ -409,6 +409,25 @@ export function applySpecialRulesModifiers(
  * to fighters.fighter_subtypes (see utils/fighter-subtype-grants.ts). Shared with
  * the edit modal, which uses them to mark the resulting chips read-only.
  */
+/**
+ * Skill an effect grants, e.g. a bionic arm granting "Iron Jaw". Null when the
+ * effect grants none.
+ *
+ * On a 'skills'-category effect type the same key means the opposite — the skill
+ * the effect BELONGS TO (see fighter-advancement.ts) — so callers must exclude
+ * that category before treating the result as a grant.
+ */
+export function grantedSkillFromEffect(
+  effect: { type_specific_data?: unknown } | null | undefined
+): string | null {
+  const tsd = effect && typeof effect.type_specific_data === 'object' && effect.type_specific_data
+    ? effect.type_specific_data as Record<string, unknown>
+    : null;
+  const skillId = tsd?.skill_id;
+
+  return typeof skillId === 'string' && skillId ? skillId : null;
+}
+
 export function subtypeGrantsFromEffects(
   effects: Array<{ type_specific_data?: TraitModificationData | string | null }> | null | undefined
 ): { add: string[]; remove: string[] } {
