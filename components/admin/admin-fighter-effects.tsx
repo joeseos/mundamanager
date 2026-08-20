@@ -803,7 +803,7 @@ export function AdminFighterEffects({
           }}
           onConfirm={editingEffect ? handleUpdateEffect : handleAddEffect}
           confirmText={editingEffect ? "Update Effect" : "Add Effect"}
-          confirmDisabled={isLoading || !newEffect.effect_name}
+          confirmDisabled={isLoading || !newEffect.effect_name || !newEffect.fighter_effect_category_id}
         >
           <div className="space-y-4">
             <div>
@@ -834,7 +834,7 @@ export function AdminFighterEffects({
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Category</label>
+              <label className="block text-sm font-medium mb-1">Category *</label>
               <select
                 value={newEffect.fighter_effect_category_id}
                 onChange={(e) => setNewEffect(prev => ({ ...prev, fighter_effect_category_id: e.target.value }))}
@@ -1223,4 +1223,4 @@ export function AdminFighterEffects({
       </Tooltip>
     </>
   );
-} 
+}
