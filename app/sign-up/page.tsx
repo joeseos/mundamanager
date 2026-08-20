@@ -133,8 +133,8 @@ export default function Page(props: { searchParams: Promise<Message> }) {
           onSubmit={handleSubmit}
           noValidate
         >
-          <h1 className="text-2xl font-medium text-white mb-2">Sign Up</h1>
-          <p className="text-sm text-white mb-8">
+          <h1 className="text-2xl font-medium text-white mb-2 text-center">Sign Up</h1>
+          <p className="text-sm text-white mb-8 text-center">
             Already have an account?{" "}
             <Link className="text-white font-medium underline" href="/sign-in">
               Sign in
