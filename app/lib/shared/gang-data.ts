@@ -1,6 +1,7 @@
 import { unstable_cache } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import { readHatredTarget } from '@/utils/injuryTarget';
+import { skillRowSupersedes } from '@/utils/fighter-effect-skill-grants';
 import { WeaponProps, WargearItem } from '@/types/fighter';
 import { WeaponProfile } from '@/types/equipment';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
@@ -1618,7 +1619,7 @@ export const getGangFightersList = async (
             // bitter_enmity_* keys, which were deliberately never backfilled.
             const hatredTarget = readHatredTarget(tsd);
 
-            skills[skillName] = {
+            const mapped = {
               id: skillData.id,
               name: skillName,
               credits_increase: skillData.credits_increase || 0,
@@ -1637,6 +1638,10 @@ export const getGangFightersList = async (
                   }
                 : {})
             };
+
+            if (skillRowSupersedes(mapped, skills[skillName])) {
+              skills[skillName] = mapped;
+            }
           }
         });
 

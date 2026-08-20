@@ -1,6 +1,7 @@
 import { unstable_cache } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import { readHatredTarget } from '@/utils/injuryTarget';
+import { skillRowSupersedes } from '@/utils/fighter-effect-skill-grants';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { FighterEffect } from '@/types/fighter';
 import { FighterLoadout } from '@/types/equipment';
@@ -575,7 +576,7 @@ export const getFighterSkills = async (fighterId: string, supabase: any): Promis
           // bitter_enmity_* keys, which were deliberately never backfilled.
           const hatredTarget = readHatredTarget(tsd);
 
-          skills[skillName] = {
+          const mapped: FighterSkill = {
             id: skillData.id,
             name: skillName,
             credits_increase: skillData.credits_increase || 0,
@@ -594,6 +595,10 @@ export const getFighterSkills = async (fighterId: string, supabase: any): Promis
                 }
               : {})
           };
+
+          if (skillRowSupersedes(mapped, skills[skillName])) {
+            skills[skillName] = mapped;
+          }
         }
       });
 

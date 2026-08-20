@@ -794,7 +794,7 @@ export function SkillsList({
               if (item.fighter_injury_id) {
                 return (
                   <span className="text-muted-foreground text-sm italic whitespace-nowrap">
-                    {item.injury_name || 'Lasting Injury'}
+                    {item.injury_name || 'Effect'}
                   </span>
                 );
               }

@@ -7,6 +7,7 @@ import { revalidateTag } from 'next/cache';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { countsTowardRating } from '@/utils/fighter-status';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
+import { revalidateRevokedSkillGrants } from '@/utils/fighter-effect-skill-grants';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { clearHardpointReference } from './vehicle-hardpoints';
 import { returnCostResource } from '@/utils/campaigns/resources';
@@ -243,6 +244,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
 
     // After the cascade, so the survivor check sees only what remains
     await syncSubtypeGrants(supabase, equipmentData.fighter_id, { revoked: associatedEffects });
+    revalidateRevokedSkillGrants(equipmentData.fighter_id, associatedEffects);
 
     if (isResourcePurchase) {
       try {

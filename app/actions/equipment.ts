@@ -22,6 +22,7 @@ import { countsTowardRating } from '@/utils/fighter-status';
 import { EquipmentGrants, ResourceCost, CostResourcePayload } from '@/types/equipment';
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
+import { grantSkillsForEffects, revalidateRevokedSkillGrants } from '@/utils/fighter-effect-skill-grants';
 import { clearHardpointReference } from './vehicle-hardpoints';
 import { deductGangResource, returnGangResource, parseTradePointsCost, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
 import { gangEditionSlug, hasMasterCraftedWeapons, hasTradePoints } from '@/types/edition';
@@ -196,6 +197,21 @@ export async function insertEffectWithModifiers(
       if (modErr) {
         return { success: false, error: modErr.message };
       }
+    }
+
+    const grantedSkill = await grantSkillsForEffects(
+      supabase,
+      params.fighter_id,
+      [{
+        id: newEffect.id,
+        fighter_effect_type_id: effectType.id,
+        type_specific_data: effectType.type_specific_data
+      }],
+      params.user_id
+    );
+
+    if (grantedSkill && params.fighter_id) {
+      revalidateTag(CACHE_TAGS.BASE_FIGHTER_SKILLS(params.fighter_id), { expire: 0 });
     }
 
     return {
@@ -1161,6 +1177,7 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
 
     // After the cascade, so the survivor check sees only what remains
     await syncSubtypeGrants(supabase, equipmentBefore.fighter_id, { revoked: associatedEffects });
+    revalidateRevokedSkillGrants(equipmentBefore.fighter_id, associatedEffects);
 
     // Log equipment deletion
     try {

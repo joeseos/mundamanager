@@ -5,6 +5,7 @@ import { getAuthenticatedUser } from "@/utils/auth";
 import { invalidateFighterAddition, invalidateUserGangsList } from '@/utils/cache-tags';
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
+import { grantSkillsForEffects } from '@/utils/fighter-effect-skill-grants';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { logFighterAction } from '@/app/actions/logs/fighter-logs';
 import { mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';
@@ -232,6 +233,17 @@ async function applyEffectsForEquipmentOptimized(
         console.error('Failed to insert effect modifiers:', modifiersError);
       }
     }
+
+    await grantSkillsForEffects(
+      supabase,
+      fighterId,
+      insertedEffects.map((effect: any, index: number) => ({
+        id: effect.id,
+        fighter_effect_type_id: effect.fighter_effect_type_id,
+        type_specific_data: effectTypes[index]?.type_specific_data
+      })),
+      userId
+    );
 
     // Build applied effects response using pre-fetched data (no additional queries)
     const appliedEffects: any[] = [];
