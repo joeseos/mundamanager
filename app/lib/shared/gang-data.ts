@@ -6,6 +6,7 @@ import { WeaponProfile } from '@/types/equipment';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang';
 import { gangEditionSlug } from '@/types/edition';
+import { GangTacticsCard, GANG_TACTICS_CARD_SELECT, toGangTacticsCard } from '@/types/tactics-card';
 
 // =============================================================================
 // TYPES - Shared interfaces for gang data
@@ -318,6 +319,31 @@ export const getGangPositioning = async (gangId: string, supabase: any): Promise
     [`gang-positioning-${gangId}`],
     {
       tags: [CACHE_TAGS.BASE_GANG_POSITIONING(gangId)],
+      revalidate: false
+    }
+  )();
+};
+
+/**
+ * Get the Gang Tactics cards a gang holds, flattened with their catalogue name
+ * and D66 range. Callers gate on hasGangTacticsCards(), not this.
+ * Cache: BASE_GANG_TACTICS_CARDS
+ */
+export const getGangTacticsCards = async (gangId: string, supabase: any): Promise<GangTacticsCard[]> => {
+  return unstable_cache(
+    async () => {
+      const { data, error } = await supabase
+        .from('gang_tactics_cards')
+        .select(GANG_TACTICS_CARD_SELECT)
+        .eq('gang_id', gangId);
+
+      if (error) throw error;
+
+      return (data ?? []).map(toGangTacticsCard);
+    },
+    [`gang-tactics-cards-${gangId}`],
+    {
+      tags: [CACHE_TAGS.BASE_GANG_TACTICS_CARDS(gangId)],
       revalidate: false
     }
   )();

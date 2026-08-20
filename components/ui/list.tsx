@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { cn } from '@/app/lib/utils';
 import { Button } from './button';
 
 export interface ListColumn {
@@ -86,8 +87,9 @@ export function List<T = any>({
     return String(value);
   };
 
+  // cn so a caller's own spacing overrides mt-6 instead of losing to it
   return (
-    <div className={`mt-6 ${className}`}>
+    <div className={cn('mt-6', className)}>
       <div className="flex flex-wrap justify-between items-center mb-2">
         <h2 className={`text-xl md:text-2xl font-bold${titleClassName ? ` ${titleClassName}` : ''}`}>{title}</h2>
         {(headerActions || onAdd) && (

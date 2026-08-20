@@ -24,6 +24,7 @@ export const CACHE_TAGS = {
   BASE_GANG_STASH: (id: string) => `base-gang-stash-${id}`,           // gang stash equipment
   BASE_GANG_VEHICLES: (id: string) => `base-gang-vehicles-${id}`,     // gang-owned vehicles
   BASE_GANG_POSITIONING: (id: string) => `base-gang-positioning-${id}`, // gang positioning data
+  BASE_GANG_TACTICS_CARDS: (id: string) => `base-gang-tactics-cards-${id}`, // gang tactics cards + descriptions
   
   // Fighter base data
   BASE_FIGHTER_BASIC: (id: string) => `base-fighter-basic-${id}`,     // name, stats, basic info
@@ -143,6 +144,15 @@ export const CACHE_TAGS = {
  */
 export const invalidateUserGangsList = (userId: string) => {
   revalidateTag(CACHE_TAGS.USER_GANGS(userId), { expire: 0 });
+};
+
+/**
+ * Gang Tactics invalidation.
+ * Triggered when: a gang's tactics cards are added, described or removed.
+ * Data changed: that list only — nothing feeds rating, credits or fighters.
+ */
+export const invalidateGangTacticsCards = (gangId: string) => {
+  revalidateTag(CACHE_TAGS.BASE_GANG_TACTICS_CARDS(gangId), { expire: 0 });
 };
 
 /**
