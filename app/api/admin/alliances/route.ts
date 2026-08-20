@@ -110,6 +110,18 @@ async function assertStrongAllianceMatchesEdition(
   return null;
 }
 
+async function assertEditionScopedRefs(
+  supabase: SupabaseClient,
+  strongAlliance: string | null,
+  editionId: string
+): Promise<string | null> {
+  const [editionError, strongAllianceError] = await Promise.all([
+    assertEditionExists(supabase, editionId),
+    assertStrongAllianceMatchesEdition(supabase, strongAlliance, editionId),
+  ]);
+  return editionError ?? strongAllianceError;
+}
+
 function isMissingRowError(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false;
   return error.code === 'PGRST116' || /0 rows/i.test(error.message ?? '');
@@ -156,18 +168,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: validated.error }, { status: 400 });
     }
 
-    const editionError = await assertEditionExists(supabase, validated.data.edition_id);
-    if (editionError) {
-      return NextResponse.json({ error: editionError }, { status: 400 });
-    }
-
-    const strongAllianceError = await assertStrongAllianceMatchesEdition(
+    const refError = await assertEditionScopedRefs(
       supabase,
       validated.data.strong_alliance,
       validated.data.edition_id
     );
-    if (strongAllianceError) {
-      return NextResponse.json({ error: strongAllianceError }, { status: 400 });
+    if (refError) {
+      return NextResponse.json({ error: refError }, { status: 400 });
     }
 
     const { data: alliance, error } = await supabase
@@ -209,18 +216,13 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: validated.error }, { status: 400 });
     }
 
-    const editionError = await assertEditionExists(supabase, validated.data.edition_id);
-    if (editionError) {
-      return NextResponse.json({ error: editionError }, { status: 400 });
-    }
-
-    const strongAllianceError = await assertStrongAllianceMatchesEdition(
+    const refError = await assertEditionScopedRefs(
       supabase,
       validated.data.strong_alliance,
       validated.data.edition_id
     );
-    if (strongAllianceError) {
-      return NextResponse.json({ error: strongAllianceError }, { status: 400 });
+    if (refError) {
+      return NextResponse.json({ error: refError }, { status: 400 });
     }
 
     const { data: alliance, error } = await supabase
