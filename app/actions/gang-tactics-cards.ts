@@ -71,24 +71,6 @@ async function authoriseGangTactics(
   return { context: { editionId: gangEditionJoin(gang)?.id ?? null } };
 }
 
-async function selectGangTacticsCards(
-  supabase: any,
-  gangId: string,
-  tacticsCardIds: string[]
-): Promise<GangTacticsCard[]> {
-  if (tacticsCardIds.length === 0) return [];
-
-  const { data, error } = await supabase
-    .from('gang_tactics_cards')
-    .select(GANG_TACTICS_CARD_SELECT)
-    .eq('gang_id', gangId)
-    .in('tactics_cards_id', tacticsCardIds);
-
-  if (error) throw error;
-
-  return (data ?? []).map(toGangTacticsCard);
-}
-
 export async function addGangTacticsCards(params: {
   gangId: string;
   tacticsCardIds: string[];
@@ -107,7 +89,7 @@ export async function addGangTacticsCards(params: {
     // The browser can post any uuid, so don't trust what the picker sent.
     let catalogueQuery = supabase
       .from('tactics_cards')
-      .select('id, name')
+      .select('id')
       .in('id', tacticsCardIds);
 
     if (auth.context.editionId) {
@@ -122,27 +104,22 @@ export async function addGangTacticsCards(params: {
     }
 
     // ignoreDuplicates so a stale picker can't 23505 on (gang_id, tactics_cards_id).
-    // The returned rows are only the ones actually inserted, which is what gets logged.
+    // Returns only the rows actually inserted, which is what the client appends
+    // and what gets logged.
     const { data: inserted, error: insertError } = await supabase
       .from('gang_tactics_cards')
       .upsert(
         tacticsCardIds.map(id => ({ gang_id: params.gangId, tactics_cards_id: id })),
         { onConflict: 'gang_id,tactics_cards_id', ignoreDuplicates: true }
       )
-      .select('tactics_cards_id');
+      .select(GANG_TACTICS_CARD_SELECT);
 
     if (insertError) throw insertError;
 
-    const added = await selectGangTacticsCards(supabase, params.gangId, tacticsCardIds);
+    const added = (inserted ?? []).map(toGangTacticsCard);
 
-    const nameById = new Map((catalogue ?? []).map((card: any) => [card.id, card.name]));
     await Promise.all(
-      (inserted ?? []).map((row: any) =>
-        logTacticsCardAdded({
-          gang_id: params.gangId,
-          card_name: nameById.get(row.tactics_cards_id) ?? 'Unknown Tactic'
-        })
-      )
+      added.map(card => logTacticsCardAdded({ gang_id: params.gangId, card_name: card.name }))
     );
 
     invalidateGangTacticsCards(params.gangId);
