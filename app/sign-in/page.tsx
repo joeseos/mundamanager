@@ -126,7 +126,8 @@ function SignInContent() {
           })()}
           <h1 className="text-2xl font-medium text-white mb-2 text-center">Sign In</h1>
           <p className="text-sm text-white mb-8 text-center">
-            Don't have an account yet?{" "}
+            {/* Use &apos; so react/no-unescaped-entities does not fail next build. */}
+            Don&apos;t have an account yet?{" "}
             <Link className="text-white font-medium underline" href="/sign-up">
               Sign up
             </Link>
