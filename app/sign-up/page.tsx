@@ -14,6 +14,7 @@ import {
   isPasswordValid,
 } from "@/utils/auth";
 import { LuEye, LuEyeOff } from "react-icons/lu";
+import { RiErrorWarningFill } from "react-icons/ri";
 
 export default function Page(props: { searchParams: Promise<Message> }) {
   const searchParams = use(props.searchParams);
@@ -47,7 +48,7 @@ export default function Page(props: { searchParams: Promise<Message> }) {
     // Clear error if username is empty or valid
     const isValidUsername = /^[a-zA-Z0-9_-]{3,20}$/.test(username);
     if (username && !isValidUsername) {
-      setUsernameError("Username must be 3-20 characters and can only contain letters, numbers, underscores, and hyphens");
+      setUsernameError("Must be 3-20 characters and can only contain letters, numbers, underscores, and hyphens");
     } else {
       setUsernameError("");
     }
@@ -55,8 +56,8 @@ export default function Page(props: { searchParams: Promise<Message> }) {
 
   if ("message" in searchParams) {
     return (
-      <main className="flex min-h-screen flex-col items-center">
-        <div className="container mx-auto max-w-4xl w-full p-4">
+      <main className="flex flex-col items-center">
+        <div className="container mx-auto max-w-4xl w-full px-4">
           <div className="flex flex-col items-center justify-center text-white text-center">
             <p className="text-lg mb-4">
               {searchParams.message}
@@ -82,7 +83,7 @@ export default function Page(props: { searchParams: Promise<Message> }) {
 
     const isValidUsername = /^[a-zA-Z0-9_-]{3,20}$/.test(username);
     if (!isValidUsername) {
-      setUsernameError("Username must be 3-20 characters and can only contain letters, numbers, underscores, and hyphens");
+      setUsernameError("Must be 3-20 characters and can only contain letters, numbers, underscores, and hyphens");
       setIsSubmitting(false);
       return;
     }
@@ -126,8 +127,8 @@ export default function Page(props: { searchParams: Promise<Message> }) {
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center">
-      <div className="container mx-auto max-w-4xl w-full p-4">
+    <main className="flex flex-col items-center">
+      <div className="container mx-auto max-w-4xl w-full px-4">
         <form 
           className="flex flex-col w-full max-w-sm mx-auto text-white"
           onSubmit={handleSubmit}
@@ -156,7 +157,10 @@ export default function Page(props: { searchParams: Promise<Message> }) {
                 onChange={handleUsernameChange}
               />
               {usernameError && (
-                <p className="text-red-400 text-sm mt-1">{usernameError}</p>
+                <p className="text-red-400 text-sm mt-1 flex items-start gap-1">
+                  <RiErrorWarningFill className="h-4 w-4 shrink-0 mt-0.5" aria-hidden />
+                  {usernameError}
+                </p>
               )}
             </div>
 
@@ -173,7 +177,10 @@ export default function Page(props: { searchParams: Promise<Message> }) {
                 onChange={handleEmailChange}
               />
               {emailError && (
-                <p className="text-red-400 text-sm mt-1">{emailError}</p>
+                <p className="text-red-400 text-sm mt-1 flex items-start gap-1">
+                  <RiErrorWarningFill className="h-4 w-4 shrink-0 mt-0.5" aria-hidden />
+                  {emailError}
+                </p>
               )}
             </div>
             
