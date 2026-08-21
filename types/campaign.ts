@@ -156,6 +156,8 @@ export interface UserCampaign {
   id: string;
   campaign_name: string;
   status: string | null;
+  /** Derived from campaign_types; campaigns carry no edition of their own. */
+  edition_slug: string | null;
 }
 
 /**

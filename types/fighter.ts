@@ -126,6 +126,7 @@ export type FighterSkills = Record<string, {
   fighter_injury_id?: string | null;
   injury_name?: string;
   custom_skill_id?: string | null;
+  granted_by_equipment_id?: string;
   /** Hatred (X) target of the injury that granted this skill, if any. See utils/injuryTarget.ts. */
   hatred_target_kind?: 'gang' | 'gang_type' | 'fighter';
   hatred_target_id?: string;

@@ -1,7 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { getUserIdFromClaims } from "@/utils/auth";
-import { editionSlugFromJoin } from "@/types/edition";
+import { editionSlugFromJoin, EditionJoin } from "@/types/edition";
+import { fetchAllRows } from "@/utils/supabase/fetch-all-rows";
+
+interface RegularEquipmentRow {
+  id: string;
+  equipment_name: string;
+  equipment_category: string;
+  equipment_type: string;
+  core_equipment: boolean | null;
+  editions: EditionJoin;
+}
+
+interface CustomEquipmentRow {
+  id: string;
+  equipment_name: string;
+  equipment_category: string;
+  equipment_type: string;
+  editions: EditionJoin;
+}
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -18,38 +36,47 @@ export async function GET(request: NextRequest) {
     const equipmentType = searchParams.get('equipment_type');
     const coreEquipment = searchParams.get('core_equipment');
 
-    // Fetch regular equipment and user's custom equipment in parallel
-    let regularQuery = supabase
-      .from('equipment')
-      .select('id, equipment_name, equipment_category, equipment_type, core_equipment, editions:edition_id (slug)')
-      .order('equipment_name');
+    // Fetch regular equipment and user's custom equipment in parallel, paging
+    // past PostgREST's default max-rows cap so large catalogs aren't silently
+    // truncated (see utils/supabase/fetch-all-rows.ts).
+    const [regularEquipmentRows, customEquipmentRows] = await Promise.all([
+      fetchAllRows<RegularEquipmentRow>((from, to) => {
+        let query = supabase
+          .from('equipment')
+          .select('id, equipment_name, equipment_category, equipment_type, core_equipment, editions:edition_id (slug)')
+          .order('equipment_name')
+          .order('id')
+          .range(from, to);
 
-    let customQuery = supabase
-      .from('custom_equipment')
-      .select('id, equipment_name, equipment_category, equipment_type, editions:edition_id (slug)')
-      .eq('user_id', userId)
-      .order('equipment_name');
+        if (equipmentType) {
+          query = query.eq('equipment_type', equipmentType);
+        }
+        if (coreEquipment === 'false') {
+          query = query.or('core_equipment.is.null,core_equipment.eq.false');
+        }
 
-    if (equipmentType) {
-      regularQuery = regularQuery.eq('equipment_type', equipmentType);
-      customQuery = customQuery.eq('equipment_type', equipmentType);
-    }
+        return query;
+      }),
+      fetchAllRows<CustomEquipmentRow>((from, to) => {
+        let query = supabase
+          .from('custom_equipment')
+          .select('id, equipment_name, equipment_category, equipment_type, editions:edition_id (slug)')
+          .eq('user_id', userId)
+          .order('equipment_name')
+          .order('id')
+          .range(from, to);
 
-    if (coreEquipment === 'false') {
-      regularQuery = regularQuery.or('core_equipment.is.null,core_equipment.eq.false');
-    }
+        if (equipmentType) {
+          query = query.eq('equipment_type', equipmentType);
+        }
 
-    const [regularEquipmentResult, customEquipmentResult] = await Promise.all([
-      regularQuery,
-      customQuery,
+        return query;
+      }),
     ]);
-
-    if (regularEquipmentResult.error) throw regularEquipmentResult.error;
-    if (customEquipmentResult.error) throw customEquipmentResult.error;
 
     // Transform custom equipment to match the expected format and mark them as custom.
     // Both branches carry edition_slug so callers can scope pickers to one edition.
-    const regularEquipment = (regularEquipmentResult.data || []).map(item => ({
+    const regularEquipment = regularEquipmentRows.map(item => ({
       id: item.id,
       equipment_name: item.equipment_name,
       equipment_category: item.equipment_category,
@@ -58,7 +85,7 @@ export async function GET(request: NextRequest) {
       is_custom: false,
     }));
 
-    const customEquipment = (customEquipmentResult.data || []).map(item => ({
+    const customEquipment = customEquipmentRows.map(item => ({
       id: `custom_${item.id}`,
       equipment_name: `${item.equipment_name} (Custom)`,
       equipment_category: item.equipment_category,

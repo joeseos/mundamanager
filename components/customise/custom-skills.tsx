@@ -1,21 +1,19 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { List, ListColumn, ListAction } from '@/components/ui/list';
 import { CustomSkill } from '@/app/lib/customise/custom-skills';
 import { createCustomSkill, updateCustomSkill, deleteCustomSkill, createCustomSkillType, updateCustomSkillType, deleteCustomSkillType } from '@/app/actions/customise/custom-skills';
-import { shareCustomSkill } from '@/app/actions/customise/custom-share';
+import { ShareCustomSkillModal } from '@/components/customise/custom-shared';
 import Modal from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { LuEye, LuSquarePen, LuTrash2 } from 'react-icons/lu';
 import { FaRegCopy } from 'react-icons/fa';
 import { FiShare2 } from 'react-icons/fi';
-import { createClient } from '@/utils/supabase/client';
 import { getSkillSetRank } from '@/utils/skillSetRank';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BiSolidNotepad } from 'react-icons/bi';
 import { Tooltip } from 'react-tooltip';
 import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
@@ -690,133 +688,5 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
         }}
       />
     </div>
-  );
-}
-
-// Share modal for custom skills
-interface ShareCustomSkillModalProps {
-  skill: CustomSkill;
-  userCampaigns: UserCampaign[];
-  onClose: () => void;
-  onSuccess?: () => void;
-}
-
-function ShareCustomSkillModal({
-  skill,
-  userCampaigns,
-  onClose,
-  onSuccess,
-}: ShareCustomSkillModalProps) {
-  const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
-
-  const queryClient = useQueryClient();
-
-  const { data: sharedCampaignIds = [], isLoading, isSuccess, error: fetchError } = useQuery({
-    queryKey: ['customSharedCampaigns', 'skill', skill.id],
-    queryFn: async () => {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from('custom_shared')
-        .select('campaign_id')
-        .eq('custom_skill_id', skill.id);
-
-      if (error) throw error;
-      return data?.map(share => share.campaign_id) || [];
-    },
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-  });
-
-  const [prevSharedKey, setPrevSharedKey] = useState('');
-  const sharedKey = `${isSuccess}:${JSON.stringify(sharedCampaignIds)}`;
-  if (sharedKey !== prevSharedKey) {
-    setPrevSharedKey(sharedKey);
-    if (isSuccess) setSelectedCampaigns(sharedCampaignIds);
-  }
-
-  useEffect(() => {
-    if (fetchError) {
-      toast.error('Failed to load shared campaigns');
-    }
-  }, [fetchError]);
-
-  const shareSkillMutation = useMutation({
-    mutationFn: (campaignIds: string[]) => shareCustomSkill(skill.id, campaignIds),
-    onSuccess: (result, campaignIds) => {
-      if (result.success) {
-        toast.success(campaignIds.length > 0
-            ? `Custom skill shared to ${campaignIds.length} campaign${campaignIds.length !== 1 ? 's' : ''}`
-            : 'Custom skill unshared from all campaigns');
-        queryClient.invalidateQueries({ queryKey: ['customSharedCampaigns', 'skill', skill.id] });
-        onSuccess?.();
-        onClose();
-      } else {
-        toast.error(result.error || 'Failed to share custom skill');
-      }
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Failed to share custom skill');
-    },
-  });
-
-  const handleToggleCampaign = (campaignId: string) => {
-    setSelectedCampaigns(prev =>
-      prev.includes(campaignId)
-        ? prev.filter(id => id !== campaignId)
-        : [...prev, campaignId]
-    );
-  };
-
-  const handleSubmit = () => {
-    shareSkillMutation.mutate(selectedCampaigns);
-    return true;
-  };
-
-  return (
-    <Modal
-      title="Share Custom Skill"
-      helper="Select campaigns to share this custom skill with"
-      onClose={onClose}
-      onConfirm={handleSubmit}
-      confirmText={shareSkillMutation.isPending ? 'Sharing...' : 'Share Skill'}
-      confirmDisabled={shareSkillMutation.isPending || isLoading}
-      width="md"
-    >
-      <div className="space-y-4">
-        {isLoading ? (
-          <div className="text-center py-8 text-muted-foreground">Loading...</div>
-        ) : userCampaigns.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <p>You&apos;re not part of any campaigns yet.</p>
-            <p className="text-sm mt-2">You need to be an arbitrator of a campaign to share custom skills to it.</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground mb-4">
-              Sharing <strong>{skill.skill_name}</strong> to campaigns:
-            </p>
-            {userCampaigns.map((campaign) => (
-              <div
-                key={campaign.id}
-                className="flex items-start space-x-3 p-3 border rounded-md hover:bg-muted/50 transition-colors"
-              >
-                <Checkbox
-                  id={`skill-campaign-${campaign.id}`}
-                  checked={selectedCampaigns.includes(campaign.id)}
-                  onCheckedChange={() => handleToggleCampaign(campaign.id)}
-                  className="mt-0.5"
-                />
-                <label htmlFor={`skill-campaign-${campaign.id}`} className="flex-1 cursor-pointer">
-                  <div className="font-medium">{campaign.campaign_name}</div>
-                  {campaign.status && (
-                    <div className="text-sm text-muted-foreground">Status: {campaign.status}</div>
-                  )}
-                </label>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </Modal>
   );
 }

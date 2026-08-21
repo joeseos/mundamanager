@@ -14,6 +14,9 @@ import { fetchCampaignGangsAndFighters } from '@/utils/api/fighter-ooa-records';
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { useCampaignGangFighterOptions } from '@/utils/campaign-gang-fighter-options';
 import { XP_CASES, xpAwardsFor, type XpCaseDef, type XpCaseId } from '@/utils/xpCases';
+import { hasCumulativeXp } from '@/types/edition';
+import { nextTierStartFor } from '@/utils/advancementRanks';
+import { XpLadderTooltip } from '@/components/ui/xp-ladder-tooltip';
 import { toast } from 'sonner';
 
 type OoaEventType = 'out_of_action' | 'vehicle_wrecked';
@@ -391,10 +394,31 @@ export function FighterXpModal({
       helper={helperFighterName}
       headerContent={
         <div className="flex items-center">
-          <span className="mr-2 text-sm text-muted-foreground">Fighter XP</span>
-          <span className="bg-green-500 text-white text-sm rounded-full px-2 py-1">
-            {currentXp}
-          </span>
+          {hasCumulativeXp(editionSlug) ? (
+            <>
+              <div
+                className="flex items-center cursor-help"
+                data-tooltip-id={`xp-ladder-modal-${fighterId}`}
+              >
+                <span className="mr-2 text-sm text-muted-foreground">XP</span>
+                <span className="bg-green-500 text-white text-sm rounded-full px-2 py-1">
+                  {`${currentXp}/${nextTierStartFor(editionSlug, currentXp) ?? '–'}`}
+                </span>
+              </div>
+              <XpLadderTooltip
+                id={`xp-ladder-modal-${fighterId}`}
+                currentXp={currentXp}
+                editionSlug={editionSlug}
+              />
+            </>
+          ) : (
+            <>
+              <span className="mr-2 text-sm text-muted-foreground">XP</span>
+              <span className="bg-green-500 text-white text-sm rounded-full px-2 py-1">
+                {currentXp}
+              </span>
+            </>
+          )}
         </div>
       }
       content={

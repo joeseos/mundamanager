@@ -14,17 +14,28 @@ DECLARE
     v_fighter_type_id uuid;
     v_custom_fighter_type_id uuid;
     v_origin_skill_type_id uuid;
+    v_edition_id uuid;
+    v_cumulative_xp boolean; -- Edition earns Advancements by rank instead of buying them
 BEGIN
-    -- Get fighter subtypes, gang origin ID, gang ID, fighter type IDs, and verify fighter exists
-    SELECT f.fighter_subtypes, g.gang_origin_id, f.gang_id, f.fighter_type_id, f.custom_fighter_type_id
-    INTO v_fighter_subtypes, v_gang_origin_id, v_gang_id, v_fighter_type_id, v_custom_fighter_type_id
+    -- Get fighter subtypes, gang origin ID, gang ID, fighter type IDs, the gang's
+    -- edition, and verify fighter exists
+    SELECT f.fighter_subtypes, g.gang_origin_id, f.gang_id, f.fighter_type_id, f.custom_fighter_type_id,
+           COALESCE(gt.edition_id, cgt.edition_id)
+    INTO v_fighter_subtypes, v_gang_origin_id, v_gang_id, v_fighter_type_id, v_custom_fighter_type_id,
+         v_edition_id
     FROM fighters f
     JOIN gangs g ON g.id = f.gang_id
+    LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+    LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
     WHERE f.id = get_available_skills.fighter_id;
 
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Fighter not found with ID %', get_available_skills.fighter_id;
     END IF;
+
+    -- Resolved once here, as get_fighter_available_advancements does.
+    v_cumulative_xp := v_edition_id IS NOT NULL
+        AND v_edition_id = (SELECT id FROM editions WHERE slug = 'n26');
 
     -- Skill Set whose name matches the gang Origin (e.g. "Trocken Mining Clan")
     SELECT st.id
@@ -174,8 +185,11 @@ BEGIN
                                     'credit_cost', 5
                                 )
                             )
-                        -- Regular skill costs
-                        WHEN v_fighter_subtypes ?| array['Leader', 'Champion', 'Juve', 'Specialist', 'Crew', 'Prospect', 'Brute', 'Exotic Beast Specialist']
+                        -- Regular skill costs. The subtype list is an N23 rule — it omits
+                        -- Gangers and Exotic Beasts, who buy at flat cost off their own
+                        -- table. A rank-based edition has no such split.
+                        WHEN v_cumulative_xp
+                          OR v_fighter_subtypes ?| array['Leader', 'Champion', 'Juve', 'Specialist', 'Crew', 'Prospect', 'Brute', 'Exotic Beast Specialist']
                         THEN jsonb_build_array(
                             jsonb_build_object(
                                 'type_id', 'primary_selected',

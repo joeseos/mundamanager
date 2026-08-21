@@ -11,6 +11,7 @@ import { StashItem } from '@/types/gang';
 import { Session } from '@supabase/supabase-js';
 import { VehicleProps } from '@/types/vehicle';
 import { vehicleExclusiveCategories, vehicleCompatibleCategories } from '@/utils/vehicleEquipmentCategories';
+import { hasChemAlchemy } from '@/types/edition';
 import ChemAlchemyCreator from './chem-alchemy';
 import { createChemAlchemy } from '@/app/actions/chem-alchemy';
 import ItemModal from '@/components/equipment/equipment';
@@ -818,7 +819,7 @@ export default function GangInventory({
           <div className="flex justify-between items-start mb-6">
             <h2 className="text-xl md:text-2xl font-bold">{title}</h2>
             <div className="flex gap-2">
-              {gangTypeId === 'cb9d7047-e7df-4196-a51f-a8f452c291ad' && (
+              {gangTypeId === 'cb9d7047-e7df-4196-a51f-a8f452c291ad' && hasChemAlchemy(editionSlug) && (
                 <Button
                   onClick={() => setShowChemAlchemy(true)}
                   disabled={!userPermissions?.canEdit}
@@ -1162,6 +1163,7 @@ export default function GangInventory({
             itemName={getItemName(sellItem)}
             initialCost={isResourceItem ? (sellItem.cost_resource!.amount ?? 0) : (sellItem.cost || 0)}
             showD6Roll={!isResourceItem}
+            editionSlug={editionSlug}
             costLabel={isResourceItem ? sellItem.cost_resource!.name : 'Sale Price'}
             confirmText="Sell"
             onClose={() => setSellModalItemIdx(null)}

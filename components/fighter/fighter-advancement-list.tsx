@@ -9,6 +9,7 @@ import { TypeSpecificData } from '@/types/fighter-effect';
 import { createClient } from '@/utils/supabase/client';
 import { getSkillSetRank } from "@/utils/skillSetRank";
 import { characteristicRank } from "@/utils/characteristicRank";
+import { openAdvancementsFor } from "@/utils/advancementRanks";
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -50,6 +51,7 @@ import {
 interface AdvancementModalProps {
   fighterId: string;
   currentXp: number;
+  openAdvancements: number;
   editionSlug?: string | null;
   fighterSubtypes: string[];
   advancements: Array<FighterEffectType>;
@@ -179,6 +181,7 @@ interface FighterChanges {
 
 interface AdvancementsListProps {
   fighterXp: number;
+  fighterStartingXp?: number | null;
   fighterChanges?: FighterChanges;
   fighterId: string;
   editionSlug?: string | null;
@@ -475,6 +478,7 @@ type ChampionPendingPromotion = FighterPromotionResult;
 export function AdvancementModal({
   fighterId,
   currentXp,
+  openAdvancements,
   editionSlug = null,
   fighterSubtypes,
   advancements,
@@ -1852,13 +1856,11 @@ export function AdvancementModal({
     );
     const allTypes = sample?.available_acquisition_types ?? [];
     if (allTypes.length === 0) return [];
+    // Access level is the only filter. An N26 result deliberately does not narrow this
+    // further: its table is an upper bound the player picks from, not a restriction.
     const allowedIds = new Set(getAllowedAcquisitionTypeIds(selectedSkillSetAccess, allTypes));
-    // An N26 result names the acquisition types it may award, so the row narrows
-    // the list; it prices them itself, so the N23 per-type prices are hidden.
-    const rowIds = n26SelectedRow?.skillAcquisitionTypeIds;
     return allTypes
       .filter((t) => allowedIds.has(t.type_id))
-      .filter((t) => !rowIds || rowIds.includes(t.type_id))
       .sort((a, b) => a.xp_cost - b.xp_cost)
       .map((t) => {
         const label = isCumulativeXp
@@ -1871,7 +1873,6 @@ export function AdvancementModal({
     selectedCategory,
     availableAdvancements,
     selectedSkillSetAccess,
-    n26SelectedRow,
     isCumulativeXp
   ]);
 
@@ -2294,8 +2295,16 @@ export function AdvancementModal({
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <h3 className="text-xl md:text-2xl font-bold text-foreground">Advancements</h3>
           <div className="flex items-center">
-            <span className="mr-2 text-sm text-muted-foreground">XP</span>
-            <span className="bg-green-500 text-white text-sm rounded-full px-2 py-1">{currentXp}</span>
+            {isCumulativeXp ? (
+              <span className="align-middle inline-flex items-center rounded-full bg-green-500 px-2 py-0.5 text-xs font-semibold text-white">
+                Available: {openAdvancements}
+              </span>
+            ) : (
+              <>
+                <span className="mr-2 text-sm text-muted-foreground">XP</span>
+                <span className="bg-green-500 text-white text-sm rounded-full px-2 py-1">{currentXp}</span>
+              </>
+            )}
             <button
               onClick={onClose}
               className="ml-3 text-muted-foreground hover:text-muted-foreground text-xl"
@@ -2928,7 +2937,7 @@ export function AdvancementModal({
               }`}
                 disabled={buyAdvancementDisabled}
               >
-                Buy Advancement
+                Confirm
               </Button>
             </div>
           </div>
@@ -2941,6 +2950,7 @@ export function AdvancementModal({
 // AdvancementsList Component
 export function AdvancementsList({
   fighterXp,
+  fighterStartingXp = null,
   fighterChanges = { advancement: [], characteristics: [], skills: [] },
   fighterId,
   editionSlug = null,
@@ -3365,17 +3375,34 @@ export function AdvancementsList({
   }, [advancements, advancementSkills]);
 
   const advancementCount = advancements.length + advancementSkills.length;
+
+  // advancementCount is the taken count: effects plus is_advance skills.
+  const openAdvancements = openAdvancementsFor(
+    editionSlug,
+    fighterStartingXp,
+    fighterXp,
+    advancementCount,
+  );
+
   const title = (
     <>
       <span className="sm:hidden">Advanc.</span>
       <span className="hidden sm:inline">Advancements</span>
-      {advancementCount > 0 && (
-        <>
-          {' '}
+      {isCumulativeXp ? (
+        openAdvancements > 0 ? (
+          <span className="ml-auto inline-flex items-center gap-1 mr-1 whitespace-nowrap">
+            <span className="align-middle inline-flex items-center rounded-full bg-green-500 px-2 py-0.5 text-xs font-semibold text-white">
+              <span className="sm:hidden">Avail: {openAdvancements}</span>
+              <span className="hidden sm:inline">Available: {openAdvancements}</span>
+            </span>
+          </span>
+        ) : null
+      ) : advancementCount > 0 ? (
+        <span className="ml-auto whitespace-nowrap">
           <span className="text-sm sm:hidden">({advancementCount})</span>
           <span className="text-sm hidden sm:inline">(Adv. count: {advancementCount})</span>
-        </>
-      )}
+        </span>
+      ) : null}
     </>
   );
 
@@ -3383,6 +3410,7 @@ export function AdvancementsList({
     <>
       <List
         title={title}
+        titleClassName="flex flex-1 items-center min-w-0"
         items={transformedAdvancements}
         columns={isCumulativeXp ? [
           {
@@ -3466,6 +3494,7 @@ export function AdvancementsList({
         <AdvancementModal
           fighterId={fighterId}
           currentXp={fighterXp}
+          openAdvancements={openAdvancements}
           editionSlug={editionSlug}
           fighterSubtypes={fighterSubtypes}
           advancements={advancements}

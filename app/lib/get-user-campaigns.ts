@@ -137,7 +137,8 @@ export const getUserCampaigns = async (userId: string, supabase: any): Promise<C
           // captureException(error)
         }
 
-        return [];
+        // Rethrow: unstable_cache would persist a returned [] with no TTL.
+        throw error;
       }
     },
     [`user-campaigns-${userId}`],

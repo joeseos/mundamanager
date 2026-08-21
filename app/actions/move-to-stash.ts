@@ -189,6 +189,10 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
 
       // After the delete above, so the survivor check sees only what remains
       await syncSubtypeGrants(supabase, equipmentData.fighter_id, { revoked: associatedEffects });
+
+      if (equipmentData.fighter_id) {
+        revalidateTag(CACHE_TAGS.BASE_FIGHTER_SKILLS(equipmentData.fighter_id), { expire: 0 });
+      }
     }
 
     // Update the equipment to move it to stash

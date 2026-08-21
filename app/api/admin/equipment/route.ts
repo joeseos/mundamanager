@@ -502,7 +502,7 @@ export async function POST(request: Request) {
         weapon_id: weaponId,
         profile_name: profile.profile_name.trimEnd(),
         // Set weapon_group_id to either the selected weapon's ID or this weapon's ID
-        weapon_group_id: profile.weapon_group_id || null,
+        weapon_group_id: profile.weapon_group_id || weaponId,
         // Properly handle explicit null values
         range_short: profile.range_short === null ? '' : profile.range_short || '',
         range_long: profile.range_long === null ? '' : profile.range_long || '',

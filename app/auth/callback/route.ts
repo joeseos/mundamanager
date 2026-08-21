@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { safePostSignInPath } from "@/utils/auth";
+import { invalidateUserPermissions } from "@/utils/cache-tags";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
@@ -26,7 +27,13 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = await createClient();
-    await supabase.auth.exchangeCodeForSession(code);
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+
+    // Same reason as signInAction: any path that establishes a session clears
+    // that user's permission entries, which are cached with revalidate: false.
+    if (!error && data.user) {
+      invalidateUserPermissions(data.user.id);
+    }
   }
 
   const destination = safePostSignInPath(requestUrl.searchParams.get("next"));

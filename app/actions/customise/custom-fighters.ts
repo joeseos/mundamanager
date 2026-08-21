@@ -4,6 +4,7 @@ import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { getEditionIdBySlug } from '@/app/lib/editions';
 import { CustomFighterType } from '@/types/fighter';
+import { withEditionSlug } from '@/types/edition';
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
 import { removeItemFromAllCollections } from './custom-collections';
 import { invalidateUserCustomFighters, invalidateUserCustomCollections } from '@/utils/cache-tags';
@@ -63,6 +64,7 @@ async function getCompleteCustomFighter(
     .from('custom_fighter_types')
     .select(`
       *,
+      editions:edition_id (slug),
       fighter_type_skill_access (
         skill_type_id,
         custom_skill_type_id,
@@ -121,7 +123,7 @@ async function getCompleteCustomFighter(
   const equipmentListData = (completeFighter.custom_fighter_type_equipment || []) as any[];
 
   const transformedFighter: CustomFighterType = {
-    ...completeFighter,
+    ...withEditionSlug(completeFighter),
     skill_access: skillAccessData.map((sa) => ({
       skill_type_id: sa.skill_type_id || sa.custom_skill_type_id,
       access_level: sa.access_level,
@@ -168,6 +170,44 @@ async function getCompleteCustomFighter(
   return { data: transformedFighter };
 }
 
+/**
+ * A fighter belongs to its custom gang type's edition, not to whichever tab the
+ * caller was on. Falls back to the slug only when there is no gang type to ask.
+ */
+async function resolveFighterEditionId(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  data: CreateCustomFighterData
+): Promise<string | null> {
+  const parentQuery = data.custom_gang_type_id
+    ? supabase
+        .from('custom_gang_types')
+        .select('edition_id, editions:edition_id (slug)')
+        .eq('id', data.custom_gang_type_id)
+    : data.gang_type_id
+      ? supabase
+          .from('gang_types')
+          .select('edition_id, editions:edition_id (slug)')
+          .eq('gang_type_id', data.gang_type_id)
+      : null;
+
+  if (!parentQuery) return getEditionIdBySlug(data.edition_slug);
+
+  const { data: parent, error } = await parentQuery.single();
+  if (error || !parent?.edition_id) {
+    return getEditionIdBySlug(data.edition_slug);
+  }
+
+  const parentSlug = withEditionSlug(parent).edition_slug;
+  if (data.edition_slug && parentSlug && data.edition_slug !== parentSlug) {
+    console.warn(
+      `createCustomFighter: edition_slug "${data.edition_slug}" conflicts with the gang type's ` +
+      `edition (${parentSlug}); using the gang type's.`
+    );
+  }
+
+  return parent.edition_id;
+}
+
 export async function createCustomFighter(data: CreateCustomFighterData): Promise<{ success: boolean; data?: CustomFighterType; error?: string }> {
   const description = normalizeCustomDescription(data.description);
   const lengthError = getCustomDescriptionLengthError(description);
@@ -207,7 +247,7 @@ export async function createCustomFighter(data: CreateCustomFighterData): Promis
         special_rules: data.special_rules,
         free_skill: data.free_skill,
         fighter_subtypes: data.fighter_subtypes,
-        edition_id: await getEditionIdBySlug(data.edition_slug),
+        edition_id: await resolveFighterEditionId(supabase, data),
         created_at: new Date().toISOString()
       })
       .select()

@@ -12,7 +12,6 @@ import {
   hasGangerChampionKeepTypePromotion,
   hasProspectSpecialisationPromotion,
 } from '@/types/edition';
-import { openAdvancementsFor } from '@/utils/advancementRanks';
 import {
   N26_CHAMPION_PROMOTION_SKILL_ID,
   N26_CHAMPION_PROMOTION_SKILL_NAME,
@@ -71,68 +70,19 @@ function editionSlugOf(fighter: any): string | null {
 }
 
 /**
- * How many Advancements a fighter has already taken, counted from the database.
- *
- * Mirrors countAdvancementsTaken in utils/advancementRanks.ts, which the cards
- * apply to data they already hold: a characteristic is an effect in the
- * 'advancements' category, a skill is a fighter_skill flagged is_advance.
- */
-async function countAdvancementsTakenFor(supabase: any, fighterId: string): Promise<number> {
-  const [characteristics, skillAdvances] = await Promise.all([
-    supabase
-      .from('fighter_effects')
-      .select('id, fighter_effect_types!inner(fighter_effect_categories!inner(category_name))', {
-        count: 'exact',
-        head: true,
-      })
-      .eq('fighter_id', fighterId)
-      .eq('fighter_effect_types.fighter_effect_categories.category_name', 'advancements'),
-    supabase
-      .from('fighter_skills')
-      .select('id', { count: 'exact', head: true })
-      .eq('fighter_id', fighterId)
-      .eq('is_advance', true),
-  ]);
-
-  // This count is half of a server-side limit, so a failed query must not read
-  // as "nothing taken yet" — that would grant an Advancement on the strength of
-  // an error. Fail closed and let the caller refuse.
-  if (characteristics.error || skillAdvances.error) {
-    throw new Error('Failed to count existing advancements');
-  }
-
-  return (characteristics.count ?? 0) + (skillAdvances.count ?? 0);
-}
-
-/**
  * Whether the fighter may take another Advancement right now.
  *
- * The two editions gate on different things: N23 on whether the fighter can
- * afford the XP cost, N26 on whether it has earned an Advancement it has not
- * yet spent. Returns an error message, or null when the Advancement may proceed.
+ * N23 buys Advancements with XP and so can be short of it. N26 earns them by
+ * rank, and that rank is not enforced: groups decide between themselves when a
+ * model may advance, and the app records the decision rather than refusing it.
+ * Returns an error message, or null when the Advancement may proceed.
  */
-async function advancementBlockedReason(
-  supabase: any,
+function advancementBlockedReason(
   fighter: any,
   spendsXp: boolean,
   xpCost: number,
-  isAdvance: boolean = true,
-): Promise<string | null> {
-  if (spendsXp) {
-    return fighter.xp < xpCost ? 'Insufficient XP' : null;
-  }
-
-  // A starting or free skill is not an Advancement and consumes none.
-  if (!isAdvance) return null;
-
-  const open = openAdvancementsFor(
-    editionSlugOf(fighter),
-    fighter.starting_xp ?? 0,
-    fighter.xp,
-    await countAdvancementsTakenFor(supabase, fighter.id),
-  );
-
-  return open > 0 ? null : 'No advancements available';
+): string | null {
+  return spendsXp && fighter.xp < xpCost ? 'Insufficient XP' : null;
 }
 
 // Type for power boost type_specific_data
@@ -293,7 +243,7 @@ export async function addCharacteristicAdvancement(
     // XP total only ever grows and there is nothing to afford.
     const spendsXp = !hasCumulativeXp(editionSlugOf(fighter));
 
-    const blockedReason = await advancementBlockedReason(supabase, fighter, spendsXp, params.xp_cost);
+    const blockedReason = advancementBlockedReason(fighter, spendsXp, params.xp_cost);
     if (blockedReason) {
       return { success: false, error: blockedReason };
     }
@@ -411,7 +361,8 @@ export async function addCharacteristicAdvancement(
       xp_cost: params.xp_cost,
       credits_increase: params.credits_increase,
       remaining_xp: updatedFighter.xp,
-      include_gang_rating: true
+      include_gang_rating: true,
+      spends_xp: spendsXp
     });
 
     // Invalidate cache for fighter advancement (effects for characteristic advancements)
@@ -499,13 +450,7 @@ async function addSkillAdvancementInternal(
     // XP total only ever grows and there is nothing to afford.
     const spendsXp = !hasCumulativeXp(editionSlugOf(fighter));
 
-    const blockedReason = await advancementBlockedReason(
-      supabase,
-      fighter,
-      spendsXp,
-      params.xp_cost,
-      params.is_advance ?? true,
-    );
+    const blockedReason = advancementBlockedReason(fighter, spendsXp, params.xp_cost);
     if (blockedReason) {
       return { success: false, error: blockedReason };
     }
@@ -706,6 +651,7 @@ async function addSkillAdvancementInternal(
       credits_increase: params.credits_increase,
       remaining_xp: updatedFighter.xp,
       is_advance: isAdvance,
+      spends_xp: spendsXp,
       ...(financialsBefore && financialsAfter
         ? { gang_financials_before: financialsBefore, gang_financials_after: financialsAfter }
         : {}),
@@ -1554,11 +1500,14 @@ export async function deleteAdvancement(
             .eq(isCustom ? 'custom_fighter_type_id' : 'fighter_type_id', typeId)
             .not('skill_id', 'is', null);
 
-          // Count remaining skills for this fighter
+          // Count remaining skills for this fighter. Effect-granted ones (injuries,
+          // equipment) are not chosen starting skills, so they must not count
+          // against the type's default allowance and strand free_skill at false.
           const { count: remainingSkillCount } = await supabase
             .from('fighter_skills')
             .select('*', { count: 'exact', head: true })
-            .eq('fighter_id', params.fighter_id);
+            .eq('fighter_id', params.fighter_id)
+            .is('fighter_effect_skill_id', null);
 
           // Check if deleted skill was a default skill
           const { count: wasDefaultSkill } = await supabase
@@ -1687,6 +1636,7 @@ export async function deleteAdvancement(
       xp_refunded: xpToRefund,
       new_xp_total: updatedFighter.xp,
       include_gang_rating: true,
+      spends_xp: spendsXp,
       ...(refundStash && Math.abs(ratingDelta) > 0 ? { credits_refunded: Math.abs(ratingDelta) } : {})
     });
 

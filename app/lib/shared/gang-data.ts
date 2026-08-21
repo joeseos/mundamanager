@@ -6,6 +6,7 @@ import { WeaponProfile } from '@/types/equipment';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang';
 import { gangEditionSlug } from '@/types/edition';
+import { GangTacticsCard, GANG_TACTICS_CARD_SELECT, toGangTacticsCard } from '@/types/tactics-card';
 
 // =============================================================================
 // TYPES - Shared interfaces for gang data
@@ -318,6 +319,31 @@ export const getGangPositioning = async (gangId: string, supabase: any): Promise
     [`gang-positioning-${gangId}`],
     {
       tags: [CACHE_TAGS.BASE_GANG_POSITIONING(gangId)],
+      revalidate: false
+    }
+  )();
+};
+
+/**
+ * Get the Gang Tactics cards a gang holds, flattened with their catalogue name
+ * and D66 range. Callers gate on hasGangTacticsCards(), not this.
+ * Cache: BASE_GANG_TACTICS_CARDS
+ */
+export const getGangTacticsCards = async (gangId: string, supabase: any): Promise<GangTacticsCard[]> => {
+  return unstable_cache(
+    async () => {
+      const { data, error } = await supabase
+        .from('gang_tactics_cards')
+        .select(GANG_TACTICS_CARD_SELECT)
+        .eq('gang_id', gangId);
+
+      if (error) throw error;
+
+      return (data ?? []).map(toGangTacticsCard);
+    },
+    [`gang-tactics-cards-${gangId}`],
+    {
+      tags: [CACHE_TAGS.BASE_GANG_TACTICS_CARDS(gangId)],
       revalidate: false
     }
   )();
@@ -1156,7 +1182,8 @@ export const getGangFightersList = async (
             fighter_effect_skills!fighter_effect_skill_id (
               fighter_effects (
                 effect_name,
-                type_specific_data
+                type_specific_data,
+                fighter_equipment_id
               )
             )
           `)
@@ -1608,6 +1635,16 @@ export const getGangFightersList = async (
           const skillName = (skillData.skill as any)?.name || (skillData.custom_skill as any)?.skill_name;
           if (skillName) {
             const fe = skillData.fighter_effect_skills?.fighter_effects;
+
+            // Same rule as the effects filter below
+            if (
+              activeLoadoutEquipmentIds !== null &&
+              fe?.fighter_equipment_id &&
+              !activeLoadoutEquipmentIds.has(fe.fighter_equipment_id)
+            ) {
+              return;
+            }
+
             const injuryName = fe?.effect_name;
             const tsd =
               fe?.type_specific_data && typeof fe.type_specific_data === 'object'
@@ -1618,7 +1655,7 @@ export const getGangFightersList = async (
             // bitter_enmity_* keys, which were deliberately never backfilled.
             const hatredTarget = readHatredTarget(tsd);
 
-            skills[skillName] = {
+            const mapped = {
               id: skillData.id,
               name: skillName,
               credits_increase: skillData.credits_increase || 0,
@@ -1637,6 +1674,11 @@ export const getGangFightersList = async (
                   }
                 : {})
             };
+
+            // A granted skill never hides one the fighter bought
+            if (!skills[skillName] || skills[skillName].fighter_injury_id) {
+              skills[skillName] = mapped;
+            }
           }
         });
 

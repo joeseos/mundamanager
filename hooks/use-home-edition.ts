@@ -10,14 +10,14 @@ function isEditionSlug(value: string | null | undefined): value is EditionSlug {
 }
 
 function readStoredEdition(): EditionSlug {
-  if (typeof window === 'undefined') return EDITION_N23
+  if (typeof window === 'undefined') return EDITION_N26
   const saved = localStorage.getItem(HOME_EDITION_STORAGE_KEY)
-  return isEditionSlug(saved) ? saved : EDITION_N23
+  return isEditionSlug(saved) ? saved : EDITION_N26
 }
 
 type Listener = () => void
 
-let currentEdition: EditionSlug = EDITION_N23
+let currentEdition: EditionSlug = EDITION_N26
 let hydrated = false
 const listeners = new Set<Listener>()
 
@@ -40,7 +40,7 @@ function getSnapshot(): EditionSlug {
 }
 
 function getServerSnapshot(): EditionSlug {
-  return EDITION_N23
+  return EDITION_N26
 }
 
 function setStoredEdition(slug: EditionSlug) {

@@ -520,9 +520,14 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
 
       const hasEditedFighterTypes = selectedFighterTypes.length !== fighterTypes.filter(ft => selectedFighterTypes.includes(ft.id)).length;
 
-      // Validate and normalize grants_equipment - treat empty options as no grants
-      const normalizedGrantsEquipment = grantsEquipment?.options?.length
-        ? grantsEquipment
+      // Validate and normalize grants_equipment - treat empty options as no grants.
+      // An option with no equipment picked is dropped: a blank equipment_id can never
+      // be granted, and it is not a uuid, so anything casting it downstream breaks.
+      const grantsEquipmentOptions = (grantsEquipment?.options || []).filter(
+        option => Boolean(option.equipment_id)
+      );
+      const normalizedGrantsEquipment = grantsEquipment && grantsEquipmentOptions.length
+        ? { ...grantsEquipment, options: grantsEquipmentOptions }
         : null;
 
       const requestBody = {
@@ -1825,7 +1830,11 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             Attach this profile to an existing weapon, or leave it as is to use with this weapon.
                           </p>
                           <select
-                            value={profile.weapon_group_id || ''}
+                            value={
+                              profile.weapon_group_id && profile.weapon_group_id !== selectedEquipmentId
+                                ? profile.weapon_group_id
+                                : ''
+                            }
                             onChange={(e) => handleProfileChange(index, 'weapon_group_id', e.target.value)}
                             className="w-full p-2 border rounded-md"
                             disabled={!selectedEquipmentId}
