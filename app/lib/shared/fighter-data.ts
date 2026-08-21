@@ -4,7 +4,7 @@ import { readHatredTarget } from '@/utils/injuryTarget';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { FighterEffect } from '@/types/fighter';
 import { FighterLoadout } from '@/types/equipment';
-import { isSpecialistSpecialisationId } from '@/utils/fighter-variant';
+import { specialisationIdOrNull } from '@/utils/keepTypePromotionN26';
 
 // =============================================================================
 // TYPES - Shared interfaces for fighter data
@@ -1242,7 +1242,7 @@ export const getFighterSpecialisationInfo = async (fighterSpecialisationId: stri
   fighter_specialisation: string;
   fighter_specialisation_id: string;
 } | null> => {
-  if (!isSpecialistSpecialisationId(fighterSpecialisationId)) return null;
+  if (!specialisationIdOrNull(fighterSpecialisationId)) return null;
 
   return unstable_cache(
     async () => {

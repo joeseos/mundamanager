@@ -12,7 +12,6 @@ import { memo } from 'react';
 import { nextTierStartFor } from '@/utils/advancementRanks';
 import { calculateAdjustedStats } from '@/utils/effect-modifiers';
 import { FighterProps, FighterEffect, Vehicle } from '@/types/fighter';
-import { formatFighterTypeLine } from '@/utils/fighter-display-name';
 import { TbMeatOff } from "react-icons/tb";
 import { GiHandcuffs, GiImprisoned } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";
@@ -475,13 +474,11 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
               <div className="flex flex-col items-baseline w-full min-w-0">
                 <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white mr-2 print:text-foreground truncate w-full">{name}</div>
                 <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden text-ellipsis whitespace-nowrap w-full print:text-muted-foreground">
-                  {formatFighterTypeLine({
-                    fighter_type: type,
-                    alliance_crew_name,
-                    fighter_subtypes,
-                    fighter_variant,
-                    fighter_specialisation: specialisation,
-                  })}
+                  {type}
+                  {alliance_crew_name && ` – ${alliance_crew_name}`}
+                  {fighter_subtypes.length > 0 && ` (${fighter_subtypes.join(', ')})`}
+                  {fighter_variant && `, ${fighter_variant}`}
+                  {specialisation?.fighter_specialisation && `, ${specialisation.fighter_specialisation}`}
                 </div>
               </div>
             </div>

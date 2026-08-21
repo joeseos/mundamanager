@@ -15,7 +15,6 @@ import { FaMedkit } from "react-icons/fa";
 import { Weapon } from '@/types/equipment';
 import { FighterCardActionMenu } from './fighter-card-action-menu';
 import { useViewportWidth } from '@/hooks/use-viewport-width';
-import { formatFighterTypeLine } from '@/utils/fighter-display-name';
 import { GangViewMode, isCompactGangViewMode } from './ViewModeDropdown';
 import { CgMoreVerticalO } from "react-icons/cg";
 
@@ -599,13 +598,11 @@ const FighterCard = memo(function FighterCard({
               <div className="flex flex-col items-baseline w-full min-w-0">
                 <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white mr-2 print:text-foreground fancy-print-keep-color-heading truncate w-full">{name}</div>
                 <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden text-ellipsis whitespace-nowrap w-full print:text-muted-foreground fancy-print-keep-color-subtitle">
-                  {formatFighterTypeLine({
-                    fighter_type: type,
-                    alliance_crew_name,
-                    fighter_subtypes,
-                    fighter_variant,
-                    fighter_specialisation,
-                  })}
+                  {type}
+                  {alliance_crew_name && ` - ${alliance_crew_name}`}
+                  {fighter_subtypes?.join(', ') && ` (${fighter_subtypes.join(', ')})`}
+                  {fighter_variant && `, ${fighter_variant}`}
+                  {fighter_specialisation && fighter_specialisation.fighter_specialisation ? `, ${fighter_specialisation.fighter_specialisation}` : ''}
                 </div>
               </div>
             </div>

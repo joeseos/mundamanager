@@ -7,7 +7,7 @@ import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang';
 import { gangEditionSlug } from '@/types/edition';
 import { GangTacticsCard, GANG_TACTICS_CARD_SELECT, toGangTacticsCard } from '@/types/tactics-card';
-import { isSpecialistSpecialisationId } from '@/utils/fighter-variant';
+import { specialisationIdOrNull } from '@/utils/keepTypePromotionN26';
 
 // =============================================================================
 // TYPES - Shared interfaces for gang data
@@ -2043,7 +2043,7 @@ export const getGangFightersList = async (
           // Guarded rather than passed straight through: the column still holds
           // variant references on rows written before the split, and surfacing one
           // would print the variant twice now that fighter_variant is read too.
-          fighter_specialisation: isSpecialistSpecialisationId(fighterSpecialisationInfo?.id) ? {
+          fighter_specialisation: specialisationIdOrNull(fighterSpecialisationInfo?.id) ? {
             fighter_specialisation: fighterSpecialisationInfo.specialisation_name,
             fighter_specialisation_id: fighterSpecialisationInfo.id
           } : undefined,

@@ -13,7 +13,7 @@ import { insertFighterOoaRecords } from './fighter-ooa-records';
 import { allowsMultipleSubtypes } from '@/types/edition';
 import { resolveFighterEditionSlug } from '@/utils/fighter-subtype-grants';
 import { assertArchetypeAssignable } from '@/utils/assertArchetypeAssignable';
-import { deriveIdentityFromType, specialisationIdOrNull } from '@/utils/fighter-variant';
+import { specialisationIdOrNull } from '@/utils/keepTypePromotionN26';
 import { mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
@@ -1440,25 +1440,43 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     }
 
     // The variant follows the type, so any write carrying a type id re-derives it
-    // from the catalog row rather than trusting the form. Re-deriving even when the
-    // type is unchanged is deliberate: it heals rows the previous build created
-    // without a variant.
+    // from the catalog row rather than trusting the form -- Edit Fighter's variant
+    // dropdown picks a sibling type row, and sending that row's specialisation is
+    // how variant ids got into fighter_specialisation_id in the first place.
+    // Re-deriving even when the type is unchanged also heals rows the previous
+    // build created without a variant.
     //
-    // The specialisation follows the *fighter*, so the caller wins where it said
-    // something -- promotion passes the fighter's type along with the pick it just
+    // The specialisation follows the *fighter*, so an explicit value from the
+    // caller wins: promotion passes the fighter's type alongside the pick it just
     // made, and Champion->Leader changes the type while keeping that pick. Only
-    // when the caller is silent does the type row supply it, which is what makes
-    // Edit Fighter's dropdown still work for a pre-collapse Tek-Gunner row while
-    // a Haunt/Psyrender row lands in fighter_variant instead.
+    // when the caller is silent does the type row supply it, which keeps the
+    // pre-collapse Tek-Gunner rows working.
     if (params.fighter_type_id !== undefined || params.custom_fighter_type_id !== undefined) {
-      const derived = await deriveIdentityFromType(
-        supabase,
-        params.fighter_type_id,
-        params.custom_fighter_type_id
-      );
-      updateData.fighter_variant = derived.fighter_variant;
+      let variant: string | null = null;
+      let specialisationFromType: string | null = null;
+
+      if (params.custom_fighter_type_id) {
+        // Custom types have no specialisation column, so a custom fighter's pick
+        // is only ever whatever the fighter itself holds.
+        const { data } = await supabase
+          .from('custom_fighter_types')
+          .select('fighter_variant')
+          .eq('id', params.custom_fighter_type_id)
+          .maybeSingle();
+        variant = data?.fighter_variant ?? null;
+      } else if (params.fighter_type_id) {
+        const { data } = await supabase
+          .from('fighter_types')
+          .select('fighter_variant, fighter_specialisation_id')
+          .eq('id', params.fighter_type_id)
+          .maybeSingle();
+        variant = data?.fighter_variant ?? null;
+        specialisationFromType = specialisationIdOrNull(data?.fighter_specialisation_id);
+      }
+
+      updateData.fighter_variant = variant;
       if (params.fighter_specialisation_id === undefined) {
-        updateData.fighter_specialisation_id = derived.fighter_specialisation_id;
+        updateData.fighter_specialisation_id = specialisationFromType;
       }
     }
     if (params.note !== undefined) updateData.note = params.note;

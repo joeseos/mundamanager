@@ -11,7 +11,7 @@ import { logFighterAction } from '@/app/actions/logs/fighter-logs';
 import { mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';
 import { assertArchetypeAssignable } from '@/utils/assertArchetypeAssignable';
 import { editionSlugFromJoin, gangEditionSlug, type EditionJoin } from '@/types/edition';
-import { specialisationIdOrNull } from '@/utils/fighter-variant';
+import { specialisationIdOrNull } from '@/utils/keepTypePromotionN26';
 
 interface SelectedEquipment {
   equipment_id: string;
