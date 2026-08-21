@@ -311,37 +311,19 @@ export function assignmentCreditsDelta(assignment: PostCycleAssignment): number 
   }
 }
 
-export interface PostCycleCreditsBreakdown {
-  /** Everything the caller settles itself in one gang financial update. */
-  aggregate: number;
-  /** Chop Shop repairs, which `repairVehicleDamage` charges on its own. */
-  delegated: number;
-  /** Sum of both — what the player sees as the cost of the whole sequence. */
-  total: number;
-}
 
 /**
- * Splits the credit movement by who actually writes it. Chop Shop is delegated
- * to `repairVehicleDamage`, which deducts its own cost; everything else is
- * settled in a single compare-and-swap so the balance can never be half-applied
- * across a dozen separate updates.
+ * What the whole sequence is planned to cost, negative for a net spend.
+ *
+ * Planned, not actual: this drives the form's running total and the server's
+ * affordability check, both of which must reason about what is being attempted.
+ * Billing is settled separately from the outcomes each action reports.
  */
-export function postCycleCreditsBreakdown(
-  assignments: PostCycleAssignment[]
-): PostCycleCreditsBreakdown {
-  let aggregate = 0;
-  let delegated = 0;
-
-  for (const assignment of assignments) {
-    const delta = assignmentCreditsDelta(assignment);
-    if (assignment.action === 'visit_chop_shop') {
-      delegated += delta;
-    } else {
-      aggregate += delta;
-    }
-  }
-
-  return { aggregate, delegated, total: aggregate + delegated };
+export function postCycleTotalCredits(assignments: PostCycleAssignment[]): number {
+  return assignments.reduce(
+    (sum, assignment) => sum + assignmentCreditsDelta(assignment),
+    0
+  );
 }
 
 // =============================================================================
@@ -398,8 +380,12 @@ export function validatePostCycleAssignments(
   const byId = new Map(fighters.map((f) => [f.id, f]));
 
   const seenPerformers = new Set<string>();
-  const medicalEscortTargets = new Set<string>();
-  const fitBionicsTargets = new Set<string>();
+  // Counted, not just tracked: two performers escorting the same patient must be
+  // rejected, and set membership cannot tell one from two.
+  const medicalEscortTargets = new Map<string, number>();
+  const fitBionicsTargets = new Map<string, number>();
+  const countTarget = (targets: Map<string, number>, id: string) =>
+    targets.set(id, (targets.get(id) ?? 0) + 1);
   let workTerritoryCount = 0;
 
   for (const assignment of assignments) {
@@ -462,7 +448,7 @@ export function validatePostCycleAssignments(
             message: `${label}'s extra supplies must be a whole number of steps.`,
           });
         }
-        medicalEscortTargets.add(target.id);
+        countTarget(medicalEscortTargets, target.id);
         break;
       }
 
@@ -489,7 +475,7 @@ export function validatePostCycleAssignments(
         )) {
           issues.push({ fighterId: assignment.fighterId, message });
         }
-        fitBionicsTargets.add(target.id);
+        countTarget(fitBionicsTargets, target.id);
         break;
       }
 
@@ -518,7 +504,27 @@ export function validatePostCycleAssignments(
   // "The targeted Fighter cannot perform any Post-cycle Actions themselves and a
   // Fighter cannot be targeted by both the Medical Escort and Fit Bionics
   // Post-cycle Actions in the same Post-cycle Sequence."
-  for (const targetId of [...medicalEscortTargets, ...fitBionicsTargets]) {
+  // One trip to the Doc per patient. Without this two Medical Escorts could both
+  // resolve against the same fighter, and the second would act on a snapshot the
+  // first has already invalidated — including toggling a just-killed fighter
+  // back to alive.
+  for (const [targets, label] of [
+    [medicalEscortTargets, 'Medical Escort'],
+    [fitBionicsTargets, 'Fit Bionics'],
+  ] as const) {
+    for (const [targetId, count] of targets) {
+      if (count > 1) {
+        issues.push({
+          fighterId: targetId,
+          message:
+            `${byId.get(targetId)?.fighter_name ?? 'A fighter'} is targeted by ${count} ` +
+            `${label} actions. Only one fighter may take them to the Doc.`,
+        });
+      }
+    }
+  }
+
+  for (const targetId of [...medicalEscortTargets.keys(), ...fitBionicsTargets.keys()]) {
     if (seenPerformers.has(targetId)) {
       issues.push({
         fighterId: targetId,
@@ -529,7 +535,7 @@ export function validatePostCycleAssignments(
     }
   }
 
-  for (const targetId of medicalEscortTargets) {
+  for (const targetId of medicalEscortTargets.keys()) {
     if (fitBionicsTargets.has(targetId)) {
       issues.push({
         fighterId: targetId,

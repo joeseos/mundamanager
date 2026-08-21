@@ -17,11 +17,14 @@ import { repairVehicleDamage } from './remove-vehicle-damage';
 import { editFighterStatus, updateFighterXp } from './edit-fighter';
 import { logPostCycleAction } from './logs/gang-post-cycle-logs';
 import {
+  FIT_BIONICS_COST_PER_INJURY,
+  MEDICAL_ESCORT_COST,
+  MEDICAL_ESCORT_GOOD_STUFF_STEP,
   TRAIN_XP,
   WORK_TERRITORY_INCOME,
   chopShopCostPerDamage,
   criticalInjuriesOf,
-  postCycleCreditsBreakdown,
+  postCycleTotalCredits,
   validatePostCycleAssignments,
   type PostCycleAssignment,
   type PostCycleFighter,
@@ -76,6 +79,12 @@ export interface PostCycleActionOutcome {
   outcome: string;
   /** Medical Escort only: the modified D6 and, on a Stabilised result, the D66. */
   roll?: { total: number; dice: number[]; label?: string };
+  /**
+   * Credits this action actually moved, negative for spend. Derived from what
+   * happened rather than from what was requested, so a failed or partial action
+   * is not billed in full.
+   */
+  creditsDelta: number;
   /** Per-fighter edits the caller should apply to its own state. */
   changes?: PostCycleFighterChange[];
   /** True when the action failed; `outcome` then carries the reason. */
@@ -251,8 +260,7 @@ export async function applyPostCycleActions(
 
     // ---- Affordability -------------------------------------------------------
 
-    const credits = postCycleCreditsBreakdown(assignments);
-    const totalCost = -credits.total;
+    const totalCost = -postCycleTotalCredits(assignments);
     const startingCredits = gang.credits ?? 0;
 
     if (totalCost > 0 && startingCredits < totalCost) {
@@ -290,6 +298,10 @@ export async function applyPostCycleActions(
         // -- Medical Escort ---------------------------------------------------
         case 'medical_escort': {
           const criticalInjury = criticalInjuriesOf(target!)[0];
+          const escortCost = assignment.declineToPay
+            ? 0
+            : -(MEDICAL_ESCORT_COST +
+                assignment.goodStuffSteps * MEDICAL_ESCORT_GOOD_STUFF_STEP);
 
           /**
            * editFighterStatus('kill') is a TOGGLE, so calling it on a fighter
@@ -303,6 +315,9 @@ export async function applyPostCycleActions(
               fighter_id: target!.id,
               action: 'kill',
             });
+            // Keep the snapshot honest for anything later in this same loop, so
+            // a second toggle can never resurrect who we just killed.
+            if (killed.success) target!.killed = true;
             return { ok: killed.success, error: killed.error };
           };
 
@@ -314,6 +329,7 @@ export async function applyPostCycleActions(
               outcome: killed.ok
                 ? `The gang declined to pay, so ${target!.fighter_name} died of their wounds.`
                 : `Failed to apply the death of ${target!.fighter_name}: ${killed.error}`,
+              creditsDelta: 0,
               changes: killed.ok ? [{ fighterId: target!.id, killed: true }] : undefined,
               failed: !killed.ok,
             });
@@ -330,6 +346,7 @@ export async function applyPostCycleActions(
               ...base,
               roll,
               outcome: `Could not resolve a Medical Escort roll of ${total}.`,
+              creditsDelta: 0,
               failed: true,
             });
             break;
@@ -343,8 +360,42 @@ export async function applyPostCycleActions(
               outcome: killed.ok
                 ? `Complications: ${target!.fighter_name} died on the table.`
                 : `Complications rolled, but applying the death failed: ${killed.error}`,
+              // The Doc was paid and the dice rolled, so a Complications result
+              // is billed. A failure to write it back is not.
+              creditsDelta: killed.ok ? escortCost : 0,
               changes: killed.ok ? [{ fighterId: target!.id, killed: true }] : undefined,
               failed: !killed.ok,
+            });
+            break;
+          }
+
+          /**
+           * Resolve the Stabilised injury BEFORE touching anything. Deleting the
+           * Critical Injury first and only then discovering the edition has no
+           * row for the rolled injury would leave the fighter healed for free —
+           * which is exactly what happens on N26 'Eye Injury', whose row is
+           * missing from fighter_effect_types.
+           */
+          const stabilised =
+            escortResult === 'Stabilised' ? medicalEscortStabilisedRoll() : null;
+          const injuryEntry = stabilised
+            ? resolveInjuryFor(stabilised.total, EDITION_N26)
+            : undefined;
+          const injuryTypeId =
+            injuryEntry && editionId
+              ? await findInjuryTypeId(supabase, injuryEntry.name, editionId)
+              : null;
+
+          if (stabilised && !injuryTypeId) {
+            results.push({
+              ...base,
+              roll: { ...stabilised, label: injuryEntry?.name ?? 'Stabilised' },
+              outcome:
+                `Stabilised, but the Lasting Injury "${injuryEntry?.name ?? 'unknown'}" ` +
+                `is not set up for this edition. Nothing was changed or charged — ` +
+                `apply it by hand.`,
+              creditsDelta: 0,
+              failed: true,
             });
             break;
           }
@@ -360,6 +411,7 @@ export async function applyPostCycleActions(
                 ...base,
                 roll,
                 outcome: `Failed to clear the Critical Injury: ${removed.error}`,
+                creditsDelta: 0,
                 failed: true,
               });
               break;
@@ -367,15 +419,29 @@ export async function applyPostCycleActions(
           }
 
           if (escortResult === 'Full Recovery') {
-            await supabase
+            const { error: recoveryError } = await supabase
               .from('fighters')
               .update({ recovery: true, updated_at: new Date().toISOString() })
               .eq('id', target!.id);
+
+            if (recoveryError) {
+              results.push({
+                ...base,
+                roll,
+                outcome:
+                  `Full Recovery rolled and the Critical Injury was cleared, but ` +
+                  `sending ${target!.fighter_name} into Recovery failed: ${recoveryError.message}`,
+                creditsDelta: escortCost,
+                failed: true,
+              });
+              break;
+            }
 
             results.push({
               ...base,
               roll,
               outcome: `Full Recovery: ${target!.fighter_name} goes into Recovery with no lasting effects.`,
+              creditsDelta: escortCost,
               changes: [
                 {
                   fighterId: target!.id,
@@ -388,38 +454,20 @@ export async function applyPostCycleActions(
             break;
           }
 
-          // Stabilised: a D66 whose first die is automatically 5.
-          const stabilised = medicalEscortStabilisedRoll();
-          const injuryEntry = resolveInjuryFor(stabilised.total, EDITION_N26);
-          const injuryTypeId =
-            injuryEntry && editionId
-              ? await findInjuryTypeId(supabase, injuryEntry.name, editionId)
-              : null;
-
-          if (!injuryTypeId) {
-            results.push({
-              ...base,
-              roll: { ...stabilised, label: injuryEntry?.name ?? 'Stabilised' },
-              outcome:
-                `Stabilised, but the Lasting Injury "${injuryEntry?.name ?? 'unknown'}" ` +
-                `could not be found for this edition. Apply it by hand.`,
-              failed: true,
-            });
-            break;
-          }
-
           const applied = await addFighterInjury({
             fighter_id: target!.id,
-            injury_type_id: injuryTypeId,
+            injury_type_id: injuryTypeId!,
             send_to_recovery: true,
           });
 
           results.push({
             ...base,
-            roll: { ...stabilised, label: injuryEntry!.name },
+            roll: { ...stabilised!, label: injuryEntry!.name },
             outcome: applied.success
               ? `Stabilised: ${target!.fighter_name} suffers ${injuryEntry!.name}.`
               : `Stabilised, but applying ${injuryEntry!.name} failed: ${applied.error}`,
+            // The Critical Injury is already gone either way, so the visit is billed.
+            creditsDelta: escortCost,
             changes: [
               {
                 fighterId: target!.id,
@@ -461,6 +509,8 @@ export async function applyPostCycleActions(
             outcome: failure
               ? `Removed ${removedNames.length} of ${assignment.injuryIds.length} Lasting Injuries before failing: ${failure}`
               : `Fitted bionics, removing ${removedNames.join(', ')} from ${target!.fighter_name}.`,
+            // Billed per injury actually removed, not per injury requested.
+            creditsDelta: -(removedIds.length * FIT_BIONICS_COST_PER_INJURY),
             changes: [
               {
                 fighterId: target!.id,
@@ -494,6 +544,10 @@ export async function applyPostCycleActions(
             outcome: repaired.success
               ? `Repaired ${repairedNames.join(', ')} at the Chop Shop.`
               : `Chop Shop repair failed: ${repaired.error}`,
+            // Settled inside repairVehicleDamage, so excluded from the aggregate below.
+            creditsDelta: repaired.success
+              ? -(assignment.damageIds.length * chopShopCostPerDamage())
+              : 0,
             changes: repaired.success
               ? [
                   {
@@ -520,6 +574,7 @@ export async function applyPostCycleActions(
             outcome: trained.success
               ? `Trained for ${TRAIN_XP} XP.`
               : `Failed to award XP: ${trained.error}`,
+            creditsDelta: 0,
             changes: trained.success
               ? [{ fighterId: performer.id, xpDelta: TRAIN_XP }]
               : undefined,
@@ -533,6 +588,7 @@ export async function applyPostCycleActions(
           results.push({
             ...base,
             outcome: `Worked a Territory for ${WORK_TERRITORY_INCOME} credits.`,
+            creditsDelta: WORK_TERRITORY_INCOME,
           });
           break;
 
@@ -540,6 +596,7 @@ export async function applyPostCycleActions(
           results.push({
             ...base,
             outcome: 'Developed a new Gang Tactic. Add the card to the Gang Roster.',
+            creditsDelta: 0,
           });
           break;
 
@@ -548,6 +605,7 @@ export async function applyPostCycleActions(
             ...base,
             outcome:
               'Visited the Trading Post. Buy any equipment found from the Stash tab.',
+            creditsDelta: 0,
           });
           break;
       }
@@ -555,10 +613,18 @@ export async function applyPostCycleActions(
 
     // ---- Settle the credits that were not delegated --------------------------
 
-    if (credits.aggregate !== 0) {
+    // Billed from the outcomes, not from the planned total: an action that
+    // failed, or a Fit Bionics that removed two of the three injuries it was
+    // asked to, must not be charged for what it did not do. Chop Shop is
+    // excluded because repairVehicleDamage already took its payment.
+    const settledDelta = results
+      .filter((result) => result.action !== 'visit_chop_shop')
+      .reduce((sum, result) => sum + result.creditsDelta, 0);
+
+    if (settledDelta !== 0) {
       const financialResult = await updateGangFinancials(supabase, {
         gangId,
-        creditsDelta: credits.aggregate,
+        creditsDelta: settledDelta,
       });
 
       if (!financialResult.success) {
@@ -589,9 +655,6 @@ export async function applyPostCycleActions(
     for (const result of results) {
       if (result.failed) continue;
 
-      const assignment = assignments.find((a) => a.fighterId === result.fighterId)!;
-      const creditsDelta = postCycleCreditsBreakdown([assignment]).total;
-
       try {
         await logPostCycleAction({
           gang_id: gangId,
@@ -603,7 +666,7 @@ export async function applyPostCycleActions(
           roll_total: result.roll?.total,
           roll_dice: result.roll?.dice,
           roll_label: result.roll?.label,
-          credits_delta: creditsDelta === 0 ? undefined : creditsDelta,
+          credits_delta: result.creditsDelta === 0 ? undefined : result.creditsDelta,
           user_id: user.id,
         });
       } catch (logError) {
