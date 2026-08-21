@@ -7538,6 +7538,13 @@ CREATE INDEX fighter_type_equipment_equipment_id_idx ON public.fighter_type_equi
 
 
 --
+-- Name: fighter_types_cool_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_types_cool_idx ON public.fighter_types USING btree (cool);
+
+
+--
 -- Name: fighter_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7566,10 +7573,24 @@ CREATE INDEX fighter_types_gang_type_idx ON public.fighter_types USING btree (ga
 
 
 --
+-- Name: fighter_types_intelligence_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_types_intelligence_idx ON public.fighter_types USING btree (intelligence);
+
+
+--
 -- Name: fighter_types_is_spyrer_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX fighter_types_is_spyrer_idx ON public.fighter_types USING btree (is_spyrer);
+
+
+--
+-- Name: fighter_types_leadership_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_types_leadership_idx ON public.fighter_types USING btree (leadership);
 
 
 --
@@ -7605,6 +7626,13 @@ CREATE INDEX fighters_fighter_name_idx ON public.fighters USING btree (fighter_n
 --
 
 CREATE INDEX fighters_fighter_pet_id_idx ON public.fighters USING btree (fighter_pet_id) WHERE (fighter_pet_id IS NOT NULL);
+
+
+--
+-- Name: fighters_fighter_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighters_fighter_type_id_idx ON public.fighters USING btree (fighter_type_id);
 
 
 --
@@ -7682,6 +7710,13 @@ CREATE INDEX gang_variant_types_edition_id_idx ON public.gang_variant_types USIN
 --
 
 CREATE INDEX gangs_custom_gang_type_id_idx ON public.gangs USING btree (custom_gang_type_id);
+
+
+--
+-- Name: gangs_gang_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gangs_gang_type_id_idx ON public.gangs USING btree (gang_type_id);
 
 
 --
@@ -8242,6 +8277,20 @@ CREATE INDEX vehicles_fighter_id_idx ON public.vehicles USING btree (fighter_id)
 --
 
 CREATE INDEX vehicles_vehicle_name_idx ON public.vehicles USING btree (vehicle_name);
+
+
+--
+-- Name: weapon_profiles_created_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX weapon_profiles_created_at_idx ON public.weapon_profiles USING btree (created_at);
+
+
+--
+-- Name: weapon_profiles_weapon_group_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX weapon_profiles_weapon_group_id_idx ON public.weapon_profiles USING btree (weapon_group_id);
 
 
 --
