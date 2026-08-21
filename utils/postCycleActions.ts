@@ -98,7 +98,9 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   develop_tactics: {
     id: 'develop_tactics',
     label: 'Develop Tactics',
-    description: 'Generate a new Gang Tactic and add it to the Gang Roster.',
+    description:
+      'Generate new Gang Tactics and add them to the Gang Roster. Roll a D66 or ' +
+      'pick from the edition\'s catalogue; the cards are added when the sequence resolves.',
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
   },
   visit_chop_shop: {
@@ -197,12 +199,24 @@ function hasSubtype(fighter: PostCycleFighter, subtypes: readonly string[]): boo
   return subtypes.some((wanted) => owned.includes(wanted));
 }
 
+/**
+ * What the gang's edition offers. Develop Tactics needs somewhere to put the
+ * card, and `hasGangTacticsCards` is a separate capability row from
+ * `hasPostCycleActions` by design — one row per decision — so an edition with
+ * Post-cycle Actions is not assumed to have a tactics catalogue.
+ */
+export interface PostCycleAvailability {
+  tacticsCardsAvailable?: boolean;
+}
+
 /** Whether this fighter's role and status allow this action at all. */
 export function canPerformPostCycleAction(
   fighter: PostCycleFighter,
-  actionId: PostCycleActionId
+  actionId: PostCycleActionId,
+  availability: PostCycleAvailability = {}
 ): boolean {
   if (!canActInPostCycle(fighter)) return false;
+  if (actionId === 'develop_tactics' && !availability.tacticsCardsAvailable) return false;
 
   const { performer } = POST_CYCLE_ACTIONS[actionId];
   switch (performer.kind) {
@@ -218,10 +232,11 @@ export function canPerformPostCycleAction(
 
 /** Every action this fighter could take, in display order. */
 export function eligiblePostCycleActions(
-  fighter: PostCycleFighter
+  fighter: PostCycleFighter,
+  availability: PostCycleAvailability = {}
 ): PostCycleActionDefinition[] {
   return POST_CYCLE_ACTION_ORDER.filter((id) =>
-    canPerformPostCycleAction(fighter, id)
+    canPerformPostCycleAction(fighter, id, availability)
   ).map((id) => POST_CYCLE_ACTIONS[id]);
 }
 
@@ -284,7 +299,13 @@ export type PostCycleAssignment =
     }
   | {
       fighterId: string;
-      action: 'develop_tactics' | 'visit_trading_post' | 'work_territory' | 'train';
+      action: 'develop_tactics';
+      /** `tactics_cards.id`s to add to the roster when the sequence resolves. */
+      tacticsCardIds: string[];
+    }
+  | {
+      fighterId: string;
+      action: 'visit_trading_post' | 'work_territory' | 'train';
     };
 
 /**
@@ -372,12 +393,22 @@ export interface PostCycleValidationIssue {
  * calls it again on freshly read rows, because the assignment list arrives from
  * the browser and is not trusted.
  */
+/** Gang-level state the cross-fighter rules need beyond the fighters themselves. */
+export interface PostCycleValidationContext {
+  /** `tactics_cards.id`s the gang already holds, so Develop Tactics cannot re-add one. */
+  ownedTacticsCardIds?: Set<string>;
+}
+
 export function validatePostCycleAssignments(
   fighters: PostCycleFighter[],
-  assignments: PostCycleAssignment[]
+  assignments: PostCycleAssignment[],
+  context: PostCycleValidationContext = {}
 ): PostCycleValidationIssue[] {
   const issues: PostCycleValidationIssue[] = [];
   const byId = new Map(fighters.map((f) => [f.id, f]));
+  const ownedTacticsCardIds = context.ownedTacticsCardIds ?? new Set<string>();
+  /** Catalogue id -> the fighter that claimed it, to catch two rows picking one card. */
+  const claimedTacticsCards = new Map<string, string>();
 
   const seenPerformers = new Set<string>();
   // Counted, not just tracked: two performers escorting the same patient must be
@@ -476,6 +507,49 @@ export function validatePostCycleAssignments(
           issues.push({ fighterId: assignment.fighterId, message });
         }
         countTarget(fitBionicsTargets, target.id);
+        break;
+      }
+
+      case 'develop_tactics': {
+        if (assignment.tacticsCardIds.length === 0) {
+          issues.push({
+            fighterId: assignment.fighterId,
+            message: `Choose at least one Gang Tactic for ${label}.`,
+          });
+        }
+
+        if (
+          new Set(assignment.tacticsCardIds).size !== assignment.tacticsCardIds.length
+        ) {
+          issues.push({
+            fighterId: assignment.fighterId,
+            message: `${label} has the same Gang Tactic selected twice.`,
+          });
+        }
+
+        for (const cardId of assignment.tacticsCardIds) {
+          if (ownedTacticsCardIds.has(cardId)) {
+            issues.push({
+              fighterId: assignment.fighterId,
+              message: `The gang already holds one of the Gang Tactics ${label} picked.`,
+            });
+            continue;
+          }
+
+          // The insert ignores duplicates, so without this the second fighter
+          // would be told they added a card that was never inserted.
+          const claimedBy = claimedTacticsCards.get(cardId);
+          if (claimedBy && claimedBy !== assignment.fighterId) {
+            issues.push({
+              fighterId: assignment.fighterId,
+              message:
+                `${label} and ${claimedBy} both picked the same Gang Tactic. ` +
+                `A gang can only hold one copy of a card.`,
+            });
+            continue;
+          }
+          claimedTacticsCards.set(cardId, label);
+        }
         break;
       }
 

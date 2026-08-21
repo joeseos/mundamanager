@@ -16,6 +16,8 @@ import { addFighterInjury, deleteFighterInjury } from './fighter-injury';
 import { repairVehicleDamage } from './remove-vehicle-damage';
 import { editFighterStatus, updateFighterXp } from './edit-fighter';
 import { logPostCycleAction } from './logs/gang-post-cycle-logs';
+import { addGangTacticsCards } from './gang-tactics-cards';
+import type { GangTacticsCard } from '@/types/tactics-card';
 import {
   FIT_BIONICS_COST_PER_INJURY,
   MEDICAL_ESCORT_COST,
@@ -85,6 +87,8 @@ export interface PostCycleActionOutcome {
    * is not billed in full.
    */
   creditsDelta: number;
+  /** Cards a Develop Tactics action put on the roster, for the page's own list. */
+  addedTacticsCards?: GangTacticsCard[];
   /** Per-fighter edits the caller should apply to its own state. */
   changes?: PostCycleFighterChange[];
   /** True when the action failed; `outcome` then carries the reason. */
@@ -253,7 +257,22 @@ export async function applyPostCycleActions(
 
     // ---- Re-validate against the rows we just read ---------------------------
 
-    const issues = validatePostCycleAssignments(fighters, assignments);
+    // Read directly rather than through getGangTacticsCards: that one is
+    // unstable_cache'd, and this is a write path that must see current rows.
+    let ownedTacticsCardIds = new Set<string>();
+    if (assignments.some((a) => a.action === 'develop_tactics')) {
+      const { data: ownedCards } = await supabase
+        .from('gang_tactics_cards')
+        .select('tactics_cards_id')
+        .eq('gang_id', gangId);
+      ownedTacticsCardIds = new Set(
+        (ownedCards ?? []).map((row: any) => row.tactics_cards_id)
+      );
+    }
+
+    const issues = validatePostCycleAssignments(fighters, assignments, {
+      ownedTacticsCardIds,
+    });
     if (issues.length > 0) {
       return { success: false, error: issues.map((i) => i.message).join(' '), results };
     }
@@ -592,13 +611,28 @@ export async function applyPostCycleActions(
           });
           break;
 
-        case 'develop_tactics':
+        case 'develop_tactics': {
+          // Reuses the tactics action wholesale: it re-validates the ids against
+          // the edition's catalogue, writes its own tactics_card_added logs and
+          // invalidates the tactics cache.
+          const addedCards = await addGangTacticsCards({
+            gangId,
+            tacticsCardIds: assignment.tacticsCardIds,
+          });
+
+          const names = (addedCards.data ?? []).map((card) => card.name);
+
           results.push({
             ...base,
-            outcome: 'Developed a new Gang Tactic. Add the card to the Gang Roster.',
+            outcome: addedCards.success
+              ? `Developed new Gang Tactics: ${names.join(', ')}.`
+              : `Failed to add the Gang Tactics: ${addedCards.error}`,
             creditsDelta: 0,
+            addedTacticsCards: addedCards.data,
+            failed: !addedCards.success,
           });
           break;
+        }
 
         case 'visit_trading_post':
           results.push({
