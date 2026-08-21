@@ -7,6 +7,7 @@ import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang';
 import { gangEditionSlug } from '@/types/edition';
 import { GangTacticsCard, GANG_TACTICS_CARD_SELECT, toGangTacticsCard } from '@/types/tactics-card';
+import { isSpecialistSpecialisationId } from '@/utils/fighter-variant';
 
 // =============================================================================
 // TYPES - Shared interfaces for gang data
@@ -139,6 +140,8 @@ export interface GangFighter {
     fighter_specialisation: string;
     fighter_specialisation_id: string;
   };
+  /** Type variant label (Bonecrusher, Natborn), following the fighter's type. */
+  fighter_variant?: string | null;
   alliance_crew_name?: string;
   position?: string;
   xp: number;
@@ -1027,6 +1030,7 @@ export const getGangFightersList = async (
             name
           ),
           fighter_specialisation_id,
+          fighter_variant,
           killed,
           starved,
           retired,
@@ -2036,10 +2040,14 @@ export const getGangFightersList = async (
           label: fighter.label,
           fighter_type: fighter.fighter_type || fighterTypeInfo.fighter_type || 'Unknown',
           fighter_subtypes: fighter.fighter_subtypes || [],
-          fighter_specialisation: fighterSpecialisationInfo ? {
+          // Guarded rather than passed straight through: the column still holds
+          // variant references on rows written before the split, and surfacing one
+          // would print the variant twice now that fighter_variant is read too.
+          fighter_specialisation: isSpecialistSpecialisationId(fighterSpecialisationInfo?.id) ? {
             fighter_specialisation: fighterSpecialisationInfo.specialisation_name,
             fighter_specialisation_id: fighterSpecialisationInfo.id
           } : undefined,
+          fighter_variant: fighter.fighter_variant ?? null,
           alliance_crew_name: fighterTypeInfo.alliance_crew_name,
           is_spyrer: fighterTypeInfo.is_spyrer ?? false,
           // The gang card needs this to offer Lasting Damage on a vehicle with no `vehicles` row

@@ -4,6 +4,7 @@ import { readHatredTarget } from '@/utils/injuryTarget';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { FighterEffect } from '@/types/fighter';
 import { FighterLoadout } from '@/types/equipment';
+import { isSpecialistSpecialisationId } from '@/utils/fighter-variant';
 
 // =============================================================================
 // TYPES - Shared interfaces for fighter data
@@ -51,6 +52,7 @@ export interface FighterBasic {
     name?: string;
   } | null;
   fighter_specialisation_id?: string;
+  fighter_variant?: string | null;
   killed?: boolean;
   starved?: boolean;
   retired?: boolean;
@@ -176,6 +178,7 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
             name
           ),
           fighter_specialisation_id,
+          fighter_variant,
           killed,
           starved,
           retired,
@@ -1228,11 +1231,19 @@ export const getFighterTypeInfo = async (fighterTypeId: string | null, supabase:
 /**
  * Get fighter specialisation information (cached globally)
  * Cache: GLOBAL_FIGHTER_TYPES
+ *
+ * Returns null for a variant id. The column still holds variant references on
+ * rows written before the split, and surfacing one here would render the variant
+ * twice -- "Haunt (…), Bonecrusher, Bonecrusher" -- since it is now also read
+ * from fighter_variant. Guarding at the fetch boundary keeps that out of every
+ * component. Becomes a no-op once the legacy values are cleaned up.
  */
 export const getFighterSpecialisationInfo = async (fighterSpecialisationId: string, supabase: any): Promise<{
   fighter_specialisation: string;
   fighter_specialisation_id: string;
 } | null> => {
+  if (!isSpecialistSpecialisationId(fighterSpecialisationId)) return null;
+
   return unstable_cache(
     async () => {
       const { data, error } = await supabase

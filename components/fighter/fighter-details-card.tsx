@@ -12,6 +12,7 @@ import { memo } from 'react';
 import { nextTierStartFor } from '@/utils/advancementRanks';
 import { calculateAdjustedStats } from '@/utils/effect-modifiers';
 import { FighterProps, FighterEffect, Vehicle } from '@/types/fighter';
+import { formatFighterTypeLine } from '@/utils/fighter-display-name';
 import { TbMeatOff } from "react-icons/tb";
 import { GiHandcuffs, GiImprisoned } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";
@@ -38,6 +39,8 @@ interface FighterDetailsCardProps {
     fighter_specialisation: string;
     fighter_specialisation_id: string;
   };
+  /** Type variant label (Bonecrusher, Natborn) — distinct from specialisation. */
+  fighter_variant?: string | null;
   alliance_crew_name?: string;
   label?: string;
   credits: number;
@@ -238,6 +241,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   name,
   type,
   specialisation,
+  fighter_variant,
   label,
   alliance_crew_name,
   credits,
@@ -471,10 +475,13 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
               <div className="flex flex-col items-baseline w-full min-w-0">
                 <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white mr-2 print:text-foreground truncate w-full">{name}</div>
                 <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden text-ellipsis whitespace-nowrap w-full print:text-muted-foreground">
-                  {type}
-                  {alliance_crew_name && ` – ${alliance_crew_name}`}
-                  {fighter_subtypes.length > 0 && ` (${fighter_subtypes.join(', ')})`}
-                  {specialisation?.fighter_specialisation && `, ${specialisation.fighter_specialisation}`}
+                  {formatFighterTypeLine({
+                    fighter_type: type,
+                    alliance_crew_name,
+                    fighter_subtypes,
+                    fighter_variant,
+                    fighter_specialisation: specialisation,
+                  })}
                 </div>
               </div>
             </div>

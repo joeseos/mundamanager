@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { GiAncientRuins } from "react-icons/gi";
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { decodeHtmlEntities, isHtmlEffectivelyEmpty } from "@/utils/htmlCleanUp";
+import { formatFighterTypeLine } from '@/utils/fighter-display-name';
 
 const ROSTER_FIGHTER_NOTE_MAX_CHARS = 110;
 
@@ -706,10 +707,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                        </div>
                        <div className="text-[9px] mt-[1px] flex items-center justify-between gap-2">
                          <div>
-                           {fighter.fighter_type}
-                           {fighter.fighter_subtypes?.join(', ')
-                             ? ` • ${fighter.fighter_subtypes.join(', ')}`
-                             : ""}
+                           {formatFighterTypeLine(fighter, 'print')}
                          </div>
                          {/* W/FW boxes */}
                          {showWFWBoxes && (
@@ -1336,6 +1334,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                         type={fighter.fighter_type}
                         fighter_subtypes={fighter.fighter_subtypes}
                         fighter_specialisation={fighter.fighter_specialisation}
+                        fighter_variant={fighter.fighter_variant}
                         label={fighter.label}
                         credits={fighter.credits}
                         loadout_cost={fighter.loadout_cost}

@@ -13,6 +13,7 @@ import { insertFighterOoaRecords } from './fighter-ooa-records';
 import { allowsMultipleSubtypes } from '@/types/edition';
 import { resolveFighterEditionSlug } from '@/utils/fighter-subtype-grants';
 import { assertArchetypeAssignable } from '@/utils/assertArchetypeAssignable';
+import { deriveIdentityFromType, specialisationIdOrNull } from '@/utils/fighter-variant';
 import { mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
@@ -1433,7 +1434,33 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (params.fighter_type_id !== undefined) updateData.fighter_type_id = params.fighter_type_id;
     if (params.custom_fighter_type_id !== undefined) updateData.custom_fighter_type_id = params.custom_fighter_type_id;
     if (params.fighter_specialisation !== undefined) updateData.fighter_specialisation = params.fighter_specialisation;
-    if (params.fighter_specialisation_id !== undefined) updateData.fighter_specialisation_id = params.fighter_specialisation_id;
+    if (params.fighter_specialisation_id !== undefined) {
+      // Never store a variant here, whatever the caller sent.
+      updateData.fighter_specialisation_id = specialisationIdOrNull(params.fighter_specialisation_id);
+    }
+
+    // The variant follows the type, so any write carrying a type id re-derives it
+    // from the catalog row rather than trusting the form. Re-deriving even when the
+    // type is unchanged is deliberate: it heals rows the previous build created
+    // without a variant.
+    //
+    // The specialisation follows the *fighter*, so the caller wins where it said
+    // something -- promotion passes the fighter's type along with the pick it just
+    // made, and Champion->Leader changes the type while keeping that pick. Only
+    // when the caller is silent does the type row supply it, which is what makes
+    // Edit Fighter's dropdown still work for a pre-collapse Tek-Gunner row while
+    // a Haunt/Psyrender row lands in fighter_variant instead.
+    if (params.fighter_type_id !== undefined || params.custom_fighter_type_id !== undefined) {
+      const derived = await deriveIdentityFromType(
+        supabase,
+        params.fighter_type_id,
+        params.custom_fighter_type_id
+      );
+      updateData.fighter_variant = derived.fighter_variant;
+      if (params.fighter_specialisation_id === undefined) {
+        updateData.fighter_specialisation_id = derived.fighter_specialisation_id;
+      }
+    }
     if (params.note !== undefined) updateData.note = params.note;
     if (params.note_backstory !== undefined) updateData.note_backstory = params.note_backstory;
     if (params.fighter_gang_legacy_id !== undefined) updateData.fighter_gang_legacy_id = params.fighter_gang_legacy_id;

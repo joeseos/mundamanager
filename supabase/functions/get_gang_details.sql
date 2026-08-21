@@ -55,6 +55,7 @@ BEGIN
            f.fighter_type_id,
            f.fighter_subtypes,
            f.fighter_specialisation_id,
+           f.fighter_variant,
            f.xp,
            f.kills,
            f.position,
@@ -589,6 +590,9 @@ BEGIN
              'fighter_specialisation', fspec.specialisation_name,
              'fighter_specialisation_id', fspec.id
            ) AS fighter_specialisation,
+           -- The variant follows the type; the specialisation follows the fighter.
+           -- Two separate facts, so two separate keys.
+           f.fighter_variant,
            ft.alliance_crew_name,
            f.xp,
            f.kills,
@@ -732,6 +736,7 @@ BEGIN
                'fighter_type', cf.fighter_type,
                'fighter_subtypes', cf.fighter_subtypes,
                'fighter_specialisation', cf.fighter_specialisation,
+               'fighter_variant', cf.fighter_variant,
                'alliance_crew_name', cf.alliance_crew_name,
                'position', cf.position,
                'xp', cf.xp,

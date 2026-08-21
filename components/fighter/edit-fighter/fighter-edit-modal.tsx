@@ -1068,8 +1068,10 @@ export function EditFighterModal({
           // client-only: used by the optimistic fighter_type overlay, not forwarded to the server
           submitData.gang_type_id = fighterTypeToUse.gang_type_id ?? null;
           submitData.custom_gang_type_id = null;
-          submitData.fighter_specialisation = selectedSpecialisation && selectedSpecialisation.fighter_specialisation !== 'Default' ? selectedSpecialisation.fighter_specialisation : null;
-          submitData.fighter_specialisation_id = selectedSpecialisation && selectedSpecialisation.fighter_specialisation !== 'Default' ? selectedSpecialisation.id : null;
+          // Deliberately not sending fighter_specialisation{,_id}: this dropdown picks a
+          // sibling catalog row, and the server derives both facts from it. Sending the
+          // row's specialisation here is what used to write variant ids (Bonecrusher,
+          // Psyrender) into fighter_specialisation_id.
         }
       }
 

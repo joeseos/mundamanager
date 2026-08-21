@@ -65,6 +65,8 @@ interface Fighter {
     fighter_specialisation: string;
     fighter_specialisation_id: string;
   };
+  /** Type variant label (Bonecrusher, Natborn) — distinct from specialisation. */
+  fighter_variant?: string | null;
   fighter_subtypes: string[];
   alliance_crew_name?: string;
   label?: string;
@@ -668,6 +670,7 @@ export default function FighterPage({
             name={fighterData.fighter?.fighter_name || ''}
             type={fighterData.fighter?.fighter_type?.fighter_type || ''}
             specialisation={fighterData.fighter?.fighter_specialisation}
+            fighter_variant={fighterData.fighter?.fighter_variant}
             label={fighterData.fighter?.label}
             alliance_crew_name={fighterData.fighter?.alliance_crew_name || ''}
             credits={fighterData.fighter?.credits || 0}
