@@ -3,7 +3,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { getEditionIdBySlug } from '@/app/lib/editions';
-import { gangEditionSlug, EDITION_N26 } from '@/types/edition';
+import { gangEditionSlug, hasGangTacticsCards, EDITION_N26 } from '@/types/edition';
 import {
   invalidateFighterData,
   invalidateGangFinancials,
@@ -271,6 +271,7 @@ export async function applyPostCycleActions(
     }
 
     const issues = validatePostCycleAssignments(fighters, assignments, {
+      tacticsCardsAvailable: hasGangTacticsCards(editionSlug),
       ownedTacticsCardIds,
     });
     if (issues.length > 0) {

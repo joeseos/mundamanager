@@ -227,8 +227,11 @@ export default function PostCycleActions({
 
   const issues = useMemo(
     () =>
-      validatePostCycleAssignments(fighters, assignments, { ownedTacticsCardIds }),
-    [fighters, assignments, ownedTacticsCardIds]
+      validatePostCycleAssignments(fighters, assignments, {
+        ...availability,
+        ownedTacticsCardIds,
+      }),
+    [fighters, assignments, availability, ownedTacticsCardIds]
   );
 
   const totalCost = useMemo(
