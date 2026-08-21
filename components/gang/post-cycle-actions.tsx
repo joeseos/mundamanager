@@ -377,12 +377,6 @@ export default function PostCycleActions({
               <th className="px-4 py-2 text-left font-medium w-72 min-w-[18rem]">
                 Post-Cycle Action
               </th>
-              {/* The icon belongs to the action control, not to a field of its
-                  own, so the column carries no visible heading. Its own column
-                  is what keeps every dropdown the same width. */}
-              <th className="w-12 px-2 py-2">
-                <span className="sr-only">Action options</span>
-              </th>
               <th className="px-4 py-2 text-right font-medium w-24">Credits</th>
             </tr>
           </thead>
@@ -404,13 +398,24 @@ export default function PostCycleActions({
                * dropdown. `count` replaces the label the old full-width button
                * carried, which was the only sign a pick had been made.
                */
+              const plural = (n: number, one: string, many: string) =>
+                `${n} ${n === 1 ? one : many} selected`;
+
+              /**
+               * The one picker this row's action needs. Rendered full width under
+               * the dropdown so the two line up as a single control rather than a
+               * button floating beside it.
+               */
               const picker = !row
                 ? null
                 : row.action === 'develop_tactics'
                   ? {
                       Icon: LuWalletCards,
                       title: 'Choose Gang Tactics',
-                      count: row.tacticsCardIds.length,
+                      label:
+                        row.tacticsCardIds.length === 0
+                          ? 'Choose tactics…'
+                          : plural(row.tacticsCardIds.length, 'tactic', 'tactics'),
                       disabled: false,
                       open: () => setTacticsPickerFighterId(fighter.id),
                     }
@@ -422,7 +427,10 @@ export default function PostCycleActions({
                         title: row.targetFighterId
                           ? 'Choose Lasting Injuries to remove'
                           : 'Pick a target fighter first',
-                        count: row.injuryIds.length,
+                        label:
+                          row.injuryIds.length === 0
+                            ? 'Choose injuries…'
+                            : plural(row.injuryIds.length, 'injury', 'injuries'),
                         disabled: !row.targetFighterId,
                         open: () =>
                           setEffectPicker({ fighterId: fighter.id, kind: 'injuries' }),
@@ -431,7 +439,10 @@ export default function PostCycleActions({
                       ? {
                           Icon: LuWrench,
                           title: 'Choose Lasting Damage to repair',
-                          count: row.damageIds.length,
+                          label:
+                            row.damageIds.length === 0
+                              ? 'Choose damage…'
+                              : plural(row.damageIds.length, 'repair', 'repairs'),
                           disabled: false,
                           open: () =>
                             setEffectPicker({ fighterId: fighter.id, kind: 'damages' }),
@@ -452,15 +463,15 @@ export default function PostCycleActions({
 
                   <td className="px-4 py-2">
                     <Combobox
-                        options={options.map((option) => ({
-                          value: option.id,
-                          // A ReactNode label keeps the rules text on hover the way
-                          // the native <option title> did; displayValue drives the
-                          // search box and the closed state.
-                          label: <span title={option.description}>{option.label}</span>,
-                          displayValue: option.label,
-                          disabled: option.id === 'work_territory' && workTerritoryFull,
-                        }))}
+                      options={options.map((option) => ({
+                        value: option.id,
+                        // A ReactNode label keeps the rules text on hover the way
+                        // the native <option title> did; displayValue drives the
+                        // search box and the closed state.
+                        label: <span title={option.description}>{option.label}</span>,
+                        displayValue: option.label,
+                        disabled: option.id === 'work_territory' && workTerritoryFull,
+                      }))}
                       value={row?.action ?? ''}
                       onValueChange={(value) => handleActionChange(fighter.id, value)}
                       placeholder="Select Post-Cycle Action"
@@ -541,25 +552,20 @@ export default function PostCycleActions({
                       />
                     )}
 
-                  </td>
-
-                  {/* Always rendered so every row has the same cell count; the
-                      column is what keeps the dropdowns a uniform width. */}
-                  <td className="px-2 py-2">
+                    {/* Full width so it lines up with the dropdown above rather
+                        than floating as a small button beside it. Last in the
+                        cell, so on Fit Bionics it follows the target picker. */}
                     {picker && (
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-10 w-full px-2 gap-1"
+                        className="w-full mt-2 gap-2"
                         onClick={picker.open}
                         disabled={!canEdit || picker.disabled}
                         title={picker.title}
-                        aria-label={picker.title}
                       >
                         <picker.Icon className="h-4 w-4" />
-                        {picker.count > 0 && (
-                          <span className="text-xs tabular-nums">{picker.count}</span>
-                        )}
+                        {picker.label}
                       </Button>
                     )}
                   </td>
