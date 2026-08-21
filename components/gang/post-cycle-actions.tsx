@@ -36,7 +36,7 @@ import {
   eligiblePostCycleActions,
   hasCriticalInjury,
   lastingDamagesOf,
-  postCycleCreditsBreakdown,
+  postCycleTotalCredits,
   removableLastingInjuriesOf,
   validatePostCycleAssignments,
   type PostCycleActionId,
@@ -206,8 +206,10 @@ export default function PostCycleActions({
     [fighters, assignments]
   );
 
-  const credits = useMemo(() => postCycleCreditsBreakdown(assignments), [assignments]);
-  const totalCost = -credits.total;
+  const totalCost = useMemo(
+    () => -postCycleTotalCredits(assignments),
+    [assignments]
+  );
   const creditsAfter = gangCredits - totalCost;
   const canAfford = creditsAfter >= 0;
 
