@@ -206,14 +206,14 @@ function hasSubtype(fighter: PostCycleFighter, subtypes: readonly string[]): boo
  * Post-cycle Actions is not assumed to have a tactics catalogue.
  */
 export interface PostCycleAvailability {
-  tacticsCardsAvailable?: boolean;
+  tacticsCardsAvailable: boolean;
 }
 
 /** Whether this fighter's role and status allow this action at all. */
 export function canPerformPostCycleAction(
   fighter: PostCycleFighter,
   actionId: PostCycleActionId,
-  availability: PostCycleAvailability = {}
+  availability: PostCycleAvailability
 ): boolean {
   if (!canActInPostCycle(fighter)) return false;
   if (actionId === 'develop_tactics' && !availability.tacticsCardsAvailable) return false;
@@ -233,7 +233,7 @@ export function canPerformPostCycleAction(
 /** Every action this fighter could take, in display order. */
 export function eligiblePostCycleActions(
   fighter: PostCycleFighter,
-  availability: PostCycleAvailability = {}
+  availability: PostCycleAvailability
 ): PostCycleActionDefinition[] {
   return POST_CYCLE_ACTION_ORDER.filter((id) =>
     canPerformPostCycleAction(fighter, id, availability)
@@ -393,20 +393,29 @@ export interface PostCycleValidationIssue {
  * calls it again on freshly read rows, because the assignment list arrives from
  * the browser and is not trusted.
  */
-/** Gang-level state the cross-fighter rules need beyond the fighters themselves. */
-export interface PostCycleValidationContext {
+/**
+ * Gang-level state the cross-fighter rules need beyond the fighters themselves.
+ *
+ * Extends PostCycleAvailability rather than sitting beside it so the per-action
+ * eligibility check below gets the same flags the caller used to build the form.
+ * Every field is required, and the parameter has no default: a missing
+ * availability flag reads as "this edition cannot do it" and would silently
+ * reject a legitimate action, which is exactly how Develop Tactics shipped
+ * broken. Requiring them makes that a compile error at each call site instead.
+ */
+export interface PostCycleValidationContext extends PostCycleAvailability {
   /** `tactics_cards.id`s the gang already holds, so Develop Tactics cannot re-add one. */
-  ownedTacticsCardIds?: Set<string>;
+  ownedTacticsCardIds: Set<string>;
 }
 
 export function validatePostCycleAssignments(
   fighters: PostCycleFighter[],
   assignments: PostCycleAssignment[],
-  context: PostCycleValidationContext = {}
+  context: PostCycleValidationContext
 ): PostCycleValidationIssue[] {
   const issues: PostCycleValidationIssue[] = [];
   const byId = new Map(fighters.map((f) => [f.id, f]));
-  const ownedTacticsCardIds = context.ownedTacticsCardIds ?? new Set<string>();
+  const ownedTacticsCardIds = context.ownedTacticsCardIds;
   /** Catalogue id -> the fighter that claimed it, to catch two rows picking one card. */
   const claimedTacticsCards = new Map<string, string>();
 
@@ -440,7 +449,7 @@ export function validatePostCycleAssignments(
     }
     seenPerformers.add(assignment.fighterId);
 
-    if (!canPerformPostCycleAction(performer, assignment.action)) {
+    if (!canPerformPostCycleAction(performer, assignment.action, context)) {
       issues.push({
         fighterId: assignment.fighterId,
         message: `${label} cannot perform ${POST_CYCLE_ACTIONS[assignment.action].label}.`,
