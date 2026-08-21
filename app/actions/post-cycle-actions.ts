@@ -15,7 +15,7 @@ import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { addFighterInjury, deleteFighterInjury } from './fighter-injury';
 import { repairVehicleDamage } from './remove-vehicle-damage';
 import { editFighterStatus, updateFighterXp } from './edit-fighter';
-import { logPostCycleAction, logPostCycleSequence } from './logs/gang-post-cycle-logs';
+import { logPostCycleAction } from './logs/gang-post-cycle-logs';
 import {
   TRAIN_XP,
   WORK_TERRITORY_INCOME,
@@ -262,12 +262,6 @@ export async function applyPostCycleActions(
         results,
       };
     }
-
-    const before = {
-      credits: startingCredits,
-      rating: gang.rating ?? 0,
-      wealth: gang.wealth ?? 0,
-    };
 
     // ---- Apply ---------------------------------------------------------------
 
@@ -561,7 +555,6 @@ export async function applyPostCycleActions(
 
     // ---- Settle the credits that were not delegated --------------------------
 
-    let after = before;
     if (credits.aggregate !== 0) {
       const financialResult = await updateGangFinancials(supabase, {
         gangId,
@@ -585,13 +578,11 @@ export async function applyPostCycleActions(
       .eq('id', gangId)
       .single();
 
-    if (finalGang) {
-      after = {
-        credits: finalGang.credits ?? 0,
-        rating: finalGang.rating ?? 0,
-        wealth: finalGang.wealth ?? 0,
-      };
-    }
+    const after = {
+      credits: finalGang?.credits ?? startingCredits,
+      rating: finalGang?.rating ?? gang.rating ?? 0,
+      wealth: finalGang?.wealth ?? gang.wealth ?? 0,
+    };
 
     // ---- Log -----------------------------------------------------------------
 
@@ -618,18 +609,6 @@ export async function applyPostCycleActions(
       } catch (logError) {
         console.error('Failed to log Post-cycle Action:', logError);
       }
-    }
-
-    try {
-      await logPostCycleSequence({
-        gang_id: gangId,
-        action_count: results.filter((r) => !r.failed).length,
-        before,
-        after,
-        user_id: user.id,
-      });
-    } catch (logError) {
-      console.error('Failed to log Post-cycle Sequence:', logError);
     }
 
     // ---- Cache ---------------------------------------------------------------

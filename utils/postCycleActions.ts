@@ -39,24 +39,12 @@ type Performer =
   | { kind: 'vehicle' }
   | { kind: 'any' };
 
-/** What the player must pick before the action can be applied. */
-export type PostCycleActionTarget =
-  /** Another fighter in the gang, plus which of their effect rows to act on. */
-  | 'critically_injured_fighter'
-  | 'injured_fighter'
-  /** Rows on the performing fighter itself. */
-  | 'own_lasting_damage'
-  | 'none';
-
 export interface PostCycleActionDefinition {
   id: PostCycleActionId;
   label: string;
-  /** Rules text, shown in the row's Details cell and the confirm summary. */
+  /** Rules text, shown as the option's tooltip. */
   description: string;
   performer: Performer;
-  target: PostCycleActionTarget;
-  /** Cap per Post-cycle Sequence, or null for unlimited. */
-  maxPerSequence: number | null;
 }
 
 export const MEDICAL_ESCORT_COST = 30;
@@ -97,8 +85,6 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
       `Every extra ${MEDICAL_ESCORT_GOOD_STUFF_STEP} credits adds +1 to the roll. ` +
       `Decline to pay and the fighter dies with no roll.`,
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
-    target: 'critically_injured_fighter',
-    maxPerSequence: null,
   },
   fit_bionics: {
     id: 'fit_bionics',
@@ -108,16 +94,12 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
       `removes one Lasting Injury; multiple instances of the same injury must each be ` +
       `removed separately. A Critical Injury cannot be removed this way.`,
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
-    target: 'injured_fighter',
-    maxPerSequence: null,
   },
   develop_tactics: {
     id: 'develop_tactics',
     label: 'Develop Tactics',
     description: 'Generate a new Gang Tactic and add it to the Gang Roster.',
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
-    target: 'none',
-    maxPerSequence: null,
   },
   visit_chop_shop: {
     id: 'visit_chop_shop',
@@ -127,8 +109,6 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
       `(Critical Damage included). Multiple instances of the same damage must each be ` +
       `removed separately.`,
     performer: { kind: 'vehicle' },
-    target: 'own_lasting_damage',
-    maxPerSequence: null,
   },
   work_territory: {
     id: 'work_territory',
@@ -137,8 +117,6 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
       `Work a Territory for ${WORK_TERRITORY_INCOME} credits added to the gang's Stash. ` +
       `At most ${WORK_TERRITORY_MAX_FIGHTERS} fighters may do this per Post-cycle Sequence.`,
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION_GANGER_PROSPECT },
-    target: 'none',
-    maxPerSequence: WORK_TERRITORY_MAX_FIGHTERS,
   },
   visit_trading_post: {
     id: 'visit_trading_post',
@@ -147,16 +125,12 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
       'Visit the Trading Post to see what the gang can find. Buy the equipment itself from ' +
       'the Stash tab.',
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
-    target: 'none',
-    maxPerSequence: null,
   },
   train: {
     id: 'train',
     label: 'Train',
     description: `Practise for the battles ahead. The model earns ${TRAIN_XP} XP.`,
     performer: { kind: 'any' },
-    target: 'none',
-    maxPerSequence: null,
   },
 };
 
@@ -313,13 +287,6 @@ export type PostCycleAssignment =
       action: 'develop_tactics' | 'visit_trading_post' | 'work_territory' | 'train';
     };
 
-/** The fighter an assignment acts upon, where it has one. */
-export function assignmentTargetId(assignment: PostCycleAssignment): string | null {
-  return assignment.action === 'medical_escort' || assignment.action === 'fit_bionics'
-    ? assignment.targetFighterId
-    : null;
-}
-
 /**
  * Net credits for one assignment: negative spends, positive earns. Chop Shop is
  * included, so a caller that delegates the repair to `repairVehicleDamage` must
@@ -380,6 +347,35 @@ export function postCycleCreditsBreakdown(
 // =============================================================================
 // Validation
 // =============================================================================
+
+/**
+ * The three checks every "pick some of this fighter's effect rows" action needs.
+ * Shared by Fit Bionics and Visit Chop Shop, which differ only in which rows
+ * they draw from and what those rows are called.
+ */
+function selectedEffectIssues(
+  selectedIds: string[],
+  available: FighterEffect[],
+  subject: string,
+  noun: string
+): string[] {
+  const messages: string[] = [];
+
+  if (selectedIds.length === 0) {
+    messages.push(`Choose at least one ${noun} on ${subject}.`);
+  }
+
+  const availableIds = new Set(available.map((effect) => effect.id));
+  if (selectedIds.some((id) => !availableIds.has(id))) {
+    messages.push(`${subject} does not have every selected ${noun}.`);
+  }
+
+  if (new Set(selectedIds).size !== selectedIds.length) {
+    messages.push(`${subject} has the same ${noun} selected twice.`);
+  }
+
+  return messages;
+}
 
 export interface PostCycleValidationIssue {
   /** The fighter the message is about, where it is about one. */
@@ -485,48 +481,26 @@ export function validatePostCycleAssignments(
             message: `${label} cannot fit their own bionics.`,
           });
         }
-        if (assignment.injuryIds.length === 0) {
-          issues.push({
-            fighterId: assignment.fighterId,
-            message: `Choose at least one Lasting Injury to remove from ${target.fighter_name}.`,
-          });
-        }
-        const removable = new Set(removableLastingInjuriesOf(target).map((e) => e.id));
-        if (assignment.injuryIds.some((id) => !removable.has(id))) {
-          issues.push({
-            fighterId: assignment.fighterId,
-            message: `${target.fighter_name} does not have every selected Lasting Injury, or one of them is a Critical Injury.`,
-          });
-        }
-        if (new Set(assignment.injuryIds).size !== assignment.injuryIds.length) {
-          issues.push({
-            fighterId: assignment.fighterId,
-            message: `${target.fighter_name} has the same Lasting Injury selected twice.`,
-          });
+        for (const message of selectedEffectIssues(
+          assignment.injuryIds,
+          removableLastingInjuriesOf(target),
+          target.fighter_name,
+          'removable Lasting Injury'
+        )) {
+          issues.push({ fighterId: assignment.fighterId, message });
         }
         fitBionicsTargets.add(target.id);
         break;
       }
 
       case 'visit_chop_shop': {
-        if (assignment.damageIds.length === 0) {
-          issues.push({
-            fighterId: assignment.fighterId,
-            message: `Choose at least one Lasting Damage to repair on ${label}.`,
-          });
-        }
-        const repairable = new Set(lastingDamagesOf(performer).map((e) => e.id));
-        if (assignment.damageIds.some((id) => !repairable.has(id))) {
-          issues.push({
-            fighterId: assignment.fighterId,
-            message: `${label} does not have every selected Lasting Damage.`,
-          });
-        }
-        if (new Set(assignment.damageIds).size !== assignment.damageIds.length) {
-          issues.push({
-            fighterId: assignment.fighterId,
-            message: `${label} has the same Lasting Damage selected twice.`,
-          });
+        for (const message of selectedEffectIssues(
+          assignment.damageIds,
+          lastingDamagesOf(performer),
+          label,
+          'Lasting Damage'
+        )) {
+          issues.push({ fighterId: assignment.fighterId, message });
         }
         break;
       }

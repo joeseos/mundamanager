@@ -1,7 +1,6 @@
 'use server'
 
 import { createGangLog, GangLogActionResult } from "./gang-logs";
-import { formatFinancialChanges } from "./log-helpers";
 import { formatRollOutcomeLine } from "@/utils/dice";
 import { POST_CYCLE_ACTIONS, type PostCycleActionId } from "@/utils/postCycleActions";
 
@@ -25,13 +24,6 @@ const POST_CYCLE_LOG_ACTION_TYPES: Record<PostCycleActionId, string> = {
   visit_trading_post: 'post_cycle_trading_post',
   train: 'post_cycle_train',
 };
-
-/** Financial snapshot either side of the whole sequence, for the summary line. */
-export interface PostCycleFinancials {
-  credits: number;
-  rating: number;
-  wealth: number;
-}
 
 export interface PostCycleActionLogParams {
   gang_id: string;
@@ -104,44 +96,6 @@ export async function logPostCycleAction(
     fighter_id: params.fighter_id,
     action_type: POST_CYCLE_LOG_ACTION_TYPES[params.action],
     description: parts.join(''),
-    user_id: params.user_id,
-  });
-}
-
-export interface PostCycleSequenceLogParams {
-  gang_id: string;
-  /** How many fighters actually spent an action. */
-  action_count: number;
-  before: PostCycleFinancials;
-  after: PostCycleFinancials;
-  user_id?: string;
-}
-
-/**
- * A single closing entry for the sequence, carrying the financial movement.
- * Per-fighter entries name what each fighter did; this one answers "what did the
- * whole Post-cycle Sequence cost the gang".
- */
-export async function logPostCycleSequence(
-  params: PostCycleSequenceLogParams
-): Promise<GangLogActionResult> {
-  const financials = formatFinancialChanges(
-    params.before.credits,
-    params.after.credits,
-    params.before.rating,
-    params.after.rating,
-    params.before.wealth,
-    params.after.wealth
-  );
-
-  const summary =
-    `Gang resolved a Post-cycle Sequence with ${params.action_count} ` +
-    `Post-cycle Action${params.action_count === 1 ? '' : 's'}.`;
-
-  return createGangLog({
-    gang_id: params.gang_id,
-    action_type: 'post_cycle_sequence',
-    description: financials ? `${summary}\n${financials}` : summary,
     user_id: params.user_id,
   });
 }

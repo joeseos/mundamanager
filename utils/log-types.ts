@@ -104,7 +104,6 @@ export const LOG_TYPE_LABELS: Record<string, string> = {
 
   // Post-cycle Actions (N26). Written by app/actions/logs/gang-post-cycle-logs.ts,
   // which maps each PostCycleActionId to one of these.
-  'post_cycle_sequence': 'Post-cycle Sequence',
   'post_cycle_medical_escort': 'Medical Escort',
   'post_cycle_fit_bionics': 'Fit Bionics',
   'post_cycle_develop_tactics': 'Develop Tactics',
