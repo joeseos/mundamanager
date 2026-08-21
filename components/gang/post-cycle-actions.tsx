@@ -21,6 +21,8 @@ import { Input } from '@/components/ui/input';
 import Modal from '@/components/ui/modal';
 import { Badge } from '@/components/ui/badge';
 import { GrCycle } from 'react-icons/gr';
+import { LuWalletCards, LuWrench } from 'react-icons/lu';
+import { FaMedkit } from 'react-icons/fa';
 import { FighterProps } from '@/types/fighter';
 import { UserPermissions } from '@/types/user-permissions';
 import { EDITION_N26, hasGangTacticsCards } from '@/types/edition';
@@ -391,6 +393,45 @@ export default function PostCycleActions({
                 workTerritoryCount >= WORK_TERRITORY_MAX_FIGHTERS &&
                 row?.action !== 'work_territory';
 
+              /**
+               * The one picker this row's action needs, as an icon beside the
+               * dropdown. `count` replaces the label the old full-width button
+               * carried, which was the only sign a pick had been made.
+               */
+              const picker = !row
+                ? null
+                : row.action === 'develop_tactics'
+                  ? {
+                      Icon: LuWalletCards,
+                      title: 'Choose Gang Tactics',
+                      count: row.tacticsCardIds.length,
+                      disabled: false,
+                      open: () => setTacticsPickerFighterId(fighter.id),
+                    }
+                  : row.action === 'fit_bionics'
+                    ? {
+                        Icon: FaMedkit,
+                        // Rendered even before a target is chosen, so the row does
+                        // not reflow the moment one is.
+                        title: row.targetFighterId
+                          ? 'Choose Lasting Injuries to remove'
+                          : 'Pick a target fighter first',
+                        count: row.injuryIds.length,
+                        disabled: !row.targetFighterId,
+                        open: () =>
+                          setEffectPicker({ fighterId: fighter.id, kind: 'injuries' }),
+                      }
+                    : row.action === 'visit_chop_shop'
+                      ? {
+                          Icon: LuWrench,
+                          title: 'Choose Lasting Damage to repair',
+                          count: row.damageIds.length,
+                          disabled: false,
+                          open: () =>
+                            setEffectPicker({ fighterId: fighter.id, kind: 'damages' }),
+                        }
+                      : null;
+
               return (
                 <tr key={fighter.id} className="border-b last:border-0 align-top">
                   <td className="px-4 py-2">
@@ -404,29 +445,48 @@ export default function PostCycleActions({
                   </td>
 
                   <td className="px-4 py-2">
-                    <select
-                      value={row?.action ?? ''}
-                      onChange={(e) => handleActionChange(fighter.id, e.target.value)}
-                      disabled={!canEdit}
-                      aria-label={`Post-Cycle Action for ${fighter.fighter_name}`}
-                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <option value="">Select Post-Cycle Action</option>
-                      {options.map((option) => (
-                        <option
-                          key={option.id}
-                          value={option.id}
-                          disabled={option.id === 'work_territory' && workTerritoryFull}
-                          // The rules text has no column of its own any more.
-                          title={option.description}
-                        >
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="flex items-center gap-2">
+                      <Combobox
+                        options={options.map((option) => ({
+                          value: option.id,
+                          // A ReactNode label keeps the rules text on hover the way
+                          // the native <option title> did; displayValue drives the
+                          // search box and the closed state.
+                          label: <span title={option.description}>{option.label}</span>,
+                          displayValue: option.label,
+                          disabled: option.id === 'work_territory' && workTerritoryFull,
+                        }))}
+                        value={row?.action ?? ''}
+                        onValueChange={(value) => handleActionChange(fighter.id, value)}
+                        placeholder="Select Post-Cycle Action"
+                        dropdownPlacement="down"
+                        clearable
+                        disabled={!canEdit}
+                        className="flex-1"
+                      />
 
-                    {/* The picks an action needs sit under the select rather than
-                        in a column of their own — most actions need none. */}
+                      {/* One picker per action, beside the dropdown rather than
+                          stacked under it — the row is one setting, not two. */}
+                      {picker && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-9 shrink-0 px-2 gap-1"
+                          onClick={picker.open}
+                          disabled={!canEdit || picker.disabled}
+                          title={picker.title}
+                          aria-label={picker.title}
+                        >
+                          <picker.Icon className="h-4 w-4" />
+                          {picker.count > 0 && (
+                            <span className="text-xs tabular-nums">{picker.count}</span>
+                          )}
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* The two Doc actions still need a target picker of their own;
+                        everything else is now the icon above. */}
                     {row?.action === 'medical_escort' && (
                       <div className="space-y-2 mt-2">
                         <Combobox
@@ -480,77 +540,23 @@ export default function PostCycleActions({
                     )}
 
                     {row?.action === 'fit_bionics' && (
-                      <div className="space-y-2 mt-2">
-                        <Combobox
-                          options={injuredFighters
-                            .filter((f) => f.id !== fighter.id)
-                            .map((f) => ({ value: f.id, label: f.fighter_name }))}
-                          value={row.targetFighterId ?? ''}
-                          onValueChange={(value) =>
-                            setRow(fighter.id, { targetFighterId: value, injuryIds: [] })
-                          }
-                          placeholder="Select fighter to fit bionics"
-                          noResultsText="No fighter has a removable Lasting Injury"
-                          dropdownPlacement="down"
-                          clearable
-                          disabled={!canEdit}
-                        />
-                        {row.targetFighterId && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 px-2 text-xs"
-                            onClick={() =>
-                              setEffectPicker({
-                                fighterId: fighter.id,
-                                kind: 'injuries',
-                              })
-                            }
-                            disabled={!canEdit}
-                          >
-                            {row.injuryIds.length === 0
-                              ? 'Choose injuries…'
-                              : `${row.injuryIds.length} injur${
-                                  row.injuryIds.length === 1 ? 'y' : 'ies'
-                                } selected`}
-                          </Button>
-                        )}
-                      </div>
-                    )}
-
-                    {row?.action === 'develop_tactics' && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 px-2 text-xs mt-2"
-                        onClick={() => setTacticsPickerFighterId(fighter.id)}
-                        disabled={!canEdit}
-                      >
-                        {row.tacticsCardIds.length === 0
-                          ? 'Choose tactics…'
-                          : `${row.tacticsCardIds.length} tactic${
-                              row.tacticsCardIds.length === 1 ? '' : 's'
-                            } selected`}
-                      </Button>
-                    )}
-
-                    {row?.action === 'visit_chop_shop' && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 px-2 text-xs mt-2"
-                        onClick={() =>
-                          setEffectPicker({ fighterId: fighter.id, kind: 'damages' })
+                      <Combobox
+                        options={injuredFighters
+                          .filter((f) => f.id !== fighter.id)
+                          .map((f) => ({ value: f.id, label: f.fighter_name }))}
+                        value={row.targetFighterId ?? ''}
+                        onValueChange={(value) =>
+                          setRow(fighter.id, { targetFighterId: value, injuryIds: [] })
                         }
+                        placeholder="Select fighter to fit bionics"
+                        noResultsText="No fighter has a removable Lasting Injury"
+                        dropdownPlacement="down"
+                        clearable
                         disabled={!canEdit}
-                      >
-                        {row.damageIds.length === 0
-                          ? 'Choose damage…'
-                          : `${row.damageIds.length} repair${
-                              row.damageIds.length === 1 ? '' : 's'
-                            } selected`}
-                      </Button>
+                        className="mt-2"
+                      />
                     )}
+
                   </td>
 
                   <td className="px-4 py-2 text-right whitespace-nowrap">
