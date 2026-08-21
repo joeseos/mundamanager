@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { RiErrorWarningFill } from "react-icons/ri";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/utils/supabase/client";
@@ -120,7 +121,10 @@ export default function EmailChange({ currentEmail }: EmailChangeProps) {
             </Button>
           </div>
           {error && (
-            <p className="text-sm text-red-500">{error}</p>
+            <p className="text-sm text-red-500 flex items-start gap-1">
+              <RiErrorWarningFill className="h-4 w-4 shrink-0 mt-0.5" aria-hidden />
+              {error}
+            </p>
           )}
           <div className="text-sm text-muted-foreground">
             <p>You will receive confirmation emails at both your current and new email addresses.</p>

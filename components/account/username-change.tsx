@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { RiErrorWarningFill } from "react-icons/ri";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { updateUsernameAction } from "@/app/actions/user";
@@ -20,7 +21,7 @@ export default function UsernameChange({ currentUsername, userId }: UsernameChan
   const validateUsername = (username: string): string | null => {
     const usernameRegex = /^[a-zA-Z0-9_-]{3,20}$/;
     if (!usernameRegex.test(username)) {
-      return 'Username must be 3-20 characters and can only contain letters, numbers, underscores, and hyphens';
+      return 'Must be 3-20 characters and can only contain letters, numbers, underscores, and hyphens';
     }
     if (username.toLowerCase() === currentUsername.toLowerCase()) {
       return 'New username must be different from your current username';
@@ -107,7 +108,10 @@ export default function UsernameChange({ currentUsername, userId }: UsernameChan
             </Button>
           </div>
           {error && (
-            <p className="text-sm text-red-500">{error}</p>
+            <p className="text-sm text-red-500 flex items-start gap-1">
+              <RiErrorWarningFill className="h-4 w-4 shrink-0 mt-0.5" aria-hidden />
+              {error}
+            </p>
           )}
         </div>
       ) : (

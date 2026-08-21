@@ -2,8 +2,7 @@
 
 import { FormMessage, Message } from "@/components/form-message";
 import { SubmitButton } from "@/components/submit-button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { ValidatedEmailField } from "@/components/ui/validated-email-field";
 import Link from "next/link";
 import { forgotPasswordAction } from "@/app/actions/auth";
 import { Suspense, useState } from "react";
@@ -20,7 +19,6 @@ export default function ResetPassword() {
 function ResetPasswordContent() {
   const searchParams = useSearchParams();
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
-  const [emailError, setEmailError] = useState<string | null>(null);
   const [emailSent, setEmailSent] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -61,8 +59,8 @@ function ResetPasswordContent() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center">
-      <div className="container mx-auto max-w-4xl w-full p-4">
+    <main className="flex flex-col items-center">
+      <div className="container mx-auto max-w-4xl w-full px-4">
         <form onSubmit={handleSubmit} className="flex flex-col w-full max-w-sm mx-auto text-white">
           {!emailSent ? (
             <>
@@ -71,34 +69,7 @@ function ResetPasswordContent() {
                 Enter your email address and we&apos;ll send you instructions to reset your password.
               </p>
               <div className="flex flex-col gap-4">
-                <Label htmlFor="email">Email</Label>
-                <div>
-                  <Input 
-                    id="email" 
-                    name="email" 
-                    type="email"
-                    placeholder="you@example.com" 
-                    required 
-                    className="text-foreground mt-1"
-                    autoComplete="email"
-                    aria-invalid={!!emailError}
-                    aria-describedby={emailError ? "email-error" : undefined}
-                    onInvalid={(e) => {
-                      e.preventDefault();
-                      setEmailError("Must be an email address");
-                    }}
-                    onChange={(e) => {
-                      if (e.target.validity.valid) {
-                        setEmailError(null);
-                      }
-                    }}
-                  />
-                  {emailError && (
-                    <p id="email-error" className="text-red-500 text-sm mt-1">
-                      {emailError}
-                    </p>
-                  )}
-                </div>
+                <ValidatedEmailField id="email" />
                 <SubmitButton 
                   pendingText="Sending..." 
                   className="mt-2"
@@ -114,8 +85,19 @@ function ResetPasswordContent() {
           ) : (
             <p className="text-sm text-white mb-8 text-center">Check your email for the password reset link.</p>
           )}
-          <div className="text-center mt-2">
-            <Link href="/sign-in" className="text-sm text-white underline hover:underline">
+          <div className="text-center mt-4 space-y-2">
+            <p className="text-sm text-white">
+              Having trouble?{" "}
+              <a
+                href="https://discord.gg/ZWXXqd5NUt"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-white font-medium underline"
+              >
+                Get help
+              </a>
+            </p>
+            <Link href="/sign-in" className="block text-sm text-white underline hover:underline">
               Back to sign in
             </Link>
           </div>

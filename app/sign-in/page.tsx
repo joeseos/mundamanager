@@ -6,6 +6,7 @@ import { FormMessage, Message } from "@/components/form-message";
 import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ValidatedEmailField } from "@/components/ui/validated-email-field";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState, useEffect, useRef } from 'react';
@@ -13,6 +14,7 @@ import TurnstileWidget, { type TurnstileHandle } from './TurnstileWidget';
 import { FaUsers } from "react-icons/fa";
 import { MdAppShortcut } from "react-icons/md";
 import { LuEye, LuEyeOff } from "react-icons/lu";
+import { RiErrorWarningFill } from "react-icons/ri";
 import AboutMundaManager from "@/components/munda-manager-info/about-munda-manager";
 import WhatIsMundaManager from "@/components/munda-manager-info/what-is-munda-manager";
 
@@ -28,7 +30,7 @@ function SignInContent() {
   const searchParams = useSearchParams();
   const urlError = searchParams.get('error');
   const [errorMessage, setErrorMessage] = useState<string | null>(urlError);
-  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(0);
   const [userCount, setUserCount] = useState<number | undefined>(undefined);
   const [gangCount, setGangCount] = useState<number | undefined>(undefined);
@@ -95,8 +97,8 @@ function SignInContent() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center">
-      <div className="container mx-auto max-w-4xl w-full p-4">
+    <main className="flex flex-col items-center">
+      <div className="container mx-auto max-w-4xl w-full px-4">
         {topMessage && (
           <div className="mb-4">
             {'success' in topMessage && topMessage.success === 'Password updated successfully. Please sign in with your new password.' ? (
@@ -130,64 +132,61 @@ function SignInContent() {
             </Link>
           </p>
           <div className="flex flex-col gap-4">
-            <Label htmlFor="email">Email</Label>
+            <ValidatedEmailField id="email" />
+            <Label htmlFor="password">Password</Label>
             <div>
-              <Input 
-                id="email" 
-                name="email" 
-                type="email"
-                placeholder="you@example.com" 
-                required 
-                className="text-foreground" 
-                autoComplete="email"
-                aria-invalid={!!emailError}
-                aria-describedby={emailError ? "email-error" : undefined}
-                onInvalid={(e) => {
-                  e.preventDefault();
-                  setEmailError("Must be an email address");
-                }}
-                onChange={(e) => {
-                  if (e.target.validity.valid) {
-                    setEmailError(null);
-                  }
-                }}
-              />
-              {emailError && (
-                <p id="email-error" className="text-red-500 text-sm mt-1">
-                  {emailError}
+              <div className="relative">
+                <Input
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  required
+                  className="text-foreground pr-10"
+                  autoComplete="current-password"
+                  aria-invalid={!!passwordError}
+                  aria-describedby={passwordError ? "password-error" : undefined}
+                  onInvalid={(e) => {
+                    e.preventDefault();
+                    setPasswordError("Password is required");
+                  }}
+                  onChange={(e) => {
+                    if (e.target.validity.valid) {
+                      setPasswordError(null);
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onMouseDown={() => setShowPassword(true)}
+                  onMouseUp={() => setShowPassword(false)}
+                  onMouseLeave={() => setShowPassword(false)}
+                  onTouchStart={() => setShowPassword(true)}
+                  onTouchEnd={() => setShowPassword(false)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors select-none touch-none"
+                  aria-label="Hold to reveal password"
+                >
+                  {showPassword ? (
+                    <LuEyeOff className="h-5 w-5" />
+                  ) : (
+                    <LuEye className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+              {passwordError && (
+                <p
+                  id="password-error"
+                  role="alert"
+                  aria-live="polite"
+                  className="text-red-400 text-sm mt-1 flex items-start gap-1"
+                >
+                  <RiErrorWarningFill className="h-4 w-4 shrink-0 mt-0.5" aria-hidden />
+                  {passwordError}
                 </p>
               )}
             </div>
-            <Label htmlFor="password">Password</Label>
-            <div className="relative">
-              <Input
-                id="password"
-                name="password"
-                type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
-                required
-                className="text-foreground pr-10"
-                autoComplete="current-password"
-              />
-              <button
-                type="button"
-                onMouseDown={() => setShowPassword(true)}
-                onMouseUp={() => setShowPassword(false)}
-                onMouseLeave={() => setShowPassword(false)}
-                onTouchStart={() => setShowPassword(true)}
-                onTouchEnd={() => setShowPassword(false)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors select-none touch-none"
-                aria-label="Hold to reveal password"
-              >
-                {showPassword ? (
-                  <LuEyeOff className="h-5 w-5" />
-                ) : (
-                  <LuEye className="h-5 w-5" />
-                )}
-              </button>
-            </div>
             {errorMessage && (
-              <div className="text-red-500 text-sm">
+              <div className="text-red-400 text-sm">
                 {errorMessage}
               </div>
             )}
@@ -209,6 +208,17 @@ function SignInContent() {
               Sign In
             </SubmitButton>
           </div>
+          <p className="text-sm text-white text-center mt-4">
+            Having trouble?{" "}
+            <a
+              href="https://discord.gg/ZWXXqd5NUt"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-white font-medium underline"
+            >
+              Get help
+            </a>
+          </p>
         </form>
       </div>
 

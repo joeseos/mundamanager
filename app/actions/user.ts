@@ -61,7 +61,7 @@ export const updateUsernameAction = async (userId: string, newUsername: string) 
     // Validate username format
     const isValidUsername = /^[a-zA-Z0-9_-]{3,20}$/.test(newUsername);
     if (!isValidUsername) {
-      return { error: "Username must be 3-20 characters and can only contain letters, numbers, underscores, and hyphens" };
+      return { error: "Must be 3-20 characters and can only contain letters, numbers, underscores, and hyphens" };
     }
 
     // Check if username already exists (case-insensitive)
