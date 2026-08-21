@@ -40,14 +40,18 @@ COMMENT ON COLUMN public.fighters.fighter_variant IS
   'specialisation follows the fighter.';
 
 -- The eight specialisations (utils/keepTypePromotionN26.ts). Every other row in
--- fighter_specialisations is a variant label. Held in a temp table so the list is written
--- once, and guarded below: if the catalog has drifted, misclassifying a specialisation as
--- a variant would silently relabel live fighters, so fail rather than guess.
--- Dropped explicitly at the end rather than ON COMMIT DROP, which would take the table
--- with it after the first statement if this is applied outside a transaction.
-DROP TABLE IF EXISTS _specialist_ids;
+-- fighter_specialisations is a variant label. Held in a scratch table so the list is
+-- written once, and guarded below: if the catalog has drifted, misclassifying a
+-- specialisation as a variant would silently relabel live fighters, so fail rather
+-- than guess.
+--
+-- pg_temp-qualified throughout: this table belongs to the migration, not to the schema,
+-- and qualifying it means these DROPs cannot resolve through search_path onto a real
+-- table of the same name. Dropped explicitly at the end rather than ON COMMIT DROP,
+-- which would take it away after the first statement if applied outside a transaction.
+DROP TABLE IF EXISTS pg_temp._specialist_ids;
 CREATE TEMP TABLE _specialist_ids (id uuid PRIMARY KEY);
-INSERT INTO _specialist_ids (id) VALUES
+INSERT INTO pg_temp._specialist_ids (id) VALUES
   ('f16c7f9c-3fcc-4384-81c8-14a9e863dc28'),  -- Heavy
   ('71a99cf2-5a95-4328-b053-ece6cf70818f'),  -- Gunner
   ('6ba5f84f-1bba-4b33-9837-20750e272b7f'),  -- Gunslinger
@@ -62,7 +66,7 @@ DECLARE
   v_missing text;
 BEGIN
   SELECT string_agg(s.id::text, ', ') INTO v_missing
-  FROM _specialist_ids s
+  FROM pg_temp._specialist_ids s
   WHERE NOT EXISTS (SELECT 1 FROM public.fighter_specialisations f WHERE f.id = s.id);
 
   IF v_missing IS NOT NULL THEN
@@ -77,7 +81,7 @@ UPDATE public.fighter_types ft
 SET fighter_variant = s.specialisation_name
 FROM public.fighter_specialisations s
 WHERE s.id = ft.fighter_specialisation_id
-  AND s.id NOT IN (SELECT id FROM _specialist_ids);
+  AND s.id NOT IN (SELECT id FROM pg_temp._specialist_ids);
 
 -- 2. fighters: derive from the fighter's own type row, which is authoritative -- a fighter
 -- of a Bonecrusher type row is a Bonecrusher. This is also the repair: it restores the
@@ -96,7 +100,7 @@ UPDATE public.fighters f
 SET fighter_variant = s.specialisation_name
 FROM public.fighter_specialisations s
 WHERE s.id = f.fighter_specialisation_id
-  AND s.id NOT IN (SELECT id FROM _specialist_ids)
+  AND s.id NOT IN (SELECT id FROM pg_temp._specialist_ids)
   AND f.fighter_variant IS NULL;
 
-DROP TABLE _specialist_ids;
+DROP TABLE pg_temp._specialist_ids;
