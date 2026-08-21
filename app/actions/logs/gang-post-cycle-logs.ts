@@ -5,6 +5,27 @@ import { formatFinancialChanges } from "./log-helpers";
 import { formatRollOutcomeLine } from "@/utils/dice";
 import { POST_CYCLE_ACTIONS, type PostCycleActionId } from "@/utils/postCycleActions";
 
+/**
+ * One `action_type` per Post-cycle Action rather than a single shared one, so
+ * the log modal's Action Type filter can single out "every Medical Escort this
+ * gang has run" — the same granularity equipment and vehicle damage already
+ * log at.
+ *
+ * Typed `Record<PostCycleActionId, string>`, so adding an action to the catalog
+ * is a compile error here until it states its log type. Every value below also
+ * needs a label in LOG_TYPE_LABELS (utils/log-types.ts), or the UI falls back to
+ * showing the raw snake_case string.
+ */
+const POST_CYCLE_LOG_ACTION_TYPES: Record<PostCycleActionId, string> = {
+  medical_escort: 'post_cycle_medical_escort',
+  fit_bionics: 'post_cycle_fit_bionics',
+  develop_tactics: 'post_cycle_develop_tactics',
+  visit_chop_shop: 'post_cycle_chop_shop',
+  work_territory: 'post_cycle_work_territory',
+  visit_trading_post: 'post_cycle_trading_post',
+  train: 'post_cycle_train',
+};
+
 /** Financial snapshot either side of the whole sequence, for the summary line. */
 export interface PostCycleFinancials {
   credits: number;
@@ -35,7 +56,7 @@ export interface PostCycleActionLogParams {
 }
 
 /**
- * One `post_cycle_action` entry per fighter that acted.
+ * One entry per fighter that acted, typed by which action they took.
  *
  * The helpers this composes with (deleteFighterInjury, updateFighterXp,
  * repairVehicleDamage) each write their own granular log too, so this line
@@ -81,7 +102,7 @@ export async function logPostCycleAction(
   return createGangLog({
     gang_id: params.gang_id,
     fighter_id: params.fighter_id,
-    action_type: 'post_cycle_action',
+    action_type: POST_CYCLE_LOG_ACTION_TYPES[params.action],
     description: parts.join(''),
     user_id: params.user_id,
   });
