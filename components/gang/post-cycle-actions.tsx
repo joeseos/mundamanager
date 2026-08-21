@@ -377,6 +377,12 @@ export default function PostCycleActions({
               <th className="px-4 py-2 text-left font-medium w-72 min-w-[18rem]">
                 Post-Cycle Action
               </th>
+              {/* The icon belongs to the action control, not to a field of its
+                  own, so the column carries no visible heading. Its own column
+                  is what keeps every dropdown the same width. */}
+              <th className="w-12 px-2 py-2">
+                <span className="sr-only">Action options</span>
+              </th>
               <th className="px-4 py-2 text-right font-medium w-24">Credits</th>
             </tr>
           </thead>
@@ -445,8 +451,7 @@ export default function PostCycleActions({
                   </td>
 
                   <td className="px-4 py-2">
-                    <div className="flex items-center gap-2">
-                      <Combobox
+                    <Combobox
                         options={options.map((option) => ({
                           value: option.id,
                           // A ReactNode label keeps the rules text on hover the way
@@ -456,34 +461,13 @@ export default function PostCycleActions({
                           displayValue: option.label,
                           disabled: option.id === 'work_territory' && workTerritoryFull,
                         }))}
-                        value={row?.action ?? ''}
-                        onValueChange={(value) => handleActionChange(fighter.id, value)}
-                        placeholder="Select Post-Cycle Action"
-                        dropdownPlacement="down"
-                        clearable
-                        disabled={!canEdit}
-                        className="flex-1"
-                      />
-
-                      {/* One picker per action, beside the dropdown rather than
-                          stacked under it — the row is one setting, not two. */}
-                      {picker && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-9 shrink-0 px-2 gap-1"
-                          onClick={picker.open}
-                          disabled={!canEdit || picker.disabled}
-                          title={picker.title}
-                          aria-label={picker.title}
-                        >
-                          <picker.Icon className="h-4 w-4" />
-                          {picker.count > 0 && (
-                            <span className="text-xs tabular-nums">{picker.count}</span>
-                          )}
-                        </Button>
-                      )}
-                    </div>
+                      value={row?.action ?? ''}
+                      onValueChange={(value) => handleActionChange(fighter.id, value)}
+                      placeholder="Select Post-Cycle Action"
+                      dropdownPlacement="down"
+                      clearable
+                      disabled={!canEdit}
+                    />
 
                     {/* The two Doc actions still need a target picker of their own;
                         everything else is now the icon above. */}
@@ -557,6 +541,27 @@ export default function PostCycleActions({
                       />
                     )}
 
+                  </td>
+
+                  {/* Always rendered so every row has the same cell count; the
+                      column is what keeps the dropdowns a uniform width. */}
+                  <td className="px-2 py-2">
+                    {picker && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-10 w-full px-2 gap-1"
+                        onClick={picker.open}
+                        disabled={!canEdit || picker.disabled}
+                        title={picker.title}
+                        aria-label={picker.title}
+                      >
+                        <picker.Icon className="h-4 w-4" />
+                        {picker.count > 0 && (
+                          <span className="text-xs tabular-nums">{picker.count}</span>
+                        )}
+                      </Button>
+                    )}
                   </td>
 
                   <td className="px-4 py-2 text-right whitespace-nowrap">
