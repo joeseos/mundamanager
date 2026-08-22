@@ -15,6 +15,7 @@ import { fighterTypeRank } from '@/utils/fighterTypeRank';
 import { beastSubtypeName, hasGangAdditionCategories, sameEditionForDisplay } from '@/types/edition';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
+import { specialisationIdOrNull } from '@/utils/keepTypePromotionN26';
 import { ImInfo } from 'react-icons/im';
 import { addFighterToGang } from '@/app/actions/add-fighter';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -129,6 +130,7 @@ function mapFighterType(type: any): FighterType {
     equipment_selection: type.equipment_selection,
     specialisation: type.specialisation,
     fighter_specialisation_id: type.specialisation?.id,
+    fighter_variant: type.fighter_variant ?? null,
     typeSubtypeKey: type.typeSubtypeKey,
     variantLabel: type.variantLabel,
     available_legacies: type.available_legacies || [],
@@ -419,10 +421,11 @@ export default function FighterAddModal({
       fighter_type_id: fighterTypeIdToUse,
       fighter_type: selectedType?.fighter_type || '',
       fighter_subtypes: selectedType?.fighter_subtypes || [],
-      fighter_specialisation: selectedType?.specialisation ? {
-        fighter_specialisation_id: selectedType.specialisation.id || '',
-        fighter_specialisation: selectedType.specialisation.specialisation_name || '',
+      fighter_specialisation: specialisationIdOrNull(selectedType?.specialisation?.id) ? {
+        fighter_specialisation_id: selectedType?.specialisation?.id ?? '',
+        fighter_specialisation: selectedType?.specialisation?.specialisation_name ?? '',
       } : undefined,
+      fighter_variant: selectedType?.fighter_variant ?? null,
       credits: displayCost,
       ...stats,
       edition_slug: selectedType?.edition_slug ?? null,
@@ -852,6 +855,10 @@ export default function FighterAddModal({
     return options;
   };
 
+  const specialisationSelectorNoun = availableSpecialisations.some(
+    option => fighterTypes.find(ft => ft.id === option.id)?.fighter_variant
+  ) ? 'Variant' : 'Specialisation';
+
   const buildSpecialisationOptions = () => {
     const lowestSpecialisationCost = Math.min(
       ...availableSpecialisations.map(sub => fighterTypes.find(ft => ft.id === sub.id)?.total_cost ?? Infinity)
@@ -977,11 +984,13 @@ export default function FighterAddModal({
       {/* Fighter specialisation */}
       {availableSpecialisations.length > 0 && (
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-muted-foreground">Fighter Specialisation *</label>
+          <label className="block text-sm font-medium text-muted-foreground">
+            {`Fighter ${specialisationSelectorNoun} *`}
+          </label>
           <Combobox
             value={selectedSpecialisationId}
             onValueChange={handleSelectSpecialisation}
-            placeholder="Select fighter specialisation"
+            placeholder={`Select fighter ${specialisationSelectorNoun.toLowerCase()}`}
             options={buildSpecialisationOptions()}
           />
         </div>
