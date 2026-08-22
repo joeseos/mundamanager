@@ -39,6 +39,7 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   type: string;  // maps to fighter_type
   label?: string;
   fighter_specialisation?: { fighter_specialisation: string; fighter_specialisation_id: string } | null;
+  fighter_variant?: string | null;
   alliance_crew_name?: string;
   killed?: boolean;
   retired?: boolean;
@@ -134,6 +135,7 @@ const FighterCard = memo(function FighterCard({
   label,
   fighter_subtypes,
   fighter_specialisation,
+  fighter_variant,
   alliance_crew_name,
   credits,
   loadout_cost,
@@ -598,6 +600,7 @@ const FighterCard = memo(function FighterCard({
                   {type}
                   {alliance_crew_name && ` - ${alliance_crew_name}`}
                   {fighter_subtypes?.join(', ') && ` (${fighter_subtypes.join(', ')})`}
+                  {fighter_variant && `, ${fighter_variant}`}
                   {fighter_specialisation && fighter_specialisation.fighter_specialisation ? `, ${fighter_specialisation.fighter_specialisation}` : ''}
                 </div>
               </div>

@@ -40,6 +40,7 @@ RETURNS TABLE (
     equipment_selection jsonb,
     total_cost numeric,
     specialisation jsonb,
+    fighter_variant text,
     available_legacies jsonb,
     free_skill boolean,
     delegation_cost numeric,
@@ -852,6 +853,7 @@ BEGIN
                 )
             ELSE NULL
         END AS specialisation,
+        ft.fighter_variant,
         COALESCE(
             (
                 SELECT jsonb_agg(

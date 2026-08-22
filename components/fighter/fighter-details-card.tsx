@@ -38,6 +38,7 @@ interface FighterDetailsCardProps {
     fighter_specialisation: string;
     fighter_specialisation_id: string;
   };
+  fighter_variant?: string | null;
   alliance_crew_name?: string;
   label?: string;
   credits: number;
@@ -238,6 +239,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   name,
   type,
   specialisation,
+  fighter_variant,
   label,
   alliance_crew_name,
   credits,
@@ -474,6 +476,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
                   {type}
                   {alliance_crew_name && ` – ${alliance_crew_name}`}
                   {fighter_subtypes.length > 0 && ` (${fighter_subtypes.join(', ')})`}
+                  {fighter_variant && `, ${fighter_variant}`}
                   {specialisation?.fighter_specialisation && `, ${specialisation.fighter_specialisation}`}
                 </div>
               </div>

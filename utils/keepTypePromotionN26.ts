@@ -74,6 +74,15 @@ export function getN26ProspectSpecialisation(
   return N26_PROSPECT_SPECIALISATIONS.find((s) => s.id === specialisationId);
 }
 
+/**
+ * Null for a variant id: fighter_specialisation_id held both facts until
+ * fighter_variant split them out, and older rows still carry variant references.
+ * Drops out once those are cleaned up.
+ */
+export function specialisationIdOrNull(id: string | null | undefined): string | null {
+  return id && getN26ProspectSpecialisation(id) ? id : null;
+}
+
 export function getN26ProspectSpecialisationBySkillName(
   skillName: string
 ): N26ProspectSpecialisation | undefined {

@@ -4,6 +4,7 @@ import { readHatredTarget } from '@/utils/injuryTarget';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { FighterEffect } from '@/types/fighter';
 import { FighterLoadout } from '@/types/equipment';
+import { specialisationIdOrNull } from '@/utils/keepTypePromotionN26';
 
 // =============================================================================
 // TYPES - Shared interfaces for fighter data
@@ -51,6 +52,7 @@ export interface FighterBasic {
     name?: string;
   } | null;
   fighter_specialisation_id?: string;
+  fighter_variant?: string | null;
   killed?: boolean;
   starved?: boolean;
   retired?: boolean;
@@ -176,6 +178,7 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
             name
           ),
           fighter_specialisation_id,
+          fighter_variant,
           killed,
           starved,
           retired,
@@ -1233,6 +1236,8 @@ export const getFighterSpecialisationInfo = async (fighterSpecialisationId: stri
   fighter_specialisation: string;
   fighter_specialisation_id: string;
 } | null> => {
+  if (!specialisationIdOrNull(fighterSpecialisationId)) return null;
+
   return unstable_cache(
     async () => {
       const { data, error } = await supabase

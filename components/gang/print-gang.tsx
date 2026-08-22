@@ -710,6 +710,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                            {fighter.fighter_subtypes?.join(', ')
                              ? ` • ${fighter.fighter_subtypes.join(', ')}`
                              : ""}
+                           {fighter.fighter_variant ? ` • ${fighter.fighter_variant}` : ""}
                          </div>
                          {/* W/FW boxes */}
                          {showWFWBoxes && (
@@ -1336,6 +1337,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                         type={fighter.fighter_type}
                         fighter_subtypes={fighter.fighter_subtypes}
                         fighter_specialisation={fighter.fighter_specialisation}
+                        fighter_variant={fighter.fighter_variant}
                         label={fighter.label}
                         credits={fighter.credits}
                         loadout_cost={fighter.loadout_cost}

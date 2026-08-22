@@ -13,6 +13,7 @@ import { insertFighterOoaRecords } from './fighter-ooa-records';
 import { allowsMultipleSubtypes } from '@/types/edition';
 import { resolveFighterEditionSlug } from '@/utils/fighter-subtype-grants';
 import { assertArchetypeAssignable } from '@/utils/assertArchetypeAssignable';
+import { specialisationIdOrNull } from '@/utils/keepTypePromotionN26';
 import { mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
@@ -1433,7 +1434,40 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (params.fighter_type_id !== undefined) updateData.fighter_type_id = params.fighter_type_id;
     if (params.custom_fighter_type_id !== undefined) updateData.custom_fighter_type_id = params.custom_fighter_type_id;
     if (params.fighter_specialisation !== undefined) updateData.fighter_specialisation = params.fighter_specialisation;
-    if (params.fighter_specialisation_id !== undefined) updateData.fighter_specialisation_id = params.fighter_specialisation_id;
+    if (params.fighter_specialisation_id !== undefined) {
+      updateData.fighter_specialisation_id = specialisationIdOrNull(params.fighter_specialisation_id);
+    }
+
+    // The variant follows the type; the specialisation follows the fighter, so an
+    // explicit one from the caller wins -- promotion passes the fighter's type
+    // alongside the pick it just made, and Champion->Leader changes the type while
+    // keeping that pick. Only a silent caller takes the type row's specialisation.
+    if (params.fighter_type_id !== undefined || params.custom_fighter_type_id !== undefined) {
+      let variant: string | null = null;
+      let specialisationFromType: string | null = null;
+
+      if (params.custom_fighter_type_id) {
+        const { data } = await supabase
+          .from('custom_fighter_types')
+          .select('fighter_variant')
+          .eq('id', params.custom_fighter_type_id)
+          .maybeSingle();
+        variant = data?.fighter_variant ?? null;
+      } else if (params.fighter_type_id) {
+        const { data } = await supabase
+          .from('fighter_types')
+          .select('fighter_variant, fighter_specialisation_id')
+          .eq('id', params.fighter_type_id)
+          .maybeSingle();
+        variant = data?.fighter_variant ?? null;
+        specialisationFromType = specialisationIdOrNull(data?.fighter_specialisation_id);
+      }
+
+      updateData.fighter_variant = variant;
+      if (params.fighter_specialisation_id === undefined) {
+        updateData.fighter_specialisation_id = specialisationFromType;
+      }
+    }
     if (params.note !== undefined) updateData.note = params.note;
     if (params.note_backstory !== undefined) updateData.note_backstory = params.note_backstory;
     if (params.fighter_gang_legacy_id !== undefined) updateData.fighter_gang_legacy_id = params.fighter_gang_legacy_id;

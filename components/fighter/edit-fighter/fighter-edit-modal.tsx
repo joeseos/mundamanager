@@ -1068,8 +1068,8 @@ export function EditFighterModal({
           // client-only: used by the optimistic fighter_type overlay, not forwarded to the server
           submitData.gang_type_id = fighterTypeToUse.gang_type_id ?? null;
           submitData.custom_gang_type_id = null;
-          submitData.fighter_specialisation = selectedSpecialisation && selectedSpecialisation.fighter_specialisation !== 'Default' ? selectedSpecialisation.fighter_specialisation : null;
-          submitData.fighter_specialisation_id = selectedSpecialisation && selectedSpecialisation.fighter_specialisation !== 'Default' ? selectedSpecialisation.id : null;
+          // fighter_specialisation{,_id} deliberately omitted: the server derives both
+          // facts from the chosen type row. Sending them here wrote variant ids to the FK.
         }
       }
 
