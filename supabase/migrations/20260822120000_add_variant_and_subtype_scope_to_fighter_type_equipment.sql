@@ -68,7 +68,3 @@ CREATE UNIQUE INDEX IF NOT EXISTS fighter_type_equipment_fighter_scope_uidx
         gang_variant_id, gang_type_id, gang_origin_id)
     NULLS NOT DISTINCT
     WHERE vehicle_type_id IS NULL;
-
-CREATE INDEX IF NOT EXISTS fighter_type_equipment_gang_variant_id_idx
-    ON public.fighter_type_equipment (gang_variant_id)
-    WHERE gang_variant_id IS NOT NULL;
