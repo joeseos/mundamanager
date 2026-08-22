@@ -27,7 +27,8 @@ RETURNS TABLE(
     alliance_id uuid,
     alliance_name text,
     alliance_type text,
-    gang_variants json
+    gang_variants json,
+    edition_slug text
 )
 LANGUAGE plpgsql
 STABLE SECURITY DEFINER
@@ -824,9 +825,12 @@ BEGIN
        g.alliance_id,
        a.alliance_name,
        a.alliance_type,
-       (SELECT variant_info FROM gang_variant_info) as gang_variants
+       (SELECT variant_info FROM gang_variant_info) as gang_variants,
+       ed.slug AS edition_slug
    FROM gangs g
    LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+   LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
+   LEFT JOIN editions ed ON ed.id = COALESCE(gt.edition_id, cgt.edition_id)
    LEFT JOIN alliances a ON a.id = g.alliance_id
    WHERE g.id = p_gang_id;
 END;
