@@ -2996,7 +2996,7 @@ $$;
 -- Name: get_gang_details(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_gang_details(p_gang_id uuid) RETURNS TABLE(id uuid, name text, gang_type text, gang_type_id uuid, gang_type_image_url text, gang_colour text, credits numeric, reputation numeric, rating numeric, alignment public.alignment, positioning jsonb, note text, stash json, created_at timestamp with time zone, last_updated timestamp with time zone, fighters json, campaigns json, vehicles json, alliance_id uuid, alliance_name text, alliance_type text, gang_variants json)
+CREATE FUNCTION public.get_gang_details(p_gang_id uuid) RETURNS TABLE(id uuid, name text, gang_type text, gang_type_id uuid, gang_type_image_url text, gang_colour text, credits numeric, reputation numeric, rating numeric, alignment public.alignment, positioning jsonb, note text, stash json, created_at timestamp with time zone, last_updated timestamp with time zone, fighters json, campaigns json, vehicles json, alliance_id uuid, alliance_name text, alliance_type text, gang_variants json, edition_slug text)
     LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -3791,9 +3791,12 @@ BEGIN
        g.alliance_id,
        a.alliance_name,
        a.alliance_type,
-       (SELECT variant_info FROM gang_variant_info) as gang_variants
+       (SELECT variant_info FROM gang_variant_info) as gang_variants,
+       ed.slug AS edition_slug
    FROM gangs g
    LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+   LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
+   LEFT JOIN editions ed ON ed.id = COALESCE(gt.edition_id, cgt.edition_id)
    LEFT JOIN alliances a ON a.id = g.alliance_id
    WHERE g.id = p_gang_id;
 END;
@@ -4609,7 +4612,8 @@ CREATE TABLE public.custom_fighter_types (
     save numeric,
     fighter_subtypes jsonb DEFAULT '[]'::jsonb NOT NULL,
     starting_xp numeric,
-    is_vehicle boolean DEFAULT false NOT NULL
+    is_vehicle boolean DEFAULT false NOT NULL,
+    fighter_variant text
 );
 
 
@@ -4618,6 +4622,13 @@ CREATE TABLE public.custom_fighter_types (
 --
 
 COMMENT ON COLUMN public.custom_fighter_types.starting_xp IS 'XP a fighter of this custom type starts with at recruitment. Copied to fighters.starting_xp and seeds fighters.xp when the fighter is added. NULL means N/A: the type cannot gain XP.';
+
+
+--
+-- Name: COLUMN custom_fighter_types.fighter_variant; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.custom_fighter_types.fighter_variant IS 'Type variant label, authored by the owning user. Free text by design: there is no custom variant catalog, and none is needed.';
 
 
 --
@@ -5326,8 +5337,32 @@ CREATE TABLE public.fighter_type_equipment (
     updated_at timestamp with time zone,
     custom_fighter_type_id uuid,
     gang_type_id uuid,
-    gang_origin_id uuid
+    gang_origin_id uuid,
+    gang_variant_id uuid,
+    fighter_subtype text,
+    excluded boolean DEFAULT false NOT NULL
 );
+
+
+--
+-- Name: COLUMN fighter_type_equipment.gang_variant_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighter_type_equipment.gang_variant_id IS 'Restricts the row to gangs holding this variant (gangs.gang_variants contains the id). NULL applies regardless of variant.';
+
+
+--
+-- Name: COLUMN fighter_type_equipment.fighter_subtype; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighter_type_equipment.fighter_subtype IS 'Restricts the row to fighters carrying this subtype name, matched against fighters.fighter_subtypes. A name rather than an FK because subtypes are stored as names in jsonb arrays throughout; see 20260806120000. NULL applies regardless of subtype. Set with fighter_type_id NULL for a rule spanning every gang.';
+
+
+--
+-- Name: COLUMN fighter_type_equipment.excluded; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighter_type_equipment.excluded IS 'false grants the item (the original meaning of a row); true denies it, removing the item from the Equipment List of fighters matching this row''s scope even when another row or a gang-wide equipment_availability entry would have granted it. Equipment List only -- it does not gate Trading Post access.';
 
 
 --
@@ -5421,7 +5456,8 @@ CREATE TABLE public.fighter_types (
     save numeric,
     fighter_subtypes jsonb DEFAULT '[]'::jsonb NOT NULL,
     starting_xp numeric,
-    is_vehicle boolean DEFAULT false NOT NULL
+    is_vehicle boolean DEFAULT false NOT NULL,
+    fighter_variant text
 );
 
 
@@ -5437,6 +5473,13 @@ COMMENT ON COLUMN public.fighter_types.edition_id IS 'Denormalized from gang_typ
 --
 
 COMMENT ON COLUMN public.fighter_types.starting_xp IS 'XP a fighter of this type starts with at recruitment. Copied to fighters.starting_xp and seeds fighters.xp when the fighter is added. NULL means N/A: the type cannot gain XP.';
+
+
+--
+-- Name: COLUMN fighter_types.fighter_variant; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighter_types.fighter_variant IS 'Type variant label (Bonecrusher, Natborn). Distinguishes sibling rows of the same fighter_type. Not a specialisation -- that is the Specialist pick, on fighter_specialisation_id.';
 
 
 --
@@ -5496,6 +5539,7 @@ CREATE TABLE public.fighters (
     fighter_subtypes jsonb DEFAULT '[]'::jsonb NOT NULL,
     is_vehicle boolean DEFAULT false NOT NULL,
     starting_xp numeric,
+    fighter_variant text,
     CONSTRAINT fighters_label_check CHECK ((length(label) <= 5))
 );
 
@@ -5526,6 +5570,13 @@ COMMENT ON COLUMN public.fighters.save IS 'N26 Save characteristic (e.g. 4 rende
 --
 
 COMMENT ON COLUMN public.fighters.starting_xp IS 'XP this fighter was recruited with, copied from its (custom_)fighter_type at recruitment. NULL means N/A: the type cannot gain XP. Fixed thereafter: Advancements are earned on XP above this value, so it must not follow later edits to the fighter type.';
+
+
+--
+-- Name: COLUMN fighters.fighter_variant; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighters.fighter_variant IS 'Type variant label, following the fighter type. The variant follows the type; the specialisation follows the fighter.';
 
 
 --
@@ -7538,6 +7589,13 @@ CREATE INDEX fighter_type_equipment_equipment_id_idx ON public.fighter_type_equi
 
 
 --
+-- Name: fighter_type_equipment_fighter_scope_uidx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX fighter_type_equipment_fighter_scope_uidx ON public.fighter_type_equipment USING btree (equipment_id, fighter_type_id, custom_fighter_type_id, fighter_subtype, gang_variant_id, gang_type_id, gang_origin_id) NULLS NOT DISTINCT WHERE (vehicle_type_id IS NULL);
+
+
+--
 -- Name: fighter_types_cool_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9520,6 +9578,14 @@ ALTER TABLE ONLY public.fighter_type_equipment
 
 ALTER TABLE ONLY public.fighter_type_equipment
     ADD CONSTRAINT fighter_type_equipment_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(gang_type_id) ON DELETE CASCADE;
+
+
+--
+-- Name: fighter_type_equipment fighter_type_equipment_gang_variant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_type_equipment
+    ADD CONSTRAINT fighter_type_equipment_gang_variant_id_fkey FOREIGN KEY (gang_variant_id) REFERENCES public.gang_variant_types(id) ON DELETE CASCADE;
 
 
 --
