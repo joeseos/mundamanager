@@ -38,7 +38,6 @@ interface FighterDetailsCardProps {
     fighter_specialisation: string;
     fighter_specialisation_id: string;
   };
-  /** Type variant label (Bonecrusher, Natborn) — distinct from specialisation. */
   fighter_variant?: string | null;
   alliance_crew_name?: string;
   label?: string;

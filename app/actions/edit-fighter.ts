@@ -1435,29 +1435,18 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (params.custom_fighter_type_id !== undefined) updateData.custom_fighter_type_id = params.custom_fighter_type_id;
     if (params.fighter_specialisation !== undefined) updateData.fighter_specialisation = params.fighter_specialisation;
     if (params.fighter_specialisation_id !== undefined) {
-      // Never store a variant here, whatever the caller sent.
       updateData.fighter_specialisation_id = specialisationIdOrNull(params.fighter_specialisation_id);
     }
 
-    // The variant follows the type, so any write carrying a type id re-derives it
-    // from the catalog row rather than trusting the form -- Edit Fighter's variant
-    // dropdown picks a sibling type row, and sending that row's specialisation is
-    // how variant ids got into fighter_specialisation_id in the first place.
-    // Re-deriving even when the type is unchanged also heals rows the previous
-    // build created without a variant.
-    //
-    // The specialisation follows the *fighter*, so an explicit value from the
-    // caller wins: promotion passes the fighter's type alongside the pick it just
-    // made, and Champion->Leader changes the type while keeping that pick. Only
-    // when the caller is silent does the type row supply it, which keeps the
-    // pre-collapse Tek-Gunner rows working.
+    // The variant follows the type; the specialisation follows the fighter, so an
+    // explicit one from the caller wins -- promotion passes the fighter's type
+    // alongside the pick it just made, and Champion->Leader changes the type while
+    // keeping that pick. Only a silent caller takes the type row's specialisation.
     if (params.fighter_type_id !== undefined || params.custom_fighter_type_id !== undefined) {
       let variant: string | null = null;
       let specialisationFromType: string | null = null;
 
       if (params.custom_fighter_type_id) {
-        // Custom types have no specialisation column, so a custom fighter's pick
-        // is only ever whatever the fighter itself holds.
         const { data } = await supabase
           .from('custom_fighter_types')
           .select('fighter_variant')

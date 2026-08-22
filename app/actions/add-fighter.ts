@@ -518,10 +518,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     };
 
     // Set appropriate fighter type ID field
-    // The variant follows the type, so it is copied from the catalog row on every
-    // insert -- without this, fighters created after the split have no variant at all.
-    // The specialisation only follows a *specialist* catalog row: a variant row's
-    // fighter_specialisation_id (Haunt/Psyrender) belongs in fighter_variant instead.
+    // Without copying the variant here, fighters created after the split have none.
     if (isCustomFighter) {
       fighterInsertData.custom_fighter_type_id = params.fighter_type_id;
       fighterInsertData.fighter_type_id = null;

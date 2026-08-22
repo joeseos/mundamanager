@@ -32,7 +32,6 @@ export interface FighterType {
   fighter_specialisations?: {
     specialisation_name: string;
   } | null;
-  /** Type variant label (Bonecrusher, Natborn) carried by this catalog row. */
   fighter_variant?: string | null;
   alliance_crew_name?: string;
   edition_id?: string | null;
@@ -245,8 +244,6 @@ export interface FighterProps {
     fighter_specialisation: string;
     fighter_specialisation_id: string;
   } | null;
-  /** Type variant label (Bonecrusher, Natborn), following the fighter's type.
-   *  Distinct from fighter_specialisation, which is the Specialist pick. */
   fighter_variant?: string | null;
 
   owner_name?: string; // Name of the fighter who owns this fighter (for exotic beasts)

@@ -140,7 +140,6 @@ export interface GangFighter {
     fighter_specialisation: string;
     fighter_specialisation_id: string;
   };
-  /** Type variant label (Bonecrusher, Natborn), following the fighter's type. */
   fighter_variant?: string | null;
   alliance_crew_name?: string;
   position?: string;
@@ -2040,9 +2039,6 @@ export const getGangFightersList = async (
           label: fighter.label,
           fighter_type: fighter.fighter_type || fighterTypeInfo.fighter_type || 'Unknown',
           fighter_subtypes: fighter.fighter_subtypes || [],
-          // Guarded rather than passed straight through: the column still holds
-          // variant references on rows written before the split, and surfacing one
-          // would print the variant twice now that fighter_variant is read too.
           fighter_specialisation: specialisationIdOrNull(fighterSpecialisationInfo?.id) ? {
             fighter_specialisation: fighterSpecialisationInfo.specialisation_name,
             fighter_specialisation_id: fighterSpecialisationInfo.id

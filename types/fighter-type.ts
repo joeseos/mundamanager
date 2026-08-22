@@ -85,8 +85,6 @@ export interface FighterType {
     specialisation_name: string;
   };
   fighter_specialisation_id?: string;
-  /** Type variant label (Bonecrusher, Natborn) carried by this catalog row.
-   *  The variant follows the type; the specialisation follows the fighter. */
   fighter_variant?: string | null;
   /** Variant family and this row's name within it, both set by /api/fighter-types. */
   typeSubtypeKey?: string;

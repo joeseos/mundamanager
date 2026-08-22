@@ -39,7 +39,6 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   type: string;  // maps to fighter_type
   label?: string;
   fighter_specialisation?: { fighter_specialisation: string; fighter_specialisation_id: string } | null;
-  /** Type variant label (Bonecrusher, Natborn) — distinct from specialisation. */
   fighter_variant?: string | null;
   alliance_crew_name?: string;
   killed?: boolean;

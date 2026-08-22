@@ -75,13 +75,9 @@ export function getN26ProspectSpecialisation(
 }
 
 /**
- * A specialisation id that is safe to store or display, or null when the value is
- * a leftover variant reference (Bonecrusher, Natborn).
- *
- * fighters.fighter_specialisation_id held both facts until fighter_variant split
- * them out, and rows written before that still carry variant ids. Surfacing one
- * now that fighter_variant is also read would print the variant twice. Drops out
- * once the legacy values are cleaned up.
+ * Null for a variant id: fighter_specialisation_id held both facts until
+ * fighter_variant split them out, and older rows still carry variant references.
+ * Drops out once those are cleaned up.
  */
 export function specialisationIdOrNull(id: string | null | undefined): string | null {
   return id && getN26ProspectSpecialisation(id) ? id : null;

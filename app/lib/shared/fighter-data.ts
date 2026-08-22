@@ -1231,12 +1231,6 @@ export const getFighterTypeInfo = async (fighterTypeId: string | null, supabase:
 /**
  * Get fighter specialisation information (cached globally)
  * Cache: GLOBAL_FIGHTER_TYPES
- *
- * Returns null for a variant id. The column still holds variant references on
- * rows written before the split, and surfacing one here would render the variant
- * twice -- "Haunt (…), Bonecrusher, Bonecrusher" -- since it is now also read
- * from fighter_variant. Guarding at the fetch boundary keeps that out of every
- * component. Becomes a no-op once the legacy values are cleaned up.
  */
 export const getFighterSpecialisationInfo = async (fighterSpecialisationId: string, supabase: any): Promise<{
   fighter_specialisation: string;
