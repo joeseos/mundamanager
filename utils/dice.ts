@@ -159,6 +159,44 @@ export const LASTING_INJURY_TABLE_N26: TableEntry[] = [
 ];
 
 // ============================================================================
+// Medical Escort (N26 Post-cycle Action) - D6 table and resolver
+// ============================================================================
+
+/**
+ * The Doc's D6 for the Medical Escort Post-cycle Action.
+ *
+ * "I'll Use the Good Stuff" adds +1 per extra 50 credits with no stated cap, so
+ * the top band is open-ended rather than stopping at 6 — a modified roll of 9
+ * is still a Full Recovery, not an unresolved roll.
+ *
+ * 'Stabilised' is not an outcome in itself: it means rolling one more D6 as the
+ * SECOND die of a D66 whose first die is automatically 5. Use
+ * `medicalEscortStabilisedRoll()` for that, which lands in the 51-56 band of
+ * LASTING_INJURY_TABLE_N26.
+ */
+export const MEDICAL_ESCORT_TABLE: TableEntry[] = [
+  { range: [1, 1], name: 'Complications' },
+  { range: [2, 3], name: 'Stabilised' },
+  { range: [4, Number.MAX_SAFE_INTEGER], name: 'Full Recovery' },
+];
+
+export type MedicalEscortOutcome = 'Complications' | 'Stabilised' | 'Full Recovery';
+
+/** Resolve a (possibly modified) Medical Escort D6 to its outcome. */
+export const resolveMedicalEscort = (roll: number): MedicalEscortOutcome | undefined =>
+  MEDICAL_ESCORT_TABLE.find((e) => roll >= e.range[0] && roll <= e.range[1])
+    ?.name as MedicalEscortOutcome | undefined;
+
+/**
+ * The Stabilised follow-up: a D66 whose first die is automatically 5, so the
+ * total is 50 + D6 and always resolves inside the N26 51-56 injury band.
+ */
+export const medicalEscortStabilisedRoll = (): RollOutcome => {
+  const ones = rollD6();
+  return { total: 50 + ones, dice: [5, ones] };
+};
+
+// ============================================================================
 // Rig Glitches for Spyrers - D66 table and resolver
 // ============================================================================
 

@@ -1,32 +1,27 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Tooltip } from 'react-tooltip';
 import { BiSolidNotepad } from 'react-icons/bi';
 import { LuSquarePen, LuTrash2 } from 'react-icons/lu';
 import Modal from '@/components/ui/modal';
-import DiceRoller from '@/components/dice-roller';
-import { Checkbox } from '@/components/ui/checkbox';
+import TacticsCardPickerModal from '@/components/gang/tactics-card-picker-modal';
 import { Textarea } from '@/components/ui/textarea';
 import { List, ListAction, ListColumn } from '@/components/ui/list';
 import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import { UserPermissions } from '@/types/user-permissions';
-import { rollD66Outcome, type RollOutcome } from '@/utils/dice';
 import {
   compareTacticsCards,
   formatD66Range,
   normaliseTacticsDescription,
   TACTICS_DESCRIPTION_CHAR_LIMIT,
-  type GangTacticsCard,
-  type TacticsCard
+  type GangTacticsCard
 } from '@/types/tactics-card';
 import {
   addGangTacticsCards,
   deleteGangTacticsCard,
-  updateGangTacticsCardDescription,
-  verifyAndLogRolledTacticsCard
+  updateGangTacticsCardDescription
 } from '@/app/actions/gang-tactics-cards';
 
 interface GangTacticsCardsProps {
@@ -48,12 +43,10 @@ export default function GangTacticsCards({
   userPermissions
 }: GangTacticsCardsProps) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
   const [editCard, setEditCard] = useState<GangTacticsCard | null>(null);
   const [editDescription, setEditDescription] = useState('');
   const [deleteCard, setDeleteCard] = useState<GangTacticsCard | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [rollLogCooldown, setRollLogCooldown] = useState(false);
 
   const canEdit = userPermissions.canEdit;
 
@@ -62,77 +55,12 @@ export default function GangTacticsCards({
     [tacticsCards]
   );
 
-  // Only fetched once the Add modal is opened.
-  const { data: catalogue = [], isLoading: isLoadingCatalogue, error: catalogueError } = useQuery<TacticsCard[]>({
-    queryKey: ['tactics-cards', editionSlug],
-    queryFn: async () => {
-      const response = await fetch(`/api/tactics-cards?edition_slug=${editionSlug}`);
-      if (!response.ok) throw new Error('Failed to fetch tactics cards');
-      return response.json();
-    },
-    staleTime: 5 * 60 * 1000,
-    enabled: isAddModalOpen && !!editionSlug
-  });
-
-  const hasRollableCard = catalogue.some(card => card.d66_min != null && !ownedCardIds.has(card.id));
-
-  const logRollMutation = useMutation({
-    mutationFn: (outcome: RollOutcome) =>
-      verifyAndLogRolledTacticsCard({ gangId, total: outcome.total, dice: outcome.dice })
-  });
-
-  const logRollWithCooldown = (outcome: RollOutcome) => {
-    if (rollLogCooldown || logRollMutation.isPending) return;
-    setRollLogCooldown(true);
-    try {
-      logRollMutation.mutate(outcome);
-    } finally {
-      setTimeout(() => setRollLogCooldown(false), 2000);
-    }
-  };
-
-  const cardForRoll = (total: number) =>
-    catalogue.find(
-      card => card.d66_min != null && card.d66_max != null && total >= card.d66_min && total <= card.d66_max
-    );
-
-  const rollUnownedD66 = (): RollOutcome => {
-    let outcome = rollD66Outcome();
-    for (let attempt = 0; attempt < 50; attempt++) {
-      const card = cardForRoll(outcome.total);
-      // No match is a gap in the catalogue's ranges — report it rather than loop past it.
-      if (!card || !ownedCardIds.has(card.id)) return outcome;
-      outcome = rollD66Outcome();
-    }
-    return outcome;
-  };
-
-  const handleOpenAddModal = () => {
-    setSelectedCardIds(new Set());
-    setIsAddModalOpen(true);
-  };
-
-  const toggleCard = (cardId: string) => {
-    setSelectedCardIds(prev => {
-      const next = new Set(prev);
-      if (next.has(cardId)) {
-        next.delete(cardId);
-      } else {
-        next.add(cardId);
-      }
-      return next;
-    });
-  };
-
-  const handleAdd = async () => {
-    if (selectedCardIds.size === 0) return false;
+  const handleAdd = async (cardIds: string[]) => {
+    if (cardIds.length === 0) return false;
 
     setIsSubmitting(true);
     try {
-      const result = await addGangTacticsCards({
-        gangId,
-        tacticsCardIds: Array.from(selectedCardIds)
-      });
+      const result = await addGangTacticsCards({ gangId, tacticsCardIds: cardIds });
 
       if (!result.success) throw new Error(result.error);
 
@@ -266,7 +194,7 @@ export default function GangTacticsCards({
         items={tacticsCards}
         columns={columns}
         actions={actions}
-        onAdd={handleOpenAddModal}
+        onAdd={() => setIsAddModalOpen(true)}
         addButtonText="Add"
         addButtonDisabled={!canEdit}
         emptyMessage="No gang tactics yet."
@@ -274,79 +202,13 @@ export default function GangTacticsCards({
       />
 
       {isAddModalOpen && (
-        <Modal
-          title="Add Gang Tactics"
-          helper="Pick the tactics cards this gang holds."
-          content={
-            <div>
-              <div className="mb-3">
-                <DiceRoller<TacticsCard>
-                  items={catalogue}
-                  getRange={(card) =>
-                    card.d66_min != null && card.d66_max != null
-                      ? { min: card.d66_min, max: card.d66_max }
-                      : null
-                  }
-                  getName={(card) => card.name}
-                  inline
-                  rollFn={rollUnownedD66}
-                  buttonText="Roll D66"
-                  disabled={isLoadingCatalogue || !hasRollableCard}
-                  onRolled={(rolled) => {
-                    const result = rolled[0];
-                    const card = result?.item;
-                    if (!card) return;
-                    logRollWithCooldown({ total: result.roll, dice: result.dice });
-                    setSelectedCardIds(new Set([card.id]));
-                    document
-                      .getElementById(`tactics-card-${card.id}`)
-                      ?.scrollIntoView({ block: 'nearest' });
-                  }}
-                />
-              </div>
-              {isLoadingCatalogue ? (
-                <p className="text-muted-foreground italic text-center py-4">Loading tactics cards...</p>
-              ) : catalogueError ? (
-                <p className="text-muted-foreground italic text-center py-4">Failed to load tactics cards.</p>
-              ) : catalogue.length === 0 ? (
-                <p className="text-muted-foreground italic text-center py-4">No tactics cards available.</p>
-              ) : (
-                <div className="max-h-96 overflow-y-auto border border-border rounded-lg">
-                  {catalogue.map((card, index) => {
-                    const isOwned = ownedCardIds.has(card.id);
-                    return (
-                      <label
-                        key={card.id}
-                        htmlFor={`tactics-card-${card.id}`}
-                        className={`flex items-center gap-3 px-3 py-[6px] ${
-                          index !== catalogue.length - 1 ? 'border-b border-border' : ''
-                        } ${isOwned ? 'opacity-50' : 'hover:bg-muted cursor-pointer'} transition-colors`}
-                      >
-                        <Checkbox
-                          id={`tactics-card-${card.id}`}
-                          checked={isOwned || selectedCardIds.has(card.id)}
-                          disabled={isOwned}
-                          onCheckedChange={() => toggleCard(card.id)}
-                        />
-                        <span className="tabular-nums text-sm text-muted-foreground w-12 shrink-0">
-                          {formatD66Range(card.d66_min, card.d66_max)}
-                        </span>
-                        <span className="text-sm font-medium text-foreground">{card.name}</span>
-                        {isOwned && (
-                          <span className="ml-auto text-xs text-muted-foreground">Already added</span>
-                        )}
-                      </label>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          }
-          onClose={() => setIsAddModalOpen(false)}
+        <TacticsCardPickerModal
+          gangId={gangId}
+          editionSlug={editionSlug}
+          ownedCardIds={ownedCardIds}
           onConfirm={handleAdd}
-          confirmText="Add"
-          confirmDisabled={selectedCardIds.size === 0 || isSubmitting}
-          width="lg"
+          onClose={() => setIsAddModalOpen(false)}
+          confirmDisabled={isSubmitting}
         />
       )}
 

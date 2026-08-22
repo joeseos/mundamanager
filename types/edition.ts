@@ -192,6 +192,12 @@ const EDITION_CAPABILITIES = {
    * standard promote-to-Leader type picker with catalog subtypes.
    */
   championLeaderTypePromotion: { n23: false, n26: true },
+  /**
+   * The Post-cycle Sequence: between battles each model may perform one
+   * Post-cycle Action (Medical Escort, Fit Bionics, Work Territory, Train, …).
+   * The catalog and its rules live in utils/postCycleActions.ts.
+   */
+  postCycleActions:         { n23: false, n26: true  },
 } as const satisfies Record<string, Record<EditionSlug, unknown>>;
 
 type EditionCapability = keyof typeof EDITION_CAPABILITIES;
@@ -326,6 +332,9 @@ export const hasGangerChampionKeepTypePromotion = (
 export const hasChampionLeaderTypePromotion = (
   editionSlug?: string | null
 ): boolean => can('championLeaderTypePromotion', editionSlug);
+
+export const hasPostCycleActions = (editionSlug?: string | null): boolean =>
+  can('postCycleActions', editionSlug);
 
 export interface Edition {
   id: string;
