@@ -586,8 +586,11 @@ export function EditFighterModal({
   if (fighterInitKey !== prevFighterInit.key || fighterTypes !== prevFighterInit.fighterTypes) {
     setPrevFighterInit({ key: fighterInitKey, fighterTypes });
     setCurrentFighter(fighter);
-    setSelectedFighterTypeId((fighter.fighter_type as any)?.fighter_type_id || (fighter as any).fighter_type_id || '');
-    setSelectedSpecialisationId((fighter.fighter_specialisation as any)?.fighter_specialisation_id || '');
+    // Both hold a fighter_type id: the family entry and the row picked within it.
+    const initialFighterTypeId =
+      (fighter.fighter_type as any)?.fighter_type_id || (fighter as any).fighter_type_id || '';
+    setSelectedFighterTypeId(initialFighterTypeId);
+    setSelectedSpecialisationId(initialFighterTypeId);
     setSelectedGangLegacyId((fighter as any).fighter_gang_legacy_id || '');
     setSelectedArchetypeId(fighter.selected_archetype_id || '');
     setHasExplicitlySelectedType(false);
