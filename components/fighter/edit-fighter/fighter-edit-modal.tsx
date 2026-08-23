@@ -149,6 +149,17 @@ export function EditFighterModal({
     staleTime: 10 * 60 * 1000,
   });
 
+  const currentVariantOrSpecialisation = (): string | null => {
+    const specialisation = (fighter as any).fighter_specialisation;
+    return (
+      (fighter as any).fighter_variant ||
+      (typeof specialisation === 'object' && specialisation !== null
+        ? specialisation.specialisation_name || specialisation.fighter_specialisation
+        : specialisation) ||
+      null
+    );
+  };
+
   type FighterTypeEntry = {
     id: string;
     fighter_type: string;
@@ -159,6 +170,7 @@ export function EditFighterModal({
     total_cost: number;
     typeSubtypeKey?: string;
     variantLabel?: string;
+    fighter_variant?: string | null;
     is_gang_variant?: boolean;
     gang_variant_name?: string;
     fighter_specialisation?: string | null;
@@ -179,6 +191,7 @@ export function EditFighterModal({
       total_cost: type.total_cost,
       typeSubtypeKey: type.typeSubtypeKey,
       variantLabel: type.variantLabel,
+      fighter_variant: type.fighter_variant ?? null,
       is_gang_variant: type.is_gang_variant,
       gang_variant_name: type.gang_variant_name,
       specialisation: type.specialisation || {},
@@ -551,6 +564,8 @@ export function EditFighterModal({
               fighter_type: { fighter_type: submit.fighter_type, fighter_type_id: submit.fighter_type_id ?? null, gang_type_id: (submit as any).gang_type_id ?? null, custom_gang_type_id: (submit as any).custom_gang_type_id ?? null } as any,
               custom_fighter_type_id: submit.custom_fighter_type_id ?? null,
               fighter_type_id: submit.fighter_type_id ?? null,
+              fighter_variant:
+                fighterTypes.find(ft => ft.id === submit.fighter_type_id)?.fighter_variant ?? null,
             }
           : {}),
         ...(submit.fighter_specialisation && submit.fighter_specialisation_id
@@ -785,7 +800,7 @@ export function EditFighterModal({
         setAvailableSpecialisations(specialisationOptions);
 
         // Try to find a matching specialisation from the current fighter
-        const currentSpecialisationName = fighter.fighter_specialisation?.fighter_specialisation || fighter.fighter_specialisation;
+        const currentSpecialisationName = currentVariantOrSpecialisation();
         if (currentSpecialisationName) {
           // Find the specialisation option that matches the current specialisation name
           const matchingSpecialisation = specialisationOptions.find(option => 
@@ -811,6 +826,10 @@ export function EditFighterModal({
     }
   };
   
+  const specialisationSelectorNoun = availableSpecialisations.some(
+    option => fighterTypes.find(ft => ft.id === option.fighterTypeId)?.fighter_variant
+  ) ? 'Variant' : 'Specialisation';
+
   // Add handler for specialisation change
   const handleSpecialisationChange = (specialisationId: string) => {
     setSelectedSpecialisationId(specialisationId);
@@ -1215,27 +1234,19 @@ export function EditFighterModal({
             {selectedFighterTypeId && availableSpecialisations.length > 0 && (
               <div>
                 <label htmlFor="fighter_specialisation_id" className="block text-sm font-medium mb-1">
-                  Fighter Specialisation
+                  {`Fighter ${specialisationSelectorNoun}`}
                 </label>
                 <Combobox
                   id="fighter_specialisation_id"
                   value={selectedSpecialisationId}
                   onValueChange={handleSpecialisationChange}
-                  placeholder="Select a specialisation"
+                  placeholder={`Select a ${specialisationSelectorNoun.toLowerCase()}`}
                   options={availableSpecialisations.map(({ value, label }) => ({ value, label }))}
                   dropdownPlacement="down"
                 />
-                {(fighter as any).fighter_specialisation ? (
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    Current: {typeof (fighter as any).fighter_specialisation === 'object' 
-                      ? (fighter as any).fighter_specialisation.specialisation_name || (fighter as any).fighter_specialisation.fighter_specialisation
-                      : (fighter as any).fighter_specialisation}
-                  </div>
-                ) : (
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    Current: Default
-                  </div>
-                )}
+                <div className="mt-1 text-sm text-muted-foreground">
+                  Current: {currentVariantOrSpecialisation() ?? 'Default'}
+                </div>
               </div>
             )}
             
