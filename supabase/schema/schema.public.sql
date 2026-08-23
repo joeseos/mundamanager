@@ -2138,7 +2138,7 @@ $$;
 -- Name: get_fighter_types_with_cost(uuid, uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_fighter_types_with_cost(p_gang_type_id uuid DEFAULT NULL::uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid, p_is_gang_addition boolean DEFAULT NULL::boolean) RETURNS TABLE(id uuid, fighter_type text, fighter_subtypes jsonb, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, save numeric, limitation numeric, alignment public.alignment, is_gang_addition boolean, alliance_id uuid, alliance_crew_name text, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, specialisation jsonb, available_legacies jsonb, free_skill boolean, delegation_cost numeric, is_dramatis_personae boolean, edition_slug text, starting_xp numeric, is_vehicle boolean)
+CREATE FUNCTION public.get_fighter_types_with_cost(p_gang_type_id uuid DEFAULT NULL::uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid, p_is_gang_addition boolean DEFAULT NULL::boolean) RETURNS TABLE(id uuid, fighter_type text, fighter_subtypes jsonb, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, save numeric, limitation numeric, alignment public.alignment, is_gang_addition boolean, alliance_id uuid, alliance_crew_name text, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, specialisation jsonb, fighter_variant text, available_legacies jsonb, free_skill boolean, delegation_cost numeric, is_dramatis_personae boolean, edition_slug text, starting_xp numeric, is_vehicle boolean)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -2937,7 +2937,6 @@ BEGIN
         ) AS equipment_selection,
         -- Use adjusted_cost for total_cost if available, otherwise use original cost
         COALESCE(ftgc.adjusted_cost, ft.cost) AS total_cost,
-        -- Add specialisation information
         CASE
             WHEN fspec.id IS NOT NULL THEN
                 jsonb_build_object(
@@ -2946,6 +2945,7 @@ BEGIN
                 )
             ELSE NULL
         END AS specialisation,
+        ft.fighter_variant,
         COALESCE(
             (
                 SELECT jsonb_agg(
@@ -3022,6 +3022,7 @@ BEGIN
            f.fighter_type_id,
            f.fighter_subtypes,
            f.fighter_specialisation_id,
+           f.fighter_variant,
            f.xp,
            f.kills,
            f.position,
@@ -3556,6 +3557,7 @@ BEGIN
              'fighter_specialisation', fspec.specialisation_name,
              'fighter_specialisation_id', fspec.id
            ) AS fighter_specialisation,
+           f.fighter_variant,
            ft.alliance_crew_name,
            f.xp,
            f.kills,
@@ -3699,6 +3701,7 @@ BEGIN
                'fighter_type', cf.fighter_type,
                'fighter_subtypes', cf.fighter_subtypes,
                'fighter_specialisation', cf.fighter_specialisation,
+               'fighter_variant', cf.fighter_variant,
                'alliance_crew_name', cf.alliance_crew_name,
                'position', cf.position,
                'xp', cf.xp,
@@ -7610,10 +7613,24 @@ CREATE INDEX fighter_types_edition_id_idx ON public.fighter_types USING btree (e
 
 
 --
+-- Name: fighter_types_fighter_specialisation_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_types_fighter_specialisation_id_idx ON public.fighter_types USING btree (fighter_specialisation_id);
+
+
+--
 -- Name: fighter_types_fighter_type_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX fighter_types_fighter_type_idx ON public.fighter_types USING btree (fighter_type);
+
+
+--
+-- Name: fighter_types_fighter_variant_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_types_fighter_variant_idx ON public.fighter_types USING btree (fighter_variant);
 
 
 --
@@ -7687,10 +7704,24 @@ CREATE INDEX fighters_fighter_pet_id_idx ON public.fighters USING btree (fighter
 
 
 --
+-- Name: fighters_fighter_specialisation_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighters_fighter_specialisation_id_idx ON public.fighters USING btree (fighter_specialisation_id);
+
+
+--
 -- Name: fighters_fighter_type_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX fighters_fighter_type_id_idx ON public.fighters USING btree (fighter_type_id);
+
+
+--
+-- Name: fighters_fighter_variant_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighters_fighter_variant_idx ON public.fighters USING btree (fighter_variant);
 
 
 --
@@ -7761,6 +7792,13 @@ CREATE INDEX gang_types_trading_post_type_id_idx ON public.gang_types USING btre
 --
 
 CREATE INDEX gang_variant_types_edition_id_idx ON public.gang_variant_types USING btree (edition_id);
+
+
+--
+-- Name: gangs_created_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gangs_created_at_idx ON public.gangs USING btree (created_at);
 
 
 --
