@@ -706,10 +706,12 @@ export default function PrintGang({ gang }: PrintGangProps) {
                        </div>
                        <div className="text-[9px] mt-[1px] flex items-center justify-between gap-2">
                          <div>
-                           {fighter.fighter_type}
-                           {fighter.fighter_subtypes?.join(', ')
-                             ? ` • ${fighter.fighter_subtypes.join(', ')}`
-                             : ""}
+                           {[
+                             fighter.fighter_type,
+                             fighter.fighter_subtypes?.join(', '),
+                             fighter.fighter_variant,
+                             fighter.fighter_specialisation?.fighter_specialisation,
+                           ].filter(Boolean).join(' • ')}
                          </div>
                          {/* W/FW boxes */}
                          {showWFWBoxes && (
@@ -1336,6 +1338,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                         type={fighter.fighter_type}
                         fighter_subtypes={fighter.fighter_subtypes}
                         fighter_specialisation={fighter.fighter_specialisation}
+                        fighter_variant={fighter.fighter_variant}
                         label={fighter.label}
                         credits={fighter.credits}
                         loadout_cost={fighter.loadout_cost}

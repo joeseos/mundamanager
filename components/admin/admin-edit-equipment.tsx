@@ -1692,7 +1692,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         return a.fighter_type.localeCompare(b.fighter_type);
                       })
                       .map((ft) => {
-                        const specialisationText = ft.fighter_specialisations?.specialisation_name ? ` - ${ft.fighter_specialisations.specialisation_name}` : '';
+                        const specialisationText = [ft.fighter_variant, ft.fighter_specialisations?.specialisation_name].filter(Boolean).map(n => ` - ${n}`).join('');
                         return (
                           <option key={ft.id} value={ft.id}>
                             {`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_subtypes?.join(', ')})${specialisationText}`}
@@ -1711,7 +1711,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           key={ft.id}
                           className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                         >
-                          <span>{`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_subtypes?.join(', ')})${ft.fighter_specialisations?.specialisation_name ? ` - ${ft.fighter_specialisations.specialisation_name}` : ''}`}</span>
+                          <span>{`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_subtypes?.join(', ')})${[ft.fighter_variant, ft.fighter_specialisations?.specialisation_name].filter(Boolean).map(n => ` - ${n}`).join('')}`}</span>
                           <button
                             type="button"
                             onClick={() => setSelectedFighterTypes(selectedFighterTypes.filter(id => id !== ft.id))}

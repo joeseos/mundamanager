@@ -139,6 +139,7 @@ export interface GangFighter {
     fighter_specialisation: string;
     fighter_specialisation_id: string;
   };
+  fighter_variant?: string | null;
   alliance_crew_name?: string;
   position?: string;
   xp: number;
@@ -1027,6 +1028,7 @@ export const getGangFightersList = async (
             name
           ),
           fighter_specialisation_id,
+          fighter_variant,
           killed,
           starved,
           retired,
@@ -2040,6 +2042,7 @@ export const getGangFightersList = async (
             fighter_specialisation: fighterSpecialisationInfo.specialisation_name,
             fighter_specialisation_id: fighterSpecialisationInfo.id
           } : undefined,
+          fighter_variant: fighter.fighter_variant ?? null,
           alliance_crew_name: fighterTypeInfo.alliance_crew_name,
           is_spyrer: fighterTypeInfo.is_spyrer ?? false,
           // The gang card needs this to offer Lasting Damage on a vehicle with no `vehicles` row

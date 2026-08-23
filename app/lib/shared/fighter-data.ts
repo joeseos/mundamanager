@@ -51,6 +51,7 @@ export interface FighterBasic {
     name?: string;
   } | null;
   fighter_specialisation_id?: string;
+  fighter_variant?: string | null;
   killed?: boolean;
   starved?: boolean;
   retired?: boolean;
@@ -176,6 +177,7 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
             name
           ),
           fighter_specialisation_id,
+          fighter_variant,
           killed,
           starved,
           retired,
@@ -1239,9 +1241,9 @@ export const getFighterSpecialisationInfo = async (fighterSpecialisationId: stri
         .from('fighter_specialisations')
         .select('id, specialisation_name')
         .eq('id', fighterSpecialisationId)
-        .single();
+        .maybeSingle();
 
-      if (error) return null;
+      if (error || !data) return null;
 
       return {
         fighter_specialisation: data.specialisation_name,

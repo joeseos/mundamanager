@@ -159,6 +159,7 @@ export function EditFighterModal({
     total_cost: number;
     typeSubtypeKey?: string;
     variantLabel?: string;
+    fighter_variant?: string | null;
     is_gang_variant?: boolean;
     gang_variant_name?: string;
     fighter_specialisation?: string | null;
@@ -179,6 +180,7 @@ export function EditFighterModal({
       total_cost: type.total_cost,
       typeSubtypeKey: type.typeSubtypeKey,
       variantLabel: type.variantLabel,
+      fighter_variant: type.fighter_variant ?? null,
       is_gang_variant: type.is_gang_variant,
       gang_variant_name: type.gang_variant_name,
       specialisation: type.specialisation || {},
@@ -207,10 +209,10 @@ export function EditFighterModal({
   const [selectedFighterTypeId, setSelectedFighterTypeId] = useState<string>((fighter.fighter_type as any)?.fighter_type_id || (fighter as any).fighter_type_id || '');
   
   // Add state for selected specialisation
-  const [selectedSpecialisationId, setSelectedSpecialisationId] = useState<string>((fighter.fighter_specialisation as any)?.fighter_specialisation_id || '');
+  const [selectedSpecialisationId, setSelectedSpecialisationId] = useState<string>((fighter.fighter_type as any)?.fighter_type_id || (fighter as any).fighter_type_id || '');
   
   // Add state for available specialisations
-  const [availableSpecialisations, setAvailableSpecialisations] = useState<Array<{ value: string; label: string; cost?: number; fighterTypeId?: string }>>([]);
+  const [availableSpecialisations, setAvailableSpecialisations] = useState<Array<{ value: string; label: string; cost: number }>>([]);
   
   // Add state for gang legacy
   const [selectedGangLegacyId, setSelectedGangLegacyId] = useState<string>((fighter as any).fighter_gang_legacy_id || '');
@@ -324,20 +326,8 @@ export function EditFighterModal({
     const selectedFighterType = fighterTypes.find(ft => ft.id === selectedFighterTypeId);
     if (!selectedFighterType) return null;
 
-    if (selectedSpecialisationId !== '') {
-      const foundSpecialisation = availableSpecialisations.find(st => st.value === selectedSpecialisationId);
-      if (foundSpecialisation?.fighterTypeId) {
-        return fighterTypes.find(ft => ft.id === foundSpecialisation.fighterTypeId) ?? selectedFighterType;
-      }
-    } else if (availableSpecialisations.length > 0) {
-      const defaultOption = availableSpecialisations.find(st => st.value === '');
-      if (defaultOption?.fighterTypeId) {
-        return fighterTypes.find(ft => ft.id === defaultOption.fighterTypeId) ?? selectedFighterType;
-      }
-    }
-
-    return selectedFighterType;
-  }, [selectedFighterTypeId, selectedSpecialisationId, availableSpecialisations, fighterTypes]);
+    return fighterTypes.find(ft => ft.id === selectedSpecialisationId) ?? selectedFighterType;
+  }, [selectedFighterTypeId, selectedSpecialisationId, fighterTypes]);
 
   // Default special rules for the effective fighter type that are not already on the fighter
   const availableDefaultSpecialRules = useMemo(() => {
@@ -381,8 +371,7 @@ export function EditFighterModal({
     return options;
   }, [availableDefaultSpecialRules]);
 
-  // One entry per variant family, preferring the default (empty specialisation) version,
-  // then the cheapest.
+  // One entry per variant family, preferring the base (no variant) row, then the cheapest.
   const fighterTypeComboboxOptions = useMemo(() => {
     const typeSubtypeMap = new Map<string, { fighter: typeof fighterTypes[number]; cost: number }>();
 
@@ -395,16 +384,11 @@ export function EditFighterModal({
       }
 
       const current = typeSubtypeMap.get(key)!;
-      const currentHasEmptySpecialisation =
-        !(current.fighter as any).specialisation ||
-        Object.keys((current.fighter as any).specialisation).length === 0;
-      const fighterHasEmptySpecialisation =
-        !(ft as any).specialisation || Object.keys((ft as any).specialisation).length === 0;
 
-      if (fighterHasEmptySpecialisation && !currentHasEmptySpecialisation) {
+      if (!ft.fighter_variant && current.fighter.fighter_variant) {
         typeSubtypeMap.set(key, { fighter: ft, cost: ft.total_cost });
-      } else if (currentHasEmptySpecialisation && !fighterHasEmptySpecialisation) {
-        // Keep current (default version)
+      } else if (!current.fighter.fighter_variant && ft.fighter_variant) {
+        // Keep current (the family's base row)
       } else if (ft.total_cost < current.cost) {
         typeSubtypeMap.set(key, { fighter: ft, cost: ft.total_cost });
       }
@@ -551,6 +535,8 @@ export function EditFighterModal({
               fighter_type: { fighter_type: submit.fighter_type, fighter_type_id: submit.fighter_type_id ?? null, gang_type_id: (submit as any).gang_type_id ?? null, custom_gang_type_id: (submit as any).custom_gang_type_id ?? null } as any,
               custom_fighter_type_id: submit.custom_fighter_type_id ?? null,
               fighter_type_id: submit.fighter_type_id ?? null,
+              fighter_variant:
+                fighterTypes.find(ft => ft.id === submit.fighter_type_id)?.fighter_variant ?? null,
             }
           : {}),
         ...(submit.fighter_specialisation && submit.fighter_specialisation_id
@@ -600,8 +586,11 @@ export function EditFighterModal({
   if (fighterInitKey !== prevFighterInit.key || fighterTypes !== prevFighterInit.fighterTypes) {
     setPrevFighterInit({ key: fighterInitKey, fighterTypes });
     setCurrentFighter(fighter);
-    setSelectedFighterTypeId((fighter.fighter_type as any)?.fighter_type_id || (fighter as any).fighter_type_id || '');
-    setSelectedSpecialisationId((fighter.fighter_specialisation as any)?.fighter_specialisation_id || '');
+    // Both hold a fighter_type id: the family entry and the row picked within it.
+    const initialFighterTypeId =
+      (fighter.fighter_type as any)?.fighter_type_id || (fighter as any).fighter_type_id || '';
+    setSelectedFighterTypeId(initialFighterTypeId);
+    setSelectedSpecialisationId(initialFighterTypeId);
     setSelectedGangLegacyId((fighter as any).fighter_gang_legacy_id || '');
     setSelectedArchetypeId(fighter.selected_archetype_id || '');
     setHasExplicitlySelectedType(false);
@@ -626,9 +615,7 @@ export function EditFighterModal({
     // The fighter's own type may be a variant, so the dropdown lands on its family.
     const fighterTypeGroup = fighterTypes.filter(t => sameVariantFamily(t, currentType));
 
-    let dropdownType = fighterTypeGroup.find(ft =>
-      !(ft as any).specialisation || Object.keys((ft as any).specialisation).length === 0
-    );
+    let dropdownType = fighterTypeGroup.find(ft => !ft.fighter_variant);
 
     if (!dropdownType && fighterTypeGroup.length > 0) {
       dropdownType = fighterTypeGroup.reduce((cheapest, current) =>
@@ -637,47 +624,10 @@ export function EditFighterModal({
     }
 
     const dropdownId = dropdownType ? dropdownType.id : currentFighterTypeId;
-
-    const specialisationOptions: Array<{ value: string; label: string; cost: number; fighterTypeId: string }> = [];
-    const defaultFighterType = fighterTypeGroup.find(ft => !(ft as any).specialisation || Object.keys((ft as any).specialisation).length === 0);
-
-    if (defaultFighterType) {
-      specialisationOptions.push({
-        value: '',
-        label: 'Default',
-        cost: 0,
-        fighterTypeId: defaultFighterType.id
-      });
-    }
-
-    fighterTypeGroup.forEach(ft => {
-      const specialisationName = (ft as any).specialisation?.specialisation_name;
-      const specialisationId = (ft as any).specialisation?.id;
-      if (specialisationName && specialisationId) {
-        specialisationOptions.push({
-          value: specialisationId,
-          label: ft.variantLabel || specialisationName,
-          cost: (ft as any).specialisation?.cost || 0,
-          fighterTypeId: ft.id
-        });
-      }
-    });
-
-    specialisationOptions.sort((a, b) => {
-      if (a.label === 'Default') return -1;
-      if (b.label === 'Default') return 1;
-      return a.label.localeCompare(b.label);
-    });
-
-    let resolvedSpecialisationId = '';
-    if (fighter.fighter_specialisation?.fighter_specialisation_id) {
-      const matchingFighterType = fighterTypes.find(ft =>
-        ft.fighter_specialisation_id === fighter.fighter_specialisation?.fighter_specialisation_id
-      );
-      if (matchingFighterType) {
-        resolvedSpecialisationId = matchingFighterType.fighter_specialisation_id || '';
-      }
-    }
+    const specialisationOptions = fighterTypeGroup
+      .map(ft => ({ value: ft.id, label: ft.variantLabel || 'Default', cost: ft.total_cost }))
+      .sort((a, b) => a.label === 'Default' ? -1 : b.label === 'Default' ? 1 : a.label.localeCompare(b.label));
+    const resolvedSpecialisationId = currentFighterTypeId;
 
     return {
       dropdownId,
@@ -742,75 +692,22 @@ export function EditFighterModal({
       // Get all variants of the selected fighter to check for specialisations
       const fighterTypeGroup = fighterTypes.filter(t => sameVariantFamily(t, selectedType));
 
-      // If we have multiple entries in the family, they represent different specialisations
-      if (fighterTypeGroup.length > 1) {
-        // Create specialisation options from all variants
-        const specialisationOptions: Array<{ value: string; label: string; cost: number; fighterTypeId: string }> = [];
-        
-        // Find the default fighter type (the one with no specialisation)
-        const defaultFighterType = fighterTypeGroup.find(ft => !(ft as any).specialisation || Object.keys((ft as any).specialisation).length === 0);
-        
-        // Only add "Default" option if there's actually a default fighter type
-        if (defaultFighterType) {
-          specialisationOptions.push({
-            value: '', // Empty string represents "Default"
-            label: 'Default',
-            cost: 0,
-            fighterTypeId: defaultFighterType.id
-          });
-        }
-        
-        fighterTypeGroup.forEach(ft => {
-          // Use the actual specialisation data from the API response
-          const specialisationName = (ft as any).specialisation?.specialisation_name;
-          const specialisationId = (ft as any).specialisation?.id;
-          
-          if (specialisationName && specialisationId) {
-            specialisationOptions.push({
-              value: specialisationId,
-              label: ft.variantLabel || specialisationName,
-              cost: (ft as any).specialisation?.cost || 0,
-              fighterTypeId: ft.id
-            });
-          }
-        });
-        
-        // Sort specialisations alphabetically (Default will always be first if it exists)
-        specialisationOptions.sort((a, b) => {
-          if (a.label === 'Default') return -1;
-          if (b.label === 'Default') return 1;
-          return a.label.localeCompare(b.label);
-        });
-        
-        setAvailableSpecialisations(specialisationOptions);
-
-        // Try to find a matching specialisation from the current fighter
-        const currentSpecialisationName = fighter.fighter_specialisation?.fighter_specialisation || fighter.fighter_specialisation;
-        if (currentSpecialisationName) {
-          // Find the specialisation option that matches the current specialisation name
-          const matchingSpecialisation = specialisationOptions.find(option => 
-            option.label === currentSpecialisationName
-          );
-          
-          if (matchingSpecialisation) {
-            // Set the matching specialisation
-            setSelectedSpecialisationId(matchingSpecialisation.value);
-          } else {
-            // No matching specialisation found, select Default
-            setSelectedSpecialisationId('');
-          }
-        } else {
-          // No current specialisation, select Default
-          setSelectedSpecialisationId('');
-        }
-      } else {
-        // Only one variant, no specialisations to choose from
-        setAvailableSpecialisations([]);
-        setSelectedSpecialisationId('');
-      }
+      // A family with siblings offers them as variants; a lone row has nothing to pick.
+      setAvailableSpecialisations(
+        fighterTypeGroup.length > 1
+          ? fighterTypeGroup
+              .map(ft => ({ value: ft.id, label: ft.variantLabel || 'Default', cost: ft.total_cost }))
+              .sort((a, b) => a.label === 'Default' ? -1 : b.label === 'Default' ? 1 : a.label.localeCompare(b.label))
+          : []
+      );
+      setSelectedSpecialisationId(fighterTypeId);
     }
   };
   
+  const specialisationSelectorNoun = availableSpecialisations.some(
+    option => fighterTypes.find(ft => ft.id === option.value)?.fighter_variant
+  ) ? 'Variant' : 'Specialisation';
+
   // Add handler for specialisation change
   const handleSpecialisationChange = (specialisationId: string) => {
     setSelectedSpecialisationId(specialisationId);
@@ -819,8 +716,7 @@ export function EditFighterModal({
 
     // A variant can carry subtypes the base row does not, so the selection follows the
     // chosen row. Subtypes no row in the family owns were granted or hand-added; keep them.
-    const option = availableSpecialisations.find(st => st.value === specialisationId);
-    const variantType = fighterTypes.find(ft => ft.id === option?.fighterTypeId);
+    const variantType = fighterTypes.find(ft => ft.id === specialisationId);
     if (!variantType) return;
 
     const familySubtypes = new Set(
@@ -968,74 +864,18 @@ export function EditFighterModal({
         fighterTypes.find((ft: any) => ft.id === selectedFighterTypeId) : 
         null;
       
-      // Get the selected specialisation details (without affecting fighter type)
-      type Specialisation = { id: string; fighter_specialisation: string; cost: number; fighterTypeId: string; };
-      let selectedSpecialisation: Specialisation | null = null;
-      
-      if (selectedSpecialisationId !== '') {
-        // Find the specialisation in the currently available specialisations only
-        const foundSpecialisation = availableSpecialisations.find(st => st.value === selectedSpecialisationId);
-        if (foundSpecialisation) {
-          selectedSpecialisation = {
-            id: foundSpecialisation.value, // This will now be the correct specialisation_id
-            fighter_specialisation: foundSpecialisation.label,
-            cost: foundSpecialisation.cost || 0,
-            fighterTypeId: foundSpecialisation.fighterTypeId || '' // Store the fighter_type_id
-          };
-        }
-      } else if (selectedSpecialisationId === '') {
-        // "Default" is selected
-        const defaultOption = availableSpecialisations.find(st => st.value === '');
-        selectedSpecialisation = {
-          id: '',
-          fighter_specialisation: 'Default',
-          cost: 0,
-          fighterTypeId: defaultOption ? defaultOption.fighterTypeId || '' : ''
-        };
-      }
-      
-      // Determine which fighter type to use for the update
-      let fighterTypeToUse = null;
-      let shouldUpdateFighterType = false;
-      
-      if (hasExplicitlySelectedType && selectedFighterType) {
-        // User explicitly selected a new fighter type
-        if (selectedSpecialisation && selectedSpecialisation.fighter_specialisation !== 'Default' && selectedSpecialisation.fighterTypeId) {
-          // User also selected a specialisation - use the fighter type that contains that specialisation
-          const fighterTypeWithSpecialisation = fighterTypes.find(ft => ft.id === selectedSpecialisation!.fighterTypeId);
-          if (fighterTypeWithSpecialisation) {
-            fighterTypeToUse = fighterTypeWithSpecialisation;
-            shouldUpdateFighterType = true;
-          }
-        } else {
-          // No specialisation selected or Default selected - use the selected fighter type
-          fighterTypeToUse = selectedFighterType;
-          shouldUpdateFighterType = true;
-        }
-      } else if (selectedSpecialisation) {
-        // User changed specialisation (either explicitly or implicitly) - always update fighter type ID
-        if (selectedSpecialisation.fighter_specialisation !== 'Default' && selectedSpecialisation.id) {
-          // User selected a specific specialisation - find the fighter type with that
-          // specialisation, within the selected catalog entry's family.
-          const typeForGroup = fighterTypes.find(ft => ft.id === selectedFighterTypeId);
+      // The variant dropdown picks a row inside the family, so it wins over the family entry.
+      const fighterTypeToUse =
+        fighterTypes.find(ft => ft.id === selectedSpecialisationId) ??
+        (hasExplicitlySelectedType ? selectedFighterType : null);
 
-          const fighterTypeWithSpecialisation = typeForGroup && fighterTypes.find(ft =>
-            ft.fighter_specialisation_id === selectedSpecialisation!.id &&
-            sameVariantFamily(ft, typeForGroup)
-          );
-          if (fighterTypeWithSpecialisation) {
-            fighterTypeToUse = fighterTypeWithSpecialisation;
-            shouldUpdateFighterType = true;
-          }
-        } else if (selectedSpecialisation.fighter_specialisation === 'Default' && selectedSpecialisation.fighterTypeId) {
-          // User selected Default - use the fighter type ID from the Default option
-          const defaultFighterType = fighterTypes.find(ft => ft.id === selectedSpecialisation!.fighterTypeId);
-          if (defaultFighterType) {
-            fighterTypeToUse = defaultFighterType;
-            shouldUpdateFighterType = true;
-          }
-        }
-      }
+      // Sending an unchanged type would let the server re-derive the specialisation and
+      // clear a promotion pick, so only submit it when the user actually moved.
+      const currentFighterTypeId =
+        (fighter.fighter_type as any)?.fighter_type_id || (fighter as any).fighter_type_id || '';
+      const shouldUpdateFighterType =
+        Boolean(fighterTypeToUse) &&
+        (hasExplicitlySelectedType || fighterTypeToUse!.id !== currentFighterTypeId);
       
       // Call onSubmit with all values, including specialisation fields
       const submitData: any = {
@@ -1068,8 +908,7 @@ export function EditFighterModal({
           // client-only: used by the optimistic fighter_type overlay, not forwarded to the server
           submitData.gang_type_id = fighterTypeToUse.gang_type_id ?? null;
           submitData.custom_gang_type_id = null;
-          submitData.fighter_specialisation = selectedSpecialisation && selectedSpecialisation.fighter_specialisation !== 'Default' ? selectedSpecialisation.fighter_specialisation : null;
-          submitData.fighter_specialisation_id = selectedSpecialisation && selectedSpecialisation.fighter_specialisation !== 'Default' ? selectedSpecialisation.id : null;
+          // fighter_specialisation{,_id} omitted: the server derives them from the type row.
         }
       }
 
@@ -1215,27 +1054,19 @@ export function EditFighterModal({
             {selectedFighterTypeId && availableSpecialisations.length > 0 && (
               <div>
                 <label htmlFor="fighter_specialisation_id" className="block text-sm font-medium mb-1">
-                  Fighter Specialisation
+                  {`Fighter ${specialisationSelectorNoun}`}
                 </label>
                 <Combobox
                   id="fighter_specialisation_id"
                   value={selectedSpecialisationId}
                   onValueChange={handleSpecialisationChange}
-                  placeholder="Select a specialisation"
+                  placeholder={`Select a ${specialisationSelectorNoun.toLowerCase()}`}
                   options={availableSpecialisations.map(({ value, label }) => ({ value, label }))}
                   dropdownPlacement="down"
                 />
-                {(fighter as any).fighter_specialisation ? (
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    Current: {typeof (fighter as any).fighter_specialisation === 'object' 
-                      ? (fighter as any).fighter_specialisation.specialisation_name || (fighter as any).fighter_specialisation.fighter_specialisation
-                      : (fighter as any).fighter_specialisation}
-                  </div>
-                ) : (
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    Current: Default
-                  </div>
-                )}
+                <div className="mt-1 text-sm text-muted-foreground">
+                  Current: {fighter.fighter_variant || 'Default'}
+                </div>
               </div>
             )}
             

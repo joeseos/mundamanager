@@ -49,6 +49,7 @@ export async function GET(request: Request) {
           gang_type,
           fighter_subtypes,
           fighter_specialisation_id,
+          fighter_variant,
           cost,
           movement,
           weapon_skill,
@@ -96,6 +97,7 @@ export async function GET(request: Request) {
           edition_id,
           fighter_subtypes,
           fighter_specialisation_id,
+          fighter_variant,
           cost,
           movement,
           weapon_skill,
@@ -237,6 +239,7 @@ export async function GET(request: Request) {
           gang_type,
           fighter_subtypes,
           fighter_specialisation_id,
+          fighter_variant,
           cost,
           movement,
           weapon_skill,
@@ -280,26 +283,30 @@ export async function GET(request: Request) {
         );
       }
       
-      // Get the fighter specialisations for these fighters
+      // Both facts label a row, so both are resolved.
       const specialisationIds = relatedFighterTypes
         .map(ft => ft.fighter_specialisation_id)
-        .filter(id => id !== null && id !== undefined) as string[];
-      
+        .filter((id): id is string => Boolean(id));
+
       let specialisations: { id: string; specialisation_name: string; }[] = [];
       if (specialisationIds.length > 0) {
         const { data: specialisationData, error: specialisationError } = await supabase
           .from('fighter_specialisations')
-          .select('*')
+          .select('id, specialisation_name')
           .in('id', specialisationIds);
 
         if (specialisationError) {
           console.error('Error fetching specialisations:', specialisationError);
           throw specialisationError;
-        } else {
-          specialisations = specialisationData || [];
         }
+        specialisations = specialisationData || [];
       }
-      
+
+      const labelFor = (ft: any) =>
+        ft.fighter_variant ||
+        specialisations.find(s => s.id === ft.fighter_specialisation_id)?.specialisation_name ||
+        '';
+
       // Get the complete data for each fighter
       const fighterDetails = await Promise.all(
         relatedFighterTypes.map(async (fighter: any) => {
@@ -362,7 +369,7 @@ export async function GET(request: Request) {
                 adjusted_cost: d.adjusted_cost
               })) || [],
               equipment_selection: equipmentSelectionData?.equipment_selection || null,
-              is_default: !fighter.fighter_specialisation_id || fighter.fighter_specialisation_id === null
+              is_default: !fighter.fighter_variant && !fighter.fighter_specialisation_id
             };
           } catch (error) {
             console.error(`Error getting details for fighter ${fighter.id}:`, error);
@@ -374,27 +381,23 @@ export async function GET(request: Request) {
               equipment_list: [],
               equipment_discounts: [],
               equipment_selection: null,
-              is_default: !fighter.fighter_specialisation_id || fighter.fighter_specialisation_id === null
+              is_default: !fighter.fighter_variant && !fighter.fighter_specialisation_id
             };
           }
         })
       );
       
-      // Sort fighters: Default first, then by specialisation name
+      // Sort fighters: Default first, then by variant or specialisation name
       fighterDetails.sort((a, b) => {
         if (a.is_default && !b.is_default) return -1;
         if (!a.is_default && b.is_default) return 1;
-        
-        const aSpecialisation = specialisations.find(st => st.id === a.fighter_specialisation_id);
-        const bSpecialisation = specialisations.find(st => st.id === b.fighter_specialisation_id);
-        
-        return (aSpecialisation?.specialisation_name || '').localeCompare(bSpecialisation?.specialisation_name || '');
+        return labelFor(a).localeCompare(labelFor(b));
       });
       
       return NextResponse.json({
         fighter_type,
         fighters: fighterDetails,
-        specialisations: specialisations
+        specialisations
       });
     }
 
@@ -410,6 +413,7 @@ export async function GET(request: Request) {
         edition_id,
         fighter_subtypes,
         fighter_specialisation_id,
+        fighter_variant,
         fighter_specialisations(
           specialisation_name
         ),
@@ -454,14 +458,13 @@ export async function GET(request: Request) {
       return query;
     });
 
-
-    // Process the data to flatten the fighter_specialisations relation
+    // Flatten the fighter_specialisations relation
     const processedFighterTypes = fighterTypes?.map((fighter: any) => ({
       ...fighter,
       fighter_specialisation: fighter.fighter_specialisations?.specialisation_name || null,
-      fighter_specialisations: undefined // Remove the nested object
+      fighter_specialisations: undefined
     }));
-    
+
     return NextResponse.json(processedFighterTypes);
 
   } catch (error) {
@@ -513,8 +516,8 @@ export async function PATCH(request: Request) {
         gang_type_id: data.gang_type_id,
         edition_id: gangType.edition_id ?? null,
         fighter_subtypes: Array.isArray(data.fighter_subtypes) ? data.fighter_subtypes : [],
-        fighter_specialisation_id: data.fighter_specialisation_id,
-        fighter_specialisation: data.fighter_specialisation,
+        fighter_variant: data.fighter_variant ?? null,
+        fighter_specialisation_id: data.fighter_specialisation_id ?? null,
         movement: data.movement,
         weapon_skill: data.weapon_skill,
         ballistic_skill: data.ballistic_skill,
@@ -813,8 +816,8 @@ export async function POST(request: Request) {
         gang_type: gangType.gang_type,
         edition_id: gangType.edition_id ?? null,
         fighter_subtypes: Array.isArray(data.fighterSubtypes) ? data.fighterSubtypes : [],
-        fighter_specialisation_id: data.fighterSpecialisationId,
-        fighter_specialisation: data.fighterSpecialisation,
+        fighter_variant: data.fighterVariant ?? null,
+        fighter_specialisation_id: data.fighterSpecialisationId ?? null,
         cost: data.baseCost,
         movement: data.movement,
         weapon_skill: data.weapon_skill,

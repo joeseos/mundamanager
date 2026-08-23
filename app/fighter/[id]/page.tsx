@@ -311,6 +311,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
           specialisation_name: fighterSpecialisationData.fighter_specialisation,
           fighter_specialisation: fighterSpecialisationData.fighter_specialisation
         } : undefined,
+        fighter_variant: fighterBasic.fighter_variant ?? null,
         skills,
         effects,
         vehicles,

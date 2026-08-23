@@ -85,6 +85,7 @@ export interface FighterType {
     specialisation_name: string;
   };
   fighter_specialisation_id?: string;
+  fighter_variant?: string | null;
   /** Variant family and this row's name within it, both set by /api/fighter-types. */
   typeSubtypeKey?: string;
   variantLabel?: string;

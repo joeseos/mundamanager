@@ -329,7 +329,7 @@ export async function GET(request: Request) {
                 fighter_type,
                 gang_type,
                 fighter_subtypes,
-                fighter_specialisation_id,
+                fighter_variant,
                 edition_id,
                 fighter_specialisations(
                   specialisation_name

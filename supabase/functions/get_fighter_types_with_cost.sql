@@ -40,6 +40,7 @@ RETURNS TABLE (
     equipment_selection jsonb,
     total_cost numeric,
     specialisation jsonb,
+    fighter_variant text,
     available_legacies jsonb,
     free_skill boolean,
     delegation_cost numeric,
@@ -843,7 +844,6 @@ BEGIN
         ) AS equipment_selection,
         -- Use adjusted_cost for total_cost if available, otherwise use original cost
         COALESCE(ftgc.adjusted_cost, ft.cost) AS total_cost,
-        -- Add specialisation information
         CASE
             WHEN fspec.id IS NOT NULL THEN
                 jsonb_build_object(
@@ -852,6 +852,7 @@ BEGIN
                 )
             ELSE NULL
         END AS specialisation,
+        ft.fighter_variant,
         COALESCE(
             (
                 SELECT jsonb_agg(

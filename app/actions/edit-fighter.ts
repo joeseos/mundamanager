@@ -1434,6 +1434,22 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (params.custom_fighter_type_id !== undefined) updateData.custom_fighter_type_id = params.custom_fighter_type_id;
     if (params.fighter_specialisation !== undefined) updateData.fighter_specialisation = params.fighter_specialisation;
     if (params.fighter_specialisation_id !== undefined) updateData.fighter_specialisation_id = params.fighter_specialisation_id;
+
+    // An explicit specialisation from the caller wins over the type row's.
+    if (params.fighter_type_id !== undefined || params.custom_fighter_type_id !== undefined) {
+      const { data: typeRow } = params.fighter_type_id
+        ? await supabase
+            .from('fighter_types')
+            .select('fighter_variant, fighter_specialisation_id')
+            .eq('id', params.fighter_type_id)
+            .maybeSingle()
+        : { data: null };
+
+      updateData.fighter_variant = typeRow?.fighter_variant ?? null;
+      if (params.fighter_specialisation_id === undefined) {
+        updateData.fighter_specialisation_id = typeRow?.fighter_specialisation_id ?? null;
+      }
+    }
     if (params.note !== undefined) updateData.note = params.note;
     if (params.note_backstory !== undefined) updateData.note_backstory = params.note_backstory;
     if (params.fighter_gang_legacy_id !== undefined) updateData.fighter_gang_legacy_id = params.fighter_gang_legacy_id;
