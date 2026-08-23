@@ -425,7 +425,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         .select('adjusted_cost')
         .eq('fighter_type_id', params.fighter_type_id)
         .eq('gang_type_id', gangData.gang_type_id)
-        .single();
+        .maybeSingle();
 
       // Use adjusted cost if available, otherwise use the original cost
       adjustedBaseCost = adjustedCostData?.adjusted_cost ?? fighterTypeData.cost;

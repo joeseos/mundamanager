@@ -1279,7 +1279,7 @@ export const getFighterOwnershipInfo = async (fighterPetId: string, supabase: an
           )
         `)
         .eq('id', fighterPetId)
-        .single();
+        .maybeSingle();
 
       if (error || !data) return null;
 
