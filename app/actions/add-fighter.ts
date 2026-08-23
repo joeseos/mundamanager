@@ -11,7 +11,6 @@ import { logFighterAction } from '@/app/actions/logs/fighter-logs';
 import { mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';
 import { assertArchetypeAssignable } from '@/utils/assertArchetypeAssignable';
 import { editionSlugFromJoin, gangEditionSlug, type EditionJoin } from '@/types/edition';
-import { specialisationIdOrNull } from '@/utils/keepTypePromotionN26';
 
 interface SelectedEquipment {
   equipment_id: string;
@@ -518,17 +517,16 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     };
 
     // Set appropriate fighter type ID field
-    // Without copying the variant here, fighters created after the split have none.
+    fighterInsertData.fighter_variant = effectiveFighterData.fighter_variant ?? null;
     if (isCustomFighter) {
       fighterInsertData.custom_fighter_type_id = params.fighter_type_id;
       fighterInsertData.fighter_type_id = null;
       fighterInsertData.fighter_specialisation_id = null;
-      fighterInsertData.fighter_variant = effectiveFighterData.fighter_variant ?? null;
     } else {
       fighterInsertData.fighter_type_id = params.fighter_type_id;
+      // A variant row's specialisation_id is a leftover variant label, not a specialisation.
       fighterInsertData.fighter_specialisation_id =
-        specialisationIdOrNull(fighterTypeData.fighter_specialisation_id);
-      fighterInsertData.fighter_variant = fighterTypeData.fighter_variant ?? null;
+        fighterTypeData.fighter_variant ? null : fighterTypeData.fighter_specialisation_id;
       fighterInsertData.custom_fighter_type_id = null;
     }
 
@@ -1250,9 +1248,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         fighter_name: insertedFighter.fighter_name,
         fighter_type: effectiveFighterData.fighter_type,
         fighter_subtypes: effectiveFighterData.fighter_subtypes?.length ? effectiveFighterData.fighter_subtypes : ['Custom'],
-        fighter_specialisation_id: isCustomFighter
-          ? null
-          : specialisationIdOrNull(fighterTypeData.fighter_specialisation_id),
+        fighter_specialisation_id: fighterInsertData.fighter_specialisation_id,
         fighter_variant: effectiveFighterData.fighter_variant ?? null,
         free_skill: effectiveFighterData.free_skill || false,
         cost: fighterCost,

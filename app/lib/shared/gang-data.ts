@@ -7,7 +7,6 @@ import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang';
 import { gangEditionSlug } from '@/types/edition';
 import { GangTacticsCard, GANG_TACTICS_CARD_SELECT, toGangTacticsCard } from '@/types/tactics-card';
-import { specialisationIdOrNull } from '@/utils/keepTypePromotionN26';
 
 // =============================================================================
 // TYPES - Shared interfaces for gang data
@@ -2039,7 +2038,7 @@ export const getGangFightersList = async (
           label: fighter.label,
           fighter_type: fighter.fighter_type || fighterTypeInfo.fighter_type || 'Unknown',
           fighter_subtypes: fighter.fighter_subtypes || [],
-          fighter_specialisation: specialisationIdOrNull(fighterSpecialisationInfo?.id) ? {
+          fighter_specialisation: fighterSpecialisationInfo ? {
             fighter_specialisation: fighterSpecialisationInfo.specialisation_name,
             fighter_specialisation_id: fighterSpecialisationInfo.id
           } : undefined,

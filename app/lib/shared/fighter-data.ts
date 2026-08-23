@@ -4,7 +4,6 @@ import { readHatredTarget } from '@/utils/injuryTarget';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { FighterEffect } from '@/types/fighter';
 import { FighterLoadout } from '@/types/equipment';
-import { specialisationIdOrNull } from '@/utils/keepTypePromotionN26';
 
 // =============================================================================
 // TYPES - Shared interfaces for fighter data
@@ -1236,17 +1235,15 @@ export const getFighterSpecialisationInfo = async (fighterSpecialisationId: stri
   fighter_specialisation: string;
   fighter_specialisation_id: string;
 } | null> => {
-  if (!specialisationIdOrNull(fighterSpecialisationId)) return null;
-
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
         .from('fighter_specialisations')
         .select('id, specialisation_name')
         .eq('id', fighterSpecialisationId)
-        .single();
+        .maybeSingle();
 
-      if (error) return null;
+      if (error || !data) return null;
 
       return {
         fighter_specialisation: data.specialisation_name,

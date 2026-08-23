@@ -22,7 +22,7 @@ import Modal from '@/components/ui/modal';
 interface FighterSpecialisation {
   id: string;
   specialisation_name: string;
-  fighterId?: string;
+  fighterId: string;
 }
 
 interface EquipmentWithId extends Equipment {
@@ -160,7 +160,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [, setIsEquipmentLoaded] = useState(false);
 
   // Add a new state variable to track the specialisation name
-  const [specialisationName, setSpecialisationName] = useState('');
+  const [variantName, setVariantName] = useState('');
 
   // Add new state for gang-specific costs
   const [showGangCostDialog, setShowGangCostDialog] = useState(false);
@@ -182,7 +182,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
   // Add refs for the problematic input fields
   const fighterTypeInputRef = useRef<HTMLInputElement>(null);
-  const specialisationNameInputRef = useRef<HTMLInputElement>(null);
+  const variantNameInputRef = useRef<HTMLInputElement>(null);
   const gangAdjustedCostInputRef = useRef<HTMLInputElement>(null);
   
   // Add a ref to track if equipment categories have been loaded
@@ -206,10 +206,10 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   }, [fighterType]);
 
   useEffect(() => {
-    if (specialisationNameInputRef.current) {
-      specialisationNameInputRef.current.value = specialisationName;
+    if (variantNameInputRef.current) {
+      variantNameInputRef.current.value = variantName;
     }
-  }, [specialisationName]);
+  }, [variantName]);
 
   const { data: skillTypes = [] } = useQuery<SkillType[]>({
     queryKey: ['admin-skill-types'],
@@ -573,17 +573,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     fetchSelectedSkillDetails();
   }, [selectedSkills, selectedFighterTypeId]);
 
-  const { data: fighterSpecialisations = [] } = useQuery<FighterSpecialisation[]>({
-    queryKey: ['admin-fighter-specialisations'],
-    queryFn: async () => {
-      const response = await fetch('/api/admin/fighter-specialisations');
-      if (!response.ok) throw new Error('Failed to fetch fighter specialisations');
-      return response.json();
-    },
-    enabled: !!selectedFighterTypeId,
-    staleTime: 5 * 60 * 1000,
-  });
-
   const fetchFighterTypeDetails = async (fighterId: string) => {
     if (!fighterId) return;
     
@@ -607,12 +596,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
       if (!data) {
         throw new Error('No data received from server');
-      }
-
-      // Force override fighter_specialisation_id to null if we're in "default" mode
-      if (selectedSpecialisationId === "default") {
-        console.log('Forcing fighter_specialisation_id to null since Default is selected');
-        data = { ...data, fighter_specialisation_id: null };
       }
 
       // Set the form data
@@ -660,56 +643,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         setGangTypeCosts([]);
       }
 
-      // Only set specialisationName if NOT explicitly handling a "default" selection
-      // and there's a fighter_specialisation_id in the response
-      if (selectedSpecialisationId !== "default" && data.fighter_specialisation_id) {
-        // First look in our available specialisations
-        let specialisation = availableSpecialisations.find(st => st.id === data.fighter_specialisation_id);
-        
-        // If we couldn't find it there, look in the full fighterSpecialisations array
-        if (!specialisation && fighterSpecialisations.length > 0) {
-          specialisation = fighterSpecialisations.find(st => st.id === data.fighter_specialisation_id);
-        }
-        
-        // If we found the specialisation, set its name
-        if (specialisation) {
-          console.log(`Found specialisation name: ${specialisation.specialisation_name} for ID: ${data.fighter_specialisation_id}`);
-          setSpecialisationName(specialisation.specialisation_name);
-          
-          // Update the input field directly as well for immediate feedback
-          if (specialisationNameInputRef.current) {
-            specialisationNameInputRef.current.value = specialisation.specialisation_name;
-          }
-        } else {
-          // If we couldn't find the specialisation info, fetch it directly
-          try {
-            const specialisationResponse = await fetch(`/api/admin/fighter-specialisations?id=${data.fighter_specialisation_id}`);
-            if (specialisationResponse.ok) {
-              const specialisationData = await specialisationResponse.json();
-              console.log(`Fetched specialisation data:`, specialisationData);
-              if (specialisationData && specialisationData.specialisation_name) {
-                setSpecialisationName(specialisationData.specialisation_name);
-                
-                // Update the input field directly as well
-                if (specialisationNameInputRef.current) {
-                  specialisationNameInputRef.current.value = specialisationData.specialisation_name;
-                }
-              }
-            }
-          } catch (error) {
-            console.error('Error fetching specialisation details:', error);
-          }
-        }
-      } 
-      // Remove the problematic code block starting here
-      else if (selectedSpecialisationId === "default") {
-        // Just clear the specialisation name field when "Default" is selected
-        setSpecialisationName('');
-        if (specialisationNameInputRef.current) {
-          specialisationNameInputRef.current.value = '';
-        }
-      }
-      // End of removing problematic code
+      setVariantName(data.fighter_variant || '');
+      if (variantNameInputRef.current) variantNameInputRef.current.value = data.fighter_variant || '';
 
       // Set equipment selection
       if (data.equipment_selection) {
@@ -749,11 +684,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     setSelectedFighterTypeId('');
     setSelectedSpecialisationId('');
     setAvailableSpecialisations([]);
-    setSpecialisationName('');
+    setVariantName('');
     
     // Clear the specialisation input field directly
-    if (specialisationNameInputRef.current) {
-      specialisationNameInputRef.current.value = '';
+    if (variantNameInputRef.current) {
+      variantNameInputRef.current.value = '';
     }
     
     if (!comboString) return;
@@ -779,74 +714,19 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       
       console.log(`Found ${matchingFighters.length} fighters matching ${fighterType} (${fighterSubtype})`);
       
-      // Prepare specialisation options, including a "Default" option
-      const specialisationOptions: FighterSpecialisation[] = [];
-      
-      // First add default option (fighters without specialisation)
-      const defaultFighters = matchingFighters.filter(f => 
-        !f.fighter_specialisation_id || 
-        f.fighter_specialisation_id === null || 
-        f.fighter_specialisation_id === "" || 
-        f.fighter_specialisation_id === "null"
-      );
-      
-      if (defaultFighters.length > 0) {
-        // Use the first default fighter's ID
-        const defaultFighter = defaultFighters[0];
-        specialisationOptions.push({
-          id: "default",
-          specialisation_name: "Default",
-          fighterId: defaultFighter.id
-        });
-      }
-      
-      // Get all fighters with specialisations
-      const specialisedFighters = matchingFighters.filter(f => 
-        f.fighter_specialisation_id && 
-        f.fighter_specialisation_id !== null && 
-        f.fighter_specialisation_id !== "" && 
-        f.fighter_specialisation_id !== "null"
-      );
-      
-      // We need to fetch specialisation names for these fighters
-      if (specialisedFighters.length > 0) {
-        // Collect unique specialisation IDs - using Array.from for broader compatibility
-        const specialisationIds = Array.from(
-          new Set(
-            specialisedFighters
-              .map(f => f.fighter_specialisation_id)
-              .filter(id => id !== null && id !== undefined)
-          )
-        ) as string[];
-        
-        if (specialisationIds.length > 0) {
-          // For each fighter with a specialisation, create an option
-          specialisedFighters.forEach(fighter => {
-            if (!fighter.fighter_specialisation_id) return;
-            
-            // Just use a placeholder name for now, it will be updated later
-            const placeholderName = "Loading...";
-            
-            specialisationOptions.push({
-              id: fighter.fighter_specialisation_id,
-              specialisation_name: placeholderName,
-              fighterId: fighter.id
-            });
-          });
-          
-          // Fetch the actual specialisation names
-          fetchSpecialisationNames(specialisationOptions);
-        }
-      }
-      
-      // Sort specialisations by name (keeping Default first)
-      specialisationOptions.sort((a, b) => {
-        if (a.id === "default") return -1;
-        if (b.id === "default") return 1;
-        return a.specialisation_name.localeCompare(b.specialisation_name);
-      });
-      
-      // Update available specialisations
+      // One option per row; the variant name lives on the row itself.
+      const specialisationOptions: FighterSpecialisation[] = matchingFighters
+        .map(f => ({
+          id: f.id,
+          specialisation_name: f.fighter_variant || 'Default',
+          fighterId: f.id,
+        }))
+        .sort((a, b) =>
+          a.specialisation_name === 'Default' ? -1
+          : b.specialisation_name === 'Default' ? 1
+          : a.specialisation_name.localeCompare(b.specialisation_name)
+        );
+
       setAvailableSpecialisations(specialisationOptions);
       
       // Setup basic fighter type info
@@ -861,40 +741,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     }
   };
   
-  // Add a new function to fetch specialisation names
-  const fetchSpecialisationNames = async (specialisationOptions: FighterSpecialisation[]) => {
-    try {
-      const response = await fetch('/api/admin/fighter-specialisations');
-      if (!response.ok) throw new Error('Failed to fetch fighter specialisations');
-      const specialisationsData = await response.json();
-      
-      // Update the specialisation names in our options
-      const updatedOptions = specialisationOptions.map(option => {
-        if (option.id === "default") return option;
-        
-        const specialisation = specialisationsData.find((st: Specialisation) => st.id === option.id);
-        if (specialisation) {
-          return {
-            ...option,
-            specialisation_name: specialisation.specialisation_name
-          };
-        }
-        return option;
-      });
-      
-      // Sort again with the updated names (keeping Default first)
-      updatedOptions.sort((a, b) => {
-        if (a.id === "default") return -1;
-        if (b.id === "default") return 1;
-        return a.specialisation_name.localeCompare(b.specialisation_name);
-      });
-      
-      setAvailableSpecialisations(updatedOptions);
-    } catch (error) {
-      console.error('Error fetching specialisation names:', error);
-    }
-  };
-
   const handleSpecialisationChange = async (specialisationId: string) => {
     console.log('handleSpecialisationChange called with specialisationId:', specialisationId);
     
@@ -903,9 +749,9 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     
     if (!specialisationId) {
       // Clear specialisation name when no selection
-      setSpecialisationName('');
-      if (specialisationNameInputRef.current) {
-        specialisationNameInputRef.current.value = '';
+      setVariantName('');
+      if (variantNameInputRef.current) {
+        variantNameInputRef.current.value = '';
       }
       return;
     }
@@ -925,35 +771,21 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         await fetchEquipmentByCategory();
       }
       
-      // Find the option in available specialisations
       const selectedOption = availableSpecialisations.find(st => st.id === specialisationId);
-      
-      // If we have an option and it has a fighterId, fetch details
-      if (selectedOption && selectedOption.fighterId) {
+
+      if (selectedOption) {
         setSelectedFighterTypeId(selectedOption.fighterId);
-        // Set specialisation name if it's not the default option, otherwise clear it
-        if (specialisationId !== "default") {
-          setSpecialisationName(selectedOption.specialisation_name);
-          if (specialisationNameInputRef.current) {
-            specialisationNameInputRef.current.value = selectedOption.specialisation_name;
-          }
-        } else {
-          // For default, start with an empty field that can be edited
-          setSpecialisationName('');
-          if (specialisationNameInputRef.current) {
-            specialisationNameInputRef.current.value = '';
-          }
-        }
-        
-        // Fetch the fighter details
-        console.log(`Fetching details for fighter ID: ${selectedOption.fighterId}`);
+        const name = selectedOption.specialisation_name === 'Default' ? '' : selectedOption.specialisation_name;
+        setVariantName(name);
+        if (variantNameInputRef.current) variantNameInputRef.current.value = name;
+
         await fetchFighterTypeDetails(selectedOption.fighterId);
       } else {
-        toast.error('Could not find fighter data for the selected specialisation');
+        toast.error('Could not find fighter data for the selected variant');
       }
     } catch (error) {
       console.error('Error in handleSpecialisationChange:', error);
-      toast.error('Failed to load fighter specialisation details');
+      toast.error('Failed to load fighter variant details');
     } finally {
       setIsLoading(false);
     }
@@ -1029,7 +861,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       console.log('Current selection state:', {
         selectedFighterTypeCombo,
         selectedSpecialisationId,
-        specialisationName,
+        variantName,
         fighterIdToUpdate
       });
 
@@ -1045,117 +877,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         throw new Error('Please select at least one fighter subtype');
       }
 
-      // Special handling for specialisationId and specialisationName
-      let finalSpecialisationId: string | null = null;
-      let finalSpecialisationName: string | null = null;
-      
-      // Get the original fighter data to see what specialisation it currently has
-      const originalFighter = fighterTypes.find(f => f.id === fighterIdToUpdate);
-      const originalSpecialisationId = originalFighter?.fighter_specialisation_id;
-      
-      // Get the current specialisation name from the input field (might be more up-to-date than state)
-      const currentSpecialisationName = specialisationNameInputRef.current?.value || specialisationName;
-      
-      // Get the original specialisation name if we need to preserve it
-      let originalSpecialisationName: string | null = null;
-      if (originalSpecialisationId) {
-        const originalSpecialisation = fighterSpecialisations.find(st => st.id === originalSpecialisationId);
-        originalSpecialisationName = originalSpecialisation?.specialisation_name || null;
-      }
-      
-      console.log('Specialisation logic - Current state:', {
-        selectedSpecialisationId,
-        specialisationName,
-        currentSpecialisationName,
-        originalSpecialisationId,
-        originalSpecialisationName,
-        originalFighterSpecialisationId: originalFighter?.fighter_specialisation_id
-      });
-      
-      // Case 1: User selected "default" - Convert to default fighter
-      if (selectedSpecialisationId === "default") {
-        // Check if user added a name to create a new specialisation
-        if (currentSpecialisationName && currentSpecialisationName.trim()) {
-          try {
-            const formattedName = currentSpecialisationName.trim().charAt(0).toUpperCase() + currentSpecialisationName.trim().slice(1);
-            console.log(`Creating new specialisation: "${formattedName}" from default fighter`);
-              
-            const createResponse = await fetch('/api/admin/fighter-specialisations', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ specialisation_name: formattedName }),
-            });
-              
-            if (createResponse.ok) {
-              const newSpecialisation = await createResponse.json();
-              finalSpecialisationId = newSpecialisation.id;
-              finalSpecialisationName = newSpecialisation.specialisation_name;
-              console.log(`Created new specialisation with ID: ${finalSpecialisationId}`);
-            } else {
-              console.error('Failed to create specialisation:', await createResponse.text());
-              throw new Error('Failed to create new specialisation');
-            }
-          } catch (error) {
-            console.error('Error creating specialisation:', error);
-            throw new Error('Failed to create new specialisation');
-          }
-        } else {
-          // No name provided, keep as default fighter
-          finalSpecialisationId = null;
-          finalSpecialisationName = null;
-          console.log(`Converting fighter ${fighterIdToUpdate} to default (null specialisation)`);
-        }
-      }
-      // Case 2: User selected an existing specialisation - Use that specialisation
-      else if (selectedSpecialisationId && selectedSpecialisationId !== "default") {
-        finalSpecialisationId = selectedSpecialisationId;
-        
-        // If user provided a name in the input, use that; otherwise preserve the original name
-        if (currentSpecialisationName && currentSpecialisationName.trim()) {
-          finalSpecialisationName = currentSpecialisationName.trim();
-        } else {
-          // No input provided, find and preserve the original specialisation name
-          const selectedSpecialisation = fighterSpecialisations.find(st => st.id === selectedSpecialisationId);
-          finalSpecialisationName = selectedSpecialisation?.specialisation_name || null;
-        }
-        
-        console.log(`Using selected specialisation with ID: ${finalSpecialisationId}, name: ${finalSpecialisationName}`);
-        
-        // If user changed the specialisation name, update it
-        if (currentSpecialisationName && currentSpecialisationName.trim()) {
-          const existingSpecialisation = fighterSpecialisations.find(st => st.id === finalSpecialisationId);
-          if (existingSpecialisation && existingSpecialisation.specialisation_name !== currentSpecialisationName.trim()) {
-            try {
-              console.log(`Updating specialisation name from "${existingSpecialisation.specialisation_name}" to "${currentSpecialisationName.trim()}"`);
-              const updateResponse = await fetch(`/api/admin/fighter-specialisations?id=${finalSpecialisationId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ specialisation_name: currentSpecialisationName.trim() }),
-              });
-              
-              if (!updateResponse.ok) {
-                console.error('Failed to update specialisation name:', await updateResponse.text());
-              } else {
-                finalSpecialisationName = currentSpecialisationName.trim();
-              }
-            } catch (error) {
-              console.error('Error updating specialisation name:', error);
-            }
-          }
-        }
-      }
-      // Case 3: No specialisation selected but fighter originally had one - preserve original
-      else if (!selectedSpecialisationId && originalSpecialisationId) {
-        finalSpecialisationId = originalSpecialisationId;
-        finalSpecialisationName = originalSpecialisationName;
-        console.log(`No specialisation selection made, preserving original specialisation ID: ${finalSpecialisationId} with name: ${finalSpecialisationName}`);
-      }
-      // Case 4: No specialisation selected and fighter was originally default - keep as default
-      else {
-        finalSpecialisationId = null;
-        finalSpecialisationName = null;
-        console.log(`No specialisation selection made and fighter was originally default, keeping as default`);
-      }
+      const finalVariantName = (variantNameInputRef.current?.value ?? variantName).trim() || null;
 
       // Log equipment selection state before preparing update data
       console.log('Equipment selection before update:', equipmentSelection);
@@ -1217,8 +939,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         cost: parseInt(baseCost),
         gang_type_id: fighterToUpdate.gang_type_id,
         fighter_subtypes: selectedFighterSubtypes,
-        fighter_specialisation_id: finalSpecialisationId,
-        fighter_specialisation: finalSpecialisationName,
+        fighter_variant: finalVariantName,
         movement: parseInt(movement),
         weapon_skill: parseInt(weaponSkill),
         ballistic_skill: parseInt(ballisticSkill),
@@ -1257,12 +978,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
       console.log('Sending update data:', updateData);
       console.log('Equipment selection in update data:', updateData.equipment_selection);
-      console.log('Selected specialisation and final fighter_specialisation_id:', {
-        selectedSpecialisationId,
-        submittingSpecialisationId: updateData.fighter_specialisation_id,
-        originalSpecialisationId: finalSpecialisationId
-      });
-
       // Check if equipment selection is being properly included
       const jsonData = JSON.stringify(updateData);
       console.log('JSON data includes equipment_selection:', 
@@ -1536,7 +1251,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Select Fighter Specialisation to Edit
+                  Select Fighter Variant to Edit
                 </label>
                 <select
                   value={selectedSpecialisationId}
@@ -1548,8 +1263,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                     {!selectedFighterTypeCombo 
                       ? "Select a fighter type first" 
                       : availableSpecialisations.length === 0 
-                        ? "Loading specialisations..." 
-                        : "Select a specialisation"
+                        ? "Loading variants..." 
+                        : "Select a variant"
                     }
                   </option>
                   {availableSpecialisations.map((specialisation) => (
@@ -1561,7 +1276,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
               </div>
             </div>
 
-            {/* Second row: Fighter Type name and Fighter Specialisation input */}
+            {/* Second row: Fighter Type name and Fighter Variant input */}
             {selectedSpecialisationId && !isLoading && (
               <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -1583,37 +1298,32 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
                 <div>
                   <label className="block text-sm font-medium text-muted-foreground mb-1">
-                    Fighter Specialisation
+                    Fighter Variant
                   </label>
                   <Input
-                    ref={specialisationNameInputRef}
+                    ref={variantNameInputRef}
                     type="text"
-                    defaultValue={specialisationName}
+                    defaultValue={variantName}
                     onChange={handleInputTyping}
                     onBlur={(e) => {
                       const newName = e.target.value;
-                      setSpecialisationName(newName);
-                      
-                      // Also update the name in our availableSpecialisations array
-                      if (selectedSpecialisationId && selectedSpecialisationId !== "default") {
-                        setAvailableSpecialisations(prev => 
-                          prev.map(st => 
-                            st.id === selectedSpecialisationId 
-                              ? { ...st, specialisation_name: newName } 
-                              : st
-                          )
-                        );
-                      }
+                      setVariantName(newName);
+
+                      setAvailableSpecialisations(prev =>
+                        prev.map(st =>
+                          st.id === selectedSpecialisationId
+                            ? { ...st, specialisation_name: newName || 'Default' }
+                            : st
+                        )
+                      );
                     }}
-                    placeholder="e.g. Subjugator"
+                    placeholder="e.g. Bonecrusher"
                     className="w-full"
                     disabled={!selectedSpecialisationId}
                   />
-                  {selectedSpecialisationId === "default" && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      You can add a specialisation name to create a new variant of this fighter.
-                    </p>
-                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Leave blank for the family's default row.
+                  </p>
                 </div>
               </div>
 

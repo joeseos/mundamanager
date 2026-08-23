@@ -448,6 +448,12 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
     })
   }), [showsVehicleProfile, vehicleStats, vehicles, modifiedStats, xpDisplay, edition_slug, initiativeAndMentalSuffix]);
 
+  const typeLine = [
+    `${type}${alliance_crew_name ? ` – ${alliance_crew_name}` : ''}${fighter_subtypes.length > 0 ? ` (${fighter_subtypes.join(', ')})` : ''}`,
+    fighter_variant,
+    specialisation?.fighter_specialisation,
+  ].filter(Boolean).join(', ');
+
   return (
     <div className="relative">
       <div className="flex items-center mb-20">
@@ -473,11 +479,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
               <div className="flex flex-col items-baseline w-full min-w-0">
                 <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white mr-2 print:text-foreground truncate w-full">{name}</div>
                 <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden text-ellipsis whitespace-nowrap w-full print:text-muted-foreground">
-                  {type}
-                  {alliance_crew_name && ` – ${alliance_crew_name}`}
-                  {fighter_subtypes.length > 0 && ` (${fighter_subtypes.join(', ')})`}
-                  {fighter_variant && `, ${fighter_variant}`}
-                  {specialisation?.fighter_specialisation && `, ${specialisation.fighter_specialisation}`}
+                  {typeLine}
                 </div>
               </div>
             </div>

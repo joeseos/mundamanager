@@ -64,13 +64,15 @@ function sortPromotionFighterTypes(
     const typeCompare = a.fighter_type.localeCompare(b.fighter_type);
     if (typeCompare !== 0) return typeCompare;
 
-    return (a.specialisation?.specialisation_name || '').localeCompare(b.specialisation?.specialisation_name || '');
+    return (a.fighter_variant || a.specialisation?.specialisation_name || '')
+      .localeCompare(b.fighter_variant || b.specialisation?.specialisation_name || '');
   });
 }
 
 function formatPromotionFighterTypeLabel(ft: PromotionFighterType): string {
   const base = `${ft.fighter_type} (${ft.fighter_subtypes.join(', ')})`;
-  return ft.specialisation?.specialisation_name ? `${base}, ${ft.specialisation.specialisation_name}` : base;
+  const suffix = ft.fighter_variant || ft.specialisation?.specialisation_name;
+  return suffix ? `${base}, ${suffix}` : base;
 }
 
 export type FighterPromotionResult = {
@@ -85,9 +87,12 @@ export type FighterPromotionResult = {
   credits_increase?: number;
 };
 
+// A variant row carries no specialisation, so omit the fields rather than sending null
+// and clearing the fighter's own pick.
 function promotionSpecialisationFields(
-  type?: { specialisation?: { id: string; specialisation_name: string } | null } | null
-): Pick<FighterPromotionResult, 'fighter_specialisation' | 'fighter_specialisation_id'> {
+  type?: { specialisation?: { id: string; specialisation_name: string } | null; fighter_variant?: string | null } | null
+): Partial<Pick<FighterPromotionResult, 'fighter_specialisation' | 'fighter_specialisation_id'>> {
+  if (type?.fighter_variant) return {};
   return {
     fighter_specialisation: type?.specialisation?.specialisation_name ?? null,
     fighter_specialisation_id: type?.specialisation?.id ?? null,
@@ -108,6 +113,7 @@ interface FighterPromotionModalProps {
     fighter_subtypes: string[];
     total_cost: number;
     specialisation?: { id: string; specialisation_name: string } | null;
+    fighter_variant?: string | null;
   }>;
   editionSlug?: string | null;
   isOpen: boolean;
@@ -220,6 +226,11 @@ export function FighterPromotionModal({
     return fighterTypes.find(ft => ft.id === currentFighterTypeId)?.specialisation?.id ?? '';
   }, [currentFighterSpecialisationId, currentFighterTypeId, fighterTypes]);
 
+  const currentVariant = useMemo(
+    () => fighterTypes.find(ft => ft.id === currentFighterTypeId)?.fighter_variant ?? null,
+    [currentFighterTypeId, fighterTypes]
+  );
+
   const fighterTypeComboboxOptions = useMemo(
     () =>
       displayTypes.map((ft) => {
@@ -228,8 +239,9 @@ export function FighterPromotionModal({
         // Champion→Leader clears specialisation; do not mute Leaders for mismatch.
         const isDifferentSpecialisation =
           !isN26ChampionLeaderPromotion &&
-          Boolean(resolvedCurrentSpecialisationId) &&
-          optionSpecialisationId !== resolvedCurrentSpecialisationId;
+          ((Boolean(resolvedCurrentSpecialisationId) &&
+            optionSpecialisationId !== resolvedCurrentSpecialisationId) ||
+            (Boolean(currentVariant) && (ft.fighter_variant ?? null) !== currentVariant));
         const isIneligibleForPromotion =
           includeAllGangFighterTypes && Boolean(targetSubtype) && !ft.fighter_subtypes.includes(targetSubtype);
         const useMutedStyle = isDifferentSpecialisation || isIneligibleForPromotion;
@@ -247,6 +259,7 @@ export function FighterPromotionModal({
     [
       displayTypes,
       resolvedCurrentSpecialisationId,
+      currentVariant,
       includeAllGangFighterTypes,
       targetSubtype,
       isN26ChampionLeaderPromotion,

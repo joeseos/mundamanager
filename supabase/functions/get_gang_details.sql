@@ -590,8 +590,6 @@ BEGIN
              'fighter_specialisation', fspec.specialisation_name,
              'fighter_specialisation_id', fspec.id
            ) AS fighter_specialisation,
-           -- The variant follows the type; the specialisation follows the fighter.
-           -- Two separate facts, so two separate keys.
            f.fighter_variant,
            ft.alliance_crew_name,
            f.xp,

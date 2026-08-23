@@ -844,7 +844,6 @@ BEGIN
         ) AS equipment_selection,
         -- Use adjusted_cost for total_cost if available, otherwise use original cost
         COALESCE(ftgc.adjusted_cost, ft.cost) AS total_cost,
-        -- Add specialisation information
         CASE
             WHEN fspec.id IS NOT NULL THEN
                 jsonb_build_object(
@@ -878,7 +877,9 @@ BEGIN
     LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id
         AND ftgc.gang_type_id = p_gang_type_id
         AND (ftgc.gang_affiliation_id IS NULL OR ftgc.gang_affiliation_id = p_gang_affiliation_id)
+    -- A variant row's specialisation_id is a leftover variant label, not a specialisation.
     LEFT JOIN fighter_specialisations fspec ON fspec.id = ft.fighter_specialisation_id
+        AND ft.fighter_variant IS NULL
     LEFT JOIN editions ed ON ed.id = ft.edition_id
     WHERE
         CASE

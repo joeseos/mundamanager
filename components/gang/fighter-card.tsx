@@ -525,6 +525,12 @@ const FighterCard = memo(function FighterCard({
         ${isLoading ? 'cursor-default' : ''}
         ${dragListeners && dragAttributes ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''}`;
 
+  const typeLine = [
+    `${type}${alliance_crew_name ? ` - ${alliance_crew_name}` : ''}${fighter_subtypes?.length ? ` (${fighter_subtypes.join(', ')})` : ''}`,
+    fighter_variant,
+    fighter_specialisation?.fighter_specialisation,
+  ].filter(Boolean).join(', ');
+
   const cardBody = (
     <div
       id={fighterCardId}
@@ -597,11 +603,7 @@ const FighterCard = memo(function FighterCard({
               <div className="flex flex-col items-baseline w-full min-w-0">
                 <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white mr-2 print:text-foreground fancy-print-keep-color-heading truncate w-full">{name}</div>
                 <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden text-ellipsis whitespace-nowrap w-full print:text-muted-foreground fancy-print-keep-color-subtitle">
-                  {type}
-                  {alliance_crew_name && ` - ${alliance_crew_name}`}
-                  {fighter_subtypes?.join(', ') && ` (${fighter_subtypes.join(', ')})`}
-                  {fighter_variant && `, ${fighter_variant}`}
-                  {fighter_specialisation && fighter_specialisation.fighter_specialisation ? `, ${fighter_specialisation.fighter_specialisation}` : ''}
+                  {typeLine}
                 </div>
               </div>
             </div>

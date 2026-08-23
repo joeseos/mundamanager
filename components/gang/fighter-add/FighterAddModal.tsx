@@ -15,7 +15,6 @@ import { fighterTypeRank } from '@/utils/fighterTypeRank';
 import { beastSubtypeName, hasGangAdditionCategories, sameEditionForDisplay } from '@/types/edition';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
-import { specialisationIdOrNull } from '@/utils/keepTypePromotionN26';
 import { ImInfo } from 'react-icons/im';
 import { addFighterToGang } from '@/app/actions/add-fighter';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -168,7 +167,7 @@ export default function FighterAddModal({
   const [selectedFighterTypeId, setSelectedFighterTypeId] = useState('');
   const [selectedSubtype, setSelectedSubtype] = useState(''); // additions: fighter-subtype navigation
   const [selectedSpecialisationId, setSelectedSpecialisationId] = useState('');
-  const [availableSpecialisations, setAvailableSpecialisations] = useState<Array<{ id: string; specialisation_name: string }>>([]);
+  const [availableSpecialisations, setAvailableSpecialisations] = useState<Array<{ id: string; specialisation_name: string; cost: number; variant: string | null }>>([]);
   const [fighterName, setFighterName] = useState('');
   const [fighterCost, setFighterCost] = useState('');
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
@@ -349,6 +348,7 @@ export default function FighterAddModal({
         id: ft.id,
         specialisation_name: ft.variantLabel || 'Default',
         cost: ft.total_cost,
+        variant: ft.fighter_variant ?? null,
       }));
       setAvailableSpecialisations(specialisations);
       // Leave specialisation unselected so the combobox shows the placeholder;
@@ -421,9 +421,9 @@ export default function FighterAddModal({
       fighter_type_id: fighterTypeIdToUse,
       fighter_type: selectedType?.fighter_type || '',
       fighter_subtypes: selectedType?.fighter_subtypes || [],
-      fighter_specialisation: specialisationIdOrNull(selectedType?.specialisation?.id) ? {
-        fighter_specialisation_id: selectedType?.specialisation?.id ?? '',
-        fighter_specialisation: selectedType?.specialisation?.specialisation_name ?? '',
+      fighter_specialisation: selectedType?.specialisation ? {
+        fighter_specialisation_id: selectedType.specialisation.id || '',
+        fighter_specialisation: selectedType.specialisation.specialisation_name || '',
       } : undefined,
       fighter_variant: selectedType?.fighter_variant ?? null,
       credits: displayCost,
@@ -743,7 +743,7 @@ export default function FighterAddModal({
         typeSubtypeMap.set(key, { fighter, cost: fighter.total_cost });
       } else {
         const current = typeSubtypeMap.get(key)!;
-        if (!fighter.specialisation && current.fighter.specialisation) {
+        if (!fighter.fighter_variant && current.fighter.fighter_variant) {
           typeSubtypeMap.set(key, { fighter, cost: fighter.total_cost });
         } else if (fighter.total_cost < current.cost) {
           typeSubtypeMap.set(key, { fighter, cost: fighter.total_cost });
@@ -855,31 +855,24 @@ export default function FighterAddModal({
     return options;
   };
 
-  const specialisationSelectorNoun = availableSpecialisations.some(
-    option => fighterTypes.find(ft => ft.id === option.id)?.fighter_variant
-  ) ? 'Variant' : 'Specialisation';
+  const specialisationSelectorNoun =
+    availableSpecialisations.some(s => s.variant) ? 'Variant' : 'Specialisation';
 
   const buildSpecialisationOptions = () => {
-    const lowestSpecialisationCost = Math.min(
-      ...availableSpecialisations.map(sub => fighterTypes.find(ft => ft.id === sub.id)?.total_cost ?? Infinity)
-    );
+    const lowestSpecialisationCost = Math.min(...availableSpecialisations.map(sub => sub.cost));
     return [...availableSpecialisations]
       .sort((a, b) => {
         const aName = a.specialisation_name.toLowerCase();
         const bName = b.specialisation_name.toLowerCase();
         if (aName === 'default') return -1;
         if (bName === 'default') return 1;
-        const aCost = fighterTypes.find(ft => ft.id === a.id)?.total_cost ?? 0;
-        const bCost = fighterTypes.find(ft => ft.id === b.id)?.total_cost ?? 0;
-        if (aCost !== bCost) return aCost - bCost;
+        if (a.cost !== b.cost) return a.cost - b.cost;
         return aName.localeCompare(bName);
       })
       .map(specialisation => {
-        const specialisationCost = fighterTypes.find(ft => ft.id === specialisation.id)?.total_cost ?? 0;
-        const diff = specialisationCost - lowestSpecialisationCost;
+        const diff = specialisation.cost - lowestSpecialisationCost;
         const costLabel = diff === 0 ? '(+0 credits)' : (diff > 0 ? `(+${diff} credits)` : `(${diff} credits)`);
-        const displayName = specialisation.specialisation_name === 'Default' ? 'Default' : specialisation.specialisation_name;
-        return { value: specialisation.id, label: `${displayName} ${costLabel}` };
+        return { value: specialisation.id, label: `${specialisation.specialisation_name} ${costLabel}` };
       });
   };
 

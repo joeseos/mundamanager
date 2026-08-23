@@ -48,7 +48,7 @@ export async function GET(request: Request) {
           gang_type_id,
           gang_type,
           fighter_subtypes,
-          fighter_specialisation_id,
+          fighter_variant,
           cost,
           movement,
           weapon_skill,
@@ -95,7 +95,7 @@ export async function GET(request: Request) {
           gang_type,
           edition_id,
           fighter_subtypes,
-          fighter_specialisation_id,
+          fighter_variant,
           cost,
           movement,
           weapon_skill,
@@ -236,7 +236,7 @@ export async function GET(request: Request) {
           gang_type_id,
           gang_type,
           fighter_subtypes,
-          fighter_specialisation_id,
+          fighter_variant,
           cost,
           movement,
           weapon_skill,
@@ -278,26 +278,6 @@ export async function GET(request: Request) {
           { error: 'No fighter types found matching those criteria' },
           { status: 404 }
         );
-      }
-      
-      // Get the fighter specialisations for these fighters
-      const specialisationIds = relatedFighterTypes
-        .map(ft => ft.fighter_specialisation_id)
-        .filter(id => id !== null && id !== undefined) as string[];
-      
-      let specialisations: { id: string; specialisation_name: string; }[] = [];
-      if (specialisationIds.length > 0) {
-        const { data: specialisationData, error: specialisationError } = await supabase
-          .from('fighter_specialisations')
-          .select('*')
-          .in('id', specialisationIds);
-
-        if (specialisationError) {
-          console.error('Error fetching specialisations:', specialisationError);
-          throw specialisationError;
-        } else {
-          specialisations = specialisationData || [];
-        }
       }
       
       // Get the complete data for each fighter
@@ -362,7 +342,7 @@ export async function GET(request: Request) {
                 adjusted_cost: d.adjusted_cost
               })) || [],
               equipment_selection: equipmentSelectionData?.equipment_selection || null,
-              is_default: !fighter.fighter_specialisation_id || fighter.fighter_specialisation_id === null
+              is_default: !fighter.fighter_variant
             };
           } catch (error) {
             console.error(`Error getting details for fighter ${fighter.id}:`, error);
@@ -374,27 +354,22 @@ export async function GET(request: Request) {
               equipment_list: [],
               equipment_discounts: [],
               equipment_selection: null,
-              is_default: !fighter.fighter_specialisation_id || fighter.fighter_specialisation_id === null
+              is_default: !fighter.fighter_variant
             };
           }
         })
       );
       
-      // Sort fighters: Default first, then by specialisation name
+      // Sort fighters: Default first, then by variant name
       fighterDetails.sort((a, b) => {
         if (a.is_default && !b.is_default) return -1;
         if (!a.is_default && b.is_default) return 1;
-        
-        const aSpecialisation = specialisations.find(st => st.id === a.fighter_specialisation_id);
-        const bSpecialisation = specialisations.find(st => st.id === b.fighter_specialisation_id);
-        
-        return (aSpecialisation?.specialisation_name || '').localeCompare(bSpecialisation?.specialisation_name || '');
+        return (a.fighter_variant || '').localeCompare(b.fighter_variant || '');
       });
       
       return NextResponse.json({
         fighter_type,
-        fighters: fighterDetails,
-        specialisations: specialisations
+        fighters: fighterDetails
       });
     }
 
@@ -409,10 +384,7 @@ export async function GET(request: Request) {
         gang_type,
         edition_id,
         fighter_subtypes,
-        fighter_specialisation_id,
-        fighter_specialisations(
-          specialisation_name
-        ),
+        fighter_variant,
         cost,
         movement,
         weapon_skill,
@@ -455,14 +427,7 @@ export async function GET(request: Request) {
     });
 
 
-    // Process the data to flatten the fighter_specialisations relation
-    const processedFighterTypes = fighterTypes?.map((fighter: any) => ({
-      ...fighter,
-      fighter_specialisation: fighter.fighter_specialisations?.specialisation_name || null,
-      fighter_specialisations: undefined // Remove the nested object
-    }));
-    
-    return NextResponse.json(processedFighterTypes);
+    return NextResponse.json(fighterTypes);
 
   } catch (error) {
     console.error('Error in GET fighter-types:', error);
@@ -513,8 +478,7 @@ export async function PATCH(request: Request) {
         gang_type_id: data.gang_type_id,
         edition_id: gangType.edition_id ?? null,
         fighter_subtypes: Array.isArray(data.fighter_subtypes) ? data.fighter_subtypes : [],
-        fighter_specialisation_id: data.fighter_specialisation_id,
-        fighter_specialisation: data.fighter_specialisation,
+        fighter_variant: data.fighter_variant ?? null,
         movement: data.movement,
         weapon_skill: data.weapon_skill,
         ballistic_skill: data.ballistic_skill,
@@ -813,8 +777,7 @@ export async function POST(request: Request) {
         gang_type: gangType.gang_type,
         edition_id: gangType.edition_id ?? null,
         fighter_subtypes: Array.isArray(data.fighterSubtypes) ? data.fighterSubtypes : [],
-        fighter_specialisation_id: data.fighterSpecialisationId,
-        fighter_specialisation: data.fighterSpecialisation,
+        fighter_variant: data.fighterVariant ?? null,
         cost: data.baseCost,
         movement: data.movement,
         weapon_skill: data.weapon_skill,

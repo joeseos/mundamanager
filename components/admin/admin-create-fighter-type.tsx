@@ -93,7 +93,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   const [selectedAdjustedCostEquipment, setSelectedAdjustedCostEquipment] = useState('');
   const [adjustedCostAmount, setAdjustedCostAmount] = useState('');
   const [showAdjustedCostDialog, setShowAdjustedCostDialog] = useState(false);
-  const [specialisationName, setSpecialisationName] = useState('');
+  const [variantName, setVariantName] = useState('');
 
   
 
@@ -328,56 +328,12 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
 
     setIsLoading(true);
     try {
-      // Handle specialisation if provided
-      let specialisationId = null;
-      if (specialisationName.trim()) {
-        try {
-          // First, check if a specialisation with this name (case insensitive) already exists
-          const checkResponse = await fetch('/api/admin/fighter-specialisations');
-          if (!checkResponse.ok) throw new Error('Failed to fetch specialisations');
-          
-          const existingSpecialisations = await checkResponse.json();
-          const matchingSpecialisation = existingSpecialisations.find(
-            (st: any) => st.specialisation_name.toLowerCase() === specialisationName.trim().toLowerCase()
-          );
-          
-          if (matchingSpecialisation) {
-            // Use existing specialisation
-            specialisationId = matchingSpecialisation.id;
-            
-            // Show toast notification
-            toast.success(`Using existing specialisation "${matchingSpecialisation.specialisation_name}" instead of creating a duplicate`);
-          } else {
-            // Create new specialisation with proper capitalization
-            const formattedName = specialisationName.trim().charAt(0).toUpperCase() + specialisationName.trim().slice(1);
-            
-            const specialisationResponse = await fetch('/api/admin/fighter-specialisations', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ specialisation_name: formattedName }),
-            });
-            
-            if (!specialisationResponse.ok) throw new Error('Failed to create fighter specialisation');
-            
-            const newSpecialisation = await specialisationResponse.json();
-            specialisationId = newSpecialisation.id;
-          }
-        } catch (error) {
-          console.error('Error handling specialisation:', error);
-          toast.error('Failed to process fighter specialisation');
-          return false;
-        }
-      }
-
       const requestData = {
         fighterType,
         baseCost: parseInt(baseCost),
         gangTypeId: selectedGangType,
         fighterSubtypes: selectedFighterSubtypes,
-        fighterSpecialisationId: specialisationId,
-        fighterSpecialisation: specialisationName.trim() || null,
+        fighterVariant: variantName.trim() || null,
         movement: movement ? parseInt(movement) : null,
         weapon_skill: weaponSkill ? parseInt(weaponSkill) : null,
         ballistic_skill: ballisticSkill ? parseInt(ballisticSkill) : null,
@@ -546,13 +502,13 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
               <div className="md:col-span-1">
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Fighter Specialisation
+                  Fighter Variant
                 </label>
                 <Input
                   type="text"
-                  value={specialisationName}
-                  onChange={(e) => setSpecialisationName(e.target.value)}
-                  placeholder="e.g. Subjugator (leave blank to use the Default specialisation)"
+                  value={variantName}
+                  onChange={(e) => setVariantName(e.target.value)}
+                  placeholder="e.g. Bonecrusher (leave blank for the default)"
                   className="w-full"
                 />
               </div>
