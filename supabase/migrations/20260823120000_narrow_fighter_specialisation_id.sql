@@ -3,12 +3,16 @@
 -- Follow-up to 20260821100000_add_fighter_variant.sql, which added fighter_variant and
 -- backfilled it but left fighter_specialisation_id holding every value it had.
 --
--- This is a prerequisite for the fighter_variant application changes, not optional tidying.
+-- Run this AFTER the fighter_variant application changes are deployed, not before.
+--
 -- The application reads both columns as they are and does not compensate for the leftovers,
--- so while a variant id is still sitting in fighter_specialisation_id a variant fighter
--- renders its label twice ("Bonecrusher, Bonecrusher"). Run this at or just before the
--- deploy; running it first shows those fighters with no variant until the deploy lands,
--- which is the gentler of the two windows.
+-- so between the deploy and this migration a variant fighter renders its label twice
+-- ("Bonecrusher, Bonecrusher"). That is cosmetic and lasts only until this runs.
+--
+-- Running it first instead would lose data: the pre-deploy build writes
+-- fighter_specialisation_id from the type row and never writes fighter_variant, so once
+-- this migration has nulled the variant type rows, anything recruited before the deploy
+-- lands gets neither column. Step 1 below repairs that if it happens.
 
 -- The eight real specialisations (utils/keepTypePromotionN26.ts). Every other row in
 -- fighter_specialisations is a variant label.
