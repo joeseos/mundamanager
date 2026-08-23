@@ -524,9 +524,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       fighterInsertData.fighter_specialisation_id = null;
     } else {
       fighterInsertData.fighter_type_id = params.fighter_type_id;
-      // A variant row's specialisation_id is a leftover variant label, not a specialisation.
-      fighterInsertData.fighter_specialisation_id =
-        fighterTypeData.fighter_variant ? null : fighterTypeData.fighter_specialisation_id;
+      fighterInsertData.fighter_specialisation_id = fighterTypeData.fighter_specialisation_id;
       fighterInsertData.custom_fighter_type_id = null;
     }
 

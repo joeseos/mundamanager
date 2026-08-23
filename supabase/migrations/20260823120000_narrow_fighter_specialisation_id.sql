@@ -1,12 +1,14 @@
 -- Narrow fighter_specialisation_id to mean only "specialisation".
 --
 -- Follow-up to 20260821100000_add_fighter_variant.sql, which added fighter_variant and
--- backfilled it but left fighter_specialisation_id holding every value it had. The
--- application no longer reads a variant out of that column, so the leftovers can go.
+-- backfilled it but left fighter_specialisation_id holding every value it had.
 --
--- Run this only after the fighter_variant application changes are deployed. Until then
--- fighter_types.fighter_variant is what the app reads, and this migration is what stops
--- the two columns disagreeing.
+-- This is a prerequisite for the fighter_variant application changes, not optional tidying.
+-- The application reads both columns as they are and does not compensate for the leftovers,
+-- so while a variant id is still sitting in fighter_specialisation_id a variant fighter
+-- renders its label twice ("Bonecrusher, Bonecrusher"). Run this at or just before the
+-- deploy; running it first shows those fighters with no variant until the deploy lands,
+-- which is the gentler of the two windows.
 
 -- The eight real specialisations (utils/keepTypePromotionN26.ts). Every other row in
 -- fighter_specialisations is a variant label.

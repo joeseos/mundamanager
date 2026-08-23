@@ -1447,9 +1447,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
 
       updateData.fighter_variant = typeRow?.fighter_variant ?? null;
       if (params.fighter_specialisation_id === undefined) {
-        // A variant row's specialisation_id is a leftover variant label, not a specialisation.
-        updateData.fighter_specialisation_id =
-          typeRow?.fighter_variant ? null : typeRow?.fighter_specialisation_id ?? null;
+        updateData.fighter_specialisation_id = typeRow?.fighter_specialisation_id ?? null;
       }
     }
     if (params.note !== undefined) updateData.note = params.note;
