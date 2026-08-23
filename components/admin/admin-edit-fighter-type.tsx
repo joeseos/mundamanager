@@ -161,6 +161,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
   // Add a new state variable to track the specialisation name
   const [variantName, setVariantName] = useState('');
+  const [specialisationCatalogId, setSpecialisationCatalogId] = useState('');
 
   // Add new state for gang-specific costs
   const [showGangCostDialog, setShowGangCostDialog] = useState(false);
@@ -573,6 +574,17 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     fetchSelectedSkillDetails();
   }, [selectedSkills, selectedFighterTypeId]);
 
+  const { data: fighterSpecialisations = [] } = useQuery<Specialisation[]>({
+    queryKey: ['admin-fighter-specialisations'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/fighter-specialisations');
+      if (!response.ok) throw new Error('Failed to fetch fighter specialisations');
+      return response.json();
+    },
+    enabled: !!selectedFighterTypeId,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const fetchFighterTypeDetails = async (fighterId: string) => {
     if (!fighterId) return;
     
@@ -645,6 +657,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
       setVariantName(data.fighter_variant || '');
       if (variantNameInputRef.current) variantNameInputRef.current.value = data.fighter_variant || '';
+      setSpecialisationCatalogId(data.fighter_specialisation_id || '');
 
       // Set equipment selection
       if (data.equipment_selection) {
@@ -685,6 +698,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     setSelectedSpecialisationId('');
     setAvailableSpecialisations([]);
     setVariantName('');
+    setSpecialisationCatalogId('');
     
     // Clear the specialisation input field directly
     if (variantNameInputRef.current) {
@@ -714,11 +728,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       
       console.log(`Found ${matchingFighters.length} fighters matching ${fighterType} (${fighterSubtype})`);
       
-      // One option per row; the variant name lives on the row itself.
+      // A row is labelled by its variant, its specialisation, or neither.
       const specialisationOptions: FighterSpecialisation[] = matchingFighters
         .map(f => ({
           id: f.id,
-          specialisation_name: f.fighter_variant || 'Default',
+          specialisation_name: f.fighter_variant || f.fighter_specialisation || 'Default',
           fighterId: f.id,
         }))
         .sort((a, b) =>
@@ -940,6 +954,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         gang_type_id: fighterToUpdate.gang_type_id,
         fighter_subtypes: selectedFighterSubtypes,
         fighter_variant: finalVariantName,
+        fighter_specialisation_id: specialisationCatalogId || null,
         movement: parseInt(movement),
         weapon_skill: parseInt(weaponSkill),
         ballistic_skill: parseInt(ballisticSkill),
@@ -1322,7 +1337,31 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                     disabled={!selectedSpecialisationId}
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Leave blank for the family's default row.
+                    Leave blank for the family&apos;s default row.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    Fighter Specialisation
+                  </label>
+                  <select
+                    value={specialisationCatalogId}
+                    onChange={(e) => setSpecialisationCatalogId(e.target.value)}
+                    className="w-full p-2 border rounded-md"
+                    disabled={!selectedSpecialisationId}
+                  >
+                    <option value="">None</option>
+                    {fighterSpecialisations.map((specialisation) => (
+                      <option key={specialisation.id} value={specialisation.id}>
+                        {specialisation.specialisation_name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    The Specialist pick (Heavy, Gunner, …). Separate from the variant.
                   </p>
                 </div>
               </div>

@@ -37,6 +37,7 @@ interface FighterType {
   edition_id?: string | null;
   fighter_subtypes?: string[];
   fighter_variant?: string | null;
+  fighter_specialisation?: string | null;
 }
 
 interface GangType {
@@ -382,9 +383,9 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
       displayName += ` (${subtypeDisplay})`;
     }
     
-    // Add variant with dash if it exists
-    if (fighterType.fighter_variant) {
-      displayName += ` - ${fighterType.fighter_variant}`;
+    // Add variant and specialisation with a dash if they exist
+    for (const name of [fighterType.fighter_variant, fighterType.fighter_specialisation]) {
+      if (name) displayName += ` - ${name}`;
     }
     
     return displayName;

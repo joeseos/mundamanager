@@ -1435,8 +1435,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (params.fighter_specialisation !== undefined) updateData.fighter_specialisation = params.fighter_specialisation;
     if (params.fighter_specialisation_id !== undefined) updateData.fighter_specialisation_id = params.fighter_specialisation_id;
 
-    // The variant follows the type; the specialisation follows the fighter, so an explicit
-    // one from the caller (promotion) wins over the type row's.
+    // An explicit specialisation from the caller wins over the type row's.
     if (params.fighter_type_id !== undefined || params.custom_fighter_type_id !== undefined) {
       const { data: typeRow } = params.fighter_type_id
         ? await supabase
@@ -1447,10 +1446,10 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
         : { data: null };
 
       updateData.fighter_variant = typeRow?.fighter_variant ?? null;
-      // Only a non-variant row carries a specialisation; moving between variants leaves the
-      // fighter's own pick (e.g. a promotion) alone.
-      if (params.fighter_specialisation_id === undefined && !typeRow?.fighter_variant) {
-        updateData.fighter_specialisation_id = typeRow?.fighter_specialisation_id ?? null;
+      if (params.fighter_specialisation_id === undefined) {
+        // A variant row's specialisation_id is a leftover variant label, not a specialisation.
+        updateData.fighter_specialisation_id =
+          typeRow?.fighter_variant ? null : typeRow?.fighter_specialisation_id ?? null;
       }
     }
     if (params.note !== undefined) updateData.note = params.note;

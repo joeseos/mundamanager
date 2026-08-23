@@ -330,7 +330,10 @@ export async function GET(request: Request) {
                 gang_type,
                 fighter_subtypes,
                 fighter_variant,
-                edition_id
+                edition_id,
+                fighter_specialisations(
+                  specialisation_name
+                )
               `)
               .order('gang_type')
               .order('fighter_type')

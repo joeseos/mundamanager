@@ -94,6 +94,17 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   const [adjustedCostAmount, setAdjustedCostAmount] = useState('');
   const [showAdjustedCostDialog, setShowAdjustedCostDialog] = useState(false);
   const [variantName, setVariantName] = useState('');
+  const [specialisationCatalogId, setSpecialisationCatalogId] = useState('');
+
+  const { data: fighterSpecialisations = [] } = useQuery<Array<{ id: string; specialisation_name: string }>>({
+    queryKey: ['admin-fighter-specialisations'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/fighter-specialisations');
+      if (!response.ok) throw new Error('Failed to fetch fighter specialisations');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
   
 
@@ -334,6 +345,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         gangTypeId: selectedGangType,
         fighterSubtypes: selectedFighterSubtypes,
         fighterVariant: variantName.trim() || null,
+        fighterSpecialisationId: specialisationCatalogId || null,
         movement: movement ? parseInt(movement) : null,
         weapon_skill: weaponSkill ? parseInt(weaponSkill) : null,
         ballistic_skill: ballisticSkill ? parseInt(ballisticSkill) : null,
@@ -511,6 +523,24 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                   placeholder="e.g. Bonecrusher (leave blank for the default)"
                   className="w-full"
                 />
+              </div>
+
+              <div className="md:col-span-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
+                  Fighter Specialisation
+                </label>
+                <select
+                  value={specialisationCatalogId}
+                  onChange={(e) => setSpecialisationCatalogId(e.target.value)}
+                  className="w-full p-2 border rounded-md"
+                >
+                  <option value="">None</option>
+                  {fighterSpecialisations.map((specialisation) => (
+                    <option key={specialisation.id} value={specialisation.id}>
+                      {specialisation.specialisation_name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="md:col-span-1">
