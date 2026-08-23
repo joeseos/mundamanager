@@ -182,16 +182,17 @@ export async function calculateFighterCredits(fighter_id: string): Promise<numbe
     
     const { data: fighter, error } = await supabase
       .from('fighters')
+      // Left joins: !inner dropped the row unless the fighter had all four relations
       .select(`
         credits,
         cost_adjustment,
-        fighter_equipment!inner(purchase_cost),
-        fighter_skills!inner(credits_increase),
-        fighter_effects!inner(type_specific_data),
-        vehicles!inner(cost, fighter_equipment!inner(purchase_cost))
+        fighter_equipment(purchase_cost),
+        fighter_skills(credits_increase),
+        fighter_effects(type_specific_data),
+        vehicles(cost, fighter_equipment(purchase_cost))
       `)
       .eq('id', fighter_id)
-      .single();
+      .maybeSingle();
 
     if (error || !fighter) {
       console.error('Error fetching fighter data for credit calculation:', error);
