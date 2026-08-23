@@ -157,7 +157,8 @@ function withVariantGroups(rows: any[]) {
     return {
       ...row,
       typeSubtypeKey: `${familyBucket(row)}::${base.key}`,
-      variantLabel: row.specialisation?.specialisation_name || added.join(', ') || 'Default',
+      variantLabel:
+        row.fighter_variant || row.specialisation?.specialisation_name || added.join(', ') || 'Default',
     };
   });
 }

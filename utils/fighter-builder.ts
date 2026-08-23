@@ -84,7 +84,8 @@ export interface AddFighterServerData {
   fighter_name: string;
   fighter_type: string;
   fighter_subtypes?: string[];
-  fighter_specialisation_id?: string;
+  fighter_specialisation_id?: string | null;
+  fighter_variant?: string | null;
   free_skill: boolean;
   rating_cost?: number;
   cost: number;
@@ -264,6 +265,7 @@ export function buildFighterFromServerData(
       fighter_specialisation_id: data.fighter_specialisation_id,
       fighter_specialisation: specialisationName || ''
     } : undefined,
+    fighter_variant: data.fighter_variant ?? null,
     credits: displayCost,
     movement: data.base_stats.movement,
     weapon_skill: data.base_stats.weapon_skill,
