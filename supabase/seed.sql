@@ -122,15 +122,15 @@ ON CONFLICT (id) DO NOTHING;
 -- ============================================================================
 -- 8. SKILLS REFERENCE DATA
 -- ============================================================================
-INSERT INTO public.skills (id, name, skill_type_id, xp_cost, credit_cost, created_at) VALUES
-('a1111111-1111-1111-1111-111111111111', 'Nerves of Steel', '9d1eeed9-02e3-4dd4-a0ab-39639805bca0', 9, 35, now()),
-('b2222222-2222-2222-2222-222222222222', 'Iron Jaw', '9d1eeed9-02e3-4dd4-a0ab-39639805bca0', 9, 35, now()),
-('c3333333-3333-3333-3333-333333333333', 'Sprint', '5e9c5a63-9962-4ab6-9f04-453717130c48', 9, 35, now()),
-('d4444444-4444-4444-4444-444444444444', 'Dodge', '5e9c5a63-9962-4ab6-9f04-453717130c48', 9, 35, now()),
--- Default skills of Arbelesta Raen Catallus (no xp/credit cost: granted, not bought)
-('9518eb83-c10c-4f1b-a7dc-3f0351209ae3', 'Precision Shot', '419983ce-5fb1-4ad3-a68b-ccce33b7275f', null, null, now()),
-('43095380-4e72-4fea-8741-16ab4b21a69b', 'Trick Shot', '419983ce-5fb1-4ad3-a68b-ccce33b7275f', null, null, now()),
-('9a7d31f4-00a5-444d-ae04-0a060ee1359b', 'Infiltrate', '7341bb7b-f1e4-40bf-a605-2cb33c213c7c', null, null, now())
+INSERT INTO public.skills (id, name, skill_type_id, created_at) VALUES
+('a1111111-1111-1111-1111-111111111111', 'Nerves of Steel', '9d1eeed9-02e3-4dd4-a0ab-39639805bca0', now()),
+('b2222222-2222-2222-2222-222222222222', 'Iron Jaw', '9d1eeed9-02e3-4dd4-a0ab-39639805bca0', now()),
+('c3333333-3333-3333-3333-333333333333', 'Sprint', '5e9c5a63-9962-4ab6-9f04-453717130c48', now()),
+('d4444444-4444-4444-4444-444444444444', 'Dodge', '5e9c5a63-9962-4ab6-9f04-453717130c48', now()),
+-- Default skills of Arbelesta Raen Catallus (granted, not bought)
+('9518eb83-c10c-4f1b-a7dc-3f0351209ae3', 'Precision Shot', '419983ce-5fb1-4ad3-a68b-ccce33b7275f', now()),
+('43095380-4e72-4fea-8741-16ab4b21a69b', 'Trick Shot', '419983ce-5fb1-4ad3-a68b-ccce33b7275f', now()),
+('9a7d31f4-00a5-444d-ae04-0a060ee1359b', 'Infiltrate', '7341bb7b-f1e4-40bf-a605-2cb33c213c7c', now())
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
