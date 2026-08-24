@@ -1,6 +1,6 @@
 'use server'
 
-import { TAGS, invalidateGang, invalidateFighter, invalidateGangStash, invalidateGangFinancials, invalidateUser } from '@/utils/cache-tags';
+import { TAGS, invalidateGang, invalidateFighter, invalidateGangStash, invalidateGangFinancials } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
 
@@ -364,10 +364,6 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
     invalidateGangStash(gangId);
     invalidateGang(gangId);
 
-    // Home page gangs list cache (server-side, user-scoped)
-    if (gangOwnerUserId) {
-      invalidateUser(gangOwnerUserId);
-    }
 
     return {
       success: true,

@@ -1,6 +1,6 @@
 'use server'
 
-import { invalidateGang, invalidateFighter, invalidateGangCampaignMembership, invalidateGangStash, invalidateGangFinancials, invalidateUser } from '@/utils/cache-tags';
+import { invalidateGang, invalidateFighter, invalidateGangCampaignMembership, invalidateGangStash, invalidateGangFinancials } from '@/utils/cache-tags';
 import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
 
 import { updateGangFinancials, updateGangRatingSimple } from '@/utils/gang-rating-and-wealth';
@@ -867,8 +867,6 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
 
     const newGangTradePoints = financialResult.newValues?.trade_points;
 
-    // Home page gangs list cache (server-side, user-scoped)
-    invalidateUser(gang.user_id);
 
     // Log equipment actions AFTER gang rating is updated (so logs show correct rating)
     try {
@@ -1288,19 +1286,6 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
       await updateGangRatingSimple(supabase, params.gang_id, ratingDelta);
     }
 
-    // Home page gangs list cache (server-side, user-scoped)
-    try {
-      const { data: gangOwner } = await supabase
-        .from('gangs')
-        .select('user_id')
-        .eq('id', params.gang_id)
-        .single();
-
-      if (gangOwner?.user_id) {
-        invalidateUser(gangOwner.user_id);
-      }
-    } catch {}
-
     // Get fresh fighter total cost after deletion for accurate response
     let freshFighterTotalCost = null;
     try {
@@ -1594,16 +1579,6 @@ export async function applySelfUpgradesToEquipment(params: {
       }
     }
 
-    // Home page gangs list cache (server-side, user-scoped)
-    try {
-      const { data: fighterOwner } = await supabase
-        .from('fighters')
-        .select('user_id')
-        .eq('id', params.fighter_id)
-        .single();
-      if (fighterOwner?.user_id) invalidateUser(fighterOwner.user_id);
-    } catch {}
-
     // Invalidate caches once at the end
     try {
       invalidateFighter(params.fighter_id, params.gang_id);
@@ -1679,16 +1654,6 @@ export async function deleteEquipmentEffect(
         console.error('Failed to update gang rating/wealth:', e);
       }
     }
-
-    // Home page gangs list cache (server-side, user-scoped)
-    try {
-      const { data: fighterOwner } = await supabase
-        .from('fighters')
-        .select('user_id')
-        .eq('id', params.fighter_id)
-        .single();
-      if (fighterOwner?.user_id) invalidateUser(fighterOwner.user_id);
-    } catch {}
 
     // Invalidate caches
     try {

@@ -1,6 +1,6 @@
 'use server'
 
-import { TAGS, invalidateGang, invalidateFighter, invalidateGangCampaignMembership, invalidateGangStash, invalidateGangFinancials, invalidateUser } from '@/utils/cache-tags';
+import { TAGS, invalidateGang, invalidateFighter, invalidateGangCampaignMembership, invalidateGangStash, invalidateGangFinancials } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
 
@@ -346,10 +346,6 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       invalidateGang(gangId);
     }
 
-    // Home page gangs list cache (server-side, user-scoped)
-    if (gangOwnerUserId) {
-      invalidateUser(gangOwnerUserId);
-    }
 
     return {
       success: true,
@@ -467,16 +463,6 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
     // Invalidate stash cache so UI refreshes
     invalidateGangStash(row.gang_id);
     invalidateGang(row.gang_id);
-
-    // Home page gangs list cache (server-side, user-scoped)
-    try {
-      const { data: gangOwner } = await supabase
-        .from('gangs')
-        .select('user_id')
-        .eq('id', row.gang_id)
-        .single();
-      if (gangOwner?.user_id) invalidateUser(gangOwner.user_id);
-    } catch {}
 
     return { success: true, data: { gang: { id: updatedGang.id, credits: updatedGang.credits, wealth: updatedGang.wealth } } };
   } catch (e) {

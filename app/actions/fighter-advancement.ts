@@ -1,6 +1,6 @@
 'use server';
 
-import { TAGS, invalidateFighter, invalidateGangFinancials, invalidateUser } from '@/utils/cache-tags';
+import { TAGS, invalidateFighter, invalidateGangFinancials } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 
 import { getAuthenticatedUser } from '@/utils/auth';
@@ -347,8 +347,6 @@ export async function addCharacteristicAdvancement(
     // Invalidate fighter cache
     invalidateFighter(params.fighter_id, fighter.gang_id);
 
-    // Home page gangs list cache (server-side, user-scoped)
-    invalidateUser(fighter.user_id);
     
     // If this is a beast fighter, also invalidate owner's cache
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
@@ -610,8 +608,6 @@ async function addSkillAdvancementInternal(
         invalidateGangFinancials(fighter.gang_id);
       }
 
-      // Home page gangs list cache (server-side, user-scoped)
-      invalidateUser(fighter.user_id);
     }
 
     // Invalidate fighter cache
@@ -1599,8 +1595,6 @@ export async function deleteAdvancement(
         }
       }
 
-      // Home page gangs list cache (server-side, user-scoped)
-      invalidateUser(fighter.user_id);
     }
 
     // Invalidate fighter cache
@@ -1851,8 +1845,6 @@ export async function addPowerBoost(
         return { success: false, error: 'Failed to update gang rating/wealth: ' + result.error };
       }
 
-      // Home page gangs list cache (server-side, user-scoped)
-      invalidateUser(fighter.user_id);
     }
 
     // Invalidate fighter cache
@@ -1982,8 +1974,6 @@ export async function deletePowerBoost(
         return { success: false, error: 'Failed to update gang rating/wealth: ' + result.error };
       }
 
-      // Home page gangs list cache (server-side, user-scoped)
-      invalidateUser(fighter.user_id);
     }
 
     // Invalidate fighter cache

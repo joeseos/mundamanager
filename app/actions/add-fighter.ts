@@ -1,6 +1,6 @@
 'use server'
 
-import { invalidateFighter, invalidateUser } from '@/utils/cache-tags';
+import { invalidateFighter } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
 
@@ -1188,10 +1188,6 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
 
     // Use granular cache invalidation for fighter addition
     invalidateFighter(fighterId, params.gang_id);
-    invalidateUser(effectiveUserId);
-
-    // Home page gangs list cache (server-side, user-scoped)
-    invalidateUser(gangData.user_id);
 
     // Log fighter addition
     try {
