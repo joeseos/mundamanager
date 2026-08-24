@@ -1,8 +1,9 @@
 'use server'
 
+import { invalidateFighter } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
-import { invalidateFighterAddition, invalidateUserGangsList } from '@/utils/cache-tags';
+
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
 import { grantSkillsForEffects } from './equipment';
@@ -175,7 +176,6 @@ interface AddFighterResult {
   /** Set when the fighter was created but archetype skill-access overrides failed */
   warning?: string;
 }
-
 
 async function applyEffectsForEquipmentOptimized(
   supabase: any,
@@ -1187,14 +1187,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     }
 
     // Use granular cache invalidation for fighter addition
-    invalidateFighterAddition({
-      fighterId: fighterId,
-      gangId: params.gang_id,
-      userId: effectiveUserId
-    });
-
-    // Home page gangs list cache (server-side, user-scoped)
-    invalidateUserGangsList(gangData.user_id);
+    invalidateFighter(fighterId, params.gang_id);
 
     // Log fighter addition
     try {

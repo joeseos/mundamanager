@@ -1,11 +1,11 @@
 'use server'
 
+import { invalidateGang, invalidateFighter, invalidateGangFinancials } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { invalidateVehicleEffects, invalidateGangFinancials, CACHE_TAGS } from '@/utils/cache-tags';
+
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { countsTowardRating } from '@/utils/fighter-status';
-import { revalidateTag } from 'next/cache';
 import { SupabaseClient } from '@supabase/supabase-js';
 
 // ============================================================================
@@ -108,7 +108,7 @@ export async function fitWeaponToHardpoint(
     }
 
     // --- Invalidate ---
-    invalidateVehicleEffects(vehicle.fighter_id || undefined, params.gangId);
+    invalidateGang(params.gangId); if (vehicle.fighter_id || undefined) invalidateFighter(vehicle.fighter_id || undefined, params.gangId);
 
     return { success: true };
   } catch (error) {
@@ -242,9 +242,9 @@ export async function updateVehicleHardpoint(
     }
 
     // --- Invalidate ---
-    invalidateVehicleEffects(vehicle.fighter_id || undefined, params.gangId);
+    invalidateGang(params.gangId); if (vehicle.fighter_id || undefined) invalidateFighter(vehicle.fighter_id || undefined, params.gangId);
     if (delta !== 0) invalidateGangFinancials(params.gangId);
-    revalidateTag(CACHE_TAGS.BASE_GANG_VEHICLES(params.gangId), { expire: 0 });
+    invalidateGang(params.gangId);
 
     return {
       success: true,

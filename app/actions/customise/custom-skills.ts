@@ -1,10 +1,10 @@
 'use server';
 
+import { invalidateFighter, invalidateUserCustoms } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from '@/utils/auth';
 import { getEditionIdBySlug } from '@/app/lib/editions';
 import { withEditionSlug } from '@/types/edition';
-import { invalidateFighterAdvancement, invalidateUserCustomSkills, invalidateUserCustomCollections } from "@/utils/cache-tags";
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
 import { removeItemFromAllCollections } from './custom-collections';
 
@@ -64,7 +64,7 @@ export async function createCustomSkill(data: {
     throw new Error(`Failed to create skill: ${error.message}`);
   }
 
-  invalidateUserCustomSkills(user.id);
+  invalidateUserCustoms(user.id);
 
   return {
     ...newSkill,
@@ -151,8 +151,7 @@ export async function updateCustomSkill(
     throw new Error(`Failed to update skill: ${error.message}`);
   }
 
-  invalidateUserCustomSkills(user.id);
-  invalidateUserCustomCollections(user.id);
+  invalidateUserCustoms(user.id);
 
   if (prev?.custom_skill_type_id && prev.custom_skill_type_id !== (data as any).custom_skill_type_id) {
     await deleteSkillTypeIfEmpty(supabase, user.id, prev.custom_skill_type_id);
@@ -160,11 +159,7 @@ export async function updateCustomSkill(
 
   if (affectedFighters && affectedFighters.length > 0) {
     for (const row of affectedFighters) {
-      invalidateFighterAdvancement({
-        fighterId: row.fighter_id,
-        gangId: (row.fighters as any).gang_id,
-        advancementType: 'skill'
-      });
+      invalidateFighter(row.fighter_id, (row.fighters as any).gang_id);
     }
   }
 
@@ -197,7 +192,7 @@ export async function createCustomSkillType(data: {
     throw new Error(`Failed to create skill set: ${error.message}`);
   }
 
-  invalidateUserCustomSkills(user.id);
+  invalidateUserCustoms(user.id);
 
   return withEditionSlug(newType);
 }
@@ -250,16 +245,11 @@ export async function updateCustomSkillType(
     throw new Error(`Failed to update skill set: ${error.message}`);
   }
 
-  invalidateUserCustomSkills(user.id);
-  invalidateUserCustomCollections(user.id);
+  invalidateUserCustoms(user.id);
 
   if (affectedFighters && affectedFighters.length > 0) {
     for (const row of affectedFighters) {
-      invalidateFighterAdvancement({
-        fighterId: row.fighter_id,
-        gangId: (row.fighters as any).gang_id,
-        advancementType: 'skill'
-      });
+      invalidateFighter(row.fighter_id, (row.fighters as any).gang_id);
     }
   }
 
@@ -303,15 +293,10 @@ export async function deleteCustomSkillType(skillTypeId: string) {
     await removeItemFromAllCollections(supabase, user.id, skillIds.map(id => ({ type: 'skill' as const, id })));
   }
 
-  invalidateUserCustomSkills(user.id);
-  invalidateUserCustomCollections(user.id);
+  invalidateUserCustoms(user.id);
 
   for (const row of affectedFighters) {
-    invalidateFighterAdvancement({
-      fighterId: row.fighter_id,
-      gangId: (row.fighters as any).gang_id,
-      advancementType: 'skill'
-    });
+    invalidateFighter(row.fighter_id, (row.fighters as any).gang_id);
   }
 
   return { success: true };
@@ -344,16 +329,11 @@ export async function deleteCustomSkill(skillId: string) {
 
   await deleteSkillTypeIfEmpty(supabase, user.id, deleted?.custom_skill_type_id);
 
-  invalidateUserCustomSkills(user.id);
-  invalidateUserCustomCollections(user.id);
+  invalidateUserCustoms(user.id);
 
   if (affectedFighters && affectedFighters.length > 0) {
     for (const row of affectedFighters) {
-      invalidateFighterAdvancement({
-        fighterId: row.fighter_id,
-        gangId: (row.fighters as any).gang_id,
-        advancementType: 'skill'
-      });
+      invalidateFighter(row.fighter_id, (row.fighters as any).gang_id);
     }
   }
 

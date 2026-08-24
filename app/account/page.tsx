@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
+import { getUserProfile } from "@/app/lib/shared/gang-data";
 import { redirect } from "next/navigation";
 import PasswordChange from "@/components/password-change";
 import EmailChange from "@/components/account/email-change";
@@ -20,16 +21,11 @@ export default async function AccountPage() {
     redirect(signInPath("/account"));
   }
 
-  // Fetch profile data
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('username, patreon_tier_id, patreon_tier_title, patron_status')
-    .eq('id', user.id)
-    .single();
-
-  if (error) {
+  // Fetch profile data via the cached entry (user-{id})
+  const profile = await getUserProfile(user.id, supabase).catch((error) => {
     console.error('Error fetching profile:', error);
-  }
+    return null;
+  });
 
   // Fetch all friends and requests
   const friends = await getFriendsAndRequests(user.id, supabase);

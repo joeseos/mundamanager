@@ -1,7 +1,8 @@
 'use server';
 
+import { TAGS, invalidateFighter, invalidateGangFinancials } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
-import { invalidateFighterData, invalidateFighterAdvancement, CACHE_TAGS, invalidateGangCredits, invalidateUserGangsList } from '@/utils/cache-tags';
+
 import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidateTag } from 'next/cache';
 import { updateGangRatingSimple, updateGangFinancials } from '@/utils/gang-rating-and-wealth';
@@ -102,11 +103,11 @@ async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supa
 
   if (ownerData) {
     // Invalidate the owner's cache since their total cost changed
-    invalidateFighterData(ownerData.fighter_owner_id, gangId);
+    invalidateFighter(ownerData.fighter_owner_id, gangId);
 
     // Invalidate the owner's beast costs cache
     // Without this, the owner's cost calculation uses stale beast data
-    revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(ownerData.fighter_owner_id), { expire: 0 });
+    revalidateTag(TAGS.fighter(ownerData.fighter_owner_id), { expire: 0 });
   }
 }
 
@@ -344,10 +345,8 @@ export async function addCharacteristicAdvancement(
     }
 
     // Invalidate fighter cache
-    invalidateFighterData(params.fighter_id, fighter.gang_id);
+    invalidateFighter(params.fighter_id, fighter.gang_id);
 
-    // Home page gangs list cache (server-side, user-scoped)
-    invalidateUserGangsList(fighter.user_id);
     
     // If this is a beast fighter, also invalidate owner's cache
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
@@ -366,11 +365,7 @@ export async function addCharacteristicAdvancement(
     });
 
     // Invalidate cache for fighter advancement (effects for characteristic advancements)
-    invalidateFighterAdvancement({
-      fighterId: params.fighter_id,
-      gangId: fighter.gang_id,
-      advancementType: 'effect'
-    });
+    invalidateFighter(params.fighter_id, fighter.gang_id);
 
     // Get the created effect data for the response
     const { data: createdEffect, error: effectError } = await supabase
@@ -610,15 +605,13 @@ async function addSkillAdvancementInternal(
           financialsBefore = { rating: result.oldValues.rating, wealth: result.oldValues.wealth };
           financialsAfter = { rating: result.newValues.rating, wealth: result.newValues.wealth };
         }
-        invalidateGangCredits(fighter.gang_id);
+        invalidateGangFinancials(fighter.gang_id);
       }
 
-      // Home page gangs list cache (server-side, user-scoped)
-      invalidateUserGangsList(fighter.user_id);
     }
 
     // Invalidate fighter cache
-    invalidateFighterData(params.fighter_id, fighter.gang_id);
+    invalidateFighter(params.fighter_id, fighter.gang_id);
 
     // If this is a beast fighter, also invalidate owner's cache
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
@@ -659,19 +652,11 @@ async function addSkillAdvancementInternal(
     });
 
     // Invalidate cache for fighter advancement
-    invalidateFighterAdvancement({
-      fighterId: params.fighter_id,
-      gangId: fighter.gang_id,
-      advancementType: 'skill'
-    });
+    invalidateFighter(params.fighter_id, fighter.gang_id);
 
     // Also invalidate effect cache if skill-linked effects were created
     if (createdSkillEffects) {
-      invalidateFighterAdvancement({
-        fighterId: params.fighter_id,
-        gangId: fighter.gang_id,
-        advancementType: 'effect'
-      });
+      invalidateFighter(params.fighter_id, fighter.gang_id);
     }
 
     return {
@@ -1433,11 +1418,7 @@ export async function deleteAdvancement(
 
       // Invalidate effect cache if cascade-deleted linked effects
       if (hasLinkedEffects) {
-        invalidateFighterAdvancement({
-          fighterId: params.fighter_id,
-          gangId: fighter.gang_id,
-          advancementType: 'effect'
-        });
+        invalidateFighter(params.fighter_id, fighter.gang_id);
       }
 
       // Undo N26 promotion grants (subtypes; Leader undo does not restore previous type)
@@ -1606,7 +1587,7 @@ export async function deleteAdvancement(
           ratingDelta: countsTowardRating(fighter) ? ratingDelta : 0,
           creditsDelta: -ratingDelta // ratingDelta is negative, so -ratingDelta is positive (refund)
         });
-        invalidateGangCredits(fighter.gang_id);
+        invalidateGangFinancials(fighter.gang_id);
       } else {
         // Advancement skill or effect: only decrease rating (XP was the currency)
         if (countsTowardRating(fighter)) {
@@ -1614,16 +1595,13 @@ export async function deleteAdvancement(
         }
       }
 
-      // Home page gangs list cache (server-side, user-scoped)
-      invalidateUserGangsList(fighter.user_id);
     }
 
     // Invalidate fighter cache
-    invalidateFighterData(params.fighter_id, fighter.gang_id);
+    invalidateFighter(params.fighter_id, fighter.gang_id);
     
     // If this is a beast fighter, also invalidate owner's cache
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
-
 
     let advancementName = deletedSkillName ? deletedSkillName : deletedEffectName
     // Log the advancement deletion
@@ -1641,11 +1619,7 @@ export async function deleteAdvancement(
     });
 
     // Invalidate cache for fighter advancement
-    invalidateFighterAdvancement({
-      fighterId: params.fighter_id,
-      gangId: fighter.gang_id,
-      advancementType: params.advancement_type === 'skill' ? 'skill' : 'effect'
-    });
+    invalidateFighter(params.fighter_id, fighter.gang_id);
 
     return {
       success: true,
@@ -1871,22 +1845,16 @@ export async function addPowerBoost(
         return { success: false, error: 'Failed to update gang rating/wealth: ' + result.error };
       }
 
-      // Home page gangs list cache (server-side, user-scoped)
-      invalidateUserGangsList(fighter.user_id);
     }
 
     // Invalidate fighter cache
-    invalidateFighterData(params.fighter_id, fighter.gang_id);
+    invalidateFighter(params.fighter_id, fighter.gang_id);
 
     // If this is a beast fighter, also invalidate owner's cache
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
     // Invalidate cache for fighter advancement (effects for power boosts)
-    invalidateFighterAdvancement({
-      fighterId: params.fighter_id,
-      gangId: fighter.gang_id,
-      advancementType: 'effect'
-    });
+    invalidateFighter(params.fighter_id, fighter.gang_id);
 
     // Get the created effect data for the response
     const { data: createdEffect, error: effectError } = await supabase
@@ -2006,22 +1974,16 @@ export async function deletePowerBoost(
         return { success: false, error: 'Failed to update gang rating/wealth: ' + result.error };
       }
 
-      // Home page gangs list cache (server-side, user-scoped)
-      invalidateUserGangsList(fighter.user_id);
     }
 
     // Invalidate fighter cache
-    invalidateFighterData(params.fighter_id, fighter.gang_id);
+    invalidateFighter(params.fighter_id, fighter.gang_id);
 
     // If this is a beast fighter, also invalidate owner's cache
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
     // Invalidate cache for fighter advancement
-    invalidateFighterAdvancement({
-      fighterId: params.fighter_id,
-      gangId: fighter.gang_id,
-      advancementType: 'effect'
-    });
+    invalidateFighter(params.fighter_id, fighter.gang_id);
 
     return {
       success: true,

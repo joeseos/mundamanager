@@ -1,7 +1,7 @@
 import { revalidateTag } from 'next/cache';
 import { allowsMultipleSubtypes, editionSlugFromJoin, gangEditionSlug } from '@/types/edition';
 import { subtypeGrantsFromEffects } from '@/utils/effect-modifiers';
-import { CACHE_TAGS } from '@/utils/cache-tags';
+import { TAGS } from '@/utils/cache-tags';
 import type { TraitModificationData } from '@/types/fighter-effect';
 
 /**
@@ -132,5 +132,5 @@ export async function syncSubtypeGrants(
 
   // The equipment invalidations cover the gang list but not the fighter's own row,
   // which is where fighter_subtypes is read from. Only reached on a real change.
-  revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(fighterId), { expire: 0 });
+  revalidateTag(TAGS.fighter(fighterId), { expire: 0 });
 }

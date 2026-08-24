@@ -1,14 +1,8 @@
 'use server'
 
+import { invalidateGang, invalidateFighter, invalidateGangFinancials } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
-import { revalidateTag } from 'next/cache';
-import {
-  CACHE_TAGS,
-  invalidateFighterData,
-  invalidateGangCredits,
-  invalidateVehicleEffects,
-  invalidateVehicleRepair,
-} from '@/utils/cache-tags';
+
 import { getAuthenticatedUser } from '@/utils/auth';
 import { logVehicleAction } from './logs/vehicle-logs';
 import { updateGangRatingSimple, updateGangFinancials, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
@@ -24,7 +18,6 @@ interface RemoveVehicleDamageResult {
   error?: string;
 }
 type RepairCondition = "Almost like new" | "Quality repairs" | "Superficial Damage";
-
 
 interface RepairVehicleDamageParams {
   damageIds: string[];
@@ -116,7 +109,7 @@ export async function removeVehicleDamage(params: RemoveVehicleDamageParams): Pr
 
     // Invalidate cache for vehicle effects
     if (effectRow?.vehicle_id) {
-      invalidateVehicleEffects(params.fighterId, params.gangId);
+      invalidateGang(params.gangId); if (params.fighterId) invalidateFighter(params.fighterId, params.gangId);
     }
 
     return {
@@ -273,14 +266,8 @@ export async function repairVehicleDamage(params: RepairVehicleDamageParams): Pr
       console.error('Failed to log vehicle damage repair:', logError);
     }
 
-    // Fighter-scoped damages need the fighter effects tag, not BASE_FIGHTER_VEHICLES
-    if (params.vehicleId) {
-      invalidateVehicleRepair(params.fighterId, params.gangId);
-    } else {
-      invalidateFighterData(params.fighterId, params.gangId);
-      revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighterId), { expire: 0 });
-      invalidateGangCredits(params.gangId);
-    }
+    // Vehicle- and fighter-scoped damage both live in the fighter/gang bundle entries
+    invalidateFighter(params.fighterId, params.gangId); invalidateGangFinancials(params.gangId);
 
     return {
       success: true

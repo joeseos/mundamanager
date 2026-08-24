@@ -1,9 +1,8 @@
 'use server';
 
+import { invalidateCampaign } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { revalidateTag } from 'next/cache';
-import { CACHE_TAGS } from '@/utils/cache-tags';
 import { editionsConflict, editionSlugFromJoin } from '@/types/edition';
 
 /**
@@ -543,7 +542,7 @@ export async function shareCustomTradingPost(customTradingPostId: string, campai
     }
 
     for (const cid of campaignIds) {
-      revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(cid), { expire: 0 });
+      invalidateCampaign(cid);
     }
 
     const removedCampaignIds = oldCampaignIds.filter(id => !campaignIds.includes(id));
@@ -561,7 +560,7 @@ export async function shareCustomTradingPost(customTradingPostId: string, campai
             .from('campaigns')
             .update({ custom_trading_posts: updated })
             .eq('id', campaign.id);
-          revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaign.id), { expire: 0 });
+          invalidateCampaign(campaign.id);
         }
       }
     }
@@ -741,7 +740,7 @@ export async function shareCollection(collectionId: string, campaignIds: string[
           if (merged.length !== current.length) {
             await supabase.from('campaigns').update({ custom_trading_posts: merged }).eq('id', c.id);
           }
-          revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(c.id), { expire: 0 });
+          invalidateCampaign(c.id);
         }
       }
 
@@ -770,13 +769,13 @@ export async function shareCollection(collectionId: string, campaignIds: string[
           if (filtered.length !== current.length) {
             await supabase.from('campaigns').update({ custom_trading_posts: filtered }).eq('id', c.id);
           }
-          revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(c.id), { expire: 0 });
+          invalidateCampaign(c.id);
         }
       }
     }
 
     for (const cid of campaignIds) {
-      revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(cid), { expire: 0 });
+      invalidateCampaign(cid);
     }
     return { success: true };
   } catch (error) {

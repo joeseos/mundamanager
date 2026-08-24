@@ -2,7 +2,7 @@
 
 import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
 import { revalidateTag } from "next/cache";
-import { CACHE_TAGS } from "@/utils/cache-tags";
+import { invalidateCampaign, invalidateUser } from "@/utils/cache-tags";
 import { getAuthenticatedUser } from '@/utils/auth';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
 
@@ -138,9 +138,8 @@ export async function acceptJoinRequest(params: ResolveJoinRequestParams) {
     // caches and the requester's own campaign list. 'already_member'/'no_request'
     // touched no membership state.
     if (outcome === 'accepted') {
-      revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId), { expire: 0 });
-      revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId), { expire: 0 });
-      revalidateTag(CACHE_TAGS.USER_CAMPAIGNS(userId), { expire: 0 });
+      invalidateCampaign(campaignId);
+      invalidateUser(userId);
     }
 
     return { success: true };

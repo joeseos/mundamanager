@@ -1,5 +1,5 @@
+import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
-import { CACHE_TAGS } from "@/utils/cache-tags";
 import { editionSlugFromJoin, withEditionSlug } from "@/types/edition";
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -80,9 +80,9 @@ export async function getUserCustomSkills(userId: string, supabase: SupabaseClie
           ?? editionSlugFromJoin(skill.skill_types?.editions),
       }));
     },
-    [`user-custom-skills-${userId}`],
+    [`user-custom-skills-v3-${userId}`],
     {
-      tags: [CACHE_TAGS.USER_CUSTOM_SKILLS(userId)],
+      tags: [TAGS.customs(userId)],
       revalidate: false,
     }
   )();

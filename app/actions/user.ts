@@ -1,7 +1,7 @@
 "use server";
 
+import { invalidateUser } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
-import { invalidateUserProfile } from "@/utils/cache-tags";
 import {
   notificationEmailConfig,
   MASTER_PREF_KEY,
@@ -96,7 +96,7 @@ export const updateUsernameAction = async (userId: string, newUsername: string) 
       }
     }
 
-    invalidateUserProfile(userId);
+    invalidateUser(userId);
 
     return { success: "Username updated successfully" };
 

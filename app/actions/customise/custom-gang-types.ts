@@ -1,11 +1,11 @@
 'use server';
 
+import { invalidateUserCustoms } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { getEditionIdBySlug } from '@/app/lib/editions';
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
 import { removeItemFromAllCollections } from './custom-collections';
-import { invalidateUserCustomGangTypes, invalidateUserCustomFighters, invalidateUserCustomCollections } from '@/utils/cache-tags';
 import { getCustomGangTypeEditionFields } from './custom-gang-type-editions';
 
 export interface CustomGangTypeData {
@@ -65,7 +65,7 @@ export async function createCustomGangType(
       return { success: false, error: `Failed to create custom gang type: ${insertError.message}` };
     }
 
-    invalidateUserCustomGangTypes(user.id);
+    invalidateUserCustoms(user.id);
     return { success: true, data: newGangType };
   } catch (error) {
     console.error('Error in createCustomGangType:', error);
@@ -125,9 +125,7 @@ export async function updateCustomGangType(
       return { success: false, error: `Failed to update custom gang type: ${updateError.message}` };
     }
 
-    invalidateUserCustomGangTypes(user.id);
-    invalidateUserCustomFighters(user.id);
-    invalidateUserCustomCollections(user.id);
+    invalidateUserCustoms(user.id);
     return { success: true, data: updated };
   } catch (error) {
     console.error('Error in updateCustomGangType:', error);
@@ -171,9 +169,7 @@ export async function deleteCustomGangType(
 
     await removeItemFromAllCollections(supabase, user.id, [{ type: 'gang_type', id }]);
 
-    invalidateUserCustomGangTypes(user.id);
-    invalidateUserCustomFighters(user.id);
-    invalidateUserCustomCollections(user.id);
+    invalidateUserCustoms(user.id);
     return { success: true };
   } catch (error) {
     console.error('Error in deleteCustomGangType:', error);

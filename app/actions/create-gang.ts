@@ -1,7 +1,8 @@
 'use server'
 
+import { invalidateGang, invalidateUser, invalidateUserCustoms, invalidateGangCount } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
-import { invalidateGangCreation, invalidateGangCount, invalidateAllUserCustomContent } from '@/utils/cache-tags';
+
 import { getAuthenticatedUser } from '@/utils/auth';
 import { duplicateCustomGangType } from '@/utils/duplicate-custom-gang-type';
 
@@ -49,7 +50,7 @@ export async function createGang({
       if (cgt && cgt.user_id !== user.id) {
         const result = await duplicateCustomGangType(supabase, customGangTypeId, user.id);
         effectiveCustomGangTypeId = result.newCustomGangTypeId;
-        invalidateAllUserCustomContent(user.id);
+        invalidateUserCustoms(user.id);
       }
     }
 
@@ -82,10 +83,8 @@ export async function createGang({
     console.log('Gang created successfully, using granular cache invalidation');
     
     // Use granular gang creation invalidation
-    invalidateGangCreation({
-      gangId: data[0].id,
-      userId: user.id
-    });
+    invalidateGang(data[0].id);
+    invalidateUser(user.id);
     
     // Invalidate global gang count
     invalidateGangCount();

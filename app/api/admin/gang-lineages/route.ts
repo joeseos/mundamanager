@@ -1,6 +1,8 @@
+import { TAGS } from '@/utils/cache-tags';
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
+import { revalidateTag } from "next/cache";
 
 const VALID_TYPES = ['legacy', 'affiliation'] as const;
 type LineageType = typeof VALID_TYPES[number];
@@ -159,7 +161,7 @@ export async function GET(request: Request) {
 }
 
 // POST - Create new gang lineage (body.type determines table)
-export async function POST(request: Request) {
+async function _POST(request: Request) {
   const supabase = await createClient();
 
   try {
@@ -228,7 +230,7 @@ export async function POST(request: Request) {
 }
 
 // PATCH - Update gang lineage; requires query param type for current table; body.type may differ (move)
-export async function PATCH(request: Request) {
+async function _PATCH(request: Request) {
   const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
@@ -383,7 +385,7 @@ export async function PATCH(request: Request) {
 }
 
 // DELETE - Delete gang lineage (requires type)
-export async function DELETE(request: Request) {
+async function _DELETE(request: Request) {
   const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
@@ -453,3 +455,22 @@ export async function DELETE(request: Request) {
     );
   }
 }
+
+// Admin edits change global reference data that is cached app-wide; fire the
+// matching tags once per successful mutation (previously nothing was fired,
+// so admin edits never showed up until caches expired).
+function withReferenceInvalidation(
+  handler: (...args: any[]) => Promise<Response>
+) {
+  return async (...args: any[]) => {
+    const response = await handler(...args);
+    if (response.ok) {
+      revalidateTag(TAGS.globalGangTypes(), { expire: 0 });
+    }
+    return response;
+  };
+}
+
+export const POST = withReferenceInvalidation(_POST);
+export const PATCH = withReferenceInvalidation(_PATCH);
+export const DELETE = withReferenceInvalidation(_DELETE);

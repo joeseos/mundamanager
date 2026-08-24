@@ -1,7 +1,8 @@
 'use server'
 
+import { invalidateFighter, invalidateGangFinancials } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
-import { invalidateFighterVehicleData } from '@/utils/cache-tags';
+
 import { updateGangFinancials, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { countsTowardRating } from '@/utils/fighter-status';
@@ -33,11 +34,14 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
     // Capture pre-state
     const { data: beforeVehicle } = await supabase
       .from('vehicles')
-      .select('fighter_id')
+      .select('fighter_id, gang_id')
       .eq('id', params.vehicleId)
       .single();
 
     const previousFighterId = beforeVehicle?.fighter_id;
+    // Trust the vehicle row for the gang id — a mismatched params.gangId would
+    // otherwise invalidate the wrong gang's caches.
+    const gangId = beforeVehicle?.gang_id ?? params.gangId;
 
     // Check if the previous fighter (if any) was active
     let wasPreviousFighterActive = false;
@@ -162,7 +166,7 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
       // Use stashValueDelta to adjust wealth independently from rating without changing credits
       // wealthChange = ratingDelta + stashValueDelta, so stashValueDelta = wealthDelta - ratingDelta
       financialResult = await updateGangFinancials(supabase, {
-        gangId: params.gangId,
+        gangId,
         ratingDelta,
         stashValueDelta: wealthDelta - ratingDelta
       });
@@ -175,7 +179,7 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
     // Log vehicle assignment
     try {
       await logVehicleAction({
-        gang_id: params.gangId,
+        gang_id: gangId,
         vehicle_id: params.vehicleId,
         vehicle_name: vehicleName, // Required: pass vehicle name
         fighter_id: params.fighterId,
@@ -195,7 +199,8 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
     }
 
     // Invalidate cache for the fighter and gang
-    invalidateFighterVehicleData(params.fighterId, params.gangId);
+    invalidateFighter(params.fighterId, gangId);
+    invalidateGangFinancials(gangId);
 
     return {
       success: true,

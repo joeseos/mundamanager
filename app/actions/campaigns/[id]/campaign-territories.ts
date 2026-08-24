@@ -1,8 +1,7 @@
 'use server';
 
+import { invalidateCampaign, invalidateGangCampaignMembership, purgePreEditionCampaignCatalogCachesOnce } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
-import { revalidateTag } from "next/cache";
-import { CACHE_TAGS, purgePreEditionCampaignCatalogCachesOnce } from "@/utils/cache-tags";
 import { logTerritoryLost, logTerritoryClaimed } from "../../logs/gang-campaign-logs";
 import { getAuthenticatedUser } from '@/utils/auth';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
@@ -136,18 +135,14 @@ export async function assignGangToTerritory(params: AssignGangToTerritoryParams)
       }
     }
 
-    // 🎯 TARGETED CACHE INVALIDATION
-    // Invalidate only the affected campaign's territories
-    revalidateTag(`campaign-territories-${campaignId}`, { expire: 0 });
-    // Also invalidate the general campaign cache for this specific campaign
-    revalidateTag(`campaign-${campaignId}`, { expire: 0 });
+    invalidateCampaign(campaignId);
 
     // Invalidate gang cache to update territory ownership display
-    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(gangId), { expire: 0 });
+    invalidateGangCampaignMembership(gangId);
 
     // Also invalidate cache for the gang that lost the territory
     if (currentTerritoryData?.gang_id && currentTerritoryData.gang_id !== gangId) {
-      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(currentTerritoryData.gang_id), { expire: 0 });
+      invalidateGangCampaignMembership(currentTerritoryData.gang_id);
     }
 
     return { success: true };
@@ -226,15 +221,11 @@ export async function removeGangFromTerritory(params: RemoveGangFromTerritoryPar
       }
     }
 
-    // 🎯 TARGETED CACHE INVALIDATION
-    // Invalidate only the affected campaign's territories
-    revalidateTag(`campaign-territories-${campaignId}`, { expire: 0 });
-    // Also invalidate the general campaign cache for this specific campaign
-    revalidateTag(`campaign-${campaignId}`, { expire: 0 });
+    invalidateCampaign(campaignId);
     
     // Invalidate gang cache to update territory ownership display
     if (territoryData?.gang_id) {
-      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(territoryData.gang_id), { expire: 0 });
+      invalidateGangCampaignMembership(territoryData.gang_id);
     }
 
     return { success: true };
@@ -318,8 +309,7 @@ export async function addTerritoryToCampaign(params: AddTerritoryParams) {
 
     if (error) throw error;
 
-    revalidateTag(`campaign-territories-${campaignId}`, { expire: 0 });
-    revalidateTag(`campaign-${campaignId}`, { expire: 0 });
+    invalidateCampaign(campaignId);
     purgePreEditionCampaignCatalogCachesOnce();
 
     return { success: true };
@@ -364,8 +354,7 @@ export async function createCustomCampaignTerritory(params: CreateCustomCampaign
 
     if (error) throw error;
 
-    revalidateTag(`campaign-territories-${campaignId}`, { expire: 0 });
-    revalidateTag(`campaign-${campaignId}`, { expire: 0 });
+    invalidateCampaign(campaignId);
 
     return { success: true };
   } catch (error) {
@@ -443,11 +432,10 @@ export async function removeTerritoryFromCampaign(params: RemoveTerritoryParams)
       }
     }
 
-    revalidateTag(`campaign-territories-${campaignId}`, { expire: 0 });
-    revalidateTag(`campaign-${campaignId}`, { expire: 0 });
+    invalidateCampaign(campaignId);
     
     if (territoryData?.gang_id) {
-      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(territoryData.gang_id), { expire: 0 });
+      invalidateGangCampaignMembership(territoryData.gang_id);
     }
 
     return { success: true };
@@ -489,15 +477,11 @@ export async function updateTerritoryStatus(params: UpdateTerritoryStatusParams)
 
     if (error) throw error;
 
-    // 🎯 TARGETED CACHE INVALIDATION
-    // Invalidate only the affected campaign's territories
-    revalidateTag(`campaign-territories-${campaignId}`, { expire: 0 });
-    // Also invalidate the general campaign cache for this specific campaign
-    revalidateTag(`campaign-${campaignId}`, { expire: 0 });
+    invalidateCampaign(campaignId);
 
     // Invalidate gang cache to update territory display on gang page
     if (territoryData?.gang_id) {
-      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(territoryData.gang_id), { expire: 0 });
+      invalidateGangCampaignMembership(territoryData.gang_id);
     }
 
     return { success: true };

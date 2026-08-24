@@ -1,8 +1,8 @@
 'use server';
 
+import { invalidateCampaign } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
-import { revalidateTag } from "next/cache";
-import { CACHE_TAGS } from "@/utils/cache-tags";
+
 import { getAuthenticatedUser } from '@/utils/auth';
 
 // ---------------------------------------------------------------------------
@@ -68,8 +68,7 @@ async function verifyCampaignEditor(supabase: Awaited<ReturnType<typeof createCl
 }
 
 function invalidateMapCache(campaignId: string) {
-  revalidateTag(`campaign-map-${campaignId}`, { expire: 0 });
-  revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId), { expire: 0 });
+  invalidateCampaign(campaignId);
 }
 
 // ---------------------------------------------------------------------------
@@ -338,7 +337,7 @@ export async function updateTerritoryMapAssociation(params: UpdateTerritoryMapAs
     }
 
     invalidateMapCache(params.campaignId);
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_TERRITORIES(params.campaignId), { expire: 0 });
+    invalidateCampaign(params.campaignId);
     return { success: true };
   } catch (error) {
     console.error('Error in updateTerritoryMapAssociation:', error);
@@ -399,7 +398,7 @@ export async function bulkUpdateTerritoryMapAssociations(params: {
     }
 
     invalidateMapCache(params.campaignId);
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_TERRITORIES(params.campaignId), { expire: 0 });
+    invalidateCampaign(params.campaignId);
     return { success: true };
   } catch (error) {
     console.error('Error in bulkUpdateTerritoryMapAssociations:', error);
@@ -471,7 +470,7 @@ export async function deleteCampaignMap(params: { campaignId: string }) {
     }
 
     invalidateMapCache(params.campaignId);
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_TERRITORIES(params.campaignId), { expire: 0 });
+    invalidateCampaign(params.campaignId);
 
     return { success: true };
   } catch (error) {

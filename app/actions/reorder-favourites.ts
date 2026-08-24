@@ -1,8 +1,9 @@
 'use server'
 
+import { TAGS } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { revalidateTag } from 'next/cache';
-import { CACHE_TAGS } from '@/utils/cache-tags';
+
 import { getAuthenticatedUser } from '@/utils/auth';
 
 type FavouriteType = 'gang' | 'campaign';
@@ -25,12 +26,12 @@ const CONFIG: Record<FavouriteType, {
   gang: {
     table: 'gangs',
     entityLabel: 'gangs',
-    cacheTag: CACHE_TAGS.USER_GANGS,
+    cacheTag: TAGS.user,
   },
   campaign: {
     table: 'campaign_members',
     entityLabel: 'campaign memberships',
-    cacheTag: CACHE_TAGS.USER_CAMPAIGNS,
+    cacheTag: TAGS.user,
   },
 };
 

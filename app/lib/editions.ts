@@ -1,5 +1,5 @@
 import { unstable_cache } from 'next/cache';
-import { CACHE_TAGS } from '@/utils/cache-tags';
+import { TAGS } from '@/utils/cache-tags';
 import { createServiceRoleClient } from '@/utils/supabase/server';
 import { EDITION_N23, type Edition } from '@/types/edition';
 
@@ -29,7 +29,7 @@ const getCachedEditions = unstable_cache(
   },
   ['global-editions'],
   {
-    tags: [CACHE_TAGS.GLOBAL_EDITIONS()],
+    tags: [TAGS.globalEditions()],
     revalidate: 3600, // 1 hour — editions only ever change via migration
   }
 );

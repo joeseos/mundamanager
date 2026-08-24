@@ -1,8 +1,8 @@
 'use server'
 
+import { invalidateGang, invalidateFighter, invalidateGangFinancials } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
-import { revalidateTag } from 'next/cache';
-import { invalidateFighterVehicleData, CACHE_TAGS } from '@/utils/cache-tags';
+
 import { getAuthenticatedUser } from '@/utils/auth';
 import { countsTowardRating } from '@/utils/fighter-status';
 import { updateGangFinancials, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
@@ -29,11 +29,14 @@ export async function deleteVehicle(params: DeleteVehicleParams): Promise<Delete
     // Fetch vehicle data INCLUDING cost and name BEFORE deletion
     const { data: vehBefore } = await supabase
       .from('vehicles')
-      .select('fighter_id, cost, vehicle_name')
+      .select('fighter_id, gang_id, cost, vehicle_name')
       .eq('id', params.vehicleId)
       .single();
-    
+
     const vehicleName = vehBefore?.vehicle_name || 'Unknown Vehicle';
+    // Trust the vehicle row for the gang id — a mismatched params.gangId would
+    // otherwise update and invalidate the wrong gang.
+    const gangId = vehBefore?.gang_id ?? params.gangId;
 
     // Calculate vehicle total cost BEFORE deletion (assigned or unassigned)
     const baseCost = vehBefore?.cost || 0;
@@ -120,7 +123,7 @@ export async function deleteVehicle(params: DeleteVehicleParams): Promise<Delete
     if (vehicleCost > 0 && (ratingDelta !== 0 || wealthDelta !== 0)) {
       // stashValueDelta accounts for unassigned vehicles (wealthDelta but no ratingDelta)
       financialResult = await updateGangFinancials(supabase, {
-        gangId: params.gangId,
+        gangId,
         ratingDelta,
         stashValueDelta: wealthDelta - ratingDelta
       });
@@ -134,7 +137,7 @@ export async function deleteVehicle(params: DeleteVehicleParams): Promise<Delete
     // Pass vehicle_name since vehicle is already deleted
     try {
       await logVehicleAction({
-        gang_id: params.gangId,
+        gang_id: gangId,
         vehicle_id: params.vehicleId,
         vehicle_name: vehicleName, // Required: pass name since vehicle is already deleted
         fighter_id: vehBefore?.fighter_id || undefined,
@@ -153,13 +156,16 @@ export async function deleteVehicle(params: DeleteVehicleParams): Promise<Delete
       // Don't fail the main operation for logging errors
     }
 
-    // Invalidate cache for the fighter and gang if the vehicle was assigned to a fighter
-    if (params.assignedFighterId) {
-      invalidateFighterVehicleData(params.assignedFighterId, params.gangId);
+    // Invalidate cache for the fighter and gang if the vehicle was assigned to a
+    // fighter (from the vehicle row, not the caller-supplied param)
+    const assignedFighterId = vehBefore?.fighter_id || params.assignedFighterId;
+    if (assignedFighterId) {
+      invalidateFighter(assignedFighterId, gangId);
+      invalidateGangFinancials(gangId);
     }
 
     // Always refresh the gang vehicles list (covers assigned and unassigned views)
-    revalidateTag(CACHE_TAGS.BASE_GANG_VEHICLES(params.gangId), { expire: 0 });
+    invalidateGang(gangId);
 
     return {
       success: true

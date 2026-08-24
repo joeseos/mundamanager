@@ -1,6 +1,6 @@
+import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
 import { CustomFighterType } from "@/types/fighter";
-import { CACHE_TAGS } from "@/utils/cache-tags";
 import { withEditionSlug } from "@/types/edition";
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -226,9 +226,9 @@ export async function getUserCustomFighterTypes(userId: string, supabase: Supaba
 
       return fightersWithExtendedData;
     },
-    [`user-custom-fighters-${userId}`],
+    [`user-custom-fighters-v4-${userId}`],
     {
-      tags: [CACHE_TAGS.USER_CUSTOM_FIGHTERS(userId)],
+      tags: [TAGS.customs(userId)],
       revalidate: false,
     }
   )();

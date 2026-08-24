@@ -5,18 +5,15 @@ import { canViewHiddenGang, checkPermissionCached } from "@/utils/user-permissio
 import { getAuthenticatedUser, signInPath } from "@/utils/auth";
 import { initializePositioningIfNeeded } from "@/utils/fighter-positioning";
 import {
-  getGangBasic,
+  getGangCore,
   getGangPositioning,
   getGangType,
   getGangTypeConfig,
-  getAlliance,
   getGangFightersList,
   getGangVehicles,
   getGangStash,
   getGangCampaigns,
   getGangVariants,
-  getGangRatingAndWealth,
-  getGangResources,
   getGangTacticsCards,
   getUserProfile
 } from '@/app/lib/shared/gang-data';
@@ -36,8 +33,8 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
   }
 
   try {
-    // Fetch basic gang data first to check if gang exists
-    const gangBasic = await getGangBasic(params.id, supabase);
+    // Fetch the gang core first to check if gang exists
+    const gangBasic = await getGangCore(params.id, supabase);
 
     if (!gangBasic) {
       notFound();
@@ -54,18 +51,18 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       forbidden();
     }
 
-    // Fetch all related data in parallel using granular functions
+    // Credits, rating, wealth and alliance come from the gang core entry
+    const alliance = gangBasic.alliance;
+
+    // Fetch all related data in parallel
     const [
       gangPositioning,
       gangType,
-      alliance,
       fighters,
       vehicles,
       stash,
       campaigns,
-      gangResources,
       gangVariants,
-      gangRatingAndWealth,
       userProfile,
       userPermissions,
       battleSessions,
@@ -73,14 +70,11 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
     ] = await Promise.all([
       getGangPositioning(params.id, supabase),
       getGangType(gangBasic, supabase),
-      getAlliance(gangBasic.alliance_id, supabase),
       getGangFightersList(params.id, supabase),
       getGangVehicles(params.id, supabase),
       getGangStash(params.id, supabase),
       getGangCampaigns(params.id, supabase),
-      getGangResources(params.id, supabase),
       getGangVariants(gangBasic.gang_variants || [], supabase),
-      getGangRatingAndWealth(params.id, supabase),
       getUserProfile(gangBasic.user_id, supabase),
       checkPermissionCached(user.id, params.id, gangBasic.user_id),
       getGangBattleSessionsCached(params.id, supabase),
@@ -113,11 +107,11 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       default_gang_image: gangBasic.default_gang_image ?? null,
       gang_type_default_image_urls: gangType.default_image_urls ?? undefined,
       gang_colour: gangBasic.gang_colour,
-      credits: gangResources.credits,
-      reputation: gangResources.reputation,
-      trade_points: gangResources.trade_points,
-      rating: gangRatingAndWealth.rating,
-      wealth: gangRatingAndWealth.wealth,
+      credits: gangBasic.credits,
+      reputation: gangBasic.reputation,
+      trade_points: gangBasic.trade_points,
+      rating: gangBasic.rating,
+      wealth: gangBasic.wealth,
       alignment: gangBasic.alignment,
       alliance_name: alliance?.alliance_name || "",
       gang_affiliation_id: gangBasic.gang_affiliation_id || null,
