@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { User as SupabaseUser } from '@supabase/supabase-js';
 import { signOutAction } from "@/app/actions/auth";
+import { createClient } from "@/utils/supabase/client";
 import Link from 'next/link';
 import { useFetchNotifications } from '@/hooks/use-notifications';
 import dynamic from 'next/dynamic';
@@ -69,7 +70,19 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
 
   const handleLogout = async () => {
     setOpen(false);
-    await signOutAction();
+
+    // Server first, so the refresh token is revoked while the cookies still exist.
+    const { redirectTo } = await signOutAction();
+
+    // Then drop the browser client's in-memory session, whose auto-refresh
+    // ticker would otherwise rewrite the cookies we just deleted.
+    try {
+      await createClient().auth.signOut({ scope: 'local' });
+    } catch (error) {
+      console.error('Error clearing local session on sign out:', error);
+    }
+
+    window.location.assign(redirectTo);
   };
 
   const handleDummyClick = () => {

@@ -3,6 +3,7 @@
 import { invalidateUserCustoms } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
+import { getEditionIdBySlug } from '@/app/lib/editions';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type CollectionItemType = 'equipment' | 'fighter_type' | 'gang_type' | 'skill' | 'trading_post';
@@ -20,11 +21,13 @@ export interface CustomCollection {
   items: CollectionItem[];
   created_at: string;
   updated_at?: string | null;
+  edition_slug?: string | null;
 }
 
 export interface CustomCollectionData {
   name: string;
   description?: string | null;
+  edition_slug?: string;
 }
 
 // Maps a collection item type to the custom table that owns it.
@@ -80,6 +83,7 @@ export async function createCustomCollection(
         name: data.name.trimEnd(),
         description: data.description || null,
         items: [],
+        edition_id: await getEditionIdBySlug(data.edition_slug),
         created_at: new Date().toISOString(),
       })
       .select()

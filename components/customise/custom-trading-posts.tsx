@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useId } from 'react';
+import React, { useState, useEffect, useId, createContext, useContext } from 'react';
 import { List, ListColumn, ListAction } from '@/components/ui/list';
 import Modal from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
@@ -40,6 +40,7 @@ import type { CampaignResource } from '@/utils/campaigns/resources';
 import type { UserCampaign } from '@/types/campaign';
 import type { EquipmentListItem } from '@/types/equipment';
 import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
+import { hasTradePoints, sameEditionForDisplay } from '@/types/edition';
 
 interface EquipmentPendingChanges {
   costOverride: number | null;
@@ -60,7 +61,17 @@ interface CustomiseTradingPostsProps {
   userId?: string;
   userCampaigns?: UserCampaign[];
   readOnly?: boolean;
+  /** Edition of everything shown here, and of anything created. */
+  editionSlug: string;
 }
+
+/**
+ * The edition every picker and override field in this file is scoped to. The
+ * equipment and availability modals sit three levels below the component that
+ * knows it, so a context beats threading one string through six signatures.
+ */
+const TradingPostEditionContext = createContext<string | undefined>(undefined);
+const useTradingPostEdition = () => useContext(TradingPostEditionContext);
 
 export function CustomiseTradingPosts({
   className,
@@ -68,8 +79,14 @@ export function CustomiseTradingPosts({
   userId,
   userCampaigns = [],
   readOnly = false,
+  editionSlug,
 }: CustomiseTradingPostsProps) {
   const [tradingPosts, setTradingPosts] = useState<CustomTradingPost[]>(initialTradingPosts);
+  const [prevInitialTradingPosts, setPrevInitialTradingPosts] = useState(initialTradingPosts);
+  if (initialTradingPosts !== prevInitialTradingPosts) {
+    setPrevInitialTradingPosts(initialTradingPosts);
+    setTradingPosts(initialTradingPosts);
+  }
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editModalData, setEditModalData] = useState<CustomTradingPost | null>(null);
   const [deleteModalData, setDeleteModalData] = useState<CustomTradingPost | null>(null);
@@ -105,17 +122,13 @@ export function CustomiseTradingPosts({
     onSuccess: (result, { id }, context) => {
       if (result.success && result.data) {
         setTradingPosts(prev => prev.map(tp => (tp.id === id ? result.data! : tp)));
-        setEditModalData(null);
-        resetForm();
-        toast.success('Custom trading post updated successfully');
       } else {
         if (context?.previous) setTradingPosts(context.previous);
-        toast.error(result.error || 'Failed to update custom trading post');
       }
     },
-    onError: (error: Error, _, context) => {
+    onError: (_error: Error, _, context) => {
+      // Toast is owned by handleEditConfirm's catch to avoid double-toasting with mutateAsync.
       if (context?.previous) setTradingPosts(context.previous);
-      toast.error(error.message || 'Failed to update custom trading post');
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['customTradingPosts'] });
@@ -202,6 +215,7 @@ export function CustomiseTradingPosts({
         user_id: userId || '',
         custom_trading_post_name: data.custom_trading_post_name,
         description: data.description,
+        edition_slug: data.edition_slug ?? null,
         created_at: new Date().toISOString(),
       };
       const previous = tradingPosts;
@@ -225,7 +239,7 @@ export function CustomiseTradingPosts({
 
   const handleCreateConfirm = async () => {
     if (!isFormValid()) return false;
-    createMutation.mutate({ data: formData });
+    createMutation.mutate({ data: { ...formData, edition_slug: editionSlug } });
     setIsAddModalOpen(false);
     resetForm();
     return true;
@@ -234,103 +248,135 @@ export function CustomiseTradingPosts({
   const handleEditConfirm = async () => {
     if (!editModalData || !isFormValid()) return false;
 
+    const tradingPostId = editModalData.id;
     const overridesToSave = new Map(pendingOverrides);
     const additionsToSave = [...pendingAdditions];
     const removalsToSave = new Set(pendingRemovals);
-    updateMutation.mutate(
-      { id: editModalData.id, data: formData },
-      {
-        onSuccess: async (result) => {
-          if (!result.success) return;
-          const hasChanges = overridesToSave.size > 0 || additionsToSave.length > 0 || removalsToSave.size > 0;
-          if (!hasChanges) return;
 
-          const pendingAdditionTempIds = new Set(additionsToSave.map(e => e.id));
+    const insertedAdditionTempIds = new Set<string>();
+    const insertedTempToRealId = new Map<string, string>();
+    const succeededAdditionRuleRealIds = new Set<string>();
+    const failedAdditionRulesByRealId = new Map<string, EquipmentPendingChanges>();
+    const succeededRemovalIds = new Set<string>();
+    const succeededOverrideIds = new Set<string>();
 
-          if (additionsToSave.length > 0) {
-            const batchResult = await addTPEquipmentBatch(
-              editModalData.id,
-              additionsToSave.map(equip => {
-                const override = overridesToSave.get(equip.id);
-                return {
-                  equipmentId: equip.is_custom ? equip.original_id! : equip.id,
-                  isCustom: equip.is_custom,
-                  costOverride: override?.costOverride,
-                  availabilityOverride: override?.availabilityOverride,
-                };
-              })
-            );
-            if (!batchResult.success) {
-              toast.error(batchResult.error || 'Failed to add equipment');
-            } else if (batchResult.data) {
-              const pendingRulesSaves = additionsToSave
-                .map((equip) => {
-                  const realRow = batchResult.data!.find(r =>
-                    equip.is_custom
-                      ? r.custom_equipment_id === equip.original_id
-                      : r.equipment_id === equip.id
-                  );
-                  return { tempId: equip.id, realId: realRow?.id };
-                })
-                .filter(({ tempId, realId }) => !!realId && overridesToSave.get(tempId)?.rulesModified)
-                .map(async ({ tempId, realId }) => {
-                  const changes = overridesToSave.get(tempId)!;
-                  const rulesResult = await saveEquipmentRules(
-                    realId!,
-                    changes.availRules.map(r => ({
-                      gang_type_id: r.gang_type_id,
-                      custom_gang_type_id: r.custom_gang_type_id,
-                      gang_origin_id: r.gang_origin_id,
-                      gang_variant_id: r.gang_variant_id,
-                      campaign_type_allegiance_id: r.campaign_type_allegiance_id,
-                      alignment: r.alignment,
-                      availability: r.availability,
-                    })),
-                    changes.pricingRules.map(r => ({
-                      gang_type_id: r.gang_type_id,
-                      custom_gang_type_id: r.custom_gang_type_id,
-                      gang_origin_id: r.gang_origin_id,
-                      fighter_type_id: r.fighter_type_id,
-                      adjusted_cost: r.adjusted_cost,
-                    }))
-                  );
-                  if (!rulesResult.success) {
-                    toast.error(rulesResult.error || 'Failed to save equipment rules');
-                  }
-                });
-              await Promise.all(pendingRulesSaves);
-            }
+    const hasPersistedProgress = () =>
+      insertedAdditionTempIds.size > 0 ||
+      insertedTempToRealId.size > 0 ||
+      succeededRemovalIds.size > 0 ||
+      succeededOverrideIds.size > 0 ||
+      succeededAdditionRuleRealIds.size > 0 ||
+      failedAdditionRulesByRealId.size > 0;
+
+    const relevantRuleCacheItemIds = () =>
+      new Set([
+        ...Array.from(overridesToSave.keys()),
+        ...Array.from(succeededAdditionRuleRealIds),
+        ...Array.from(failedAdditionRulesByRealId.keys()),
+        ...Array.from(insertedTempToRealId.values()),
+      ]);
+
+    const invalidateItemRuleCaches = (itemIds: Iterable<string>) =>
+      Promise.all(
+        Array.from(new Set(itemIds)).flatMap(id => [
+          queryClient.invalidateQueries({ queryKey: ['tpAvailabilityRules', id] }),
+          queryClient.invalidateQueries({ queryKey: ['tpPricingRules', id] }),
+        ])
+      );
+
+    const invalidateEquipmentCaches = async () => {
+      await queryClient.invalidateQueries({ queryKey: ['tpEquipment', tradingPostId] });
+      await invalidateItemRuleCaches(relevantRuleCacheItemIds());
+    };
+
+    const reconcilePersistedPendingState = () => {
+      if (!hasPersistedProgress()) return;
+
+      // Drop operations that already persisted so a retry cannot duplicate them.
+      if (insertedAdditionTempIds.size > 0) {
+        setPendingAdditions(prev => prev.filter(e => !insertedAdditionTempIds.has(e.id)));
+      }
+      if (succeededRemovalIds.size > 0) {
+        setPendingRemovals(prev => {
+          const next = new Set(prev);
+          succeededRemovalIds.forEach(id => next.delete(id));
+          return next;
+        });
+      }
+      setPendingOverrides(prev => {
+        const next = new Map(prev);
+        succeededOverrideIds.forEach(id => next.delete(id));
+        insertedTempToRealId.forEach((realId, tempId) => {
+          next.delete(tempId);
+          if (succeededAdditionRuleRealIds.has(realId)) return;
+          // Keep unfinished/failed addition rules under the real DB id for retry.
+          const changes = failedAdditionRulesByRealId.get(realId) ?? overridesToSave.get(tempId);
+          if (changes?.rulesModified) {
+            next.set(realId, changes);
           }
+        });
+        return next;
+      });
+    };
 
-          if (removalsToSave.size > 0) {
-            await Promise.all(
-              Array.from(removalsToSave).map(async (id) => {
-                const res = await removeTPEquipment(id);
-                if (!res.success) toast.error(res.error || 'Failed to remove equipment');
+    try {
+      const result = await updateMutation.mutateAsync({ id: tradingPostId, data: formData });
+      if (!result.success || !result.data) {
+        toast.error(result.error || 'Failed to update custom trading post');
+        return false;
+      }
+
+      const hasEquipmentChanges =
+        overridesToSave.size > 0 || additionsToSave.length > 0 || removalsToSave.size > 0;
+
+      if (hasEquipmentChanges) {
+        let equipmentSaveFailed = false;
+        const pendingAdditionTempIds = new Set(additionsToSave.map(e => e.id));
+
+        if (additionsToSave.length > 0) {
+          const batchResult = await addTPEquipmentBatch(
+            tradingPostId,
+            additionsToSave.map(equip => {
+              const override = overridesToSave.get(equip.id);
+              return {
+                equipmentId: equip.is_custom ? equip.original_id! : equip.id,
+                isCustom: equip.is_custom,
+                costOverride: override?.costOverride,
+                costTypeResourceId: override?.costTypeResourceId,
+                costCampaignResourceId: override?.costCampaignResourceId,
+                costReputation: override?.costReputation,
+                costResourceAmount: override?.costResourceAmount,
+                availabilityOverride: override?.availabilityOverride,
+                banned: override?.banned,
+              };
+            })
+          );
+          if (!batchResult.success) {
+            toast.error(batchResult.error || 'Failed to add equipment');
+            equipmentSaveFailed = true;
+          } else if (batchResult.data) {
+            const tempToReal = additionsToSave
+              .map((equip) => {
+                const realRow = batchResult.data!.find(r =>
+                  equip.is_custom
+                    ? r.custom_equipment_id === equip.original_id
+                    : r.equipment_id === equip.id
+                );
+                return { tempId: equip.id, realId: realRow?.id };
               })
-            );
-          }
+              .filter((entry): entry is { tempId: string; realId: string } => !!entry.realId);
 
-          const equipmentSaves = Array.from(overridesToSave.entries())
-            .filter(([itemId]) => !pendingAdditionTempIds.has(itemId))
-            .map(
-            async ([itemId, changes]) => {
-              const overridesResult = await updateTPEquipment(itemId, {
-                cost_override: changes.costOverride,
-                cost_type_resource_id: changes.costTypeResourceId,
-                cost_campaign_resource_id: changes.costCampaignResourceId,
-                cost_reputation: changes.costReputation,
-                cost_resource_amount: changes.costResourceAmount,
-                availability_override: changes.availabilityOverride,
-                banned: changes.banned,
-              });
-              if (!overridesResult.success) {
-                toast.error(overridesResult.error || 'Failed to save equipment overrides');
-                return;
-              }
-              if (changes.rulesModified) {
+            tempToReal.forEach(({ tempId, realId }) => {
+              insertedAdditionTempIds.add(tempId);
+              insertedTempToRealId.set(tempId, realId);
+            });
+
+            const pendingRulesSaves = tempToReal
+              .filter(({ tempId }) => overridesToSave.get(tempId)?.rulesModified)
+              .map(async ({ tempId, realId }) => {
+                const changes = overridesToSave.get(tempId)!;
                 const rulesResult = await saveEquipmentRules(
-                  itemId,
+                  realId,
                   changes.availRules.map(r => ({
                     gang_type_id: r.gang_type_id,
                     custom_gang_type_id: r.custom_gang_type_id,
@@ -350,21 +396,133 @@ export function CustomiseTradingPosts({
                 );
                 if (!rulesResult.success) {
                   toast.error(rulesResult.error || 'Failed to save equipment rules');
+                  equipmentSaveFailed = true;
+                  // Remap under the real DB id so a retry uses updateTPEquipment, not re-insert.
+                  failedAdditionRulesByRealId.set(realId, changes);
+                  return;
                 }
+                succeededAdditionRuleRealIds.add(realId);
+              });
+            // allSettled ensures every sibling completes before we read the bookkeeping sets,
+            // preventing a single throw from cutting off in-flight siblings mid-reconcile.
+            const settledRules = await Promise.allSettled(pendingRulesSaves);
+            for (const result of settledRules) {
+              if (result.status === 'rejected') {
+                equipmentSaveFailed = true;
+                toast.error(
+                  result.reason instanceof Error
+                    ? result.reason.message
+                    : 'Failed to save equipment rules'
+                );
               }
             }
-          );
-          await Promise.all(equipmentSaves);
+          }
+        }
 
-          queryClient.invalidateQueries({ queryKey: ['tpEquipment', editModalData.id] });
-          overridesToSave.forEach((_, itemId) => {
-            queryClient.invalidateQueries({ queryKey: ['tpAvailabilityRules', itemId] });
-            queryClient.invalidateQueries({ queryKey: ['tpPricingRules', itemId] });
+        if (removalsToSave.size > 0) {
+          const settledRemovals = await Promise.allSettled(
+            Array.from(removalsToSave).map(async (id) => {
+              const res = await removeTPEquipment(id);
+              if (!res.success) {
+                toast.error(res.error || 'Failed to remove equipment');
+                equipmentSaveFailed = true;
+                return;
+              }
+              succeededRemovalIds.add(id);
+            })
+          );
+          for (const result of settledRemovals) {
+            if (result.status === 'rejected') {
+              equipmentSaveFailed = true;
+              toast.error(
+                result.reason instanceof Error
+                  ? result.reason.message
+                  : 'Failed to remove equipment'
+              );
+            }
+          }
+        }
+
+        const equipmentSaves = Array.from(overridesToSave.entries())
+          .filter(([itemId]) => !pendingAdditionTempIds.has(itemId))
+          .map(async ([itemId, changes]) => {
+            const overridesResult = await updateTPEquipment(itemId, {
+              cost_override: changes.costOverride,
+              cost_type_resource_id: changes.costTypeResourceId,
+              cost_campaign_resource_id: changes.costCampaignResourceId,
+              cost_reputation: changes.costReputation,
+              cost_resource_amount: changes.costResourceAmount,
+              availability_override: changes.availabilityOverride,
+              banned: changes.banned,
+            });
+            if (!overridesResult.success) {
+              toast.error(overridesResult.error || 'Failed to save equipment overrides');
+              equipmentSaveFailed = true;
+              return;
+            }
+            if (changes.rulesModified) {
+              const rulesResult = await saveEquipmentRules(
+                itemId,
+                changes.availRules.map(r => ({
+                  gang_type_id: r.gang_type_id,
+                  custom_gang_type_id: r.custom_gang_type_id,
+                  gang_origin_id: r.gang_origin_id,
+                  gang_variant_id: r.gang_variant_id,
+                  campaign_type_allegiance_id: r.campaign_type_allegiance_id,
+                  alignment: r.alignment,
+                  availability: r.availability,
+                })),
+                changes.pricingRules.map(r => ({
+                  gang_type_id: r.gang_type_id,
+                  custom_gang_type_id: r.custom_gang_type_id,
+                  gang_origin_id: r.gang_origin_id,
+                  fighter_type_id: r.fighter_type_id,
+                  adjusted_cost: r.adjusted_cost,
+                }))
+              );
+              if (!rulesResult.success) {
+                toast.error(rulesResult.error || 'Failed to save equipment rules');
+                equipmentSaveFailed = true;
+                return;
+              }
+            }
+            succeededOverrideIds.add(itemId);
           });
-        },
+        const settledOverrides = await Promise.allSettled(equipmentSaves);
+        for (const result of settledOverrides) {
+          if (result.status === 'rejected') {
+            equipmentSaveFailed = true;
+            toast.error(
+              result.reason instanceof Error
+                ? result.reason.message
+                : 'Failed to save equipment overrides'
+            );
+          }
+        }
+
+        await invalidateEquipmentCaches();
+
+        if (equipmentSaveFailed) {
+          reconcilePersistedPendingState();
+          return false;
+        }
       }
-    );
-    return true;
+
+      toast.success('Custom trading post updated successfully');
+      return true;
+    } catch (error) {
+      reconcilePersistedPendingState();
+      toast.error(error instanceof Error ? error.message : 'Failed to update custom trading post');
+      // Refresh caches after toasting so a rare invalidate failure can't swallow the error UI.
+      if (hasPersistedProgress()) {
+        try {
+          await invalidateEquipmentCaches();
+        } catch {
+          // ignore — pending state was already reconciled and the user was notified
+        }
+      }
+      return false;
+    }
   };
 
   const handleDeleteConfirm = async () => {
@@ -471,6 +629,7 @@ export function CustomiseTradingPosts({
   );
 
   return (
+    <TradingPostEditionContext.Provider value={editionSlug}>
     <div className={className}>
       <List
         title="Trading Posts"
@@ -588,6 +747,7 @@ export function CustomiseTradingPosts({
         }}
       />
     </div>
+    </TradingPostEditionContext.Provider>
   );
 }
 
@@ -615,6 +775,7 @@ function EquipmentItemsSection({
   onRemoveEquipment?: (itemId: string) => void;
 }) {
   const isEditable = !!(onAddEquipment || onRemoveEquipment || onEquipmentOverrideChange);
+  const hidesAvailability = hasTradePoints(useTradingPostEdition());
   const [isAddEquipOpen, setIsAddEquipOpen] = useState(false);
   const tooltipId = useId();
   const [editOverridesItem, setEditOverridesItem] = useState<CustomTPEquipment | null>(null);
@@ -704,7 +865,7 @@ function EquipmentItemsSection({
                   <th className="py-2 pr-2 font-medium">Equipment</th>
                   <th className="py-2 pr-2 font-medium">Category</th>
                   <th className="py-2 pr-2 font-medium text-center">Cost</th>
-                  <th className="py-2 pr-2 font-medium text-center">AL</th>
+                  {!hidesAvailability && <th className="py-2 pr-2 font-medium text-center">AL</th>}
                   <th className="py-2 pr-2 font-medium text-center">Banned</th>
                   {isEditable && <th className="py-2 font-medium text-right">Actions</th>}
                 </tr>
@@ -722,7 +883,7 @@ function EquipmentItemsSection({
                         ? `${item.cost_resource_amount} ${item.cost_reputation ? 'Reputation' : 'Resource'}`
                         : item.cost_override != null ? item.cost_override : '-'}
                     </td>
-                    <td className="py-2 pr-2 text-center">{item.availability_override || '-'}</td>
+                    {!hidesAvailability && <td className="py-2 pr-2 text-center">{item.availability_override || '-'}</td>}
                     <td className="py-2 pr-2 text-center">{item.banned ? 'Yes' : '-'}</td>
                     {isEditable && (
                       <td className="py-2 text-right">
@@ -892,22 +1053,27 @@ function ViewTradingPostModal({
 // ---------------------------------------------------------------------------
 
 function useEquipmentData() {
+  const editionSlug = useTradingPostEdition();
+
   const { data: categories = [], error: categoriesError } = useQuery({
-    queryKey: ['equipmentCategories'],
+    // Keyed on edition because the result below is edition-filtered
+    queryKey: ['equipmentCategories', editionSlug],
     queryFn: async () => {
       const res = await fetch('/api/equipment/categories');
       if (!res.ok) throw new Error('Failed to fetch categories');
-      return res.json() as Promise<Array<{ id: string; category_name: string }>>;
+      const data = await res.json() as Array<{ id: string; category_name: string; edition_slug?: string | null }>;
+      return data.filter(c => sameEditionForDisplay(c.edition_slug, editionSlug));
     },
     staleTime: 10 * 60 * 1000,
   });
 
   const { data: allEquipment = [], error: equipmentError } = useQuery({
-    queryKey: ['equipment', { core_equipment: false }],
+    queryKey: ['equipment', { core_equipment: false, editionSlug }],
     queryFn: async () => {
       const res = await fetch('/api/equipment?core_equipment=false');
       if (!res.ok) throw new Error('Failed to fetch equipment');
-      return res.json() as Promise<EquipmentOption[]>;
+      const data = await res.json() as EquipmentOption[];
+      return data.filter(e => sameEditionForDisplay(e.edition_slug, editionSlug));
     },
     staleTime: 10 * 60 * 1000,
   });
@@ -1027,6 +1193,8 @@ function EditEquipmentModal({
 }) {
   type ResourceOption = { id: string; name: string; type: 'campaign_type' | 'campaign' | 'reputation' };
 
+  const hidesAvailability = hasTradePoints(useTradingPostEdition());
+
   const [costOverride, setCostOverride] = useState(
     pendingChanges ? (pendingChanges.costOverride?.toString() ?? '') : (item.cost_override?.toString() ?? '')
   );
@@ -1136,8 +1304,9 @@ function EditEquipmentModal({
       costCampaignResourceId: selectedResource?.type === 'campaign' ? selectedResource.id : null,
       costReputation: selectedResource?.type === 'reputation',
       costResourceAmount: hasResourceCost && costResourceAmount.trim() ? Number(costResourceAmount) : null,
-      availabilityOverride: combineAvailability(availLetter, availNumber),
-      availRules,
+      // Guard the value rather than relying on the field being hidden
+      availabilityOverride: hidesAvailability ? null : combineAvailability(availLetter, availNumber),
+      availRules: hidesAvailability ? [] : availRules,
       pricingRules,
       rulesModified: localAvailRules !== null || localPricingRules !== null,
       banned: isBanned,
@@ -1235,17 +1404,22 @@ function EditEquipmentModal({
                 placeholder="Leave empty for default cost"
               />
             </div>
-            <AvailabilityPicker
-              label="General Availability Override"
-              letter={availLetter}
-              number={availNumber}
-              onLetterChange={setAvailLetter}
-              onNumberChange={setAvailNumber}
-              allowEmpty
-            />
+            {/* Availability is an N23 concept; trade-point editions price
+                equipment in TP, and there is no trade-points override column. */}
+            {!hidesAvailability && (
+              <AvailabilityPicker
+                label="General Availability Override"
+                letter={availLetter}
+                number={availNumber}
+                onLetterChange={setAvailLetter}
+                onNumberChange={setAvailNumber}
+                allowEmpty
+              />
+            )}
           </div>
 
-          {/* Availability Rules */}
+          {!hidesAvailability && (
+          /* Availability Rules */
           <div className="border-t pt-4">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-semibold">Availability Rules</h4>
@@ -1305,6 +1479,7 @@ function EditEquipmentModal({
               </div>
             )}
           </div>
+          )}
 
           {/* Cost Rules */}
           <div className="border-t pt-4">
@@ -1421,12 +1596,14 @@ function GangScopeFields({
   onGangTypeChange: (id: string, isCustom: boolean, name: string | null) => void;
   onGangOriginChange: (id: string, name: string | null) => void;
 }) {
+  const editionSlug = useTradingPostEdition();
   const { data: gangTypes = [] } = useQuery({
-    queryKey: ['gangTypes'],
+    queryKey: ['gangTypes', editionSlug],
     queryFn: async () => {
       const res = await fetch('/api/gang-types?includeAll=true');
       if (!res.ok) throw new Error('Failed to fetch gang types');
-      return res.json() as Promise<GangTypeOption[]>;
+      const data = await res.json() as GangTypeOption[];
+      return data.filter(gt => sameEditionForDisplay((gt as any).edition_slug, editionSlug));
     },
     staleTime: 10 * 60 * 1000,
   });
@@ -1519,12 +1696,14 @@ function AddAvailabilityRuleModal({
   const [availLetter, setAvailLetter] = useState(parsedAvail.letter);
   const [availNumber, setAvailNumber] = useState(parsedAvail.number);
 
+  const editionSlug = useTradingPostEdition();
   const { data: variants = [] } = useQuery({
-    queryKey: ['gangVariantTypes'],
+    queryKey: ['gangVariantTypes', editionSlug],
     queryFn: async () => {
       const res = await fetch('/api/gang-variant-types');
       if (!res.ok) throw new Error('Failed to fetch variants');
-      return res.json() as Promise<Array<{ id: string; variant: string }>>;
+      const data = await res.json() as Array<{ id: string; variant: string; edition_slug?: string | null }>;
+      return data.filter(v => sameEditionForDisplay(v.edition_slug, editionSlug));
     },
     staleTime: 10 * 60 * 1000,
   });
@@ -1654,20 +1833,20 @@ function AddAvailabilityRuleModal({
 type PricingRuleFighterType = {
   id: string;
   fighter_type: string;
-  fighter_class?: string;
+  fighter_subtypes: string[];
   gang_type?: string;
   gang_type_id?: string;
-  sub_type?: { id?: string; sub_type_name?: string } | null;
+  specialisation?: { id?: string; specialisation_name?: string } | null;
 };
 
-function getPricingRuleFighterTypeClassKey(ft: PricingRuleFighterType): string {
-  return `${ft.fighter_type}-${ft.fighter_class || 'Unknown'}`;
+function getPricingRuleFighterTypeSubtypeKey(ft: PricingRuleFighterType): string {
+  return `${ft.fighter_type}-${ft.fighter_subtypes.join(',') || 'Unknown'}`;
 }
 
 function buildMultiProfileKeys(fighterTypes: PricingRuleFighterType[]): Set<string> {
   const keyCounts = new Map<string, number>();
   for (const ft of fighterTypes) {
-    const key = getPricingRuleFighterTypeClassKey(ft);
+    const key = getPricingRuleFighterTypeSubtypeKey(ft);
     keyCounts.set(key, (keyCounts.get(key) ?? 0) + 1);
   }
   const keys = new Set<string>();
@@ -1681,11 +1860,11 @@ function formatPricingRuleFighterTypeLabel(
   ft: PricingRuleFighterType,
   multiProfileKeys: Set<string>
 ): string {
-  const fighterClass = ft.fighter_class || 'Unknown';
-  const base = `${ft.fighter_type} (${fighterClass})`;
-  if (!multiProfileKeys.has(getPricingRuleFighterTypeClassKey(ft))) return base;
-  if (!ft.sub_type?.sub_type_name) return base;
-  return `${base} - ${ft.sub_type.sub_type_name}`;
+  const fighterSubtype = ft.fighter_subtypes.join(', ') || 'Unknown';
+  const base = `${ft.fighter_type} (${fighterSubtype})`;
+  if (!multiProfileKeys.has(getPricingRuleFighterTypeSubtypeKey(ft))) return base;
+  if (!ft.specialisation?.specialisation_name) return base;
+  return `${base} - ${ft.specialisation.specialisation_name}`;
 }
 
 function AddPricingRuleModal({

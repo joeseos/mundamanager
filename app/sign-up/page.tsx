@@ -7,7 +7,14 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, use } from "react";
+import {
+  EMPTY_PASSWORD_REQUIREMENTS,
+  PASSWORD_ERROR_MESSAGE,
+  checkPasswordRequirements,
+  isPasswordValid,
+} from "@/utils/auth";
 import { LuEye, LuEyeOff } from "react-icons/lu";
+import { RiErrorWarningFill } from "react-icons/ri";
 
 export default function Page(props: { searchParams: Promise<Message> }) {
   const searchParams = use(props.searchParams);
@@ -17,23 +24,7 @@ export default function Page(props: { searchParams: Promise<Message> }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
-  const [passwordRequirements, setPasswordRequirements] = useState({
-    hasLowerCase: false,
-    hasUpperCase: false,
-    hasNumber: false,
-    hasSpecialChar: false,
-    hasMinLength: false,
-  });
-
-  const checkPasswordRequirements = (password: string) => {
-    setPasswordRequirements({
-      hasLowerCase: /[a-z]/.test(password),
-      hasUpperCase: /[A-Z]/.test(password),
-      hasNumber: /\d/.test(password),
-      hasSpecialChar: /[!@#$%^&*()_+\-=\[\]{}|;:,.<>?~]/.test(password),
-      hasMinLength: password.length >= 6,
-    });
-  };
+  const [passwordRequirements, setPasswordRequirements] = useState(EMPTY_PASSWORD_REQUIREMENTS);
 
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -57,7 +48,7 @@ export default function Page(props: { searchParams: Promise<Message> }) {
     // Clear error if username is empty or valid
     const isValidUsername = /^[a-zA-Z0-9_-]{3,20}$/.test(username);
     if (username && !isValidUsername) {
-      setUsernameError("Username must be 3-20 characters and can only contain letters, numbers, underscores, and hyphens");
+      setUsernameError("Must be 3-20 characters and can only contain letters, numbers, underscores, and hyphens");
     } else {
       setUsernameError("");
     }
@@ -65,8 +56,8 @@ export default function Page(props: { searchParams: Promise<Message> }) {
 
   if ("message" in searchParams) {
     return (
-      <main className="flex min-h-screen flex-col items-center">
-        <div className="container mx-auto max-w-4xl w-full p-4">
+      <main className="flex flex-col items-center">
+        <div className="container mx-auto max-w-4xl w-full px-4">
           <div className="flex flex-col items-center justify-center text-white text-center">
             <p className="text-lg mb-4">
               {searchParams.message}
@@ -92,7 +83,7 @@ export default function Page(props: { searchParams: Promise<Message> }) {
 
     const isValidUsername = /^[a-zA-Z0-9_-]{3,20}$/.test(username);
     if (!isValidUsername) {
-      setUsernameError("Username must be 3-20 characters and can only contain letters, numbers, underscores, and hyphens");
+      setUsernameError("Must be 3-20 characters and can only contain letters, numbers, underscores, and hyphens");
       setIsSubmitting(false);
       return;
     }
@@ -103,14 +94,8 @@ export default function Page(props: { searchParams: Promise<Message> }) {
       return;
     }
 
-    const hasLowerCase = /[a-z]/.test(password);
-    const hasUpperCase = /[A-Z]/.test(password);
-    const hasNumber = /\d/.test(password);
-    const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{}|;:,.<>?~]/.test(password);
-    const hasMinLength = password.length >= 6;
-
-    if (!hasLowerCase || !hasUpperCase || !hasNumber || !hasSpecialChar || !hasMinLength) {
-      setPasswordError("Password must contain at least 6 characters, including uppercase, lowercase, number, and special character");
+    if (!isPasswordValid(password)) {
+      setPasswordError(PASSWORD_ERROR_MESSAGE);
       setIsSubmitting(false);
       return;
     }
@@ -142,15 +127,15 @@ export default function Page(props: { searchParams: Promise<Message> }) {
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center">
-      <div className="container mx-auto max-w-4xl w-full p-4">
+    <main className="flex flex-col items-center">
+      <div className="container mx-auto max-w-4xl w-full px-4">
         <form 
           className="flex flex-col w-full max-w-sm mx-auto text-white"
           onSubmit={handleSubmit}
           noValidate
         >
-          <h1 className="text-2xl font-medium text-white mb-2">Sign Up</h1>
-          <p className="text-sm text-white mb-8">
+          <h1 className="text-2xl font-medium text-white mb-2 text-center">Sign Up</h1>
+          <p className="text-sm text-white mb-8 text-center">
             Already have an account?{" "}
             <Link className="text-white font-medium underline" href="/sign-in">
               Sign in
@@ -172,7 +157,10 @@ export default function Page(props: { searchParams: Promise<Message> }) {
                 onChange={handleUsernameChange}
               />
               {usernameError && (
-                <p className="text-red-400 text-sm mt-1">{usernameError}</p>
+                <p className="text-red-400 text-sm mt-1 flex items-start gap-1">
+                  <RiErrorWarningFill className="h-4 w-4 shrink-0 mt-0.5" aria-hidden />
+                  {usernameError}
+                </p>
               )}
             </div>
 
@@ -189,7 +177,10 @@ export default function Page(props: { searchParams: Promise<Message> }) {
                 onChange={handleEmailChange}
               />
               {emailError && (
-                <p className="text-red-400 text-sm mt-1">{emailError}</p>
+                <p className="text-red-400 text-sm mt-1 flex items-start gap-1">
+                  <RiErrorWarningFill className="h-4 w-4 shrink-0 mt-0.5" aria-hidden />
+                  {emailError}
+                </p>
               )}
             </div>
             
@@ -204,7 +195,7 @@ export default function Page(props: { searchParams: Promise<Message> }) {
                   minLength={6}
                   required
                   className="text-foreground pr-10"
-                  onChange={(e) => checkPasswordRequirements(e.target.value)}
+                  onChange={(e) => setPasswordRequirements(checkPasswordRequirements(e.target.value))}
                   autoComplete="new-password"
                 />
                 <button

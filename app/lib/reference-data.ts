@@ -1,6 +1,7 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
 import { createClient } from '@/utils/supabase/server';
+import { withEditionSlug } from '@/types/edition';
 
 /**
  * Cached global reference data (admin-owned tables, not scoped to any
@@ -36,6 +37,7 @@ export const getScenariosCached = async (supabase: any): Promise<Scenario[]> => 
 export interface TradingPostType {
   id: string;
   trading_post_name: string;
+  edition_slug?: string | null;
 }
 
 export const getTradingPostTypesCached = async (supabase: any): Promise<TradingPostType[]> => {
@@ -43,13 +45,13 @@ export const getTradingPostTypesCached = async (supabase: any): Promise<TradingP
     async () => {
       const { data, error } = await supabase
         .from('trading_post_types')
-        .select('id, trading_post_name')
+        .select('id, trading_post_name, editions:edition_id (slug)')
         .order('trading_post_name');
 
       if (error) throw error;
-      return data || [];
+      return (data || []).map(withEditionSlug);
     },
-    ['global-trading-post-types'],
+    ['global-trading-post-types-with-edition'],
     {
       tags: [TAGS.globalTradingPostTypes()],
       revalidate: 3600
@@ -66,13 +68,13 @@ export const getCampaignTypes = async () => {
     async () => {
       const { data, error } = await supabase
         .from('campaign_types')
-        .select('id, campaign_type_name, trading_posts')
+        .select('id, campaign_type_name, trading_posts, editions:edition_id (slug)')
         .order('campaign_type_name');
 
       if (error) throw error;
-      return data || [];
+      return (data || []).map(withEditionSlug);
     },
-    ['campaign-types'],
+    ['campaign-types-with-edition'],
     {
       tags: [TAGS.campaignTypes()],
       revalidate: false
@@ -90,16 +92,19 @@ export const getAllTerritories = async () => {
     async () => {
       const { data, error } = await supabase
         .from('territories')
-        .select('id, territory_name, campaign_type_id, playing_card')
+        .select('id, territory_name, campaign_type_id, playing_card, editions:edition_id (slug)')
         .order('territory_name');
 
       if (error) throw error;
-      return (data || []).map(territory => ({
-        ...territory,
-        territory_id: territory.id
-      }));
+      return (data || []).map(territory => {
+        const withSlug = withEditionSlug(territory);
+        return {
+          ...withSlug,
+          territory_id: withSlug.id
+        };
+      });
     },
-    ['territories-list'],
+    ['territories-list-with-edition'],
     {
       tags: [TAGS.globalTerritories()],
       revalidate: false

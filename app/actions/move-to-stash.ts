@@ -8,6 +8,7 @@ import { revalidateTag } from 'next/cache';
 import { updateGangFinancials, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { countsTowardRating } from '@/utils/fighter-status';
+import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -104,7 +105,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       // Get gang_id and status from fighter
       const { data: fighter, error: fighterError } = await supabase
         .from('fighters')
-        .select('gang_id, user_id, killed, retired, enslaved, captured, fighter_class')
+        .select('gang_id, user_id, killed, retired, enslaved, captured, fighter_subtypes')
         .eq('id', equipmentData.fighter_id)
         .single();
 
@@ -117,7 +118,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
 
       // Exotic beasts derive their rating contribution from the owner, not themselves.
       // Check the owner's active status instead.
-      if (fighterIsActive && fighter.fighter_class?.toLowerCase().startsWith('exotic beast')) {
+      if (fighterIsActive && fighter.fighter_subtypes?.some((c: string) => c.toLowerCase().startsWith('exotic beast') || c.toLowerCase() === 'pet')) {
         const { data: beastOwnership } = await supabase
           .from('fighter_exotic_beasts')
           .select('fighter_owner_id, fighters!fighter_owner_id (killed, retired, enslaved, captured)')
@@ -185,6 +186,13 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       if (deleteEffectsError) {
         throw new Error(`Failed to remove associated effects: ${deleteEffectsError.message}`);
       }
+
+      // After the delete above, so the survivor check sees only what remains
+      await syncSubtypeGrants(supabase, equipmentData.fighter_id, { revoked: associatedEffects });
+
+      if (equipmentData.fighter_id) {
+        revalidateTag(TAGS.fighter(equipmentData.fighter_id), { expire: 0 });
+      }
     }
 
     // Update the equipment to move it to stash
@@ -203,9 +211,13 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       throw new Error(`Failed to move equipment to stash: ${updateError?.message || 'No data returned'}`);
     }
 
-    // Query beast equipment cost before clearing ownership (only for exotic beast equipment)
+    // Wargear that grants a beast: 'Status Items: Exotic Beasts' in N23, 'Pets' in N26.
+    const equipmentCategory = (equipmentData.equipment as any)?.equipment_category?.toLowerCase();
+    const isBeastWargear = equipmentCategory === 'status items: exotic beasts' || equipmentCategory === 'pets';
+
+    // Query beast equipment cost before clearing ownership (only for beast-granting equipment)
     let beastEquipmentCost = 0;
-    if ((equipmentData.equipment as any)?.equipment_category?.toLowerCase() === 'status items: exotic beasts') {
+    if (isBeastWargear) {
       const { data: beastData } = await supabase
         .from('fighter_exotic_beasts')
         .select(`
@@ -281,8 +293,8 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       if ((associatedEffects?.length || 0) > 0) {
         invalidateFighter(equipmentData.fighter_id, gangId);
       }
-      // If moving exotic beast equipment to stash, invalidate beast costs cache for the owner
-      if ((equipmentData.equipment as any)?.equipment_category?.toLowerCase() === 'status items: exotic beasts') {
+      // If moving beast-granting equipment to stash, invalidate beast costs cache for the owner
+      if (isBeastWargear) {
         revalidateTag(TAGS.fighter(equipmentData.fighter_id), { expire: 0 });
       }
       // If this fighter is a beast, invalidate the owner's cache

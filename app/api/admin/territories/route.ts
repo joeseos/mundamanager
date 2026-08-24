@@ -3,6 +3,7 @@ import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { checkAdmin } from "@/utils/auth";
 import { revalidateTag } from "next/cache";
+import { invalidateCampaignCatalogLists } from "@/utils/cache-tags";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -18,7 +19,7 @@ export async function GET(request: Request) {
 
     let query = supabase
       .from('territories')
-      .select('id, territory_name, campaign_type_id, playing_card')
+      .select('id, territory_name, campaign_type_id, playing_card, edition_id')
       .order('territory_name', { ascending: true });
 
     if (campaignTypeId) {
@@ -48,7 +49,7 @@ async function _POST(request: Request) {
     }
 
     const body = await request.json();
-    const { territory_name, campaign_type_id, playing_card } = body;
+    const { territory_name, campaign_type_id, playing_card, edition_id } = body;
     const normalisedPlayingCard = typeof playing_card === 'string' ? playing_card.trim() || null : null;
 
     if (!territory_name?.trim()) {
@@ -70,12 +71,14 @@ async function _POST(request: Request) {
       .insert([{
         territory_name: territory_name.trim(),
         campaign_type_id: campaign_type_id || null,
-        playing_card: normalisedPlayingCard
+        playing_card: normalisedPlayingCard,
+        edition_id: edition_id || null
       }])
       .select()
       .single();
 
     if (error) throw error;
+    invalidateCampaignCatalogLists();
     return NextResponse.json(territory);
   } catch (error) {
     console.error('Error creating territory:', error);
@@ -96,7 +99,7 @@ async function _PATCH(request: Request) {
     }
 
     const body = await request.json();
-    const { id, territory_name, campaign_type_id, playing_card } = body;
+    const { id, territory_name, campaign_type_id, playing_card, edition_id } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -122,6 +125,9 @@ async function _PATCH(request: Request) {
     if (playing_card !== undefined) {
       updateData.playing_card = typeof playing_card === 'string' ? playing_card.trim() || null : null;
     }
+    if (edition_id !== undefined) {
+      updateData.edition_id = edition_id || null;
+    }
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json(
@@ -138,6 +144,7 @@ async function _PATCH(request: Request) {
       .single();
 
     if (error) throw error;
+    invalidateCampaignCatalogLists();
     return NextResponse.json(territory);
   } catch (error) {
     console.error('Error updating territory:', error);

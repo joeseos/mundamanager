@@ -5,13 +5,13 @@ import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
 
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
+import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
+import { grantSkillsForEffects } from './equipment';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { logFighterAction } from '@/app/actions/logs/fighter-logs';
-import {
-
-  isArchetypeEligible,
-  mapArchetypeSkillAccessToOverrides,
-} from '@/utils/archetypeEligibility';
+import { mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';
+import { assertArchetypeAssignable } from '@/utils/assertArchetypeAssignable';
+import { editionSlugFromJoin, gangEditionSlug, type EditionJoin } from '@/types/edition';
 
 interface SelectedEquipment {
   equipment_id: string;
@@ -20,6 +20,13 @@ interface SelectedEquipment {
   effect_ids?: string[];
   is_editable?: boolean;
 }
+
+/** Fighter type / custom fighter type row with optional editions embed for slug resolution. */
+type FighterTypeSource = {
+  editions?: EditionJoin;
+  fighter_subtypes?: string[] | null;
+  [key: string]: unknown;
+};
 
 interface AddFighterParams {
   fighter_name: string;
@@ -47,6 +54,7 @@ interface FighterStats {
   cool: number;
   willpower: number;
   intelligence: number;
+  save?: number | null;
   xp: number;
   kills: number;
 }
@@ -57,9 +65,9 @@ interface AddFighterResult {
     fighter_id: string;
     fighter_name: string;
     fighter_type: string;
-    fighter_class: string;
-    fighter_class_id: string;
-    fighter_sub_type_id?: string;
+    fighter_subtypes: string[];
+    fighter_specialisation_id?: string | null;
+    fighter_variant?: string | null;
     free_skill: boolean;
     cost: number;
     rating_cost: number;
@@ -77,6 +85,7 @@ interface AddFighterResult {
       cool: number;
       willpower: number;
       intelligence: number;
+      save?: number | null;
     };
     current_stats: {
       movement: number;
@@ -91,6 +100,7 @@ interface AddFighterResult {
       cool: number;
       willpower: number;
       intelligence: number;
+      save?: number | null;
     };
     stats: FighterStats;
     equipment: Array<{
@@ -110,7 +120,7 @@ interface AddFighterResult {
       id: string;
       fighter_name: string;
       fighter_type: string;
-      fighter_class: string;
+      fighter_subtypes: string[];
       fighter_type_id: string;
       credits: number;
       equipment_source: string;
@@ -131,6 +141,7 @@ interface AddFighterResult {
       cool: number;
       willpower: number;
       intelligence: number;
+      save?: number | null;
       xp: number;
       kills: number;
       special_rules: string[];
@@ -224,6 +235,17 @@ async function applyEffectsForEquipmentOptimized(
       }
     }
 
+    await grantSkillsForEffects(
+      supabase,
+      fighterId,
+      insertedEffects.map((effect: any, index: number) => ({
+        id: effect.id,
+        fighter_effect_type_id: effect.fighter_effect_type_id,
+        type_specific_data: effectTypes[index]?.type_specific_data
+      })),
+      userId
+    );
+
     // Build applied effects response using pre-fetched data (no additional queries)
     const appliedEffects: any[] = [];
     let totalCreditsIncrease = 0;
@@ -315,7 +337,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     // First try to get fighter if user owns it
     const { data: ownedFighter } = await supabase
       .from('custom_fighter_types')
-      .select('*')
+      .select('*, editions:edition_id ( slug )')
       .eq('id', params.fighter_type_id)
       .eq('user_id', user.id)
       .maybeSingle();
@@ -345,7 +367,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
           // Fetch the actual fighter data
           const { data: fighterData } = await supabase
             .from('custom_fighter_types')
-            .select('*')
+            .select('*, editions:edition_id ( slug )')
             .eq('id', params.fighter_type_id)
             .single();
 
@@ -360,12 +382,16 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         Promise.resolve({ data: null, error: null }) : // Skip regular fighter type lookup for custom fighters
         supabase
           .from('fighter_types')
-          .select('*')
+          .select('*, editions:edition_id ( slug )')
           .eq('id', params.fighter_type_id)
           .single(),
       supabase
         .from('gangs')
-        .select('id, credits, user_id, gang_type_id')
+        .select(`
+          id, credits, user_id, gang_type_id,
+          gang_types!gang_type_id ( editions:edition_id ( slug ) ),
+          custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
+        `)
         .eq('id', params.gang_id)
         .single()
     ]);
@@ -400,7 +426,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         .select('adjusted_cost')
         .eq('fighter_type_id', params.fighter_type_id)
         .eq('gang_type_id', gangData.gang_type_id)
-        .single();
+        .maybeSingle();
 
       // Use adjusted cost if available, otherwise use the original cost
       adjustedBaseCost = adjustedCostData?.adjusted_cost ?? fighterTypeData.cost;
@@ -429,15 +455,28 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     // Server-side archetype eligibility (UI check is not sufficient)
     let archetypeIdToPersist: string | null = null;
     if (params.selected_archetype_id) {
-      if (!isArchetypeEligible({
+      const fighterSource = effectiveFighterData as FighterTypeSource;
+      const fighterSubtypes = fighterSource.fighter_subtypes?.length
+        ? fighterSource.fighter_subtypes
+        : ['Custom'];
+
+      // Prefer fighter-type edition; fall back to gang edition for legacy custom types with null edition_id
+      const editionSlug =
+        editionSlugFromJoin(fighterSource.editions) ?? gangEditionSlug(gangData);
+
+      const assignable = await assertArchetypeAssignable(supabase, {
         gangTypeId: gangData.gang_type_id,
-        fighterClass: effectiveFighterData.fighter_class,
-      })) {
+        fighterSubtypes,
+        archetypeId: params.selected_archetype_id,
+        editionSlug,
+      });
+      if (!assignable.ok) {
         return {
           success: false,
-          error: 'This fighter type cannot be assigned an archetype for this gang.',
+          error: assignable.error,
         };
       }
+
       archetypeIdToPersist = params.selected_archetype_id;
     }
 
@@ -448,7 +487,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       fighter_name: params.fighter_name.trimEnd(),
       gang_id: params.gang_id,
       fighter_type: effectiveFighterData.fighter_type,
-      fighter_class: effectiveFighterData.fighter_class || 'Custom',
+      fighter_subtypes: effectiveFighterData.fighter_subtypes?.length ? effectiveFighterData.fighter_subtypes : ['Custom'],
       free_skill: effectiveFighterData.free_skill || false,
       credits: ratingCost,
       movement: effectiveFighterData.movement,
@@ -463,7 +502,13 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       cool: effectiveFighterData.cool,
       willpower: effectiveFighterData.willpower,
       intelligence: effectiveFighterData.intelligence,
-      xp: 0,
+      save: effectiveFighterData.save ?? null,
+      // A type with no Starting XP is N/A — it cannot gain XP — and the fighter
+      // records that as NULL too. Its xp still starts at 0: the roster reads N/A
+      // off starting_xp, and xp stays a number so a house rule can raise it.
+      xp: effectiveFighterData.starting_xp ?? 0,
+      starting_xp: effectiveFighterData.starting_xp ?? null,
+      is_vehicle: effectiveFighterData.is_vehicle ?? false,
       kills: 0,
       special_rules: effectiveFighterData.special_rules,
       fighter_gang_legacy_id: params.fighter_gang_legacy_id || null,
@@ -472,15 +517,14 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     };
 
     // Set appropriate fighter type ID field
+    fighterInsertData.fighter_variant = effectiveFighterData.fighter_variant ?? null;
     if (isCustomFighter) {
       fighterInsertData.custom_fighter_type_id = params.fighter_type_id;
       fighterInsertData.fighter_type_id = null;
-      fighterInsertData.fighter_class_id = null;
-      fighterInsertData.fighter_sub_type_id = null;
+      fighterInsertData.fighter_specialisation_id = null;
     } else {
       fighterInsertData.fighter_type_id = params.fighter_type_id;
-      fighterInsertData.fighter_class_id = fighterTypeData.fighter_class_id;
-      fighterInsertData.fighter_sub_type_id = fighterTypeData.fighter_sub_type_id;
+      fighterInsertData.fighter_specialisation_id = fighterTypeData.fighter_specialisation_id;
       fighterInsertData.custom_fighter_type_id = null;
     }
 
@@ -696,7 +740,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                 id,
                 equipment_name,
                 equipment_type,
-                equipment_category_id,
+                equipment_category,
                 cost
               ),
               custom_equipment!custom_equipment_id(
@@ -851,6 +895,9 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                         }
                       }
                     }
+
+                    // Default gear can grant a subtype, e.g. a type shipping a Dirt bike
+                    await syncSubtypeGrants(supabase, fighterId, { granted: allAppliedEffects });
                   }
                 } catch (batchError) {
                   console.error('Error in batch effect processing:', batchError);
@@ -887,12 +934,12 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                 customWeaponProfiles = customProfilesData || [];
               }
 
-              // Check for exotic beast equipment and create beasts
-              const exoticBeastCategoryId = '6b5eabd8-0865-439c-98bb-09bd78f0fbac';
-              const exoticBeastEquipment = insertedEquipment.filter((item: any) =>
-                (item.equipment as any)?.equipment_category_id === exoticBeastCategoryId ||
-                (item.custom_equipment as any)?.equipment_category === 'exotic beast'
-              );
+              // Beast-granting wargear: 'Status Items: Exotic Beasts' in N23, 'Pets' in N26.
+              const exoticBeastEquipment = insertedEquipment.filter((item: any) => {
+                const category = ((item.equipment as any)?.equipment_category ??
+                  (item.custom_equipment as any)?.equipment_category)?.toLowerCase();
+                return category === 'status items: exotic beasts' || category === 'pets' || category === 'exotic beast';
+              });
 
               // Create exotic beasts for equipment that grants them
               let createdBeasts: any[] = [];
@@ -1180,6 +1227,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       cool: insertedFighter.cool,
       willpower: insertedFighter.willpower,
       intelligence: insertedFighter.intelligence,
+      save: insertedFighter.save ?? null,
       xp: insertedFighter.xp,
       kills: insertedFighter.kills
     };
@@ -1194,9 +1242,9 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         fighter_id: fighterId,
         fighter_name: insertedFighter.fighter_name,
         fighter_type: effectiveFighterData.fighter_type,
-        fighter_class: effectiveFighterData.fighter_class || 'Custom',
-        fighter_class_id: isCustomFighter ? null : fighterTypeData.fighter_class_id,
-        fighter_sub_type_id: isCustomFighter ? null : fighterTypeData.fighter_sub_type_id,
+        fighter_subtypes: effectiveFighterData.fighter_subtypes?.length ? effectiveFighterData.fighter_subtypes : ['Custom'],
+        fighter_specialisation_id: fighterInsertData.fighter_specialisation_id,
+        fighter_variant: effectiveFighterData.fighter_variant ?? null,
         free_skill: effectiveFighterData.free_skill || false,
         cost: fighterCost,
         rating_cost: ratingCost,
@@ -1214,7 +1262,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
           leadership: baseStats.leadership,
           cool: baseStats.cool,
           willpower: baseStats.willpower,
-          intelligence: baseStats.intelligence
+          intelligence: baseStats.intelligence,
+          save: baseStats.save
         },
         // Current stats (after effects applied) for immediate display
         current_stats: {
@@ -1229,7 +1278,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
           leadership: currentStats.leadership,
           cool: currentStats.cool,
           willpower: currentStats.willpower,
-          intelligence: currentStats.intelligence
+          intelligence: currentStats.intelligence,
+          save: currentStats.save
         },
         // Legacy stats field for backward compatibility (use current stats)
         stats: currentStats,

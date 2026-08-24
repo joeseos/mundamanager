@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { LuTrash2, LuPlus } from "react-icons/lu";
 import { HiX } from "react-icons/hi";
 import Modal from '@/components/ui/modal';
+import { EditionSelect } from '@/components/edition-select';
 
 type LineageType = 'legacy' | 'affiliation';
 
@@ -15,6 +16,7 @@ interface GangLineage {
   id: string;
   name: string;
   fighter_type_id: string;
+  edition_id?: string | null;
   type: LineageType | string;
   created_at: string;
   updated_at?: string;
@@ -32,13 +34,16 @@ interface FighterType {
   fighter_type: string;
   gang_type: string;
   gang_type_id: string;
-  fighter_class: string;
-  fighter_sub_type?: string | null;
+  edition_id?: string | null;
+  fighter_subtypes?: string[];
+  fighter_variant?: string | null;
+  fighter_specialisation?: string | null;
 }
 
 interface GangType {
   gang_type_id: string;
   gang_type: string;
+  edition_id?: string | null;
 }
 
 interface AdminGangLineageModalProps {
@@ -63,6 +68,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
   const [selectedGangTypeId, setSelectedGangTypeId] = useState('');
   const [associatedFighterTypeId, setAssociatedFighterTypeId] = useState('');
   const [lineageType, setLineageType] = useState<LineageType | ''>('');
+  const [editionId, setEditionId] = useState('');
   const [fighterTypeAccess, setFighterTypeAccess] = useState<string[]>([]);
   
   
@@ -164,6 +170,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
       setSelectedGangLineage(gangLineageDetailsData);
       setGangLineageName(gangLineageDetailsData.name);
       setLineageType(gangLineageDetailsData.type);
+      setEditionId(gangLineageDetailsData.edition_id ?? '');
       setFighterTypeAccess(gangLineageDetailsData.fighter_type_access || []);
       if (gangLineageDetailsData.associated_fighter_type) {
         setSelectedGangTypeId(gangLineageDetailsData.associated_fighter_type.gang_type_id || '');
@@ -172,12 +179,26 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
     }
   }
 
-  // Derived: filter fighter types by selected gang type
+  // Edition is the top-level filter: only lineages of the chosen edition are
+  // offered for editing, and created/saved lineages keep that edition
+  const editionFilteredLineages = editionId
+    ? filteredGangLineages.filter(lineage => lineage.edition_id === editionId)
+    : filteredGangLineages;
+
+  // Derived: filter gang types by selected edition
+  const filteredGangTypes = useMemo(
+    () => editionId
+      ? gangTypes.filter(gt => gt.edition_id === editionId)
+      : gangTypes,
+    [gangTypes, editionId]
+  );
+
+  // Derived: filter fighter types by selected gang type and edition
   const filteredFighterTypes = useMemo(
     () => selectedGangTypeId
-      ? fighterTypes.filter(ft => ft.gang_type_id === selectedGangTypeId)
+      ? fighterTypes.filter(ft => ft.gang_type_id === selectedGangTypeId && (!editionId || ft.edition_id === editionId))
       : [],
-    [selectedGangTypeId, fighterTypes]
+    [selectedGangTypeId, fighterTypes, editionId]
   );
 
   // Handle user changing the gang type dropdown — clear fighter type if no longer valid
@@ -190,6 +211,35 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
     } else {
       setAssociatedFighterTypeId('');
     }
+  };
+
+  const handleEditionChange = (newEditionId: string) => {
+    setEditionId(newEditionId);
+    if (!newEditionId) return;
+
+    if (selectedGangLineageId) {
+      const lineage = filteredGangLineages.find(l => l.id === selectedGangLineageId);
+      if (lineage && lineage.edition_id !== newEditionId) {
+        setSelectedGangLineageId('');
+      }
+    }
+
+    // Only blank a selection when the target is found with a confirmed different edition
+    const conflicts = (gangTypeId: string) => {
+      const gangType = gangTypes.find(gt => gt.gang_type_id === gangTypeId);
+      return !!gangType?.edition_id && gangType.edition_id !== newEditionId;
+    };
+
+    if (selectedGangTypeId && conflicts(selectedGangTypeId)) {
+      handleGangTypeChange('');
+    }
+    if (accessRuleGangTypeId && conflicts(accessRuleGangTypeId)) {
+      setAccessRuleGangTypeId('');
+    }
+    setFighterTypeAccess(prev => prev.filter(id => {
+      const fighterType = fighterTypes.find(ft => ft.id === id);
+      return !fighterType?.edition_id || fighterType.edition_id === newEditionId;
+    }));
   };
 
   const isLoading = isLineagesLoading || isDetailsLoading || isSubmitting;
@@ -244,7 +294,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
     try {
       setIsSubmitting(true);
       const response = await fetch(`/api/admin/gang-lineages?id=${selectedGangLineage.id}&type=${selectedGangLineage.type}`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -327,22 +377,37 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
   const getFighterTypeDisplayName = (fighterType: FighterType) => {
     let displayName = fighterType.fighter_type;
     
-    // Add fighter class in parentheses
-    if (fighterType.fighter_class) {
-      displayName += ` (${fighterType.fighter_class})`;
+    // Add fighter subtype in parentheses
+    const subtypeDisplay = fighterType.fighter_subtypes?.join(', ');
+    if (subtypeDisplay) {
+      displayName += ` (${subtypeDisplay})`;
     }
     
-    // Add sub-type with dash if it exists
-    if (fighterType.fighter_sub_type) {
-      displayName += ` - ${fighterType.fighter_sub_type}`;
+    // Add variant and specialisation with a dash if they exist
+    for (const name of [fighterType.fighter_variant, fighterType.fighter_specialisation]) {
+      if (name) displayName += ` - ${name}`;
     }
     
     return displayName;
   };
 
+  // Derived: fighter types selectable as access rules, scoped to edition and gang type
+  const accessFighterTypeOptions = useMemo(
+    () => accessRuleGangTypeId
+      ? fighterTypes
+          .filter(ft => ft.gang_type_id === accessRuleGangTypeId
+            && (!editionId || ft.edition_id === editionId)
+            && !fighterTypeAccess.includes(ft.id))
+          .sort((a, b) => getFighterTypeDisplayName(a).localeCompare(getFighterTypeDisplayName(b)))
+      : [],
+    [accessRuleGangTypeId, fighterTypes, editionId, fighterTypeAccess]
+  );
+
   // Create modal content
   const createModalContent = (
     <div className="space-y-4">
+      <EditionSelect value={editionId} onChange={handleEditionChange} defaultToCurrent />
+
       <div>
         <label className="block text-sm font-medium text-muted-foreground mb-1">
           Type *
@@ -381,7 +446,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
           className="w-full p-2 border rounded-md"
         >
           <option value="">Select a gang type</option>
-          {gangTypes.map((gangType) => (
+          {filteredGangTypes.map((gangType) => (
             <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
               {gangType.gang_type}
             </option>
@@ -427,7 +492,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                 className="w-full p-2 border rounded-md"
               >
                 <option value="">Select gang type</option>
-                {gangTypes.map((gangType) => (
+                {filteredGangTypes.map((gangType) => (
                   <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
                     {gangType.gang_type}
                   </option>
@@ -456,14 +521,11 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                     : "Add fighter type access"
                   }
                 </option>
-                {accessRuleGangTypeId && fighterTypes
-                  .filter(ft => ft.gang_type_id === accessRuleGangTypeId && !fighterTypeAccess.includes(ft.id))
-                  .sort((a, b) => getFighterTypeDisplayName(a).localeCompare(getFighterTypeDisplayName(b)))
-                  .map((fighterType) => (
-                    <option key={fighterType.id} value={fighterType.id}>
-                      {getFighterTypeDisplayName(fighterType)}
-                    </option>
-                  ))}
+                {accessFighterTypeOptions.map((fighterType) => (
+                  <option key={fighterType.id} value={fighterType.id}>
+                    {getFighterTypeDisplayName(fighterType)}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -517,7 +579,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
         <div className="px-[10px] py-4 overflow-y-auto grow">
           <div className="space-y-6">
             {/* Type and Gang Lineage Selection */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Select Type
@@ -534,6 +596,8 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                 </select>
               </div>
 
+              <EditionSelect value={editionId} onChange={handleEditionChange} defaultToCurrent />
+
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Select Gang Affiliation or Legacy
@@ -545,14 +609,14 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                   disabled={isLoading || !selectedType}
                 >
                   <option value="">
-                    {!selectedType 
-                      ? "Select a type first" 
-                      : filteredGangLineages.length === 0 
-                        ? "No lineages available" 
+                    {!selectedType
+                      ? "Select a type first"
+                      : editionFilteredLineages.length === 0
+                        ? "No lineages available"
                         : "Select a gang affiliation or legacy"
                     }
                   </option>
-                  {filteredGangLineages.map((lineage) => (
+                  {editionFilteredLineages.map((lineage) => (
                     <option key={lineage.id} value={lineage.id}>
                       {lineage.name}
                     </option>
@@ -622,7 +686,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                       disabled={isLoading}
                     >
                       <option value="">Select a gang type</option>
-                      {gangTypes.map((gangType) => (
+                      {filteredGangTypes.map((gangType) => (
                         <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
                           {gangType.gang_type}
                         </option>
@@ -674,7 +738,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                           disabled={isLoading}
                         >
                           <option value="">Select gang type</option>
-                          {gangTypes.map((gangType) => (
+                          {filteredGangTypes.map((gangType) => (
                             <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
                               {gangType.gang_type}
                             </option>
@@ -703,14 +767,11 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                               : "Add fighter type access"
                             }
                           </option>
-                          {accessRuleGangTypeId && fighterTypes
-                            .filter(ft => ft.gang_type_id === accessRuleGangTypeId && !fighterTypeAccess.includes(ft.id))
-                            .sort((a, b) => getFighterTypeDisplayName(a).localeCompare(getFighterTypeDisplayName(b)))
-                            .map((fighterType) => (
-                              <option key={fighterType.id} value={fighterType.id}>
-                                {getFighterTypeDisplayName(fighterType)}
-                              </option>
-                            ))}
+                          {accessFighterTypeOptions.map((fighterType) => (
+                            <option key={fighterType.id} value={fighterType.id}>
+                              {getFighterTypeDisplayName(fighterType)}
+                            </option>
+                          ))}
                         </select>
                       </div>
                     </div>

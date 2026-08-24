@@ -28,6 +28,7 @@ export async function GET(request: Request) {
         strength,
         ap,
         damage,
+        lethality,
         ammo,
         traits,
         weapon_group_id,
@@ -37,8 +38,6 @@ export async function GET(request: Request) {
       .order('sort_order', { ascending: true });
 
     if (error) throw error;
-
-    console.log('Fetched weapon profiles:', profiles);
 
     return NextResponse.json(profiles || []);
   } catch (error) {

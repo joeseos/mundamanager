@@ -34,11 +34,10 @@ export function useClaims(): ClaimsState {
         return;
       }
 
-      const profile = extractProfileClaims(data.claims);
       setState({
         userId: data.claims.sub ?? null,
         email: (data.claims.email as string) ?? null,
-        profile,
+        profile: extractProfileClaims(data.claims),
         loading: false,
       });
     }
@@ -46,7 +45,7 @@ export function useClaims(): ClaimsState {
     loadClaims();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event) => {
         if (!mounted) return;
 
         if (event === 'SIGNED_OUT') {
@@ -54,27 +53,9 @@ export function useClaims(): ClaimsState {
           return;
         }
 
-        if (!session) {
-          const { data, error } = await supabase.auth.getClaims();
-          if (!mounted) return;
-          if (error || !data) {
-            setState({ userId: null, email: null, profile: null, loading: false });
-          }
-          return;
-        }
-
-        const { data, error } = await supabase.auth.getClaims();
-        if (!mounted) return;
-
-        if (error || !data) return;
-
-        const profile = extractProfileClaims(data.claims);
-        setState({
-          userId: data.claims.sub ?? null,
-          email: (data.claims.email as string) ?? null,
-          profile,
-          loading: false,
-        });
+        // Claims live in the JWT, so any other event (sign-in, token refresh,
+        // user update) means re-reading them.
+        loadClaims();
       }
     );
 

@@ -2,10 +2,9 @@
 -- PostgreSQL database dump
 --
 
-\restrict sOMbG54n4jsWBJX4l3wyHd4ObiyyDDdWZMWdojS83TUJZv5zhcIlIOsxzEjiYTx
 
 -- Dumped from database version 17.6
--- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
+-- Dumped by pg_dump version 17.11 (Ubuntu 17.11-1.pgdg24.04+2)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -23,7 +22,6 @@ SET row_security = off;
 -- Name: public; Type: SCHEMA; Schema: -; Owner: -
 --
 
-CREATE SCHEMA public;
 
 
 --
@@ -45,10 +43,67 @@ CREATE TYPE public.alignment AS ENUM (
 
 
 --
+-- Name: accept_campaign_join_request(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.accept_campaign_join_request(p_campaign_id uuid, p_user_id uuid) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+   v_request_id uuid;
+   v_is_member boolean;
+BEGIN
+   -- Only campaign OWNER/ARBITRATOR or a site admin may accept.
+   IF NOT (private.is_admin() OR private.is_arb(p_campaign_id)) THEN
+      RETURN 'not_authorized';
+   END IF;
+
+   -- Lock the pending request to serialize concurrent accepts.
+   SELECT id INTO v_request_id
+   FROM campaign_join_requests
+   WHERE campaign_id = p_campaign_id AND user_id = p_user_id
+   FOR UPDATE;
+
+   IF v_request_id IS NULL THEN
+      RETURN 'no_request';
+   END IF;
+
+   SELECT EXISTS (
+      SELECT 1 FROM campaign_members
+      WHERE campaign_id = p_campaign_id AND user_id = p_user_id
+   ) INTO v_is_member;
+
+   IF NOT v_is_member THEN
+      -- auth.uid() is the acting arbitrator even inside SECURITY DEFINER. This
+      -- INSERT fires notify_campaign_member_added, sending the requester their
+      -- acceptance notice ("you've been invited"), inside this same transaction.
+      INSERT INTO campaign_members (campaign_id, user_id, role, invited_at, invited_by)
+      VALUES (p_campaign_id, p_user_id, 'MEMBER', now(), auth.uid());
+   END IF;
+
+   DELETE FROM campaign_join_requests WHERE id = v_request_id;
+
+   -- Clear the "wants to join" notifications this request fanned out to every
+   -- OWNER/ARBITRATOR, so no stale copies linger once it is handled.
+   DELETE FROM notifications
+   WHERE type = 'campaign_join_request'
+     AND sender_id = p_user_id
+     AND link = 'https://www.mundamanager.com/campaigns/' || p_campaign_id;
+
+   IF v_is_member THEN
+      RETURN 'already_member';
+   END IF;
+   RETURN 'accepted';
+END;
+$$;
+
+
+--
 -- Name: add_fighter_injury(uuid, uuid, uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.add_fighter_injury(in_fighter_id uuid, in_injury_type_id uuid, in_user_id uuid, in_target_equipment_id uuid DEFAULT NULL::uuid, in_bitter_enmity_target_gang_id uuid DEFAULT NULL::uuid) RETURNS TABLE(result json)
+CREATE FUNCTION public.add_fighter_injury(in_fighter_id uuid, in_injury_type_id uuid, in_user_id uuid, in_target_equipment_id uuid DEFAULT NULL::uuid, in_hatred_target_id uuid DEFAULT NULL::uuid) RETURNS TABLE(result json)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'auth', 'private'
     AS $$
@@ -66,8 +121,11 @@ DECLARE
     injury_count INTEGER;
     is_partially_deafened BOOLEAN;
     v_merged_tsd JSONB;
-    v_enemy_gang_name TEXT;
-    v_enemy_gang_colour TEXT;
+    v_hatred_target TEXT;
+    v_target_name TEXT;
+    v_target_colour TEXT;
+    v_target_gang_id UUID;
+    v_fighter_edition_id UUID;
     v_shares_campaign BOOLEAN;
 BEGIN
     -- Set user context for is_admin check
@@ -90,7 +148,7 @@ BEGIN
         ) OR EXISTS (
             SELECT 1
             FROM campaign_gangs cg
-            WHERE cg.gang_id = v_gang_id AND private.is_arb(cg.campaign_id)
+            WHERE cg.gang_id = v_gang_id AND cg.status = 'ACCEPTED' AND private.is_arb(cg.campaign_id)
         ) INTO v_user_has_access;
 
         IF NOT v_user_has_access THEN
@@ -108,50 +166,121 @@ BEGIN
         RAISE EXCEPTION 'The provided fighter effect type ID does not exist';
     END IF;
 
-    -- Validate that the effect type belongs to the injuries or rig-glitches category
+    -- Validate the effect type's category. 'lasting damages' is here because an
+    -- N26 vehicle IS a fighter: it has no `vehicles` row, so its damage must hang
+    -- off fighter_effects.fighter_id (which this function writes) rather than
+    -- vehicle_id (which add_vehicle_effect writes, for N23 vehicles).
     IF effect_type_record.fighter_effect_category_id NOT IN (
-        SELECT id FROM fighter_effect_categories WHERE category_name IN ('injuries', 'rig-glitches')
+        SELECT id FROM fighter_effect_categories
+        WHERE category_name IN ('injuries', 'rig-glitches', 'lasting damages')
     ) THEN
-        RAISE EXCEPTION 'The provided fighter effect type is not an injury or rig glitch';
+        RAISE EXCEPTION 'The provided fighter effect type is not an injury, rig glitch or lasting damage';
     END IF;
 
     -- Check if this is "Partially Deafened"
     is_partially_deafened := effect_type_record.effect_name = 'Partially Deafened';
     
-    -- Base type_specific_data for the new effect row (template + optional Bitter Enmity gang fields)
+    -- Base type_specific_data for the new effect row (template + optional Hatred (X) target)
     v_merged_tsd := COALESCE(effect_type_record.type_specific_data, '{}'::jsonb);
-    
-    -- Optional Bitter Enmity: validate enemy gang and merge id / name / colour into instance jsonb
-    IF in_bitter_enmity_target_gang_id IS NOT NULL THEN
-        IF effect_type_record.effect_name <> 'Bitter Enmity' THEN
-            RAISE EXCEPTION 'Enemy gang can only be set for Bitter Enmity lasting injuries';
+
+    v_hatred_target := effect_type_record.type_specific_data->>'hatred_target';
+
+    -- Always optional: skirmish play has no opponent to name.
+    IF in_hatred_target_id IS NOT NULL THEN
+        IF v_hatred_target IS NULL THEN
+            RAISE EXCEPTION 'This lasting injury does not take a Hatred target';
         END IF;
 
-        IF in_bitter_enmity_target_gang_id = v_gang_id THEN
-            RAISE EXCEPTION 'Bitter Enmity enemy gang cannot be the fighter''s own gang';
+        -- Membership must be ACCEPTED, matching the permission check above: this
+        -- function is SECURITY DEFINER and directly callable, so it is the
+        -- enforcement boundary, not the UI's candidate list.
+        IF v_hatred_target = 'gang' THEN
+            IF in_hatred_target_id = v_gang_id THEN
+                RAISE EXCEPTION 'Hatred target gang cannot be the fighter''s own gang';
+            END IF;
+
+            SELECT EXISTS (
+                SELECT 1
+                FROM campaign_gangs cg1
+                INNER JOIN campaign_gangs cg2 ON cg1.campaign_id = cg2.campaign_id
+                WHERE cg1.gang_id = v_gang_id
+                  AND cg2.gang_id = in_hatred_target_id
+                  AND cg1.status = 'ACCEPTED'
+                  AND cg2.status = 'ACCEPTED'
+            ) INTO v_shares_campaign;
+
+            IF NOT COALESCE(v_shares_campaign, false) THEN
+                RAISE EXCEPTION 'Hatred target gang must share a campaign with the fighter''s gang';
+            END IF;
+
+            SELECT g.name, g.gang_colour::text
+            INTO STRICT v_target_name, v_target_colour
+            FROM gangs g
+            WHERE g.id = in_hatred_target_id;
+
+        ELSIF v_hatred_target = 'gang_type' THEN
+            -- Global catalog, so no campaign constraint (works in skirmish).
+            -- Edition must match, or an N23 type could land on an N26 fighter.
+            -- Official types only.
+            SELECT COALESCE(gt.edition_id, cgt.edition_id)
+            INTO v_fighter_edition_id
+            FROM gangs g
+            LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+            LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
+            WHERE g.id = v_gang_id;
+
+            SELECT gt.gang_type
+            INTO v_target_name
+            FROM gang_types gt
+            WHERE gt.gang_type_id = in_hatred_target_id
+              AND gt.edition_id IS NOT DISTINCT FROM v_fighter_edition_id;
+
+            IF v_target_name IS NULL THEN
+                RAISE EXCEPTION 'Hatred target gang type does not exist in the fighter''s edition';
+            END IF;
+
+            v_target_colour := NULL;
+
+        ELSIF v_hatred_target = 'fighter' THEN
+            SELECT f.fighter_name, f.gang_id
+            INTO v_target_name, v_target_gang_id
+            FROM fighters f
+            WHERE f.id = in_hatred_target_id;
+
+            IF v_target_gang_id IS NULL THEN
+                RAISE EXCEPTION 'Hatred target fighter does not exist';
+            END IF;
+
+            IF v_target_gang_id = v_gang_id THEN
+                RAISE EXCEPTION 'Hatred target fighter cannot belong to the fighter''s own gang';
+            END IF;
+
+            SELECT EXISTS (
+                SELECT 1
+                FROM campaign_gangs cg1
+                INNER JOIN campaign_gangs cg2 ON cg1.campaign_id = cg2.campaign_id
+                WHERE cg1.gang_id = v_gang_id
+                  AND cg2.gang_id = v_target_gang_id
+                  AND cg1.status = 'ACCEPTED'
+                  AND cg2.status = 'ACCEPTED'
+            ) INTO v_shares_campaign;
+
+            IF NOT COALESCE(v_shares_campaign, false) THEN
+                RAISE EXCEPTION 'Hatred target fighter must belong to a gang sharing a campaign with the fighter''s gang';
+            END IF;
+
+            v_target_colour := NULL;
+
+        ELSE
+            RAISE EXCEPTION 'Unknown Hatred target kind: %', v_hatred_target;
         END IF;
 
-        SELECT EXISTS (
-            SELECT 1
-            FROM campaign_gangs cg1
-            INNER JOIN campaign_gangs cg2 ON cg1.campaign_id = cg2.campaign_id
-            WHERE cg1.gang_id = v_gang_id
-              AND cg2.gang_id = in_bitter_enmity_target_gang_id
-        ) INTO v_shares_campaign;
-
-        IF NOT COALESCE(v_shares_campaign, false) THEN
-            RAISE EXCEPTION 'Enemy gang must share a campaign with the fighter''s gang';
-        END IF;
-
-        SELECT g.name, g.gang_colour::text
-        INTO STRICT v_enemy_gang_name, v_enemy_gang_colour
-        FROM gangs g
-        WHERE g.id = in_bitter_enmity_target_gang_id;
-
+        -- Denormalised snapshots; deliberately not kept in sync on rename.
         v_merged_tsd := v_merged_tsd || jsonb_build_object(
-            'bitter_enmity_target_gang_id', in_bitter_enmity_target_gang_id::text,
-            'bitter_enmity_target_gang_name', v_enemy_gang_name,
-            'bitter_enmity_target_gang_colour', v_enemy_gang_colour
+            'hatred_target_kind', v_hatred_target,
+            'hatred_target_id', in_hatred_target_id::text,
+            'hatred_target_name', v_target_name,
+            'hatred_target_colour', v_target_colour
         );
     END IF;
 
@@ -356,7 +485,7 @@ BEGIN
         ) OR EXISTS (
             SELECT 1
             FROM campaign_gangs cg
-            WHERE cg.gang_id = v_gang_id AND private.is_arb(cg.campaign_id)
+            WHERE cg.gang_id = v_gang_id AND cg.status = 'ACCEPTED' AND private.is_arb(cg.campaign_id)
         ) INTO v_user_has_access;
 
         IF NOT v_user_has_access THEN
@@ -596,6 +725,7 @@ DECLARE
   v_new_items jsonb;
   v_name text;
   v_description text;
+  v_edition uuid;
   v_before bigint;
   v_after bigint;
   -- closure id-sets
@@ -618,8 +748,8 @@ BEGIN
     RAISE EXCEPTION 'Not authenticated';
   END IF;
 
-  SELECT p.items, p.name, p.description
-    INTO v_items, v_name, v_description
+  SELECT p.items, p.name, p.description, p.edition_id
+    INTO v_items, v_name, v_description, v_edition
   FROM public.custom_collections p
   WHERE p.id = p_collection_id;
 
@@ -645,10 +775,14 @@ BEGIN
     v_before := cardinality(v_eq) + cardinality(v_st) + cardinality(v_sk)
               + cardinality(v_gt) + cardinality(v_ft) + cardinality(v_tp);
 
-    -- fighter types belonging to in-scope gang types
+    -- fighter types belonging to in-scope gang types, as their author defined them.
+    -- Scoped to the owner: SELECT RLS here is USING (true), so an unscoped pull also
+    -- clones fighters other users attached to the same gang type.
     v_ft := ARRAY(SELECT DISTINCT f FROM (
               SELECT unnest(v_ft) AS f
-              UNION SELECT cft.id FROM public.custom_fighter_types cft WHERE cft.custom_gang_type_id = ANY(v_gt)
+              UNION SELECT cft.id FROM public.custom_fighter_types cft
+                    JOIN public.custom_gang_types cgt ON cgt.id = cft.custom_gang_type_id
+                    WHERE cft.custom_gang_type_id = ANY(v_gt) AND cft.user_id = cgt.user_id
             ) s WHERE f IS NOT NULL);
 
     -- gang types referenced by in-scope fighter types and trading posts
@@ -673,10 +807,13 @@ BEGIN
                     WHERE cs.id = ANY(v_sk) AND cs.custom_skill_type_id IS NOT NULL
             ) s WHERE t IS NOT NULL);
 
-    -- all skills belonging to in-scope skill types (clone the whole set)
+    -- all skills belonging to in-scope skill types, as their author defined them.
+    -- Owner-scoped for the same reason as the fighter closure above.
     v_sk := ARRAY(SELECT DISTINCT k FROM (
               SELECT unnest(v_sk) AS k
-              UNION SELECT cs.id FROM public.custom_skills cs WHERE cs.custom_skill_type_id = ANY(v_st)
+              UNION SELECT cs.id FROM public.custom_skills cs
+                    JOIN public.custom_skill_types cst ON cst.id = cs.custom_skill_type_id
+                    WHERE cs.custom_skill_type_id = ANY(v_st) AND cs.user_id = cst.user_id
             ) s WHERE k IS NOT NULL);
 
     -- equipment referenced by fighter defaults / fighter equipment / trading posts
@@ -709,8 +846,8 @@ BEGIN
 
   -- Clone in topological order. Custom FKs remapped via maps; standard/global FKs kept.
 
-  INSERT INTO public.custom_skill_types (id, created_at, user_id, name)
-  SELECT (v_map_st ->> st.id::text)::uuid, now(), v_user, st.name
+  INSERT INTO public.custom_skill_types (id, created_at, user_id, name, edition_id)
+  SELECT (v_map_st ->> st.id::text)::uuid, now(), v_user, st.name, st.edition_id
   FROM public.custom_skill_types st WHERE st.id = ANY(v_st);
 
   INSERT INTO public.custom_skills (id, created_at, user_id, skill_name, skill_type_id, custom_skill_type_id, description)
@@ -720,36 +857,38 @@ BEGIN
 
   INSERT INTO public.custom_equipment (id, created_at, user_id, equipment_name, availability, cost, variant,
                                        equipment_category, equipment_category_id, equipment_type, is_editable,
-                                       is_consumable, description)
+                                       is_consumable, description, edition_id)
   SELECT (v_map_eq ->> ce.id::text)::uuid, now(), v_user, ce.equipment_name, ce.availability, ce.cost, ce.variant,
          ce.equipment_category, ce.equipment_category_id, ce.equipment_type, true,
-         ce.is_consumable, ce.description
+         ce.is_consumable, ce.description, ce.edition_id
   FROM public.custom_equipment ce WHERE ce.id = ANY(v_eq);
 
   INSERT INTO public.custom_weapon_profiles (id, custom_equipment_id, created_at, profile_name, range_short,
-                                             range_long, acc_short, acc_long, strength, ap, damage, ammo,
-                                             traits, weapon_group_id, sort_order, user_id)
+                                             range_long, acc_short, acc_long, strength, ap, damage, lethality,
+                                             ammo, traits, weapon_group_id, sort_order, user_id)
   SELECT gen_random_uuid(), (v_map_eq ->> wp.custom_equipment_id::text)::uuid, now(), wp.profile_name, wp.range_short,
-         wp.range_long, wp.acc_short, wp.acc_long, wp.strength, wp.ap, wp.damage, wp.ammo,
-         wp.traits, (v_map_eq ->> wp.weapon_group_id::text)::uuid, wp.sort_order, v_user
+         wp.range_long, wp.acc_short, wp.acc_long, wp.strength, wp.ap, wp.damage, wp.lethality,
+         wp.ammo, wp.traits, (v_map_eq ->> wp.weapon_group_id::text)::uuid, wp.sort_order, v_user
   FROM public.custom_weapon_profiles wp WHERE wp.custom_equipment_id = ANY(v_eq);
 
   INSERT INTO public.custom_gang_types (id, created_at, user_id, gang_type, alignment, trading_post_type_id,
-                                        default_image_urls, description)
+                                        default_image_urls, description, edition_id)
   SELECT (v_map_gt ->> gt.id::text)::uuid, now(), v_user, gt.gang_type, gt.alignment, gt.trading_post_type_id,
-         gt.default_image_urls, gt.description
+         gt.default_image_urls, gt.description, gt.edition_id
   FROM public.custom_gang_types gt WHERE gt.id = ANY(v_gt);
 
   INSERT INTO public.custom_fighter_types (id, created_at, user_id, fighter_type, gang_type, cost, movement,
                                            weapon_skill, ballistic_skill, strength, toughness, wounds, initiative,
                                            attacks, leadership, cool, willpower, intelligence, gang_type_id,
-                                           special_rules, free_skill, fighter_class, fighter_class_id,
-                                           custom_gang_type_id, description)
+                                           special_rules, free_skill,
+                                           fighter_subtypes, custom_gang_type_id, description, edition_id, save,
+                                           starting_xp, is_vehicle)
   SELECT (v_map_ft ->> cft.id::text)::uuid, now(), v_user, cft.fighter_type, cft.gang_type, cft.cost, cft.movement,
          cft.weapon_skill, cft.ballistic_skill, cft.strength, cft.toughness, cft.wounds, cft.initiative,
          cft.attacks, cft.leadership, cft.cool, cft.willpower, cft.intelligence, cft.gang_type_id,
-         cft.special_rules, cft.free_skill, cft.fighter_class, cft.fighter_class_id,
-         (v_map_gt ->> cft.custom_gang_type_id::text)::uuid, cft.description
+         cft.special_rules, cft.free_skill,
+         cft.fighter_subtypes, (v_map_gt ->> cft.custom_gang_type_id::text)::uuid, cft.description, cft.edition_id,
+         cft.save, cft.starting_xp, cft.is_vehicle
   FROM public.custom_fighter_types cft WHERE cft.id = ANY(v_ft);
 
   INSERT INTO public.fighter_type_skill_access (id, fighter_type_id, skill_type_id, access_level,
@@ -770,8 +909,8 @@ BEGIN
          (v_map_ft ->> fe.custom_fighter_type_id::text)::uuid
   FROM public.custom_fighter_type_equipment fe WHERE fe.custom_fighter_type_id = ANY(v_ft);
 
-  INSERT INTO public.custom_trading_posts (id, created_at, user_id, custom_trading_post_name, description)
-  SELECT (v_map_tp ->> tp.id::text)::uuid, now(), v_user, tp.custom_trading_post_name, tp.description
+  INSERT INTO public.custom_trading_posts (id, created_at, user_id, custom_trading_post_name, description, edition_id)
+  SELECT (v_map_tp ->> tp.id::text)::uuid, now(), v_user, tp.custom_trading_post_name, tp.description, tp.edition_id
   FROM public.custom_trading_posts tp WHERE tp.id = ANY(v_tp);
 
   INSERT INTO public.custom_trading_post_equipment (id, created_at, user_id, custom_trading_post_id, equipment_id,
@@ -819,8 +958,8 @@ BEGIN
     WHERE mapped.nid IS NOT NULL
   ), '[]'::jsonb);
 
-  INSERT INTO public.custom_collections (id, created_at, user_id, name, description, items)
-  VALUES (v_new_collection, now(), v_user, COALESCE(p_name, v_name), v_description, v_new_items);
+  INSERT INTO public.custom_collections (id, created_at, user_id, name, description, items, edition_id)
+  VALUES (v_new_collection, now(), v_user, COALESCE(p_name, v_name), v_description, v_new_items, v_edition);
   RETURN v_new_collection;
 END;
 $$;
@@ -874,6 +1013,61 @@ $$;
 
 
 --
+-- Name: custom_shared_set_edition(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.custom_shared_set_edition() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_campaign_edition uuid;
+  v_item_edition uuid;
+BEGIN
+  IF NEW.campaign_id IS NULL THEN
+    RAISE EXCEPTION 'custom_shared.campaign_id is required to resolve the share edition';
+  END IF;
+
+  SELECT ct.edition_id INTO v_campaign_edition
+  FROM public.campaigns c
+  JOIN public.campaign_types ct ON ct.id = c.campaign_type_id
+  WHERE c.id = NEW.campaign_id;
+
+  SELECT COALESCE(
+    (SELECT edition_id FROM public.custom_equipment     WHERE id = NEW.custom_equipment_id),
+    (SELECT edition_id FROM public.custom_fighter_types WHERE id = NEW.custom_fighter_type_id),
+    (SELECT edition_id FROM public.custom_gang_types    WHERE id = NEW.custom_gang_type_id),
+    (SELECT edition_id FROM public.custom_trading_posts WHERE id = NEW.custom_trading_post_id),
+    (SELECT COALESCE(ct.edition_id, st.edition_id)
+       FROM public.custom_skills s
+       LEFT JOIN public.custom_skill_types ct ON ct.id = s.custom_skill_type_id
+       LEFT JOIN public.skill_types        st ON st.id = s.skill_type_id
+      WHERE s.id = NEW.custom_skill_id),
+    (SELECT edition_id FROM public.custom_collections  WHERE id = NEW.custom_collection_id)
+  ) INTO v_item_edition;
+
+  -- A null on either side makes no claim, so it must not block: legacy rows and items whose
+  -- edition was dropped by copy_custom_collection have none and stay writable.
+  IF v_campaign_edition IS NOT NULL
+     AND v_item_edition IS NOT NULL
+     AND v_campaign_edition <> v_item_edition THEN
+    RAISE EXCEPTION 'Cannot share a custom asset to a campaign from a different edition';
+  END IF;
+
+  -- Never default an unresolved edition to n23: outside display filtering an unknown
+  -- edition makes no claim, so refuse rather than record one the campaign does not have.
+  IF v_campaign_edition IS NULL THEN
+    RAISE EXCEPTION 'Campaign % has no edition; cannot resolve the share edition', NEW.campaign_id;
+  END IF;
+
+  NEW.edition_id := v_campaign_edition;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: enqueue_notification_email(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -882,682 +1076,13 @@ CREATE FUNCTION public.enqueue_notification_email() RETURNS trigger
     SET search_path TO 'public'
     AS $$
 BEGIN
-   IF NEW.type IN ('campaign_invite', 'gang_invite', 'friend_request') THEN
+   IF NEW.type IN ('campaign_invite', 'gang_invite', 'friend_request', 'campaign_join_request') THEN
       INSERT INTO email_deliveries (notification_id, user_id)
       VALUES (NEW.id, NEW.receiver_id)
       ON CONFLICT (notification_id) DO NOTHING;
    END IF;
 
    RETURN NEW;
-END;
-$$;
-
-
---
--- Name: get_add_fighter_details(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.get_add_fighter_details(p_gang_type_id uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid) RETURNS TABLE(id uuid, fighter_type text, fighter_class text, fighter_class_id uuid, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, limitation numeric, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, sub_type jsonb, available_legacies jsonb, free_skill boolean, delegation_cost numeric)
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-BEGIN
-    RETURN QUERY
-    SELECT 
-        ft.id,
-        ft.fighter_type,
-        fc.class_name,
-        ft.fighter_class_id,  -- Added fighter_class_id field
-        ft.gang_type,
-        COALESCE(ftgc.adjusted_cost, ft.cost) as cost,
-        ft.gang_type_id,
-        ft.special_rules::text[],
-        ft.movement,
-        ft.weapon_skill,
-        ft.ballistic_skill,
-        ft.strength,
-        ft.toughness,
-        ft.wounds,
-        ft.initiative,
-        ft.leadership,
-        ft.cool,
-        ft.willpower,
-        ft.intelligence,
-        ft.attacks,
-        ft.limitation,
-        COALESCE(
-            (
-                SELECT jsonb_agg(
-                    jsonb_build_object(
-                        'id', e.id,
-                        'equipment_name', e.equipment_name,
-                        'equipment_type', e.equipment_type,
-                        'equipment_category', e.equipment_category,
-                        'cost', 0,  -- Always show 0 for default equipment
-                        'availability', e.availability,
-                        'is_editable', COALESCE(e.is_editable, false),
-                        'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END
-                    )
-                )
-                FROM fighter_defaults fd
-                JOIN equipment e ON e.id = fd.equipment_id
-                WHERE fd.fighter_type_id = ft.id
-            ),
-            '[]'::jsonb
-        ) AS default_equipment,
-        (
-            SELECT 
-                CASE 
-                    WHEN fes.equipment_selection IS NOT NULL THEN
-                        jsonb_build_object(
-                            'single', jsonb_build_object(
-                                'wargear', COALESCE(
-                                    CASE 
-                                        WHEN jsonb_typeof(fes.equipment_selection->'single'->'wargear') = 'array' 
-                                             AND jsonb_array_length(fes.equipment_selection->'single'->'wargear') > 0
-                                             AND jsonb_typeof(fes.equipment_selection->'single'->'wargear'->0) = 'array'
-                                        THEN (
-                                            SELECT jsonb_agg(
-                                                (
-                                                    SELECT jsonb_agg(
-                                                        jsonb_build_object(
-                                                            'id', (item_data->>'id')::uuid,
-                                                            'equipment_name', e.equipment_name,
-                                                            'equipment_type', e.equipment_type,
-                                                            'equipment_category', e.equipment_category,
-                                                            'cost', (item_data->>'cost')::numeric,
-                                                            'quantity', (item_data->>'quantity')::integer,
-                                                            'is_default', (item_data->>'is_default')::boolean,
-                                                            'is_editable', COALESCE(e.is_editable, false),
-                                                            'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
-                                                            'replacement_mode', item_data->>'replacement_mode',
-                                                            'replacements', COALESCE(
-                                                                (
-                                                                    SELECT jsonb_agg(
-                                                                        jsonb_build_object(
-                                                                            'id', (repl->>'id')::uuid,
-                                                                            'equipment_name', re.equipment_name,
-                                                                            'equipment_type', re.equipment_type,
-                                                                            'equipment_category', re.equipment_category,
-                                                                            'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer,
-                                                                            'is_editable', COALESCE(re.is_editable, false)
-                                                                        )
-                                                                    )
-                                                                    FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                                    LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                                    WHERE re.id IS NOT NULL
-                                                                ),
-                                                                '[]'::jsonb
-                                                            )
-                                                        )
-                                                    )
-                                                    FROM jsonb_array_elements(group_data) AS item_data
-                                                    LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                                    WHERE e.id IS NOT NULL
-                                                )
-                                            )
-                                            FROM jsonb_array_elements(fes.equipment_selection->'single'->'wargear') AS group_data
-                                            WHERE jsonb_array_length(group_data) > 0
-                                        )
-                                        ELSE (
-                                            SELECT CASE 
-                                                WHEN COUNT(*) > 0 THEN jsonb_build_array(jsonb_agg(
-                                                    jsonb_build_object(
-                                                        'id', (item_data->>'id')::uuid,
-                                                        'equipment_name', e.equipment_name,
-                                                        'equipment_type', e.equipment_type,
-                                                        'equipment_category', e.equipment_category,
-                                                        'cost', (item_data->>'cost')::numeric,
-                                                        'quantity', (item_data->>'quantity')::integer,
-                                                        'is_default', (item_data->>'is_default')::boolean,
-                                                        'is_editable', COALESCE(e.is_editable, false),
-                                                        'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
-                                                        'replacement_mode', item_data->>'replacement_mode',
-                                                        'replacements', COALESCE(
-                                                            (
-                                                                SELECT jsonb_agg(
-                                                                    jsonb_build_object(
-                                                                        'id', (repl->>'id')::uuid,
-                                                                        'equipment_name', re.equipment_name,
-                                                                        'equipment_type', re.equipment_type,
-                                                                        'equipment_category', re.equipment_category,
-                                                                        'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer,
-                                                                        'is_editable', COALESCE(re.is_editable, false)
-                                                                    )
-                                                                )
-                                                                FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                                LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                                WHERE re.id IS NOT NULL
-                                                            ),
-                                                            '[]'::jsonb
-                                                        )
-                                                    )
-                                                ))
-                                                ELSE '[]'::jsonb
-                                            END
-                                            FROM jsonb_array_elements(fes.equipment_selection->'single'->'wargear') AS item_data
-                                            LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                            WHERE e.id IS NOT NULL
-                                        )
-                                    END,
-                                    '[]'::jsonb
-                                ),
-                                'weapons', COALESCE(
-                                    CASE 
-                                        WHEN jsonb_typeof(fes.equipment_selection->'single'->'weapons') = 'array' 
-                                             AND jsonb_array_length(fes.equipment_selection->'single'->'weapons') > 0
-                                             AND jsonb_typeof(fes.equipment_selection->'single'->'weapons'->0) = 'array'
-                                        THEN (
-                                            SELECT jsonb_agg(
-                                                (
-                                                    SELECT jsonb_agg(
-                                                        jsonb_build_object(
-                                                            'id', (item_data->>'id')::uuid,
-                                                            'equipment_name', e.equipment_name,
-                                                            'equipment_type', e.equipment_type,
-                                                            'equipment_category', e.equipment_category,
-                                                            'cost', (item_data->>'cost')::numeric,
-                                                            'quantity', (item_data->>'quantity')::integer,
-                                                            'is_default', (item_data->>'is_default')::boolean,
-                                                            'is_editable', COALESCE(e.is_editable, false),
-                                                            'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
-                                                            'replacement_mode', item_data->>'replacement_mode',
-                                                            'replacements', COALESCE(
-                                                                (
-                                                                    SELECT jsonb_agg(
-                                                                        jsonb_build_object(
-                                                                            'id', (repl->>'id')::uuid,
-                                                                            'equipment_name', re.equipment_name,
-                                                                            'equipment_type', re.equipment_type,
-                                                                            'equipment_category', re.equipment_category,
-                                                                            'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer,
-                                                                            'is_editable', COALESCE(re.is_editable, false)
-                                                                        )
-                                                                    )
-                                                                    FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                                    LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                                    WHERE re.id IS NOT NULL
-                                                                ),
-                                                                '[]'::jsonb
-                                                            )
-                                                        )
-                                                    )
-                                                    FROM jsonb_array_elements(group_data) AS item_data
-                                                    LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                                    WHERE e.id IS NOT NULL
-                                                )
-                                            )
-                                            FROM jsonb_array_elements(fes.equipment_selection->'single'->'weapons') AS group_data
-                                            WHERE jsonb_array_length(group_data) > 0
-                                        )
-                                        ELSE (
-                                            SELECT CASE 
-                                                WHEN COUNT(*) > 0 THEN jsonb_build_array(jsonb_agg(
-                                                    jsonb_build_object(
-                                                        'id', (item_data->>'id')::uuid,
-                                                        'equipment_name', e.equipment_name,
-                                                        'equipment_type', e.equipment_type,
-                                                        'equipment_category', e.equipment_category,
-                                                        'cost', (item_data->>'cost')::numeric,
-                                                        'quantity', (item_data->>'quantity')::integer,
-                                                        'is_default', (item_data->>'is_default')::boolean,
-                                                        'is_editable', COALESCE(e.is_editable, false),
-                                                        'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
-                                                        'replacement_mode', item_data->>'replacement_mode',
-                                                        'replacements', COALESCE(
-                                                            (
-                                                                SELECT jsonb_agg(
-                                                                    jsonb_build_object(
-                                                                        'id', (repl->>'id')::uuid,
-                                                                        'equipment_name', re.equipment_name,
-                                                                        'equipment_type', re.equipment_type,
-                                                                        'equipment_category', re.equipment_category,
-                                                                        'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer,
-                                                                        'is_editable', COALESCE(re.is_editable, false)
-                                                                    )
-                                                                )
-                                                                FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                                LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                                WHERE re.id IS NOT NULL
-                                                            ),
-                                                            '[]'::jsonb
-                                                        )
-                                                    )
-                                                ))
-                                                ELSE '[]'::jsonb
-                                            END
-                                            FROM jsonb_array_elements(fes.equipment_selection->'single'->'weapons') AS item_data
-                                            LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                            WHERE e.id IS NOT NULL
-                                        )
-                                    END,
-                                    '[]'::jsonb
-                                )
-                            ),
-                            'multiple', jsonb_build_object(
-                                'wargear', COALESCE(
-                                    CASE 
-                                        WHEN jsonb_typeof(fes.equipment_selection->'multiple'->'wargear') = 'array' 
-                                             AND jsonb_array_length(fes.equipment_selection->'multiple'->'wargear') > 0
-                                             AND jsonb_typeof(fes.equipment_selection->'multiple'->'wargear'->0) = 'array'
-                                        THEN (
-                                            SELECT jsonb_agg(
-                                                (
-                                                    SELECT jsonb_agg(
-                                                        jsonb_build_object(
-                                                            'id', (item_data->>'id')::uuid,
-                                                            'equipment_name', e.equipment_name,
-                                                            'equipment_type', e.equipment_type,
-                                                            'equipment_category', e.equipment_category,
-                                                            'cost', (item_data->>'cost')::numeric,
-                                                            'quantity', (item_data->>'quantity')::integer,
-                                                            'is_default', (item_data->>'is_default')::boolean,
-                                                            'is_editable', COALESCE(e.is_editable, false),
-                                                            'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
-                                                            'replacement_mode', item_data->>'replacement_mode',
-                                                            'replacements', COALESCE(
-                                                                (
-                                                                    SELECT jsonb_agg(
-                                                                        jsonb_build_object(
-                                                                            'id', (repl->>'id')::uuid,
-                                                                            'equipment_name', re.equipment_name,
-                                                                            'equipment_type', re.equipment_type,
-                                                                            'equipment_category', re.equipment_category,
-                                                                            'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer,
-                                                                            'is_editable', COALESCE(re.is_editable, false)
-                                                                        )
-                                                                    )
-                                                                    FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                                    LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                                    WHERE re.id IS NOT NULL
-                                                                ),
-                                                                '[]'::jsonb
-                                                            )
-                                                        )
-                                                    )
-                                                    FROM jsonb_array_elements(group_data) AS item_data
-                                                    LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                                    WHERE e.id IS NOT NULL
-                                                )
-                                            )
-                                            FROM jsonb_array_elements(fes.equipment_selection->'multiple'->'wargear') AS group_data
-                                            WHERE jsonb_array_length(group_data) > 0
-                                        )
-                                        ELSE (
-                                            SELECT CASE 
-                                                WHEN COUNT(*) > 0 THEN jsonb_build_array(jsonb_agg(
-                                                    jsonb_build_object(
-                                                        'id', (item_data->>'id')::uuid,
-                                                        'equipment_name', e.equipment_name,
-                                                        'equipment_type', e.equipment_type,
-                                                        'equipment_category', e.equipment_category,
-                                                        'cost', (item_data->>'cost')::numeric,
-                                                        'quantity', (item_data->>'quantity')::integer,
-                                                        'is_default', (item_data->>'is_default')::boolean,
-                                                        'is_editable', COALESCE(e.is_editable, false),
-                                                        'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
-                                                        'replacement_mode', item_data->>'replacement_mode',
-                                                        'replacements', COALESCE(
-                                                            (
-                                                                SELECT jsonb_agg(
-                                                                    jsonb_build_object(
-                                                                        'id', (repl->>'id')::uuid,
-                                                                        'equipment_name', re.equipment_name,
-                                                                        'equipment_type', re.equipment_type,
-                                                                        'equipment_category', re.equipment_category,
-                                                                        'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer,
-                                                                        'is_editable', COALESCE(re.is_editable, false)
-                                                                    )
-                                                                )
-                                                                FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                                LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                                WHERE re.id IS NOT NULL
-                                                            ),
-                                                            '[]'::jsonb
-                                                        )
-                                                    )
-                                                ))
-                                                ELSE '[]'::jsonb
-                                            END
-                                            FROM jsonb_array_elements(fes.equipment_selection->'multiple'->'wargear') AS item_data
-                                            LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                            WHERE e.id IS NOT NULL
-                                        )
-                                    END,
-                                    '[]'::jsonb
-                                ),
-                                'weapons', COALESCE(
-                                    CASE 
-                                        WHEN jsonb_typeof(fes.equipment_selection->'multiple'->'weapons') = 'array' 
-                                             AND jsonb_array_length(fes.equipment_selection->'multiple'->'weapons') > 0
-                                             AND jsonb_typeof(fes.equipment_selection->'multiple'->'weapons'->0) = 'array'
-                                        THEN (
-                                            SELECT jsonb_agg(
-                                                (
-                                                    SELECT jsonb_agg(
-                                                        jsonb_build_object(
-                                                            'id', (item_data->>'id')::uuid,
-                                                            'equipment_name', e.equipment_name,
-                                                            'equipment_type', e.equipment_type,
-                                                            'equipment_category', e.equipment_category,
-                                                            'cost', (item_data->>'cost')::numeric,
-                                                            'quantity', (item_data->>'quantity')::integer,
-                                                            'is_default', (item_data->>'is_default')::boolean,
-                                                            'is_editable', COALESCE(e.is_editable, false),
-                                                            'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
-                                                            'replacement_mode', item_data->>'replacement_mode',
-                                                            'replacements', COALESCE(
-                                                                (
-                                                                    SELECT jsonb_agg(
-                                                                        jsonb_build_object(
-                                                                            'id', (repl->>'id')::uuid,
-                                                                            'equipment_name', re.equipment_name,
-                                                                            'equipment_type', re.equipment_type,
-                                                                            'equipment_category', re.equipment_category,
-                                                                            'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer,
-                                                                            'is_editable', COALESCE(re.is_editable, false)
-                                                                        )
-                                                                    )
-                                                                    FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                                    LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                                    WHERE re.id IS NOT NULL
-                                                                ),
-                                                                '[]'::jsonb
-                                                            )
-                                                        )
-                                                    )
-                                                    FROM jsonb_array_elements(group_data) AS item_data
-                                                    LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                                    WHERE e.id IS NOT NULL
-                                                )
-                                            )
-                                            FROM jsonb_array_elements(fes.equipment_selection->'multiple'->'weapons') AS group_data
-                                            WHERE jsonb_array_length(group_data) > 0
-                                        )
-                                        ELSE (
-                                            SELECT CASE 
-                                                WHEN COUNT(*) > 0 THEN jsonb_build_array(jsonb_agg(
-                                                    jsonb_build_object(
-                                                        'id', (item_data->>'id')::uuid,
-                                                        'equipment_name', e.equipment_name,
-                                                        'equipment_type', e.equipment_type,
-                                                        'equipment_category', e.equipment_category,
-                                                        'cost', (item_data->>'cost')::numeric,
-                                                        'quantity', (item_data->>'quantity')::integer,
-                                                        'is_default', (item_data->>'is_default')::boolean,
-                                                        'is_editable', COALESCE(e.is_editable, false),
-                                                        'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
-                                                        'replacement_mode', item_data->>'replacement_mode',
-                                                        'replacements', COALESCE(
-                                                            (
-                                                                SELECT jsonb_agg(
-                                                                    jsonb_build_object(
-                                                                        'id', (repl->>'id')::uuid,
-                                                                        'equipment_name', re.equipment_name,
-                                                                        'equipment_type', re.equipment_type,
-                                                                        'equipment_category', re.equipment_category,
-                                                                        'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer,
-                                                                        'is_editable', COALESCE(re.is_editable, false)
-                                                                    )
-                                                                )
-                                                                FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                                LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                                WHERE re.id IS NOT NULL
-                                                            ),
-                                                            '[]'::jsonb
-                                                        )
-                                                    )
-                                                ))
-                                                ELSE '[]'::jsonb
-                                            END
-                                            FROM jsonb_array_elements(fes.equipment_selection->'multiple'->'weapons') AS item_data
-                                            LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                            WHERE e.id IS NOT NULL
-                                        )
-                                    END,
-                                    '[]'::jsonb
-                                )
-                            ),
-                            'optional', jsonb_build_object(
-                                'wargear', COALESCE(
-                                    CASE 
-                                        WHEN jsonb_typeof(fes.equipment_selection->'optional'->'wargear') = 'array' 
-                                             AND jsonb_array_length(fes.equipment_selection->'optional'->'wargear') > 0
-                                             AND jsonb_typeof(fes.equipment_selection->'optional'->'wargear'->0) = 'array'
-                                        THEN (
-                                            SELECT jsonb_agg(
-                                                (
-                                                    SELECT jsonb_agg(
-                                                        jsonb_build_object(
-                                                            'id', (item_data->>'id')::uuid,
-                                                            'equipment_name', e.equipment_name,
-                                                            'equipment_type', e.equipment_type,
-                                                            'equipment_category', e.equipment_category,
-                                                            'cost', (item_data->>'cost')::numeric,
-                                                            'quantity', (item_data->>'quantity')::integer,
-                                                            'is_default', (item_data->>'is_default')::boolean,
-                                                            'is_editable', COALESCE(e.is_editable, false),
-                                                            'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
-                                                            'replacement_mode', item_data->>'replacement_mode',
-                                                            'replacements', COALESCE(
-                                                                (
-                                                                    SELECT jsonb_agg(
-                                                                        jsonb_build_object(
-                                                                            'id', (repl->>'id')::uuid,
-                                                                            'equipment_name', re.equipment_name,
-                                                                            'equipment_type', re.equipment_type,
-                                                                            'equipment_category', re.equipment_category,
-                                                                            'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer,
-                                                                            'is_editable', COALESCE(re.is_editable, false)
-                                                                        )
-                                                                    )
-                                                                    FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                                    LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                                    WHERE re.id IS NOT NULL
-                                                                ),
-                                                                '[]'::jsonb
-                                                            )
-                                                        )
-                                                    )
-                                                    FROM jsonb_array_elements(group_data) AS item_data
-                                                    LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                                    WHERE e.id IS NOT NULL
-                                                )
-                                            )
-                                            FROM jsonb_array_elements(fes.equipment_selection->'optional'->'wargear') AS group_data
-                                            WHERE jsonb_array_length(group_data) > 0
-                                        )
-                                        ELSE (
-                                            SELECT CASE 
-                                                WHEN COUNT(*) > 0 THEN jsonb_build_array(jsonb_agg(
-                                                    jsonb_build_object(
-                                                        'id', (item_data->>'id')::uuid,
-                                                        'equipment_name', e.equipment_name,
-                                                        'equipment_type', e.equipment_type,
-                                                        'equipment_category', e.equipment_category,
-                                                        'cost', (item_data->>'cost')::numeric,
-                                                        'quantity', (item_data->>'quantity')::integer,
-                                                        'is_default', (item_data->>'is_default')::boolean,
-                                                        'is_editable', COALESCE(e.is_editable, false),
-                                                        'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
-                                                        'replacement_mode', item_data->>'replacement_mode',
-                                                        'replacements', COALESCE(
-                                                            (
-                                                                SELECT jsonb_agg(
-                                                                    jsonb_build_object(
-                                                                        'id', (repl->>'id')::uuid,
-                                                                        'equipment_name', re.equipment_name,
-                                                                        'equipment_type', re.equipment_type,
-                                                                        'equipment_category', re.equipment_category,
-                                                                        'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer,
-                                                                        'is_editable', COALESCE(re.is_editable, false)
-                                                                    )
-                                                                )
-                                                                FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                                LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                                WHERE re.id IS NOT NULL
-                                                            ),
-                                                            '[]'::jsonb
-                                                        )
-                                                    )
-                                                ))
-                                                ELSE '[]'::jsonb
-                                            END
-                                            FROM jsonb_array_elements(fes.equipment_selection->'optional'->'wargear') AS item_data
-                                            LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                            WHERE e.id IS NOT NULL
-                                        )
-                                    END,
-                                    '[]'::jsonb
-                                ),
-                                'weapons', COALESCE(
-                                    CASE 
-                                        WHEN jsonb_typeof(fes.equipment_selection->'optional'->'weapons') = 'array' 
-                                             AND jsonb_array_length(fes.equipment_selection->'optional'->'weapons') > 0
-                                             AND jsonb_typeof(fes.equipment_selection->'optional'->'weapons'->0) = 'array'
-                                        THEN (
-                                            SELECT jsonb_agg(
-                                                (
-                                                    SELECT jsonb_agg(
-                                                        jsonb_build_object(
-                                                            'id', (item_data->>'id')::uuid,
-                                                            'equipment_name', e.equipment_name,
-                                                            'equipment_type', e.equipment_type,
-                                                            'equipment_category', e.equipment_category,
-                                                            'cost', (item_data->>'cost')::numeric,
-                                                            'quantity', (item_data->>'quantity')::integer,
-                                                            'is_default', (item_data->>'is_default')::boolean,
-                                                            'is_editable', COALESCE(e.is_editable, false),
-                                                            'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
-                                                            'replacement_mode', item_data->>'replacement_mode',
-                                                            'replacements', COALESCE(
-                                                                (
-                                                                    SELECT jsonb_agg(
-                                                                        jsonb_build_object(
-                                                                            'id', (repl->>'id')::uuid,
-                                                                            'equipment_name', re.equipment_name,
-                                                                            'equipment_type', re.equipment_type,
-                                                                            'equipment_category', re.equipment_category,
-                                                                            'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer,
-                                                                            'is_editable', COALESCE(re.is_editable, false)
-                                                                        )
-                                                                    )
-                                                                    FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                                    LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                                    WHERE re.id IS NOT NULL
-                                                                ),
-                                                                '[]'::jsonb
-                                                            )
-                                                        )
-                                                    )
-                                                    FROM jsonb_array_elements(group_data) AS item_data
-                                                    LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                                    WHERE e.id IS NOT NULL
-                                                )
-                                            )
-                                            FROM jsonb_array_elements(fes.equipment_selection->'optional'->'weapons') AS group_data
-                                            WHERE jsonb_array_length(group_data) > 0
-                                        )
-                                        ELSE (
-                                            SELECT CASE 
-                                                WHEN COUNT(*) > 0 THEN jsonb_build_array(jsonb_agg(
-                                                    jsonb_build_object(
-                                                        'id', (item_data->>'id')::uuid,
-                                                        'equipment_name', e.equipment_name,
-                                                        'equipment_type', e.equipment_type,
-                                                        'equipment_category', e.equipment_category,
-                                                        'cost', (item_data->>'cost')::numeric,
-                                                        'quantity', (item_data->>'quantity')::integer,
-                                                        'is_default', (item_data->>'is_default')::boolean,
-                                                        'is_editable', COALESCE(e.is_editable, false),
-                                                        'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
-                                                        'replacement_mode', item_data->>'replacement_mode',
-                                                        'replacements', COALESCE(
-                                                            (
-                                                                SELECT jsonb_agg(
-                                                                    jsonb_build_object(
-                                                                        'id', (repl->>'id')::uuid,
-                                                                        'equipment_name', re.equipment_name,
-                                                                        'equipment_type', re.equipment_type,
-                                                                        'equipment_category', re.equipment_category,
-                                                                        'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer,
-                                                                        'is_editable', COALESCE(re.is_editable, false)
-                                                                    )
-                                                                )
-                                                                FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                                LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                                WHERE re.id IS NOT NULL
-                                                            ),
-                                                            '[]'::jsonb
-                                                        )
-                                                    )
-                                                ))
-                                                ELSE '[]'::jsonb
-                                            END
-                                            FROM jsonb_array_elements(fes.equipment_selection->'optional'->'weapons') AS item_data
-                                            LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                            WHERE e.id IS NOT NULL
-                                        )
-                                    END,
-                                    '[]'::jsonb
-                                )
-                            )
-                        )
-                    ELSE NULL
-                END
-            FROM fighter_equipment_selections fes
-            WHERE fes.fighter_type_id = ft.id
-            LIMIT 1
-        ) AS equipment_selection,
-        COALESCE(ftgc.adjusted_cost, ft.cost) AS total_cost,
-        COALESCE(
-            (
-                SELECT jsonb_build_object(
-                    'id', fst.id,
-                    'sub_type_name', fst.sub_type_name
-                )
-                FROM fighter_sub_types fst
-                WHERE fst.id = ft.fighter_sub_type_id
-            ),
-            '{}'::jsonb
-        ) AS sub_type,
-        COALESCE(
-            (
-                SELECT jsonb_agg(
-                    jsonb_build_object(
-                        'id', fgl.id,
-                        'name', fgl.name
-                    )
-                )
-                FROM fighter_type_gang_legacies ftgl
-                JOIN fighter_gang_legacy fgl ON fgl.id = ftgl.fighter_gang_legacy_id
-                WHERE ftgl.fighter_type_id = ft.id
-            ),
-            '[]'::jsonb
-        ) AS available_legacies,
-        ft.free_skill,
-        ft.delegation_cost
-    FROM fighter_types ft
-    JOIN fighter_classes fc ON fc.id = ft.fighter_class_id
-    LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id 
-        AND ftgc.gang_type_id = p_gang_type_id
-        AND (ftgc.gang_affiliation_id IS NULL OR ftgc.gang_affiliation_id = p_gang_affiliation_id)
-    WHERE ft.gang_type_id = p_gang_type_id
-        OR (ftgc.fighter_type_id IS NOT NULL 
-            AND ftgc.gang_affiliation_id IS NOT NULL 
-            AND ftgc.gang_affiliation_id = p_gang_affiliation_id);
 END;
 $$;
 
@@ -1572,23 +1097,34 @@ CREATE FUNCTION public.get_available_skills(fighter_id uuid) RETURNS jsonb
     AS $$
 DECLARE
     v_result jsonb;
-    v_fighter_class text;
+    v_fighter_subtypes jsonb;
     v_gang_origin_id uuid;
     v_gang_id uuid;
     v_fighter_type_id uuid;
     v_custom_fighter_type_id uuid;
     v_origin_skill_type_id uuid;
+    v_edition_id uuid;
+    v_cumulative_xp boolean; -- Edition earns Advancements by rank instead of buying them
 BEGIN
-    -- Get fighter class, gang origin ID, gang ID, fighter type IDs, and verify fighter exists
-    SELECT f.fighter_class, g.gang_origin_id, f.gang_id, f.fighter_type_id, f.custom_fighter_type_id
-    INTO v_fighter_class, v_gang_origin_id, v_gang_id, v_fighter_type_id, v_custom_fighter_type_id
+    -- Get fighter subtypes, gang origin ID, gang ID, fighter type IDs, the gang's
+    -- edition, and verify fighter exists
+    SELECT f.fighter_subtypes, g.gang_origin_id, f.gang_id, f.fighter_type_id, f.custom_fighter_type_id,
+           COALESCE(gt.edition_id, cgt.edition_id)
+    INTO v_fighter_subtypes, v_gang_origin_id, v_gang_id, v_fighter_type_id, v_custom_fighter_type_id,
+         v_edition_id
     FROM fighters f
     JOIN gangs g ON g.id = f.gang_id
+    LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+    LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
     WHERE f.id = get_available_skills.fighter_id;
 
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Fighter not found with ID %', get_available_skills.fighter_id;
     END IF;
+
+    -- Resolved once here, as get_fighter_available_advancements does.
+    v_cumulative_xp := v_edition_id IS NOT NULL
+        AND v_edition_id = (SELECT id FROM editions WHERE slug = 'n26');
 
     -- Skill Set whose name matches the gang Origin (e.g. "Trocken Mining Clan")
     SELECT st.id
@@ -1709,14 +1245,13 @@ BEGIN
     )
     SELECT jsonb_build_object(
         'fighter_id', get_available_skills.fighter_id,
-        'fighter_class', v_fighter_class,
+        'fighter_subtypes', v_fighter_subtypes,
         'skills', COALESCE(
             jsonb_agg(
                 jsonb_build_object(
                     'skill_id', a.skill_id,
                     'skill_name', a.skill_name,
                     'is_custom', a.is_custom,
-                    'fighter_class', v_fighter_class,
                     'skill_type_id', a.skill_type_id,
                     'skill_type_name', a.skill_type_name,
                     'effective_access_level', a.effective_access_level,
@@ -1739,8 +1274,11 @@ BEGIN
                                     'credit_cost', 5
                                 )
                             )
-                        -- Regular skill costs
-                        WHEN v_fighter_class IN ('Leader', 'Champion', 'Juve', 'Specialist', 'Crew', 'Prospect', 'Brute', 'Exotic Beast Specialist')
+                        -- Regular skill costs. The subtype list is an N23 rule — it omits
+                        -- Gangers and Exotic Beasts, who buy at flat cost off their own
+                        -- table. A rank-based edition has no such split.
+                        WHEN v_cumulative_xp
+                          OR v_fighter_subtypes ?| array['Leader', 'Champion', 'Juve', 'Specialist', 'Crew', 'Prospect', 'Brute', 'Exotic Beast Specialist']
                         THEN jsonb_build_array(
                             jsonb_build_object(
                                 'type_id', 'primary_selected',
@@ -1793,7 +1331,7 @@ $$;
 -- Name: get_equipment_detailed_data(uuid, text, uuid, boolean, boolean, uuid, uuid, uuid, uuid[], uuid[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NULL::uuid, equipment_category text DEFAULT NULL::text, fighter_type_id uuid DEFAULT NULL::uuid, fighter_type_equipment boolean DEFAULT NULL::boolean, equipment_tradingpost boolean DEFAULT NULL::boolean, fighter_id uuid DEFAULT NULL::uuid, only_equipment_id uuid DEFAULT NULL::uuid, gang_id uuid DEFAULT NULL::uuid, campaign_trading_post_type_ids uuid[] DEFAULT NULL::uuid[], campaign_custom_trading_post_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(id uuid, equipment_name text, availability text, base_cost numeric, adjusted_cost numeric, equipment_category text, equipment_type text, created_at timestamp with time zone, fighter_type_equipment boolean, equipment_tradingpost boolean, is_custom boolean, weapon_profiles jsonb, vehicle_upgrade_slot text, grants_equipment jsonb, is_editable boolean, trading_post_names text[], cost_resource_name text, cost_resource_amount numeric, cost_type_resource_id uuid, cost_campaign_resource_id uuid, banned boolean)
+CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NULL::uuid, equipment_category text DEFAULT NULL::text, fighter_type_id uuid DEFAULT NULL::uuid, fighter_type_equipment boolean DEFAULT NULL::boolean, equipment_tradingpost boolean DEFAULT NULL::boolean, fighter_id uuid DEFAULT NULL::uuid, only_equipment_id uuid DEFAULT NULL::uuid, gang_id uuid DEFAULT NULL::uuid, campaign_trading_post_type_ids uuid[] DEFAULT NULL::uuid[], campaign_custom_trading_post_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(id uuid, equipment_name text, availability text, base_cost numeric, adjusted_cost numeric, trade_points text, equipment_category text, equipment_type text, created_at timestamp with time zone, fighter_type_equipment boolean, equipment_tradingpost boolean, is_custom boolean, weapon_profiles jsonb, vehicle_upgrade_slot text, grants_equipment jsonb, is_editable boolean, trading_post_names text[], cost_resource_name text, cost_resource_amount numeric, cost_type_resource_id uuid, cost_campaign_resource_id uuid, banned boolean)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $_$
@@ -1809,9 +1347,12 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             g.custom_gang_type_id,
             cg.campaign_type_allegiance_id,
             fgl.fighter_type_id AS legacy_ft_id,
-            ga.fighter_type_id  AS affiliation_ft_id
+            ga.fighter_type_id  AS affiliation_ft_id,
+            COALESCE(gt.edition_id, cgt.edition_id) AS edition_id
         FROM (SELECT 1) AS _dummy
         LEFT JOIN gangs g ON g.id = $8
+        LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+        LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
         LEFT JOIN LATERAL (
             SELECT cg2.campaign_type_allegiance_id
             FROM campaign_gangs cg2
@@ -1877,6 +1418,20 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
                 '{}'::text[]
             ) AS tp_names
         FROM tp_access ta
+        -- Gang-exclusive allow-list: an item flagged "available only to this gang"
+        -- (an exclusive gang-type availability row) is hidden from the Trading Post
+        -- of gangs that are not on its allow-list. Scoped to Trading Post access
+        -- only, so the fighter's-list path is unaffected.
+        WHERE NOT EXISTS (
+                  SELECT 1 FROM equipment_availability xa
+                  WHERE xa.equipment_id = ta.equipment_id
+                    AND xa.exclusive AND xa.gang_type_id IS NOT NULL
+              )
+           OR EXISTS (
+                  SELECT 1 FROM equipment_availability xa
+                  WHERE xa.equipment_id = ta.equipment_id
+                    AND xa.exclusive AND xa.gang_type_id = $1
+              )
         GROUP BY ta.equipment_id
     ),
 
@@ -1899,7 +1454,19 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         SELECT
             ed.equipment_id,
             MIN(ed.adjusted_cost::numeric)
-                FILTER (WHERE ed.adjusted_cost IS NOT NULL) AS best_adjusted_cost
+                FILTER (WHERE ed.adjusted_cost IS NOT NULL) AS best_adjusted_cost,
+            -- Prefer any non-null trade_points override in the same discount scope.
+            -- Cheapest numerically ("E"/non-numeric → 0); text ASC as stable tie-break.
+            (ARRAY_AGG(
+                ed.trade_points
+                ORDER BY
+                    CASE
+                        WHEN upper(btrim(ed.trade_points)) = 'E' OR btrim(ed.trade_points) = '' THEN 0::numeric
+                        WHEN ed.trade_points ~ '^[0-9]+$' THEN ed.trade_points::numeric
+                        ELSE 0::numeric
+                    END ASC,
+                    ed.trade_points ASC
+            ) FILTER (WHERE ed.trade_points IS NOT NULL))[1] AS best_trade_points
         FROM equipment_discounts ed
         CROSS JOIN gang_data gd
         WHERE
@@ -2004,6 +1571,12 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             ELSE COALESCE(bac.best_adjusted_cost, e.cost::numeric)
         END AS adjusted_cost,
 
+        -- Trade Points: a Trading Post price, so the fighter's-list-only request pays none
+        CASE
+            WHEN $4 = true AND $5 IS NULL THEN '0'
+            ELSE COALESCE(bac.best_trade_points, e.trade_points)
+        END AS trade_points,
+
         e.equipment_category,
         e.equipment_type,
         e.created_at,
@@ -2011,7 +1584,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         -- Is in fighter's equipment list? (computed once in ftl_flag below)
         ftl_flag.is_fighter_list AS fighter_type_equipment,
 
-        -- Has trading post access?
+        -- Has trading post access? (tp_summary is gang-exclusivity-aware)
         COALESCE(tp.has_access, false) AS equipment_tradingpost,
 
         false AS is_custom,
@@ -2029,6 +1602,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
                     'strength', wp.strength,
                     'ap', wp.ap,
                     'damage', wp.damage,
+                    'lethality', wp.lethality,
                     'ammo', wp.ammo,
                     'traits', wp.traits,
                     'sort_order', wp.sort_order
@@ -2186,6 +1760,12 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             -- Trading post only
             ($4 IS NULL AND $5 IS NOT NULL AND COALESCE(tp.has_access, false) = $5)
         )
+        -- Unrestricted: only equipment from the gang's edition
+        AND (
+            NOT ($4 IS NULL AND $5 IS NULL)
+            OR gd.edition_id IS NULL
+            OR e.edition_id = gd.edition_id
+        )
 
     UNION ALL
 
@@ -2208,6 +1788,10 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
               OR custom_tp.cost_reputation THEN ce.cost::numeric
             ELSE COALESCE(custom_tp.adjusted_cost, custom_tp.cost_override, ce.cost::numeric)
         END AS adjusted_cost,
+        CASE
+            WHEN $4 = true AND $5 IS NULL THEN '0'
+            ELSE ce.trade_points
+        END AS trade_points,
         ce.equipment_category,
         ce.equipment_type,
         ce.created_at,
@@ -2228,6 +1812,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
                     'strength', cwp.strength,
                     'ap', cwp.ap,
                     'damage', cwp.damage,
+                    'lethality', cwp.lethality,
                     'ammo', cwp.ammo,
                     'traits', cwp.traits,
                     'sort_order', cwp.sort_order
@@ -2251,6 +1836,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         custom_tp.cost_campaign_resource_id,
         COALESCE(custom_tp.banned, false) AS banned
     FROM custom_equipment ce
+    CROSS JOIN gang_data gd
     LEFT JOIN (
         SELECT cs.custom_equipment_id
         FROM custom_shared cs
@@ -2317,6 +1903,12 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             OR ($4 IS NOT NULL AND COALESCE(ftl.is_ftl, false) = $4) -- fighter's list requested
             OR ($5 IS NOT NULL AND true = $5)                        -- trading post requested
         )
+        -- Unrestricted: only custom equipment from the gang's edition
+        AND (
+            NOT ($4 IS NULL AND $5 IS NULL)
+            OR gd.edition_id IS NULL
+            OR ce.edition_id = gd.edition_id
+        )
 $_$;
 
 
@@ -2373,24 +1965,43 @@ DECLARE
   v_result jsonb;
   v_fighter_xp integer;
   v_advancements_category_id UUID;
-  v_fighter_class text;
+  v_fighter_subtypes jsonb;
   v_uses_flat_cost boolean; -- Flag for fighters that use flat costs (Ganger and Exotic Beast)
+  v_edition_id UUID;
+  v_cumulative_xp boolean; -- Edition earns Advancements by rank instead of buying them
 BEGIN
-  -- Get fighter's current XP and fighter class
-  SELECT f.xp, f.fighter_class
-  INTO v_fighter_xp, v_fighter_class
+  -- Get fighter's current XP and fighter subtypes
+  SELECT f.xp, f.fighter_subtypes
+  INTO v_fighter_xp, v_fighter_subtypes
   FROM fighters f
   WHERE f.id = get_fighter_available_advancements.fighter_id;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Fighter not found with ID %', get_fighter_available_advancements.fighter_id;
   END IF;
-  
-  -- Determine if the fighter uses flat costs based on fighter_class
-  -- Only Gangers and Exotic Beasts use flat costs
-  v_uses_flat_cost :=
-    v_fighter_class IN ('Ganger', 'Exotic Beast');
-  
+
+  -- Resolve the fighter's edition from its gang, the same way add_fighter_injury
+  -- does. Advancement rows are edition-scoped, so without this an N23 fighter
+  -- would be offered N26 Advancements and vice versa.
+  SELECT COALESCE(gt.edition_id, cgt.edition_id)
+  INTO v_edition_id
+  FROM fighters f
+  JOIN gangs g ON g.id = f.gang_id
+  LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+  LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
+  WHERE f.id = get_fighter_available_advancements.fighter_id;
+
+  -- SQL cannot read the capability registry in types/edition.ts, so the slug is
+  -- resolved to an id once here rather than compared per row.
+  v_cumulative_xp := v_edition_id IS NOT NULL
+    AND v_edition_id = (SELECT id FROM editions WHERE slug = 'n26');
+
+  -- Determine if the fighter uses flat costs based on their subtypes
+  -- Only Gangers and Exotic Beasts use flat costs, and only where XP is spent:
+  -- an edition that earns Advancements by rank has no cost to make flat.
+  v_uses_flat_cost := NOT v_cumulative_xp
+    AND v_fighter_subtypes ?| array['Ganger', 'Exotic Beast'];
+
   -- Get the advancements category ID
   SELECT id INTO v_advancements_category_id
   FROM fighter_effect_categories
@@ -2410,6 +2021,7 @@ BEGIN
       COALESCE((fet.type_specific_data->>'credits_increase')::integer, 10) AS base_credits_increase
     FROM fighter_effect_types fet
     WHERE fet.fighter_effect_category_id = v_advancements_category_id
+      AND fet.edition_id IS NOT DISTINCT FROM v_edition_id
   ),
   advancement_counts AS (
     -- Count how many times each fighter has advanced each characteristic
@@ -2429,18 +2041,22 @@ BEGIN
       etc.effect_name as characteristic_name,
       LOWER(REPLACE(etc.effect_name, ' ', '_')) as characteristic_code,
       etc.base_xp_cost,
-      -- Calculate XP cost based on fighter class and characteristic
+      -- Calculate XP cost based on fighter subtype and characteristic
       CASE
+        -- Advancements are earned by rank, not bought: nothing to pay
+        WHEN v_cumulative_xp THEN 0
         -- For Gangers and Exotic Beasts: fixed 6 XP cost
         WHEN v_uses_flat_cost THEN 6
         -- For Juves and Prospects: base cost only (no escalating penalty)
-        WHEN v_fighter_class IN ('Juve', 'Prospect') THEN etc.base_xp_cost
+        WHEN v_fighter_subtypes ?| array['Juve', 'Prospect'] THEN etc.base_xp_cost
         -- For other fighters: base cost + (2 * times increased)
         WHEN COALESCE(ac.times_increased, 0) = 0 THEN etc.base_xp_cost
         ELSE etc.base_xp_cost + (2 * ac.times_increased)
       END as xp_cost,
-      -- Calculate credits increase based on fighter class and characteristic
+      -- Calculate credits increase based on fighter subtype and characteristic
       CASE
+        -- Flat per characteristic, straight off the edition's own catalog rows
+        WHEN v_cumulative_xp THEN etc.base_credits_increase
         -- For Gangers and Exotic Beasts: credits based on advancement table
         WHEN v_uses_flat_cost THEN
           CASE
@@ -2463,8 +2079,11 @@ BEGIN
       true as is_available,
       -- Check if fighter has enough XP based on the calculated cost
       CASE
+        -- Nothing is spent, so affordability never blocks. Whether an
+        -- Advancement is actually owed is a rank question the caller answers.
+        WHEN v_cumulative_xp THEN true
         WHEN v_uses_flat_cost THEN v_fighter_xp >= 6
-        WHEN v_fighter_class IN ('Juve', 'Prospect') THEN v_fighter_xp >= etc.base_xp_cost
+        WHEN v_fighter_subtypes ?| array['Juve', 'Prospect'] THEN v_fighter_xp >= etc.base_xp_cost
         WHEN COALESCE(ac.times_increased, 0) = 0 THEN v_fighter_xp >= etc.base_xp_cost
         ELSE v_fighter_xp >= (etc.base_xp_cost + (2 * ac.times_increased))
       END as has_enough_xp
@@ -2491,9 +2110,10 @@ BEGIN
   SELECT jsonb_build_object(
     'fighter_id', get_fighter_available_advancements.fighter_id,
     'current_xp', v_fighter_xp,
-    'fighter_class', v_fighter_class,
+    'fighter_subtypes', v_fighter_subtypes,
     'uses_flat_cost', v_uses_flat_cost,
-    -- Ganger/Exotic Beast: Specialist table row (random Primary skill) — same flat costs as other ganger advances
+    -- Ganger/Exotic Beast: Specialist table row (random Primary skill) — same flat costs as other ganger advances.
+    -- v_uses_flat_cost is already false for rank-based editions, which promote Specialists by their own rules.
     'ganger_to_specialist_advancement', CASE WHEN v_uses_flat_cost THEN jsonb_build_object(
       'xp_cost', 6,
       'credits_increase', 20
@@ -2518,7 +2138,7 @@ $$;
 -- Name: get_fighter_types_with_cost(uuid, uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_fighter_types_with_cost(p_gang_type_id uuid DEFAULT NULL::uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid, p_is_gang_addition boolean DEFAULT NULL::boolean) RETURNS TABLE(id uuid, fighter_type text, fighter_class text, fighter_class_id uuid, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, limitation numeric, alignment public.alignment, is_gang_addition boolean, alliance_id uuid, alliance_crew_name text, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, sub_type jsonb, available_legacies jsonb, free_skill boolean, delegation_cost numeric, is_dramatis_personae boolean)
+CREATE FUNCTION public.get_fighter_types_with_cost(p_gang_type_id uuid DEFAULT NULL::uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid, p_is_gang_addition boolean DEFAULT NULL::boolean) RETURNS TABLE(id uuid, fighter_type text, fighter_subtypes jsonb, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, save numeric, limitation numeric, alignment public.alignment, is_gang_addition boolean, alliance_id uuid, alliance_crew_name text, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, specialisation jsonb, fighter_variant text, available_legacies jsonb, free_skill boolean, delegation_cost numeric, is_dramatis_personae boolean, edition_slug text, starting_xp numeric, is_vehicle boolean)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -2527,8 +2147,7 @@ BEGIN
     SELECT
         ft.id,
         ft.fighter_type,
-        fc.class_name,
-        ft.fighter_class_id,
+        ft.fighter_subtypes,
         ft.gang_type,
         -- Use adjusted_cost if available, otherwise use original cost
         COALESCE(ftgc.adjusted_cost, ft.cost) as cost,
@@ -2546,6 +2165,7 @@ BEGIN
         ft.willpower,
         ft.intelligence,
         ft.attacks,
+        ft.save,
         ft.limitation,
         ft.alignment,
         ft.is_gang_addition,
@@ -2590,6 +2210,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'is_editable', COALESCE(e.is_editable, false),
                                                             'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
@@ -2600,7 +2221,8 @@ BEGIN
                                                                             'equipment_type', re.equipment_type,
                                                                             'equipment_category', re.equipment_category,
                                                                             'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer
+                                                                            'max_quantity', (repl->>'max_quantity')::integer,
+                                                                            'is_editable', COALESCE(re.is_editable, false)
                                                                         )
                                                                     )
                                                                     FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -2630,6 +2252,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'is_editable', COALESCE(e.is_editable, false),
                                                         'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
@@ -2640,7 +2263,8 @@ BEGIN
                                                                         'equipment_type', re.equipment_type,
                                                                         'equipment_category', re.equipment_category,
                                                                         'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer
+                                                                        'max_quantity', (repl->>'max_quantity')::integer,
+                                                                        'is_editable', COALESCE(re.is_editable, false)
                                                                     )
                                                                 )
                                                                 FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -2677,6 +2301,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'is_editable', COALESCE(e.is_editable, false),
                                                             'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
@@ -2687,7 +2312,8 @@ BEGIN
                                                                             'equipment_type', re.equipment_type,
                                                                             'equipment_category', re.equipment_category,
                                                                             'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer
+                                                                            'max_quantity', (repl->>'max_quantity')::integer,
+                                                                            'is_editable', COALESCE(re.is_editable, false)
                                                                         )
                                                                     )
                                                                     FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -2717,6 +2343,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'is_editable', COALESCE(e.is_editable, false),
                                                         'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
@@ -2727,7 +2354,8 @@ BEGIN
                                                                         'equipment_type', re.equipment_type,
                                                                         'equipment_category', re.equipment_category,
                                                                         'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer
+                                                                        'max_quantity', (repl->>'max_quantity')::integer,
+                                                                        'is_editable', COALESCE(re.is_editable, false)
                                                                     )
                                                                 )
                                                                 FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -2766,6 +2394,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'is_editable', COALESCE(e.is_editable, false),
                                                             'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
@@ -2776,7 +2405,8 @@ BEGIN
                                                                             'equipment_type', re.equipment_type,
                                                                             'equipment_category', re.equipment_category,
                                                                             'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer
+                                                                            'max_quantity', (repl->>'max_quantity')::integer,
+                                                                            'is_editable', COALESCE(re.is_editable, false)
                                                                         )
                                                                     )
                                                                     FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -2806,6 +2436,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'is_editable', COALESCE(e.is_editable, false),
                                                         'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
@@ -2816,7 +2447,8 @@ BEGIN
                                                                         'equipment_type', re.equipment_type,
                                                                         'equipment_category', re.equipment_category,
                                                                         'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer
+                                                                        'max_quantity', (repl->>'max_quantity')::integer,
+                                                                        'is_editable', COALESCE(re.is_editable, false)
                                                                     )
                                                                 )
                                                                 FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -2853,6 +2485,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'is_editable', COALESCE(e.is_editable, false),
                                                             'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
@@ -2863,7 +2496,8 @@ BEGIN
                                                                             'equipment_type', re.equipment_type,
                                                                             'equipment_category', re.equipment_category,
                                                                             'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer
+                                                                            'max_quantity', (repl->>'max_quantity')::integer,
+                                                                            'is_editable', COALESCE(re.is_editable, false)
                                                                         )
                                                                     )
                                                                     FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -2893,6 +2527,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'is_editable', COALESCE(e.is_editable, false),
                                                         'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
@@ -2903,7 +2538,8 @@ BEGIN
                                                                         'equipment_type', re.equipment_type,
                                                                         'equipment_category', re.equipment_category,
                                                                         'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer
+                                                                        'max_quantity', (repl->>'max_quantity')::integer,
+                                                                        'is_editable', COALESCE(re.is_editable, false)
                                                                     )
                                                                 )
                                                                 FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -2942,6 +2578,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'is_editable', COALESCE(e.is_editable, false),
                                                             'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
@@ -2952,7 +2589,8 @@ BEGIN
                                                                             'equipment_type', re.equipment_type,
                                                                             'equipment_category', re.equipment_category,
                                                                             'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer
+                                                                            'max_quantity', (repl->>'max_quantity')::integer,
+                                                                            'is_editable', COALESCE(re.is_editable, false)
                                                                         )
                                                                     )
                                                                     FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -2982,6 +2620,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'is_editable', COALESCE(e.is_editable, false),
                                                         'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
@@ -2992,7 +2631,8 @@ BEGIN
                                                                         'equipment_type', re.equipment_type,
                                                                         'equipment_category', re.equipment_category,
                                                                         'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer
+                                                                        'max_quantity', (repl->>'max_quantity')::integer,
+                                                                        'is_editable', COALESCE(re.is_editable, false)
                                                                     )
                                                                 )
                                                                 FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -3029,6 +2669,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'is_editable', COALESCE(e.is_editable, false),
                                                             'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
@@ -3039,7 +2680,8 @@ BEGIN
                                                                             'equipment_type', re.equipment_type,
                                                                             'equipment_category', re.equipment_category,
                                                                             'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer
+                                                                            'max_quantity', (repl->>'max_quantity')::integer,
+                                                                            'is_editable', COALESCE(re.is_editable, false)
                                                                         )
                                                                     )
                                                                     FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -3069,6 +2711,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'is_editable', COALESCE(e.is_editable, false),
                                                         'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
@@ -3079,7 +2722,8 @@ BEGIN
                                                                         'equipment_type', re.equipment_type,
                                                                         'equipment_category', re.equipment_category,
                                                                         'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer
+                                                                        'max_quantity', (repl->>'max_quantity')::integer,
+                                                                        'is_editable', COALESCE(re.is_editable, false)
                                                                     )
                                                                 )
                                                                 FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -3118,6 +2762,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'is_editable', COALESCE(e.is_editable, false),
                                                             'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
@@ -3128,7 +2773,8 @@ BEGIN
                                                                             'equipment_type', re.equipment_type,
                                                                             'equipment_category', re.equipment_category,
                                                                             'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer
+                                                                            'max_quantity', (repl->>'max_quantity')::integer,
+                                                                            'is_editable', COALESCE(re.is_editable, false)
                                                                         )
                                                                     )
                                                                     FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -3158,6 +2804,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'is_editable', COALESCE(e.is_editable, false),
                                                         'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
@@ -3168,7 +2815,8 @@ BEGIN
                                                                         'equipment_type', re.equipment_type,
                                                                         'equipment_category', re.equipment_category,
                                                                         'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer
+                                                                        'max_quantity', (repl->>'max_quantity')::integer,
+                                                                        'is_editable', COALESCE(re.is_editable, false)
                                                                     )
                                                                 )
                                                                 FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -3205,6 +2853,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'is_editable', COALESCE(e.is_editable, false),
                                                             'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
@@ -3215,7 +2864,8 @@ BEGIN
                                                                             'equipment_type', re.equipment_type,
                                                                             'equipment_category', re.equipment_category,
                                                                             'cost', (repl->>'cost')::numeric,
-                                                                            'max_quantity', (repl->>'max_quantity')::integer
+                                                                            'max_quantity', (repl->>'max_quantity')::integer,
+                                                                            'is_editable', COALESCE(re.is_editable, false)
                                                                         )
                                                                     )
                                                                     FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -3245,6 +2895,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'is_editable', COALESCE(e.is_editable, false),
                                                         'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
@@ -3255,7 +2906,8 @@ BEGIN
                                                                         'equipment_type', re.equipment_type,
                                                                         'equipment_category', re.equipment_category,
                                                                         'cost', (repl->>'cost')::numeric,
-                                                                        'max_quantity', (repl->>'max_quantity')::integer
+                                                                        'max_quantity', (repl->>'max_quantity')::integer,
+                                                                        'is_editable', COALESCE(re.is_editable, false)
                                                                     )
                                                                 )
                                                                 FROM jsonb_array_elements(item_data->'replacements') AS repl
@@ -3285,15 +2937,15 @@ BEGIN
         ) AS equipment_selection,
         -- Use adjusted_cost for total_cost if available, otherwise use original cost
         COALESCE(ftgc.adjusted_cost, ft.cost) AS total_cost,
-        -- Add sub_type information
-        CASE 
-            WHEN fsub.id IS NOT NULL THEN
+        CASE
+            WHEN fspec.id IS NOT NULL THEN
                 jsonb_build_object(
-                    'id', fsub.id,
-                    'sub_type_name', fsub.sub_type_name
+                    'id', fspec.id,
+                    'specialisation_name', fspec.specialisation_name
                 )
             ELSE NULL
-        END AS sub_type,
+        END AS specialisation,
+        ft.fighter_variant,
         COALESCE(
             (
                 SELECT jsonb_agg(
@@ -3310,13 +2962,16 @@ BEGIN
         ) AS available_legacies,
         ft.free_skill,
         ft.delegation_cost,
-        ft.is_dramatis_personae
+        ft.is_dramatis_personae,
+        ed.slug AS edition_slug,
+        ft.starting_xp,
+        ft.is_vehicle
     FROM fighter_types ft
-    JOIN fighter_classes fc ON fc.id = ft.fighter_class_id
-    LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id 
+    LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id
         AND ftgc.gang_type_id = p_gang_type_id
         AND (ftgc.gang_affiliation_id IS NULL OR ftgc.gang_affiliation_id = p_gang_affiliation_id)
-    LEFT JOIN fighter_sub_types fsub ON fsub.id = ft.fighter_sub_type_id
+    LEFT JOIN fighter_specialisations fspec ON fspec.id = ft.fighter_specialisation_id
+    LEFT JOIN editions ed ON ed.id = ft.edition_id
     WHERE
         CASE
             -- Gang additions: cross-gang pool, filtered only by the flag
@@ -3341,7 +2996,7 @@ $$;
 -- Name: get_gang_details(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_gang_details(p_gang_id uuid) RETURNS TABLE(id uuid, name text, gang_type text, gang_type_id uuid, gang_type_image_url text, gang_colour text, credits numeric, reputation numeric, rating numeric, alignment public.alignment, positioning jsonb, note text, stash json, created_at timestamp with time zone, last_updated timestamp with time zone, fighters json, campaigns json, vehicles json, alliance_id uuid, alliance_name text, alliance_type text, gang_variants json)
+CREATE FUNCTION public.get_gang_details(p_gang_id uuid) RETURNS TABLE(id uuid, name text, gang_type text, gang_type_id uuid, gang_type_image_url text, gang_colour text, credits numeric, reputation numeric, rating numeric, alignment public.alignment, positioning jsonb, note text, stash json, created_at timestamp with time zone, last_updated timestamp with time zone, fighters json, campaigns json, vehicles json, alliance_id uuid, alliance_name text, alliance_type text, gang_variants json, edition_slug text)
     LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -3365,8 +3020,9 @@ BEGIN
            f.label,
            f.fighter_type,
            f.fighter_type_id,
-           f.fighter_class,
-           f.fighter_sub_type_id,
+           f.fighter_subtypes,
+           f.fighter_specialisation_id,
+           f.fighter_variant,
            f.xp,
            f.kills,
            f.position,
@@ -3896,11 +3552,12 @@ BEGIN
            f.label,
            f.fighter_type,
            f.fighter_type_id,
-           f.fighter_class,
+           f.fighter_subtypes,
            json_build_object(
-             'fighter_sub_type', fst.sub_type_name,
-             'fighter_sub_type_id', fst.id
-           ) AS fighter_sub_type,
+             'fighter_specialisation', fspec.specialisation_name,
+             'fighter_specialisation_id', fspec.id
+           ) AS fighter_specialisation,
+           f.fighter_variant,
            ft.alliance_crew_name,
            f.xp,
            f.kills,
@@ -3938,7 +3595,7 @@ BEGIN
            COALESCE(fsk.skills, '{}'::json) as skills,
            COALESCE(fvj.vehicles, '[]'::json) as vehicles
        FROM gang_fighters f
-       LEFT JOIN fighter_sub_types fst ON fst.id = f.fighter_sub_type_id
+       LEFT JOIN fighter_specialisations fspec ON fspec.id = f.fighter_specialisation_id
        LEFT JOIN fighter_types ft ON ft.id = f.fighter_type_id
        LEFT JOIN fighter_equipment_costs fec ON fec.fighter_id = f.f_id
        LEFT JOIN fighter_equipment_details fed ON fed.fighter_id = f.f_id
@@ -4042,8 +3699,9 @@ BEGIN
                'fighter_name', cf.fighter_name,
                'label', cf.label,
                'fighter_type', cf.fighter_type,
-               'fighter_class', cf.fighter_class,
-               'fighter_sub_type', cf.fighter_sub_type,
+               'fighter_subtypes', cf.fighter_subtypes,
+               'fighter_specialisation', cf.fighter_specialisation,
+               'fighter_variant', cf.fighter_variant,
                'alliance_crew_name', cf.alliance_crew_name,
                'position', cf.position,
                'xp', cf.xp,
@@ -4136,9 +3794,12 @@ BEGIN
        g.alliance_id,
        a.alliance_name,
        a.alliance_type,
-       (SELECT variant_info FROM gang_variant_info) as gang_variants
+       (SELECT variant_info FROM gang_variant_info) as gang_variants,
+       ed.slug AS edition_slug
    FROM gangs g
    LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+   LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
+   LEFT JOIN editions ed ON ed.id = COALESCE(gt.edition_id, cgt.edition_id)
    LEFT JOIN alliances a ON a.id = g.alliance_id
    WHERE g.id = p_gang_id;
 END;
@@ -4236,6 +3897,56 @@ BEGIN
     NEW.raw_user_meta_data ->> 'username'
   );
   RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: notify_campaign_join_request(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.notify_campaign_join_request() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+   campaign_name_var TEXT;
+   requester_name_var TEXT;
+BEGIN
+   -- Get the campaign name
+   SELECT campaign_name INTO campaign_name_var
+   FROM campaigns
+   WHERE id = NEW.campaign_id;
+
+   -- Get the requester's username
+   SELECT username INTO requester_name_var
+   FROM profiles
+   WHERE id = NEW.user_id;
+
+   -- One notification per OWNER/ARBITRATOR. DISTINCT because campaign_members
+   -- can hold duplicate rows per user. sender_id carries the requester and the
+   -- link carries the campaign, which is all the accept/decline UI needs.
+   INSERT INTO notifications (
+       receiver_id,
+       sender_id,
+       type,
+       text,
+       link,
+       dismissed
+   )
+   SELECT DISTINCT
+       cm.user_id,
+       NEW.user_id,
+       'campaign_join_request',
+       COALESCE(requester_name_var, 'Someone') || ' wants to join your campaign "' || COALESCE(campaign_name_var, 'Unknown Campaign') || '".',
+       'https://www.mundamanager.com/campaigns/' || NEW.campaign_id,
+       false
+   FROM campaign_members cm
+   WHERE cm.campaign_id = NEW.campaign_id
+     AND cm.role IN ('OWNER', 'ARBITRATOR')
+     AND cm.user_id <> NEW.user_id;
+
+   RETURN NEW;
 END;
 $$;
 
@@ -4380,19 +4091,6 @@ $$;
 
 
 --
--- Name: OLDfighter_equipment_tradingpost; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public."OLDfighter_equipment_tradingpost" (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    fighter_type_id uuid,
-    equipment_tradingpost jsonb,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone
-);
-
-
---
 -- Name: alliances; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4403,7 +4101,8 @@ CREATE TABLE public.alliances (
     alignment text,
     strong_alliance uuid,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    alliance_crew_name text
+    alliance_crew_name text,
+    edition_id uuid
 );
 
 
@@ -4471,10 +4170,18 @@ CREATE TABLE public.battle_sessions (
     campaign_battle_id uuid,
     round integer DEFAULT 1 NOT NULL,
     claimed_territory text,
+    edition_id uuid,
     CONSTRAINT battle_sessions_status_check CHECK ((status = ANY (ARRAY['pre_battle'::text, 'active'::text, 'post_battle'::text, 'completed'::text])))
 );
 
 ALTER TABLE ONLY public.battle_sessions REPLICA IDENTITY FULL;
+
+
+--
+-- Name: COLUMN battle_sessions.edition_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.battle_sessions.edition_id IS 'Ruleset the session is played under. Derived server-side at creation from the campaign type, or from the creating gang for skirmish sessions. Nullable: a null edition resolves to NO_CAPABILITIES in the app rather than silently serving another edition''s rules.';
 
 
 --
@@ -4600,6 +4307,18 @@ COMMENT ON COLUMN public.campaign_gangs.campaign_allegiance_id IS 'Gang''s alleg
 
 
 --
+-- Name: campaign_join_requests; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.campaign_join_requests (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    campaign_id uuid NOT NULL,
+    user_id uuid NOT NULL
+);
+
+
+--
 -- Name: campaign_map_objects; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4639,7 +4358,6 @@ CREATE TABLE public.campaign_members (
     campaign_id uuid,
     invited_by uuid,
     role text,
-    status text,
     invited_at timestamp with time zone DEFAULT now(),
     joined_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now(),
@@ -4764,7 +4482,8 @@ CREATE TABLE public.campaign_types (
     campaign_type_name text,
     description text,
     image_url text,
-    trading_posts jsonb
+    trading_posts jsonb,
+    edition_id uuid
 );
 
 
@@ -4779,21 +4498,16 @@ CREATE TABLE public.campaigns (
     campaign_type_id uuid,
     status text,
     updated_at timestamp with time zone,
-    "OLDhas_meat" boolean DEFAULT false NOT NULL,
-    "OLDhas_exploration_points" boolean DEFAULT false NOT NULL,
-    "OLDhas_scavenging_rolls" boolean DEFAULT false NOT NULL,
     note text,
     description text,
     image_url text,
-    "OLDhas_power" boolean DEFAULT false,
-    "OLDhas_sustenance" boolean DEFAULT false,
-    "OLDhas_salvage" boolean DEFAULT false,
     trading_posts jsonb,
     discord_channel_id text,
     discord_guild_id text,
     discord_channel_type integer DEFAULT 0 NOT NULL,
     created_by uuid DEFAULT auth.uid(),
-    custom_trading_posts jsonb
+    custom_trading_posts jsonb,
+    allow_join_requests boolean DEFAULT false NOT NULL
 );
 
 
@@ -4815,7 +4529,8 @@ CREATE TABLE public.custom_collections (
     user_id uuid NOT NULL,
     name text NOT NULL,
     description text,
-    items jsonb DEFAULT '[]'::jsonb NOT NULL
+    items jsonb DEFAULT '[]'::jsonb NOT NULL,
+    edition_id uuid
 );
 
 
@@ -4839,8 +4554,17 @@ CREATE TABLE public.custom_equipment (
     user_id uuid NOT NULL,
     is_editable boolean DEFAULT false,
     is_consumable boolean DEFAULT false,
-    description text
+    description text,
+    edition_id uuid NOT NULL,
+    trade_points text DEFAULT '0'::text NOT NULL
 );
+
+
+--
+-- Name: COLUMN custom_equipment.trade_points; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.custom_equipment.trade_points IS 'N26 Trade Points cost (text: numeric string or E). Surfaced/charged only for N26 gangs.';
 
 
 --
@@ -4884,12 +4608,30 @@ CREATE TABLE public.custom_fighter_types (
     gang_type_id uuid,
     special_rules jsonb,
     free_skill boolean,
-    fighter_class text,
-    fighter_class_id uuid,
     user_id uuid,
     custom_gang_type_id uuid,
-    description text
+    description text,
+    edition_id uuid NOT NULL,
+    save numeric,
+    fighter_subtypes jsonb DEFAULT '[]'::jsonb NOT NULL,
+    starting_xp numeric,
+    is_vehicle boolean DEFAULT false NOT NULL,
+    fighter_variant text
 );
+
+
+--
+-- Name: COLUMN custom_fighter_types.starting_xp; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.custom_fighter_types.starting_xp IS 'XP a fighter of this custom type starts with at recruitment. Copied to fighters.starting_xp and seeds fighters.xp when the fighter is added. NULL means N/A: the type cannot gain XP.';
+
+
+--
+-- Name: COLUMN custom_fighter_types.fighter_variant; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.custom_fighter_types.fighter_variant IS 'Type variant label, authored by the owning user. Free text by design: there is no custom variant catalog, and none is needed.';
 
 
 --
@@ -4905,7 +4647,8 @@ CREATE TABLE public.custom_gang_types (
     alignment public.alignment,
     trading_post_type_id uuid,
     default_image_urls jsonb DEFAULT '[{"url": "https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_gang_cropped_web.webp"}, {"url": "https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_cropped_web_foy9m7.avif", "credit": {"url": "https://www.ashenquarter.com/", "name": "Djidiouf", "suffix": "(AI-assisted)"}}]'::jsonb,
-    description text
+    description text,
+    edition_id uuid NOT NULL
 );
 
 
@@ -4931,8 +4674,16 @@ CREATE TABLE public.custom_shared (
     custom_skill_id uuid,
     custom_gang_type_id uuid,
     custom_trading_post_id uuid,
-    custom_collection_id uuid
+    custom_collection_id uuid,
+    edition_id uuid NOT NULL
 );
+
+
+--
+-- Name: COLUMN custom_shared.edition_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.custom_shared.edition_id IS 'Ruleset this share applies under, derived from the campaign by the custom_shared_set_edition trigger. The shared item''s own edition must not conflict.';
 
 
 --
@@ -4944,7 +4695,8 @@ CREATE TABLE public.custom_skill_types (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone,
     name text,
-    user_id uuid
+    user_id uuid,
+    edition_id uuid NOT NULL
 );
 
 
@@ -5052,7 +4804,8 @@ CREATE TABLE public.custom_trading_posts (
     updated_at timestamp with time zone,
     user_id uuid NOT NULL,
     custom_trading_post_name text NOT NULL,
-    description text
+    description text,
+    edition_id uuid
 );
 
 
@@ -5077,8 +4830,46 @@ CREATE TABLE public.custom_weapon_profiles (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     weapon_group_id uuid,
     sort_order numeric,
-    user_id uuid
+    user_id uuid,
+    lethality text
 );
+
+
+--
+-- Name: COLUMN custom_weapon_profiles.lethality; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.custom_weapon_profiles.lethality IS 'N26 Lethality characteristic. NULL for pre-N26 profiles, which use damage instead.';
+
+
+--
+-- Name: editions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.editions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    slug text NOT NULL,
+    released_at date,
+    is_current boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    CONSTRAINT editions_slug_format_chk CHECK ((slug ~ '^[a-z][a-z0-9_]*$'::text))
+);
+
+
+--
+-- Name: COLUMN editions.slug; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.editions.slug IS 'Stable identifier for an edition so application code can reference it without hardcoding UUIDs.';
+
+
+--
+-- Name: COLUMN editions.is_current; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.editions.is_current IS 'Picks the default edition for pages that have no gang or campaign context to derive an edition from. It does NOT mark other editions unsupported, and catalog rows must never be filtered on it.';
 
 
 --
@@ -5088,10 +4879,8 @@ CREATE TABLE public.custom_weapon_profiles (
 CREATE TABLE public.equipment (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     equipment_name text,
-    "OLDtrading_post_category" text,
     availability text,
     cost numeric,
-    "OLDfaction" text,
     variants text,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     equipment_category text NOT NULL,
@@ -5101,7 +4890,9 @@ CREATE TABLE public.equipment (
     updated_at timestamp with time zone,
     is_editable boolean DEFAULT false,
     grants_equipment jsonb,
-    is_consumable boolean DEFAULT false
+    is_consumable boolean DEFAULT false,
+    edition_id uuid,
+    trade_points text DEFAULT '0'::text NOT NULL
 );
 
 
@@ -5120,6 +4911,13 @@ COMMENT ON COLUMN public.equipment.core_equipment IS 'If the equipment is a weap
 
 
 --
+-- Name: COLUMN equipment.trade_points; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.equipment.trade_points IS 'N26 Trade Points cost (text: numeric string or E). Surfaced/charged only for N26 gangs.';
+
+
+--
 -- Name: equipment_availability; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5132,7 +4930,8 @@ CREATE TABLE public.equipment_availability (
     gang_type_id uuid,
     equipment_id uuid,
     gang_origin_id uuid,
-    gang_variant_id uuid
+    gang_variant_id uuid,
+    exclusive boolean DEFAULT false NOT NULL
 );
 
 
@@ -5143,7 +4942,8 @@ CREATE TABLE public.equipment_availability (
 CREATE TABLE public.equipment_categories (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    category_name text
+    category_name text,
+    edition_id uuid
 );
 
 
@@ -5155,12 +4955,19 @@ CREATE TABLE public.equipment_discounts (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     equipment_id uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    "OLDdiscount" numeric DEFAULT '0'::numeric NOT NULL,
     gang_type_id uuid,
     fighter_type_id uuid,
     adjusted_cost numeric,
-    gang_origin_id uuid
+    gang_origin_id uuid,
+    trade_points text
 );
+
+
+--
+-- Name: COLUMN equipment_discounts.trade_points; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.equipment_discounts.trade_points IS 'N26 Trade Points override (text: numeric string or E). NULL falls back to equipment.trade_points.';
 
 
 --
@@ -5173,18 +4980,6 @@ CREATE TABLE public.exotic_beasts (
     equipment_id uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone
-);
-
-
---
--- Name: fighter_classes; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.fighter_classes (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    class_name text,
-    standard_class boolean DEFAULT false
 );
 
 
@@ -5271,7 +5066,8 @@ CREATE TABLE public.fighter_effect_types (
     updated_at timestamp with time zone,
     fighter_effect_category_id uuid,
     type_specific_data jsonb,
-    sort_order numeric
+    sort_order numeric,
+    edition_id uuid
 );
 
 
@@ -5372,7 +5168,8 @@ CREATE TABLE public.fighter_gang_legacy (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone,
     name text,
-    fighter_type_id uuid
+    fighter_type_id uuid,
+    edition_id uuid
 );
 
 
@@ -5421,6 +5218,34 @@ CREATE TABLE public.fighter_loadouts (
 
 
 --
+-- Name: fighter_ooa_records; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.fighter_ooa_records (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    causing_fighter_id uuid,
+    causing_gang_id uuid,
+    causing_fighter_name text,
+    causing_fighter_gang_name text,
+    injured_fighter_id uuid,
+    injured_gang_id uuid,
+    injured_fighter_name text,
+    injured_gang_name text,
+    event_type text NOT NULL,
+    vehicle_type text,
+    vehicle_name text,
+    campaign_id uuid,
+    user_id uuid DEFAULT auth.uid(),
+    injured_fighter_type text,
+    causing_fighter_type text,
+    causing_fighter_subtypes jsonb DEFAULT '[]'::jsonb NOT NULL,
+    injured_fighter_subtypes jsonb DEFAULT '[]'::jsonb NOT NULL,
+    CONSTRAINT fighter_ooa_records_event_type_check CHECK ((event_type = ANY (ARRAY['out_of_action'::text, 'vehicle_wrecked'::text])))
+);
+
+
+--
 -- Name: fighter_skill_access_override; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5457,15 +5282,49 @@ CREATE TABLE public.fighter_skills (
 
 
 --
--- Name: fighter_sub_types; Type: TABLE; Schema: public; Owner: -
+-- Name: fighter_specialisations; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.fighter_sub_types (
+CREATE TABLE public.fighter_specialisations (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    sub_type_name text,
+    specialisation_name text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone
 );
+
+
+--
+-- Name: TABLE fighter_specialisations; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.fighter_specialisations IS 'N26 Specialisations: variants within a single fighter type. Formerly fighter_sub_types. Unrelated to the rulebook term "Subtypes", which maps to fighter_subtypes.';
+
+
+--
+-- Name: fighter_subtypes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.fighter_subtypes (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    subtype_name text,
+    standard_subtype boolean DEFAULT false,
+    edition_id uuid
+);
+
+
+--
+-- Name: TABLE fighter_subtypes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.fighter_subtypes IS 'Fighter roles (Leader, Champion, Ganger, ...). Called "Subtypes" by the N26 rulebook; formerly fighter_classes. NOT related to fighter_specialisations. One row per subtype per edition, matched across editions on subtype_name.';
+
+
+--
+-- Name: COLUMN fighter_subtypes.subtype_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighter_subtypes.subtype_name IS 'Subtype identity. Unique per edition (fighter_subtypes_edition_subtype_name_idx) and the value stored in fighters/fighter_types.fighter_subtypes; match on this across editions.';
 
 
 --
@@ -5481,8 +5340,32 @@ CREATE TABLE public.fighter_type_equipment (
     updated_at timestamp with time zone,
     custom_fighter_type_id uuid,
     gang_type_id uuid,
-    gang_origin_id uuid
+    gang_origin_id uuid,
+    gang_variant_id uuid,
+    fighter_subtype text,
+    excluded boolean DEFAULT false NOT NULL
 );
+
+
+--
+-- Name: COLUMN fighter_type_equipment.gang_variant_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighter_type_equipment.gang_variant_id IS 'Restricts the row to gangs holding this variant (gangs.gang_variants contains the id). NULL applies regardless of variant.';
+
+
+--
+-- Name: COLUMN fighter_type_equipment.fighter_subtype; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighter_type_equipment.fighter_subtype IS 'Restricts the row to fighters carrying this subtype name, matched against fighters.fighter_subtypes. A name rather than an FK because subtypes are stored as names in jsonb arrays throughout; see 20260806120000. NULL applies regardless of subtype. Set with fighter_type_id NULL for a rule spanning every gang.';
+
+
+--
+-- Name: COLUMN fighter_type_equipment.excluded; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighter_type_equipment.excluded IS 'false grants the item (the original meaning of a row); true denies it, removing the item from the Equipment List of fighters matching this row''s scope even when another row or a gang-wide equipment_availability entry would have granted it. Equipment List only -- it does not gate Trading Post access.';
 
 
 --
@@ -5561,20 +5444,45 @@ CREATE TABLE public.fighter_types (
     gang_type_id uuid NOT NULL,
     special_rules jsonb[],
     free_skill boolean,
-    fighter_class text,
-    fighter_class_id uuid,
     is_gang_addition boolean DEFAULT false,
     limitation numeric,
     alignment public.alignment,
-    fighter_sub_type_id uuid,
+    fighter_specialisation_id uuid,
     updated_at timestamp with time zone,
-    fighter_sub_type text,
+    fighter_specialisation text,
     alliance_id uuid,
     alliance_crew_name text,
     is_spyrer boolean DEFAULT false,
     delegation_cost numeric,
-    is_dramatis_personae boolean DEFAULT false NOT NULL
+    is_dramatis_personae boolean DEFAULT false NOT NULL,
+    edition_id uuid,
+    save numeric,
+    fighter_subtypes jsonb DEFAULT '[]'::jsonb NOT NULL,
+    starting_xp numeric,
+    is_vehicle boolean DEFAULT false NOT NULL,
+    fighter_variant text
 );
+
+
+--
+-- Name: COLUMN fighter_types.edition_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighter_types.edition_id IS 'Denormalized from gang_types via the composite FK on (gang_type_id, edition_id); derived server-side from the chosen gang type, never accepted from clients.';
+
+
+--
+-- Name: COLUMN fighter_types.starting_xp; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighter_types.starting_xp IS 'XP a fighter of this type starts with at recruitment. Copied to fighters.starting_xp and seeds fighters.xp when the fighter is added. NULL means N/A: the type cannot gain XP.';
+
+
+--
+-- Name: COLUMN fighter_types.fighter_variant; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighter_types.fighter_variant IS 'Type variant label (Bonecrusher, Natborn). Distinguishes sibling rows of the same fighter_type. Not a specialisation -- that is the Specialist pick, on fighter_specialisation_id.';
 
 
 --
@@ -5612,15 +5520,13 @@ CREATE TABLE public.fighters (
     killed boolean DEFAULT false NOT NULL,
     retired boolean DEFAULT false NOT NULL,
     enslaved boolean DEFAULT false NOT NULL,
-    fighter_class text,
     note text,
     cost_adjustment numeric DEFAULT '0'::numeric,
-    fighter_class_id uuid,
     label text,
     recovery boolean DEFAULT false,
     user_id uuid DEFAULT auth.uid(),
-    fighter_sub_type_id uuid,
-    fighter_sub_type text,
+    fighter_specialisation_id uuid,
+    fighter_specialisation text,
     fighter_pet_id uuid,
     image_url text,
     note_backstory text,
@@ -5632,6 +5538,11 @@ CREATE TABLE public.fighters (
     active_loadout_id uuid,
     selected_archetype_id uuid,
     captured_by_gang_id uuid,
+    save numeric,
+    fighter_subtypes jsonb DEFAULT '[]'::jsonb NOT NULL,
+    is_vehicle boolean DEFAULT false NOT NULL,
+    starting_xp numeric,
+    fighter_variant text,
     CONSTRAINT fighters_label_check CHECK ((length(label) <= 5))
 );
 
@@ -5648,6 +5559,27 @@ COMMENT ON TABLE public.fighters IS 'users records';
 --
 
 COMMENT ON COLUMN public.fighters.kill_count IS 'kill_count is used to keep track of spyrers kill count';
+
+
+--
+-- Name: COLUMN fighters.save; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighters.save IS 'N26 Save characteristic (e.g. 4 renders as 4+). NULL for pre-N26 fighters.';
+
+
+--
+-- Name: COLUMN fighters.starting_xp; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighters.starting_xp IS 'XP this fighter was recruited with, copied from its (custom_)fighter_type at recruitment. NULL means N/A: the type cannot gain XP. Fixed thereafter: Advancements are earned on XP above this value, so it must not follow later edits to the fighter type.';
+
+
+--
+-- Name: COLUMN fighters.fighter_variant; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighters.fighter_variant IS 'Type variant label, following the fighter type. The variant follows the type; the specialisation follows the fighter.';
 
 
 --
@@ -5675,7 +5607,8 @@ CREATE TABLE public.gang_affiliation (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone,
     name text,
-    fighter_type_id uuid
+    fighter_type_id uuid,
+    edition_id uuid
 );
 
 
@@ -5716,7 +5649,8 @@ CREATE TABLE public.gang_origins (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone,
     origin_name text,
-    gang_origin_category_id uuid
+    gang_origin_category_id uuid,
+    edition_id uuid
 );
 
 
@@ -5736,6 +5670,20 @@ CREATE TABLE public.gang_stash (
 
 
 --
+-- Name: gang_tactics_cards; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.gang_tactics_cards (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    gang_id uuid NOT NULL,
+    tactics_cards_id uuid NOT NULL,
+    description text
+);
+
+
+--
 -- Name: gang_types; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5750,7 +5698,8 @@ CREATE TABLE public.gang_types (
     trading_post_type_id uuid,
     affiliation boolean DEFAULT false,
     gang_origin_category_id uuid,
-    default_image_urls jsonb
+    default_image_urls jsonb,
+    edition_id uuid
 );
 
 
@@ -5783,7 +5732,8 @@ CREATE TABLE public.gang_variant_types (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     variant text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone
+    updated_at timestamp with time zone,
+    edition_id uuid
 );
 
 
@@ -5820,6 +5770,7 @@ CREATE TABLE public.gangs (
     custom_gang_type_id uuid,
     note_private text,
     note_private_updated_at timestamp with time zone,
+    trade_points numeric DEFAULT 0 NOT NULL,
     CONSTRAINT chk_gang_type_exclusive CHECK ((num_nonnulls(gang_type_id, custom_gang_type_id) = 1))
 );
 
@@ -5829,6 +5780,13 @@ CREATE TABLE public.gangs (
 --
 
 COMMENT ON COLUMN public.gangs.default_gang_image IS 'Default Gang Image the user selected';
+
+
+--
+-- Name: COLUMN gangs.trade_points; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gangs.trade_points IS 'N26 Trade Points resource. Only surfaced/edited for gangs whose gang type uses edition n26.';
 
 
 --
@@ -5845,7 +5803,7 @@ CREATE TABLE public.notifications (
     link text,
     expires_at timestamp with time zone DEFAULT (now() + '30 days'::interval) NOT NULL,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    CONSTRAINT notifications_type_check CHECK (((type)::text = ANY (ARRAY['info'::text, 'warning'::text, 'error'::text, 'invite'::text, 'campaign_invite'::text, 'friend_request'::text, 'battle_invite'::text, 'gang_invite'::text])))
+    CONSTRAINT notifications_type_check CHECK (((type)::text = ANY (ARRAY['info'::text, 'warning'::text, 'error'::text, 'invite'::text, 'campaign_invite'::text, 'friend_request'::text, 'battle_invite'::text, 'gang_invite'::text, 'campaign_join_request'::text])))
 );
 
 ALTER TABLE ONLY public.notifications REPLICA IDENTITY FULL;
@@ -5881,7 +5839,8 @@ CREATE TABLE public.scenarios (
     scenario_name text,
     campaign_type_id uuid,
     scenario_tags text,
-    scenario_number numeric
+    scenario_number numeric,
+    edition_id uuid
 );
 
 
@@ -5896,7 +5855,7 @@ CREATE TABLE public.skill_access_archetypes (
     skill_access jsonb DEFAULT '[]'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone,
-    fighter_class_id uuid
+    fighter_subtype_id uuid
 );
 
 
@@ -5909,7 +5868,8 @@ CREATE TABLE public.skill_types (
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone,
     name text NOT NULL,
-    legendary_name boolean DEFAULT false NOT NULL
+    legendary_name boolean DEFAULT false NOT NULL,
+    edition_id uuid
 );
 
 
@@ -5919,13 +5879,30 @@ CREATE TABLE public.skill_types (
 
 CREATE TABLE public.skills (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    xp_cost bigint,
-    credit_cost bigint,
+    "OLDxp_cost" bigint,
+    "OLDcredit_cost" bigint,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone,
     name text,
     skill_type_id uuid,
     gang_origin_id uuid
+);
+
+
+--
+-- Name: tactics_cards; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tactics_cards (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    edition_id uuid NOT NULL,
+    name text NOT NULL,
+    d66_min smallint,
+    d66_max smallint,
+    CONSTRAINT tactics_cards_d66_order_check CHECK (((d66_min IS NULL) OR (d66_min <= d66_max))),
+    CONSTRAINT tactics_cards_d66_pair_check CHECK ((((d66_min IS NULL) AND (d66_max IS NULL)) OR ((d66_min IS NOT NULL) AND (d66_max IS NOT NULL))))
 );
 
 
@@ -5939,7 +5916,8 @@ CREATE TABLE public.territories (
     campaign_type_id uuid,
     territory_name text NOT NULL,
     updated_at timestamp with time zone,
-    playing_card text
+    playing_card text,
+    edition_id uuid
 );
 
 
@@ -5964,7 +5942,8 @@ CREATE TABLE public.trading_post_types (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     trading_post_name text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone
+    updated_at timestamp with time zone,
+    edition_id uuid
 );
 
 
@@ -6005,7 +5984,8 @@ CREATE TABLE public.vehicle_types (
     engine_slots_occupied numeric,
     gang_type_id uuid,
     cost numeric,
-    hardpoints jsonb
+    hardpoints jsonb,
+    edition_id uuid
 );
 
 
@@ -6060,8 +6040,16 @@ CREATE TABLE public.weapon_profiles (
     traits text,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     weapon_group_id uuid,
-    sort_order numeric
+    sort_order numeric,
+    lethality text
 );
+
+
+--
+-- Name: COLUMN weapon_profiles.lethality; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.weapon_profiles.lethality IS 'N26 Lethality characteristic. NULL for pre-N26 profiles, which use damage instead.';
 
 
 --
@@ -6158,6 +6146,22 @@ ALTER TABLE ONLY public.campaign_gang_resources
 
 ALTER TABLE ONLY public.campaign_gang_resources
     ADD CONSTRAINT campaign_gang_resources_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: campaign_join_requests campaign_join_requests_campaign_user_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_join_requests
+    ADD CONSTRAINT campaign_join_requests_campaign_user_key UNIQUE (campaign_id, user_id);
+
+
+--
+-- Name: campaign_join_requests campaign_join_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_join_requests
+    ADD CONSTRAINT campaign_join_requests_pkey PRIMARY KEY (id);
 
 
 --
@@ -6393,6 +6397,22 @@ ALTER TABLE ONLY public.custom_weapon_profiles
 
 
 --
+-- Name: editions editions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.editions
+    ADD CONSTRAINT editions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: editions editions_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.editions
+    ADD CONSTRAINT editions_slug_key UNIQUE (slug);
+
+
+--
 -- Name: email_deliveries email_deliveries_notification_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6438,14 +6458,6 @@ ALTER TABLE ONLY public.equipment_availability
 
 ALTER TABLE ONLY public.exotic_beasts
     ADD CONSTRAINT exotic_beasts_pkey PRIMARY KEY (id);
-
-
---
--- Name: fighter_classes fighter_classes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.fighter_classes
-    ADD CONSTRAINT fighter_classes_pkey PRIMARY KEY (id);
 
 
 --
@@ -6505,14 +6517,6 @@ ALTER TABLE ONLY public.fighter_equipment_selections
 
 
 --
--- Name: OLDfighter_equipment_tradingpost fighter_equipment_tradingpost_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public."OLDfighter_equipment_tradingpost"
-    ADD CONSTRAINT fighter_equipment_tradingpost_pkey PRIMARY KEY (id);
-
-
---
 -- Name: fighter_exotic_beasts fighter_exotic_beasts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6561,6 +6565,14 @@ ALTER TABLE ONLY public.fighter_loadouts
 
 
 --
+-- Name: fighter_ooa_records fighter_ooa_records_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_ooa_records
+    ADD CONSTRAINT fighter_ooa_records_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: fighter_skill_access_override fighter_skill_access_override_fighter_id_skill_type_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6585,6 +6597,14 @@ ALTER TABLE ONLY public.fighter_skills
 
 
 --
+-- Name: fighter_specialisations fighter_specialisations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_specialisations
+    ADD CONSTRAINT fighter_specialisations_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: fighter_defaults fighter_starting_weapons_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6593,11 +6613,11 @@ ALTER TABLE ONLY public.fighter_defaults
 
 
 --
--- Name: fighter_sub_types fighter_sub_types_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: fighter_subtypes fighter_subtypes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.fighter_sub_types
-    ADD CONSTRAINT fighter_sub_types_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.fighter_subtypes
+    ADD CONSTRAINT fighter_subtypes_pkey PRIMARY KEY (id);
 
 
 --
@@ -6713,6 +6733,30 @@ ALTER TABLE ONLY public.gang_stash
 
 
 --
+-- Name: gang_tactics_cards gang_tactics_cards_gang_id_tactics_cards_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_tactics_cards
+    ADD CONSTRAINT gang_tactics_cards_gang_id_tactics_cards_id_key UNIQUE (gang_id, tactics_cards_id);
+
+
+--
+-- Name: gang_tactics_cards gang_tactics_cards_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_tactics_cards
+    ADD CONSTRAINT gang_tactics_cards_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: gang_types gang_types_gang_type_id_edition_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_types
+    ADD CONSTRAINT gang_types_gang_type_id_edition_id_key UNIQUE (gang_type_id, edition_id);
+
+
+--
 -- Name: gang_types gang_types_gang_type_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6793,11 +6837,18 @@ ALTER TABLE ONLY public.skill_access_archetypes
 
 
 --
--- Name: skill_types skill_types_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: skill_types skill_types_edition_id_name_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.skill_types
-    ADD CONSTRAINT skill_types_name_key UNIQUE (name);
+    ADD CONSTRAINT skill_types_edition_id_name_key UNIQUE (edition_id, name);
+
+
+--
+-- Name: CONSTRAINT skill_types_edition_id_name_key ON skill_types; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON CONSTRAINT skill_types_edition_id_name_key ON public.skill_types IS 'Skill-set names are unique within an edition, not globally.';
 
 
 --
@@ -6814,6 +6865,22 @@ ALTER TABLE ONLY public.skill_types
 
 ALTER TABLE ONLY public.skills
     ADD CONSTRAINT skills_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tactics_cards tactics_cards_edition_id_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tactics_cards
+    ADD CONSTRAINT tactics_cards_edition_id_name_key UNIQUE (edition_id, name);
+
+
+--
+-- Name: tactics_cards tactics_cards_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tactics_cards
+    ADD CONSTRAINT tactics_cards_pkey PRIMARY KEY (id);
 
 
 --
@@ -6881,6 +6948,13 @@ ALTER TABLE ONLY public.equipment
 
 
 --
+-- Name: alliances_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX alliances_edition_id_idx ON public.alliances USING btree (edition_id);
+
+
+--
 -- Name: battle_session_fighters_created_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6892,6 +6966,13 @@ CREATE INDEX battle_session_fighters_created_at_idx ON public.battle_session_fig
 --
 
 CREATE INDEX battle_session_fighters_fighter_idx ON public.battle_session_fighters USING btree (fighter_id);
+
+
+--
+-- Name: battle_session_fighters_loadout_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX battle_session_fighters_loadout_id_idx ON public.battle_session_fighters USING btree (loadout_id) WHERE (loadout_id IS NOT NULL);
 
 
 --
@@ -6951,6 +7032,13 @@ CREATE INDEX battle_sessions_created_by_idx ON public.battle_sessions USING btre
 
 
 --
+-- Name: battle_sessions_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX battle_sessions_edition_id_idx ON public.battle_sessions USING btree (edition_id);
+
+
+--
 -- Name: battle_sessions_status_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6986,6 +7074,13 @@ CREATE INDEX campaign_battles_campaign_territory_id_idx ON public.campaign_battl
 
 
 --
+-- Name: campaign_gangs_invited_by_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_gangs_invited_by_idx ON public.campaign_gangs USING btree (invited_by);
+
+
+--
 -- Name: campaign_map_objects_campaign_map_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6993,10 +7088,38 @@ CREATE INDEX campaign_map_objects_campaign_map_id_idx ON public.campaign_map_obj
 
 
 --
+-- Name: campaign_members_campaign_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_members_campaign_id_idx ON public.campaign_members USING btree (campaign_id);
+
+
+--
 -- Name: campaign_territories_territory_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX campaign_territories_territory_id_idx ON public.campaign_territories USING btree (territory_id);
+
+
+--
+-- Name: campaign_territories_territory_name_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_territories_territory_name_idx ON public.campaign_territories USING btree (territory_name);
+
+
+--
+-- Name: campaign_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_types_edition_id_idx ON public.campaign_types USING btree (edition_id);
+
+
+--
+-- Name: campaigns_campaign_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaigns_campaign_type_id_idx ON public.campaigns USING btree (campaign_type_id);
 
 
 --
@@ -7021,6 +7144,20 @@ CREATE INDEX campaigns_status_idx ON public.campaigns USING btree (status);
 
 
 --
+-- Name: custom_collections_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_collections_edition_id_idx ON public.custom_collections USING btree (edition_id);
+
+
+--
+-- Name: custom_equipment_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_equipment_edition_id_idx ON public.custom_equipment USING btree (edition_id);
+
+
+--
 -- Name: custom_equipment_equipment_name_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7028,10 +7165,52 @@ CREATE INDEX custom_equipment_equipment_name_idx ON public.custom_equipment USIN
 
 
 --
+-- Name: custom_equipment_is_editable_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_equipment_is_editable_idx ON public.custom_equipment USING btree (is_editable);
+
+
+--
 -- Name: custom_equipment_user_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX custom_equipment_user_id_idx ON public.custom_equipment USING btree (user_id);
+
+
+--
+-- Name: custom_fighter_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_fighter_types_edition_id_idx ON public.custom_fighter_types USING btree (edition_id);
+
+
+--
+-- Name: custom_fighter_types_free_skill_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_fighter_types_free_skill_idx ON public.custom_fighter_types USING btree (free_skill);
+
+
+--
+-- Name: custom_fighter_types_save_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_fighter_types_save_idx ON public.custom_fighter_types USING btree (save);
+
+
+--
+-- Name: custom_fighter_types_user_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_fighter_types_user_id_idx ON public.custom_fighter_types USING btree (user_id);
+
+
+--
+-- Name: custom_gang_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_gang_types_edition_id_idx ON public.custom_gang_types USING btree (edition_id);
 
 
 --
@@ -7049,10 +7228,52 @@ CREATE INDEX custom_shared_custom_equipment_id_idx ON public.custom_shared USING
 
 
 --
+-- Name: custom_shared_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_shared_edition_id_idx ON public.custom_shared USING btree (edition_id);
+
+
+--
+-- Name: custom_skill_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_skill_types_edition_id_idx ON public.custom_skill_types USING btree (edition_id);
+
+
+--
+-- Name: custom_trading_posts_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_trading_posts_edition_id_idx ON public.custom_trading_posts USING btree (edition_id);
+
+
+--
+-- Name: custom_weapon_profiles_user_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_weapon_profiles_user_id_idx ON public.custom_weapon_profiles USING btree (user_id);
+
+
+--
 -- Name: custom_weapon_profiles_weapon_group_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX custom_weapon_profiles_weapon_group_id_idx ON public.custom_weapon_profiles USING btree (weapon_group_id);
+
+
+--
+-- Name: editions_created_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX editions_created_at_idx ON public.editions USING btree (created_at);
+
+
+--
+-- Name: editions_single_current_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX editions_single_current_idx ON public.editions USING btree (is_current) WHERE is_current;
 
 
 --
@@ -7070,6 +7291,13 @@ CREATE INDEX email_deliveries_user_id_idx ON public.email_deliveries USING btree
 
 
 --
+-- Name: equipment_availability_equipment_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX equipment_availability_equipment_id_idx ON public.equipment_availability USING btree (equipment_id);
+
+
+--
 -- Name: equipment_availability_gang_origin_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7077,10 +7305,31 @@ CREATE INDEX equipment_availability_gang_origin_id_idx ON public.equipment_avail
 
 
 --
+-- Name: equipment_categories_category_name_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX equipment_categories_category_name_idx ON public.equipment_categories USING btree (category_name);
+
+
+--
+-- Name: equipment_categories_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX equipment_categories_edition_id_idx ON public.equipment_categories USING btree (edition_id);
+
+
+--
 -- Name: equipment_discounts_gang_origin_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX equipment_discounts_gang_origin_id_idx ON public.equipment_discounts USING btree (gang_origin_id);
+
+
+--
+-- Name: equipment_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX equipment_edition_id_idx ON public.equipment USING btree (edition_id);
 
 
 --
@@ -7105,6 +7354,13 @@ CREATE INDEX equipment_equipment_name_idx ON public.equipment USING btree (equip
 
 
 --
+-- Name: equipment_is_editable_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX equipment_is_editable_idx ON public.equipment USING btree (is_editable);
+
+
+--
 -- Name: exotic_beasts_fighter_type_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7112,17 +7368,17 @@ CREATE INDEX exotic_beasts_fighter_type_id_idx ON public.exotic_beasts USING btr
 
 
 --
--- Name: fighter_classes_class_name_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX fighter_classes_class_name_idx ON public.fighter_classes USING btree (class_name);
-
-
---
 -- Name: fighter_defaults_fighter_type_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX fighter_defaults_fighter_type_id_idx ON public.fighter_defaults USING btree (fighter_type_id);
+
+
+--
+-- Name: fighter_effect_modifiers_user_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_effect_modifiers_user_id_idx ON public.fighter_effect_modifiers USING btree (user_id);
 
 
 --
@@ -7147,6 +7403,13 @@ CREATE INDEX fighter_effect_type_modifiers_stat_name_idx ON public.fighter_effec
 
 
 --
+-- Name: fighter_effect_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_effect_types_edition_id_idx ON public.fighter_effect_types USING btree (edition_id);
+
+
+--
 -- Name: fighter_effect_types_effect_name_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7168,10 +7431,31 @@ CREATE INDEX fighter_effects_fighter_equipment_id_idx ON public.fighter_effects 
 
 
 --
--- Name: fighter_equipment_tradingpost_fighter_type_id_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: fighter_effects_fighter_skill_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX fighter_equipment_tradingpost_fighter_type_id_idx ON public."OLDfighter_equipment_tradingpost" USING btree (fighter_type_id);
+CREATE INDEX fighter_effects_fighter_skill_id_idx ON public.fighter_effects USING btree (fighter_skill_id) WHERE (fighter_skill_id IS NOT NULL);
+
+
+--
+-- Name: fighter_equipment_custom_equipment_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_equipment_custom_equipment_id_idx ON public.fighter_equipment USING btree (custom_equipment_id);
+
+
+--
+-- Name: fighter_equipment_equipment_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_equipment_equipment_id_idx ON public.fighter_equipment USING btree (equipment_id);
+
+
+--
+-- Name: fighter_equipment_is_editable_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_equipment_is_editable_idx ON public.fighter_equipment USING btree (is_editable);
 
 
 --
@@ -7182,10 +7466,66 @@ CREATE INDEX fighter_equipment_vehicle_id_idx ON public.fighter_equipment USING 
 
 
 --
+-- Name: fighter_exotic_beasts_fighter_equipment_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_exotic_beasts_fighter_equipment_id_idx ON public.fighter_exotic_beasts USING btree (fighter_equipment_id);
+
+
+--
+-- Name: fighter_exotic_beasts_fighter_owner_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_exotic_beasts_fighter_owner_id_idx ON public.fighter_exotic_beasts USING btree (fighter_owner_id);
+
+
+--
 -- Name: fighter_exotic_beasts_fighter_pet_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX fighter_exotic_beasts_fighter_pet_id_idx ON public.fighter_exotic_beasts USING btree (fighter_pet_id);
+
+
+--
+-- Name: fighter_gang_legacy_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_gang_legacy_edition_id_idx ON public.fighter_gang_legacy USING btree (edition_id);
+
+
+--
+-- Name: fighter_injuries_fighter_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_injuries_fighter_id_idx ON public.fighter_injuries USING btree (fighter_id);
+
+
+--
+-- Name: fighter_ooa_records_causing_fighter_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_ooa_records_causing_fighter_id_idx ON public.fighter_ooa_records USING btree (causing_fighter_id);
+
+
+--
+-- Name: fighter_ooa_records_causing_gang_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_ooa_records_causing_gang_id_idx ON public.fighter_ooa_records USING btree (causing_gang_id);
+
+
+--
+-- Name: fighter_ooa_records_injured_fighter_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_ooa_records_injured_fighter_id_idx ON public.fighter_ooa_records USING btree (injured_fighter_id);
+
+
+--
+-- Name: fighter_ooa_records_injured_gang_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_ooa_records_injured_gang_id_idx ON public.fighter_ooa_records USING btree (injured_gang_id) WHERE (injured_gang_id IS NOT NULL);
 
 
 --
@@ -7196,6 +7536,55 @@ CREATE INDEX fighter_skill_access_override_fighter_id_idx ON public.fighter_skil
 
 
 --
+-- Name: fighter_skills_custom_skill_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_skills_custom_skill_id_idx ON public.fighter_skills USING btree (custom_skill_id);
+
+
+--
+-- Name: fighter_skills_fighter_effect_skill_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_skills_fighter_effect_skill_id_idx ON public.fighter_skills USING btree (fighter_effect_skill_id) WHERE (fighter_effect_skill_id IS NOT NULL);
+
+
+--
+-- Name: fighter_skills_fighter_injury_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_skills_fighter_injury_id_idx ON public.fighter_skills USING btree (fighter_injury_id) WHERE (fighter_injury_id IS NOT NULL);
+
+
+--
+-- Name: fighter_specialisations_specialisation_name_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_specialisations_specialisation_name_idx ON public.fighter_specialisations USING btree (specialisation_name);
+
+
+--
+-- Name: fighter_subtypes_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_subtypes_edition_id_idx ON public.fighter_subtypes USING btree (edition_id);
+
+
+--
+-- Name: fighter_subtypes_edition_subtype_name_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX fighter_subtypes_edition_subtype_name_idx ON public.fighter_subtypes USING btree (edition_id, subtype_name) WHERE (edition_id IS NOT NULL);
+
+
+--
+-- Name: fighter_subtypes_subtype_name_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_subtypes_subtype_name_idx ON public.fighter_subtypes USING btree (subtype_name);
+
+
+--
 -- Name: fighter_type_equipment_equipment_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7203,10 +7592,45 @@ CREATE INDEX fighter_type_equipment_equipment_id_idx ON public.fighter_type_equi
 
 
 --
+-- Name: fighter_type_equipment_fighter_scope_uidx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX fighter_type_equipment_fighter_scope_uidx ON public.fighter_type_equipment USING btree (equipment_id, fighter_type_id, custom_fighter_type_id, fighter_subtype, gang_variant_id, gang_type_id, gang_origin_id) NULLS NOT DISTINCT WHERE (vehicle_type_id IS NULL);
+
+
+--
+-- Name: fighter_types_cool_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_types_cool_idx ON public.fighter_types USING btree (cool);
+
+
+--
+-- Name: fighter_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_types_edition_id_idx ON public.fighter_types USING btree (edition_id);
+
+
+--
+-- Name: fighter_types_fighter_specialisation_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_types_fighter_specialisation_id_idx ON public.fighter_types USING btree (fighter_specialisation_id);
+
+
+--
 -- Name: fighter_types_fighter_type_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX fighter_types_fighter_type_idx ON public.fighter_types USING btree (fighter_type);
+
+
+--
+-- Name: fighter_types_fighter_variant_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_types_fighter_variant_idx ON public.fighter_types USING btree (fighter_variant);
 
 
 --
@@ -7224,10 +7648,45 @@ CREATE INDEX fighter_types_gang_type_idx ON public.fighter_types USING btree (ga
 
 
 --
--- Name: fighters_fighter_class_id_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: fighter_types_intelligence_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX fighters_fighter_class_id_idx ON public.fighters USING btree (fighter_class_id);
+CREATE INDEX fighter_types_intelligence_idx ON public.fighter_types USING btree (intelligence);
+
+
+--
+-- Name: fighter_types_is_spyrer_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_types_is_spyrer_idx ON public.fighter_types USING btree (is_spyrer);
+
+
+--
+-- Name: fighter_types_leadership_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_types_leadership_idx ON public.fighter_types USING btree (leadership);
+
+
+--
+-- Name: fighter_types_save_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_types_save_idx ON public.fighter_types USING btree (save);
+
+
+--
+-- Name: fighters_active_loadout_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighters_active_loadout_id_idx ON public.fighters USING btree (active_loadout_id) WHERE (active_loadout_id IS NOT NULL);
+
+
+--
+-- Name: fighters_captured_by_gang_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighters_captured_by_gang_id_idx ON public.fighters USING btree (captured_by_gang_id);
 
 
 --
@@ -7238,10 +7697,52 @@ CREATE INDEX fighters_fighter_name_idx ON public.fighters USING btree (fighter_n
 
 
 --
+-- Name: fighters_fighter_pet_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighters_fighter_pet_id_idx ON public.fighters USING btree (fighter_pet_id) WHERE (fighter_pet_id IS NOT NULL);
+
+
+--
+-- Name: fighters_fighter_specialisation_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighters_fighter_specialisation_id_idx ON public.fighters USING btree (fighter_specialisation_id);
+
+
+--
+-- Name: fighters_fighter_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighters_fighter_type_id_idx ON public.fighters USING btree (fighter_type_id);
+
+
+--
+-- Name: fighters_fighter_variant_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighters_fighter_variant_idx ON public.fighters USING btree (fighter_variant);
+
+
+--
 -- Name: fighters_updated_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX fighters_updated_at_idx ON public.fighters USING btree (updated_at);
+
+
+--
+-- Name: gang_affiliation_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gang_affiliation_edition_id_idx ON public.gang_affiliation USING btree (edition_id);
+
+
+--
+-- Name: gang_origins_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gang_origins_edition_id_idx ON public.gang_origins USING btree (edition_id);
 
 
 --
@@ -7252,10 +7753,73 @@ CREATE INDEX gang_origins_gang_origin_category_id_idx ON public.gang_origins USI
 
 
 --
+-- Name: gang_stash_gang_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gang_stash_gang_id_idx ON public.gang_stash USING btree (gang_id);
+
+
+--
+-- Name: gang_tactics_cards_tactics_cards_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gang_tactics_cards_tactics_cards_id_idx ON public.gang_tactics_cards USING btree (tactics_cards_id);
+
+
+--
+-- Name: gang_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gang_types_edition_id_idx ON public.gang_types USING btree (edition_id);
+
+
+--
 -- Name: gang_types_gang_type_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX gang_types_gang_type_idx ON public.gang_types USING btree (gang_type);
+
+
+--
+-- Name: gang_types_trading_post_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gang_types_trading_post_type_id_idx ON public.gang_types USING btree (trading_post_type_id);
+
+
+--
+-- Name: gang_variant_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gang_variant_types_edition_id_idx ON public.gang_variant_types USING btree (edition_id);
+
+
+--
+-- Name: gangs_created_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gangs_created_at_idx ON public.gangs USING btree (created_at);
+
+
+--
+-- Name: gangs_custom_gang_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gangs_custom_gang_type_id_idx ON public.gangs USING btree (custom_gang_type_id);
+
+
+--
+-- Name: gangs_gang_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gangs_gang_type_id_idx ON public.gangs USING btree (gang_type_id);
+
+
+--
+-- Name: gangs_is_favourite_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gangs_is_favourite_idx ON public.gangs USING btree (is_favourite);
 
 
 --
@@ -7319,6 +7883,13 @@ CREATE INDEX idx_campaign_gangs_campaign_type_allegiance_id ON public.campaign_g
 --
 
 CREATE INDEX idx_campaign_gangs_gang_id ON public.campaign_gangs USING btree (gang_id);
+
+
+--
+-- Name: idx_campaign_join_requests_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_campaign_join_requests_user_id ON public.campaign_join_requests USING btree (user_id);
 
 
 --
@@ -7707,10 +8278,31 @@ CREATE INDEX notifications_type_idx ON public.notifications USING btree (type);
 
 
 --
+-- Name: scenarios_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX scenarios_edition_id_idx ON public.scenarios USING btree (edition_id);
+
+
+--
 -- Name: scenarios_scenario_name_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX scenarios_scenario_name_idx ON public.scenarios USING btree (scenario_name);
+
+
+--
+-- Name: skill_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX skill_types_edition_id_idx ON public.skill_types USING btree (edition_id);
+
+
+--
+-- Name: skill_types_name_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX skill_types_name_idx ON public.skill_types USING btree (name);
 
 
 --
@@ -7735,6 +8327,34 @@ CREATE INDEX territories_campaign_type_id_idx ON public.territories USING btree 
 
 
 --
+-- Name: territories_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX territories_edition_id_idx ON public.territories USING btree (edition_id);
+
+
+--
+-- Name: trading_post_equipment_equipment_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX trading_post_equipment_equipment_id_idx ON public.trading_post_equipment USING btree (equipment_id);
+
+
+--
+-- Name: trading_post_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX trading_post_types_edition_id_idx ON public.trading_post_types USING btree (edition_id);
+
+
+--
+-- Name: vehicle_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX vehicle_types_edition_id_idx ON public.vehicle_types USING btree (edition_id);
+
+
+--
 -- Name: vehicles_engine_slots_occupied_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7756,6 +8376,20 @@ CREATE INDEX vehicles_vehicle_name_idx ON public.vehicles USING btree (vehicle_n
 
 
 --
+-- Name: weapon_profiles_created_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX weapon_profiles_created_at_idx ON public.weapon_profiles USING btree (created_at);
+
+
+--
+-- Name: weapon_profiles_weapon_group_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX weapon_profiles_weapon_group_id_idx ON public.weapon_profiles USING btree (weapon_group_id);
+
+
+--
 -- Name: weapon_profiles_weapon_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7766,6 +8400,20 @@ CREATE INDEX weapon_profiles_weapon_id_idx ON public.weapon_profiles USING btree
 -- Name: campaign_battles campaign_battles; Type: TRIGGER; Schema: public; Owner: -
 --
 
+
+
+--
+-- Name: custom_shared custom_shared_set_edition; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER custom_shared_set_edition BEFORE INSERT OR UPDATE ON public.custom_shared FOR EACH ROW EXECUTE FUNCTION public.custom_shared_set_edition();
+
+
+--
+-- Name: campaign_join_requests on_campaign_join_request; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER on_campaign_join_request AFTER INSERT ON public.campaign_join_requests FOR EACH ROW EXECUTE FUNCTION public.notify_campaign_join_request();
 
 
 --
@@ -7800,6 +8448,14 @@ CREATE TRIGGER trigger_enqueue_notification_email AFTER INSERT ON public.notific
 --
 
 CREATE TRIGGER trigger_friend_request_notification AFTER INSERT ON public.friends FOR EACH ROW EXECUTE FUNCTION public.notify_friend_request_sent();
+
+
+--
+-- Name: alliances alliances_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.alliances
+    ADD CONSTRAINT alliances_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
 
 
 --
@@ -7880,6 +8536,14 @@ ALTER TABLE ONLY public.battle_sessions
 
 ALTER TABLE ONLY public.battle_sessions
     ADD CONSTRAINT battle_sessions_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id);
+
+
+--
+-- Name: battle_sessions battle_sessions_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.battle_sessions
+    ADD CONSTRAINT battle_sessions_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
 
 
 --
@@ -7979,6 +8643,22 @@ ALTER TABLE ONLY public.campaign_gangs
 
 
 --
+-- Name: campaign_join_requests campaign_join_requests_campaign_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_join_requests
+    ADD CONSTRAINT campaign_join_requests_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.campaigns(id) ON DELETE CASCADE;
+
+
+--
+-- Name: campaign_join_requests campaign_join_requests_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_join_requests
+    ADD CONSTRAINT campaign_join_requests_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
 -- Name: campaign_map_objects campaign_map_objects_campaign_map_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8051,6 +8731,22 @@ ALTER TABLE ONLY public.campaign_type_resources
 
 
 --
+-- Name: campaign_types campaign_types_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_types
+    ADD CONSTRAINT campaign_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: campaigns campaigns_campaign_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaigns
+    ADD CONSTRAINT campaigns_campaign_type_id_fkey FOREIGN KEY (campaign_type_id) REFERENCES public.campaign_types(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: campaigns campaigns_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8059,11 +8755,27 @@ ALTER TABLE ONLY public.campaigns
 
 
 --
+-- Name: custom_collections custom_collections_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_collections
+    ADD CONSTRAINT custom_collections_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: custom_collections custom_collections_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.custom_collections
     ADD CONSTRAINT custom_collections_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_equipment custom_equipment_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_equipment
+    ADD CONSTRAINT custom_equipment_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
 
 
 --
@@ -8120,6 +8832,22 @@ ALTER TABLE ONLY public.custom_fighter_type_equipment
 
 ALTER TABLE ONLY public.custom_fighter_types
     ADD CONSTRAINT custom_fighter_types_custom_gang_type_id_fkey FOREIGN KEY (custom_gang_type_id) REFERENCES public.custom_gang_types(id) ON DELETE SET NULL;
+
+
+--
+-- Name: custom_fighter_types custom_fighter_types_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_fighter_types
+    ADD CONSTRAINT custom_fighter_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: custom_gang_types custom_gang_types_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_gang_types
+    ADD CONSTRAINT custom_gang_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
 
 
 --
@@ -8195,11 +8923,27 @@ ALTER TABLE ONLY public.custom_shared
 
 
 --
+-- Name: custom_shared custom_shared_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_shared
+    ADD CONSTRAINT custom_shared_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: custom_shared custom_shared_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.custom_shared
     ADD CONSTRAINT custom_shared_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_skill_types custom_skill_types_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_skill_types
+    ADD CONSTRAINT custom_skill_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
 
 
 --
@@ -8363,6 +9107,14 @@ ALTER TABLE ONLY public.custom_trading_post_pricing
 
 
 --
+-- Name: custom_trading_posts custom_trading_posts_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_trading_posts
+    ADD CONSTRAINT custom_trading_posts_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: custom_trading_posts custom_trading_posts_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8419,6 +9171,14 @@ ALTER TABLE ONLY public.equipment_availability
 
 
 --
+-- Name: equipment_categories equipment_categories_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.equipment_categories
+    ADD CONSTRAINT equipment_categories_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: equipment_discounts equipment_discounts_equipment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8440,6 +9200,14 @@ ALTER TABLE ONLY public.equipment_discounts
 
 ALTER TABLE ONLY public.equipment_discounts
     ADD CONSTRAINT equipment_discounts_gang_origin_id_fkey FOREIGN KEY (gang_origin_id) REFERENCES public.gang_origins(id) ON DELETE CASCADE;
+
+
+--
+-- Name: equipment equipment_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.equipment
+    ADD CONSTRAINT equipment_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
 
 
 --
@@ -8520,6 +9288,14 @@ ALTER TABLE ONLY public.fighter_effect_modifiers
 
 ALTER TABLE ONLY public.fighter_effect_type_modifiers
     ADD CONSTRAINT fighter_effect_type_modifiers_fighter_effect_type_id_fkey FOREIGN KEY (fighter_effect_type_id) REFERENCES public.fighter_effect_types(id) ON DELETE CASCADE;
+
+
+--
+-- Name: fighter_effect_types fighter_effect_types_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_effect_types
+    ADD CONSTRAINT fighter_effect_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
 
 
 --
@@ -8619,14 +9395,6 @@ ALTER TABLE ONLY public.fighter_equipment_selections
 
 
 --
--- Name: OLDfighter_equipment_tradingpost fighter_equipment_tradingpost_fighter_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public."OLDfighter_equipment_tradingpost"
-    ADD CONSTRAINT fighter_equipment_tradingpost_fighter_type_id_fkey FOREIGN KEY (fighter_type_id) REFERENCES public.fighter_types(id) ON DELETE CASCADE;
-
-
---
 -- Name: fighter_equipment fighter_equipment_vehicle_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8640,6 +9408,14 @@ ALTER TABLE ONLY public.fighter_equipment
 
 ALTER TABLE ONLY public.fighter_exotic_beasts
     ADD CONSTRAINT fighter_exotic_beasts_fighter_owner_id_fkey FOREIGN KEY (fighter_owner_id) REFERENCES public.fighters(id) ON DELETE CASCADE;
+
+
+--
+-- Name: fighter_gang_legacy fighter_gang_legacy_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_gang_legacy
+    ADD CONSTRAINT fighter_gang_legacy_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
 
 
 --
@@ -8688,6 +9464,46 @@ ALTER TABLE ONLY public.fighter_loadouts
 
 ALTER TABLE ONLY public.fighter_loadouts
     ADD CONSTRAINT fighter_loadouts_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id);
+
+
+--
+-- Name: fighter_ooa_records fighter_ooa_records_campaign_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_ooa_records
+    ADD CONSTRAINT fighter_ooa_records_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.campaigns(id) ON DELETE SET NULL;
+
+
+--
+-- Name: fighter_ooa_records fighter_ooa_records_causing_fighter_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_ooa_records
+    ADD CONSTRAINT fighter_ooa_records_causing_fighter_id_fkey FOREIGN KEY (causing_fighter_id) REFERENCES public.fighters(id) ON DELETE SET NULL;
+
+
+--
+-- Name: fighter_ooa_records fighter_ooa_records_causing_gang_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_ooa_records
+    ADD CONSTRAINT fighter_ooa_records_causing_gang_id_fkey FOREIGN KEY (causing_gang_id) REFERENCES public.gangs(id) ON DELETE SET NULL;
+
+
+--
+-- Name: fighter_ooa_records fighter_ooa_records_injured_fighter_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_ooa_records
+    ADD CONSTRAINT fighter_ooa_records_injured_fighter_id_fkey FOREIGN KEY (injured_fighter_id) REFERENCES public.fighters(id) ON DELETE SET NULL;
+
+
+--
+-- Name: fighter_ooa_records fighter_ooa_records_injured_gang_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_ooa_records
+    ADD CONSTRAINT fighter_ooa_records_injured_gang_id_fkey FOREIGN KEY (injured_gang_id) REFERENCES public.gangs(id) ON DELETE SET NULL;
 
 
 --
@@ -8755,6 +9571,14 @@ ALTER TABLE ONLY public.fighter_skills
 
 
 --
+-- Name: fighter_subtypes fighter_subtypes_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_subtypes
+    ADD CONSTRAINT fighter_subtypes_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: fighter_type_equipment fighter_type_equipment_custom_fighter_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8792,6 +9616,14 @@ ALTER TABLE ONLY public.fighter_type_equipment
 
 ALTER TABLE ONLY public.fighter_type_equipment
     ADD CONSTRAINT fighter_type_equipment_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(gang_type_id) ON DELETE CASCADE;
+
+
+--
+-- Name: fighter_type_equipment fighter_type_equipment_gang_variant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_type_equipment
+    ADD CONSTRAINT fighter_type_equipment_gang_variant_id_fkey FOREIGN KEY (gang_variant_id) REFERENCES public.gang_variant_types(id) ON DELETE CASCADE;
 
 
 --
@@ -8867,11 +9699,27 @@ ALTER TABLE ONLY public.fighter_type_skill_access
 
 
 --
--- Name: fighter_types fighter_types_fighter_sub_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: fighter_types fighter_types_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.fighter_types
-    ADD CONSTRAINT fighter_types_fighter_sub_type_id_fkey FOREIGN KEY (fighter_sub_type_id) REFERENCES public.fighter_sub_types(id);
+    ADD CONSTRAINT fighter_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: fighter_types fighter_types_fighter_specialisation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_types
+    ADD CONSTRAINT fighter_types_fighter_specialisation_id_fkey FOREIGN KEY (fighter_specialisation_id) REFERENCES public.fighter_specialisations(id);
+
+
+--
+-- Name: fighter_types fighter_types_gang_type_edition_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_types
+    ADD CONSTRAINT fighter_types_gang_type_edition_fkey FOREIGN KEY (gang_type_id, edition_id) REFERENCES public.gang_types(gang_type_id, edition_id) ON UPDATE CASCADE;
 
 
 --
@@ -8907,14 +9755,6 @@ ALTER TABLE ONLY public.fighters
 
 
 --
--- Name: fighters fighters_fighter_class_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.fighters
-    ADD CONSTRAINT fighters_fighter_class_id_fkey FOREIGN KEY (fighter_class_id) REFERENCES public.fighter_classes(id) ON DELETE SET NULL;
-
-
---
 -- Name: fighters fighters_fighter_gang_legacy_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8923,11 +9763,11 @@ ALTER TABLE ONLY public.fighters
 
 
 --
--- Name: fighters fighters_fighter_sub_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: fighters fighters_fighter_specialisation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.fighters
-    ADD CONSTRAINT fighters_fighter_sub_type_id_fkey FOREIGN KEY (fighter_sub_type_id) REFERENCES public.fighter_sub_types(id) ON DELETE SET NULL;
+    ADD CONSTRAINT fighters_fighter_specialisation_id_fkey FOREIGN KEY (fighter_specialisation_id) REFERENCES public.fighter_specialisations(id) ON DELETE SET NULL;
 
 
 --
@@ -8987,6 +9827,14 @@ ALTER TABLE ONLY public.friends
 
 
 --
+-- Name: gang_affiliation gang_affiliation_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_affiliation
+    ADD CONSTRAINT gang_affiliation_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: gang_affiliation gang_affiliation_fighter_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9000,6 +9848,14 @@ ALTER TABLE ONLY public.gang_affiliation
 
 ALTER TABLE ONLY public.gang_logs
     ADD CONSTRAINT gang_logs_gang_id_fkey FOREIGN KEY (gang_id) REFERENCES public.gangs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: gang_origins gang_origins_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_origins
+    ADD CONSTRAINT gang_origins_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
 
 
 --
@@ -9035,11 +9891,51 @@ ALTER TABLE ONLY public.gang_stash
 
 
 --
+-- Name: gang_tactics_cards gang_tactics_cards_gang_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_tactics_cards
+    ADD CONSTRAINT gang_tactics_cards_gang_id_fkey FOREIGN KEY (gang_id) REFERENCES public.gangs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: gang_tactics_cards gang_tactics_cards_tactics_cards_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_tactics_cards
+    ADD CONSTRAINT gang_tactics_cards_tactics_cards_id_fkey FOREIGN KEY (tactics_cards_id) REFERENCES public.tactics_cards(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: gang_types gang_types_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_types
+    ADD CONSTRAINT gang_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: gang_types gang_types_gang_origin_category_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.gang_types
     ADD CONSTRAINT gang_types_gang_origin_category_id_fkey FOREIGN KEY (gang_origin_category_id) REFERENCES public.gang_origin_categories(id) ON DELETE SET NULL;
+
+
+--
+-- Name: gang_types gang_types_trading_post_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_types
+    ADD CONSTRAINT gang_types_trading_post_type_id_fkey FOREIGN KEY (trading_post_type_id) REFERENCES public.trading_post_types(id) ON DELETE SET NULL;
+
+
+--
+-- Name: gang_variant_types gang_variant_types_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_variant_types
+    ADD CONSTRAINT gang_variant_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
 
 
 --
@@ -9107,11 +10003,27 @@ ALTER TABLE ONLY public.profiles
 
 
 --
--- Name: skill_access_archetypes skill_access_archetypes_fighter_class_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: scenarios scenarios_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenarios
+    ADD CONSTRAINT scenarios_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: skill_access_archetypes skill_access_archetypes_fighter_subtype_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.skill_access_archetypes
-    ADD CONSTRAINT skill_access_archetypes_fighter_class_id_fkey FOREIGN KEY (fighter_class_id) REFERENCES public.fighter_classes(id) ON DELETE SET NULL;
+    ADD CONSTRAINT skill_access_archetypes_fighter_subtype_id_fkey FOREIGN KEY (fighter_subtype_id) REFERENCES public.fighter_subtypes(id) ON DELETE SET NULL;
+
+
+--
+-- Name: skill_types skill_types_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.skill_types
+    ADD CONSTRAINT skill_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
 
 
 --
@@ -9120,6 +10032,30 @@ ALTER TABLE ONLY public.skill_access_archetypes
 
 ALTER TABLE ONLY public.skills
     ADD CONSTRAINT skills_gang_origin_id_fkey FOREIGN KEY (gang_origin_id) REFERENCES public.gang_origins(id) ON DELETE SET NULL;
+
+
+--
+-- Name: skills skills_skill_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.skills
+    ADD CONSTRAINT skills_skill_type_id_fkey FOREIGN KEY (skill_type_id) REFERENCES public.skill_types(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: tactics_cards tactics_cards_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tactics_cards
+    ADD CONSTRAINT tactics_cards_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: territories territories_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.territories
+    ADD CONSTRAINT territories_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
 
 
 --
@@ -9139,11 +10075,27 @@ ALTER TABLE ONLY public.trading_post_equipment
 
 
 --
+-- Name: trading_post_types trading_post_types_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.trading_post_types
+    ADD CONSTRAINT trading_post_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: user_notification_preferences user_notification_preferences_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.user_notification_preferences
     ADD CONSTRAINT user_notification_preferences_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: vehicle_types vehicle_types_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.vehicle_types
+    ADD CONSTRAINT vehicle_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
 
 
 --
@@ -9523,6 +10475,13 @@ CREATE POLICY "Allow authenticated users to view custom weapon profiles" ON publ
 
 
 --
+-- Name: editions Allow authenticated users to view editions; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view editions" ON public.editions FOR SELECT TO authenticated USING (true);
+
+
+--
 -- Name: equipment_discounts Allow authenticated users to view equipment_discounts; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -9562,6 +10521,13 @@ CREATE POLICY "Allow authenticated users to view fighter effects" ON public.figh
 --
 
 CREATE POLICY "Allow authenticated users to view fighter exotic beasts" ON public.fighter_exotic_beasts FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: fighter_ooa_records Allow authenticated users to view fighter ooa records; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view fighter ooa records" ON public.fighter_ooa_records FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -9614,13 +10580,6 @@ CREATE POLICY "Allow authenticated users to view fighter_equipment" ON public.fi
 
 
 --
--- Name: OLDfighter_equipment_tradingpost Allow authenticated users to view fighter_equipment_tradingpost; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Allow authenticated users to view fighter_equipment_tradingpost" ON public."OLDfighter_equipment_tradingpost" FOR SELECT TO authenticated USING (true);
-
-
---
 -- Name: fighter_gang_legacy Allow authenticated users to view fighter_gang_legacy; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -9642,10 +10601,10 @@ CREATE POLICY "Allow authenticated users to view fighter_loadouts" ON public.fig
 
 
 --
--- Name: fighter_sub_types Allow authenticated users to view fighter_sub_types; Type: POLICY; Schema: public; Owner: -
+-- Name: fighter_specialisations Allow authenticated users to view fighter_specialisations; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Allow authenticated users to view fighter_sub_types" ON public.fighter_sub_types FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Allow authenticated users to view fighter_specialisations" ON public.fighter_specialisations FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -9688,6 +10647,13 @@ CREATE POLICY "Allow authenticated users to view fighter_types" ON public.fighte
 --
 
 CREATE POLICY "Allow authenticated users to view fighters" ON public.fighters FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: gang_tactics_cards Allow authenticated users to view gang tactic cards; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view gang tactic cards" ON public.gang_tactics_cards FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -9772,6 +10738,13 @@ CREATE POLICY "Allow authenticated users to view skill_types" ON public.skill_ty
 --
 
 CREATE POLICY "Allow authenticated users to view skills" ON public.skills FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: tactics_cards Allow authenticated users to view tactic cards; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view tactic cards" ON public.tactics_cards FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -9998,6 +10971,28 @@ CREATE POLICY "Campaign owners and arbitrators can update campaign resources" ON
 
 
 --
+-- Name: fighter_ooa_records Gang owner, admin or arb can delete fighter ooa records; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Gang owner, admin or arb can delete fighter ooa records" ON public.fighter_ooa_records FOR DELETE TO authenticated USING ((private.is_admin() OR (causing_gang_id IN ( SELECT g.id
+   FROM public.gangs g
+  WHERE (g.user_id = auth.uid()))) OR (causing_gang_id IN ( SELECT cg.gang_id
+   FROM public.campaign_gangs cg
+  WHERE ((cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id))))));
+
+
+--
+-- Name: fighter_ooa_records Gang owner, admin or arb can insert fighter ooa records; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Gang owner, admin or arb can insert fighter ooa records" ON public.fighter_ooa_records FOR INSERT TO authenticated WITH CHECK ((private.is_admin() OR (causing_gang_id IN ( SELECT g.id
+   FROM public.gangs g
+  WHERE (g.user_id = auth.uid()))) OR (causing_gang_id IN ( SELECT cg.gang_id
+   FROM public.campaign_gangs cg
+  WHERE ((cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id))))));
+
+
+--
 -- Name: campaign_gang_resources Gang owners and campaign managers can delete campaign gang reso; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -10007,7 +11002,7 @@ CREATE POLICY "Gang owners and campaign managers can delete campaign gang reso" 
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (campaign_gang_id IN ( SELECT cg.id
    FROM (public.campaign_gangs cg
      JOIN public.campaign_members cm ON ((cm.campaign_id = cg.campaign_id)))
-  WHERE ((cm.user_id = ( SELECT auth.uid() AS uid)) AND (cm.role = ANY (ARRAY['OWNER'::text, 'ARBITRATOR'::text])))))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND (cm.user_id = ( SELECT auth.uid() AS uid)) AND (cm.role = ANY (ARRAY['OWNER'::text, 'ARBITRATOR'::text])))))));
 
 
 --
@@ -10020,7 +11015,7 @@ CREATE POLICY "Gang owners and campaign managers can insert campaign gang reso" 
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (campaign_gang_id IN ( SELECT cg.id
    FROM (public.campaign_gangs cg
      JOIN public.campaign_members cm ON ((cm.campaign_id = cg.campaign_id)))
-  WHERE ((cm.user_id = ( SELECT auth.uid() AS uid)) AND (cm.role = ANY (ARRAY['OWNER'::text, 'ARBITRATOR'::text])))))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND (cm.user_id = ( SELECT auth.uid() AS uid)) AND (cm.role = ANY (ARRAY['OWNER'::text, 'ARBITRATOR'::text])))))));
 
 
 --
@@ -10033,13 +11028,13 @@ CREATE POLICY "Gang owners and campaign managers can update campaign gang reso" 
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (campaign_gang_id IN ( SELECT cg.id
    FROM (public.campaign_gangs cg
      JOIN public.campaign_members cm ON ((cm.campaign_id = cg.campaign_id)))
-  WHERE ((cm.user_id = ( SELECT auth.uid() AS uid)) AND (cm.role = ANY (ARRAY['OWNER'::text, 'ARBITRATOR'::text]))))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (campaign_gang_id IN ( SELECT cg.id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND (cm.user_id = ( SELECT auth.uid() AS uid)) AND (cm.role = ANY (ARRAY['OWNER'::text, 'ARBITRATOR'::text]))))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (campaign_gang_id IN ( SELECT cg.id
    FROM (public.campaign_gangs cg
      JOIN public.gangs g ON ((cg.gang_id = g.id)))
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (campaign_gang_id IN ( SELECT cg.id
    FROM (public.campaign_gangs cg
      JOIN public.campaign_members cm ON ((cm.campaign_id = cg.campaign_id)))
-  WHERE ((cm.user_id = ( SELECT auth.uid() AS uid)) AND (cm.role = ANY (ARRAY['OWNER'::text, 'ARBITRATOR'::text])))))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND (cm.user_id = ( SELECT auth.uid() AS uid)) AND (cm.role = ANY (ARRAY['OWNER'::text, 'ARBITRATOR'::text])))))));
 
 
 --
@@ -10050,14 +11045,8 @@ CREATE POLICY "Gang owners, admins, or arbitrators can create fighters" ON publi
    FROM public.gangs g
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
-
---
--- Name: OLDfighter_equipment_tradingpost; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public."OLDfighter_equipment_tradingpost" ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: campaign_triumphs Only admin can create campaign_triumphs entries; Type: POLICY; Schema: public; Owner: -
@@ -10071,6 +11060,13 @@ CREATE POLICY "Only admin can create campaign_triumphs entries" ON public.campai
 --
 
 CREATE POLICY "Only admin can create campaign_types entries" ON public.campaign_types FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: editions Only admin can create editions entries; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can create editions entries" ON public.editions FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -10116,10 +11112,10 @@ CREATE POLICY "Only admin can create fighter_effect_types entries" ON public.fig
 
 
 --
--- Name: fighter_sub_types Only admin can create fighter_sub_types entries; Type: POLICY; Schema: public; Owner: -
+-- Name: fighter_specialisations Only admin can create fighter_specialisations entries; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Only admin can create fighter_sub_types entries" ON public.fighter_sub_types FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+CREATE POLICY "Only admin can create fighter_specialisations entries" ON public.fighter_specialisations FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -10158,6 +11154,13 @@ CREATE POLICY "Only admin can create skills entries" ON public.skills FOR INSERT
 
 
 --
+-- Name: tactics_cards Only admin can create tactic cards; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can create tactic cards" ON public.tactics_cards FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
 -- Name: territories Only admin can create territories entries; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -10190,6 +11193,13 @@ CREATE POLICY "Only admin can delete campaign_triumphs" ON public.campaign_trium
 --
 
 CREATE POLICY "Only admin can delete campaign_types" ON public.campaign_types FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: editions Only admin can delete editions; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can delete editions" ON public.editions FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -10242,10 +11252,10 @@ CREATE POLICY "Only admin can delete fighter_effect_types" ON public.fighter_eff
 
 
 --
--- Name: fighter_sub_types Only admin can delete fighter_sub_types; Type: POLICY; Schema: public; Owner: -
+-- Name: fighter_specialisations Only admin can delete fighter_specialisations; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Only admin can delete fighter_sub_types" ON public.fighter_sub_types FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
+CREATE POLICY "Only admin can delete fighter_specialisations" ON public.fighter_specialisations FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -10295,6 +11305,13 @@ CREATE POLICY "Only admin can delete skill_types" ON public.skill_types FOR DELE
 --
 
 CREATE POLICY "Only admin can delete skills" ON public.skills FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: tactics_cards Only admin can delete tactic cards; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can delete tactic cards" ON public.tactics_cards FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -10354,6 +11371,13 @@ CREATE POLICY "Only admin can update campaign_types" ON public.campaign_types FO
 
 
 --
+-- Name: editions Only admin can update editions; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can update editions" ON public.editions FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
 -- Name: equipment_discounts Only admin can update equipment_discounts; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -10403,10 +11427,10 @@ CREATE POLICY "Only admin can update fighter_effect_types" ON public.fighter_eff
 
 
 --
--- Name: fighter_sub_types Only admin can update fighter_sub_types; Type: POLICY; Schema: public; Owner: -
+-- Name: fighter_specialisations Only admin can update fighter_specialisations; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Only admin can update fighter_sub_types" ON public.fighter_sub_types FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+CREATE POLICY "Only admin can update fighter_specialisations" ON public.fighter_specialisations FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -10456,6 +11480,13 @@ CREATE POLICY "Only admin can update skill_types" ON public.skill_types FOR UPDA
 --
 
 CREATE POLICY "Only admin can update skills" ON public.skills FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: tactics_cards Only admin can update tactic cards; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can update tactic cards" ON public.tactics_cards FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -10818,10 +11849,10 @@ CREATE POLICY "Only custom weapon profile owner or admin can update" ON public.c
 CREATE POLICY "Only fighter effect owner or admin can delete" ON public.fighter_effects FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR ((fighter_id IS NOT NULL) AND (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))) OR ((vehicle_id IS NOT NULL) AND (vehicle_id IN ( SELECT v.id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) OR ((vehicle_id IS NOT NULL) AND (vehicle_id IN ( SELECT v.id
    FROM (public.vehicles v
      JOIN public.campaign_gangs cg ON ((cg.gang_id = v.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))));
 
 
 --
@@ -10831,16 +11862,16 @@ CREATE POLICY "Only fighter effect owner or admin can delete" ON public.fighter_
 CREATE POLICY "Only fighter effect owner or admin can update" ON public.fighter_effects FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR ((fighter_id IS NOT NULL) AND (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))) OR ((vehicle_id IS NOT NULL) AND (vehicle_id IN ( SELECT v.id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) OR ((vehicle_id IS NOT NULL) AND (vehicle_id IN ( SELECT v.id
    FROM (public.vehicles v
      JOIN public.campaign_gangs cg ON ((cg.gang_id = v.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR ((fighter_id IS NOT NULL) AND (fighter_id IN ( SELECT f.id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR ((fighter_id IS NOT NULL) AND (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))) OR ((vehicle_id IS NOT NULL) AND (vehicle_id IN ( SELECT v.id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) OR ((vehicle_id IS NOT NULL) AND (vehicle_id IN ( SELECT v.id
    FROM (public.vehicles v
      JOIN public.campaign_gangs cg ON ((cg.gang_id = v.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))));
 
 
 --
@@ -10889,7 +11920,7 @@ CREATE POLICY "Only fighter owner or admin can update injuries" ON public.fighte
 
 CREATE POLICY "Only fighter owner, admin, or arbitrator can delete" ON public.fighters FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -10898,9 +11929,9 @@ CREATE POLICY "Only fighter owner, admin, or arbitrator can delete" ON public.fi
 
 CREATE POLICY "Only fighter owner, admin, or arbitrator can update" ON public.fighters FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (gang_id IN ( SELECT cg.gang_id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -10910,7 +11941,7 @@ CREATE POLICY "Only fighter owner, admin, or arbitrator can update" ON public.fi
 CREATE POLICY "Only fighter skill owner or admin can delete" ON public.fighter_skills FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -10920,10 +11951,10 @@ CREATE POLICY "Only fighter skill owner or admin can delete" ON public.fighter_s
 CREATE POLICY "Only fighter skill owner or admin can update" ON public.fighter_skills FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -10957,9 +11988,9 @@ CREATE POLICY "Only gang owner or admin can update stash items" ON public.gang_s
 
 CREATE POLICY "Only gang owner, admin, or arbitrator can update" ON public.gangs FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (id IN ( SELECT cg.gang_id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -10978,7 +12009,7 @@ CREATE POLICY "Only gang owners or admins can delete logs" ON public.gang_logs F
 CREATE POLICY "Only override owner or admin can delete" ON public.fighter_skill_access_override FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -10988,10 +12019,10 @@ CREATE POLICY "Only override owner or admin can delete" ON public.fighter_skill_
 CREATE POLICY "Only override owner or admin can update" ON public.fighter_skill_access_override FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -11002,6 +12033,20 @@ CREATE POLICY "Public profiles are viewable by everyone" ON public.profiles FOR 
 
 
 --
+-- Name: campaign_join_requests Requester, arbitrators or admin can delete join requests; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Requester, arbitrators or admin can delete join requests" ON public.campaign_join_requests FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR ( SELECT private.is_arb(campaign_join_requests.campaign_id) AS is_arb)));
+
+
+--
+-- Name: campaign_join_requests Requester, arbitrators or admin can view join requests; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Requester, arbitrators or admin can view join requests" ON public.campaign_join_requests FOR SELECT TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR ( SELECT private.is_arb(campaign_join_requests.campaign_id) AS is_arb)));
+
+
+--
 -- Name: fighter_equipment Users can create equipment for their gang; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -11009,7 +12054,7 @@ CREATE POLICY "Users can create equipment for their gang" ON public.fighter_equi
    FROM public.gangs g
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -11029,7 +12074,7 @@ CREATE POLICY "Users can create loadout equipment for their fighters" ON public.
    FROM ((public.fighter_loadouts fl
      JOIN public.fighters f ON ((f.id = fl.fighter_id)))
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -11039,7 +12084,7 @@ CREATE POLICY "Users can create loadout equipment for their fighters" ON public.
 CREATE POLICY "Users can create loadouts for their gang fighters" ON public.fighter_loadouts FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -11058,7 +12103,7 @@ CREATE POLICY "Users can create skill access overrides for their own fighters" O
   WHERE (f.user_id = ( SELECT auth.uid() AS uid)))) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))))));
 
 
 --
@@ -11070,7 +12115,18 @@ CREATE POLICY "Users can create skills for their own fighters" ON public.fighter
   WHERE (f.user_id = ( SELECT auth.uid() AS uid)))) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))))));
+
+
+--
+-- Name: gang_tactics_cards Users can create tactic cards for their gang; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can create tactic cards for their gang" ON public.gang_tactics_cards FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
+   FROM public.gangs g
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
+   FROM public.campaign_gangs cg
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -11088,7 +12144,7 @@ CREATE POLICY "Users can delete equipment from their gang" ON public.fighter_equ
    FROM public.gangs g
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -11101,7 +12157,7 @@ CREATE POLICY "Users can delete loadout equipment for their fighters" ON public.
    FROM ((public.fighter_loadouts fl
      JOIN public.fighters f ON ((f.id = fl.fighter_id)))
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -11111,7 +12167,18 @@ CREATE POLICY "Users can delete loadout equipment for their fighters" ON public.
 CREATE POLICY "Users can delete loadouts for their gang fighters" ON public.fighter_loadouts FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+
+
+--
+-- Name: gang_tactics_cards Users can delete tactic cards from their gang; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can delete tactic cards from their gang" ON public.gang_tactics_cards FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
+   FROM public.gangs g
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
+   FROM public.campaign_gangs cg
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -11144,7 +12211,7 @@ CREATE POLICY "Users can insert logs for their gangs or campaign gangs" ON publi
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
    FROM (public.campaign_gangs cg
      JOIN public.campaign_members cm ON ((cm.campaign_id = cg.campaign_id)))
-  WHERE ((cm.user_id = ( SELECT auth.uid() AS uid)) AND (cm.role = ANY (ARRAY['OWNER'::text, 'ARBITRATOR'::text, 'MEMBER'::text])))))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND (cm.user_id = ( SELECT auth.uid() AS uid)) AND (cm.role = ANY (ARRAY['OWNER'::text, 'ARBITRATOR'::text, 'MEMBER'::text])))))));
 
 
 --
@@ -11189,13 +12256,13 @@ CREATE POLICY "Users can only create their own fighter effects" ON public.fighte
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) OR ((vehicle_id IS NOT NULL) AND ((vehicle_id IN ( SELECT v.id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) OR ((vehicle_id IS NOT NULL) AND ((vehicle_id IN ( SELECT v.id
    FROM (public.vehicles v
      JOIN public.gangs g ON ((v.gang_id = g.id)))
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (vehicle_id IN ( SELECT v.id
    FROM (public.vehicles v
      JOIN public.campaign_gangs cg ON ((cg.gang_id = v.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))))));
 
 
 --
@@ -11215,6 +12282,17 @@ CREATE POLICY "Users can only create their own gangs" ON public.gangs FOR INSERT
 
 
 --
+-- Name: campaign_join_requests Users can request to join campaigns that allow it; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can request to join campaigns that allow it" ON public.campaign_join_requests FOR INSERT TO authenticated WITH CHECK (((user_id = ( SELECT auth.uid() AS uid)) AND (EXISTS ( SELECT 1
+   FROM public.campaigns c
+  WHERE ((c.id = campaign_join_requests.campaign_id) AND (c.allow_join_requests = true)))) AND (NOT (EXISTS ( SELECT 1
+   FROM public.campaign_members cm
+  WHERE ((cm.campaign_id = campaign_join_requests.campaign_id) AND (cm.user_id = ( SELECT auth.uid() AS uid))))))));
+
+
+--
 -- Name: fighter_equipment Users can update equipment in their gang; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -11222,11 +12300,11 @@ CREATE POLICY "Users can update equipment in their gang" ON public.fighter_equip
    FROM public.gangs g
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
    FROM public.gangs g
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -11239,13 +12317,13 @@ CREATE POLICY "Users can update loadout equipment for their fighters" ON public.
    FROM ((public.fighter_loadouts fl
      JOIN public.fighters f ON ((f.id = fl.fighter_id)))
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (loadout_id IN ( SELECT fl.id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (loadout_id IN ( SELECT fl.id
    FROM public.fighter_loadouts fl
   WHERE (fl.user_id = ( SELECT auth.uid() AS uid)))) OR (loadout_id IN ( SELECT fl.id
    FROM ((public.fighter_loadouts fl
      JOIN public.fighters f ON ((f.id = fl.fighter_id)))
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -11255,10 +12333,10 @@ CREATE POLICY "Users can update loadout equipment for their fighters" ON public.
 CREATE POLICY "Users can update loadouts for their gang fighters" ON public.fighter_loadouts FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -11266,6 +12344,21 @@ CREATE POLICY "Users can update loadouts for their gang fighters" ON public.figh
 --
 
 CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE TO authenticated USING ((id = ( SELECT auth.uid() AS uid)));
+
+
+--
+-- Name: gang_tactics_cards Users can update tactic cards in their gang; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can update tactic cards in their gang" ON public.gang_tactics_cards FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
+   FROM public.gangs g
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
+   FROM public.campaign_gangs cg
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
+   FROM public.gangs g
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
+   FROM public.campaign_gangs cg
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -11297,7 +12390,7 @@ CREATE POLICY "Users can view logs for their gangs or campaigns they moderate" O
    FROM public.gangs g
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -11410,6 +12503,12 @@ ALTER TABLE public.campaign_gang_resources ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.campaign_gangs ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: campaign_join_requests; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.campaign_join_requests ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: campaign_map_objects; Type: ROW SECURITY; Schema: public; Owner: -
@@ -11550,6 +12649,12 @@ ALTER TABLE public.custom_trading_posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.custom_weapon_profiles ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: editions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.editions ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: email_deliveries; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -11642,40 +12747,6 @@ CREATE POLICY equipment_read_policy ON public.equipment FOR SELECT TO authentica
 ALTER TABLE public.exotic_beasts ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: fighter_classes; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.fighter_classes ENABLE ROW LEVEL SECURITY;
-
---
--- Name: fighter_classes fighter_classes_delete_policy; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY fighter_classes_delete_policy ON public.fighter_classes FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
-
-
---
--- Name: fighter_classes fighter_classes_insert_policy; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY fighter_classes_insert_policy ON public.fighter_classes FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
-
-
---
--- Name: fighter_classes fighter_classes_select_policy; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY fighter_classes_select_policy ON public.fighter_classes FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: fighter_classes fighter_classes_update_policy; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY fighter_classes_update_policy ON public.fighter_classes FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
-
-
---
 -- Name: fighter_defaults; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -11739,11 +12810,11 @@ CREATE POLICY fighter_effect_modifiers_delete_policy ON public.fighter_effect_mo
    FROM ((public.fighter_effects fe
      JOIN public.fighters f ON ((f.id = fe.fighter_id)))
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((fe.fighter_id IS NOT NULL) AND private.is_arb(cg.campaign_id)))) OR (fighter_effect_id IN ( SELECT fe.id
+  WHERE ((fe.fighter_id IS NOT NULL) AND (cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id)))) OR (fighter_effect_id IN ( SELECT fe.id
    FROM ((public.fighter_effects fe
      JOIN public.vehicles v ON ((v.id = fe.vehicle_id)))
      JOIN public.campaign_gangs cg ON ((cg.gang_id = v.gang_id)))
-  WHERE ((fe.vehicle_id IS NOT NULL) AND private.is_arb(cg.campaign_id))))));
+  WHERE ((fe.vehicle_id IS NOT NULL) AND (cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id))))));
 
 
 --
@@ -11756,11 +12827,11 @@ CREATE POLICY fighter_effect_modifiers_insert_policy ON public.fighter_effect_mo
    FROM ((public.fighter_effects fe
      JOIN public.fighters f ON ((f.id = fe.fighter_id)))
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((fe.fighter_id IS NOT NULL) AND private.is_arb(cg.campaign_id)))) OR (fighter_effect_id IN ( SELECT fe.id
+  WHERE ((fe.fighter_id IS NOT NULL) AND (cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id)))) OR (fighter_effect_id IN ( SELECT fe.id
    FROM ((public.fighter_effects fe
      JOIN public.vehicles v ON ((v.id = fe.vehicle_id)))
      JOIN public.campaign_gangs cg ON ((cg.gang_id = v.gang_id)))
-  WHERE ((fe.vehicle_id IS NOT NULL) AND private.is_arb(cg.campaign_id))))));
+  WHERE ((fe.vehicle_id IS NOT NULL) AND (cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id))))));
 
 
 --
@@ -11773,21 +12844,21 @@ CREATE POLICY fighter_effect_modifiers_update_policy ON public.fighter_effect_mo
    FROM ((public.fighter_effects fe
      JOIN public.fighters f ON ((f.id = fe.fighter_id)))
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((fe.fighter_id IS NOT NULL) AND private.is_arb(cg.campaign_id)))) OR (fighter_effect_id IN ( SELECT fe.id
+  WHERE ((fe.fighter_id IS NOT NULL) AND (cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id)))) OR (fighter_effect_id IN ( SELECT fe.id
    FROM ((public.fighter_effects fe
      JOIN public.vehicles v ON ((v.id = fe.vehicle_id)))
      JOIN public.campaign_gangs cg ON ((cg.gang_id = v.gang_id)))
-  WHERE ((fe.vehicle_id IS NOT NULL) AND private.is_arb(cg.campaign_id)))))) WITH CHECK ((private.is_admin() OR (fighter_effect_id IN ( SELECT fe.id
+  WHERE ((fe.vehicle_id IS NOT NULL) AND (cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id)))))) WITH CHECK ((private.is_admin() OR (fighter_effect_id IN ( SELECT fe.id
    FROM public.fighter_effects fe
   WHERE (fe.user_id = ( SELECT auth.uid() AS uid)))) OR (fighter_effect_id IN ( SELECT fe.id
    FROM ((public.fighter_effects fe
      JOIN public.fighters f ON ((f.id = fe.fighter_id)))
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((fe.fighter_id IS NOT NULL) AND private.is_arb(cg.campaign_id)))) OR (fighter_effect_id IN ( SELECT fe.id
+  WHERE ((fe.fighter_id IS NOT NULL) AND (cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id)))) OR (fighter_effect_id IN ( SELECT fe.id
    FROM ((public.fighter_effects fe
      JOIN public.vehicles v ON ((v.id = fe.vehicle_id)))
      JOIN public.campaign_gangs cg ON ((cg.gang_id = v.gang_id)))
-  WHERE ((fe.vehicle_id IS NOT NULL) AND private.is_arb(cg.campaign_id))))));
+  WHERE ((fe.vehicle_id IS NOT NULL) AND (cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id))))));
 
 
 --
@@ -11848,27 +12919,6 @@ CREATE POLICY fighter_equipment_selections_admin_update_policy ON public.fighter
 
 
 --
--- Name: OLDfighter_equipment_tradingpost fighter_equipment_tradingpost_admin_delete_policy; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY fighter_equipment_tradingpost_admin_delete_policy ON public."OLDfighter_equipment_tradingpost" FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
-
-
---
--- Name: OLDfighter_equipment_tradingpost fighter_equipment_tradingpost_admin_insert_policy; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY fighter_equipment_tradingpost_admin_insert_policy ON public."OLDfighter_equipment_tradingpost" FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
-
-
---
--- Name: OLDfighter_equipment_tradingpost fighter_equipment_tradingpost_admin_update_policy; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY fighter_equipment_tradingpost_admin_update_policy ON public."OLDfighter_equipment_tradingpost" FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
-
-
---
 -- Name: fighter_exotic_beasts; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -11920,6 +12970,12 @@ ALTER TABLE public.fighter_loadout_equipment ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.fighter_loadouts ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: fighter_ooa_records; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.fighter_ooa_records ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: fighter_skill_access_override; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -11932,10 +12988,44 @@ ALTER TABLE public.fighter_skill_access_override ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.fighter_skills ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: fighter_sub_types; Type: ROW SECURITY; Schema: public; Owner: -
+-- Name: fighter_specialisations; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
-ALTER TABLE public.fighter_sub_types ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.fighter_specialisations ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: fighter_subtypes; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.fighter_subtypes ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: fighter_subtypes fighter_subtypes_delete_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY fighter_subtypes_delete_policy ON public.fighter_subtypes FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: fighter_subtypes fighter_subtypes_insert_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY fighter_subtypes_insert_policy ON public.fighter_subtypes FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: fighter_subtypes fighter_subtypes_select_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY fighter_subtypes_select_policy ON public.fighter_subtypes FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: fighter_subtypes fighter_subtypes_update_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY fighter_subtypes_update_policy ON public.fighter_subtypes FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
 
 --
 -- Name: fighter_type_equipment; Type: ROW SECURITY; Schema: public; Owner: -
@@ -12123,6 +13213,12 @@ ALTER TABLE public.gang_origins ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.gang_stash ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: gang_tactics_cards; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.gang_tactics_cards ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: gang_types; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -12219,6 +13315,12 @@ ALTER TABLE public.skill_types ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.skills ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: tactics_cards; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.tactics_cards ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: territories; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -12283,7 +13385,7 @@ CREATE POLICY vehicles_user_delete_policy ON public.vehicles FOR DELETE TO authe
    FROM public.gangs g
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -12294,7 +13396,7 @@ CREATE POLICY vehicles_user_insert_policy ON public.vehicles FOR INSERT TO authe
    FROM public.gangs g
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -12305,11 +13407,11 @@ CREATE POLICY vehicles_user_update_policy ON public.vehicles FOR UPDATE TO authe
    FROM public.gangs g
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
    FROM public.gangs g
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
-  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
@@ -12343,5 +13445,4 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict sOMbG54n4jsWBJX4l3wyHd4ObiyyDDdWZMWdojS83TUJZv5zhcIlIOsxzEjiYTx
 

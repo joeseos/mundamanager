@@ -1,42 +1,37 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
-import { WeaponProfileInput } from "@/types/equipment";
-import { 
-  FighterEffectType, 
-  FighterEffectTypeModifier, 
-  FighterEffectCategory 
+import { WeaponProfileInput, EquipmentAvailability, EquipmentOriginAvailability, EquipmentVariantAvailability, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
+import {
+  FighterEffectType,
+  FighterEffectTypeModifier,
+  FighterEffectCategory
 } from "@/types/fighter-effect";
+import { isValidTradePoints } from "@/utils/campaigns/resources";
+import { fetchAllRows } from "@/utils/supabase/fetch-all-rows";
 
 interface FighterTypeEquipment {
   fighter_type_id: string;
   equipment_id: string;
 }
 
-interface GangAdjustedCost {
-  gang_type_id: string;
-  adjusted_cost: number;
-}
-
-interface EquipmentAvailability {
-  gang_type_id: string;
-  availability: string;
-}
-
-interface EquipmentOriginAvailability {
-  gang_origin_id: string;
-  availability: string;
-}
-
-interface EquipmentVariantAvailability {
-  gang_variant_id: string;
-  availability: string;
+/** Normalize admin Trade Points input: "E" or non-negative integer digits. */
+function normalizeAdminTradePoints(value: unknown): { ok: true; value: string } | { ok: false; error: string } {
+  if (value == null || value === '') {
+    return { ok: true, value: '0' };
+  }
+  const trimmed = String(value).trim().toUpperCase();
+  if (!isValidTradePoints(trimmed)) {
+    return { ok: false, error: 'Trade Points must be a non-negative integer or E' };
+  }
+  return { ok: true, value: trimmed };
 }
 
 export async function GET(request: Request) {
   const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const equipment_category = searchParams.get('equipment_category');
+  const equipment_type = searchParams.get('equipment_type');
   const id = searchParams.get('id');
 
   // Check admin authorization
@@ -65,7 +60,6 @@ export async function GET(request: Request) {
         .not('gang_type_id', 'is', null);
 
       if (adjustedCostsError) throw adjustedCostsError;
-      console.log('Fetched adjustedCosts:', adjustedCosts);
 
       // Fetch gang origin adjusted costs
       const { data: originAdjustedCosts, error: originAdjustedCostsError } = await supabase
@@ -85,12 +79,10 @@ export async function GET(request: Request) {
         console.warn('Error fetching origin adjusted costs from equipment_discounts:', originAdjustedCostsError);
       }
 
-      console.log('Fetched origin adjusted costs:', originAdjustedCosts || []);
-
       // Fetch equipment availabilities (gang-based)
       const { data: availabilities, error: availabilitiesError } = await supabase
         .from('equipment_availability')
-        .select('availability, gang_type_id')
+        .select('availability, gang_type_id, exclusive')
         .eq('equipment_id', id)
         .not('gang_type_id', 'is', null);
 
@@ -98,8 +90,6 @@ export async function GET(request: Request) {
       if (availabilitiesError) {
         console.warn('Error fetching from equipment_availability:', availabilitiesError);
       }
-
-      console.log('Fetched availabilities:', availabilities || []);
 
       // Fetch equipment origin availabilities (gang origin-based)
       const { data: originAvailabilities, error: originAvailabilitiesError } = await supabase
@@ -118,8 +108,6 @@ export async function GET(request: Request) {
       if (originAvailabilitiesError) {
         console.warn('Error fetching origin availabilities from equipment_availability:', originAvailabilitiesError);
       }
-
-      console.log('Fetched origin availabilities:', originAvailabilities || []);
 
       // Fetch equipment variant availabilities (gang variant-based)
       const { data: variantAvailabilities, error: variantAvailabilitiesError } = await supabase
@@ -150,15 +138,12 @@ export async function GET(request: Request) {
         console.warn('Error fetching trading post associations:', tradingPostError);
       }
 
-      console.log('Fetched trading post associations:', tradingPostAssociations || []);
-
       // Then fetch all gang types
       const { data: gangTypes, error: gangTypesError } = await supabase
         .from('gang_types')
         .select('gang_type_id, gang_type');
 
       if (gangTypesError) throw gangTypesError;
-      console.log('Fetched gang types:', gangTypes);
 
       // Create a map of gang type IDs to names
       const gangTypeMap = new Map(
@@ -166,7 +151,6 @@ export async function GET(request: Request) {
           [gt.gang_type_id, gt.gang_type]
         )
       );
-      console.log('Gang type map:', Object.fromEntries(gangTypeMap));
 
       // Format the adjustedCosts with null check
       interface AdjustedCostData {
@@ -181,8 +165,6 @@ export async function GET(request: Request) {
           gang_type_id: d.gang_type_id!,
           adjusted_cost: parseInt(d.adjusted_cost)
         }));
-
-      console.log('Formatted adjustedCosts:', formattedAdjustedCosts);
 
       // Format the origin adjusted costs
       interface OriginAdjustedCostData {
@@ -199,12 +181,11 @@ export async function GET(request: Request) {
           adjusted_cost: parseInt(d.adjusted_cost)
         }));
 
-      console.log('Formatted origin adjusted costs:', formattedOriginAdjustedCosts);
-
       // Format the availabilities with null check
       interface AvailabilityData {
-        availability: string;
+        availability: string | null;
         gang_type_id: string | null;
+        exclusive?: boolean;
       }
 
       const formattedAvailabilities = (availabilities as AvailabilityData[] || [])
@@ -212,10 +193,9 @@ export async function GET(request: Request) {
         .map(a => ({
           gang_type: gangTypeMap.get(a.gang_type_id!) || '',
           gang_type_id: a.gang_type_id!,
-          availability: a.availability
+          availability: a.availability,
+          exclusive: a.exclusive ?? false
         }));
-
-      console.log('Formatted availabilities:', formattedAvailabilities);
 
       // Format the origin availabilities
       interface OriginAvailabilityData {
@@ -232,8 +212,6 @@ export async function GET(request: Request) {
           availability: a.availability
         }));
 
-      console.log('Formatted origin availabilities:', formattedOriginAvailabilities);
-
       // Format the variant availabilities
       interface VariantAvailabilityData {
         availability: string;
@@ -249,24 +227,19 @@ export async function GET(request: Request) {
           availability: a.availability
         }));
 
-      console.log('Formatted variant availabilities:', formattedVariantAvailabilities);
-
       // Format trading post associations
       const tradingPostIds = (tradingPostAssociations || []).map(tp => tp.trading_post_type_id);
-      console.log('Trading post IDs:', tradingPostIds);
 
       // Fetch trading post types for the component to display names
       const { data: tradingPostTypes, error: tradingPostTypesError } = await supabase
         .from('trading_post_types')
-        .select('id, trading_post_name')
+        .select('id, trading_post_name, edition_id')
         .order('trading_post_name');
 
       // Don't throw error if the query fails, just log it
       if (tradingPostTypesError) {
         console.warn('Error fetching trading post types:', tradingPostTypesError);
       }
-
-      console.log('Fetched trading post types:', tradingPostTypes || []);
 
       // Fetch fighter effects for this equipment
       let fighterEffects: FighterEffectType[] = [];
@@ -347,25 +320,28 @@ export async function GET(request: Request) {
       
       try {
         // Fetch all fighter types
-        const { data: fighterTypes, error: fighterTypesError } = await supabase
-          .from('fighter_types')
-          .select(`
-            id,
-            fighter_type,
-            gang_type,
-            fighter_class,
-            fighter_sub_type_id,
-            fighter_sub_types(
-              sub_type_name
-            )
-          `)
-          .order('gang_type')
-          .order('fighter_type');
-
-        if (fighterTypesError) {
+        try {
+          allFighterTypes = await fetchAllRows((from, to) =>
+            supabase
+              .from('fighter_types')
+              .select(`
+                id,
+                fighter_type,
+                gang_type,
+                fighter_subtypes,
+                fighter_variant,
+                edition_id,
+                fighter_specialisations(
+                  specialisation_name
+                )
+              `)
+              .order('gang_type')
+              .order('fighter_type')
+              .order('id')
+              .range(from, to)
+          );
+        } catch (fighterTypesError) {
           console.warn('Error fetching fighter types:', fighterTypesError);
-        } else {
-          allFighterTypes = fighterTypes || [];
         }
 
         // Fetch fighter types that have this equipment
@@ -383,11 +359,20 @@ export async function GET(request: Request) {
         console.warn('Error in fighter types fetch:', error);
       }
 
-      // Fetch all equipment for the grants dropdown
-      const { data: allEquipment } = await supabase
-        .from('equipment')
-        .select('id, equipment_name')
-        .order('equipment_name');
+      // Fetch all equipment for the grants dropdown; clients filter by edition_id
+      let allEquipment: { id: string; equipment_name: string; edition_id?: string | null }[] = [];
+      try {
+        allEquipment = await fetchAllRows((from, to) =>
+          supabase
+            .from('equipment')
+            .select('id, equipment_name, edition_id')
+            .order('equipment_name')
+            .order('id')
+            .range(from, to)
+        );
+      } catch (error) {
+        console.warn('Error fetching equipment for grants dropdown:', error);
+      }
 
       return NextResponse.json({
         ...equipment,
@@ -408,23 +393,36 @@ export async function GET(request: Request) {
 
     } else if (equipment_category) {
       // Return equipment filtered by category
-      const { data, error } = await supabase
-        .from('equipment')
-        .select('*')
-        .eq('equipment_category', equipment_category)
-        .order('equipment_name');
+      const data = await fetchAllRows((from, to) =>
+        supabase
+          .from('equipment')
+          .select('*')
+          .eq('equipment_category', equipment_category)
+          .order('equipment_name')
+          .order('id')
+          .range(from, to)
+      );
 
-      if (error) throw error;
       return NextResponse.json(data);
 
     } else {
-      // Return all equipment when no filters are provided
-      const { data, error } = await supabase
-        .from('equipment')
-        .select('*')
-        .order('equipment_name');
+      // Return all equipment, optionally filtered by equipment_type
+      // (e.g. Weapon Group dropdown uses ?equipment_type=weapon)
+      const data = await fetchAllRows((from, to) => {
+        let query = supabase
+          .from('equipment')
+          .select('*')
+          .order('equipment_name')
+          .order('id')
+          .range(from, to);
 
-      if (error) throw error;
+        if (equipment_type) {
+          query = query.eq('equipment_type', equipment_type);
+        }
+
+        return query;
+      });
+
       return NextResponse.json(data);
     }
   } catch (error) {
@@ -450,6 +448,7 @@ export async function POST(request: Request) {
       equipment_name,
       availability,
       cost,
+      trade_points,
       variants,
       equipment_category_id,
       equipment_type,
@@ -457,7 +456,8 @@ export async function POST(request: Request) {
       weapon_profiles,
       fighter_types,
       gang_adjusted_costs,
-      equipment_availabilities
+      equipment_availabilities,
+      edition_id
     } = data;
 
     // First get the category name from the ID
@@ -469,6 +469,11 @@ export async function POST(request: Request) {
 
     if (categoryError) throw categoryError;
 
+    const normalizedTradePoints = normalizeAdminTradePoints(trade_points);
+    if (!normalizedTradePoints.ok) {
+      return NextResponse.json({ error: normalizedTradePoints.error }, { status: 400 });
+    }
+
     // Create the equipment
     const { data: equipment, error: equipmentError } = await supabase
       .from('equipment')
@@ -476,11 +481,13 @@ export async function POST(request: Request) {
         equipment_name: equipment_name.trimEnd(),
         availability: availability.trimEnd(),
         cost,
+        trade_points: normalizedTradePoints.value,
         variants,
         equipment_category: categoryData.category_name,
         equipment_category_id,
         equipment_type: equipment_type.toLowerCase(),
-        core_equipment
+        core_equipment,
+        edition_id: edition_id || null
       })
       .select()
       .single();
@@ -495,7 +502,7 @@ export async function POST(request: Request) {
         weapon_id: weaponId,
         profile_name: profile.profile_name.trimEnd(),
         // Set weapon_group_id to either the selected weapon's ID or this weapon's ID
-        weapon_group_id: profile.weapon_group_id || null,
+        weapon_group_id: profile.weapon_group_id || weaponId,
         // Properly handle explicit null values
         range_short: profile.range_short === null ? '' : profile.range_short || '',
         range_long: profile.range_long === null ? '' : profile.range_long || '',
@@ -504,6 +511,9 @@ export async function POST(request: Request) {
         strength: profile.strength === null ? '' : profile.strength || '',
         ap: profile.ap === null ? '' : profile.ap || '',
         damage: profile.damage === null ? '' : profile.damage || '',
+        // Nullable, unlike the columns above: NULL means the edition has no
+        // Lethality characteristic rather than an unfilled one
+        lethality: profile.lethality || null,
         ammo: profile.ammo === null ? '' : profile.ammo || '',
         traits: profile.traits === null ? '' : profile.traits || ''
       }));
@@ -532,7 +542,7 @@ export async function POST(request: Request) {
 
     // Handle gang adjustedCosts if provided
     if (gang_adjusted_costs && gang_adjusted_costs.length > 0) {
-      const adjustedCostRecords = gang_adjusted_costs.map((adjusted_cost: GangAdjustedCost) => ({
+      const adjustedCostRecords = gang_adjusted_costs.map((adjusted_cost: Pick<GangAdjustedCost, 'gang_type_id' | 'adjusted_cost'>) => ({
         equipment_id: equipment.id,
         gang_type_id: adjusted_cost.gang_type_id,
         adjusted_cost: adjusted_cost.adjusted_cost.toString(),
@@ -548,10 +558,11 @@ export async function POST(request: Request) {
 
     // Handle equipment availabilities if provided
     if (equipment_availabilities && equipment_availabilities.length > 0) {
-      const availabilityRecords = equipment_availabilities.map((avail: EquipmentAvailability) => ({
+      const availabilityRecords = equipment_availabilities.map((avail: Pick<EquipmentAvailability, 'gang_type_id' | 'availability' | 'exclusive'>) => ({
         equipment_id: equipment.id,
         gang_type_id: avail.gang_type_id,
-        availability: avail.availability.trimEnd()
+        availability: avail.availability ? avail.availability.trimEnd() : null,
+        exclusive: avail.exclusive ?? false
       }));
 
       const { error: availabilityError } = await supabase
@@ -570,210 +581,6 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { 
         error: 'Failed to create equipment',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { status: 500 }
-    );
-  }
-}
-
-export async function PUT(request: Request) {
-  const supabase = await createClient();
-  const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id');
-
-  if (!id) {
-    return NextResponse.json({ error: 'Equipment ID is required' }, { status: 400 });
-  }
-
-  try {
-    const isAdmin = await checkAdmin(supabase);
-    if (!isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const data = await request.json();
-    const {
-      equipment_name,
-      availability,
-      cost,
-      variants,
-      equipment_category,
-      equipment_category_id,
-      equipment_type,
-      core_equipment,
-      weapon_profiles,
-      fighter_types,
-      gang_adjusted_costs
-    } = data;
-
-    // Update equipment
-    const { error: equipmentError } = await supabase
-      .from('equipment')
-      .update({
-        equipment_name: equipment_name.trimEnd(),
-        availability: availability.trimEnd(),
-        cost,
-        variants,
-        equipment_category,
-        equipment_category_id,
-        equipment_type,
-        core_equipment,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id);
-
-    if (equipmentError) throw equipmentError;
-
-    // Handle weapon profiles if this is a weapon
-    if (equipment_type === 'weapon' && weapon_profiles) {
-      // Delete existing profiles
-      const { error: deleteError } = await supabase
-        .from('weapon_profiles')
-        .delete()
-        .eq('weapon_id', id);
-
-      if (deleteError) throw deleteError;
-
-      // Insert new profiles
-      if (weapon_profiles.length > 0) {
-        const { error: profilesError } = await supabase
-          .from('weapon_profiles')
-          .insert(
-            weapon_profiles.map((profile: WeaponProfileInput) => ({
-              weapon_id: id,
-              profile_name: profile.profile_name.trimEnd(),
-              range_short: profile.range_short,
-              range_long: profile.range_long,
-              acc_short: profile.acc_short,
-              acc_long: profile.acc_long,
-              strength: profile.strength,
-              ap: profile.ap,
-              damage: profile.damage,
-              ammo: profile.ammo,
-              traits: profile.traits,
-              weapon_group_id: profile.weapon_group_id || id,
-              sort_order: profile.sort_order
-            }))
-          );
-
-        if (profilesError) throw profilesError;
-      }
-    }
-
-    // More robust fighter type association handling
-    if (fighter_types !== undefined) {
-      console.log(`Updating fighter type associations for equipment ID: ${id}`);
-      
-      // First, get current associations to ensure we don't lose data
-      const { data: currentAssociations, error: fetchError } = await supabase
-        .from('fighter_type_equipment')
-        .select('fighter_type_id')
-        .eq('equipment_id', id);
-      
-      if (fetchError) {
-        console.error('Error fetching current fighter type associations:', fetchError);
-        // Continue with the operation even if this check fails
-      }
-      
-      // Only proceed with deleting & updating if:
-      // 1. We successfully fetched the current associations
-      // 2. The new list is different from the current list
-      if (currentAssociations) {
-        const currentIds = currentAssociations.map(a => a.fighter_type_id);
-        const hasChanges = JSON.stringify(currentIds.sort()) !== JSON.stringify([...fighter_types].sort());
-        
-        console.log(`Current associations: ${JSON.stringify(currentIds)}`);
-        console.log(`New associations: ${JSON.stringify(fighter_types)}`);
-        console.log(`Associations have changed: ${hasChanges}`);
-        
-        if (hasChanges) {
-          // Delete existing associations
-          const { error: deleteError } = await supabase
-            .from('fighter_type_equipment')
-            .delete()
-            .eq('equipment_id', id);
-          
-          if (deleteError) throw deleteError;
-          
-          // Insert new associations if there are any
-          if (fighter_types.length > 0) {
-            const { error: insertError } = await supabase
-              .from('fighter_type_equipment')
-              .insert(
-                fighter_types.map((fighter_type_id: string) => ({
-                  fighter_type_id,
-                  equipment_id: id,
-                  updated_at: new Date().toISOString()
-                }))
-              );
-            
-            if (insertError) throw insertError;
-          }
-        } else {
-          console.log('No changes to fighter type associations, preserving current data');
-        }
-      } else {
-        console.log(`fighter_types not provided, preserving existing associations for ID: ${id}`);
-      }
-    }
-
-    // Handle Gang adjustedCosts
-    if (gang_adjusted_costs) {
-      // First, delete existing adjustedCosts for this equipment
-      const { error: deleteError } = await supabase
-        .from('equipment_discounts')
-        .delete()
-        .eq('equipment_id', id)
-        .is('fighter_type_id', null); // Only delete gang-level adjustedCosts
-
-      if (deleteError) throw deleteError;
-
-      // If there are new adjustedCosts to add
-      if (gang_adjusted_costs.length > 0) {
-        // First get the gang type IDs
-        const { data: gangTypes, error: gangTypesError } = await supabase
-          .from('gang_types')
-          .select('gang_type_id, gang_type');
-
-        if (gangTypesError) throw gangTypesError;
-
-        // Add proper typing for the gang type mapping
-        interface GangTypeData {
-          gang_type_id: string;
-          gang_type: string;
-        }
-
-        // Create a map of gang type names to IDs with proper typing
-        const gangTypeMap = new Map(
-          (gangTypes as GangTypeData[]).map(gt => [gt.gang_type, gt.gang_type_id])
-        );
-
-        // Add type for the adjustedCost in the map function
-        const adjustedCostRecords = gang_adjusted_costs.map((adjusted_cost: GangAdjustedCost) => ({
-          equipment_id: id,
-          gang_type_id: adjusted_cost.gang_type_id,
-          adjusted_cost: adjusted_cost.adjusted_cost.toString(),
-          fighter_type_id: null
-        }));
-
-        if (adjustedCostRecords.length > 0) {
-          const { error: insertError } = await supabase
-            .from('equipment_discounts')
-            .insert(adjustedCostRecords);
-
-          if (insertError) throw insertError;
-        }
-      }
-    }
-
-    return NextResponse.json({ success: true });
-
-  } catch (error) {
-    console.error('Error updating equipment:', error);
-    return NextResponse.json(
-      { 
-        error: 'Failed to update equipment',
         details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
@@ -801,6 +608,7 @@ export async function PATCH(request: Request) {
       equipment_name,
       availability,
       cost,
+      trade_points,
       variants,
       equipment_category,
       equipment_category_id,
@@ -816,8 +624,14 @@ export async function PATCH(request: Request) {
       equipment_origin_availabilities,
       equipment_variant_availabilities,
       fighter_effects,
-      grants_equipment
+      grants_equipment,
+      edition_id
     } = data;
+
+    const normalizedTradePoints = normalizeAdminTradePoints(trade_points);
+    if (!normalizedTradePoints.ok) {
+      return NextResponse.json({ error: normalizedTradePoints.error }, { status: 400 });
+    }
 
     // Update equipment
     const { error: equipmentError } = await supabase
@@ -826,6 +640,7 @@ export async function PATCH(request: Request) {
         equipment_name,
         availability,
         cost,
+        trade_points: normalizedTradePoints.value,
         variants,
         equipment_category,
         equipment_category_id,
@@ -834,6 +649,7 @@ export async function PATCH(request: Request) {
         grants_equipment: grants_equipment || null,
         is_editable,
         is_consumable: is_consumable ?? false,
+        edition_id: edition_id || null,
         updated_at: new Date().toISOString()
       })
       .eq('id', id);
@@ -865,6 +681,7 @@ export async function PATCH(request: Request) {
               strength: profile.strength,
               ap: profile.ap,
               damage: profile.damage,
+              lethality: profile.lethality || null,
               ammo: profile.ammo,
               traits: profile.traits,
               weapon_group_id: profile.weapon_group_id || id,
@@ -878,7 +695,6 @@ export async function PATCH(request: Request) {
 
     // More robust fighter type association handling
     if (fighter_types !== undefined) {
-      console.log(`Updating fighter type associations for equipment ID: ${id}`);
       
       // First, get current associations to ensure we don't lose data
       const { data: currentAssociations, error: fetchError } = await supabase
@@ -897,10 +713,6 @@ export async function PATCH(request: Request) {
       if (currentAssociations) {
         const currentIds = currentAssociations.map(a => a.fighter_type_id);
         const hasChanges = JSON.stringify(currentIds.sort()) !== JSON.stringify([...fighter_types].sort());
-        
-        console.log(`Current associations: ${JSON.stringify(currentIds)}`);
-        console.log(`New associations: ${JSON.stringify(fighter_types)}`);
-        console.log(`Associations have changed: ${hasChanges}`);
         
         if (hasChanges) {
           // Delete existing associations
@@ -925,11 +737,7 @@ export async function PATCH(request: Request) {
             
             if (insertError) throw insertError;
           }
-        } else {
-          console.log('No changes to fighter type associations, preserving current data');
         }
-      } else {
-        console.log(`fighter_types not provided, preserving existing associations for ID: ${id}`);
       }
     }
 
@@ -948,7 +756,7 @@ export async function PATCH(request: Request) {
       // If there are new adjustedCosts to add
       if (gang_adjusted_costs.length > 0) {
         // Add type for the adjusted_cost in the map function
-        const adjustedCostRecords = gang_adjusted_costs.map((adjusted_cost: GangAdjustedCost) => ({
+        const adjustedCostRecords = gang_adjusted_costs.map((adjusted_cost: Pick<GangAdjustedCost, 'gang_type_id' | 'adjusted_cost'>) => ({
           equipment_id: id,
           gang_type_id: adjusted_cost.gang_type_id,
           adjusted_cost: adjusted_cost.adjusted_cost.toString(),
@@ -983,7 +791,7 @@ export async function PATCH(request: Request) {
 
       // If there are new origin adjustedCosts to add
       if (Array.isArray(gang_origin_adjusted_costs) && gang_origin_adjusted_costs.length > 0) {
-        const originAdjustedCostRecords = gang_origin_adjusted_costs.map((adjusted_cost: any) => ({
+        const originAdjustedCostRecords = gang_origin_adjusted_costs.map((adjusted_cost: Pick<GangOriginAdjustedCost, 'gang_origin_id' | 'adjusted_cost'>) => ({
           equipment_id: id,
           gang_origin_id: adjusted_cost.gang_origin_id,
           adjusted_cost: adjusted_cost.adjusted_cost.toString(),
@@ -1020,11 +828,12 @@ export async function PATCH(request: Request) {
 
       // If there are new availabilities to add
       if (Array.isArray(equipment_availabilities) && equipment_availabilities.length > 0) {
-        const availabilityRecords = equipment_availabilities.map((avail: EquipmentAvailability) => ({
+        const availabilityRecords = equipment_availabilities.map((avail: Pick<EquipmentAvailability, 'gang_type_id' | 'availability' | 'exclusive'>) => ({
           equipment_id: id,
           gang_type_id: avail.gang_type_id,
-          availability: avail.availability.trimEnd(),
-          gang_origin_id: null
+          availability: avail.availability ? avail.availability.trimEnd() : null,
+          gang_origin_id: null,
+          exclusive: avail.exclusive ?? false
         }));
 
         if (availabilityRecords.length > 0) {
@@ -1056,7 +865,7 @@ export async function PATCH(request: Request) {
 
       // If there are new origin availabilities to add
       if (Array.isArray(equipment_origin_availabilities) && equipment_origin_availabilities.length > 0) {
-        const originAvailabilityRecords = equipment_origin_availabilities.map((avail: any) => ({
+        const originAvailabilityRecords = equipment_origin_availabilities.map((avail: Pick<EquipmentOriginAvailability, 'gang_origin_id' | 'availability'>) => ({
           equipment_id: id,
           gang_origin_id: avail.gang_origin_id,
           availability: avail.availability.trimEnd(),
@@ -1092,7 +901,7 @@ export async function PATCH(request: Request) {
 
       // If there are new variant availabilities to add
       if (Array.isArray(equipment_variant_availabilities) && equipment_variant_availabilities.length > 0) {
-        const variantAvailabilityRecords = equipment_variant_availabilities.map((avail: EquipmentVariantAvailability) => ({
+        const variantAvailabilityRecords = equipment_variant_availabilities.map((avail: Pick<EquipmentVariantAvailability, 'gang_variant_id' | 'availability'>) => ({
           equipment_id: id,
           gang_variant_id: avail.gang_variant_id,
           availability: avail.availability.trimEnd(),
@@ -1115,24 +924,17 @@ export async function PATCH(request: Request) {
 
     // Handle fighter effects if provided
     if (fighter_effects !== undefined) {
-      console.log('Handling fighter effects for equipment:', id);
-      console.log('fighter_effects:', JSON.stringify(fighter_effects));
-      console.log('fighter_effects.length:', fighter_effects.length);
 
       if (Array.isArray(fighter_effects)) {
         // Get existing effect IDs for this equipment to determine what to delete
-        console.log('Querying for existing effects with equipment_id:', id);
         const { data: existingEffects, error: fetchError } = await supabase
           .from('fighter_effect_types')
           .select('id, effect_name, type_specific_data')
           .eq('type_specific_data->>equipment_id', id);
 
-        console.log('Existing effects query result:', { existingEffects, fetchError });
-
         // If the JSON operator query fails or returns no results, try a broader query
         let finalExistingEffects = existingEffects;
         if (!existingEffects || existingEffects.length === 0) {
-          console.log('Trying alternative query method...');
           const { data: allEffects, error: allEffectsError } = await supabase
             .from('fighter_effect_types')
             .select('id, effect_name, type_specific_data')
@@ -1152,29 +954,23 @@ export async function PATCH(request: Request) {
                 return false;
               }
             });
-            console.log('Alternative query found effects:', finalExistingEffects?.length || 0);
           }
         }
 
         if (finalExistingEffects && finalExistingEffects.length > 0) {
           // Create a set of current effect IDs from the request
           const currentEffectIds = new Set(fighter_effects.map(effect => effect.id));
-          console.log('Current effect IDs from request:', Array.from(currentEffectIds));
           
           // Find effects to delete (existing effects not in the current list)
           const effectsToDelete = (finalExistingEffects || [])
             .filter(existing => existing.id && !currentEffectIds.has(existing.id))
             .map(effect => effect.id);
           
-          console.log('Effects to delete:', effectsToDelete);
-          
           // Delete effects that are no longer in the list
           if (effectsToDelete.length > 0) {
-            console.log('Deleting removed effects:', effectsToDelete);
             
             // First delete associated modifiers
             for (const effectId of effectsToDelete) {
-              console.log('Deleting modifiers for effect:', effectId);
               const { error: deleteModifiersError } = await supabase
                 .from('fighter_effect_type_modifiers')
                 .delete()
@@ -1182,13 +978,10 @@ export async function PATCH(request: Request) {
               
               if (deleteModifiersError) {
                 console.error('Error deleting modifiers for effect', effectId, ':', deleteModifiersError);
-              } else {
-                console.log('Successfully deleted modifiers for effect:', effectId);
               }
             }
             
             // Then delete the effects themselves
-            console.log('Deleting effects:', effectsToDelete);
             const { error: deleteEffectsError } = await supabase
               .from('fighter_effect_types')
               .delete()
@@ -1196,18 +989,13 @@ export async function PATCH(request: Request) {
             
             if (deleteEffectsError) {
               console.error('Error deleting effects:', deleteEffectsError);
-            } else {
-              console.log('Successfully deleted effects:', effectsToDelete);
             }
           } else if (fighter_effects.length === 0 && finalExistingEffects && finalExistingEffects.length > 0) {
             // Special case: if fighter_effects is empty but we have existing effects, delete all
-            console.log('Removing all fighter effects for equipment:', id);
             const allEffectIds = finalExistingEffects.map(effect => effect.id);
-            console.log('All effect IDs to delete:', allEffectIds);
             
             // First delete associated modifiers
             for (const effectId of allEffectIds) {
-              console.log('Deleting modifiers for effect:', effectId);
               const { error: deleteModifiersError } = await supabase
                 .from('fighter_effect_type_modifiers')
                 .delete()
@@ -1215,13 +1003,10 @@ export async function PATCH(request: Request) {
               
               if (deleteModifiersError) {
                 console.error('Error deleting modifiers for effect', effectId, ':', deleteModifiersError);
-              } else {
-                console.log('Successfully deleted modifiers for effect:', effectId);
               }
             }
             
             // Then delete all effects
-            console.log('Deleting all effects:', allEffectIds);
             const { error: deleteAllEffectsError } = await supabase
               .from('fighter_effect_types')
               .delete()
@@ -1229,24 +1014,18 @@ export async function PATCH(request: Request) {
             
             if (deleteAllEffectsError) {
               console.error('Error deleting all effects:', deleteAllEffectsError);
-            } else {
-              console.log('Successfully deleted all effects for equipment:', id);
             }
-          } else {
-            console.log('No effects to delete. fighter_effects.length:', fighter_effects.length, 'existingEffects.length:', finalExistingEffects?.length || 0);
           }
         }
       }
 
       // Process fighter effects (only if there are effects to process)
       if (fighter_effects.length > 0) {
-        console.log('Processing', fighter_effects.length, 'fighter effects');
         for (const effect of fighter_effects) {
           const isNewEffect = effect.id.indexOf('temp-') === 0;
           
           if (isNewEffect) {
             // Create new effect
-            console.log('Creating new fighter effect for equipment:', id);
             
             // Create fighter effect type
             const { data: newEffect, error: createEffectError } = await supabase
@@ -1284,7 +1063,6 @@ export async function PATCH(request: Request) {
             }
           } else {
             // Handle existing effect and its modifiers
-            console.log('Handling existing fighter effect:', effect.id);
             
             // First update the effect
             const { error: updateEffectError } = await supabase
@@ -1326,7 +1104,6 @@ export async function PATCH(request: Request) {
                 
                 // Delete modifiers that are no longer in the list
                 if (modifiersToDelete.length > 0) {
-                  console.log('Deleting removed modifiers:', modifiersToDelete);
                   
                   const { error: deleteModifiersError } = await supabase
                     .from('fighter_effect_type_modifiers')
@@ -1376,8 +1153,6 @@ export async function PATCH(request: Request) {
             }
           }
         }
-      } else {
-        console.log('No fighter effects to process (length is 0)');
       }
     }
 

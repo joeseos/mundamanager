@@ -11,6 +11,7 @@ import { StashItem } from '@/types/gang';
 import { Session } from '@supabase/supabase-js';
 import { VehicleProps } from '@/types/vehicle';
 import { vehicleExclusiveCategories, vehicleCompatibleCategories } from '@/utils/vehicleEquipmentCategories';
+import { hasChemAlchemy } from '@/types/edition';
 import ChemAlchemyCreator from './chem-alchemy';
 import { createChemAlchemy } from '@/app/actions/chem-alchemy';
 import ItemModal from '@/components/equipment/equipment';
@@ -32,6 +33,7 @@ import { Tooltip } from 'react-tooltip';
 import { UserPermissions } from '@/types/user-permissions';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
+import { sortFightersByPositioning } from '@/utils/fighter-positioning';
 
 interface GangInventoryProps {
   stash: StashItem[];
@@ -55,6 +57,9 @@ interface GangInventoryProps {
   campaignGangId?: string;
   gangCampaignResources?: GangCampaignResource[];
   gangReputation?: number;
+  editionSlug?: string | null;
+  gangTradePoints?: number;
+  onGangTradePointsUpdate?: (newTradePoints: number) => void;
   positioning?: Record<number, string>;
 }
 
@@ -80,6 +85,9 @@ export default function GangInventory({
   campaignGangId,
   gangCampaignResources,
   gangReputation,
+  editionSlug,
+  gangTradePoints,
+  onGangTradePointsUpdate,
   positioning
 }: GangInventoryProps) {
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
@@ -209,8 +217,8 @@ export default function GangInventory({
   const isVehicle = (item: StashItem): boolean => item.type === 'vehicle';
   
   // Update isCrew to handle undefined
-  const isCrew = (fighter: FighterProps | undefined): boolean => 
-    fighter?.fighter_class === 'Crew';
+  const isCrew = (fighter: FighterProps | undefined): boolean =>
+    fighter?.fighter_subtypes?.includes('Crew') || false;
 
   const findFighter = (id: string): FighterProps | undefined => 
     fighters.find(f => f.id === id);
@@ -645,7 +653,7 @@ export default function GangInventory({
       if (result.affected_beast_ids && result.affected_beast_ids.length > 0) {
         const updatedBeasts: FighterProps[] = [];
         setFighters(prev => prev.map(f => {
-          if (result.affected_beast_ids!.includes(f.id) && f.fighter_class?.toLowerCase().startsWith('exotic beast')) {
+          if (result.affected_beast_ids!.includes(f.id) && f.fighter_subtypes?.some(c => c.toLowerCase().startsWith('exotic beast') || c.toLowerCase() === 'pet')) {
             const updatedBeast = { ...f, beast_equipment_stashed: false };
             updatedBeasts.push(updatedBeast);
             return updatedBeast;
@@ -744,14 +752,7 @@ export default function GangInventory({
     if (!hasVehicleExclusiveItem) {
       options.push({ value: '__fighters_header__', label: <span className="font-bold">Fighters</span>, displayValue: 'Fighters', disabled: true });
 
-      const sorted = [...fighters].sort((a, b) => {
-        if (!positioning) return 0;
-        const indexA = Object.entries(positioning).find(([, id]) => id === a.id)?.[0];
-        const indexB = Object.entries(positioning).find(([, id]) => id === b.id)?.[0];
-        const posA = indexA !== undefined ? parseInt(indexA) : Infinity;
-        const posB = indexB !== undefined ? parseInt(indexB) : Infinity;
-        return posA - posB;
-      });
+      const sorted = sortFightersByPositioning(fighters, positioning);
 
       for (const fighter of sorted) {
         const isDisabled = hasSelectedVehicle && !isCrew(fighter);
@@ -762,7 +763,7 @@ export default function GangInventory({
         if (fighter.starved) statusIcons.push(<TbMeatOff className="text-red-500 w-4 h-4" key="starved" />);
         if (fighter.recovery) statusIcons.push(<FaMedkit className="text-blue-500 w-4 h-4" key="recovery" />);
         if (fighter.captured) statusIcons.push(<GiHandcuffs className="text-red-600 w-4 h-4" key="captured" />);
-        const displayText = `${fighter.fighter_name} (${fighter.fighter_class}) - ${fighter.credits} credits`;
+        const displayText = `${fighter.fighter_name} (${fighter.fighter_subtypes?.join(', ')}) - ${fighter.credits} credits`;
         options.push({
           value: fighter.id,
           displayValue: displayText,
@@ -818,7 +819,7 @@ export default function GangInventory({
           <div className="flex justify-between items-start mb-6">
             <h2 className="text-xl md:text-2xl font-bold">{title}</h2>
             <div className="flex gap-2">
-              {gangTypeId === 'cb9d7047-e7df-4196-a51f-a8f452c291ad' && (
+              {gangTypeId === 'cb9d7047-e7df-4196-a51f-a8f452c291ad' && hasChemAlchemy(editionSlug) && (
                 <Button
                   onClick={() => setShowChemAlchemy(true)}
                   disabled={!userPermissions?.canEdit}
@@ -1006,7 +1007,9 @@ export default function GangInventory({
           campaignGangId={campaignGangId}
           gangCampaignResources={gangCampaignResources}
           gangReputation={gangReputation}
-          onEquipmentBought={(_newFighterCredits, newGangCredits, boughtEquipment, newGangRating, newGangWealth) => {
+          editionSlug={editionSlug}
+          gangTradePoints={gangTradePoints}
+          onEquipmentBought={({ newGangCredits, boughtEquipment, newGangRating, newGangWealth, newGangTradePoints }) => {
             // Handle equipment bought for stash - perform optimistic updates
 
             // Create new stash item from the purchased equipment
@@ -1047,6 +1050,10 @@ export default function GangInventory({
             // Update gang wealth if provided
             if (onGangWealthUpdate && newGangWealth !== undefined) {
               onGangWealthUpdate(newGangWealth);
+            }
+
+            if (onGangTradePointsUpdate && newGangTradePoints !== undefined) {
+              onGangTradePointsUpdate(newGangTradePoints);
             }
 
             const costDescription = boughtEquipment.cost_resource_name
@@ -1156,6 +1163,7 @@ export default function GangInventory({
             itemName={getItemName(sellItem)}
             initialCost={isResourceItem ? (sellItem.cost_resource!.amount ?? 0) : (sellItem.cost || 0)}
             showD6Roll={!isResourceItem}
+            editionSlug={editionSlug}
             costLabel={isResourceItem ? sellItem.cost_resource!.name : 'Sale Price'}
             confirmText="Sell"
             onClose={() => setSellModalItemIdx(null)}

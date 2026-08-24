@@ -15,7 +15,7 @@ export async function GET(request: Request) {
 
     const { data, error } = await supabase
       .from('gang_types')
-      .select('gang_type_id, gang_type')
+      .select('gang_type_id, gang_type, edition_id')
       .order('gang_type');
 
     if (error) throw error;
@@ -34,7 +34,8 @@ interface FighterTypeData {
   fighterType: string;
   baseCost: number;
   gangTypeId: string;
-  fighterClass: string;
+  fighterSubtype: string;
+  fighterSubtypes?: string[];
   movement: number;
   weapon_skill: number;
   ballistic_skill: number;
@@ -64,7 +65,6 @@ async function _POST(request: Request) {
     }
 
     const data: FighterTypeData = await request.json();
-    console.log('Received data:', data);
 
     // Get the gang type
     const { data: gangType, error: gangTypeError } = await supabase
@@ -90,7 +90,7 @@ async function _POST(request: Request) {
         cost: data.baseCost,
         gang_type_id: data.gangTypeId,
         gang_type: gangType.gang_type,
-        fighter_class: data.fighterClass,
+        fighter_subtypes: Array.isArray(data.fighterSubtypes) ? data.fighterSubtypes : [],
         movement: data.movement,
         weapon_skill: data.weapon_skill,
         ballistic_skill: data.ballistic_skill,
@@ -114,16 +114,12 @@ async function _POST(request: Request) {
       throw insertError;
     }
 
-    console.log('Created fighter type:', newFighterType); // Debug log
-
     // Create equipment defaults with proper typing
     if (data.default_equipment && data.default_equipment.length > 0) {
       const equipmentDefaults = data.default_equipment.map((equipmentId: string) => ({
         fighter_type_id: newFighterType.id,
         equipment_id: equipmentId
       }));
-
-      console.log('Creating equipment defaults:', equipmentDefaults);
 
       const { error: equipmentError } = await supabase
         .from('fighter_defaults')

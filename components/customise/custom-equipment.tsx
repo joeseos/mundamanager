@@ -23,6 +23,8 @@ import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants
 import type { UserCampaign } from '@/types/campaign';
 import type { EquipmentListItem } from '@/types/equipment';
 import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
+import { isValidTradePoints } from '@/utils/campaigns/resources';
+import { hasLethalityStatline, hasTradePoints, sameEditionForDisplay } from '@/types/edition';
 
 interface CustomiseEquipmentProps {
   className?: string;
@@ -30,15 +32,36 @@ interface CustomiseEquipmentProps {
   readOnly?: boolean;
   userId?: string;
   userCampaigns?: UserCampaign[];
+  /** Edition of everything shown here, and of anything created. */
+  editionSlug: string;
 }
 
 interface EquipmentCategory {
   id: string;
   category_name: string;
+  edition_slug?: string | null;
 }
 
-export function CustomiseEquipment({ className, initialEquipment = [], readOnly = false, userId, userCampaigns = [] }: CustomiseEquipmentProps) {
+/**
+ * Normalise a stored profile into the all-string form shape. lethality and traits
+ * are the nullable columns, and the inputs are controlled.
+ */
+const toProfileInput = (profile: any): CustomWeaponProfile => ({
+  ...profile,
+  lethality: profile.lethality ?? '',
+  traits: profile.traits ?? '',
+});
+
+export function CustomiseEquipment({ className, initialEquipment = [], readOnly = false, userId, userCampaigns = [], editionSlug }: CustomiseEquipmentProps) {
+  const showTradePoints = hasTradePoints(editionSlug);
+  const showAvailability = !showTradePoints;
+  const usesLethality = hasLethalityStatline(editionSlug);
   const [equipment, setEquipment] = useState<CustomEquipment[]>(initialEquipment);
+  const [prevInitialEquipment, setPrevInitialEquipment] = useState(initialEquipment);
+  if (initialEquipment !== prevInitialEquipment) {
+    setPrevInitialEquipment(initialEquipment);
+    setEquipment(initialEquipment);
+  }
   const [isLoading, setIsLoading] = useState(false);
   const [editModalData, setEditModalData] = useState<CustomEquipment | null>(null);
   const [deleteModalData, setDeleteModalData] = useState<CustomEquipment | null>(null);
@@ -51,10 +74,11 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
   const [editForm, setEditForm] = useState({
     equipment_name: '',
     cost: '',
-    equipment_category: '',
+    equipment_category_id: '',
     equipment_type: 'wargear' as 'wargear' | 'weapon',
     availability_letter: 'C' as 'C' | 'R' | 'E' | 'I' | 'S',
     availability_number: 6,
+    trade_points: '0',
     is_consumable: false,
     description: null as string | null,
   });
@@ -63,8 +87,9 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     availability_letter: 'C' as 'C' | 'R' | 'E' | 'I' | 'S',
     availability_number: 6,
     cost: '',
-    equipment_category: '',
+    equipment_category_id: '',
     equipment_type: 'wargear' as 'wargear' | 'weapon',
+    trade_points: '0',
     is_consumable: false,
     description: null as string | null,
   });
@@ -94,22 +119,35 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     }
   };
 
+  // A category name repeats across editions (Grenades exists in both), so the form
+  // holds the category id and resolves the name only for display and rules.
+  const editionCategories = categories.filter(category =>
+    sameEditionForDisplay(category.edition_slug, editionSlug)
+  );
+  const categoryNameOf = (categoryId: string) =>
+    categories.find(category => category.id === categoryId)?.category_name ?? '';
+  const isAmmunition = (categoryId: string) =>
+    categoryNameOf(categoryId).toLowerCase() === 'ammunition';
+
   const needsAvailableWeapons =
-    (createModalOpen && createForm.equipment_category.toLowerCase() === 'ammunition') ||
-    (editModalData !== null && editForm.equipment_category.toLowerCase() === 'ammunition');
+    (createModalOpen && isAmmunition(createForm.equipment_category_id)) ||
+    (editModalData !== null && isAmmunition(editForm.equipment_category_id));
 
   const { data: availableWeapons = [] } = useQuery<AvailableWeapon[]>({
-    queryKey: ['equipment', { equipment_type: 'weapon', core_equipment: false }],
+    // editionSlug is part of the key because the result below is edition-filtered
+    queryKey: ['equipment', { equipment_type: 'weapon', core_equipment: false, editionSlug }],
     queryFn: async () => {
       const response = await fetch('/api/equipment?equipment_type=weapon&core_equipment=false');
       if (!response.ok) throw new Error('Failed to fetch equipment');
       const data: EquipmentListItem[] = await response.json();
-      return data.map(item => ({
-        id: item.is_custom ? item.original_id! : item.id,
-        name: item.is_custom ? item.equipment_name.replace(' (Custom)', '') : item.equipment_name,
-        is_custom: item.is_custom,
-        category: item.equipment_category || '',
-      }));
+      return data
+        .filter(item => sameEditionForDisplay(item.edition_slug, editionSlug))
+        .map(item => ({
+          id: item.is_custom ? item.original_id! : item.id,
+          name: item.is_custom ? item.equipment_name.replace(' (Custom)', '') : item.equipment_name,
+          is_custom: item.is_custom,
+          category: item.equipment_category || '',
+        }));
     },
     enabled: needsAvailableWeapons,
   });
@@ -122,8 +160,9 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       availability_letter: 'C',
       availability_number: 6,
       cost: '',
-      equipment_category: '',
+      equipment_category_id: '',
       equipment_type: 'wargear',
+      trade_points: '0',
       is_consumable: false,
       description: null,
     });
@@ -138,21 +177,44 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     }));
   };
 
+  /**
+   * Blank the stats the edition does not use. They are no longer rendered, but
+   * anything already typed would still be submitted — an N26 weapon saved with a
+   * Damage and an Accuracy.
+   */
+  const profilesForEdition = (profiles: CustomWeaponProfile[]): CustomWeaponProfile[] =>
+    profiles.map(profile => usesLethality
+      ? { ...profile, acc_short: '', acc_long: '', damage: '', ammo: '' }
+      : { ...profile, lethality: '' }
+    );
+
+  /** The cost fields, gated so a hidden one never carries a stale value. */
+  const costFieldsForEdition = (form: { availability_letter: 'C' | 'R' | 'E' | 'I' | 'S'; availability_number: number; trade_points: string }) => ({
+    availability: showAvailability
+      ? combineAvailability(form.availability_letter, form.availability_number)
+      : null,
+    trade_points: showTradePoints ? form.trade_points.trim().toUpperCase() : '0',
+  });
+
   // Handle create modal confirm
   const handleCreateModalConfirm = async () => {
     try {
       setIsLoading(true);
 
       const newEquipment = await createCustomEquipment({
-        ...createForm,
+        equipment_name: createForm.equipment_name,
         cost: parseInt(createForm.cost),
-        availability: combineAvailability(createForm.availability_letter, createForm.availability_number),
+        equipment_category_id: createForm.equipment_category_id,
+        equipment_type: createForm.equipment_type,
+        is_consumable: createForm.is_consumable,
         description: createForm.description,
+        edition_slug: editionSlug,
+        ...costFieldsForEdition(createForm),
       });
 
       // Save weapon profiles if this is a weapon and there are profiles
       if (createForm.equipment_type === 'weapon' && createWeaponProfiles.length > 0) {
-        await saveCustomWeaponProfiles(newEquipment.id, createWeaponProfiles);
+        await saveCustomWeaponProfiles(newEquipment.id, profilesForEdition(createWeaponProfiles));
       }
       
       // Add to local state
@@ -177,7 +239,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
            createForm.cost.trim() !== '' &&
            !isNaN(costNum) &&
            costNum >= 0 &&
-           createForm.equipment_category !== '';
+           createForm.equipment_category_id !== '' &&
+           (!showTradePoints || isValidTradePoints(createForm.trade_points));
   };
 
   // Define columns for the equipment list
@@ -204,8 +267,9 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       render: (value) => value ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase() : '-'
     },
     {
-      key: 'availability',
-      label: 'AL',
+      // N26 prices equipment in Trade Points; Availability is an N23 concept.
+      key: showTradePoints ? 'trade_points' : 'availability',
+      label: showTradePoints ? 'TP' : 'AL',
       align: 'right',
       width: '10%',
       cellClassName: 'text-sm text-muted-foreground'
@@ -283,10 +347,11 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     setEditForm({
       equipment_name: equipment.equipment_name || '',
       cost: equipment.cost?.toString() || '',
-      equipment_category: equipment.equipment_category || '',
+      equipment_category_id: equipment.equipment_category_id || '',
       equipment_type: (equipment.equipment_type as 'wargear' | 'weapon') || 'wargear',
       availability_letter: (parsed.letter || 'C') as 'C' | 'R' | 'E' | 'I' | 'S',
       availability_number: parsed.number,
+      trade_points: equipment.trade_points ?? '0',
       is_consumable: equipment.is_consumable ?? false,
       description: equipment.description || null,
     });
@@ -308,8 +373,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
           console.error('Error loading weapon profiles:', error);
           setEditWeaponProfiles([]);
         } else {
-          // Use the raw database data directly since the view modal expects the original field names
-          setEditWeaponProfiles(profiles || []);
+          setEditWeaponProfiles((profiles || []).map(toProfileInput));
         }
       } catch (error) {
         console.error('Error loading weapon profiles:', error);
@@ -331,10 +395,11 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     setEditForm({
       equipment_name: equipment.equipment_name || '',
       cost: equipment.cost?.toString() || '',
-      equipment_category: equipment.equipment_category || '',
+      equipment_category_id: equipment.equipment_category_id || '',
       equipment_type: (equipment.equipment_type as 'wargear' | 'weapon') || 'wargear',
       availability_letter: (parsed.letter || 'C') as 'C' | 'R' | 'E' | 'I' | 'S',
       availability_number: parsed.number,
+      trade_points: equipment.trade_points ?? '0',
       is_consumable: equipment.is_consumable ?? false,
       description: equipment.description || null,
     });
@@ -346,7 +411,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     if (equipment.equipment_type === 'weapon' && equipment.id) {
       try {
         const profiles = await getCustomWeaponProfiles(equipment.id);
-        setEditWeaponProfiles(profiles);
+        setEditWeaponProfiles(profiles.map(toProfileInput));
       } catch (error) {
         console.error('Error loading weapon profiles:', error);
         setEditWeaponProfiles([]);
@@ -374,8 +439,9 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     setEditForm({
       equipment_name: '',
       cost: '',
-      equipment_category: '',
+      equipment_category_id: '',
       equipment_type: 'wargear',
+      trade_points: '0',
       availability_letter: 'C',
       availability_number: 6,
       is_consumable: false,
@@ -397,6 +463,11 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
   const handleEditModalConfirm = async () => {
     if (!editModalData) return false;
 
+    if (showTradePoints && !isValidTradePoints(editForm.trade_points)) {
+      toast.error("Error", { description: "Trade Points must be a number or E" });
+      return false;
+    }
+
     try {
       setIsLoading(true);
       
@@ -404,11 +475,11 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       const updatedEquipment = await updateCustomEquipment(editModalData.id, {
         equipment_name: editForm.equipment_name,
         cost: parseInt(editForm.cost),
-        equipment_category: editForm.equipment_category,
+        equipment_category_id: editForm.equipment_category_id,
         equipment_type: editForm.equipment_type,
-        availability: combineAvailability(editForm.availability_letter, editForm.availability_number),
         is_consumable: editForm.is_consumable,
         description: editForm.description,
+        ...costFieldsForEdition(editForm),
       });
 
       // Handle weapon profiles based on equipment type
@@ -476,36 +547,26 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
 
     try {
       setIsLoading(true);
-      
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('User not authenticated');
-      }
 
-      // Create a copy of the equipment with new user_id
-      const newEquipment = {
+      // Goes through the same server action as the create modal: only the server
+      // can turn an edition slug into an edition_id, and it also resolves the
+      // category and invalidates the cache. The copy keeps the SOURCE's edition —
+      // an N26 item has N26 stats, so re-badging it with whatever the tab happens
+      // to be showing would corrupt it.
+      const createdEquipment = await createCustomEquipment({
         equipment_name: copyModalData.equipment_name,
         cost: copyModalData.cost,
-        equipment_category: copyModalData.equipment_category,
-        equipment_type: copyModalData.equipment_type,
-        availability: copyModalData.availability,
+        equipment_category_id: copyModalData.equipment_category_id ?? '',
+        equipment_type: (copyModalData.equipment_type as 'wargear' | 'weapon') ?? 'wargear',
+        availability: copyModalData.availability ?? null,
+        trade_points: copyModalData.trade_points ?? '0',
+        is_consumable: copyModalData.is_consumable ?? false,
         description: copyModalData.description,
-        user_id: user.id
-      };
-
-      // Create the new equipment
-      const { data: createdEquipment, error: createError } = await supabase
-        .from('custom_equipment')
-        .insert([newEquipment])
-        .select()
-        .single();
-
-      if (createError) {
-        throw createError;
-      }
+        edition_slug: copyModalData.edition_slug ?? undefined,
+      });
 
       // If it's a weapon, copy the weapon profiles
+      let copiedProfileCount = 0;
       if (copyModalData.equipment_type === 'weapon') {
         const { data: weaponProfiles, error: profilesError } = await supabase
           .from('custom_weapon_profiles')
@@ -518,45 +579,26 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
         }
 
         if (weaponProfiles && weaponProfiles.length > 0) {
-          const newProfiles = weaponProfiles.map(profile => ({
-            custom_equipment_id: createdEquipment.id,
-            profile_name: profile.profile_name,
-            range_short: profile.range_short,
-            range_long: profile.range_long,
-            acc_short: profile.acc_short,
-            acc_long: profile.acc_long,
-            strength: profile.strength,
-            ap: profile.ap,
-            damage: profile.damage,
-            ammo: profile.ammo,
-            traits: profile.traits,
-            sort_order: profile.sort_order,
-            weapon_group_id: profile.weapon_group_id === copyModalData.id ? createdEquipment.id : profile.weapon_group_id,
-            user_id: user.id
-          }));
-
-          const { error: insertError } = await supabase
-            .from('custom_weapon_profiles')
-            .insert(newProfiles);
-
-          if (insertError) {
-            console.error('Error inserting weapon profiles:', insertError);
-            throw new Error('Failed to copy weapon profiles');
-          }
+          copiedProfileCount = weaponProfiles.length;
+          // Profiles pointing at the source weapon must follow the copy; ones
+          // pointing at another weapon (ammunition) keep their target.
+          await saveCustomWeaponProfiles(
+            createdEquipment.id,
+            weaponProfiles.map(profile => ({
+              ...toProfileInput(profile),
+              id: undefined,
+              weapon_group_id: profile.weapon_group_id === copyModalData.id
+                ? createdEquipment.id
+                : profile.weapon_group_id,
+            }))
+          );
         }
       }
 
       // Create success message
       let successMessage = `${copyModalData.equipment_name} has been copied to your custom equipment.`;
-      if (copyModalData.equipment_type === 'weapon') {
-        const { data: weaponProfiles } = await supabase
-          .from('custom_weapon_profiles')
-          .select('*')
-          .eq('custom_equipment_id', copyModalData.id);
-        
-        if (weaponProfiles && weaponProfiles.length > 0) {
-          successMessage += ` (${weaponProfiles.length} weapon profile${weaponProfiles.length > 1 ? 's' : ''} included)`;
-        }
+      if (copiedProfileCount > 0) {
+        successMessage += ` (${copiedProfileCount} weapon profile${copiedProfileCount > 1 ? 's' : ''} included)`;
       }
 
       toast.success("Success", { description: successMessage });
@@ -581,7 +623,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     if (field === 'equipment_type' && value === 'weapon' && editModalData?.id) {
       try {
         const profiles = await getCustomWeaponProfiles(editModalData.id);
-        setEditWeaponProfiles(profiles);
+        setEditWeaponProfiles(profiles.map(toProfileInput));
         setWeaponProfilesModified(true);
       } catch (error) {
         console.error('Error loading weapon profiles:', error);
@@ -711,26 +753,41 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                     Category *
                   </label>
                   <select
-                    value={editForm.equipment_category}
-                    onChange={(e) => handleFormChange('equipment_category', e.target.value)}
+                    value={editForm.equipment_category_id}
+                    onChange={(e) => handleFormChange('equipment_category_id', e.target.value)}
                     className="w-full p-2 border rounded-md text-base md:text-sm"
                   >
                     <option value="">Select category</option>
-                    {categories.map((category) => (
-                      <option key={category.id} value={category.category_name}>
+                    {editionCategories.map((category) => (
+                      <option key={category.id} value={category.id}>
                         {category.category_name}
                       </option>
                     ))}
                   </select>
                 </div>
 
-                <AvailabilityPicker
-                  label="Availability *"
-                  letter={editForm.availability_letter}
-                  number={editForm.availability_number}
-                  onLetterChange={(v) => handleFormChange('availability_letter', v)}
-                  onNumberChange={(v) => handleFormChange('availability_number', v)}
-                />
+                {showAvailability ? (
+                  <AvailabilityPicker
+                    label="Availability *"
+                    letter={editForm.availability_letter}
+                    number={editForm.availability_number}
+                    onLetterChange={(v) => handleFormChange('availability_letter', v)}
+                    onNumberChange={(v) => handleFormChange('availability_number', v)}
+                  />
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">
+                      Trade Points *
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.trade_points}
+                      onChange={(e) => handleFormChange('trade_points', e.target.value)}
+                      className="w-full p-2 border rounded-md text-base md:text-sm"
+                      placeholder="e.g. 2 or E"
+                    />
+                  </div>
+                )}
 
                 <div className="col-span-1 md:col-span-2">
                   <label className="block text-sm font-medium text-muted-foreground mb-1">
@@ -777,7 +834,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                       profiles={editWeaponProfiles}
                       onProfilesChange={handleEditWeaponProfilesChange}
                       availableWeapons={availableWeapons}
-                      showTargetWeapon={editForm.equipment_category.toLowerCase() === 'ammunition'}
+                      usesLethality={usesLethality}
+                      showTargetWeapon={isAmmunition(editForm.equipment_category_id)}
                     />
                   </div>
                 )}
@@ -821,7 +879,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                     Category
                   </label>
                   <div className="w-full p-2 border rounded-md bg-muted">
-                    {editForm.equipment_category}
+                    {categoryNameOf(editForm.equipment_category_id)}
                   </div>
                 </div>
 
@@ -836,10 +894,12 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
 
                 <div>
                   <label className="block text-sm font-medium text-muted-foreground mb-1">
-                    Availability
+                    {showTradePoints ? 'Trade Points' : 'Availability'}
                   </label>
                   <div className="w-full p-2 border rounded-md bg-muted">
-                    {editForm.availability_letter}{editForm.availability_number}
+                    {showTradePoints
+                      ? editForm.trade_points
+                      : `${editForm.availability_letter}${editForm.availability_number}`}
                   </div>
                 </div>
 
@@ -861,21 +921,31 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                           <div>
                             <span className="font-medium">Range:</span> {profile.range_short} / {profile.range_long}
                           </div>
-                          <div>
-                            <span className="font-medium">Accuracy:</span> {profile.acc_short} / {profile.acc_long}
-                          </div>
+                          {!usesLethality && (
+                            <div>
+                              <span className="font-medium">Accuracy:</span> {profile.acc_short} / {profile.acc_long}
+                            </div>
+                          )}
                           <div>
                             <span className="font-medium">Strength:</span> {profile.strength}
                           </div>
                           <div>
-                            <span className="font-medium">Damage:</span> {profile.damage}
-                          </div>
-                          <div>
                             <span className="font-medium">AP:</span> {profile.ap}
                           </div>
-                          <div>
-                            <span className="font-medium">Ammo:</span> {profile.ammo}
-                          </div>
+                          {usesLethality ? (
+                            <div>
+                              <span className="font-medium">Lethality:</span> {profile.lethality}
+                            </div>
+                          ) : (
+                            <>
+                              <div>
+                                <span className="font-medium">Damage:</span> {profile.damage}
+                              </div>
+                              <div>
+                                <span className="font-medium">Ammo:</span> {profile.ammo}
+                              </div>
+                            </>
+                          )}
                           <div className="md:col-span-2">
                             <span className="font-medium">Traits:</span> {profile.traits || 'None'}
                           </div>
@@ -970,26 +1040,41 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                     Category *
                   </label>
                   <select
-                    value={createForm.equipment_category}
-                    onChange={(e) => handleCreateFormChange('equipment_category', e.target.value)}
+                    value={createForm.equipment_category_id}
+                    onChange={(e) => handleCreateFormChange('equipment_category_id', e.target.value)}
                     className="w-full p-2 border rounded-md text-base md:text-sm"
                   >
                     <option value="">Select category</option>
-                    {categories.map((category) => (
-                      <option key={category.id} value={category.category_name}>
+                    {editionCategories.map((category) => (
+                      <option key={category.id} value={category.id}>
                         {category.category_name}
                       </option>
                     ))}
                   </select>
                 </div>
 
-                <AvailabilityPicker
-                  label="Availability *"
-                  letter={createForm.availability_letter}
-                  number={createForm.availability_number}
-                  onLetterChange={(v) => handleCreateFormChange('availability_letter', v)}
-                  onNumberChange={(v) => handleCreateFormChange('availability_number', v)}
-                />
+                {showAvailability ? (
+                  <AvailabilityPicker
+                    label="Availability *"
+                    letter={createForm.availability_letter}
+                    number={createForm.availability_number}
+                    onLetterChange={(v) => handleCreateFormChange('availability_letter', v)}
+                    onNumberChange={(v) => handleCreateFormChange('availability_number', v)}
+                  />
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">
+                      Trade Points *
+                    </label>
+                    <input
+                      type="text"
+                      value={createForm.trade_points}
+                      onChange={(e) => handleCreateFormChange('trade_points', e.target.value)}
+                      className="w-full p-2 border rounded-md text-base md:text-sm"
+                      placeholder="e.g. 2 or E"
+                    />
+                  </div>
+                )}
 
                 <div className="col-span-1 md:col-span-2">
                   <label className="block text-sm font-medium text-muted-foreground mb-1">
@@ -1036,7 +1121,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                       profiles={createWeaponProfiles}
                       onProfilesChange={setCreateWeaponProfiles}
                       availableWeapons={availableWeapons}
-                      showTargetWeapon={createForm.equipment_category.toLowerCase() === 'ammunition'}
+                      usesLethality={usesLethality}
+                      showTargetWeapon={isAmmunition(createForm.equipment_category_id)}
                     />
                   </div>
                 )}

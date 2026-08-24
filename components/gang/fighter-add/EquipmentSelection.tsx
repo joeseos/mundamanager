@@ -3,7 +3,7 @@
 import React from 'react';
 import { EquipmentOption, DefaultEquipment } from '@/types/fighter-type';
 import { Checkbox } from '@/components/ui/checkbox';
-import { equipmentCategoryRank } from '@/utils/equipmentCategoryRank';
+import { compareEquipmentCategories } from '@/utils/getEquipmentCategoryRank';
 import {
   SelectedEquipmentItem,
   normalizeEquipmentSelection,
@@ -17,6 +17,7 @@ interface EquipmentSelectionProps {
   selectedEquipment: SelectedEquipmentItem[];
   setSelectedEquipment: React.Dispatch<React.SetStateAction<SelectedEquipmentItem[]>>;
   setFighterCost: React.Dispatch<React.SetStateAction<string>>;
+  editionSlug?: string | null;
 }
 
 /**
@@ -34,6 +35,7 @@ export function EquipmentSelection({
   selectedEquipment,
   setSelectedEquipment,
   setFighterCost,
+  editionSlug,
 }: EquipmentSelectionProps) {
   if (!equipmentSelection) return null;
 
@@ -72,11 +74,9 @@ export function EquipmentSelection({
           });
         }
 
-        const sortedCategories = Object.keys(categorizedOptions).sort((a, b) => {
-          const rankA = equipmentCategoryRank[a] ?? Infinity;
-          const rankB = equipmentCategoryRank[b] ?? Infinity;
-          return rankA - rankB;
-        });
+        const sortedCategories = Object.keys(categorizedOptions).sort((a, b) =>
+          compareEquipmentCategories(a, b, editionSlug)
+        );
 
         // Don't render anything if no options
         if ((!categoryData.default || categoryData.default.length === 0) &&
@@ -428,16 +428,11 @@ export function EquipmentSelection({
 
                               setSelectedEquipment((prev) => {
                                 const currentCategoryOptions = categoryData.options || [];
-                                const previouslySelectedInThisCategory = selectedEquipmentIds.filter(id =>
-                                  currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
+                                let filtered = prev.filter(item =>
+                                  !currentCategoryOptions.some((o: any) =>
+                                    o.id === item.equipment_id && selectedEquipmentIds.includes(`${categoryId}-${o.id}`)
+                                  )
                                 );
-                                let filtered = prev.filter(item => {
-                                  const wasSelectedFromThisCategory = previouslySelectedInThisCategory.some(selectedId => {
-                                    const equipmentIdFromSelected = selectedId.split('-').pop();
-                                    return equipmentIdFromSelected === item.equipment_id;
-                                  });
-                                  return !wasSelectedFromThisCategory;
-                                });
                                 if (categoryData.select_type === 'optional_single' && categoryData.default && categoryData.default.length > 0) {
                                   categoryData.default.forEach((defaultItem: any) => {
                                     filtered = filtered.filter(item => item.equipment_id !== defaultItem.id);

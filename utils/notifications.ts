@@ -18,7 +18,8 @@ export type NotificationType =
   | 'campaign_invite'
   | 'friend_request'
   | 'battle_invite'
-  | 'gang_invite';
+  | 'gang_invite'
+  | 'campaign_join_request';
 
 export interface NotificationEmailConfig {
   /** Human label shown on the preferences screen. */
@@ -51,6 +52,13 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
     supportsEmail: true,
     defaultEnabled: true,
     subject: 'You have a new friend request on Munda Manager',
+  },
+  // Requests to join a campaign — every OWNER/ARBITRATOR is asked to accept/decline.
+  campaign_join_request: {
+    label: 'Campaign join requests',
+    supportsEmail: true,
+    defaultEnabled: true,
+    subject: 'Someone wants to join your campaign',
   },
   // Not email-eligible (in-app only) — kept here so the type union is exhaustive.
   info: { label: 'Account & campaign updates', supportsEmail: false, defaultEnabled: false, subject: '' },
@@ -146,7 +154,7 @@ export function shouldShowNotificationLinkAttachment(
   type: NotificationType,
   link: string | null | undefined
 ): link is string {
-  if (type === 'friend_request' || type === 'gang_invite') {
+  if (type === 'friend_request' || type === 'gang_invite' || type === 'campaign_join_request') {
     return false;
   }
 

@@ -25,6 +25,7 @@ RETURNS TABLE (
     availability text,
     base_cost numeric,
     adjusted_cost numeric,
+    trade_points text,
     equipment_category text,
     equipment_type text,
     created_at timestamptz,
@@ -59,9 +60,12 @@ AS $$
             g.custom_gang_type_id,
             cg.campaign_type_allegiance_id,
             fgl.fighter_type_id AS legacy_ft_id,
-            ga.fighter_type_id  AS affiliation_ft_id
+            ga.fighter_type_id  AS affiliation_ft_id,
+            COALESCE(gt.edition_id, cgt.edition_id) AS edition_id
         FROM (SELECT 1) AS _dummy
         LEFT JOIN gangs g ON g.id = $8
+        LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+        LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
         LEFT JOIN LATERAL (
             SELECT cg2.campaign_type_allegiance_id
             FROM campaign_gangs cg2
@@ -127,6 +131,20 @@ AS $$
                 '{}'::text[]
             ) AS tp_names
         FROM tp_access ta
+        -- Gang-exclusive allow-list: an item flagged "available only to this gang"
+        -- (an exclusive gang-type availability row) is hidden from the Trading Post
+        -- of gangs that are not on its allow-list. Scoped to Trading Post access
+        -- only, so the fighter's-list path is unaffected.
+        WHERE NOT EXISTS (
+                  SELECT 1 FROM equipment_availability xa
+                  WHERE xa.equipment_id = ta.equipment_id
+                    AND xa.exclusive AND xa.gang_type_id IS NOT NULL
+              )
+           OR EXISTS (
+                  SELECT 1 FROM equipment_availability xa
+                  WHERE xa.equipment_id = ta.equipment_id
+                    AND xa.exclusive AND xa.gang_type_id = $1
+              )
         GROUP BY ta.equipment_id
     ),
 
@@ -149,7 +167,19 @@ AS $$
         SELECT
             ed.equipment_id,
             MIN(ed.adjusted_cost::numeric)
-                FILTER (WHERE ed.adjusted_cost IS NOT NULL) AS best_adjusted_cost
+                FILTER (WHERE ed.adjusted_cost IS NOT NULL) AS best_adjusted_cost,
+            -- Prefer any non-null trade_points override in the same discount scope.
+            -- Cheapest numerically ("E"/non-numeric → 0); text ASC as stable tie-break.
+            (ARRAY_AGG(
+                ed.trade_points
+                ORDER BY
+                    CASE
+                        WHEN upper(btrim(ed.trade_points)) = 'E' OR btrim(ed.trade_points) = '' THEN 0::numeric
+                        WHEN ed.trade_points ~ '^[0-9]+$' THEN ed.trade_points::numeric
+                        ELSE 0::numeric
+                    END ASC,
+                    ed.trade_points ASC
+            ) FILTER (WHERE ed.trade_points IS NOT NULL))[1] AS best_trade_points
         FROM equipment_discounts ed
         CROSS JOIN gang_data gd
         WHERE
@@ -254,6 +284,12 @@ AS $$
             ELSE COALESCE(bac.best_adjusted_cost, e.cost::numeric)
         END AS adjusted_cost,
 
+        -- Trade Points: a Trading Post price, so the fighter's-list-only request pays none
+        CASE
+            WHEN $4 = true AND $5 IS NULL THEN '0'
+            ELSE COALESCE(bac.best_trade_points, e.trade_points)
+        END AS trade_points,
+
         e.equipment_category,
         e.equipment_type,
         e.created_at,
@@ -261,7 +297,7 @@ AS $$
         -- Is in fighter's equipment list? (computed once in ftl_flag below)
         ftl_flag.is_fighter_list AS fighter_type_equipment,
 
-        -- Has trading post access?
+        -- Has trading post access? (tp_summary is gang-exclusivity-aware)
         COALESCE(tp.has_access, false) AS equipment_tradingpost,
 
         false AS is_custom,
@@ -279,6 +315,7 @@ AS $$
                     'strength', wp.strength,
                     'ap', wp.ap,
                     'damage', wp.damage,
+                    'lethality', wp.lethality,
                     'ammo', wp.ammo,
                     'traits', wp.traits,
                     'sort_order', wp.sort_order
@@ -436,6 +473,12 @@ AS $$
             -- Trading post only
             ($4 IS NULL AND $5 IS NOT NULL AND COALESCE(tp.has_access, false) = $5)
         )
+        -- Unrestricted: only equipment from the gang's edition
+        AND (
+            NOT ($4 IS NULL AND $5 IS NULL)
+            OR gd.edition_id IS NULL
+            OR e.edition_id = gd.edition_id
+        )
 
     UNION ALL
 
@@ -458,6 +501,10 @@ AS $$
               OR custom_tp.cost_reputation THEN ce.cost::numeric
             ELSE COALESCE(custom_tp.adjusted_cost, custom_tp.cost_override, ce.cost::numeric)
         END AS adjusted_cost,
+        CASE
+            WHEN $4 = true AND $5 IS NULL THEN '0'
+            ELSE ce.trade_points
+        END AS trade_points,
         ce.equipment_category,
         ce.equipment_type,
         ce.created_at,
@@ -478,6 +525,7 @@ AS $$
                     'strength', cwp.strength,
                     'ap', cwp.ap,
                     'damage', cwp.damage,
+                    'lethality', cwp.lethality,
                     'ammo', cwp.ammo,
                     'traits', cwp.traits,
                     'sort_order', cwp.sort_order
@@ -501,6 +549,7 @@ AS $$
         custom_tp.cost_campaign_resource_id,
         COALESCE(custom_tp.banned, false) AS banned
     FROM custom_equipment ce
+    CROSS JOIN gang_data gd
     LEFT JOIN (
         SELECT cs.custom_equipment_id
         FROM custom_shared cs
@@ -566,6 +615,12 @@ AS $$
             ($4 IS NULL AND $5 IS NULL)                              -- no filter
             OR ($4 IS NOT NULL AND COALESCE(ftl.is_ftl, false) = $4) -- fighter's list requested
             OR ($5 IS NOT NULL AND true = $5)                        -- trading post requested
+        )
+        -- Unrestricted: only custom equipment from the gang's edition
+        AND (
+            NOT ($4 IS NULL AND $5 IS NULL)
+            OR gd.edition_id IS NULL
+            OR ce.edition_id = gd.edition_id
         )
 $$;
 

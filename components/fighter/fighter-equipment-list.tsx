@@ -9,6 +9,7 @@ import { UserPermissions } from '@/types/user-permissions';
 import { sellEquipmentFromFighter } from '@/app/actions/sell-equipment';
 import { moveEquipmentToStash } from '@/app/actions/move-to-stash';
 import { deleteEquipmentFromFighter, buyEquipmentForFighter, deleteEquipmentEffect } from '@/app/actions/equipment';
+import { parseTradePointsCost } from '@/utils/campaigns/resources';
 import { Button } from "@/components/ui/button";
 import { MdCurrencyExchange } from 'react-icons/md';
 import { FaBox } from 'react-icons/fa';
@@ -27,6 +28,18 @@ import { setActiveLoadout } from '@/app/actions/loadouts';
 import { EquipmentTooltipTrigger } from '@/components/equipment/equipment-tooltip';
 import { Tooltip } from 'react-tooltip';
 import { getTooltipAttribute } from '@/components/ui/tooltip-renderers';
+
+// No active loadout, or one we can't resolve, means nothing is out of it.
+export function isEquipmentInActiveLoadout(
+  fighterEquipmentId: string,
+  loadouts: FighterLoadout[],
+  activeLoadoutId: string | null | undefined
+): boolean {
+  if (!activeLoadoutId) return true;
+  const activeLoadout = loadouts.find(l => l.id === activeLoadoutId);
+  if (!activeLoadout) return true;
+  return activeLoadout.equipment_ids.includes(fighterEquipmentId);
+}
 
 function renderExoticBeastCostTooltip({ content, activeAnchor }: { content: React.ReactNode; activeAnchor: Element | null }) {
   const base = getTooltipAttribute(activeAnchor, 'data-tooltip-cost-base');
@@ -75,11 +88,13 @@ interface WeaponListProps {
   onAddEquipment: () => void;
   userPermissions: UserPermissions;
   onRegisterPurchase?: (fn: (payload: { params: any; item: Equipment }) => void) => void;
+  onGangTradePointsUpdate?: (newTradePoints: number) => void;
   fighterEffects?: Record<string, FighterEffect[]>;
   onEffectsUpdate?: (updatedEffects: Record<string, FighterEffect[]>) => void;
   loadouts?: FighterLoadout[];
   activeLoadoutId?: string | null;
   onLoadoutsUpdate?: (loadouts: FighterLoadout[], activeLoadoutId: string | null) => void;
+  editionSlug?: string | null;
 }
 
 
@@ -93,11 +108,13 @@ export function WeaponList({
   onAddEquipment,
   userPermissions,
   onRegisterPurchase,
+  onGangTradePointsUpdate,
   fighterEffects = {},
   onEffectsUpdate,
   loadouts = [],
   activeLoadoutId,
-  onLoadoutsUpdate
+  onLoadoutsUpdate,
+  editionSlug
 }: WeaponListProps) {
   const [showLoadoutsModal, setShowLoadoutsModal] = useState(false);
   
@@ -165,9 +182,18 @@ export function WeaponList({
 
           onEquipmentUpdate(updated, previousFighterCredits + serverRatingCost, newGangCredits);
 
-          const costText = item.cost_resource_name
+          const newGangTradePoints = data?.updategangsCollection?.records?.[0]?.trade_points;
+          if (onGangTradePointsUpdate && newGangTradePoints !== undefined) {
+            onGangTradePointsUpdate(newGangTradePoints);
+          }
+
+          const baseCostText = item.cost_resource_name
             ? `${item.cost_resource_amount} ${item.cost_resource_name}`
             : `${serverPurchaseCost} credits`;
+          const tradePointsCost = parseTradePointsCost(params.manual_trade_points);
+          const costText = tradePointsCost > 0
+            ? `${baseCostText} and ${tradePointsCost} TP`
+            : baseCostText;
           toast.success('Equipment purchased', { description: `Successfully bought ${item.equipment_name} for ${costText}` });
         } catch (err) {
           onEquipmentUpdate(previousEquipment, previousFighterCredits, previousGangCredits);
@@ -175,7 +201,7 @@ export function WeaponList({
         }
       });
     }
-  }, [onRegisterPurchase, equipment, fighterCredits, gangCredits, onEquipmentUpdate]);
+  }, [onRegisterPurchase, equipment, fighterCredits, gangCredits, onEquipmentUpdate, onGangTradePointsUpdate]);
 
   const handleDeleteEquipment = async (fighterEquipmentId: string, equipmentId: string) => {
     // Snapshot for rollback
@@ -633,22 +659,9 @@ export function WeaponList({
     setActiveLoadoutMutation.mutate(loadoutId);
   };
 
-  // Helper function to check if equipment is in the active loadout
-  const isEquipmentInActiveLoadout = (fighterEquipmentId: string): boolean => {
-    // If no loadout is active, all equipment is "in" the loadout (show normally)
-    if (!activeLoadoutId) return true;
-
-    // Find the active loadout
-    const activeLoadout = loadouts.find(l => l.id === activeLoadoutId);
-    if (!activeLoadout) return true;
-
-    // Check if this equipment is in the loadout's equipment_ids
-    return activeLoadout.equipment_ids.includes(fighterEquipmentId);
-  };
-
   const renderRow = (item: Equipment, isChild: boolean = false) => {
     // Check if this equipment is in the active loadout (or if no loadout is active)
-    const isInActiveLoadout = isEquipmentInActiveLoadout(item.fighter_equipment_id);
+    const isInActiveLoadout = isEquipmentInActiveLoadout(item.fighter_equipment_id, loadouts, activeLoadoutId);
     // Apply muted styling if a loadout is active and this equipment is not in it
     const shouldMute = activeLoadoutId !== null && !isInActiveLoadout;
     const mutedClass = shouldMute ? "text-muted-foreground" : "";
@@ -659,7 +672,7 @@ export function WeaponList({
         className={isChild ? "border-b bg-muted/20" : "border-b"}
       >
         <td className="px-1 py-1">
-          <EquipmentTooltipTrigger item={item} className="block w-full">
+          <EquipmentTooltipTrigger item={item} className="block w-full" editionSlug={editionSlug}>
             <>
               {isChild && <span className="text-muted-foreground mr-1" style={{ position: 'relative', top: '-4px' }}><TbCornerLeftUp className="inline" /></span>}
               <span className={`${isChild ? "text-sm" : ""} ${mutedClass}`}>{item.equipment_name}</span>
@@ -768,7 +781,7 @@ export function WeaponList({
     if (equipmentEffects.length === 0) return null;
 
     // Check if parent equipment is in active loadout (effects should match parent's muted state)
-    const isInActiveLoadout = isEquipmentInActiveLoadout(item.fighter_equipment_id);
+    const isInActiveLoadout = isEquipmentInActiveLoadout(item.fighter_equipment_id, loadouts, activeLoadoutId);
     const shouldMute = activeLoadoutId !== null && !isInActiveLoadout;
     const mutedClass = shouldMute ? "text-muted-foreground" : "";
 
@@ -956,6 +969,7 @@ export function WeaponList({
                 : sellModalData.cost ?? 0
           }
           showD6Roll={!sellModalData.cost_resource_name}
+          editionSlug={editionSlug}
           costLabel={sellModalData.cost_resource_name || 'Cost'}
           onClose={() => setSellModalData(null)}
           onConfirm={(cost) => { void handleSellEquipment(

@@ -27,7 +27,8 @@ RETURNS TABLE(
     alliance_id uuid,
     alliance_name text,
     alliance_type text,
-    gang_variants json
+    gang_variants json,
+    edition_slug text
 )
 LANGUAGE plpgsql
 STABLE SECURITY DEFINER
@@ -53,8 +54,9 @@ BEGIN
            f.label,
            f.fighter_type,
            f.fighter_type_id,
-           f.fighter_class,
-           f.fighter_sub_type_id,
+           f.fighter_subtypes,
+           f.fighter_specialisation_id,
+           f.fighter_variant,
            f.xp,
            f.kills,
            f.position,
@@ -584,11 +586,12 @@ BEGIN
            f.label,
            f.fighter_type,
            f.fighter_type_id,
-           f.fighter_class,
+           f.fighter_subtypes,
            json_build_object(
-             'fighter_sub_type', fst.sub_type_name,
-             'fighter_sub_type_id', fst.id
-           ) AS fighter_sub_type,
+             'fighter_specialisation', fspec.specialisation_name,
+             'fighter_specialisation_id', fspec.id
+           ) AS fighter_specialisation,
+           f.fighter_variant,
            ft.alliance_crew_name,
            f.xp,
            f.kills,
@@ -626,7 +629,7 @@ BEGIN
            COALESCE(fsk.skills, '{}'::json) as skills,
            COALESCE(fvj.vehicles, '[]'::json) as vehicles
        FROM gang_fighters f
-       LEFT JOIN fighter_sub_types fst ON fst.id = f.fighter_sub_type_id
+       LEFT JOIN fighter_specialisations fspec ON fspec.id = f.fighter_specialisation_id
        LEFT JOIN fighter_types ft ON ft.id = f.fighter_type_id
        LEFT JOIN fighter_equipment_costs fec ON fec.fighter_id = f.f_id
        LEFT JOIN fighter_equipment_details fed ON fed.fighter_id = f.f_id
@@ -730,8 +733,9 @@ BEGIN
                'fighter_name', cf.fighter_name,
                'label', cf.label,
                'fighter_type', cf.fighter_type,
-               'fighter_class', cf.fighter_class,
-               'fighter_sub_type', cf.fighter_sub_type,
+               'fighter_subtypes', cf.fighter_subtypes,
+               'fighter_specialisation', cf.fighter_specialisation,
+               'fighter_variant', cf.fighter_variant,
                'alliance_crew_name', cf.alliance_crew_name,
                'position', cf.position,
                'xp', cf.xp,
@@ -824,9 +828,12 @@ BEGIN
        g.alliance_id,
        a.alliance_name,
        a.alliance_type,
-       (SELECT variant_info FROM gang_variant_info) as gang_variants
+       (SELECT variant_info FROM gang_variant_info) as gang_variants,
+       ed.slug AS edition_slug
    FROM gangs g
    LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+   LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
+   LEFT JOIN editions ed ON ed.id = COALESCE(gt.edition_id, cgt.edition_id)
    LEFT JOIN alliances a ON a.id = g.alliance_id
    WHERE g.id = p_gang_id;
 END;

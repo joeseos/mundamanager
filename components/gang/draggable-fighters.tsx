@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { rectSortingStrategy, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { useDndSensorsConfig } from '@/hooks/use-dnd-sensors';
+import { useDndSensorsConfig, useSuppressClickAfterDrag } from '@/hooks/use-dnd-sensors';
 import { useIsMounted } from '@/hooks/use-is-mounted';
 import { MyFighters } from './my-fighters';
 import { FighterProps } from '@/types/fighter';
@@ -108,7 +108,13 @@ export function DraggableFighters({
 
   const sensors = useDndSensorsConfig();
 
+  const suppressClickAfterDrag = useSuppressClickAfterDrag('.fighter-card-bg');
+
   const handleDragEnd = async (event: any) => {
+    // Always consider suppress for pointer drags — including same-position drops — because a
+    // real drag still produces a trailing click.
+    suppressClickAfterDrag(event.activatorEvent);
+
     const { active, over } = event;
     
     if (!active || !over || active.id === over.id) {
@@ -216,6 +222,7 @@ export function DraggableFighters({
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
+      onDragCancel={(event) => suppressClickAfterDrag(event.activatorEvent)}
     >
       <SortableContext
         items={sortedFighters.map(f => f.id)}

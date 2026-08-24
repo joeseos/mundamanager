@@ -1,11 +1,12 @@
-import React, { useEffect, useRef, useState, memo, useMemo, useCallback } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState, memo, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { StatsTable, StatsType } from '../ui/fighter-card-stats-table';
 import WeaponTable from './fighter-card-weapon-table';
 import { Equipment } from '@/types/equipment';
 import { FighterProps, FighterEffect, Vehicle, VehicleEquipment, FighterSkills } from '@/types/fighter';
+import { hasSaveCharacteristic } from '@/types/edition';
 import { calculateAdjustedStats, applySpecialRulesModifiers } from '@/utils/effect-modifiers';
-import { injuryAggregationLabel } from '@/utils/bitterEnmityDisplay';
+import { injuryAggregationLabel } from '@/utils/injuryTarget';
 import { TbMeatOff } from "react-icons/tb";
 import { GiHandcuffs, GiImprisoned } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";
@@ -24,13 +25,21 @@ const COMPACT_SCALE_PERCENT = {
 } as const;
 // At this viewport width, scale equals the mode percent (e.g. 2-card → 0.65)
 const COMPACT_DESIGN_WIDTH = 800;
+// `.fighter-card-bg` (cardClassName below) uses `border-2` (2px top + 2px bottom) and is
+// `box-sizing: border-box`, so a `min-height` set on it gives its content-box 4px less room
+// than the number itself — the content-box is what the absolutely-positioned inner wrapper
+// (`inset-0`) actually measures against. Without adding this back, the measured content
+// overflows that inner wrapper's `overflow-hidden` and its last line gets clipped.
+// The constant is 8 (not 4) on purpose: 4px covers the border-box shortfall, and an extra
+// 4px is a safety margin for sub-pixel rounding under `transform: scale(...)`.
+const COMPACT_CARD_VERTICAL_BORDER_PX = 8;
 
 interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_type' | 'vehicles' | 'skills' | 'effects'> {
   name: string;  // maps to fighter_name
   type: string;  // maps to fighter_type
   label?: string;
-  fighter_class?: string;
-  fighter_sub_type?: { fighter_sub_type: string; fighter_sub_type_id: string } | null;
+  fighter_specialisation?: { fighter_specialisation: string; fighter_specialisation_id: string } | null;
+  fighter_variant?: string | null;
   alliance_crew_name?: string;
   killed?: boolean;
   retired?: boolean;
@@ -124,8 +133,9 @@ const FighterCard = memo(function FighterCard({
   name,
   type,
   label,
-  fighter_class,
-  fighter_sub_type,
+  fighter_subtypes,
+  fighter_specialisation,
+  fighter_variant,
   alliance_crew_name,
   credits,
   loadout_cost,
@@ -142,7 +152,10 @@ const FighterCard = memo(function FighterCard({
   cool,
   willpower,
   intelligence,
+  save,
+  edition_slug,
   xp,
+  starting_xp = null,
   advancements,
   weapons,
   wargear,
@@ -171,10 +184,11 @@ const FighterCard = memo(function FighterCard({
   dragAttributes,
   disableHoverEffects = false,
   is_spyrer = false,
+  is_vehicle = false,
 }: FighterCardProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [isMultiline, setIsMultiline] = useState(false);
-  const isCrew = fighter_class === 'Crew';
+  const isCrew = fighter_subtypes?.includes('Crew') ?? false;
   const isLoading = id.startsWith('temp-');
 
   const isNormalView = viewMode === 'normal' || viewMode === undefined;
@@ -188,9 +202,10 @@ const FighterCard = memo(function FighterCard({
     isMultiline ? 'grid-cols-[4.5rem_minmax(0,1fr)]' : 'grid-cols-[6rem_minmax(0,1fr)]'
   }`;
 
-  // View Mode card size — width comes from the parent grid column (4 / 3 / 2 cols)
-  const cardAspectRatio = 'aspect-[1.448/1]';
-  const compactCardSize = `w-full min-w-0 ${cardAspectRatio}`;
+  // View Mode card size — width comes from the parent grid column (4 / 3 / 2 cols).
+  // Height is driven by measured content height (see compactMinHeightPx below); `grow`/`min-h-0`
+  // let it fill a row stretched (via CSS Grid `items-stretch` in my-fighters.tsx) to the tallest card.
+  const compactCardSize = 'w-full min-w-0 grow min-h-0';
   const isPrintAutoHeight = isPrintView && scaleToContent;
   const printCardSize = isPrintAutoHeight ? 'w-[630px] h-auto shrink-0' : 'w-[630px] h-[435px] shrink-0';
   const useTightLayoutWrapping = isTightLayoutView && !isPrintAutoHeight;
@@ -209,6 +224,30 @@ const FighterCard = memo(function FighterCard({
           width: `${100 / compactScale}%`,
         }
       : undefined;
+
+  // Measure the card's natural (unscaled) content height so the card view can size each card to
+  // its own content — instead of clipping it to a fixed aspect ratio — while still letting shorter
+  // cards in the same row stretch to match the tallest (via `items-stretch` in my-fighters.tsx).
+  const compactContentRef = useRef<HTMLDivElement>(null);
+  const [compactNaturalHeight, setCompactNaturalHeight] = useState(0);
+
+  useLayoutEffect(() => {
+    if (!isCompactView) return;
+    const el = compactContentRef.current;
+    if (!el) return;
+
+    const updateHeight = () => setCompactNaturalHeight(el.scrollHeight);
+    updateHeight();
+
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isCompactView]);
+
+  const compactMinHeightPx = isCompactView && compactNaturalHeight > 0
+    ? Math.ceil(compactNaturalHeight * compactScale) + COMPACT_CARD_VERTICAL_BORDER_PX
+    : undefined;
 
   // Move getVehicleWeapons function before its usage
   const getVehicleWeapons = (vehicle: Vehicle | undefined) => {
@@ -290,8 +329,8 @@ const FighterCard = memo(function FighterCard({
       id,
       fighter_name: name,
       fighter_type: type,
-      fighter_class,
-      fighter_sub_type,
+      fighter_subtypes,
+      fighter_specialisation,
       credits,
       movement,
       weapon_skill,
@@ -305,6 +344,7 @@ const FighterCard = memo(function FighterCard({
       cool,
       willpower,
       intelligence,
+      save,
       xp,
       kills,
       skills: skills, // Direct assignment since skills is already in the correct format
@@ -358,9 +398,9 @@ const FighterCard = memo(function FighterCard({
       }
     };
   }, [
-    id, name, type, fighter_class, fighter_sub_type, credits, movement, weapon_skill,
+    id, name, type, fighter_subtypes, fighter_specialisation, credits, movement, weapon_skill,
     ballistic_skill, strength, toughness, wounds, initiative,
-    attacks, leadership, cool, willpower, intelligence, xp,
+    attacks, leadership, cool, willpower, intelligence, save, xp,
     kills, advancements, weapons, wargear, special_rules, effects, skills
   ]);
 
@@ -374,6 +414,11 @@ const FighterCard = memo(function FighterCard({
 
   // Update stats calculation to use modifiedStats
   const stats = useMemo((): StatsType => {
+    // A model whose type cannot gain XP has no recruitment value, and the
+    // roster reads N/A for it. The number takes over the moment the model
+    // actually holds XP, so a group house-ruling XP onto it still sees it.
+    const xpDisplay = starting_xp == null && !xp ? 'N/A' : xp;
+
     if (isCrew) {
       return {
         'M': vehicleStats ? `${vehicleStats.movement}"` : '*',
@@ -388,7 +433,7 @@ const FighterCard = memo(function FighterCard({
         'Cl': `${adjustedStats.cool}+`,
         'Wil': `${adjustedStats.willpower}+`,
         'Int': `${adjustedStats.intelligence}+`,
-        'XP': xp
+        'XP': xpDisplay
       };
     }
     
@@ -401,13 +446,14 @@ const FighterCard = memo(function FighterCard({
       'W': adjustedStats.wounds,
       'I': `${adjustedStats.initiative}+`,
       'A': adjustedStats.attacks,
+      ...(hasSaveCharacteristic(edition_slug) && { 'Sv': adjustedStats.save != null ? `${adjustedStats.save}+` : '-' }),
       'Ld': `${adjustedStats.leadership}+`,
       'Cl': `${adjustedStats.cool}+`,
       'Wil': `${adjustedStats.willpower}+`,
       'Int': `${adjustedStats.intelligence}+`,
-      'XP': xp
+      'XP': xpDisplay
     };
-  }, [isCrew, vehicleStats, adjustedStats, xp]);
+  }, [isCrew, vehicleStats, adjustedStats, xp, starting_xp, edition_slug]);
 
   const isInactive = killed || retired || enslaved || recovery;
 
@@ -456,15 +502,19 @@ const FighterCard = memo(function FighterCard({
     };
   }, [adjustedSpecialRules]);
 
-  // Use programmatic navigation to avoid Link prefetching
+  // Use programmatic navigation to avoid Link prefetching.
+  // Post-drag click suppression lives in `draggable-fighters.tsx` (document capture listener):
+  // the trailing click after a drop often lands on a *different* card than the one dragged,
+  // so a per-card flag here is not enough.
   const router = useRouter();
+
   const handleCardClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
     // Allow right-click, middle-click, and modifier keys for native behavior
     if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     e.preventDefault();
-    if (isLoading) return;
+    if (disableLink || isLoading) return;
     router.push(`/fighter/${id}`);
-  }, [id, router, isLoading]);
+  }, [id, router, isLoading, disableLink]);
 
   const hoverEffectClass = disableHoverEffects
     ? 'shadow-none'
@@ -474,6 +524,12 @@ const FighterCard = memo(function FighterCard({
         ${isPrintView ? `${printCardSize} p-2 relative` : isNormalView ? 'p-4' : `${compactCardSize} relative`} fighter-card-bg
         ${isLoading ? 'cursor-default' : ''}
         ${dragListeners && dragAttributes ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''}`;
+
+  const typeLine = [
+    `${type}${alliance_crew_name ? ` - ${alliance_crew_name}` : ''}${fighter_subtypes?.length ? ` (${fighter_subtypes.join(', ')})` : ''}`,
+    fighter_variant,
+    fighter_specialisation?.fighter_specialisation,
+  ].filter(Boolean).join(', ');
 
   const cardBody = (
     <div
@@ -485,9 +541,23 @@ const FighterCard = memo(function FighterCard({
           backgroundColor: '#faf9f7',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
+          ...(compactMinHeightPx ? { minHeight: `${compactMinHeightPx}px` } : {}),
           // Prevent hover effects from sticking on touch devices
           WebkitTapHighlightColor: 'transparent',
-          touchAction: 'manipulation'
+          touchAction: 'manipulation',
+          // The long press that starts a drag is also a long press on the card's text, so iOS
+          // opens its text-selection magnifier over your finger — it reads as the page zooming
+          // mid-drag. Only on draggable cards, so view-only and print cards keep selectable text.
+          //
+          // This also removes the short haptic tick iOS played when that gesture fired. That tick
+          // was never ours — there's no vibration code in the app — and it can't be reinstated:
+          // since iOS 18.4 navigator.vibrate needs a recent *click* to be granted, and dragging
+          // doesn't count. Losing it is the accepted trade for losing the magnifier.
+          ...(dragListeners ? {
+            WebkitUserSelect: 'none' as const,
+            userSelect: 'none' as const,
+            WebkitTouchCallout: 'none' as const,
+          } : {})
         }}
       >
       {isLoading && (
@@ -496,7 +566,22 @@ const FighterCard = memo(function FighterCard({
         </div>
       )}
       <div className={useTightLayoutWrapping ? 'absolute inset-0 overflow-hidden' : 'contents'}>
-      <div className={useTightLayoutWrapping ? 'pl-2 pr-2 min-w-0 w-full h-full' : isPrintAutoHeight ? 'pl-2 pr-2' : 'contents'} style={compactInnerScaleStyle}>
+      <div
+        ref={isCompactView ? compactContentRef : undefined}
+        className={
+          isCompactView
+            // overflow-hidden here (not for clipping — this div is never height-constrained) contains
+            // any trailing child margin (e.g. the header's mb-[90px] when a card has no other content,
+            // like an inactive fighter) so it's included in scrollHeight instead of collapsing through.
+            ? 'pl-2 pr-2 min-w-0 w-full overflow-hidden'
+            : useTightLayoutWrapping
+              ? 'pl-2 pr-2 min-w-0 w-full h-full'
+              : isPrintAutoHeight
+                ? 'pl-2 pr-2'
+                : 'contents'
+        }
+        style={compactInnerScaleStyle}
+      >
       <div className={`flex ${isNormalView ? 'mb-[80px]' : 'mb-[90px]'}`}>
         <div className="flex w-full">
           <div
@@ -518,10 +603,7 @@ const FighterCard = memo(function FighterCard({
               <div className="flex flex-col items-baseline w-full min-w-0">
                 <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white mr-2 print:text-foreground fancy-print-keep-color-heading truncate w-full">{name}</div>
                 <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden text-ellipsis whitespace-nowrap w-full print:text-muted-foreground fancy-print-keep-color-subtitle">
-                  {type}
-                  {alliance_crew_name && ` - ${alliance_crew_name}`}
-                  {fighter_class && ` (${fighter_class})`}
-                  {fighter_sub_type && fighter_sub_type.fighter_sub_type ? `, ${fighter_sub_type.fighter_sub_type}` : ''}
+                  {typeLine}
                 </div>
               </div>
             </div>
@@ -595,27 +677,27 @@ const FighterCard = memo(function FighterCard({
           )}
           
           <div>
-            <StatsTable data={stats} isCrew={isCrew} viewMode={viewMode} />
+            <StatsTable data={stats} isCrew={isCrew} viewMode={viewMode} editionSlug={edition_slug} />
           </div>
 
           {/* Show fighter weapons */}
           {!isCrew && weapons && weapons.length > 0 && (
             <div className={`${owner_name ? 'mt-0' : (isNormalView ? 'mt-2' : 'mt-0')}`}>
-              <WeaponTable weapons={weapons} viewMode={viewMode}/>
+              <WeaponTable weapons={weapons} viewMode={viewMode} editionSlug={edition_slug}/>
             </div>
           )}
 
           {/* Show crew weapons */}
           {isCrew && weapons && weapons.length > 0 && (
             <div className={`${owner_name ? 'mt-0' : (isNormalView ? 'mt-2' : 'mt-0')}`}>
-              <WeaponTable weapons={weapons} entity="crew" viewMode={viewMode} />
+              <WeaponTable weapons={weapons} entity="crew" viewMode={viewMode} editionSlug={edition_slug} />
             </div>
           )}
 
           {/* Add vehicle weapons section */}
           {isCrew && vehicleWeapons.length > 0 && (
             <div className={`${isNormalView ? 'mt-2' : 'mt-0'}`}>
-              <WeaponTable weapons={vehicleWeapons} entity="vehicle" viewMode={viewMode} />
+              <WeaponTable weapons={vehicleWeapons} entity="vehicle" viewMode={viewMode} editionSlug={edition_slug} />
             </div>
           )}
 
@@ -766,7 +848,8 @@ const FighterCard = memo(function FighterCard({
 
             {effects && effects.injuries && effects.injuries.length > 0 && (
               <>
-                <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Injuries</div>
+                {/* Abbreviated to fit the narrow column (4.5rem in multiline mode); checked on small screens — no clipping. */}
+                <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Last. Injuries</div>
                 <div className={detailValueClass}>
                   {Object.entries(
                     effects.injuries
@@ -841,14 +924,32 @@ const FighterCard = memo(function FighterCard({
     </div>
   ) : null;
 
-  const cardWithOptionalLink = disableLink ? cardBody : (
-    <a href={isLoading ? '#' : `/fighter/${id}`} onClick={handleCardClick} className="block">
+  // Always render the same `<a>` wrapper (never swap it for a bare div based on `disableLink`).
+  // Switching the wrapper's element type (e.g. while `isDragging` toggles `disableLink` on/off)
+  // would make React unmount and remount everything inside, including the compact-view content
+  // div that `compactContentRef` measures. Its `ResizeObserver` closes over that specific DOM
+  // node and never re-subscribes (the effect's deps are just `[isCompactView]`), so once that
+  // node is torn down, the observer is watching a detached element — which reports a 0 content
+  // rect — and `compactNaturalHeight`/`compactMinHeightPx` get stuck at 0 forever after. That's
+  // what caused a dragged card's row to stop growing to fit it. Toggle behavior via href/onClick
+  // instead, which doesn't change the element type.
+  const cardWithOptionalLink = (
+    <a
+      href={disableLink || isLoading ? '#' : `/fighter/${id}`}
+      onClick={handleCardClick}
+      className="flex flex-col grow min-h-0"
+      tabIndex={disableLink ? -1 : undefined}
+      aria-hidden={disableLink || undefined}
+    >
       {cardBody}
     </a>
   );
 
+  // flex flex-col + grow/min-h-0 are no-ops unless an ancestor has a definite (e.g.
+  // grid-stretched) height — this lets a compact-view card fill a row stretched to its tallest
+  // sibling, without affecting normal/print layout (see components/gang/fighter-card-action-menu.tsx).
   const cardContent = (
-    <div className="relative">
+    <div className="relative flex flex-col grow min-h-0">
       {cardWithOptionalLink}
       {menuTrigger}
     </div>
@@ -857,7 +958,7 @@ const FighterCard = memo(function FighterCard({
   return (
     <FighterCardActionMenu
       fighterId={id}
-      isCrewWithVehicle={isCrew && !!vehicle}
+      hasLastingDamage={(isCrew && !!vehicle) || is_vehicle}
       isCaptured={!!captured}
       isKilled={!!killed}
       isSpyrer={is_spyrer}

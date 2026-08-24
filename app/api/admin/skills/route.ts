@@ -13,6 +13,7 @@ export async function GET(request: Request) {
   const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const skillTypeId = searchParams.get('skill_type_id');
+  const editionId = searchParams.get('edition_id');
   const effectTypeId = searchParams.get('effect_type_id');
   const modifierId = searchParams.get('modifier_id');
 
@@ -63,7 +64,10 @@ export async function GET(request: Request) {
       return NextResponse.json(data);
     }
 
-    // Handle skill queries
+    // Handle skill queries.
+    // Skills inherit edition through skill_types, but skills.skill_type_id has
+    // no FK yet, so PostgREST cannot embed skill_types (PGRST200). Resolve
+    // matching skill-set ids first, then filter skills with .in().
     let query = supabase
       .from('skills')
       .select('id, name, skill_type_id, gang_origin_id')
@@ -73,28 +77,56 @@ export async function GET(request: Request) {
       query = query.eq('skill_type_id', skillTypeId);
     }
 
+    if (editionId) {
+      let skillTypeQuery = supabase
+        .from('skill_types')
+        .select('id')
+        .eq('edition_id', editionId);
+
+      if (skillTypeId) {
+        skillTypeQuery = skillTypeQuery.eq('id', skillTypeId);
+      }
+
+      const { data: editionSkillTypes, error: skillTypesError } = await skillTypeQuery;
+      if (skillTypesError) throw skillTypesError;
+
+      const editionSkillTypeIds = (editionSkillTypes ?? []).map((st) => st.id);
+      if (editionSkillTypeIds.length === 0) {
+        if (skillTypeId) {
+          return NextResponse.json({ skills: [], effect_categories: [] });
+        }
+        return NextResponse.json([]);
+      }
+
+      query = query.in('skill_type_id', editionSkillTypeIds);
+    }
+
     const { data, error } = await query;
 
     if (error) throw error;
 
     // If fetching a specific skill, include its effects
     let transformedData;
-    if (skillTypeId && data.length > 0) {
+    if (skillTypeId) {
       // Fetch effects for all skills in the result
       const skillIds = data.map((skill: Skill) => skill.id);
 
-      const { data: effectTypes } = await supabase
-        .from('fighter_effect_types')
-        .select(`
-          id,
-          effect_name,
-          fighter_effect_category_id,
-          type_specific_data,
-          sort_order,
-          fighter_effect_categories(id, category_name)
-        `)
-        .in('type_specific_data->>skill_id', skillIds)
-        .order('sort_order', { ascending: true, nullsFirst: false });
+      let effectTypes: any[] = [];
+      if (skillIds.length > 0) {
+        const { data: effectTypeData } = await supabase
+          .from('fighter_effect_types')
+          .select(`
+            id,
+            effect_name,
+            fighter_effect_category_id,
+            type_specific_data,
+            sort_order,
+            fighter_effect_categories(id, category_name)
+          `)
+          .in('type_specific_data->>skill_id', skillIds)
+          .order('sort_order', { ascending: true, nullsFirst: false });
+        effectTypes = effectTypeData || [];
+      }
 
       // Fetch modifiers for the effect types
       let modifiers: any[] = [];
@@ -128,7 +160,7 @@ export async function GET(request: Request) {
 
       // Extract unique categories from the effects (they're already nested in each effect)
       const uniqueCategories = new Map();
-      effectTypes?.forEach((et: any) => {
+      effectTypes.forEach((et: any) => {
         if (et.fighter_effect_categories) {
           uniqueCategories.set(
             et.fighter_effect_categories.id,
@@ -265,8 +297,6 @@ export async function POST(request: Request) {
     const formattedData = {
       name: body.name,
       skill_type_id: body.skill_type_id,
-      xp_cost: parseInt(body.xp_cost) || 0,
-      credit_cost: parseInt(body.credit_cost) || 0,
       gang_origin_id: body.gang_origin_id || null
     };
 

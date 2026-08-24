@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from 'sonner';
 import { AdminFighterEffects } from "./admin-fighter-effects";
+import { EditionSelect } from '@/components/edition-select';
 import {
   FighterEffectType,
   FighterEffectCategory,
@@ -30,6 +31,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
   const [selectedCategory, setSelectedCategory] = useState<'injuries' | 'rig-glitches'>('injuries');
   const [selectedEffectId, setSelectedEffectId] = useState('');
   const [effectName, setEffectName] = useState('');
+  const [editionId, setEditionId] = useState('');
   const [isCreateMode, setIsCreateMode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fighterEffects, setFighterEffects] = useState<FighterEffectType[]>([]);
@@ -73,6 +75,22 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
   // Computed disabled state for form fields
   const isFormDisabled = (!isCreateMode && !selectedEffectId) || isLoading;
 
+  // Edition is the top-level filter: only effects of the chosen edition are
+  // offered for editing, and created/saved effects keep that edition
+  const filteredEffects = editionId
+    ? effects.filter(effect => effect.edition_id === editionId)
+    : effects;
+
+  const handleEditionChange = (newEditionId: string) => {
+    setEditionId(newEditionId);
+    if (newEditionId && selectedEffectId) {
+      const effect = effects.find(e => e.id === selectedEffectId);
+      if (effect && effect.edition_id !== newEditionId) {
+        handleEffectSelect('');
+      }
+    }
+  };
+
   const handleCategoryChange = (newCategory: 'injuries' | 'rig-glitches') => {
     setSelectedCategory(newCategory);
     setSelectedEffectId('');
@@ -92,6 +110,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
     const effect = effects.find(e => e.id === effectId);
     if (effect) {
       setEffectName(effect.effect_name);
+      setEditionId(effect.edition_id ?? '');
       setIsCreateMode(false);
       // Set the effect for AdminFighterEffects to display modifiers
       setFighterEffects([effect]);
@@ -146,14 +165,30 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
       let method: string;
       let body: string | undefined;
 
-      // Build type_specific_data
+      // Spread the existing value first: the PATCH route replaces this column
+      // wholesale, and this form knows only five of its keys. Without it,
+      // saving silently dropped skill_id, hatred_target, special_rules_to_add
+      // and the d66 ranges.
+      const existingTypeSpecificData =
+        (operation === OperationType.UPDATE ? fighterEffects[0]?.type_specific_data : null) ?? {};
+
       const typeSpecificData: TypeSpecificData = {
+        ...existingTypeSpecificData,
         recovery: recovery ? 'true' : 'false',
         convalescence: convalescence ? 'true' : 'false',
         effect_selection: effectSelection,
-        ...(appliesToEquipment && { applies_to: 'equipment' as const }),
-        ...(addsToGlitchCount && { adds_to_glitch_count: true })
+        ...(appliesToEquipment
+          ? { applies_to: 'equipment' as const }
+          : { applies_to: undefined }),
+        ...(addsToGlitchCount
+          ? { adds_to_glitch_count: true }
+          : { adds_to_glitch_count: undefined })
       };
+
+      // Unchecking a box must clear the key, not leave the spread value behind.
+      (Object.keys(typeSpecificData) as Array<keyof TypeSpecificData>).forEach((key) => {
+        if (typeSpecificData[key] === undefined) delete typeSpecificData[key];
+      });
 
       switch (operation) {
         case OperationType.POST:
@@ -161,7 +196,8 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
           body = JSON.stringify({
             effect_name: effectName,
             fighter_effect_category_id: category.id,
-            type_specific_data: typeSpecificData
+            type_specific_data: typeSpecificData,
+            edition_id: editionId || null
           });
           break;
         case OperationType.UPDATE:
@@ -170,7 +206,8 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
           body = JSON.stringify({
             effect_name: effectName,
             fighter_effect_category_id: category.id,
-            type_specific_data: typeSpecificData
+            type_specific_data: typeSpecificData,
+            edition_id: editionId || null
           });
           break;
         case OperationType.DELETE:
@@ -250,7 +287,30 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
       mod => !mod.id?.startsWith('temp-') && !updatedEffect.modifiers.some(um => um.id === mod.id)
     );
 
+    // The sub-panel reports type_specific_data changes upward but never saves
+    // them, so they were lost on close. Modifiers already save immediately.
+    const typeSpecificDataChanged =
+      JSON.stringify(currentEffect.type_specific_data ?? {}) !==
+      JSON.stringify(updatedEffect.type_specific_data ?? {});
+
     try {
+      if (typeSpecificDataChanged) {
+        const response = await fetch(`/api/admin/fighter-effects?id=${selectedEffectId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            effect_name: updatedEffect.effect_name,
+            fighter_effect_category_id: updatedEffect.fighter_effect_category_id,
+            type_specific_data: updatedEffect.type_specific_data ?? {},
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to save effect details');
+        }
+      }
+
       // Save new modifiers to the API
       for (const modifier of newModifiers) {
         const response = await fetch('/api/admin/fighter-effects', {
@@ -287,6 +347,8 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
       // If any changes were made, show success and refresh
       if (newModifiers.length > 0 || deletedModifiers.length > 0) {
         toast.success('Modifiers updated successfully');
+      } else if (typeSpecificDataChanged) {
+        toast.success('Effect updated successfully');
       }
 
       // Refresh the effects list to get the real IDs from the database
@@ -312,8 +374,8 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
       <div className="bg-card rounded-lg shadow-xl w-full max-w-3xl min-h-0 max-h-svh overflow-y-auto flex flex-col">
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <div>
-            <h3 className="text-xl md:text-2xl font-bold text-foreground">Manage Injuries & Rig Glitches</h3>
-            <p className="text-sm text-muted-foreground">Create, edit, or delete injuries and rig glitches</p>
+            <h3 className="text-xl md:text-2xl font-bold text-foreground">Manage Lasting Injuries & Rig Glitches</h3>
+            <p className="text-sm text-muted-foreground">Create, edit, or delete lasting injuries and rig glitches</p>
           </div>
           <button
             onClick={onClose}
@@ -325,6 +387,8 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
 
         <div className="px-[10px] py-4">
           <div className="space-y-4">
+            <EditionSelect value={editionId} onChange={handleEditionChange} defaultToCurrent />
+
             {/* Category Selector */}
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
@@ -362,7 +426,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
                 disabled={isLoading}
               >
                 <option value="">Select an effect to edit</option>
-                {effects.map((effect) => (
+                {filteredEffects.map((effect) => (
                   <option key={effect.id} value={effect.id}>
                     {effect.effect_name}
                   </option>

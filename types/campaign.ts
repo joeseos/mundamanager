@@ -115,7 +115,6 @@ export interface Member {
   user_id: string;
   username: string;
   role: 'OWNER' | 'ARBITRATOR' | 'MEMBER';
-  status: string | null;
   invited_at: string;
   joined_at: string | null;
   invited_by: string;
@@ -157,6 +156,8 @@ export interface UserCampaign {
   id: string;
   campaign_name: string;
   status: string | null;
+  /** Derived from campaign_types; campaigns carry no edition of their own. */
+  edition_slug: string | null;
 }
 
 /**
@@ -172,5 +173,9 @@ export interface CampaignType {
   campaign_type_name: string;
   image_url?: string | null;
   trading_posts?: string[] | null;
+  /** edition_id is written by the admin editor; edition_slug is what app code
+   *  reads, resolved server-side. */
+  edition_id?: string | null;
+  edition_slug?: string | null;
   campaign_type_resources?: CampaignTypeResource[];
 }

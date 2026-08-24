@@ -32,14 +32,14 @@ export async function duplicateCustomGangType(
     throw new Error('Source custom gang type not found');
   }
 
+  // Spread, don't enumerate: a dropped edition_id reads as n23 rather than erroring.
+  const { id: _cgtId, created_at: _cgtCa, updated_at: _cgtUa, user_id: _cgtUid, ...cgtData } = sourceCustomGangType;
+
   const { data: newCgt, error: newCgtError } = await supabase
     .from('custom_gang_types')
     .insert({
+      ...cgtData,
       user_id: targetUserId,
-      gang_type: sourceCustomGangType.gang_type,
-      alignment: sourceCustomGangType.alignment,
-      trading_post_type_id: sourceCustomGangType.trading_post_type_id,
-      default_image_urls: sourceCustomGangType.default_image_urls,
     })
     .select('id')
     .single();
@@ -107,10 +107,12 @@ export async function duplicateCustomGangType(
 
       if (sourceSkillTypes) {
         for (const st of sourceSkillTypes) {
+          const { id: _stId, created_at: _stCa, updated_at: _stUa, user_id: _stUid, ...stData } = st;
+
           const { data: newSt, error: newStError } = await supabase
             .from('custom_skill_types')
             .insert({
-              name: st.name,
+              ...stData,
               user_id: targetUserId,
             })
             .select('id')

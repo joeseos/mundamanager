@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { cn } from '@/app/lib/utils';
 import { Button } from './button';
 
 export interface ListColumn {
@@ -26,6 +27,8 @@ export interface ListAction {
 
 export interface ListProps<T = any> {
   title: React.ReactNode;
+  /** Extra classes on the title heading (e.g. flex layout for a trailing badge). */
+  titleClassName?: string;
   description?: React.ReactNode;
   items: T[];
   columns: ListColumn[];
@@ -38,10 +41,12 @@ export interface ListProps<T = any> {
   isLoading?: boolean;
   sortBy?: (a: T, b: T) => number;
   headerActions?: React.ReactNode;
+  rowClassName?: (item: T) => string;
 }
 
 export function List<T = any>({
   title,
+  titleClassName,
   description,
   items,
   columns,
@@ -53,7 +58,8 @@ export function List<T = any>({
   className = "",
   isLoading = false,
   sortBy,
-  headerActions
+  headerActions,
+  rowClassName
 }: ListProps<T>) {
   // Sort items if sortBy function is provided
   const sortedItems = sortBy ? [...items].sort(sortBy) : items;
@@ -81,10 +87,11 @@ export function List<T = any>({
     return String(value);
   };
 
+  // cn so a caller's own spacing overrides mt-6 instead of losing to it
   return (
-    <div className={`mt-6 ${className}`}>
+    <div className={cn('mt-6', className)}>
       <div className="flex flex-wrap justify-between items-center mb-2">
-        <h2 className="text-xl md:text-2xl font-bold">{title}</h2>
+        <h2 className={`text-xl md:text-2xl font-bold${titleClassName ? ` ${titleClassName}` : ''}`}>{title}</h2>
         {(headerActions || onAdd) && (
           <div className="flex flex-wrap items-center gap-2">
             {headerActions}
@@ -136,7 +143,7 @@ export function List<T = any>({
                 </tr>
               ) : (
                 sortedItems.map((item, index) => (
-                  <tr key={index} className="border-t">
+                  <tr key={index} className={`border-t ${rowClassName?.(item) || ''}`}>
                     {columns.map((column) => (
                       <td 
                         key={column.key}

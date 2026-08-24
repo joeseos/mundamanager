@@ -194,17 +194,54 @@ Deno.serve(async (req) => {
       fields.push({ name: "📋 Scenario", value: battle.scenario, inline: true });
     }
 
-    if (battle.note) {
-      fields.push({ name: "📝 Report", value: battle.note, inline: false });
-    }
+    const DISCORD_DESC_MAX = 4096;
+    const DISCORD_TOTAL_MAX = 6000;
 
-    const embed = {
+    // The battle info goes in the first embed as fields. The report goes in a
+    // second embed's description (4096-char limit) so it renders below the info
+    // and can hold far more than a 1024-char embed field. The footer + timestamp
+    // live on whichever embed is last so they stay at the very bottom of the post.
+    const infoEmbed: Record<string, unknown> = {
       title: `Battle Report — ${campaign.campaign_name}`,
       color: 0xd4a017,
       fields,
-      timestamp: battle.created_at,
-      footer: { text: "MundaManager" },
     };
+
+    const embeds: Record<string, unknown>[] = [infoEmbed];
+
+    if (battle.note) {
+      const reportTitle = "📝 Report";
+      const footerText = "MundaManager";
+      // Characters consumed by everything except the report description, across
+      // both embeds (info title + field names/values + report title + footer).
+      const infoChars =
+        (infoEmbed.title as string).length +
+        fields.reduce((sum, f) => sum + f.name.length + f.value.length, 0) +
+        reportTitle.length +
+        footerText.length;
+      // Budget left for the description under both the 4096 and the 6000 caps.
+      const budget = Math.min(DISCORD_DESC_MAX, DISCORD_TOTAL_MAX - infoChars);
+      let description = battle.note;
+      if (description.length > budget) {
+        let cut = description.slice(0, Math.max(0, budget - 1));
+        // Avoid splitting a UTF-16 surrogate pair (e.g. an emoji) at the cut,
+        // which would leave a lone high surrogate that renders as "�".
+        if (cut.length > 0 && /[\uD800-\uDBFF]$/.test(cut)) cut = cut.slice(0, -1);
+        description = cut.trimEnd() + "…";
+      }
+      // The report is the last embed, so it carries the footer + timestamp.
+      embeds.push({
+        title: reportTitle,
+        description,
+        color: 0xd4a017,
+        timestamp: battle.created_at,
+        footer: { text: footerText },
+      });
+    } else {
+      // No report → footer + timestamp stay on the battle-info embed.
+      infoEmbed.timestamp = battle.created_at;
+      infoEmbed.footer = { text: "MundaManager" };
+    }
 
     let discordRes: Response
 
@@ -221,7 +258,7 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             name: `${campaign.campaign_name} — Battle Report (${date})`,
             auto_archive_duration: 10080,
-            message: { embeds: [embed] },
+            message: { embeds },
           }),
         }
       )
@@ -234,7 +271,7 @@ Deno.serve(async (req) => {
             Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ embeds: [embed] }),
+          body: JSON.stringify({ embeds }),
         }
       )
     }

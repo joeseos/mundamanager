@@ -8,6 +8,8 @@ import { ImInfo } from "react-icons/im";
 import { Equipment, EquipmentGrants, ResourceCost } from '@/types/equipment';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
+import { hasMasterCraftedWeapons, hasTradePoints } from '@/types/edition';
+import { isValidTradePoints, parseTradePointsCost } from '@/utils/campaigns/resources';
 
 export interface PurchaseConfirmOptions {
   cost: number;
@@ -17,6 +19,8 @@ export interface PurchaseConfirmOptions {
   equipmentTarget?: { target_equipment_id: string; effect_type_id: string };
   selectedGrantEquipmentIds?: string[];
   resourceCost?: ResourceCost;
+  /** Manual Trade Points override (numeric string or "E"); only for editions with TP. */
+  tradePoints?: string;
 }
 
 interface PurchaseModalProps {
@@ -30,9 +34,11 @@ interface PurchaseModalProps {
   equipmentListType?: "fighters-list" | "fighters-tradingpost" | "unrestricted";
   gangCampaignResources?: GangCampaignResource[];
   gangReputation?: number;
+  editionSlug?: string | null;
+  gangTradePoints?: number;
 }
 
-export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase, fighterId, fighterWeapons, equipmentListType, gangCampaignResources, gangReputation }: PurchaseModalProps) {
+export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase, fighterId, fighterWeapons, equipmentListType, gangCampaignResources, gangReputation, editionSlug, gangTradePoints }: PurchaseModalProps) {
   const [manualCost, setManualCost] = useState<string>(String(item.adjusted_cost ?? item.cost));
   const [creditError, setCreditError] = useState<string | null>(null);
   const [isMasterCrafted, setIsMasterCrafted] = useState(false);
@@ -73,6 +79,29 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
           (item.cost_campaign_resource_id && r.resource_id === item.cost_campaign_resource_id)
         )?.quantity ?? 0
     : undefined;
+
+  const editionHasTradePoints = hasTradePoints(editionSlug);
+  // Trade Points buy from the Trading Post; the fighter's own list is paid in credits alone.
+  const showTradePoints = editionHasTradePoints && equipmentListType !== 'fighters-list';
+  const showMasterCrafted = hasMasterCraftedWeapons(editionSlug);
+  const [manualTradePoints, setManualTradePoints] = useState<string>(
+    showTradePoints ? String(item.trade_points ?? '0') : '0'
+  );
+  const tradePointsCost = showTradePoints ? parseTradePointsCost(manualTradePoints) : 0;
+  const availableTradePoints = gangTradePoints ?? 0;
+
+  const buildConfirmOptions = (
+    overrides: Partial<PurchaseConfirmOptions> & { cost: number }
+  ): PurchaseConfirmOptions => ({
+    isMasterCrafted,
+    useBaseCostForRating,
+    selectedEffectIds: [],
+    selectedGrantEquipmentIds: [],
+    resourceCost,
+    // Explicit even when hidden: omitting it makes the server charge the catalog cost.
+    ...(editionHasTradePoints && { tradePoints: showTradePoints ? manualTradePoints.trim() : '0' }),
+    ...overrides,
+  });
 
   const calculateMasterCraftedCost = (baseCost: number) => {
     // Increase by 25% and round up to nearest 5
@@ -115,13 +144,13 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
         return false; // Don't close modal, show grants selection
       } else if (grants.selection_type === 'fixed') {
         // Fixed grants are handled server-side, proceed with purchase
-        onConfirm({ cost: parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds: effectIds, equipmentTarget, selectedGrantEquipmentIds: [], resourceCost });
+        onConfirm(buildConfirmOptions({ cost: parsedCost, selectedEffectIds: effectIds, equipmentTarget }));
         return true;
       }
     }
 
     // No grants selection needed
-    onConfirm({ cost: parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds: effectIds, equipmentTarget, selectedGrantEquipmentIds: [], resourceCost });
+    onConfirm(buildConfirmOptions({ cost: parsedCost, selectedEffectIds: effectIds, equipmentTarget }));
     return true;
   };
 
@@ -140,13 +169,19 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
     } else if (!hasResourceCost && parsedCost > 0 && parsedCost > gangCredits) {
       setCreditError(`Not enough credits. Gang Credits: ${gangCredits}`);
       return false;
+    } else if (showTradePoints && !isValidTradePoints(manualTradePoints)) {
+      setCreditError('Trade Points must be a non-negative number or E');
+      return false;
+    } else if (showTradePoints && tradePointsCost > 0 && tradePointsCost > availableTradePoints) {
+      setCreditError(`Not enough Trade Points. Available: ${availableTradePoints}`);
+      return false;
     }
 
     setCreditError(null);
 
     // If buying to stash, skip effect and grants selection entirely
     if (isStashPurchase) {
-      onConfirm({ cost: parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds: [], selectedGrantEquipmentIds: [], resourceCost });
+      onConfirm(buildConfirmOptions({ cost: parsedCost }));
       return true;
     }
 
@@ -214,7 +249,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
       } catch (error) {
         console.error('Error checking effects:', error);
         // On error, proceed with purchase to avoid blocking the user
-        onConfirm({ cost: parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, selectedGrantEquipmentIds: selectedGrantIds, resourceCost });
+        onConfirm(buildConfirmOptions({ cost: parsedCost, selectedEffectIds, selectedGrantEquipmentIds: selectedGrantIds }));
         return true;
       }
     }
@@ -222,7 +257,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
     // Note: showTargetSelection, showEffectSelection, and showGrantsSelection are handled by separate modal render paths
     // If we reach here, it means no additional selection is needed
     // Just proceed with purchase
-    onConfirm({ cost: parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, selectedGrantEquipmentIds: selectedGrantIds, resourceCost });
+    onConfirm(buildConfirmOptions({ cost: parsedCost, selectedEffectIds, selectedGrantEquipmentIds: selectedGrantIds }));
     return true; // Allow modal to close
   };
 
@@ -265,7 +300,11 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
                 target_equipment_id: targetEquipmentId,
                 effect_type_id: upgradeEffect?.id as string
               };
-              onConfirm({ cost: Number(manualCost), isMasterCrafted, useBaseCostForRating, selectedEffectIds, equipmentTarget: equipmentTargetData, selectedGrantEquipmentIds: [], resourceCost });
+              onConfirm(buildConfirmOptions({
+                cost: Number(manualCost),
+                selectedEffectIds,
+                equipmentTarget: equipmentTargetData,
+              }));
             }}
             onSelectionComplete={() => {
               // No-op; parent onConfirm is triggered by onApplyToTarget
@@ -402,14 +441,11 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
         }
         onClose={onClose}
         onConfirm={() => {
-          onConfirm({
+          onConfirm(buildConfirmOptions({
             cost: Number(manualCost),
-            isMasterCrafted,
-            useBaseCostForRating,
             selectedEffectIds,
             selectedGrantEquipmentIds: selectedGrantIds,
-            resourceCost,
-          });
+          }));
           return true;
         }}
         confirmText="Confirm Purchase"
@@ -430,6 +466,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
                 <div className="flex-1">
                   <label className="block text-sm font-medium text-muted-foreground mb-1">
                     Cost
+                    <span className="ml-2 font-normal">(Available: {gangCredits})</span>
                   </label>
                   <input
                     type="number"
@@ -474,7 +511,24 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
               </div>
             )}
 
-            {item.equipment_type === 'weapon' && equipmentListType !== 'fighters-list' && (
+            {showTradePoints && (
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    Trade Points
+                    <span className="ml-2 font-normal">(Available: {availableTradePoints})</span>
+                  </label>
+                  <Input
+                    type="text"
+                    value={manualTradePoints}
+                    onChange={(e) => setManualTradePoints(e.target.value)}
+                    placeholder="0 or E"
+                  />
+                </div>
+              </div>
+            )}
+
+            {showMasterCrafted && item.equipment_type === 'weapon' && equipmentListType !== 'fighters-list' && (
               <div className="flex items-center space-x-2 mt-2">
                 <Checkbox
                   id="master-crafted"

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
+import { fetchAllRows } from "@/utils/supabase/fetch-all-rows";
 
 // Add type guard at the top of the file
 function isNonEmptyArray(value: unknown): boolean {
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
   const id = searchParams.get('id');
   const equipment_id = searchParams.get('equipment_id');
   const fighter_type = searchParams.get('fighter_type');
-  const fighter_class = searchParams.get('fighter_class');
+  const fighter_subtype = searchParams.get('fighter_subtype');
   const gang_type_id = searchParams.get('gang_type_id');
   const filter_by_gang = searchParams.get('filter_by_gang') === 'true';
 
@@ -46,8 +47,9 @@ export async function GET(request: Request) {
           fighter_type,
           gang_type_id,
           gang_type,
-          fighter_class,
-          fighter_sub_type_id,
+          fighter_subtypes,
+          fighter_specialisation_id,
+          fighter_variant,
           cost,
           movement,
           weapon_skill,
@@ -61,10 +63,13 @@ export async function GET(request: Request) {
           willpower,
           intelligence,
           attacks,
+          save,
+          starting_xp,
           special_rules,
           free_skill,
           is_gang_addition,
           is_spyrer,
+          is_vehicle,
           is_dramatis_personae,
           alignment,
           delegation_cost,
@@ -89,8 +94,10 @@ export async function GET(request: Request) {
           fighter_type,
           gang_type_id,
           gang_type,
-          fighter_class,
-          fighter_sub_type_id,
+          edition_id,
+          fighter_subtypes,
+          fighter_specialisation_id,
+          fighter_variant,
           cost,
           movement,
           weapon_skill,
@@ -104,10 +111,13 @@ export async function GET(request: Request) {
           willpower,
           intelligence,
           attacks,
+          save,
+          starting_xp,
           special_rules,
           free_skill,
           is_gang_addition,
           is_spyrer,
+          is_vehicle,
           is_dramatis_personae,
           alignment,
           delegation_cost,
@@ -216,11 +226,10 @@ export async function GET(request: Request) {
       return NextResponse.json(formattedFighterType);
     }
 
-    // If direct fighter_type and fighter_class are provided, use those instead of ID lookup
-    if (fighter_type && fighter_class) {
-      console.log(`Direct search by fighter_type=${fighter_type} and fighter_class=${fighter_class}`);
+    // If direct fighter_type and fighter_subtype are provided, use those instead of ID lookup
+    if (fighter_type && fighter_subtype) {
       
-      // Find all fighters with matching type and class with all details
+      // Find all fighters with matching type and subtype with all details
       const { data: relatedFighterTypes, error: relatedError } = await supabase
         .from('fighter_types')
         .select(`
@@ -228,8 +237,9 @@ export async function GET(request: Request) {
           fighter_type,
           gang_type_id,
           gang_type,
-          fighter_class,
-          fighter_sub_type_id,
+          fighter_subtypes,
+          fighter_specialisation_id,
+          fighter_variant,
           cost,
           movement,
           weapon_skill,
@@ -243,10 +253,13 @@ export async function GET(request: Request) {
           willpower,
           intelligence,
           attacks,
+          save,
+          starting_xp,
           special_rules,
           free_skill,
           is_gang_addition,
           is_spyrer,
+          is_vehicle,
           is_dramatis_personae,
           alignment,
           delegation_cost,
@@ -256,15 +269,13 @@ export async function GET(request: Request) {
           )
         `)
         .eq('fighter_type', fighter_type)
-        .eq('fighter_class', fighter_class);
+        .contains('fighter_subtypes', JSON.stringify([fighter_subtype]));
 
       if (relatedError) {
         console.error('Error fetching related fighter types:', relatedError);
         throw relatedError;
       }
 
-      console.log('Found fighters by name and class:', relatedFighterTypes?.length);
-      
       if (!relatedFighterTypes || relatedFighterTypes.length === 0) {
         return NextResponse.json(
           { error: 'No fighter types found matching those criteria' },
@@ -272,26 +283,30 @@ export async function GET(request: Request) {
         );
       }
       
-      // Get the fighter sub-types for these fighters
-      const subTypeIds = relatedFighterTypes
-        .map(ft => ft.fighter_sub_type_id)
-        .filter(id => id !== null && id !== undefined) as string[];
-      
-      let subTypes: { id: string; sub_type_name: string; }[] = [];
-      if (subTypeIds.length > 0) {
-        const { data: subTypeData, error: subTypeError } = await supabase
-          .from('fighter_sub_types')
-          .select('*')
-          .in('id', subTypeIds);
+      // Both facts label a row, so both are resolved.
+      const specialisationIds = relatedFighterTypes
+        .map(ft => ft.fighter_specialisation_id)
+        .filter((id): id is string => Boolean(id));
 
-        if (subTypeError) {
-          console.error('Error fetching sub-types:', subTypeError);
-          throw subTypeError;
-        } else {
-          subTypes = subTypeData || [];
+      let specialisations: { id: string; specialisation_name: string; }[] = [];
+      if (specialisationIds.length > 0) {
+        const { data: specialisationData, error: specialisationError } = await supabase
+          .from('fighter_specialisations')
+          .select('id, specialisation_name')
+          .in('id', specialisationIds);
+
+        if (specialisationError) {
+          console.error('Error fetching specialisations:', specialisationError);
+          throw specialisationError;
         }
+        specialisations = specialisationData || [];
       }
-      
+
+      const labelFor = (ft: any) =>
+        ft.fighter_variant ||
+        specialisations.find(s => s.id === ft.fighter_specialisation_id)?.specialisation_name ||
+        '';
+
       // Get the complete data for each fighter
       const fighterDetails = await Promise.all(
         relatedFighterTypes.map(async (fighter: any) => {
@@ -354,7 +369,7 @@ export async function GET(request: Request) {
                 adjusted_cost: d.adjusted_cost
               })) || [],
               equipment_selection: equipmentSelectionData?.equipment_selection || null,
-              is_default: !fighter.fighter_sub_type_id || fighter.fighter_sub_type_id === null
+              is_default: !fighter.fighter_variant && !fighter.fighter_specialisation_id
             };
           } catch (error) {
             console.error(`Error getting details for fighter ${fighter.id}:`, error);
@@ -366,46 +381,41 @@ export async function GET(request: Request) {
               equipment_list: [],
               equipment_discounts: [],
               equipment_selection: null,
-              is_default: !fighter.fighter_sub_type_id || fighter.fighter_sub_type_id === null
+              is_default: !fighter.fighter_variant && !fighter.fighter_specialisation_id
             };
           }
         })
       );
       
-      // Sort fighters: Default first, then by sub-type name
+      // Sort fighters: Default first, then by variant or specialisation name
       fighterDetails.sort((a, b) => {
         if (a.is_default && !b.is_default) return -1;
         if (!a.is_default && b.is_default) return 1;
-        
-        const aSubType = subTypes.find(st => st.id === a.fighter_sub_type_id);
-        const bSubType = subTypes.find(st => st.id === b.fighter_sub_type_id);
-        
-        return (aSubType?.sub_type_name || '').localeCompare(bSubType?.sub_type_name || '');
+        return labelFor(a).localeCompare(labelFor(b));
       });
-      
-      console.log(`Returning ${fighterDetails.length} fighter details with ${subTypes.length} sub-types`);
       
       return NextResponse.json({
         fighter_type,
-        fighter_class,
         fighters: fighterDetails,
-        sub_types: subTypes
+        specialisations
       });
     }
 
     // Default case - fetch all fighter types, with optional gang filtering
-    let query = supabase
-      .from('fighter_types')
-      .select(`
+    const fighterTypes = await fetchAllRows<any>((from, to) => {
+      let query = supabase
+        .from('fighter_types')
+        .select(`
         id,
         fighter_type,
         gang_type_id,
         gang_type,
-        fighter_class,
-        fighter_class_id,
-        fighter_sub_type_id,
-        fighter_sub_types(
-          sub_type_name
+        edition_id,
+        fighter_subtypes,
+        fighter_specialisation_id,
+        fighter_variant,
+        fighter_specialisations(
+          specialisation_name
         ),
         cost,
         movement,
@@ -420,10 +430,13 @@ export async function GET(request: Request) {
         willpower,
         intelligence,
         attacks,
+        save,
+        starting_xp,
         special_rules,
         free_skill,
         is_gang_addition,
         is_spyrer,
+        is_vehicle,
         is_dramatis_personae,
         alignment,
         delegation_cost,
@@ -432,26 +445,26 @@ export async function GET(request: Request) {
           adjusted_cost
         )
       `)
-      .order('gang_type', { ascending: true })
-      .order('fighter_type', { ascending: true });
-    
-    // Add gang type filter if requested and gang_type_id is provided
-    if (filter_by_gang && gang_type_id) {
-      console.log(`Filtering fighters by gang_type_id: ${gang_type_id}`);
-      query = query.eq('gang_type_id', gang_type_id);
-    }
+        .order('gang_type', { ascending: true })
+        .order('fighter_type', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to);
 
-    const { data: fighterTypes, error } = await query;
+      // Add gang type filter if requested and gang_type_id is provided
+      if (filter_by_gang && gang_type_id) {
+        query = query.eq('gang_type_id', gang_type_id);
+      }
 
-    if (error) throw error;
-    
-    // Process the data to flatten the fighter_sub_types relation
+      return query;
+    });
+
+    // Flatten the fighter_specialisations relation
     const processedFighterTypes = fighterTypes?.map((fighter: any) => ({
       ...fighter,
-      fighter_sub_type: fighter.fighter_sub_types?.sub_type_name || null,
-      fighter_sub_types: undefined // Remove the nested object
+      fighter_specialisation: fighter.fighter_specialisations?.specialisation_name || null,
+      fighter_specialisations: undefined
     }));
-    
+
     return NextResponse.json(processedFighterTypes);
 
   } catch (error) {
@@ -463,8 +476,8 @@ export async function GET(request: Request) {
   }
 }
 
-// Add PUT handler to the existing file
-export async function PUT(request: Request) {
+// Update an existing fighter type and its related records
+export async function PATCH(request: Request) {
   const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
@@ -480,12 +493,19 @@ export async function PUT(request: Request) {
     }
 
     const data = await request.json();
-    console.log('Received update data:', data);
-    console.log('Equipment selection data received:', {
-      exists: !!data.equipment_selection,
-      keys: data.equipment_selection ? Object.keys(data.equipment_selection) : [],
-      content: data.equipment_selection
-    });
+
+    // edition_id is derived from the gang type, never taken from the client
+    // (the composite FK on (gang_type_id, edition_id) rejects mismatches)
+    const { data: gangType, error: gangTypeError } = await supabase
+      .from('gang_types')
+      .select('edition_id')
+      .eq('gang_type_id', data.gang_type_id)
+      .single();
+
+    if (gangTypeError) {
+      console.error('Error fetching gang type:', gangTypeError);
+      throw gangTypeError;
+    }
 
     // Update fighter type
     const { error: updateError } = await supabase
@@ -494,10 +514,10 @@ export async function PUT(request: Request) {
         fighter_type: data.fighter_type,
         cost: data.cost,
         gang_type_id: data.gang_type_id,
-        fighter_class: data.fighter_class,
-        fighter_class_id: data.fighter_class_id,
-        fighter_sub_type_id: data.fighter_sub_type_id,
-        fighter_sub_type: data.fighter_sub_type,
+        edition_id: gangType.edition_id ?? null,
+        fighter_subtypes: Array.isArray(data.fighter_subtypes) ? data.fighter_subtypes : [],
+        fighter_variant: data.fighter_variant ?? null,
+        fighter_specialisation_id: data.fighter_specialisation_id ?? null,
         movement: data.movement,
         weapon_skill: data.weapon_skill,
         ballistic_skill: data.ballistic_skill,
@@ -510,10 +530,13 @@ export async function PUT(request: Request) {
         cool: data.cool,
         willpower: data.willpower,
         intelligence: data.intelligence,
+        save: data.save ?? null,
+        starting_xp: data.starting_xp ?? null,
         special_rules: data.special_rules,
         free_skill: data.free_skill,
         is_gang_addition: data.is_gang_addition,
         is_spyrer: data.is_spyrer,
+        is_vehicle: data.is_vehicle,
         is_dramatis_personae: data.is_dramatis_personae,
         alignment: data.alignment,
         delegation_cost: data.delegation_cost ?? null,
@@ -632,7 +655,6 @@ export async function PUT(request: Request) {
 
     // Handle equipment selection
     if (data.equipment_selection) {
-      console.log('Processing equipment selection:', data.equipment_selection);
 
       // Check if we have any content in the equipment selection
       const hasSelection = data.equipment_selection &&
@@ -641,7 +663,6 @@ export async function PUT(request: Request) {
          Object.values(data.equipment_selection.multiple).some(isNonEmptyArray));
 
       if (hasSelection) {
-        console.log('About to upsert equipment_selection:', JSON.stringify(data.equipment_selection, null, 2));
         const { error: upsertError } = await supabase
           .from('fighter_equipment_selections')
           .upsert({
@@ -656,8 +677,6 @@ export async function PUT(request: Request) {
           console.error('Error upserting equipment selection:', upsertError);
           console.error('Equipment selection data that failed:', data.equipment_selection);
           throw upsertError;
-        } else {
-          console.log('Successfully upserted equipment selection data');
         }
       } else {
         // If no selection content, delete any existing row
@@ -670,7 +689,6 @@ export async function PUT(request: Request) {
           console.error('Error deleting empty equipment selection:', deleteError);
           throw deleteError;
         }
-        console.log('No equipment selection content, deleted any existing row');
       }
     } else {
       // If no equipment_selection field, delete any existing row
@@ -683,12 +701,10 @@ export async function PUT(request: Request) {
         console.error('Error deleting equipment selection:', deleteError);
         throw deleteError;
       }
-      console.log('No equipment_selection field in update data, deleted any existing row');
     }
 
     // Handle gang-specific costs
     if (data.gang_type_costs && Array.isArray(data.gang_type_costs)) {
-      console.log('Processing gang-specific costs:', data.gang_type_costs);
       
       // First delete existing costs
       const { error: deleteError } = await supabase
@@ -709,8 +725,6 @@ export async function PUT(request: Request) {
           adjusted_cost: cost.adjusted_cost,
           gang_affiliation_id: cost.gang_affiliation_id || null
         }));
-        
-        console.log('Inserting gang costs with affiliations:', gangCostsToInsert);
         
         const { error: insertError } = await supabase
           .from('fighter_type_gang_cost')
@@ -753,7 +767,7 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error in PUT fighter-type:', error);
+    console.error('Error in PATCH fighter-type:', error);
     return NextResponse.json(
       { 
         error: 'Error updating fighter type',
@@ -776,10 +790,11 @@ export async function POST(request: Request) {
 
     const data = await request.json();
 
-    // First fetch the gang type name
+    // First fetch the gang type name and edition (edition_id is derived from
+    // the gang type, never taken from the client)
     const { data: gangType, error: gangTypeError } = await supabase
       .from('gang_types')
-      .select('gang_type')
+      .select('gang_type, edition_id')
       .eq('gang_type_id', data.gangTypeId)
       .single();
 
@@ -799,10 +814,10 @@ export async function POST(request: Request) {
         fighter_type: data.fighterType,
         gang_type_id: data.gangTypeId,
         gang_type: gangType.gang_type,
-        fighter_class: data.fighterClass,
-        fighter_class_id: data.fighterClassId,
-        fighter_sub_type_id: data.fighterSubTypeId,
-        fighter_sub_type: data.fighterSubType,
+        edition_id: gangType.edition_id ?? null,
+        fighter_subtypes: Array.isArray(data.fighterSubtypes) ? data.fighterSubtypes : [],
+        fighter_variant: data.fighterVariant ?? null,
+        fighter_specialisation_id: data.fighterSpecialisationId ?? null,
         cost: data.baseCost,
         movement: data.movement,
         weapon_skill: data.weapon_skill,
@@ -816,10 +831,16 @@ export async function POST(request: Request) {
         willpower: data.willpower,
         intelligence: data.intelligence,
         attacks: data.attacks,
+        save: data.save ?? null,
+        // null is N/A: a type that can never gain XP. The column has no default
+        // to fall back on, so an absent value is stored as N/A rather than
+        // inventing a starting value the edition may not grant.
+        starting_xp: data.starting_xp ?? null,
         special_rules: data.special_rules,
         free_skill: data.free_skill,
         is_gang_addition: data.is_gang_addition,
         is_spyrer: data.is_spyrer,
+        is_vehicle: data.is_vehicle,
         is_dramatis_personae: data.is_dramatis_personae,
         alignment: data.alignment,
         delegation_cost: data.delegation_cost ?? null
@@ -903,54 +924,3 @@ export async function POST(request: Request) {
     );
   }
 }
-
-// Add PATCH method specifically for is_gang_addition
-export async function PATCH(request: Request) {
-  const supabase = await createClient();
-  const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id');
-
-  if (!id) {
-    return NextResponse.json({ error: 'Fighter type ID is required' }, { status: 400 });
-  }
-
-  try {
-    const isAdmin = await checkAdmin(supabase);
-    if (!isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const data = await request.json();
-    
-    // Only allow updating the is_gang_addition field
-    if (data.is_gang_addition === undefined) {
-      return NextResponse.json({ error: 'is_gang_addition field is required' }, { status: 400 });
-    }
-
-    // Update only the is_gang_addition field
-    const { error: updateError } = await supabase
-      .from('fighter_types')
-      .update({
-        is_gang_addition: data.is_gang_addition
-      })
-      .eq('id', id);
-
-    if (updateError) {
-      console.error('Error updating is_gang_addition:', updateError);
-      throw updateError;
-    }
-
-    return NextResponse.json({ success: true, is_gang_addition: data.is_gang_addition });
-  } catch (error) {
-    console.error('Error in PATCH fighter-type:', error);
-    return NextResponse.json(
-      { 
-        error: 'Error updating fighter type',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { status: 500 }
-    );
-  }
-} 
-
-

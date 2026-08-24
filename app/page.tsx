@@ -1,5 +1,5 @@
-// This page uses server components with ISR caching for optimal performance
-// Server actions should trigger revalidation of this data using revalidatePath
+// Server actions invalidate this data with revalidateTag via the helpers in
+// utils/cache-tags.ts - not revalidatePath, which evicts every cached entry.
 
 import { createClient } from "@/utils/supabase/server";
 import { CreateGangButton } from '@/components/create-gang-modal';
@@ -21,6 +21,8 @@ import { getUserCustomTradingPosts } from "@/app/lib/customise/custom-trading-po
 import { getUserCustomCollections } from "@/app/lib/customise/custom-collections";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { editionSlugFromJoin, withEditionSlug } from "@/types/edition";
+import type { UserCampaign } from "@/types/campaign";
 
 export default async function Home() {
   const supabase = await createClient();

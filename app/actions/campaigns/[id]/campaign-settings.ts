@@ -16,6 +16,7 @@ export interface UpdateCampaignSettingsParams {
   discord_channel_id?: string | null;
   discord_channel_type?: number | null;
   custom_trading_posts?: string[];
+  allow_join_requests?: boolean;
 }
 
 /**
@@ -37,7 +38,8 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
       discord_guild_id,
       discord_channel_id,
       discord_channel_type,
-      custom_trading_posts
+      custom_trading_posts,
+      allow_join_requests
     } = params;
 
     // Only include provided fields in the update
@@ -51,6 +53,7 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
     if (discord_guild_id !== undefined) updateData.discord_guild_id = discord_guild_id;
     if (discord_channel_id !== undefined) updateData.discord_channel_id = discord_channel_id;
     if (discord_channel_type !== undefined) updateData.discord_channel_type = discord_channel_type;
+    if (allow_join_requests !== undefined) updateData.allow_join_requests = allow_join_requests;
 
     const { error } = await supabase
       .from('campaigns')

@@ -29,20 +29,20 @@ interface GangFighterOption {
   starved?: boolean;
   recovery?: boolean;
   captured?: boolean;
-  fighter_class?: string;
+  fighter_subtypes?: string[];
   owner_id?: string;
   owner_name?: string;
 }
 
 function isBeast(f: GangFighterOption) {
-  const cls = f.fighter_class?.toLowerCase();
-  return cls === 'exotic beast' || cls === 'exotic beast specialist';
+  return f.fighter_subtypes?.some(c => c.toLowerCase() === 'exotic beast' || c.toLowerCase() === 'exotic beast specialist' || c.toLowerCase() === 'pet') || false;
 }
 
 function formatFighterDetails(f: GangFighterOption): string {
+  const subtypeDisplay = f.fighter_subtypes?.join(', ');
   return [
     f.fighter_type,
-    f.fighter_class ? `(${f.fighter_class})` : '',
+    subtypeDisplay ? `(${subtypeDisplay})` : '',
   ].filter(Boolean).join(' ');
 }
 

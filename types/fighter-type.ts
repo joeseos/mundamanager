@@ -53,8 +53,7 @@ export interface FighterType {
   id: string;
   fighter_type_id: string;
   fighter_type: string;
-  fighter_class: string;
-  fighter_class_id?: string;
+  fighter_subtypes: string[];
   gang_type: string;
   cost: number;
   gang_type_id: string;
@@ -72,6 +71,8 @@ export interface FighterType {
   willpower: number;
   intelligence: number;
   attacks: number;
+  save?: number | null;
+  edition_slug?: string | null;
   limitation?: number;
   alignment?: string;
   default_equipment: any[];
@@ -79,15 +80,22 @@ export interface FighterType {
   alliance_id: string;
   alliance_crew_name: string;
   equipment_selection?: EquipmentSelection;
-  sub_type?: {
+  specialisation?: {
     id: string;
-    sub_type_name: string;
+    specialisation_name: string;
   };
-  fighter_sub_type_id?: string;
+  fighter_specialisation_id?: string;
+  fighter_variant?: string | null;
+  /** Variant family and this row's name within it, both set by /api/fighter-types. */
+  typeSubtypeKey?: string;
+  variantLabel?: string;
   available_legacies?: Array<{id: string, name: string}>;
   is_spyrer?: boolean;
   free_skill?: boolean;
   delegation_cost?: number | null;
   is_dramatis_personae?: boolean;
   is_custom_fighter?: boolean;
+  /** null means N/A: this type cannot gain XP. */
+  starting_xp?: number | null;
+  is_vehicle?: boolean;
 }

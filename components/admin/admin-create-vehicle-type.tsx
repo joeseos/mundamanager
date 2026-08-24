@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import Modal from "@/components/ui/modal";
 import { HiX } from "react-icons/hi";
 import { gangOriginRank } from "@/utils/gangOriginRank";
+import { EditionSelect } from '@/components/edition-select';
 
 interface AdminCreateVehicleTypeModalProps {
   onClose: () => void;
@@ -336,6 +337,7 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
     vehicle_type: '',
     gang_type_id: ''
   });
+  const [editionId, setEditionId] = useState('');
 
   const handleVehicleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setVehicleForm(prev => ({
@@ -361,6 +363,7 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
       vehicle_type: '',
       gang_type_id: ''
     });
+    setEditionId('');
     setEquipmentListSelections([]);
     setGangOriginEquipment([]);
     setGangTypeEquipment([]);
@@ -376,6 +379,7 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
         body: JSON.stringify({
           ...vehicleForm,
           gang_type_id: vehicleForm.gang_type_id === "0" ? null : parseInt(vehicleForm.gang_type_id),
+          edition_id: editionId || null,
           cost: parseInt(vehicleForm.cost),
           movement: parseInt(vehicleForm.movement),
           front: parseInt(vehicleForm.front),
@@ -470,6 +474,10 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="col-span-3">
+              <EditionSelect value={editionId} onChange={setEditionId} defaultToCurrent />
             </div>
 
             {/* Numeric inputs */}

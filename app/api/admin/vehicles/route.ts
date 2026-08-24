@@ -41,6 +41,7 @@ interface VehicleFormData {
   engine_slots?: string;
   vehicle_type?: string;
   gang_type_id?: string;
+  edition_id?: string | null;
   special_rules?: string;
   equipment_list?: string[];
   gang_origin_equipment?: GangOriginEquipmentItem[];
@@ -192,7 +193,7 @@ export async function GET(request: Request) {
     if (fetch_type === 'vehicle_types') {
       const { data: vehicleTypes, error } = await supabase
         .from('vehicle_types')
-        .select('id, vehicle_type')
+        .select('id, vehicle_type, edition_id')
         .order('vehicle_type');
 
       if (error) throw error;
@@ -241,6 +242,7 @@ export async function POST(request: Request) {
       drive_slots: parseInt(vehicleData.drive_slots),
       engine_slots: parseInt(vehicleData.engine_slots),
       gang_type_id: vehicleData.gang_type_id === "0" ? null : parseInt(vehicleData.gang_type_id),
+      edition_id: vehicleData.edition_id || null,
       hardpoints: vehicleData.hardpoints || [],
       // Initialize occupied slots to 0
       body_slots_occupied: 0,
@@ -365,6 +367,7 @@ export async function PATCH(request: Request) {
       drive_slots: parseInt(vehicleData.drive_slots || "0"),
       engine_slots: parseInt(vehicleData.engine_slots || "0"),
       gang_type_id: vehicleData.gang_type_id === "0" ? null : vehicleData.gang_type_id,
+      edition_id: vehicleData.edition_id || null,
       handling: vehicleData.handling,
       save: vehicleData.save,
       vehicle_type: vehicleData.vehicle_type,

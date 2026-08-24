@@ -4,6 +4,12 @@ import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/utils/supabase/client";
+import {
+  EMPTY_PASSWORD_REQUIREMENTS,
+  PASSWORD_ERROR_MESSAGE,
+  checkPasswordRequirements,
+  isPasswordValid,
+} from "@/utils/auth";
 import { AuthApiError } from '@supabase/supabase-js';
 import Modal from "@/components/ui/modal";
 import { LuEye, LuEyeOff } from "react-icons/lu";
@@ -15,38 +21,16 @@ export default function PasswordChange() {
   const [error, setError] = useState<string | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [passwordRequirements, setPasswordRequirements] = useState({
-    hasLowerCase: false,
-    hasUpperCase: false,
-    hasNumber: false,
-    hasSpecialChar: false,
-    hasMinLength: false,
-  });
+  const [passwordRequirements, setPasswordRequirements] = useState(EMPTY_PASSWORD_REQUIREMENTS);
   const supabase = createClient();
-
-  const checkPasswordRequirements = (password: string) => {
-    setPasswordRequirements({
-      hasLowerCase: /[a-z]/.test(password),
-      hasUpperCase: /[A-Z]/.test(password),
-      hasNumber: /\d/.test(password),
-      hasSpecialChar: /[!@#$%^&*()_+\-=\[\]{}|;:,.<>?~]/.test(password),
-      hasMinLength: password.length >= 6,
-    });
-  };
 
   const handleSave = async () => {
     if (!newPassword) return;
-    
+
     setError(null);
 
-    const hasLowerCase = /[a-z]/.test(newPassword);
-    const hasUpperCase = /[A-Z]/.test(newPassword);
-    const hasNumber = /\d/.test(newPassword);
-    const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{}|;:,.<>?~]/.test(newPassword);
-    const hasMinLength = newPassword.length >= 6;
-
-    if (!hasLowerCase || !hasUpperCase || !hasNumber || !hasSpecialChar || !hasMinLength) {
-      setError('Password must contain at least 6 characters, including uppercase, lowercase, number, and special character');
+    if (!isPasswordValid(newPassword)) {
+      setError(PASSWORD_ERROR_MESSAGE);
       return;
     }
 
@@ -72,13 +56,7 @@ export default function PasswordChange() {
       setShowSuccessModal(true);
       setIsEditing(false);
       setNewPassword('');
-      setPasswordRequirements({
-        hasLowerCase: false,
-        hasUpperCase: false,
-        hasNumber: false,
-        hasSpecialChar: false,
-        hasMinLength: false,
-      });
+      setPasswordRequirements(EMPTY_PASSWORD_REQUIREMENTS);
     } catch (error) {
       console.error('Error updating password:', error);
       setError('An unexpected error occurred. Please try again.');
@@ -103,7 +81,7 @@ export default function PasswordChange() {
                 onChange={(e) => {
                   setNewPassword(e.target.value);
                   setError(null);
-                  checkPasswordRequirements(e.target.value);
+                  setPasswordRequirements(checkPasswordRequirements(e.target.value));
                 }}
                 placeholder="Enter new password"
                 className="pr-10"
@@ -139,13 +117,7 @@ export default function PasswordChange() {
                 setIsEditing(false);
                 setNewPassword('');
                 setError(null);
-                setPasswordRequirements({
-                  hasLowerCase: false,
-                  hasUpperCase: false,
-                  hasNumber: false,
-                  hasSpecialChar: false,
-                  hasMinLength: false,
-                });
+                setPasswordRequirements(EMPTY_PASSWORD_REQUIREMENTS);
               }}
               variant="outline"
               size="sm"

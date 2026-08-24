@@ -7,8 +7,11 @@ import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-ki
 import { toggleFavourite } from '@/app/actions/toggle-favourite'
 import { reorderFavourites } from '@/app/actions/reorder-favourites'
 import { toast } from 'sonner'
-import { useDndSensorsConfig } from '@/hooks/use-dnd-sensors'
+import { useDndSensorsConfig, useSuppressClickAfterDrag } from '@/hooks/use-dnd-sensors'
 import { useIsMounted } from '@/hooks/use-is-mounted'
+import { useHomeEdition } from '@/hooks/use-home-edition'
+import { sameEditionForDisplay } from '@/types/edition'
+import { EditionToggle } from '@/components/home/edition-toggle'
 import { CampaignCardContent, SortableCampaignCard } from '@/components/home/campaign-card'
 
 interface CampaignsTabProps {
@@ -19,6 +22,8 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
   const [localCampaigns, setLocalCampaigns] = useState<Campaign[]>(campaigns);
   const isMounted = useIsMounted();
   const sensors = useDndSensorsConfig();
+  const suppressClickAfterDrag = useSuppressClickAfterDrag('.home-favourite-card-link');
+  const { editionSlug, setEditionSlug } = useHomeEdition();
 
   const [prevCampaigns, setPrevCampaigns] = useState(campaigns);
   if (campaigns !== prevCampaigns) {
@@ -26,22 +31,27 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
     setLocalCampaigns(campaigns);
   }
 
+  const editionCampaigns = useMemo(
+    () => localCampaigns.filter(c => sameEditionForDisplay(c.edition_slug, editionSlug)),
+    [localCampaigns, editionSlug]
+  );
+
   const favouriteCampaigns = useMemo(
-    () => [...localCampaigns]
+    () => [...editionCampaigns]
       .filter(c => c.is_favourite)
       .sort((a, b) => (a.favourite_order ?? 0) - (b.favourite_order ?? 0)),
-    [localCampaigns]
+    [editionCampaigns]
   );
 
   const nonFavouriteCampaigns = useMemo(
-    () => [...localCampaigns]
+    () => [...editionCampaigns]
       .filter(c => !c.is_favourite)
       .sort((a, b) => {
         const dateA = new Date(a.updated_at || a.created_at).getTime();
         const dateB = new Date(b.updated_at || b.created_at).getTime();
         return dateB - dateA;
       }),
-    [localCampaigns]
+    [editionCampaigns]
   );
 
   const handleToggleCampaignFavourite = useCallback(async (campaignMemberId: string, isFavourite: boolean) => {
@@ -66,7 +76,11 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
     }
   }, [localCampaigns]);
 
-  const handleCampaignDragEnd = useCallback(async (event: { active: { id: string | number }; over: { id: string | number } | null }) => {
+  const handleCampaignDragEnd = useCallback(async (event: { active: { id: string | number }; over: { id: string | number } | null; activatorEvent?: Event | null }) => {
+    // Always consider suppress for pointer drags — including same-position drops — because a
+    // real drag still produces a trailing click.
+    suppressClickAfterDrag(event.activatorEvent);
+
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -92,12 +106,15 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
     if (!result.success) {
       toast.error(result.error || 'Failed to reorder favourites');
     }
-  }, [favouriteCampaigns]);
+  }, [favouriteCampaigns, suppressClickAfterDrag]);
 
   return (
     <div className="bg-card shadow-md rounded-lg p-4">
-      <h2 className="text-xl md:text-2xl font-bold mb-4">Campaigns</h2>
-      {localCampaigns.length === 0 ? (
+      <div className="flex items-center justify-between gap-2 mb-4">
+        <h2 className="text-xl md:text-2xl font-bold">Campaigns</h2>
+        <EditionToggle value={editionSlug} onChange={setEditionSlug} />
+      </div>
+      {editionCampaigns.length === 0 ? (
         <p className="text-center text-muted-foreground">No campaigns created yet.</p>
       ) : (
         <div className="space-y-3">
@@ -109,6 +126,7 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
                   sensors={sensors}
                   collisionDetection={closestCenter}
                   onDragEnd={handleCampaignDragEnd}
+                  onDragCancel={(event) => suppressClickAfterDrag(event.activatorEvent)}
                 >
                   <SortableContext
                     items={favouriteCampaigns.map(c => c.campaign_member_id)}

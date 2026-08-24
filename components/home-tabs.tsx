@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import type { Campaign } from '@/app/lib/get-user-campaigns'
 import type { Gang } from '@/app/lib/get-user-gangs'
@@ -19,6 +19,9 @@ import { CustomiseFighters } from '@/components/customise/custom-fighters'
 import { CustomiseSkills } from '@/components/customise/custom-skills'
 import { GangsTab } from '@/components/home/gangs-tab'
 import { CampaignsTab } from '@/components/home/campaigns-tab'
+import { sameEditionForDisplay } from '@/types/edition'
+import { useHomeEdition } from '@/hooks/use-home-edition'
+import { EditionToggle } from '@/components/home/edition-toggle'
 
 type TabKey = 'gangs' | 'campaigns' | 'customassets'
 const TAB_KEYS: TabKey[] = ['gangs', 'campaigns', 'customassets']
@@ -51,6 +54,41 @@ export default function HomeTabs({
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState(0);
   const [fighterTypes, setFighterTypes] = useState<CustomFighterType[]>(customFighterTypes);
+  // Custom Assets shares the home edition store with the Gangs and Campaigns tabs.
+  // The selected edition both filters these lists and becomes the edition of
+  // anything created here, so each Customise component can gate its fields on a
+  // single editionSlug rather than inspecting every row.
+  const { editionSlug, setEditionSlug } = useHomeEdition();
+  const matchesCustomEdition = useCallback(
+    (itemEditionSlug: string | null | undefined) =>
+      sameEditionForDisplay(itemEditionSlug, editionSlug),
+    [editionSlug]
+  );
+
+  const filteredEquipment = useMemo(
+    () => customEquipment.filter(item => matchesCustomEdition(item.edition_slug)),
+    [customEquipment, matchesCustomEdition]
+  );
+  const filteredFighterTypes = useMemo(
+    () => fighterTypes.filter(item => matchesCustomEdition(item.edition_slug)),
+    [fighterTypes, matchesCustomEdition]
+  );
+  const filteredSkills = useMemo(
+    () => customSkills.filter(item => matchesCustomEdition(item.edition_slug)),
+    [customSkills, matchesCustomEdition]
+  );
+  const filteredGangTypes = useMemo(
+    () => customGangTypes.filter(item => matchesCustomEdition(item.edition_slug)),
+    [customGangTypes, matchesCustomEdition]
+  );
+  const filteredTradingPosts = useMemo(
+    () => customTradingPosts.filter(item => matchesCustomEdition(item.edition_slug)),
+    [customTradingPosts, matchesCustomEdition]
+  );
+  const filteredCollections = useMemo(
+    () => customCollections.filter(item => matchesCustomEdition(item.edition_slug)),
+    [customCollections, matchesCustomEdition]
+  );
 
   const handleGangTypeUpdated = useCallback((gangTypeId: string, newName: string): CustomFighterType[] => {
     const previous = fighterTypes;
@@ -142,32 +180,39 @@ export default function HomeTabs({
         {activeTab === 2 && (
           <div className="bg-card shadow-md rounded-lg p-4 space-y-6">
             <div>
-              <h2 className="text-xl md:text-2xl font-bold mb-2">Custom Assets</h2>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <h2 className="text-xl md:text-2xl font-bold">Custom Assets</h2>
+                <EditionToggle value={editionSlug} onChange={setEditionSlug} />
+              </div>
               <p className="text-muted-foreground">
                 Create your own Gang Types, Fighters, Equipment, Skills, Skill sets and Trading Posts and share them to campaigns you&apos;re an Arbitrator of. Bundle them into Asset Collections to apply a whole themed set to a campaign at once, or copy another arbitrator&apos;s asset collection into your account. Custom Territories and Scenarios are created in the campaign pages.
               </p>
             </div>
 
             <CustomiseEquipment
-              initialEquipment={customEquipment}
+              initialEquipment={filteredEquipment}
+              editionSlug={editionSlug}
               userId={userId}
               userCampaigns={userCampaigns}
             />
 
             <CustomiseFighters
-              initialFighters={fighterTypes}
+              initialFighters={filteredFighterTypes}
+              editionSlug={editionSlug}
               userId={userId}
               userCampaigns={userCampaigns}
             />
 
             <CustomiseSkills
-              initialSkills={customSkills}
+              initialSkills={filteredSkills}
+              editionSlug={editionSlug}
               userId={userId}
               userCampaigns={userCampaigns}
             />
 
             <CustomiseGangTypes
-              initialGangTypes={customGangTypes}
+              initialGangTypes={filteredGangTypes}
+              editionSlug={editionSlug}
               userId={userId}
               userCampaigns={userCampaigns}
               onGangTypeUpdated={handleGangTypeUpdated}
@@ -175,7 +220,8 @@ export default function HomeTabs({
             />
 
             <CustomiseTradingPosts
-              initialTradingPosts={customTradingPosts}
+              initialTradingPosts={filteredTradingPosts}
+              editionSlug={editionSlug}
               userId={userId}
               userCampaigns={userCampaigns}
             />
@@ -183,14 +229,15 @@ export default function HomeTabs({
             {/* Collections work like the other custom assets: always editable here; the
                 Share action gates itself to campaigns the user arbitrates. */}
             <CustomiseCollections
-              initialCollections={customCollections}
+              initialCollections={filteredCollections}
+              editionSlug={editionSlug}
               userId={userId}
               userCampaigns={userCampaigns}
-              customEquipment={customEquipment}
-              customFighterTypes={fighterTypes}
-              customSkills={customSkills}
-              customGangTypes={customGangTypes}
-              customTradingPosts={customTradingPosts}
+              customEquipment={filteredEquipment}
+              customFighterTypes={filteredFighterTypes}
+              customSkills={filteredSkills}
+              customGangTypes={filteredGangTypes}
+              customTradingPosts={filteredTradingPosts}
             />
           </div>
         )}

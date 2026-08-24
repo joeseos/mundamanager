@@ -1,6 +1,6 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
-
+import { withEditionSlug } from "@/types/edition";
 import type { CustomCollection, CollectionItem, CollectionItemType } from "@/app/actions/customise/custom-collections";
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -32,7 +32,7 @@ export async function getUserCustomCollections(userId: string, supabase: Supabas
     async () => {
       const { data: collections, error } = await supabase
         .from('custom_collections')
-        .select('*')
+        .select('*, editions:edition_id (slug)')
         .eq('user_id', userId)
         .order('name', { ascending: true });
 
@@ -83,7 +83,7 @@ export async function getUserCustomCollections(userId: string, supabase: Supabas
       );
 
       return typedCollections.map(collection => ({
-        ...collection,
+        ...withEditionSlug(collection),
         resolvedItems: (collection.items || [])
           .map(item => {
             const name = nameMaps[item.type]?.get(item.id);
@@ -92,7 +92,7 @@ export async function getUserCustomCollections(userId: string, supabase: Supabas
           .filter((i): i is ResolvedCollectionItem => i !== null),
       }));
     },
-    [`user-custom-collections-v2-${userId}`],
+    [`user-custom-collections-v3-${userId}`],
     {
       tags: [TAGS.customs(userId)],
       revalidate: false,

@@ -78,6 +78,49 @@ For questions about contributing, feel free to ask in our [Discord server](https
    The Supabase DB schema can be accessed through https://supabase-schema.vercel.app/
    Use the Supabase URL and the and the anon key to connect to it
 
+### Setting up a local Supabase database
+
+Run the whole stack locally with the Supabase CLI so you can experiment with
+schema/backend changes without touching the production database.
+
+> **Why are local migrations disabled in config.toml?**
+> The files in `supabase/migrations/` are *incremental* deltas for developers
+> who already have the full database — they assume base tables that were never
+> captured as a migration, so replaying them from empty crashes. Local migration
+> auto-run is therefore disabled in `supabase/config.toml`. Instead, `supabase start`
+> and `supabase db reset` natively build the fresh local database via `[db.seed].sql_paths`
+> in `supabase/config.toml`, loading the committed schema snapshot (`schema.public.sql`),
+> helper schemas, role grants, triggers, and game reference data (`seed.sql`) in the exact right order.
+
+**Prerequisites:** [Supabase CLI](https://supabase.com/docs/guides/cli), Docker
+(for the local stack), and a `psql` client.
+
+1. **Bootstrap the database** from the repo root:
+   ```bash
+   supabase start
+   ```
+   Or if the stack is already running and you want to clean/rebuild your local database from scratch:
+   ```bash
+   supabase db reset
+   ```
+   Supabase CLI natively resets the database and seeds the schema snapshot (`schema.public.sql`), helper schemas, role grants, triggers, and game reference data (`seed.sql`).
+
+2. **Point `.env.local` at the local stack.** Run `supabase status` to get the local API URL and anon key, then set:
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key from `supabase status`>
+   ```
+
+3. **Start the app** with `npm run dev` as usual.
+
+**Notes**
+- `supabase db reset` wipes the local database, rebuilds it cleanly from the daily production schema snapshot, and seeds reference game lookup data.
+- The email webhook is intentionally **not** part of local setup: it needs AWS
+  SES secrets and only matters for outbound notification email. See
+  `supabase/webhooks/README.md` if you need it.
+- To pull the latest production schema before bootstrapping, `git pull` first —
+  `schema.public.sql` is refreshed by CI daily.
+
 
 ## Component Architecture
 
@@ -162,7 +205,7 @@ GangPage (Server Component)
 
 ### Overview
 The fighter effects system manages all modifications to fighter statistics through a unified interface. Effects can come from various sources:
-- Injuries
+- Lasting Injuries
 - Advancements
 - Bionics
 - Cyberteknika
@@ -565,7 +608,7 @@ interface FighterProps {
   id: string
   fighter_name: string
   fighter_type: string
-  fighter_class: string
+  fighter_subtype: string
   credits: number
   // Stats and equipment
   movement: number

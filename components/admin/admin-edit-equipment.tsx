@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,15 +8,25 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
 import { toast } from 'sonner';
 import { FighterType } from "@/types/fighter";
-import { WeaponProfileInput, EquipmentGrants } from "@/types/equipment";
+import { WeaponProfileInput, emptyWeaponProfile, EquipmentGrants, EquipmentAvailability, EquipmentOriginAvailability, EquipmentVariantAvailability, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
 import { HiX } from "react-icons/hi";
-import { fighterClassRank } from "@/utils/fighterClassRank";
+import { getFighterSubtypeSortRank } from "@/utils/fighterSubtypeRank";
 import { gangOriginRank } from "@/utils/gangOriginRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
 import { AdminFighterEffects } from "./admin-fighter-effects";
+import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
+import { hasLethalityStatline, hasTradePoints } from '@/types/edition';
+import { isValidTradePoints } from '@/utils/campaigns/resources';
+import { WeaponProfileFields } from '@/components/ui/weapon-profile-fields';
 import { AdminTradingPost } from "./admin-trading-post";
 import { LuTrash2 } from 'react-icons/lu';
 import Modal from "@/components/ui/modal";
+
+interface EquipmentCategory {
+  id: string;
+  category_name: string;
+  edition_id?: string | null;
+}
 
 interface AdminEditEquipmentModalProps {
   onClose: () => void;
@@ -26,34 +36,32 @@ interface AdminEditEquipmentModalProps {
 const EQUIPMENT_TYPES = ['wargear', 'weapon', 'vehicle_upgrade'] as const;
 type EquipmentType = typeof EQUIPMENT_TYPES[number];
 
-interface GangAdjustedCost {
-  gang_type: string;
-  gang_type_id: string;
-  adjusted_cost: number;
-}
+/** Blank grant options only when the target is found with a confirmed different edition. */
+function sanitizeGrantsOptionsForEdition(
+  grants: EquipmentGrants,
+  catalog: Array<{ id: string; edition_id?: string | null }>,
+  editionId: string
+): EquipmentGrants {
+  // Empty catalog can't confirm a mismatch (e.g. fetch failure) — leave options alone
+  if (!catalog.length) return grants;
 
-interface GangOriginAdjustedCost {
-  origin_name: string;
-  gang_origin_id: string;
-  adjusted_cost: number;
-}
-
-interface EquipmentAvailability {
-  gang_type: string;
-  gang_type_id: string;
-  availability: string;
-}
-
-interface EquipmentOriginAvailability {
-  origin_name: string;
-  gang_origin_id: string;
-  availability: string;
-}
-
-interface EquipmentVariantAvailability {
-  variant: string;
-  gang_variant_id: string;
-  availability: string;
+  return {
+    ...grants,
+    options: (grants.options || []).map(option => {
+      if (!option.equipment_id) return option;
+      const granted = catalog.find(e => e.id === option.equipment_id);
+      // Same posture as weapon_group_id: only blank when found AND editions conflict
+      if (
+        granted &&
+        editionId &&
+        granted.edition_id &&
+        granted.edition_id !== editionId
+      ) {
+        return { ...option, equipment_id: '' };
+      }
+      return option;
+    }),
+  };
 }
 
 interface Equipment {
@@ -61,10 +69,12 @@ interface Equipment {
   equipment_name: string;
   availability: string;
   cost: number;
+  trade_points?: string;
   variants: string;
   equipment_category: string;
   equipment_type: EquipmentType;
   core_equipment: boolean;
+  edition_id?: string | null;
   weapon_profiles?: WeaponProfileInput[];
   fighter_types?: string[];
   gang_adjusted_costs?: GangAdjustedCost[];
@@ -78,29 +88,18 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [availLetter, setAvailLetter] = useState<'C' | 'R' | 'E' | 'I' | 'S'>('C');
   const [availNumber, setAvailNumber] = useState(6);
   const [cost, setCost] = useState('');
+  const [tradePoints, setTradePoints] = useState('0');
   const [variants, setVariants] = useState('');
   const [equipmentCategory, setEquipmentCategory] = useState('');
   const [equipmentType, setEquipmentType] = useState<EquipmentType | ''>('');
+  const [editionId, setEditionId] = useState('');
   const [coreEquipment, setCoreEquipment] = useState(false);
   const [isEditable, setIsEditable] = useState(false);
   const [isConsumable, setIsConsumable] = useState(false);
   const [grantsEquipment, setGrantsEquipment] = useState<EquipmentGrants | null>(null);
-  const [allEquipment, setAllEquipment] = useState<Array<{id: string, equipment_name: string, cost?: number}>>([]);
+  const [allEquipment, setAllEquipment] = useState<Array<{id: string, equipment_name: string, edition_id?: string | null, cost?: number}>>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [weaponProfiles, setWeaponProfiles] = useState<WeaponProfileInput[]>([{
-    profile_name: '',
-    range_short: '',
-    range_long: '',
-    acc_short: '',
-    acc_long: '',
-    strength: '',
-    ap: '',
-    damage: '',
-    ammo: '',
-    traits: '',
-    weapon_group_id: null,
-    sort_order: 1
-  }]);
+  const [weaponProfiles, setWeaponProfiles] = useState<WeaponProfileInput[]>([emptyWeaponProfile(1)]);
   const [categoryFilter, setCategoryFilter] = useState('');
   const [fighterTypes, setFighterTypes] = useState<FighterType[]>([]);
   const [selectedFighterTypes, setSelectedFighterTypes] = useState<string[]>([]);
@@ -116,6 +115,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [selectedAvailabilityGangType, setSelectedAvailabilityGangType] = useState("");
   const [availValueLetter, setAvailValueLetter] = useState('');
   const [availValueNumber, setAvailValueNumber] = useState(6);
+  const [availExclusive, setAvailExclusive] = useState(false);
   const [equipmentAvailabilities, setEquipmentAvailabilities] = useState<EquipmentAvailability[]>([]);
   const [showOriginAvailabilityDialog, setShowOriginAvailabilityDialog] = useState(false);
   const [selectedAvailabilityGangOrigin, setSelectedAvailabilityGangOrigin] = useState("");
@@ -130,7 +130,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [fighterEffects, setFighterEffects] = useState<any[]>([]);
   const [fighterEffectCategories, setFighterEffectCategories] = useState<any[]>([]);
   const [selectedTradingPosts, setSelectedTradingPosts] = useState<string[]>([]);
-  const [tradingPostTypes, setTradingPostTypes] = useState<Array<{id: string, trading_post_name: string}>>([]);
+  const [tradingPostTypes, setTradingPostTypes] = useState<Array<{id: string, trading_post_name: string, edition_id?: string | null}>>([]);
 
   
 
@@ -145,7 +145,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: categories = [] } = useQuery<Array<{id: string, category_name: string}>>({
+  const { data: categories = [] } = useQuery<EquipmentCategory[]>({
     queryKey: ['admin-equipment-categories'],
     queryFn: async () => {
       const response = await fetch('/api/admin/equipment/categories');
@@ -154,6 +154,110 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     },
     staleTime: 5 * 60 * 1000,
   });
+
+  // Edition is the top-level filter: only equipment/categories of the chosen
+  // edition are offered for editing, and the saved row keeps that edition
+  const filteredCategories = useMemo(
+    () => editionId ? categories.filter(category => category.edition_id === editionId) : categories,
+    [categories, editionId]
+  );
+
+  const filteredEquipmentList = useMemo(
+    () => editionId ? equipmentList.filter(item => item.edition_id === editionId) : equipmentList,
+    [equipmentList, editionId]
+  );
+
+  const { data: editions = [] } = useEditions();
+  const editionSlug = editionSlugOf(editions, editionId);
+  const showTradePoints = hasTradePoints(editionSlug);
+  const showAvailability = !showTradePoints;
+  // N26 weapons are described with SR/LR/Str/AP/Lethality; N23 with Rng, Acc,
+  // Str, AP, D and Am. Only the stats the selected edition uses are offered.
+  const usesLethality = hasLethalityStatline(editionSlug);
+
+  const handleEditionChange = (newEditionId: string) => {
+    setEditionId(newEditionId);
+    if (newEditionId && selectedEquipmentId) {
+      const selected = equipmentList.find(item => item.id === selectedEquipmentId);
+      if (selected && selected.edition_id !== newEditionId) {
+        setSelectedEquipmentId('');
+      }
+    }
+    if (categoryFilter && newEditionId) {
+      // categoryFilter is a name; the same name can exist per edition
+      const stillValid = categories.some(
+        category => category.category_name === categoryFilter && category.edition_id === newEditionId
+      );
+      if (!stillValid) {
+        setCategoryFilter('');
+        setSelectedEquipmentId('');
+      }
+    }
+    if (equipmentCategory) {
+      const selected = categories.find(category => category.id === equipmentCategory);
+      if (selected && newEditionId && selected.edition_id !== newEditionId) {
+        setEquipmentCategory('');
+      }
+    }
+    // Gang types are edition-scoped; clear any in-progress Cost-per-Gang pick
+    setSelectedGangType('');
+    // Drop trading posts / fighter types that belong to another edition
+    if (newEditionId) {
+      setSelectedTradingPosts(prev =>
+        prev.filter(id => {
+          const tp = tradingPostTypes.find(t => t.id === id);
+          return !tp || tp.edition_id === newEditionId;
+        })
+      );
+      setSelectedFighterTypes(prev =>
+        prev.filter(id => {
+          const ft = fighterTypes.find(f => f.id === id);
+          return !ft || ft.edition_id === newEditionId;
+        })
+      );
+      // Cost per Gang is keyed on a gang type, which is edition-scoped too
+      setGangAdjustedCosts(prev =>
+        prev.filter(cost => {
+          const gt = gangTypeOptions.find(g => g.gang_type_id === cost.gang_type_id);
+          return !gt || gt.edition_id === newEditionId;
+        })
+      );
+    }
+    // N26 uses Trade Points instead of Availability; drop stale N23 rows
+    if (hasTradePoints(editionSlugOf(editions, newEditionId))) {
+      setShowAvailabilityDialog(false);
+      setSelectedAvailabilityGangType('');
+      setAvailValueLetter('');
+      setAvailValueNumber(6);
+      setAvailExclusive(false);
+      setEquipmentAvailabilities([]);
+      setShowOriginAvailabilityDialog(false);
+      setSelectedAvailabilityGangOrigin('');
+      setOriginAvailValueLetter('');
+      setOriginAvailValueNumber(6);
+      setEquipmentOriginAvailabilities([]);
+      setShowVariantAvailabilityDialog(false);
+      setSelectedAvailabilityGangVariant('');
+      setVariantAvailValueLetter('');
+      setVariantAvailValueNumber(6);
+      setEquipmentVariantAvailabilities([]);
+    }
+    // Weapon Group parents are edition-scoped; drop a cross-edition pick
+    if (newEditionId) {
+      setWeaponProfiles(profiles => profiles.map(profile => {
+        if (!profile.weapon_group_id) return profile;
+        const parent = weapons.find(w => w.id === profile.weapon_group_id);
+        if (parent && parent.edition_id !== newEditionId) {
+          return { ...profile, weapon_group_id: null };
+        }
+        return profile;
+      }));
+      // Grants options are edition-scoped; blank confirmed cross-edition picks
+      setGrantsEquipment(current =>
+        current ? sanitizeGrantsOptionsForEdition(current, allEquipment, newEditionId) : current
+      );
+    }
+  };
 
   const { data: equipmentDetails, isLoading: isEquipmentDetailsLoading } = useQuery<any>({
     queryKey: ['admin-equipment-details', selectedEquipmentId],
@@ -180,26 +284,14 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       setAvailLetter('C');
       setAvailNumber(6);
       setCost('');
+      setTradePoints('0');
       setVariants('');
       setEquipmentType('');
       setCoreEquipment(false);
       setIsEditable(false);
       setIsConsumable(false);
       setGrantsEquipment(null);
-      setWeaponProfiles([{
-        profile_name: '',
-        range_short: '',
-        range_long: '',
-        acc_short: '',
-        acc_long: '',
-        strength: '',
-        ap: '',
-        damage: '',
-        ammo: '',
-        traits: '',
-        weapon_group_id: null,
-        sort_order: 1
-      }]);
+      setWeaponProfiles([emptyWeaponProfile(1)]);
       setGangAdjustedCosts([]);
       setGangOriginAdjustedCosts([]);
       setEquipmentAvailabilities([]);
@@ -212,15 +304,27 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       setAvailLetter((parsed.letter || 'C') as 'C' | 'R' | 'E' | 'I' | 'S');
       setAvailNumber(parsed.number);
       setCost(equipmentDetails.cost?.toString() || '');
+      setTradePoints(
+        equipmentDetails.trade_points != null
+          ? String(equipmentDetails.trade_points)
+          : '0'
+      );
       setVariants(equipmentDetails.variants || '');
       setEquipmentCategory(equipmentDetails.equipment_category_id);
       setEquipmentType(equipmentDetails.equipment_type);
+      setEditionId(equipmentDetails.edition_id ?? '');
       setCoreEquipment(equipmentDetails.core_equipment || false);
       setIsEditable(equipmentDetails.is_editable || false);
       setIsConsumable(equipmentDetails.is_consumable || false);
 
       if (equipmentDetails.grants_equipment) {
-        setGrantsEquipment(equipmentDetails.grants_equipment);
+        setGrantsEquipment(
+          sanitizeGrantsOptionsForEdition(
+            equipmentDetails.grants_equipment,
+            equipmentDetails.all_equipment || [],
+            equipmentDetails.edition_id ?? ''
+          )
+        );
       }
 
       if (equipmentDetails.all_equipment) {
@@ -247,7 +351,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         setEquipmentAvailabilities(equipmentDetails.equipment_availabilities.map((a: any) => ({
           gang_type: a.gang_type,
           gang_type_id: a.gang_type_id,
-          availability: a.availability
+          availability: a.availability,
+          exclusive: a.exclusive ?? false
         })));
       }
 
@@ -292,27 +397,23 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       }
 
       if (equipmentDetails.weapon_profiles && equipmentDetails.weapon_profiles.length > 0) {
-        setWeaponProfiles(equipmentDetails.weapon_profiles);
+        // lethality is NULL on every pre-N26 profile; the inputs are controlled
+        setWeaponProfiles(equipmentDetails.weapon_profiles.map((profile: WeaponProfileInput) => ({
+          ...profile,
+          lethality: profile.lethality ?? ''
+        })));
       } else if (equipmentDetails.equipment_type === 'weapon') {
-        setWeaponProfiles([{
-          profile_name: '',
-          range_short: '',
-          range_long: '',
-          acc_short: '',
-          acc_long: '',
-          strength: '',
-          ap: '',
-          damage: '',
-          ammo: '',
-          traits: '',
-          weapon_group_id: null,
-          sort_order: 1
-        }]);
+        setWeaponProfiles([emptyWeaponProfile(1)]);
       }
     }
   }
 
-  const { data: weapons = [], isLoading: isWeaponsLoading } = useQuery<Array<{id: string, equipment_name: string}>>({
+  const { data: weapons = [], isLoading: isWeaponsLoading } = useQuery<Array<{
+    id: string;
+    equipment_name: string;
+    edition_id?: string | null;
+    equipment_type?: string;
+  }>>({
     queryKey: ['admin-weapons'],
     queryFn: async () => {
       const response = await fetch('/api/admin/equipment?equipment_type=weapon');
@@ -323,7 +424,17 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: gangTypeOptions = [], isLoading: isGangTypesLoading } = useQuery<Array<{gang_type_id: string, gang_type: string}>>({
+  const filteredWeapons = useMemo(
+    () => editionId ? weapons.filter(weapon => weapon.edition_id === editionId) : weapons,
+    [weapons, editionId]
+  );
+
+  const filteredAllEquipment = useMemo(
+    () => editionId ? allEquipment.filter(e => e.edition_id === editionId) : allEquipment,
+    [allEquipment, editionId]
+  );
+
+  const { data: gangTypeOptions = [], isLoading: isGangTypesLoading } = useQuery<Array<{gang_type_id: string, gang_type: string, edition_id?: string | null}>>({
     queryKey: ['admin-gang-types'],
     queryFn: async () => {
       const response = await fetch('/api/admin/gang-types');
@@ -333,6 +444,16 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     enabled: showAdjustedCostDialog || showAvailabilityDialog,
     staleTime: 5 * 60 * 1000,
   });
+
+  const filteredGangTypes = useMemo(
+    () => editionId ? gangTypeOptions.filter(type => type.edition_id === editionId) : gangTypeOptions,
+    [gangTypeOptions, editionId]
+  );
+
+  const filteredFighterTypes = useMemo(
+    () => editionId ? fighterTypes.filter(ft => ft.edition_id === editionId) : fighterTypes,
+    [fighterTypes, editionId]
+  );
 
   const { data: gangOriginList = [] } = useQuery<Array<{id: string, origin_name: string, category_name: string}>>({
     queryKey: ['admin-gang-origins'],
@@ -370,20 +491,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const addProfile = () => {
     setWeaponProfiles([
       ...weaponProfiles,
-      {
-        profile_name: '',
-        range_short: '',
-        range_long: '',
-        acc_short: '',
-        acc_long: '',
-        strength: '',
-        ap: '',
-        damage: '',
-        ammo: '',
-        traits: '',
-        weapon_group_id: null,
-        sort_order: weaponProfiles.length + 1
-      }
+      emptyWeaponProfile(weaponProfiles.length + 1)
     ]);
   };
 
@@ -397,6 +505,11 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       return;
     }
 
+    if (showTradePoints && !isValidTradePoints(tradePoints)) {
+      toast.error("Trade Points must be a number or E");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       // First get the category name
@@ -407,20 +520,30 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
 
       const hasEditedFighterTypes = selectedFighterTypes.length !== fighterTypes.filter(ft => selectedFighterTypes.includes(ft.id)).length;
 
-      // Validate and normalize grants_equipment - treat empty options as no grants
-      const normalizedGrantsEquipment = grantsEquipment?.options?.length
-        ? grantsEquipment
+      // Validate and normalize grants_equipment - treat empty options as no grants.
+      // An option with no equipment picked is dropped: a blank equipment_id can never
+      // be granted, and it is not a uuid, so anything casting it downstream breaks.
+      const grantsEquipmentOptions = (grantsEquipment?.options || []).filter(
+        option => Boolean(option.equipment_id)
+      );
+      const normalizedGrantsEquipment = grantsEquipment && grantsEquipmentOptions.length
+        ? { ...grantsEquipment, options: grantsEquipmentOptions }
         : null;
 
       const requestBody = {
         equipment_name: equipmentName,
-        availability: combineAvailability(availLetter, availNumber),
+        // When Availability is hidden (N26), keep the loaded value — do not clear it.
+        availability: showAvailability
+          ? combineAvailability(availLetter, availNumber)
+          : (equipmentDetails?.availability ?? 'C'),
         cost: parseInt(cost),
+        trade_points: showTradePoints ? tradePoints.trim().toUpperCase() : '0',
         variants,
         equipment_category: selectedCategory.category_name,
         equipment_category_id: equipmentCategory,
         equipment_type: equipmentType,
         core_equipment: coreEquipment,
+        edition_id: editionId || null,
         is_editable: isEditable,
         is_consumable: isConsumable,
         grants_equipment: normalizedGrantsEquipment,
@@ -439,18 +562,25 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           gang_origin_id: d.gang_origin_id,
           adjusted_cost: d.adjusted_cost
         })),
-        equipment_availabilities: equipmentAvailabilities.map(a => ({
-          gang_type_id: a.gang_type_id,
-          availability: a.availability
-        })),
-        equipment_origin_availabilities: equipmentOriginAvailabilities.map(a => ({
-          gang_origin_id: a.gang_origin_id,
-          availability: a.availability
-        })),
-        equipment_variant_availabilities: equipmentVariantAvailabilities.map(a => ({
-          gang_variant_id: a.gang_variant_id,
-          availability: a.availability
-        })),
+        equipment_availabilities: showAvailability
+          ? equipmentAvailabilities.map(a => ({
+              gang_type_id: a.gang_type_id,
+              availability: a.availability,
+              exclusive: a.exclusive
+            }))
+          : [],
+        equipment_origin_availabilities: showAvailability
+          ? equipmentOriginAvailabilities.map(a => ({
+              gang_origin_id: a.gang_origin_id,
+              availability: a.availability
+            }))
+          : [],
+        equipment_variant_availabilities: showAvailability
+          ? equipmentVariantAvailabilities.map(a => ({
+              gang_variant_id: a.gang_variant_id,
+              availability: a.availability
+            }))
+          : [],
         fighter_effects: fighterEffects
       };
 
@@ -531,6 +661,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         <div className="px-[10px] py-4 overflow-y-auto flex-1">
           <div className="grid grid-cols-3 gap-4">
             <div className="col-span-3">
+              <EditionSelect value={editionId} onChange={handleEditionChange} defaultToCurrent />
+            </div>
+
+            <div className="col-span-3">
               <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Select Category *
               </label>
@@ -543,7 +677,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                 className="w-full p-2 border rounded-md"
               >
                 <option value="">Select a category</option>
-                {categories.map((category) => (
+                {filteredCategories.map((category) => (
                   <option key={category.id} value={category.category_name}>
                     {category.category_name}
                   </option>
@@ -562,7 +696,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                 disabled={!categoryFilter}
               >
                 <option value="">Select equipment</option>
-                {equipmentList
+                {[...filteredEquipmentList]
                   .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name))
                   .map((item: Equipment) => (
                     <option key={item.id} value={item.id}>
@@ -598,7 +732,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                   disabled={!selectedEquipmentId}
                 >
                   <option value="">Select category</option>
-                  {categories.map((category) => (
+                  {filteredCategories.map((category) => (
                     <option key={category.id} value={category.id}>
                       {category.category_name}
                     </option>
@@ -643,14 +777,31 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                 />
               </div>
 
-              <AvailabilityPicker
-                label="Availability (TP default) *"
-                letter={availLetter}
-                number={availNumber}
-                onLetterChange={(v) => setAvailLetter(v as 'C' | 'R' | 'E' | 'I' | 'S')}
-                onNumberChange={setAvailNumber}
-                disabled={!selectedEquipmentId}
-              />
+              {showAvailability && (
+                <AvailabilityPicker
+                  label="Availability (TP default) *"
+                  letter={availLetter}
+                  number={availNumber}
+                  onLetterChange={(v) => setAvailLetter(v as 'C' | 'R' | 'E' | 'I' | 'S')}
+                  onNumberChange={setAvailNumber}
+                  disabled={!selectedEquipmentId}
+                />
+              )}
+
+              {showTradePoints && (
+                <div>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    Trade Points *
+                  </label>
+                  <Input
+                    type="text"
+                    value={tradePoints}
+                    onChange={(e) => setTradePoints(e.target.value)}
+                    placeholder="2 or E"
+                    disabled={!selectedEquipmentId}
+                  />
+                </div>
+              )}
 
               {equipmentType !== 'vehicle_upgrade' && (
                 <div className="col-span-1">
@@ -806,7 +957,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             disabled={!selectedEquipmentId}
                           >
                             <option value="">Select equipment...</option>
-                            {allEquipment
+                            {filteredAllEquipment
                               .filter(e => e.id !== selectedEquipmentId)
                               .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name))
                               .map((equip) => (
@@ -947,7 +1098,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                 {isGangTypesLoading ? (
                                   <option>Loading...</option>
                                 ) : (
-                                  gangTypeOptions.map((gang) => (
+                                  filteredGangTypes.map((gang) => (
                                     <option key={gang.gang_type_id} value={gang.gang_type_id}>
                                       {gang.gang_type}
                                     </option>
@@ -976,7 +1127,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       )}
                     </div>
 
-                    {/* Availability per Gang */}
+                    {/* Availability per Gang — N23 only (N26 uses Trade Points) */}
+                    {showAvailability && (
                     <div>
                       <label className="block text-sm font-medium text-muted-foreground mb-1">
                         Availability per Gang
@@ -997,7 +1149,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                               key={index}
                               className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                             >
-                              <span>{avail.gang_type} (Availability: {avail.availability})</span>
+                              <span>{avail.gang_type} ({[avail.availability ? `Availability: ${avail.availability}` : null, avail.exclusive ? 'Exclusive' : null].filter(Boolean).join(', ')})</span>
                               <button
                                 onClick={() => setEquipmentAvailabilities(prev =>
                                   prev.filter((_, i) => i !== index)
@@ -1021,10 +1173,11 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             setSelectedAvailabilityGangType("");
                             setAvailValueLetter('');
                             setAvailValueNumber(6);
+                            setAvailExclusive(false);
                           }}
                           onConfirm={() => {
                             const combined = combineAvailability(availValueLetter, availValueNumber);
-                            if (selectedAvailabilityGangType && combined) {
+                            if (selectedAvailabilityGangType && (combined || availExclusive)) {
                               const selectedGang = gangTypeOptions.find(g => g.gang_type_id === selectedAvailabilityGangType);
                               if (selectedGang) {
                                 setEquipmentAvailabilities(prev => [
@@ -1032,13 +1185,15 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                   {
                                     gang_type: selectedGang.gang_type,
                                     gang_type_id: selectedGang.gang_type_id,
-                                    availability: combined
+                                    availability: combined,
+                                    exclusive: availExclusive
                                   }
                                 ]);
                                 setShowAvailabilityDialog(false);
                                 setSelectedAvailabilityGangType("");
                                 setAvailValueLetter('');
                                 setAvailValueNumber(6);
+                                setAvailExclusive(false);
                               }
                             }
                           }}
@@ -1046,7 +1201,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           confirmDisabled={
                             isGangTypesLoading ||
                             !selectedAvailabilityGangType ||
-                            !availValueLetter
+                            (!availValueLetter && !availExclusive)
                           }
                           width="sm"
                         >
@@ -1068,7 +1223,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                 {isGangTypesLoading ? (
                                   <option>Loading...</option>
                                 ) : (
-                                  gangTypeOptions.map((gang) => (
+                                  filteredGangTypes.map((gang) => (
                                     <option key={gang.gang_type_id} value={gang.gang_type_id}>
                                       {gang.gang_type}
                                     </option>
@@ -1085,10 +1240,25 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                               onNumberChange={setAvailValueNumber}
                               allowEmpty
                             />
+
+                            <label className="flex items-start space-x-2">
+                              <Checkbox
+                                checked={availExclusive}
+                                onCheckedChange={(checked) => setAvailExclusive(checked === true)}
+                                className="mt-1"
+                              />
+                              <div>
+                                <span className="text-sm font-medium text-muted-foreground">Available only to this gang</span>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  Limits this item&apos;s Trading Post visibility to only the gangs flagged here. Flag several gangs to make it available to each of them.
+                                </p>
+                              </div>
+                            </label>
                           </div>
                         </Modal>
                       )}
                     </div>
+                    )}
 
                     {/* Cost per Gang Origin */}
                     <div>
@@ -1228,7 +1398,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       )}
                     </div>
 
-                    {/* Availability per Gang Origin */}
+                    {/* Availability per Gang Origin — N23 only */}
+                    {showAvailability && (
                     <div>
                       <label className="block text-sm font-medium text-muted-foreground mb-1">
                         Availability per Gang Origin
@@ -1358,8 +1529,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         </Modal>
                       )}
                     </div>
+                    )}
 
-                    {/* Availability per Gang Variant */}
+                    {/* Availability per Gang Variant — N23 only */}
+                    {showAvailability && (
                     <div>
                       <label className="block text-sm font-medium text-muted-foreground mb-1">
                         Availability per Gang Variant
@@ -1480,6 +1653,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         </Modal>
                       )}
                     </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1503,24 +1677,25 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                     disabled={!selectedEquipmentId}
                   >
                     <option value="">Select fighter type to add</option>
-                    {fighterTypes
+                    {filteredFighterTypes
                       .filter(ft => !selectedFighterTypes.includes(ft.id))
                       .sort((a, b) => {
                         // First sort by gang type
                         const gangCompare = a.gang_type.localeCompare(b.gang_type);
                         if (gangCompare !== 0) return gangCompare;
-                        // Then by fighter class priority
-                        const classCompare = (fighterClassRank[a.fighter_class?.toLowerCase() as keyof typeof fighterClassRank] || Infinity)
-                          - (fighterClassRank[b.fighter_class?.toLowerCase() as keyof typeof fighterClassRank] || Infinity);
-                        if (classCompare !== 0) return classCompare;
+                        // Then by fighter subtype priority (per fighter type's own edition)
+                        const subtypeCompare =
+                          getFighterSubtypeSortRank(a.fighter_subtypes, editionSlugOf(editions, a.edition_id))
+                          - getFighterSubtypeSortRank(b.fighter_subtypes, editionSlugOf(editions, b.edition_id));
+                        if (subtypeCompare !== 0) return subtypeCompare;
                         // Finally by fighter type name
                         return a.fighter_type.localeCompare(b.fighter_type);
                       })
                       .map((ft) => {
-                        const subTypeText = ft.fighter_sub_types?.sub_type_name ? ` - ${ft.fighter_sub_types.sub_type_name}` : '';
+                        const specialisationText = [ft.fighter_variant, ft.fighter_specialisations?.specialisation_name].filter(Boolean).map(n => ` - ${n}`).join('');
                         return (
                           <option key={ft.id} value={ft.id}>
-                            {`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_class})${subTypeText}`}
+                            {`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_subtypes?.join(', ')})${specialisationText}`}
                           </option>
                         );
                       })}
@@ -1536,7 +1711,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           key={ft.id}
                           className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                         >
-                          <span>{`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_class})${ft.fighter_sub_types?.sub_type_name ? ` - ${ft.fighter_sub_types.sub_type_name}` : ''}`}</span>
+                          <span>{`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_subtypes?.join(', ')})${[ft.fighter_variant, ft.fighter_specialisations?.specialisation_name].filter(Boolean).map(n => ` - ${n}`).join('')}`}</span>
                           <button
                             type="button"
                             onClick={() => setSelectedFighterTypes(selectedFighterTypes.filter(id => id !== ft.id))}
@@ -1559,6 +1734,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                   selectedTradingPosts={selectedTradingPosts}
                   setSelectedTradingPosts={setSelectedTradingPosts}
                   tradingPostTypes={tradingPostTypes}
+                  editionId={editionId}
                   disabled={!selectedEquipmentId}
                 />
               )}
@@ -1566,8 +1742,9 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
               {/* Fighter Effects Section */}
               {selectedEquipmentId && (
                 <div className="col-span-3">
-                  <AdminFighterEffects 
+                  <AdminFighterEffects
                     equipmentId={selectedEquipmentId}
+                    editionId={editionId}
                     fighterEffects={fighterEffects}
                     fighterEffectCategories={fighterEffectCategories}
                     onUpdate={() => {
@@ -1653,13 +1830,17 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             Attach this profile to an existing weapon, or leave it as is to use with this weapon.
                           </p>
                           <select
-                            value={profile.weapon_group_id || ''}
+                            value={
+                              profile.weapon_group_id && profile.weapon_group_id !== selectedEquipmentId
+                                ? profile.weapon_group_id
+                                : ''
+                            }
                             onChange={(e) => handleProfileChange(index, 'weapon_group_id', e.target.value)}
                             className="w-full p-2 border rounded-md"
                             disabled={!selectedEquipmentId}
                           >
                             <option value="">Use This Weapon (Default)</option>
-                            {weapons
+                            {filteredWeapons
                               .filter(w => w.id !== selectedEquipmentId)
                               .map((weapon) => (
                                 <option key={weapon.id} value={weapon.id}>
@@ -1670,111 +1851,13 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         </div>
 
                         {/* Weapon Characteristics */}
-                        <div className="grid grid-cols-4 md:grid-cols-8 gap-2 md:gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-muted-foreground mb-1">
-                              Rng S
-                            </label>
-                            <Input
-                              type="text"
-                              value={profile.range_short}
-                              onChange={(e) => handleProfileChange(index, 'range_short', e.target.value)}
-                              placeholder='e.g. 4", -'
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-muted-foreground mb-1">
-                              Rng L
-                            </label>
-                            <Input
-                              type="text"
-                              value={profile.range_long}
-                              onChange={(e) => handleProfileChange(index, 'range_long', e.target.value)}
-                              placeholder='e.g. 8", E'
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-muted-foreground mb-1">
-                              Acc S
-                            </label>
-                            <Input
-                              type="text"
-                              value={profile.acc_short}
-                              onChange={(e) => handleProfileChange(index, 'acc_short', e.target.value)}
-                              placeholder='e.g. +1, -'
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-muted-foreground mb-1">
-                              Acc L
-                            </label>
-                            <Input
-                              type="text"
-                              value={profile.acc_long}
-                              onChange={(e) => handleProfileChange(index, 'acc_long', e.target.value)}
-                              placeholder='e.g. -1, -'
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-muted-foreground mb-1">
-                              Strength
-                            </label>
-                            <Input
-                              type="text"
-                              value={profile.strength}
-                              onChange={(e) => handleProfileChange(index, 'strength', e.target.value)}
-                              placeholder="e.g. 3, S+1"
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-muted-foreground mb-1">
-                              AP
-                            </label>
-                            <Input
-                              type="text"
-                              value={profile.ap}
-                              onChange={(e) => handleProfileChange(index, 'ap', e.target.value)}
-                              placeholder="e.g. -1, -"
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-muted-foreground mb-1">
-                              Damage
-                            </label>
-                            <Input
-                              type="text"
-                              value={profile.damage}
-                              onChange={(e) => handleProfileChange(index, 'damage', e.target.value)}
-                              placeholder="e.g. 1, D3"
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-muted-foreground mb-1">
-                              Am
-                            </label>
-                            <Input
-                              type="text"
-                              value={profile.ammo}
-                              onChange={(e) => handleProfileChange(index, 'ammo', e.target.value)}
-                              placeholder='e.g. 5+'
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-                        </div>
+                        <WeaponProfileFields
+                          profile={profile}
+                          index={index}
+                          onChange={handleProfileChange}
+                          usesLethality={usesLethality}
+                          disabled={!selectedEquipmentId}
+                        />
                         <div>
                           <div className="col-span-3">
                             <label className="block text-sm font-medium text-muted-foreground mb-1">

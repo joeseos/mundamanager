@@ -14,9 +14,11 @@ import {
   getGangStash,
   getGangCampaigns,
   getGangVariants,
+  getGangTacticsCards,
   getUserProfile
 } from '@/app/lib/shared/gang-data';
 import { getGangBattleSessionsCached } from '@/app/lib/battle-sessions/get-battle-session-data';
+import { hasGangTacticsCards } from '@/types/edition';
 
 export default async function GangPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -63,7 +65,8 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       gangVariants,
       userProfile,
       userPermissions,
-      battleSessions
+      battleSessions,
+      tacticsCards
     ] = await Promise.all([
       getGangPositioning(params.id, supabase),
       getGangType(gangBasic, supabase),
@@ -74,7 +77,11 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       getGangVariants(gangBasic.gang_variants || [], supabase),
       getUserProfile(gangBasic.user_id, supabase),
       checkPermissionCached(user.id, params.id, gangBasic.user_id),
-      getGangBattleSessionsCached(params.id, supabase)
+      getGangBattleSessionsCached(params.id, supabase),
+      // Editions without Gang Tactics never render the section.
+      hasGangTacticsCards(gangBasic.edition_slug)
+        ? getGangTacticsCards(params.id, supabase)
+        : Promise.resolve([])
     ]);
 
     // Initialize positioning if needed (lazy initialization only)
@@ -94,6 +101,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       gang_type: gangBasic.gang_type,
       gang_type_id: gangBasic.gang_type_id,
       custom_gang_type_id: gangBasic.custom_gang_type_id || null,
+      edition_slug: gangBasic.edition_slug ?? null,
       gang_type_image_url: gangType.image_url,
       image_url: gangBasic.image_url,
       default_gang_image: gangBasic.default_gang_image ?? null,
@@ -101,6 +109,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       gang_colour: gangBasic.gang_colour,
       credits: gangBasic.credits,
       reputation: gangBasic.reputation,
+      trade_points: gangBasic.trade_points,
       rating: gangBasic.rating,
       wealth: gangBasic.wealth,
       alignment: gangBasic.alignment,
@@ -135,7 +144,8 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       patreon_tier_title: userProfile?.patreon_tier_title,
       patron_status: userProfile?.patron_status,
       hidden: gangBasic.hidden,
-      battleSessions: battleSessions
+      battleSessions: battleSessions,
+      tacticsCards: tacticsCards
     };
 
     return (

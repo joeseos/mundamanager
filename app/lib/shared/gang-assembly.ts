@@ -1,4 +1,4 @@
-import { BITTER_ENMITY_EFFECT_NAME } from '@/utils/bitterEnmityDisplay';
+import { readHatredTarget } from '@/utils/injuryTarget';
 import { WeaponProps, WargearItem } from '@/types/fighter';
 import { WeaponProfile } from '@/types/equipment';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
@@ -108,6 +108,7 @@ export function assembleGangFighters(
   options?: GetGangFightersListOptions
 ): GangFighter[] {
   const expandLoadoutsForPrint = options?.expandLoadoutsForPrint ?? false;
+  const gangEditionSlug = options?.gangEditionSlug ?? null;
   const fighters = bundle.fighters;
   if (!fighters || fighters.length === 0) return [];
 
@@ -275,26 +276,27 @@ export function assembleGangFighters(
           const skillName = (skillData.skill as any)?.name || (skillData.custom_skill as any)?.skill_name;
           if (skillName) {
             const fe = skillData.fighter_effect_skills?.fighter_effects;
+
+            // Same rule as the effects filter below
+            if (
+              activeLoadoutEquipmentIds !== null &&
+              fe?.fighter_equipment_id &&
+              !activeLoadoutEquipmentIds.has(fe.fighter_equipment_id)
+            ) {
+              return;
+            }
+
             const injuryName = fe?.effect_name;
             const tsd =
               fe?.type_specific_data && typeof fe.type_specific_data === 'object'
                 ? (fe.type_specific_data as Record<string, unknown>)
                 : null;
-            const isBitterEnmity = injuryName === BITTER_ENMITY_EFFECT_NAME;
-            const bitterId =
-              isBitterEnmity && typeof tsd?.bitter_enmity_target_gang_id === 'string'
-                ? tsd.bitter_enmity_target_gang_id
-                : undefined;
-            const bitterName =
-              isBitterEnmity && typeof tsd?.bitter_enmity_target_gang_name === 'string'
-                ? tsd.bitter_enmity_target_gang_name
-                : undefined;
-            const bitterColour =
-              isBitterEnmity && tsd && 'bitter_enmity_target_gang_colour' in tsd
-                ? (tsd.bitter_enmity_target_gang_colour as string | null)
-                : undefined;
+            // Hatred (X) target of the granting injury, for the badge on the
+            // skills list. readHatredTarget also understands the pre-N26
+            // bitter_enmity_* keys, which were deliberately never backfilled.
+            const hatredTarget = readHatredTarget(tsd);
 
-            skills[skillName] = {
+            const mapped = {
               id: skillData.id,
               name: skillName,
               credits_increase: skillData.credits_increase || 0,
@@ -304,14 +306,20 @@ export function assembleGangFighters(
               fighter_injury_id: skillData.fighter_effect_skill_id || undefined,
               injury_name: injuryName || undefined,
               acquired_at: skillData.created_at,
-              ...(bitterId
+              ...(hatredTarget
                 ? {
-                    bitter_enmity_target_gang_id: bitterId,
-                    bitter_enmity_target_gang_name: bitterName,
-                    bitter_enmity_target_gang_colour: bitterColour ?? null
+                    hatred_target_kind: hatredTarget.kind,
+                    hatred_target_id: hatredTarget.id,
+                    hatred_target_name: hatredTarget.name,
+                    hatred_target_colour: hatredTarget.colour
                   }
                 : {})
             };
+
+            // A granted skill never hides one the fighter bought
+            if (!skills[skillName] || skills[skillName].fighter_injury_id) {
+              skills[skillName] = mapped;
+            }
           }
         });
 
@@ -637,7 +645,7 @@ export function assembleGangFighters(
 
         // Get fighter type info from the join
         const fighterTypeInfo = fighter.fighter_types || {};
-        const fighterSubTypeInfo = fighter.fighter_sub_types || null;
+        const fighterSpecialisationInfo = fighter.fighter_specialisations || null;
 
         // Calculate loadout cost for display: base cost + loadout equipment + skills + effects
         // This shows what the fighter costs with the current loadout
@@ -668,16 +676,20 @@ export function assembleGangFighters(
           fighter_name: fighter.fighter_name,
           label: fighter.label,
           fighter_type: fighter.fighter_type || fighterTypeInfo.fighter_type || 'Unknown',
-          fighter_class: fighter.fighter_class || 'Unknown',
-          fighter_sub_type: fighterSubTypeInfo ? {
-            fighter_sub_type: fighterSubTypeInfo.sub_type_name,
-            fighter_sub_type_id: fighterSubTypeInfo.id
+          fighter_subtypes: fighter.fighter_subtypes || [],
+          fighter_specialisation: fighterSpecialisationInfo ? {
+            fighter_specialisation: fighterSpecialisationInfo.specialisation_name,
+            fighter_specialisation_id: fighterSpecialisationInfo.id
           } : undefined,
+          fighter_variant: fighter.fighter_variant ?? null,
           alliance_crew_name: fighterTypeInfo.alliance_crew_name,
           is_spyrer: fighterTypeInfo.is_spyrer ?? false,
+          // The gang card needs this to offer Lasting Damage on a vehicle with no `vehicles` row
+          is_vehicle: fighter.is_vehicle ?? false,
           kill_count: fighter.kill_count ?? 0,
           position: fighter.position,
           xp: fighter.xp,
+          starting_xp: fighter.starting_xp,
           kills: fighter.kills || 0,
           credits: totalCost,
           loadout_cost: activeLoadoutId ? displayLoadoutCost : undefined, // Only set when loadout is active
@@ -693,6 +705,8 @@ export function assembleGangFighters(
           cool: fighter.cool,
           willpower: fighter.willpower,
           intelligence: fighter.intelligence,
+          save: fighter.save ?? null,
+          edition_slug: gangEditionSlug,
           weapons,
           wargear,
           effects,
@@ -865,8 +879,8 @@ export interface FighterView {
   ownershipInfo: { owner_name?: string; beast_equipment_stashed: boolean } | null;
   loadouts: Array<{ id: string; fighter_id: string; loadout_name: string; equipment_ids: string[] }>;
   capturedByGangName: string | null;
-  fighterTypeData: { id: string; fighter_type: string; alliance_crew_name?: string; is_spyrer?: boolean; gang_type_id?: string | null } | null;
-  fighterSubTypeData: { fighter_sub_type: string; fighter_sub_type_id: string } | null;
+  fighterTypeData: { id: string; fighter_type: string; fighter_subtypes?: string[]; alliance_crew_name?: string; is_spyrer?: boolean; is_vehicle?: boolean; gang_type_id?: string | null; editions?: { slug: string } | null } | null;
+  fighterSpecialisationData: { fighter_specialisation: string; fighter_specialisation_id: string } | null;
 }
 
 /**
@@ -947,7 +961,8 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
   stdProfiles.forEach((profile: any) => {
     if (!standardProfilesMap.has(profile.weapon_id)) standardProfilesMap.set(profile.weapon_id, []);
     standardProfilesMap.get(profile.weapon_id)!.push(profile);
-    if (profile.weapon_group_id && ownedStandardIds.has(profile.weapon_id)) {
+    if (profile.weapon_group_id && profile.weapon_group_id !== profile.weapon_id
+        && ownedStandardIds.has(profile.weapon_id)) {
       if (!standardProfilesMap.has(profile.weapon_group_id)) standardProfilesMap.set(profile.weapon_group_id, []);
       standardProfilesMap.get(profile.weapon_group_id)!.push(profile);
     }
@@ -1029,21 +1044,12 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
         fe?.type_specific_data && typeof fe.type_specific_data === 'object'
           ? (fe.type_specific_data as Record<string, unknown>)
           : null;
-      const isBitterEnmity = injuryName === BITTER_ENMITY_EFFECT_NAME;
-      const bitterId =
-        isBitterEnmity && typeof tsd?.bitter_enmity_target_gang_id === 'string'
-          ? tsd.bitter_enmity_target_gang_id
-          : undefined;
-      const bitterName =
-        isBitterEnmity && typeof tsd?.bitter_enmity_target_gang_name === 'string'
-          ? tsd.bitter_enmity_target_gang_name
-          : undefined;
-      const bitterColour =
-        isBitterEnmity && tsd && 'bitter_enmity_target_gang_colour' in tsd
-          ? (tsd.bitter_enmity_target_gang_colour as string | null)
-          : undefined;
+      // Hatred (X) target of the granting injury, for the badge on the
+      // skills list. readHatredTarget also understands the pre-N26
+      // bitter_enmity_* keys, which were deliberately never backfilled.
+      const hatredTarget = readHatredTarget(tsd);
 
-      skills[skillName] = {
+      const mapped = {
         id: skillData.id,
         name: skillName,
         credits_increase: skillData.credits_increase || 0,
@@ -1053,14 +1059,21 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
         injury_name: injuryName || undefined,
         acquired_at: skillData.created_at,
         custom_skill_id: skillData.custom_skill_id || undefined,
-        ...(bitterId
+        granted_by_equipment_id: fe?.fighter_equipment_id || undefined,
+        ...(hatredTarget
           ? {
-              bitter_enmity_target_gang_id: bitterId,
-              bitter_enmity_target_gang_name: bitterName,
-              bitter_enmity_target_gang_colour: bitterColour ?? null
+              hatred_target_kind: hatredTarget.kind,
+              hatred_target_id: hatredTarget.id,
+              hatred_target_name: hatredTarget.name,
+              hatred_target_colour: hatredTarget.colour
             }
           : {})
       };
+
+      // A granted skill never hides one the fighter bought
+      if (!skills[skillName] || skills[skillName].fighter_injury_id) {
+        skills[skillName] = mapped;
+      }
     }
   });
 
@@ -1295,21 +1308,24 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
     ? (bundle.capturedByGangs.find((g: any) => g.id === fighterRow.captured_by_gang_id)?.name ?? null)
     : null;
 
-  // ---- Type / sub-type info (from the bundle's fighter row joins) ----
+  // ---- Type / specialisation info (from the bundle's fighter row joins) ----
   const fighterTypeData = fighterRow?.fighter_type_id && fighterRow.fighter_types
     ? {
         id: fighterRow.fighter_type_id,
         fighter_type: (fighterRow.fighter_types as any).fighter_type,
+        fighter_subtypes: (fighterRow.fighter_types as any).fighter_subtypes ?? [],
         alliance_crew_name: (fighterRow.fighter_types as any).alliance_crew_name,
         is_spyrer: (fighterRow.fighter_types as any).is_spyrer,
-        gang_type_id: (fighterRow.fighter_types as any).gang_type_id ?? null
+        is_vehicle: (fighterRow.fighter_types as any).is_vehicle ?? false,
+        gang_type_id: (fighterRow.fighter_types as any).gang_type_id ?? null,
+        editions: (fighterRow.fighter_types as any).editions ?? null
       }
     : null;
 
-  const fighterSubTypeData = fighterRow?.fighter_sub_types
+  const fighterSpecialisationData = fighterRow?.fighter_specialisations
     ? {
-        fighter_sub_type: (fighterRow.fighter_sub_types as any).sub_type_name,
-        fighter_sub_type_id: (fighterRow.fighter_sub_types as any).id
+        fighter_specialisation: (fighterRow.fighter_specialisations as any).specialisation_name,
+        fighter_specialisation_id: (fighterRow.fighter_specialisations as any).id
       }
     : null;
 
@@ -1325,6 +1341,6 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
     loadouts,
     capturedByGangName,
     fighterTypeData,
-    fighterSubTypeData
+    fighterSpecialisationData
   };
 }

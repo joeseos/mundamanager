@@ -13,16 +13,16 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const fighterClassId = searchParams.get('fighter_class_id');
+    const fighterSubtypeId = searchParams.get('fighter_subtype_id');
 
-    // Get archetypes, filtered by fighter class if provided
+    // Get archetypes, filtered by fighter subtype if provided
     let query = supabase
       .from('skill_access_archetypes')
-      .select('id, name, description, skill_access, fighter_class_id')
+      .select('id, name, description, skill_access, fighter_subtype_id')
       .order('name');
 
-    if (fighterClassId) {
-      query = query.or(`fighter_class_id.is.null,fighter_class_id.eq.${fighterClassId}`);
+    if (fighterSubtypeId) {
+      query = query.or(`fighter_subtype_id.is.null,fighter_subtype_id.eq.${fighterSubtypeId}`);
     }
 
     const { data: archetypes, error: archetypesError } = await query;

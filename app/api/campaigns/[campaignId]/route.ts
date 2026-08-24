@@ -6,7 +6,7 @@ import {
   getCampaignBattles,
   getCampaignCaptives
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
-import { invalidateCampaign } from '@/utils/cache-tags';
+import { invalidateCampaign, purgePreEditionCampaignCatalogCachesOnce } from '@/utils/cache-tags';
 
 export async function GET(request: Request, props: { params: Promise<{ campaignId: string }> }) {
   const params = await props.params;
@@ -23,6 +23,7 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
     // Force-refresh endpoint: bust the campaign cache before re-reading so the
     // client gets fresh data (all campaign entries share the campaign-{id} tag)
     invalidateCampaign(campaignId);
+    purgePreEditionCampaignCatalogCachesOnce();
     // Use the same cached functions as the page
     const [
       campaignBasic,
@@ -53,6 +54,7 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       campaign_type_id: campaignBasic.campaign_type_id,
       campaign_type_name: (campaignBasic.campaign_types as any)?.campaign_type_name || '',
       campaign_type_image_url: (campaignBasic.campaign_types as any)?.image_url || '',
+      edition_slug: (campaignBasic.campaign_types as any)?.edition_slug ?? null,
       image_url: campaignBasic.image_url || '',
       status: campaignBasic.status,
       description: campaignBasic.description,
@@ -60,6 +62,7 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       updated_at: campaignBasic.updated_at,
       note: campaignBasic.note,
       trading_posts: campaignBasic.trading_posts || [],
+      allow_join_requests: campaignBasic.allow_join_requests ?? false,
       members: campaignMembers,
       territories: campaignTerritories,
       battles: campaignBattles,

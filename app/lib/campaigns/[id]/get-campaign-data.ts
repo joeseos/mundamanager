@@ -6,6 +6,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchCampaignAllegiances } from '@/utils/campaigns/allegiances';
 import { getWinnerIdsFromParsed, getClaimerGangIdFromParsed } from '@/utils/battle-winners';
 import { fetchCampaignResources } from '@/utils/campaigns/resources';
+import { editionSlugFromJoin, withEditionSlug } from '@/types/edition';
 
 // No TTL - infinite cache with server action invalidation only
 // Cache only expires when explicitly invalidated via revalidateTag()
@@ -27,7 +28,8 @@ async function _getCampaignBasic(campaignId: string, supabase: SupabaseClient) {
       note,
       image_url,
       discord_guild_id,
-      discord_channel_id
+      discord_channel_id,
+      allow_join_requests
     `)
     .eq('id', campaignId)
     .single();
@@ -40,24 +42,27 @@ async function _getCampaignBasic(campaignId: string, supabase: SupabaseClient) {
 
   let campaignTypeName = '';
   let campaignTypeImageUrl = '';
+  let campaignTypeEditionSlug: string | null = null;
   if (campaign.campaign_type_id) {
     const { data: campaignType, error: typeError } = await supabase
       .from('campaign_types')
-      .select('campaign_type_name, image_url')
+      .select('campaign_type_name, image_url, editions:edition_id(slug)')
       .eq('id', campaign.campaign_type_id)
       .single();
 
     if (!typeError && campaignType) {
       campaignTypeName = campaignType.campaign_type_name;
       campaignTypeImageUrl = campaignType.image_url || '';
+      campaignTypeEditionSlug = editionSlugFromJoin((campaignType as any).editions);
     }
   }
 
   return {
     ...campaign,
-    campaign_types: campaignTypeName ? { 
+    campaign_types: campaignTypeName ? {
       campaign_type_name: campaignTypeName,
-      image_url: campaignTypeImageUrl
+      image_url: campaignTypeImageUrl,
+      edition_slug: campaignTypeEditionSlug
     } : null
   };
 }
@@ -69,7 +74,6 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
       id,
       user_id,
       role,
-      status,
       invited_at,
       joined_at,
       invited_by
@@ -332,7 +336,6 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
       user_id: member.user_id,
       username: memberProfile?.username || '',
       role: member.role,
-      status: member.status,
       invited_at: member.invited_at,
       joined_at: member.joined_at,
       invited_by: member.invited_by,
@@ -586,7 +589,7 @@ export const getCampaignBasic = async (campaignId: string, supabaseClient?: Supa
     async () => {
       return _getCampaignBasic(campaignId, supabase);
     },
-    [`campaign-basic-v2-${campaignId}`],
+    [`campaign-basic-v3-${campaignId}`],
     {
       tags: [TAGS.campaign(campaignId)],
       revalidate: false
@@ -622,7 +625,7 @@ export const getCampaignMembers = async (campaignId: string, supabaseClient?: Su
     async () => {
       return _getCampaignMembers(campaignId, supabase);
     },
-    [`campaign-members-v2-${campaignId}`],
+    [`campaign-members-v3-${campaignId}`],
     {
       tags: cacheTags,
       revalidate: false
@@ -961,16 +964,17 @@ export async function getCampaignSharedTradingPosts(campaignId: string, supabase
     async () => {
       const { data } = await supabase
         .from('custom_shared')
-        .select('custom_trading_post_id, custom_trading_posts!inner(id, custom_trading_post_name)')
+        .select('custom_trading_post_id, custom_trading_posts!inner(id, custom_trading_post_name, editions:edition_id (slug))')
         .eq('campaign_id', campaignId)
         .not('custom_trading_post_id', 'is', null);
 
       return (data || []).map((row: any) => ({
         id: row.custom_trading_posts.id,
         trading_post_name: row.custom_trading_posts.custom_trading_post_name,
+        edition_slug: editionSlugFromJoin(row.custom_trading_posts.editions),
       }));
     },
-    [`campaign-shared-trading-posts-v2-${campaignId}`],
+    [`campaign-shared-trading-posts-v3-${campaignId}`],
     {
       tags: [TAGS.campaign(campaignId)],
       revalidate: false

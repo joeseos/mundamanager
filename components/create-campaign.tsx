@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -9,15 +9,19 @@ import { toast } from 'sonner';
 import { useRouter, useSearchParams } from 'next/navigation'
 import { SubmitButton } from "./submit-button"
 import { tradingPostRank } from "@/utils/tradingPostRank"
-import { campaignRank } from '@/utils/campaigns/campaignRank'
+import { getCampaignRank } from '@/utils/campaigns/campaignRank'
 import { ImInfo } from "react-icons/im"
 import { Tooltip } from 'react-tooltip';
 import React from "react"
 import type { CampaignType } from '@/types/campaign'
+import { EditionToggle } from '@/components/home/edition-toggle'
+import { useHomeEdition } from '@/hooks/use-home-edition'
+import { sameEditionForDisplay } from '@/types/edition'
 
 interface TradingPostType {
   id: string;
   trading_post_name: string;
+  edition_slug?: string | null;
 }
 
 interface CreateCampaignModalProps {
@@ -61,6 +65,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
   
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { editionSlug, setEditionSlug } = useHomeEdition();
   const [campaignName, setCampaignName] = useState("")
   const [campaignType, setCampaignType] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -69,7 +74,33 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
   const [tradingPostTypes, setTradingPostTypes] = useState<TradingPostType[]>(initialTradingPostTypes || [])
   const [selectedTradingPosts, setSelectedTradingPosts] = useState<string[]>([])
 
+  const editionCampaignTypes = useMemo(
+    () => campaignTypes.filter(type => sameEditionForDisplay(type.edition_slug, editionSlug)),
+    [campaignTypes, editionSlug]
+  );
+
+  const editionTradingPostTypes = useMemo(
+    () => tradingPostTypes.filter(type => sameEditionForDisplay(type.edition_slug, editionSlug)),
+    [tradingPostTypes, editionSlug]
+  );
+
+  const campaignRank = getCampaignRank(editionSlug);
+
   const isFormValid = campaignName.trim() !== "" && campaignType !== ""
+
+  // Clear campaign type / trading posts that no longer belong to the active edition
+  const [prevEditionSlug, setPrevEditionSlug] = useState(editionSlug);
+  if (editionSlug !== prevEditionSlug) {
+    setPrevEditionSlug(editionSlug);
+    if (campaignType && !editionCampaignTypes.some(type => type.id === campaignType)) {
+      setCampaignType("");
+      setSelectedTradingPosts([]);
+    } else {
+      setSelectedTradingPosts(prev =>
+        prev.filter(id => editionTradingPostTypes.some(type => type.id === id))
+      );
+    }
+  }
 
   // Auto-select default trading posts when campaign type changes
   const [prevCampaignType, setPrevCampaignType] = useState(campaignType);
@@ -78,7 +109,14 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
     if (campaignType) {
       const selectedCampaignType = campaignTypes.find(type => type.id === campaignType);
       if (selectedCampaignType?.trading_posts && Array.isArray(selectedCampaignType.trading_posts)) {
-        setSelectedTradingPosts(selectedCampaignType.trading_posts);
+        setSelectedTradingPosts(
+          selectedCampaignType.trading_posts.filter(id =>
+            sameEditionForDisplay(
+              tradingPostTypes.find(type => type.id === id)?.edition_slug,
+              editionSlug
+            )
+          )
+        );
       } else {
         setSelectedTradingPosts([]);
       }
@@ -193,6 +231,12 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
         </div>
         <div className="space-y-4">
           <div>
+            <label className="block text-sm font-medium text-muted-foreground mb-1">
+              Edition *
+            </label>
+            <EditionToggle value={editionSlug} onChange={setEditionSlug} />
+          </div>
+          <div>
             <label htmlFor="campaign-type" className="block text-sm font-medium text-muted-foreground mb-1">
               Campaign Type *
             </label>
@@ -203,7 +247,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
               className="w-full px-3 py-2 rounded-md border border-border focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">Select campaign type</option>
-              {campaignTypes
+              {editionCampaignTypes
                 .sort((a, b) => {
                   const typeA = a.campaign_type_name.toLowerCase();
                   const typeB = b.campaign_type_name.toLowerCase();
@@ -226,8 +270,8 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
           </div>
 
           {/* Trading Posts */}
-          {tradingPostTypes.length > 0 && (
-            <div className="space-y-2 text-sm font-medium mb-1">
+          {editionTradingPostTypes.length > 0 && (
+            <div className="space-y-2">
               <label className="flex items-center justify-between text-sm font-medium">
                 <div className="flex items-center space-x-2">
                   <span>Authorised Trading Posts</span>
@@ -244,7 +288,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
                 </span>
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {tradingPostTypes
+                {editionTradingPostTypes
                   .sort((a, b) => {
                     const rankA = tradingPostRank[a.trading_post_name.toLowerCase()] ?? Infinity;
                     const rankB = tradingPostRank[b.trading_post_name.toLowerCase()] ?? Infinity;

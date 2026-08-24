@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { createGangLog, GangLogActionResult } from "./gang-logs";
 import { formatFinancialChanges, formatXpBreakdown } from "./log-helpers";
+import { downtimePhaseName } from "@/types/edition";
 
 export interface FighterLogParams {
   gang_id: string;
@@ -26,6 +27,8 @@ export interface FighterLogParams {
   /** OOA/kills values for combined XP+OOA log line */
   old_ooa?: number;
   new_ooa?: number;
+  /** Gang's edition, for descriptions whose wording the edition renames. */
+  edition_slug?: string | null;
   oldCredits?: number;
   oldRating?: number;
   oldWealth?: number;
@@ -144,7 +147,7 @@ export async function logFighterAction(params: FighterLogParams): Promise<GangLo
         description = `Fighter "${params.fighter_name}" was released from captivity.${financialChanges}`;
         break;
       case 'rig_glitches_cleared_downtime':
-        description = `Fighter "${params.fighter_name}" cleared ${params.old_value} rig glitch${Number(params.old_value) !== 1 ? 'es' : ''} via Downtime.${financialChanges}`;
+        description = `Fighter "${params.fighter_name}" cleared ${params.old_value} rig glitch${Number(params.old_value) !== 1 ? 'es' : ''} via ${downtimePhaseName(params.edition_slug)}.${financialChanges}`;
         break;
       case 'fighter_copied':
         const copyTypeLabel = params.copy_type === 'experienced' ? 'experienced fighter' : 'base fighter';
@@ -179,16 +182,17 @@ export async function calculateFighterCredits(fighter_id: string): Promise<numbe
     
     const { data: fighter, error } = await supabase
       .from('fighters')
+      // Left joins: !inner dropped the row unless the fighter had all four relations
       .select(`
         credits,
         cost_adjustment,
-        fighter_equipment!inner(purchase_cost),
-        fighter_skills!inner(credits_increase),
-        fighter_effects!inner(type_specific_data),
-        vehicles!inner(cost, fighter_equipment!inner(purchase_cost))
+        fighter_equipment(purchase_cost),
+        fighter_skills(credits_increase),
+        fighter_effects(type_specific_data),
+        vehicles(cost, fighter_equipment(purchase_cost))
       `)
       .eq('id', fighter_id)
-      .single();
+      .maybeSingle();
 
     if (error || !fighter) {
       console.error('Error fetching fighter data for credit calculation:', error);

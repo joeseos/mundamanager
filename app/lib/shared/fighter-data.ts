@@ -25,16 +25,20 @@ export interface FighterBasic {
   cool: number;
   willpower: number;
   intelligence: number;
+  save?: number | null;
   xp: number;
+  /** null means N/A: this fighter's type cannot gain XP. */
+  starting_xp: number | null;
   special_rules?: string[];
-  fighter_class?: string;
-  fighter_class_id?: string;
+  fighter_subtypes: string[];
   fighter_type?: string;
   fighter_type_id: string;
   custom_fighter_type_id?: string | null;
   custom_fighter_type?: {
     gang_type_id: string | null;
     custom_gang_type_id: string | null;
+    is_vehicle?: boolean;
+    editions?: { slug: string } | null;
   } | null;
   fighter_gang_legacy_id?: string | null;
   fighter_gang_legacy?: {
@@ -42,7 +46,8 @@ export interface FighterBasic {
     fighter_type_id: string;
     name?: string;
   } | null;
-  fighter_sub_type_id?: string;
+  fighter_specialisation_id?: string;
+  fighter_variant?: string | null;
   killed?: boolean;
   starved?: boolean;
   retired?: boolean;
@@ -98,16 +103,19 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
           cool,
           willpower,
           intelligence,
+          save,
           xp,
+          starting_xp,
           special_rules,
-          fighter_class,
-          fighter_class_id,
+          fighter_subtypes,
           fighter_type,
           fighter_type_id,
           custom_fighter_type_id,
           custom_fighter_type:custom_fighter_type_id (
             gang_type_id,
-            custom_gang_type_id
+            custom_gang_type_id,
+            is_vehicle,
+            editions:edition_id (slug)
           ),
           fighter_gang_legacy_id,
           fighter_gang_legacy:fighter_gang_legacy_id (
@@ -115,7 +123,8 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
             fighter_type_id,
             name
           ),
-          fighter_sub_type_id,
+          fighter_specialisation_id,
+          fighter_variant,
           killed,
           starved,
           retired,
@@ -147,7 +156,7 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
       }
       return data;
     },
-    [`fighter-basic-v3-${fighterId}`],
+    [`fighter-basic-v4-${fighterId}`],
     {
       tags: [TAGS.fighter(fighterId)],
       revalidate: false

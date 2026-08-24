@@ -35,6 +35,8 @@ export interface WeaponProfile {
   strength?: number | string | null;
   ap?: number | string | null;
   damage?: number | string | null;
+  /** N26 replacement for damage. Null on pre-N26 profiles. */
+  lethality?: number | string | null;
   ammo?: number | string | null;
   traits?: string | null;
   weapon_group_id?: string | null;
@@ -55,11 +57,32 @@ export interface WeaponProfileInput {
   strength: string;
   ap: string;
   damage: string;
+  lethality: string;
   ammo: string;
   traits: string;
   weapon_group_id?: string | null;
   sort_order: number;
 }
+
+/**
+ * A blank profile for the admin equipment forms. Defined once so a new stat
+ * column lands in one place rather than in every form literal.
+ */
+export const emptyWeaponProfile = (sortOrder = 1): WeaponProfileInput => ({
+  profile_name: '',
+  range_short: '',
+  range_long: '',
+  acc_short: '',
+  acc_long: '',
+  strength: '',
+  ap: '',
+  damage: '',
+  lethality: '',
+  ammo: '',
+  traits: '',
+  weapon_group_id: null,
+  sort_order: sortOrder,
+});
 
 /**
  * Weapon - simplified weapon type used in fighter cards and roster views
@@ -84,6 +107,8 @@ export interface Equipment {
   cost: number;
   base_cost?: number;
   adjusted_cost?: number;
+  /** N26 Trade Points cost (text: numeric string or E); surfaced when edition uses trade points */
+  trade_points?: string;
   availability?: string | null;
   equipment_category?: string;
   created_at?: string;
@@ -125,6 +150,8 @@ export interface EquipmentListItem {
   equipment_name: string;
   equipment_category: string;
   equipment_type?: string;
+  /** From /api/equipment, so pickers can scope to one edition. */
+  edition_slug?: string | null;
   is_custom: boolean;
   original_id?: string;
 }
@@ -148,6 +175,8 @@ export interface CustomEquipment {
   equipment_name: string;
   availability: string;
   cost: number;
+  /** N26 Trade Points cost (text: numeric string or E); surfaced when edition uses trade points */
+  trade_points?: string;
   variant?: string;
   equipment_category?: string;
   equipment_category_id?: string;
@@ -156,6 +185,7 @@ export interface CustomEquipment {
   created_at: string;
   updated_at?: string;
   is_consumable?: boolean;
+  edition_slug?: string | null;
 }
 
 /**
@@ -171,6 +201,8 @@ export interface CustomWeaponProfileData {
   strength: string;
   ap: string;
   damage: string;
+  /** N26 replacement for damage. Optional until the customise form offers it. */
+  lethality?: string;
   ammo: string;
   traits?: string;
   sort_order?: number;
@@ -190,4 +222,48 @@ export interface ResourceCost {
   amount: number;
   typeResourceId?: string;
   campaignResourceId?: string;
+}
+
+/**
+ * Per-gang availability entries used by the equipment admin editor.
+ * The label fields (gang_type / origin_name / variant) are for display only;
+ * the API persists the id + availability (+ exclusive for gang-type rows).
+ * `exclusive` marks the row as an "available only to this gang" allow-list entry.
+ */
+export interface EquipmentAvailability {
+  gang_type: string;
+  gang_type_id: string;
+  // null when the row only restricts the item to this gang (exclusive) without
+  // overriding availability — the item keeps its normal availability.
+  availability: string | null;
+  exclusive?: boolean;
+}
+
+export interface EquipmentOriginAvailability {
+  origin_name: string;
+  gang_origin_id: string;
+  availability: string;
+}
+
+export interface EquipmentVariantAvailability {
+  variant: string;
+  gang_variant_id: string;
+  availability: string;
+}
+
+/**
+ * Per-gang adjusted-cost entries used by the equipment admin editor.
+ * The label fields (gang_type / origin_name) are for display only; the API
+ * persists the id + adjusted_cost.
+ */
+export interface GangAdjustedCost {
+  gang_type: string;
+  gang_type_id: string;
+  adjusted_cost: number;
+}
+
+export interface GangOriginAdjustedCost {
+  origin_name: string;
+  gang_origin_id: string;
+  adjusted_cost: number;
 }

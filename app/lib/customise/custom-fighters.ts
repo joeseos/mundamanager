@@ -1,7 +1,7 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
 import { CustomFighterType } from "@/types/fighter";
-
+import { withEditionSlug } from "@/types/edition";
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export async function getUserCustomFighterTypes(userId: string, supabase: SupabaseClient): Promise<CustomFighterType[]> {
@@ -9,7 +9,7 @@ export async function getUserCustomFighterTypes(userId: string, supabase: Supaba
     async () => {
       const { data: customFighterTypes, error } = await supabase
         .from('custom_fighter_types')
-        .select('*, custom_gang_types!custom_gang_type_id(gang_type)')
+        .select('*, custom_gang_types!custom_gang_type_id(gang_type), editions:edition_id (slug)')
         .eq('user_id', userId)
         .order('fighter_type', { ascending: true });
 
@@ -215,7 +215,7 @@ export async function getUserCustomFighterTypes(userId: string, supabase: Supaba
 
       // Combine fighter data with skill access, default skills, default equipment, and equipment list
       const fightersWithExtendedData = customFighterTypes.map(fighter => ({
-        ...fighter,
+        ...withEditionSlug(fighter),
         gang_type: (fighter.custom_gang_types as any)?.gang_type ?? fighter.gang_type,
         custom_gang_types: undefined,
         skill_access: skillAccessByFighter[fighter.id] || [],
@@ -226,7 +226,7 @@ export async function getUserCustomFighterTypes(userId: string, supabase: Supaba
 
       return fightersWithExtendedData;
     },
-    [`user-custom-fighters-v3-${userId}`],
+    [`user-custom-fighters-v4-${userId}`],
     {
       tags: [TAGS.customs(userId)],
       revalidate: false,

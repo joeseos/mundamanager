@@ -19,6 +19,22 @@ function getTableName(type: LineageType) {
 // Always uses fighter_gang_legacy_id as the foreign key
 const JUNCTION_FK_COLUMN = 'fighter_gang_legacy_id';
 
+// edition_id is derived from the associated fighter type, never taken from the
+// client, so a lineage can never disagree with the edition it belongs to
+async function getFighterTypeEditionId(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  fighterTypeId: string
+) {
+  const { data, error } = await supabase
+    .from('fighter_types')
+    .select('edition_id')
+    .eq('id', fighterTypeId)
+    .single();
+
+  if (error) throw error;
+  return data.edition_id ?? null;
+}
+
 // GET - Fetch gang lineages (requires type param); with id returns one, without returns list
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -38,19 +54,14 @@ export async function GET(request: Request) {
 
   const type = typeParam as LineageType;
   const table = getTableName(type);
+  const lineageColumns = 'id, name, fighter_type_id, created_at, updated_at, edition_id';
 
   try {
     if (id) {
       // Get specific lineage by type
       const { data: row, error } = await supabase
         .from(table)
-        .select(`
-          id,
-          name,
-          fighter_type_id,
-          created_at,
-          updated_at
-        `)
+        .select(lineageColumns)
         .eq('id', id)
         .single();
 
@@ -96,13 +107,7 @@ export async function GET(request: Request) {
       // Get all of type
       const { data: rows, error } = await supabase
         .from(table)
-        .select(`
-          id,
-          name,
-          fighter_type_id,
-          created_at,
-          updated_at
-        `)
+        .select(lineageColumns)
         .order('name', { ascending: true });
 
       if (error) throw error;
@@ -182,13 +187,15 @@ async function _POST(request: Request) {
     }
 
     const table = getTableName(data.type as LineageType);
+    const editionId = await getFighterTypeEditionId(supabase, data.fighter_type_id);
 
     // Create the lineage in the specific table
     const { data: newLineage, error: insertError } = await supabase
       .from(table)
       .insert({
         name: data.name,
-        fighter_type_id: data.fighter_type_id
+        fighter_type_id: data.fighter_type_id,
+        edition_id: editionId
       })
       .select()
       .single();
@@ -222,8 +229,8 @@ async function _POST(request: Request) {
   }
 }
 
-// PUT - Update gang lineage; requires query param type for current table; body.type may differ (move)
-async function _PUT(request: Request) {
+// PATCH - Update gang lineage; requires query param type for current table; body.type may differ (move)
+async function _PATCH(request: Request) {
   const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
@@ -251,6 +258,7 @@ async function _PUT(request: Request) {
     }
 
     const currentTable = getTableName(currentType);
+    const editionId = await getFighterTypeEditionId(supabase, data.fighter_type_id);
 
     const newType = data.type as LineageType;
 
@@ -261,6 +269,7 @@ async function _PUT(request: Request) {
         .update({
           name: data.name,
           fighter_type_id: data.fighter_type_id,
+          edition_id: editionId,
           updated_at: new Date().toISOString()
         })
         .eq('id', id);
@@ -299,7 +308,8 @@ async function _PUT(request: Request) {
       .from(newTable)
       .insert({
         name: data.name,
-        fighter_type_id: data.fighter_type_id
+        fighter_type_id: data.fighter_type_id,
+        edition_id: editionId
       })
       .select()
       .single();
@@ -363,7 +373,7 @@ async function _PUT(request: Request) {
 
     return NextResponse.json({ success: true, id: newId, type: newType });
   } catch (error) {
-    console.error('Error in PUT gang-lineage:', error);
+    console.error('Error in PATCH gang-lineage:', error);
     return NextResponse.json(
       { 
         error: 'Error updating gang lineage',
@@ -462,5 +472,5 @@ function withReferenceInvalidation(
 }
 
 export const POST = withReferenceInvalidation(_POST);
-export const PUT = withReferenceInvalidation(_PUT);
+export const PATCH = withReferenceInvalidation(_PATCH);
 export const DELETE = withReferenceInvalidation(_DELETE);

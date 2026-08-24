@@ -1,6 +1,8 @@
 /**
  * Shared action type → display label map for log UIs.
  */
+import { downtimePhaseName } from '@/types/edition';
+
 export const CAMPAIGN_ACTION_TYPES = [
   'campaign_joined',
   'campaign_left',
@@ -54,7 +56,6 @@ export const LOG_TYPE_LABELS: Record<string, string> = {
   'injury_roll': 'Lasting Injury roll',
   'skill_advancement_roll': 'Skill Advancement roll',
   'ganger_advancement_roll': 'Ganger Advancement roll',
-  'rig_glitches_cleared_downtime': 'Downtime glitch removal',
 
   // Equipment
   'equipment_purchased': 'Equipment purchased',
@@ -102,6 +103,11 @@ export const LOG_TYPE_LABELS: Record<string, string> = {
   'name_changed': 'Name changed',
   'gang_type_changed': 'Gang type changed',
 
+  // Gang Tactics
+  'tactics_card_roll': 'Gang Tactics roll',
+  'tactics_card_added': 'Gang Tactic added',
+  'tactics_card_removed': 'Gang Tactic removed',
+
   // Campaign
   'campaign_joined': 'Campaign joined',
   'campaign_left': 'Campaign left',
@@ -112,7 +118,27 @@ export const LOG_TYPE_LABELS: Record<string, string> = {
   'territory_lost': 'Territory lost',
 };
 
-/** Look up a display label for an action type, falling back to the raw value. */
-export function getLogTypeLabel(actionType: string): string {
-  return LOG_TYPE_LABELS[actionType] || actionType;
+/**
+ * Labels whose wording an edition renames. The map above stays keyed by action
+ * type alone; only these few need the reader's edition to resolve.
+ */
+const EDITION_LABELS: Record<string, (editionSlug?: string | null) => string> = {
+  'rig_glitches_cleared_downtime': (editionSlug) =>
+    `${downtimePhaseName(editionSlug)} glitch removal`,
+};
+
+/**
+ * Look up a display label for an action type, falling back to the raw value.
+ * Pass the gang's/campaign's edition where it is known — without it, labels the
+ * edition renames read in their N23 wording.
+ */
+export function getLogTypeLabel(
+  actionType: string,
+  editionSlug?: string | null
+): string {
+  return (
+    EDITION_LABELS[actionType]?.(editionSlug) ??
+    LOG_TYPE_LABELS[actionType] ??
+    actionType
+  );
 }

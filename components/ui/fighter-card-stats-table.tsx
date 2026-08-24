@@ -1,5 +1,6 @@
 import React from 'react';
 import { GangViewMode, isFullSizeGangViewMode } from '@/components/gang/ViewModeDropdown';
+import { initiativeAndMentalCharacteristicSuffix } from '@/types/edition';
 
 // Add these types at the top of the file
 type CrewStats = {
@@ -15,7 +16,8 @@ type CrewStats = {
   'Cl': string;
   'Wil': string;
   'Int': string;
-  'XP': number;
+  /** 'N/A' when the model's type cannot gain XP and it holds none. */
+  'XP': string | number;
 }
 
 type FighterStats = {
@@ -27,11 +29,13 @@ type FighterStats = {
   'W': number;
   'I': string;
   'A': number;
+  'Sv'?: string; // N26 fighters only — omitted key hides the column
   'Ld': string;
   'Cl': string;
   'Wil': string;
   'Int': string;
-  'XP': number;
+  /** 'N/A' when the model's type cannot gain XP and it holds none. */
+  'XP': string | number;
 }
 
 export type StatsType = CrewStats | FighterStats;
@@ -64,12 +68,31 @@ interface StatsTableProps {
   data?: StatsType;
   isCrew?: boolean;
   viewMode?: GangViewMode;
+  editionSlug?: string | null;
 }
 
 // Add a type for valid stat keys
 type StatKey = keyof CrewStats | keyof FighterStats;
 
-export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
+const EDITION_SUFFIX_STATS = new Set<StatKey>(['I', 'Ld', 'Cl', 'Wil', 'Int']);
+
+const formatStatValue = (
+  key: string,
+  value: string | number,
+  editionSlug?: string | null
+): string | number => {
+  if (
+    typeof value !== 'string' ||
+    !value.endsWith('+') ||
+    !EDITION_SUFFIX_STATS.has(key as StatKey)
+  ) {
+    return value;
+  }
+
+  return `${value.slice(0, -1)}${initiativeAndMentalCharacteristicSuffix(editionSlug)}`;
+};
+
+export function StatsTable({ data, isCrew, viewMode, editionSlug }: StatsTableProps) {
   if (!data || Object.keys(data).length === 0) {
     return <p>No characteristics available</p>;
   }
@@ -82,7 +105,7 @@ export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
   // Define the order of stats based on fighter type
   const statOrder = isCrew
     ? ['M', 'Front', 'Side', 'Rear', 'HP', 'Hnd', 'Sv', 'BS', 'Ld', 'Cl', 'Wil', 'Int', 'XP'] as const
-    : ['M', 'WS', 'BS', 'S', 'T', 'W', 'I', 'A', 'Ld', 'Cl', 'Wil', 'Int', 'XP'] as const;
+    : ['M', 'WS', 'BS', 'S', 'T', 'W', 'I', 'A', 'Sv', 'Ld', 'Cl', 'Wil', 'Int', 'XP'] as const;
 
   // Type guard to check if data is CrewStats
   const isCrewStats = (data: StatsType): data is CrewStats => {
@@ -109,7 +132,9 @@ export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
       if (isCrew && isCrewStats(data)) {
         acc[key] = data[key as keyof CrewStats];
       } else if (!isCrew && isFighterStats(data)) {
-        acc[key] = data[key as keyof FighterStats];
+        // Sv is optional (N26 only); the filter above already excluded absent keys
+        const value = data[key as keyof FighterStats];
+        if (value !== undefined) acc[key] = value;
       }
       return acc;
     }, {});
@@ -203,7 +228,7 @@ export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
                   ${getColumnBorderClass(key)}`}
                 style={{ width: columnWidth }}
               >
-                {value}
+                {formatStatValue(key, value, editionSlug)}
               </td>
             ))}
           </tr>

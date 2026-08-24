@@ -37,13 +37,13 @@ interface Effect {
  * Handles unparseable values ("-", "N/A", null) gracefully via null semantics
  */
 function applyNumericModifiers(
-  baseValue: number | string,
+  baseValue: number | string | null | undefined,
   modifiers: EffectModifier[],
   options: {
     parseStrings?: boolean;  // true for weapons (can be "6+"), false for fighter stats
     addSuffix?: string;      // '+' for ammo field
   } = {}
-): number | string {
+): number | string | null | undefined {
   // =============================================
   // STEP 1: Parse base value (with safe defaults)
   // =============================================
@@ -139,7 +139,8 @@ export function calculateAdjustedStats(fighter: FighterProps) {
     leadership: fighter.leadership,
     cool: fighter.cool,
     willpower: fighter.willpower,
-    intelligence: fighter.intelligence
+    intelligence: fighter.intelligence,
+    save: fighter.save  // N26 only; null for pre-N26 fighters
   };
 
   if (fighter.effects) {
@@ -161,7 +162,11 @@ export function calculateAdjustedStats(fighter: FighterProps) {
               'leadership': 'leadership',
               'cool': 'cool',
               'willpower': 'willpower',
-              'intelligence': 'intelligence'
+              'intelligence': 'intelligence',
+              // N26 armour etc. grants/improves a save. Use operation 'set' to grant
+              // one (a null base is overridden cleanly); 'add' against a null save
+              // resolves to the addend alone, which the 2+..6+ range check flags.
+              'save': 'save'
             };
 
             const statKey = statMapping[statName];
@@ -304,7 +309,7 @@ export function applyWeaponModifiers(
     const modified = { ...profile };
 
     // Apply numeric fields with add/set operations
-    const numericFields = ['range_short', 'range_long', 'acc_short', 'acc_long', 'strength', 'ap', 'damage', 'ammo'];
+    const numericFields = ['range_short', 'range_long', 'acc_short', 'acc_long', 'strength', 'ap', 'damage', 'lethality', 'ammo'];
 
     numericFields.forEach((fieldName) => {
       const baseValue = (modified as any)[fieldName];
@@ -390,4 +395,52 @@ export function applySpecialRulesModifiers(
     }
   }
   return rules;
+}
+
+// =============================================================================
+// SUBTYPE GRANTS
+// =============================================================================
+
+/**
+ * Subtype ids an effect list grants or strips, e.g. a Dirt bike granting
+ * "Mounted". Ids, not names — resolving them needs the fighter_subtypes catalog.
+ *
+ * Unlike special rules these are not merged for display: the server writes them
+ * to fighters.fighter_subtypes (see utils/fighter-subtype-grants.ts). Shared with
+ * the edit modal, which uses them to mark the resulting chips read-only.
+ */
+/**
+ * Skill an effect grants, e.g. a bionic arm granting "Iron Jaw".
+ *
+ * On a 'skills'-category type the same key means the opposite — the skill the
+ * effect BELONGS TO — so callers must exclude that category first.
+ */
+export function grantedSkillFromEffect(
+  effect: { type_specific_data?: unknown } | null | undefined
+): string | null {
+  const tsd = effect && typeof effect.type_specific_data === 'object' && effect.type_specific_data
+    ? effect.type_specific_data as Record<string, unknown>
+    : null;
+  const skillId = tsd?.skill_id;
+
+  return typeof skillId === 'string' && skillId ? skillId : null;
+}
+
+export function subtypeGrantsFromEffects(
+  effects: Array<{ type_specific_data?: TraitModificationData | string | null }> | null | undefined
+): { add: string[]; remove: string[] } {
+  const add: string[] = [];
+  const remove: string[] = [];
+
+  for (const eff of effects ?? []) {
+    if (!eff) continue;
+    const tsd = typeof eff.type_specific_data === 'object' && eff.type_specific_data
+      ? eff.type_specific_data
+      : null;
+    if (!tsd) continue;
+    for (const id of (tsd.fighter_subtype_ids_to_add || [])) add.push(id);
+    for (const id of (tsd.fighter_subtype_ids_to_remove || [])) remove.push(id);
+  }
+
+  return { add, remove };
 }

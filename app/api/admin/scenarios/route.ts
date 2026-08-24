@@ -15,7 +15,7 @@ export async function GET() {
 
     const { data: scenarios, error } = await supabase
       .from('scenarios')
-      .select('id, scenario_name, scenario_number')
+      .select('id, scenario_name, scenario_number, edition_id')
       .order('scenario_number', { ascending: true });
 
     if (error) throw error;
@@ -40,7 +40,7 @@ async function _POST(request: Request) {
     }
 
     const body = await request.json();
-    const { scenario_name, scenario_number } = body;
+    const { scenario_name, scenario_number, edition_id } = body;
 
     const trimmedName = scenario_name?.trim();
 
@@ -85,7 +85,8 @@ async function _POST(request: Request) {
       .insert([
         {
           scenario_name: trimmedName,
-          scenario_number: numericScenarioNumber
+          scenario_number: numericScenarioNumber,
+          edition_id: edition_id || null
         }
       ])
       .select()
@@ -113,7 +114,7 @@ async function _PATCH(request: Request) {
     }
 
     const body = await request.json();
-    const { id, scenario_name, scenario_number } = body;
+    const { id, scenario_name, scenario_number, edition_id } = body;
 
     const trimmedName = scenario_name?.trim();
 
@@ -158,7 +159,8 @@ async function _PATCH(request: Request) {
       .from('scenarios')
       .update({
         scenario_name: trimmedName,
-        scenario_number: numericScenarioNumber
+        scenario_number: numericScenarioNumber,
+        edition_id: edition_id || null
       })
       .eq('id', id)
       .select()

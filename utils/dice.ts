@@ -1,6 +1,7 @@
 // Dice utilities and roll tables (injuries, vehicles, ganger advancement, etc.)
 
-import { BITTER_ENMITY_EFFECT_NAME } from '@/utils/bitterEnmityDisplay';
+import type { EditionSlug } from '@/types/edition';
+import { BITTER_ENMITY_EFFECT_NAME } from '@/utils/injuryTarget';
 
 export const roll = (sides: number): number => Math.floor(Math.random() * sides) + 1;
 
@@ -103,19 +104,10 @@ export const LASTING_INJURY_TABLE: TableEntry[] = [
   { range: [66, 66], name: 'Memorable Death' },
 ];
 
-export const resolveInjuryFromUtil = (roll: number): TableEntry | undefined =>
-  LASTING_INJURY_TABLE.find((e) => roll >= e.range[0] && roll <= e.range[1]);
-
-// Keeping resolve by name for optional diagnostics/UI usage
-export const resolveInjuryRangeFromUtilByName = (
-  name: string,
-): [number, number] | undefined => {
-  const entry = LASTING_INJURY_TABLE.find((e) => e.name === name);
-  return entry?.range;
-};
+// Resolvers are edition-scoped — see resolveInjuryFor / resolveInjuryRangeByNameFor below.
 
 // ============================================================================
-// Lasting Injuries for Crew - D66 table and resolver
+// Lasting Injuries for Crew - D66 table
 // ============================================================================
 
 // D66 table for Lasting Injuries for Crew
@@ -130,16 +122,41 @@ export const LASTING_INJURY_CREW_TABLE: TableEntry[] = [
   { range: [66, 66], name: 'Memorable Death' },
 ];
 
-export const resolveInjuryFromUtilCrew = (roll: number): TableEntry | undefined =>
-  LASTING_INJURY_CREW_TABLE.find((e) => roll >= e.range[0] && roll <= e.range[1]);
+// ============================================================================
+// Lasting Injuries (N26) - D66 table and resolver
+// ============================================================================
 
-// Keeping resolve by name for optional diagnostics/UI usage
-export const resolveInjuryRangeFromUtilByNameCrew = (
-  name: string,
-): [number, number] | undefined => {
-  const entry = LASTING_INJURY_CREW_TABLE.find((e) => e.name === name);
-  return entry?.range;
-};
+// D66 table for Lasting Injuries, N26 ruleset.
+//
+// Not a reskin of the N23 table: N26 splits Bitter Enmity into three Hatred (X)
+// variants by target (gang type / gang / model), replaces Convalescence with
+// Grievous Wound over a wider 31-46 spread, shifts every characteristic injury
+// down a row, and drops Old Battle Wound, Partially Deafened, Humiliated and
+// Multiple Injuries entirely. There is no Mutations / Festering band, which is
+// why lastingInjuryRankFor returns null for this edition.
+//
+// Note the N23 table spells 11 "Lesson Learned"; N26 spells it "Lesson Learnt".
+// Both must match their own edition's fighter_effect_types.effect_name exactly,
+// since ranges are a name-keyed reverse lookup.
+export const LASTING_INJURY_TABLE_N26: TableEntry[] = [
+  { range: [11, 11], name: 'Lesson Learnt' },
+  { range: [12, 12], name: 'Eternal Enmity' },
+  { range: [13, 13], name: BITTER_ENMITY_EFFECT_NAME },
+  { range: [14, 14], name: 'Personal Enmity' },
+  { range: [15, 15], name: 'Horrid Scars' },
+  { range: [16, 16], name: 'Impressive Scars' },
+  { range: [21, 26], name: 'Out Cold' },
+  { range: [31, 46], name: 'Grievous Wound' },
+  { range: [51, 51], name: 'Eye Injury' },
+  { range: [52, 52], name: 'Hand Injury' },
+  { range: [53, 53], name: 'Hobbled' },
+  { range: [54, 54], name: 'Spinal Injury' },
+  { range: [55, 55], name: 'Enfeebled' },
+  { range: [56, 56], name: 'Head Injury' },
+  { range: [61, 62], name: 'Captured' },
+  { range: [63, 65], name: 'Critical Injury' },
+  { range: [66, 66], name: 'Memorable Death' },
+];
 
 // ============================================================================
 // Rig Glitches for Spyrers - D66 table and resolver
@@ -170,57 +187,222 @@ export const RIG_GLITCH_TABLE: TableEntry[] = [
   { range: [66, 66], name: 'Critical Overload' },
 ];
 
-export const resolveRigGlitchFromUtil = (roll: number): TableEntry | undefined =>
-  RIG_GLITCH_TABLE.find((e) => roll >= e.range[0] && roll <= e.range[1]);
+// D66 table for Rig Glitches (Spyrers), N26 ruleset.
+//
+// Not a reskin of the N23 rig glitch table: N26 opens with the same six results
+// as its lasting injury table (Lesson Learnt, the Enmity trio, the two Scars),
+// widens Superficial Damage to 21-26, replaces Convalescence with Grievous
+// Wound over 31-46, and drops Weakened Polymers, Jammed Articulation, Disrupted
+// Ammo Cables, System Downgrade, Cracked Power Cell and Reduced Power
+// Distribution. Only 51-64 raise the Glitch Count.
+//
+// effect_name must match the edition's fighter_effect_types rows exactly, since
+// ranges are a name-keyed reverse lookup. Note 11 is 'Lesson Learnt' here and
+// 'Lesson Learned' in RIG_GLITCH_TABLE; both are correct for their own edition.
+export const RIG_GLITCH_TABLE_N26: TableEntry[] = [
+  { range: [11, 11], name: 'Lesson Learnt' },
+  { range: [12, 12], name: 'Eternal Enmity' },
+  { range: [13, 13], name: BITTER_ENMITY_EFFECT_NAME },
+  { range: [14, 14], name: 'Personal Enmity' },
+  { range: [15, 15], name: 'Horrid Scars' },
+  { range: [16, 16], name: 'Impressive Scars' },
+  { range: [21, 26], name: 'Superficial Damage' },
+  { range: [31, 46], name: 'Grievous Wound' },
+  { range: [51, 51], name: 'Anxiety Suppression Damaged' },
+  { range: [52, 52], name: 'Neural Feedback' },
+  { range: [53, 53], name: 'Humbled' },
+  { range: [54, 54], name: 'Vox Ghosts' },
+  { range: [55, 55], name: 'Gyroscopic Destabilisation' },
+  { range: [56, 56], name: 'Seized Locomotors' },
+  { range: [61, 61], name: 'Targeting Uplink Disruption' },
+  { range: [62, 62], name: 'Stuttering Servos' },
+  { range: [63, 63], name: 'Damaged Musculature' },
+  { range: [64, 64], name: 'Reduced Plate Density' },
+  { range: [65, 65], name: 'Multiple Glitches' },
+  { range: [66, 66], name: 'Critical Overload' },
+];
 
-// Keeping resolve by name for optional diagnostics/UI usage
-export const resolveRigGlitchRangeFromUtilByName = (
+// ============================================================================
+// Edition-scoped injury table selection
+// ============================================================================
+
+/** The injury tables one edition publishes. `null` where it publishes none. */
+type InjuryTables = {
+  base: TableEntry[];
+  crew: TableEntry[] | null;
+  spyrer: TableEntry[] | null;
+};
+
+/**
+ * Keyed by EditionSlug on purpose: adding an edition is a compile error here
+ * until it states its injury tables, the same guarantee EDITION_CAPABILITIES
+ * gives for capability flags and LIMITS_BY_EDITION gives for characteristics.
+ *
+ * This stays out of types/edition.ts because it selects a data table rather
+ * than gating a behaviour — the same split as getEquipmentCategoryRank.
+ */
+const INJURY_TABLES_BY_EDITION: Record<EditionSlug, InjuryTables> = {
+  n23: { base: LASTING_INJURY_TABLE, crew: LASTING_INJURY_CREW_TABLE, spyrer: RIG_GLITCH_TABLE },
+  n26: { base: LASTING_INJURY_TABLE_N26, crew: null, spyrer: RIG_GLITCH_TABLE_N26 },
+};
+
+/**
+ * An unset or unrecognised slug gets no table at all, so callers show no ranges
+ * and resolve no rolls — matching NO_LIMITS and the capability registry. A missing slug
+ * means the edition failed to load, and quietly serving another edition's D66
+ * spread would silently apply the wrong injury to a fighter.
+ */
+const NO_INJURY_TABLES: InjuryTables = { base: [], crew: null, spyrer: null };
+
+/**
+ * The D66 table for one fighter, in one edition.
+ *
+ * The two fallbacks differ on purpose. A Crew fighter in an edition with no
+ * separate crew table rolls on the normal table — crew still take lasting
+ * injuries. A Spyrer in an edition with no rig glitch table gets nothing, since
+ * Rig Glitches are a self-contained subsystem rather than a variant of the
+ * normal table, and rolling normal injuries for a Spyrer rig would be wrong.
+ */
+export function lastingInjuryTableFor(
+  editionSlug: string | null | undefined,
+  opts: { isCrew?: boolean; isSpyrer?: boolean } = {},
+): TableEntry[] {
+  const tables = (editionSlug && INJURY_TABLES_BY_EDITION[editionSlug as EditionSlug])
+    || NO_INJURY_TABLES;
+
+  if (opts.isSpyrer) return tables.spyrer ?? [];
+  if (opts.isCrew) return tables.crew ?? tables.base;
+  return tables.base;
+}
+
+/** Resolve a D66 roll to its table entry for the given edition and fighter. */
+export const resolveInjuryFor = (
+  roll: number,
+  editionSlug: string | null | undefined,
+  opts: { isCrew?: boolean; isSpyrer?: boolean } = {},
+): TableEntry | undefined =>
+  lastingInjuryTableFor(editionSlug, opts).find((e) => roll >= e.range[0] && roll <= e.range[1]);
+
+/** Reverse lookup: the D66 range an injury name occupies, for display. */
+export const resolveInjuryRangeByNameFor = (
   name: string,
-): [number, number] | undefined => {
-  const entry = RIG_GLITCH_TABLE.find((e) => e.name === name);
-  return entry?.range;
+  editionSlug: string | null | undefined,
+  opts: { isCrew?: boolean; isSpyrer?: boolean } = {},
+): [number, number] | undefined =>
+  lastingInjuryTableFor(editionSlug, opts).find((e) => e.name === name)?.range;
+
+// ============================================================================
+// Vehicle Lasting Damage - edition-scoped tables and resolvers
+// ============================================================================
+
+// D6 table, N23: mechanical faults that modify the attached `vehicles` row's statline.
+export const VEHICLE_DAMAGE_TABLE_N23: TableEntry[] = [
+  { range: [1, 1], name: 'Persistent Rattle' },
+  { range: [2, 2], name: 'Handling Glitch' },
+  { range: [3, 3], name: 'Unreliable' },
+  { range: [4, 4], name: 'Loss of Power' },
+  { range: [5, 5], name: 'Damaged Bodywork' },
+  { range: [6, 6], name: 'Damaged Frame' },
+];
+
+// D66 table, N26. Not a reskin: the vehicle is a fighter here, so this modifies ordinary
+// fighter characteristics and carries the Recovery / Captured / destroyed outcomes of the
+// N26 injury table, Enmity trio included. Several names collide with N26 injuries and with
+// VEHICLE_REPAIR_TABLE_N23; those are separate rows. effect_name must match
+// 20260810120000_seed_n26_vehicle_lasting_damages.sql exactly — ranges reverse-look-up by name.
+export const VEHICLE_DAMAGE_TABLE_N26: TableEntry[] = [
+  { range: [11, 11], name: 'Lesson Learnt' },
+  { range: [12, 12], name: 'Eternal Enmity' },
+  { range: [13, 13], name: BITTER_ENMITY_EFFECT_NAME },
+  { range: [14, 14], name: 'Personal Enmity' },
+  { range: [15, 16], name: 'Percussive Repair' },
+  { range: [21, 26], name: 'Superficial Damage' },
+  { range: [31, 46], name: 'Major Damage' },
+  { range: [51, 52], name: 'Busted Sights' },
+  { range: [53, 53], name: 'Drive System Fault' },
+  { range: [54, 54], name: 'Buckled Frame' },
+  { range: [55, 56], name: 'Engine Fracture' },
+  { range: [61, 62], name: 'Captured' },
+  { range: [63, 65], name: 'Critical Damage' },
+  { range: [66, 66], name: 'Catastrophic Explosion!' },
+];
+
+/** The dice kind travels with the table so callers never branch on the edition slug. */
+export type VehicleDamageTable = {
+  entries: TableEntry[];
+  dice: 'd6' | 'd66';
 };
 
-// ============================================================================
-// Vehicle Lasting Damage - D6 table and resolver
-// ============================================================================
-
-export const VEHICLE_DAMAGE_TABLE: Record<number, string> = {
-  1: 'Persistent Rattle',
-  2: 'Handling Glitch',
-  3: 'Unreliable',
-  4: 'Loss of Power',
-  5: 'Damaged Bodywork',
-  6: 'Damaged Frame',
+/** Keyed by EditionSlug so a new edition is a compile error until it states its table. */
+const VEHICLE_DAMAGE_BY_EDITION: Record<EditionSlug, VehicleDamageTable> = {
+  n23: { entries: VEHICLE_DAMAGE_TABLE_N23, dice: 'd6' },
+  n26: { entries: VEHICLE_DAMAGE_TABLE_N26, dice: 'd66' },
 };
 
-export const resolveVehicleDamageFromUtil = (d6: number): string | undefined =>
-  VEHICLE_DAMAGE_TABLE[d6 as 1 | 2 | 3 | 4 | 5 | 6];
+/** No table for an unknown slug: serving another edition's spread would apply the wrong damage. */
+const NO_VEHICLE_DAMAGE: VehicleDamageTable = { entries: [], dice: 'd6' };
 
-// Utility to look up the D6 value by damage name (optional)
-export const getVehicleDamageRollForName = (name: string): number | undefined => {
-  const found = Object.entries(VEHICLE_DAMAGE_TABLE).find(([, n]) => n === name);
-  return found ? Number(found[0]) : undefined;
-};
+/** The vehicle damage table for one edition, with the dice it is rolled on. */
+export function vehicleDamageTableFor(
+  editionSlug: string | null | undefined,
+): VehicleDamageTable {
+  return (editionSlug && VEHICLE_DAMAGE_BY_EDITION[editionSlug as EditionSlug])
+    || NO_VEHICLE_DAMAGE;
+}
+
+/** Resolve a roll to its table entry for the given edition. */
+export const resolveVehicleDamageFor = (
+  roll: number,
+  editionSlug: string | null | undefined,
+): TableEntry | undefined =>
+  vehicleDamageTableFor(editionSlug).entries.find((e) => roll >= e.range[0] && roll <= e.range[1]);
+
+/** Reverse lookup: the range a damage name occupies, for display. */
+export const resolveVehicleDamageRangeByNameFor = (
+  name: string,
+  editionSlug: string | null | undefined,
+): [number, number] | undefined =>
+  vehicleDamageTableFor(editionSlug).entries.find((e) => e.name === name)?.range;
 
 // ============================================================================
-// Vehicle Repair - D6 table and resolver
+// Vehicle Repair - edition-scoped models
 // ============================================================================
 
-export const VEHICLE_REPAIR_TABLE: TableEntry[] = [
+export const VEHICLE_REPAIR_TABLE_N23: TableEntry[] = [
   { range: [1, 3], name: 'Almost like new' },
   { range: [4, 5], name: 'Quality repairs' },
   { range: [6, 6], name: 'Superficial Damage' },
 ];
 
+/**
+ * Different mechanics, not different numbers, hence a union:
+ *  - `roll`: D6 for a repair quality, clears every damage, costs a % of the vehicle.
+ *    'Almost like new' leaves a Persistent Rattle behind.
+ *  - `per-damage`: pick any number of damages, flat cost each, nothing left behind.
+ */
+export type VehicleRepairModel =
+  | { kind: 'roll'; entries: TableEntry[] }
+  | { kind: 'per-damage'; costPerDamage: number };
+
+const VEHICLE_REPAIR_BY_EDITION: Record<EditionSlug, VehicleRepairModel> = {
+  n23: { kind: 'roll', entries: VEHICLE_REPAIR_TABLE_N23 },
+  n26: { kind: 'per-damage', costPerDamage: 50 },
+};
+
+/** How this edition repairs vehicle damage, or null where it publishes no rules. */
+export const vehicleRepairModelFor = (
+  editionSlug: string | null | undefined,
+): VehicleRepairModel | null =>
+  (editionSlug && VEHICLE_REPAIR_BY_EDITION[editionSlug as EditionSlug]) || null;
+
 export const resolveVehicleRepairFromUtil = (d6: number): string | undefined => {
-  const entry = VEHICLE_REPAIR_TABLE.find((e) => d6 >= e.range[0] && d6 <= e.range[1]);
+  const entry = VEHICLE_REPAIR_TABLE_N23.find((e) => d6 >= e.range[0] && d6 <= e.range[1]);
   return entry?.name;
 };
 
 // Utility to look up the D6 value by repair name (optional)
 export const getVehicleRepairRollForName = (name: string): number | undefined => {
-  const entry = VEHICLE_REPAIR_TABLE.find((e) => e.name === name);
+  const entry = VEHICLE_REPAIR_TABLE_N23.find((e) => e.name === name);
   return entry ? entry.range[0] : undefined;
 };
 
@@ -272,3 +454,61 @@ export const resolveGangerExoticBeastAdvancementRangeFromUtilByName = (
   const entry = GANGER_EXOTIC_BEAST_ADVANCEMENT_TABLE.find((e) => e.name === name);
   return entry?.range;
 };
+
+// ============================================================================
+// N26 Advancement - 2D6 table
+// ============================================================================
+
+/**
+ * One result on the N26 Advancement table.
+ *
+ * A result may offer characteristics, skills or both: rolling a 2 offers +1
+ * Leadership, +1 Intelligence *or* a random Primary skill. `credits` is the
+ * increase to the model's Credits Value, which is fixed per result rather than
+ * per characteristic — unlike N23, where it varies by fighter subtype.
+ *
+ * `skillAcquisitionTypeIds` are the ids get_available_skills returns, so a
+ * skill result feeds the existing skill picker directly.
+ */
+export type N26AdvancementEntry = {
+  range: [number, number];
+  name: string;
+  credits: number;
+  /** Characteristic effect_names this result may improve. */
+  characteristics?: readonly string[];
+  /** Skill acquisition types this result may award. */
+  skillAcquisitionTypeIds?: readonly string[];
+};
+
+/**
+ * The player may take ANY result they rolled high enough for, so a roll sets an
+ * upper bound rather than picking a row. Nothing here enforces that: the roll is
+ * logged and the player selects a result, matching how the N23 Ganger table
+ * already behaves.
+ */
+export const N26_ADVANCEMENT_TABLE: N26AdvancementEntry[] = [
+  { range: [2, 2], name: '+1 Leadership, +1 Intelligence or a random Primary skill', credits: 5,
+    characteristics: ['Leadership', 'Intelligence'], skillAcquisitionTypeIds: ['primary_random'] },
+  { range: [3, 4], name: '+1 Cool or +1 Willpower', credits: 5,
+    characteristics: ['Cool', 'Willpower'] },
+  { range: [5, 5], name: 'A new Primary skill or a random Secondary skill', credits: 10,
+    skillAcquisitionTypeIds: ['primary_selected', 'secondary_random'] },
+  { range: [6, 6], name: '+1 Initiative or +1" Movement', credits: 10,
+    characteristics: ['Initiative', 'Movement'] },
+  { range: [7, 8], name: 'A new Secondary skill', credits: 15,
+    skillAcquisitionTypeIds: ['secondary_selected'] },
+  { range: [9, 9], name: '+1 Weapon Skill or +1 Ballistic Skill', credits: 15,
+    characteristics: ['Weapon Skill', 'Ballistic Skill'] },
+  { range: [10, 10], name: '+1 Strength or +1 Toughness', credits: 20,
+    characteristics: ['Strength', 'Toughness'] },
+  { range: [11, 11], name: '+1 Wounds, +1 Attacks or +1 Save', credits: 20,
+    characteristics: ['Wounds', 'Attacks', 'Save'] },
+  // A 12 lifts the Skill Set restriction entirely — any set, including sets
+  // exclusive to other gangs and Inherent skills. The model's own Type/Subtype
+  // gate still applies and is never lifted.
+  { range: [12, 12], name: 'Any skill', credits: 30,
+    skillAcquisitionTypeIds: ['primary_selected', 'secondary_selected', 'any_random'] },
+];
+
+export const resolveN26AdvancementFromUtil = (roll: number): N26AdvancementEntry | undefined =>
+  N26_ADVANCEMENT_TABLE.find((e) => roll >= e.range[0] && roll <= e.range[1]);

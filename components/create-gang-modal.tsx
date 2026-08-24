@@ -1,15 +1,16 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Combobox } from "@/components/ui/combobox"
 
 import { createClient } from "@/utils/supabase/client"
 import { SubmitButton } from "./submit-button"
 import { toast } from 'sonner';
-import { gangListRank } from "@/utils/gangListRank"
+import { getGangListRank } from "@/utils/gangListRank"
 import { gangVariantRank } from "@/utils/gangVariantRank"
 import { createGang } from "@/app/actions/create-gang"
 import { useRouter } from "next/navigation"
@@ -17,6 +18,9 @@ import { useSearchParams } from "next/navigation"
 import Image from 'next/image'
 import { LuChevronLeft, LuChevronRight } from "react-icons/lu"
 import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang'
+import { EditionToggle } from '@/components/home/edition-toggle'
+import { useHomeEdition } from '@/hooks/use-home-edition'
+import { sameEditionForDisplay } from '@/types/edition'
 
 type Gang = {
   id: string;
@@ -51,11 +55,13 @@ type GangType = {
     category_name: string;
   }>;
   is_custom?: boolean;
+  edition_slug?: string | null;
 };
 
 type GangVariant = {
   id: string;
   variant: string;
+  edition_slug?: string | null;
 };
 
 interface CreateGangModalProps {
@@ -95,6 +101,7 @@ export function CreateGangButton() {
 export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { editionSlug, setEditionSlug } = useHomeEdition();
   const [gangTypes, setGangTypes] = useState<GangType[]>([]);
   const [gangName, setGangName] = useState("")
   const [gangType, setGangType] = useState("")
@@ -112,6 +119,115 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const [selectedVariants, setSelectedVariants] = useState<GangVariant[]>([]);
   const [showVariants, setShowVariants] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(DEFAULT_IMAGE_INDEX);
+
+  const editionGangTypes = useMemo(
+    () => gangTypes.filter(type => sameEditionForDisplay(type.edition_slug, editionSlug)),
+    [gangTypes, editionSlug]
+  );
+
+  const editionVariants = useMemo(
+    () => availableVariants.filter(variant => sameEditionForDisplay(variant.edition_slug, editionSlug)),
+    [availableVariants, editionSlug]
+  );
+
+  const gangTypeOptions = useMemo(() => {
+    const gangListRank = getGangListRank(editionSlug);
+    const options: Array<{
+      value: string;
+      label: string | React.ReactNode;
+      displayValue?: string;
+      disabled?: boolean;
+    }> = [];
+
+    const categoryOrder = [
+      "House Gangs",
+      "Enforcers",
+      "Cults",
+      "Others & Outsiders",
+      "Underhive Outcasts",
+      "Misc.",
+    ];
+
+    const systemGroups = editionGangTypes
+      .filter(t => !t.is_custom)
+      .sort((a, b) => {
+        const rankA = gangListRank[a.gang_type.toLowerCase()] ?? Infinity;
+        const rankB = gangListRank[b.gang_type.toLowerCase()] ?? Infinity;
+        return rankA - rankB;
+      })
+      .reduce((groups, type) => {
+        const rank = gangListRank[type.gang_type.toLowerCase()] ?? Infinity;
+        let category = "Misc.";
+
+        if (rank <= 9) category = "House Gangs";
+        else if (rank <= 19) category = "Enforcers";
+        else if (rank <= 29) category = "Cults";
+        else if (rank <= 39) category = "Others & Outsiders";
+        else if (rank <= 49) category = "Underhive Outcasts";
+
+        if (!groups[category]) groups[category] = [];
+        groups[category].push(type);
+        return groups;
+      }, {} as Record<string, GangType[]>);
+
+    for (const category of categoryOrder) {
+      const types = systemGroups[category];
+      if (!types?.length) continue;
+      options.push({
+        value: `header-${category}`,
+        label: <span className="font-bold">{category}</span>,
+        displayValue: category,
+        disabled: true,
+      });
+      for (const type of types) {
+        options.push({
+          value: type.gang_type_id,
+          label: <span className="ml-3">{type.gang_type}</span>,
+          displayValue: type.gang_type,
+        });
+      }
+    }
+
+    const customTypes = editionGangTypes
+      .filter(t => t.is_custom)
+      .sort((a, b) => a.gang_type.localeCompare(b.gang_type));
+
+    if (customTypes.length > 0) {
+      options.push({
+        value: "header-Custom",
+        label: <span className="font-bold">Custom</span>,
+        displayValue: "Custom",
+        disabled: true,
+      });
+      for (const type of customTypes) {
+        options.push({
+          value: type.gang_type_id,
+          label: <span className="ml-3">{type.gang_type}</span>,
+          displayValue: type.gang_type,
+        });
+      }
+    }
+
+    return options;
+  }, [editionGangTypes, editionSlug]);
+
+  // Clear selections that no longer belong to the active edition
+  const [prevEditionSlug, setPrevEditionSlug] = useState(editionSlug);
+  if (editionSlug !== prevEditionSlug) {
+    setPrevEditionSlug(editionSlug);
+    if (gangType && !editionGangTypes.some(type => type.gang_type_id === gangType)) {
+      setGangType("");
+      setSelectedAffiliation("");
+      setSelectedOrigin("");
+    }
+    setSelectedVariants(prev =>
+      prev.filter(variant => sameEditionForDisplay(variant.edition_slug, editionSlug))
+    );
+    // Edition with no variant types: hide the switch and clear the toggle
+    if (!availableVariants.some(variant => sameEditionForDisplay(variant.edition_slug, editionSlug))) {
+      setShowVariants(false);
+    }
+  }
 
   useEffect(() => {
     const fetchGangTypes = async () => {
@@ -355,64 +471,23 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
         </div>
         <div className="space-y-4">
           <div>
+            <label className="block text-sm font-medium text-muted-foreground mb-1">
+              Edition *
+            </label>
+            <EditionToggle value={editionSlug} onChange={setEditionSlug} />
+          </div>
+          <div>
             <label htmlFor="gang-type" className="block text-sm font-medium text-muted-foreground mb-1">
               Gang Type *
             </label>
-            <select
+            <Combobox
               id="gang-type"
+              options={gangTypeOptions}
               value={gangType}
-              onChange={(e) => setGangType(e.target.value)}
-              className="w-full px-3 py-2 rounded-md border border-border focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="">Select gang type</option>
-              {/* System gang types */}
-              {Object.entries(
-                gangTypes
-                  .filter(t => !t.is_custom)
-                  .sort((a, b) => {
-                    const rankA = gangListRank[a.gang_type.toLowerCase()] ?? Infinity;
-                    const rankB = gangListRank[b.gang_type.toLowerCase()] ?? Infinity;
-                    return rankA - rankB;
-                  })
-                  .reduce((groups, type) => {
-                    const rank = gangListRank[type.gang_type.toLowerCase()];
-                    let category = "Misc."; // Default category if no clear separator
-
-                    if (rank <= 9) category = "House Gangs";
-                    else if (rank <= 19) category = "Enforcers";
-                    else if (rank <= 29) category = "Cults";
-                    else if (rank <= 39) category = "Others & Outsiders";
-                    else if (rank <= 49) category = "Underhive Outcasts";
-
-                    if (!groups[category]) groups[category] = [];
-                    groups[category].push(type);
-                    return groups;
-                  }, {} as Record<string, GangType[]>)
-              ).map(([category, types]) => (
-                types.length > 0 ? (
-                  <optgroup key={category} label={category}>
-                    {types.map((type) => (
-                      <option key={type.gang_type_id} value={type.gang_type_id}>
-                        {type.gang_type}
-                      </option>
-                    ))}
-                  </optgroup>
-                ) : null
-              ))}
-              {/* Custom gang types */}
-              {gangTypes.filter(t => t.is_custom).length > 0 && (
-                <optgroup label="Custom">
-                  {gangTypes
-                    .filter(t => t.is_custom)
-                    .sort((a, b) => a.gang_type.localeCompare(b.gang_type))
-                    .map((type) => (
-                      <option key={type.gang_type_id} value={type.gang_type_id}>
-                        {type.gang_type}
-                      </option>
-                    ))}
-                </optgroup>
-              )}
-            </select>
+              onValueChange={setGangType}
+              placeholder="Select gang type"
+              disabled={isLoadingGangTypes}
+            />
           </div>
           
           {/* Conditional Affiliation Dropdown - moved to be right after Gang Type */}
@@ -467,38 +542,71 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
             ) : null;
           })()}
 
-          {/* Gang Variants Section */}
-          <div className="mt-4">
-            <div className="flex items-center space-x-2">
-              <label htmlFor="variant-toggle" className="text-sm font-medium">
-                Gang Variants
-              </label>
-              <Switch
-                id="variant-toggle"
-                checked={showVariants}
-                onCheckedChange={setShowVariants}
-              />
-            </div>
+          {/* Gang Variants Section — only when the edition has variant types */}
+          {editionVariants.length > 0 && (
+            <div className="mt-4">
+              <div className="flex items-center space-x-2">
+                <label htmlFor="variant-toggle" className="text-sm font-medium">
+                  Gang Variants
+                </label>
+                <Switch
+                  id="variant-toggle"
+                  checked={showVariants}
+                  onCheckedChange={setShowVariants}
+                />
+              </div>
 
-            {showVariants && (
-              <div className="grid grid-cols-2 gap-4 mt-2">
-                {/* Unaffiliated variants */}
-                <div>
-                  <h3 className="text-xs font-semibold text-muted-foreground mb-1">Unaffiliated</h3>
-                  <div className="flex flex-col gap-2">
-                    {availableVariants
-                      .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? Infinity) <= 9)
-                      .sort((a, b) =>
-                        (gangVariantRank[a.variant.toLowerCase()] ?? Infinity) -
-                        (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
-                      )
-                      .map((variant, index, arr) => (
-                        <React.Fragment key={variant.id}>
-                          {/* Insert separator before 'skirmish' */}
-                          {variant.variant.toLowerCase() === "skirmish" && (
-                            <div className="border-t border-border" />
-                          )}
-                          <div className="flex items-center space-x-2">
+              {showVariants && (
+                <div className="grid grid-cols-2 gap-4 mt-2">
+                  {/* Unaffiliated variants */}
+                  <div>
+                    <h3 className="text-xs font-semibold text-muted-foreground mb-1">Unaffiliated</h3>
+                    <div className="flex flex-col gap-2">
+                      {editionVariants
+                        .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? Infinity) <= 9)
+                        .sort((a, b) =>
+                          (gangVariantRank[a.variant.toLowerCase()] ?? Infinity) -
+                          (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
+                        )
+                        .map((variant) => (
+                          <React.Fragment key={variant.id}>
+                            {/* Insert separator before 'skirmish' */}
+                            {variant.variant.toLowerCase() === "skirmish" && (
+                              <div className="border-t border-border" />
+                            )}
+                            <div className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`variant-${variant.id}`}
+                                checked={selectedVariants.some(v => v.id === variant.id)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setSelectedVariants(prev => [...prev, variant]);
+                                  } else {
+                                    setSelectedVariants(prev => prev.filter(v => v.id !== variant.id));
+                                  }
+                                }}
+                              />
+                              <label htmlFor={`variant-${variant.id}`} className="text-sm cursor-pointer">
+                                {variant.variant}
+                              </label>
+                            </div>
+                          </React.Fragment>
+                        ))}
+                    </div>
+                  </div>
+
+                  {/* Outlaw/Corrupted variants*/}
+                  <div>
+                    <h3 className="text-xs font-semibold text-muted-foreground mb-1">Outlaw / Corrupted</h3>
+                    <div className="flex flex-col gap-2">
+                      {editionVariants
+                        .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? -1) >= 10)
+                        .sort((a, b) =>
+                          (gangVariantRank[a.variant.toLowerCase()] ?? Infinity) -
+                          (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
+                        )
+                        .map(variant => (
+                          <div key={variant.id} className="flex items-center space-x-2">
                             <Checkbox
                               id={`variant-${variant.id}`}
                               checked={selectedVariants.some(v => v.id === variant.id)}
@@ -514,44 +622,13 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
                               {variant.variant}
                             </label>
                           </div>
-                        </React.Fragment>
-                      ))}
+                        ))}
+                    </div>
                   </div>
                 </div>
-
-                {/* Outlaw/Corrupted variants*/}
-                <div>
-                  <h3 className="text-xs font-semibold text-muted-foreground mb-1">Outlaw / Corrupted</h3>
-                  <div className="flex flex-col gap-2">
-                    {availableVariants
-                      .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? -1) >= 10)
-                      .sort((a, b) =>
-                        (gangVariantRank[a.variant.toLowerCase()] ?? Infinity) -
-                        (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
-                      )
-                      .map(variant => (
-                        <div key={variant.id} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`variant-${variant.id}`}
-                            checked={selectedVariants.some(v => v.id === variant.id)}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setSelectedVariants(prev => [...prev, variant]);
-                              } else {
-                                setSelectedVariants(prev => prev.filter(v => v.id !== variant.id));
-                              }
-                            }}
-                          />
-                          <label htmlFor={`variant-${variant.id}`} className="text-sm cursor-pointer">
-                            {variant.variant}
-                          </label>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           {/* Starting Credits Input */}
           <div>

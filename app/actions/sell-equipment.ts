@@ -7,6 +7,7 @@ import { getAuthenticatedUser } from "@/utils/auth";
 import { revalidateTag } from 'next/cache';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { countsTowardRating } from '@/utils/fighter-status';
+import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { clearHardpointReference } from './vehicle-hardpoints';
 import { returnCostResource } from '@/utils/campaigns/resources';
@@ -98,7 +99,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       // Get gang_id and status from fighter
       const { data: fighter, error: fighterError } = await supabase
         .from('fighters')
-        .select('gang_id, user_id, killed, retired, enslaved, captured, fighter_class')
+        .select('gang_id, user_id, killed, retired, enslaved, captured, fighter_subtypes')
         .eq('id', equipmentData.fighter_id)
         .single();
 
@@ -111,7 +112,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
 
       // Exotic beasts derive their rating contribution from the owner, not themselves.
       // Check the owner's active status instead.
-      if (fighterIsActive && fighter.fighter_class?.toLowerCase().startsWith('exotic beast')) {
+      if (fighterIsActive && fighter.fighter_subtypes?.some((c: string) => c.toLowerCase().startsWith('exotic beast') || c.toLowerCase() === 'pet')) {
         const { data: beastOwnership } = await supabase
           .from('fighter_exotic_beasts')
           .select('fighter_owner_id, fighters!fighter_owner_id (killed, retired, enslaved, captured)')
@@ -199,9 +200,13 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       .select('id, type_specific_data')
       .eq('fighter_equipment_id', params.fighter_equipment_id);
 
+    // Wargear that grants a beast: 'Status Items: Exotic Beasts' in N23, 'Pets' in N26.
+    const equipmentCategory = (equipmentData.equipment as any)?.equipment_category?.toLowerCase();
+    const isBeastWargear = equipmentCategory === 'status items: exotic beasts' || equipmentCategory === 'pets';
+
     // Query beast equipment cost before deletion (cascade may delete beast data)
     let beastEquipmentCost = 0;
-    if ((equipmentData.equipment as any)?.equipment_category?.toLowerCase() === 'status items: exotic beasts' && equipmentData.fighter_id) {
+    if (isBeastWargear && equipmentData.fighter_id) {
       const { data: beastData } = await supabase
         .from('fighter_exotic_beasts')
         .select(`
@@ -234,6 +239,13 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
 
     if (deleteError) {
       throw new Error(`Failed to delete equipment: ${deleteError.message}`);
+    }
+
+    // After the cascade, so the survivor check sees only what remains
+    await syncSubtypeGrants(supabase, equipmentData.fighter_id, { revoked: associatedEffects });
+
+    if (equipmentData.fighter_id) {
+      revalidateTag(TAGS.fighter(equipmentData.fighter_id), { expire: 0 });
     }
 
     if (isResourcePurchase) {
@@ -304,8 +316,8 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       if ((associatedEffects?.length || 0) > 0) {
         invalidateFighter(equipmentData.fighter_id, gangId);
       }
-      // If selling exotic beast equipment, invalidate beast costs cache
-      if ((equipmentData.equipment as any)?.equipment_category?.toLowerCase() === 'status items: exotic beasts') {
+      // If selling beast-granting equipment, invalidate beast costs cache
+      if (isBeastWargear) {
         revalidateTag(TAGS.fighter(equipmentData.fighter_id), { expire: 0 });
       }
       // If this fighter is a beast, invalidate the owner's cache
@@ -384,9 +396,10 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
     const sellValue = isResourcePurchaseStash ? 0 : Math.floor(params.manual_cost || 0);
     const purchaseCost = row.purchase_cost || 0;
 
-    // Query beast equipment cost before deletion (only for exotic beast equipment)
+    // Query beast equipment cost before deletion (only for beast-granting equipment)
+    const equipmentCategory = (row as any).equipment?.equipment_category?.toLowerCase();
     let beastEquipmentCost = 0;
-    if ((row as any).equipment?.equipment_category?.toLowerCase() === 'status items: exotic beasts') {
+    if (equipmentCategory === 'status items: exotic beasts' || equipmentCategory === 'pets') {
       const { data: beastData } = await supabase
         .from('fighter_exotic_beasts')
         .select(`

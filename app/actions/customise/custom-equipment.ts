@@ -3,6 +3,7 @@
 import { invalidateUserCustoms } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from '@/utils/auth';
+import { getEditionIdBySlug } from '@/app/lib/editions';
 import { getUserCustomEquipmentByCategory } from "@/app/lib/customise/custom-equipment";
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
 import { removeItemFromAllCollections } from './custom-collections';
@@ -12,9 +13,10 @@ export async function updateCustomEquipment(
   updates: {
     equipment_name?: string;
     cost?: number;
-    equipment_category?: string;
+    equipment_category_id?: string;
     equipment_type?: 'wargear' | 'weapon';
-    availability?: string;
+    availability?: string | null;
+    trade_points?: string;
     is_consumable?: boolean;
     description?: string | null;
   }
@@ -49,12 +51,14 @@ export async function updateCustomEquipment(
     updateData.description = normalizedDescription;
   }
   
-  // If equipment_category is being updated, we need to get the category_id
-  if (updates.equipment_category) {
+  // Resolve by id, not by name: a name matches more than one row now that
+  // categories are edition-scoped. The name column is denormalised, so keep it
+  // in step with the id.
+  if (updates.equipment_category_id) {
     const { data: categoryData, error: categoryError } = await supabase
       .from('equipment_categories')
       .select('id, category_name')
-      .eq('category_name', updates.equipment_category)
+      .eq('id', updates.equipment_category_id)
       .single();
 
     if (categoryError) {
@@ -63,6 +67,7 @@ export async function updateCustomEquipment(
     }
 
     updateData.equipment_category_id = categoryData.id;
+    updateData.equipment_category = categoryData.category_name;
   }
 
   // Update the equipment, but only if it belongs to the current user
@@ -125,12 +130,14 @@ export async function fetchUserCustomEquipment(category?: string) {
 
 export async function createCustomEquipment(data: {
   equipment_name: string;
-  availability: string;
+  availability: string | null;
+  trade_points?: string;
   cost: number;
-  equipment_category: string;
+  equipment_category_id: string;
   equipment_type: 'wargear' | 'weapon';
   is_consumable?: boolean;
   description?: string | null;
+  edition_slug?: string;
 }) {
   const description = normalizeCustomDescription(data.description);
   const lengthError = getCustomDescriptionLengthError(description);
@@ -144,11 +151,12 @@ export async function createCustomEquipment(data: {
   const user = await getAuthenticatedUser(supabase);
   
 
-  // First, get the equipment category details
+  // By id, not by name: a category name repeats across editions (Grenades exists
+  // in both n23 and n26), so a name lookup matches more than one row.
   const { data: categoryData, error: categoryError } = await supabase
     .from('equipment_categories')
     .select('id, category_name')
-    .eq('category_name', data.equipment_category)
+    .eq('id', data.equipment_category_id)
     .single();
 
   if (categoryError) {
@@ -163,12 +171,15 @@ export async function createCustomEquipment(data: {
       user_id: user.id,
       equipment_name: data.equipment_name.trimEnd(),
       availability: data.availability,
+      trade_points: data.trade_points ?? '0',
       cost: data.cost,
+      // The name is denormalised alongside the id; plenty of reads still use it.
       equipment_category: categoryData.category_name,
       equipment_category_id: categoryData.id,
       equipment_type: data.equipment_type,
       is_consumable: data.is_consumable ?? false,
       description,
+      edition_id: await getEditionIdBySlug(data.edition_slug),
       created_at: new Date().toISOString()
     })
     .select()

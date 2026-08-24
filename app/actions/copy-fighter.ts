@@ -97,6 +97,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           purchase_cost,
           original_cost,
           is_master_crafted,
+          is_editable,
           vehicle_id
         ),
         fighter_skills(
@@ -255,10 +256,10 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       fighter_name: newFighterName,
       fighter_type: sourceFighter.fighter_type,
       fighter_type_id: sourceFighter.fighter_type_id,
-      fighter_class: sourceFighter.fighter_class,
-      fighter_class_id: sourceFighter.fighter_class_id,
-      fighter_sub_type: sourceFighter.fighter_sub_type,
-      fighter_sub_type_id: sourceFighter.fighter_sub_type_id,
+      fighter_subtypes: sourceFighter.fighter_subtypes || [],
+      fighter_specialisation: sourceFighter.fighter_specialisation,
+      fighter_specialisation_id: sourceFighter.fighter_specialisation_id,
+      fighter_variant: sourceFighter.fighter_variant,
       custom_fighter_type_id: sourceFighter.custom_fighter_type_id,
       fighter_gang_legacy_id: sourceFighter.fighter_gang_legacy_id,
       user_id: gang.user_id,
@@ -275,8 +276,16 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       cool: sourceFighter.cool,
       willpower: sourceFighter.willpower,
       intelligence: sourceFighter.intelligence,
+      save: sourceFighter.save ?? null,
+      is_vehicle: sourceFighter.is_vehicle ?? false,
 
-      xp: params.copy_as_experienced ? sourceFighter.xp : 0,
+      // Recruitment XP is a property of the fighter type, not of what the copy
+      // went on to earn, so it survives a non-experienced copy. Resetting it to 0
+      // would move an N26 fighter recruited at 13 XP onto the 3-wide Rookie track.
+      // NULL means N/A and copies across as such; xp still falls back to 0,
+      // which is a number even when the model has no recruitment value.
+      starting_xp: sourceFighter.starting_xp,
+      xp: params.copy_as_experienced ? sourceFighter.xp : (sourceFighter.starting_xp ?? 0),
       total_xp: params.copy_as_experienced ? sourceFighter.total_xp : 0,
       kills: params.copy_as_experienced ? sourceFighter.kills : 0,
 
@@ -401,6 +410,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
             purchase_cost: eq.purchase_cost,
             original_cost: eq.original_cost,
             is_master_crafted: eq.is_master_crafted || false,
+            is_editable: eq.is_editable || false,
             gang_id: params.target_gang_id,
             user_id: gang.user_id
           })
@@ -432,6 +442,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
             purchase_cost: eq.purchase_cost,
             original_cost: eq.original_cost,
             is_master_crafted: eq.is_master_crafted || false,
+            is_editable: eq.is_editable || false,
             gang_id: params.target_gang_id,
             user_id: gang.user_id
           })
@@ -650,7 +661,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           .from('fighters')
           .select(`
             *,
-            fighter_equipment(id, equipment_id, custom_equipment_id, purchase_cost, original_cost, is_master_crafted),
+            fighter_equipment(id, equipment_id, custom_equipment_id, purchase_cost, original_cost, is_master_crafted, is_editable),
             fighter_skills(id, skill_id, custom_skill_id, credits_increase, xp_cost, is_advance),
             fighter_effects(
               id, effect_name, fighter_effect_type_id, type_specific_data,
@@ -676,10 +687,10 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
             fighter_name: beastFighter.fighter_name,
             fighter_type: beastFighter.fighter_type,
             fighter_type_id: beastFighter.fighter_type_id,
-            fighter_class: beastFighter.fighter_class,
-            fighter_class_id: beastFighter.fighter_class_id,
-            fighter_sub_type: beastFighter.fighter_sub_type,
-            fighter_sub_type_id: beastFighter.fighter_sub_type_id,
+            fighter_subtypes: beastFighter.fighter_subtypes || [],
+            fighter_specialisation: beastFighter.fighter_specialisation,
+            fighter_specialisation_id: beastFighter.fighter_specialisation_id,
+            fighter_variant: beastFighter.fighter_variant,
             custom_fighter_type_id: beastFighter.custom_fighter_type_id,
             fighter_gang_legacy_id: beastFighter.fighter_gang_legacy_id,
             user_id: gang.user_id,
@@ -695,7 +706,9 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
             cool: beastFighter.cool,
             willpower: beastFighter.willpower,
             intelligence: beastFighter.intelligence,
-            xp: params.copy_as_experienced ? beastFighter.xp : 0,
+            save: beastFighter.save ?? null,
+            starting_xp: beastFighter.starting_xp,
+            xp: params.copy_as_experienced ? beastFighter.xp : (beastFighter.starting_xp ?? 0),
             total_xp: params.copy_as_experienced ? beastFighter.total_xp : 0,
             kills: params.copy_as_experienced ? beastFighter.kills : 0,
             credits: beastFighter.credits,
@@ -736,6 +749,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
                 purchase_cost: eq.purchase_cost,
                 original_cost: eq.original_cost,
                 is_master_crafted: eq.is_master_crafted || false,
+                is_editable: eq.is_editable || false,
                 gang_id: params.target_gang_id,
                 user_id: gang.user_id
               })

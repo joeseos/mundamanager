@@ -4,17 +4,22 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import Modal from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { rollD6 } from '@/utils/dice';
+import { hasItemSaleD6Deduction } from '@/types/edition';
 
 interface SellConfirmModalProps {
   itemName: string;
   initialCost: number;
   title?: string;
+  /** A credits sale rather than a resource refund. The edition picks which discount it offers. */
   showD6Roll?: boolean;
   costLabel?: string;
   showMinimumHint?: boolean;
   description?: string;
   confirmText?: string;
+  editionSlug?: string | null;
   onConfirm: (cost: number) => void;
   onClose: () => void;
 }
@@ -28,13 +33,27 @@ export function SellConfirmModal({
   showMinimumHint,
   description,
   confirmText = 'Sell',
+  editionSlug,
   onConfirm,
   onClose,
 }: SellConfirmModalProps) {
+  // An unresolved slug keeps the roll: legacy rows predate edition_id and are N23,
+  // so the capability answering false for them must not swap in the other option.
+  const offersHalfValue =
+    showD6Roll && editionSlug != null && !hasItemSaleD6Deduction(editionSlug);
+  const showRoll = showD6Roll && !offersHalfValue;
+  const halfPrice = Math.max(5, Math.ceil(initialCost / 2));
+
   const [manualCost, setManualCost] = useState(initialCost);
   const [lastRoll, setLastRoll] = useState<number | null>(null);
+  const [useHalfValue, setUseHalfValue] = useState(false);
 
   const shouldShowMinimumHint = showMinimumHint ?? showD6Roll;
+
+  const handleHalfValueChange = (checked: boolean) => {
+    setUseHalfValue(checked);
+    setManualCost(checked ? halfPrice : initialCost);
+  };
 
   const handleRoll = () => {
     const r = rollD6();
@@ -51,7 +70,7 @@ export function SellConfirmModal({
       content={
         <div className="space-y-4">
           <p>Are you sure you want to sell <strong>{itemName}</strong>?</p>
-          {showD6Roll && (
+          {showRoll && (
             <div className="flex items-center gap-3">
               <button
                 type="button"
@@ -68,6 +87,18 @@ export function SellConfirmModal({
               {shouldShowMinimumHint && (
                 <p className="text-sm text-muted-foreground">(Minimum 5 credits)</p>
               )}
+            </div>
+          )}
+          {offersHalfValue && (
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="half-value"
+                checked={useHalfValue}
+                onCheckedChange={handleHalfValueChange}
+              />
+              <Label htmlFor="half-value" className="text-sm">
+                Half of {initialCost} rounded up (minimum 5 credits)
+              </Label>
             </div>
           )}
           <div className="flex items-center gap-4">

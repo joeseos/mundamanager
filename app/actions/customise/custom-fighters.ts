@@ -3,9 +3,19 @@
 import { invalidateUserCustoms } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
+import { getEditionIdBySlug } from '@/app/lib/editions';
 import { CustomFighterType } from '@/types/fighter';
+import { withEditionSlug } from '@/types/edition';
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
 import { removeItemFromAllCollections } from './custom-collections';
+
+/**
+ * Starting XP has three states, and `?? 0` would collapse two of them: null is a
+ * real value (N/A — the fighter can never gain XP), while an omitted field means
+ * the caller has no opinion and gets the editions-without-the-concept default.
+ */
+const startingXpFor = (value?: number | null): number | null =>
+  value === undefined ? 0 : value;
 
 export interface CreateCustomFighterData {
   fighter_type: string;
@@ -26,10 +36,12 @@ export interface CreateCustomFighterData {
   cool?: number;
   willpower?: number;
   intelligence?: number;
+  save?: number | null;
+  starting_xp?: number | null;
+  is_vehicle?: boolean;
   special_rules: string[];
   free_skill: boolean;
-  fighter_class: string;
-  fighter_class_id: string;
+  fighter_subtypes: string[];
   skill_access: {
     skill_type_id: string;
     access_level: 'primary' | 'secondary' | 'allowed';
@@ -38,6 +50,7 @@ export interface CreateCustomFighterData {
   default_skills?: string[];
   default_equipment?: string[];
   equipment_list?: string[];
+  edition_slug?: string;
 }
 
 // Fetch a custom fighter type with all its related data (skill access, default
@@ -51,6 +64,7 @@ async function getCompleteCustomFighter(
     .from('custom_fighter_types')
     .select(`
       *,
+      editions:edition_id (slug),
       fighter_type_skill_access (
         skill_type_id,
         custom_skill_type_id,
@@ -109,7 +123,7 @@ async function getCompleteCustomFighter(
   const equipmentListData = (completeFighter.custom_fighter_type_equipment || []) as any[];
 
   const transformedFighter: CustomFighterType = {
-    ...completeFighter,
+    ...withEditionSlug(completeFighter),
     skill_access: skillAccessData.map((sa) => ({
       skill_type_id: sa.skill_type_id || sa.custom_skill_type_id,
       access_level: sa.access_level,
@@ -156,6 +170,44 @@ async function getCompleteCustomFighter(
   return { data: transformedFighter };
 }
 
+/**
+ * A fighter belongs to its custom gang type's edition, not to whichever tab the
+ * caller was on. Falls back to the slug only when there is no gang type to ask.
+ */
+async function resolveFighterEditionId(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  data: CreateCustomFighterData
+): Promise<string | null> {
+  const parentQuery = data.custom_gang_type_id
+    ? supabase
+        .from('custom_gang_types')
+        .select('edition_id, editions:edition_id (slug)')
+        .eq('id', data.custom_gang_type_id)
+    : data.gang_type_id
+      ? supabase
+          .from('gang_types')
+          .select('edition_id, editions:edition_id (slug)')
+          .eq('gang_type_id', data.gang_type_id)
+      : null;
+
+  if (!parentQuery) return getEditionIdBySlug(data.edition_slug);
+
+  const { data: parent, error } = await parentQuery.single();
+  if (error || !parent?.edition_id) {
+    return getEditionIdBySlug(data.edition_slug);
+  }
+
+  const parentSlug = withEditionSlug(parent).edition_slug;
+  if (data.edition_slug && parentSlug && data.edition_slug !== parentSlug) {
+    console.warn(
+      `createCustomFighter: edition_slug "${data.edition_slug}" conflicts with the gang type's ` +
+      `edition (${parentSlug}); using the gang type's.`
+    );
+  }
+
+  return parent.edition_id;
+}
+
 export async function createCustomFighter(data: CreateCustomFighterData): Promise<{ success: boolean; data?: CustomFighterType; error?: string }> {
   const description = normalizeCustomDescription(data.description);
   const lengthError = getCustomDescriptionLengthError(description);
@@ -189,10 +241,13 @@ export async function createCustomFighter(data: CreateCustomFighterData): Promis
         cool: data.cool,
         willpower: data.willpower,
         intelligence: data.intelligence,
+        save: data.save ?? null,
+        starting_xp: startingXpFor(data.starting_xp),
+        is_vehicle: data.is_vehicle ?? false,
         special_rules: data.special_rules,
         free_skill: data.free_skill,
-        fighter_class: data.fighter_class,
-        fighter_class_id: data.fighter_class_id,
+        fighter_subtypes: data.fighter_subtypes,
+        edition_id: await resolveFighterEditionId(supabase, data),
         created_at: new Date().toISOString()
       })
       .select()
@@ -398,10 +453,13 @@ export async function updateCustomFighter(id: string, data: CreateCustomFighterD
         cool: data.cool,
         willpower: data.willpower,
         intelligence: data.intelligence,
+        save: data.save ?? null,
+        starting_xp: startingXpFor(data.starting_xp),
+        is_vehicle: data.is_vehicle ?? false,
         special_rules: data.special_rules,
         free_skill: data.free_skill,
-        fighter_class: data.fighter_class,
-        fighter_class_id: data.fighter_class_id,
+        fighter_subtypes: data.fighter_subtypes,
+        // edition_id is deliberately absent: an asset's edition is immutable.
         updated_at: new Date().toISOString()
       })
       .eq('id', id)

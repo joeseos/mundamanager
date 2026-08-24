@@ -1,6 +1,6 @@
 'use client';
 
-import { LuUsers, LuSword, LuCar, LuBookOpen, LuScrollText, LuBookUser, LuHeartCrack, LuSearch, LuBell } from "react-icons/lu";
+import { LuUsers, LuSword, LuCar, LuBookOpen, LuScrollText, LuBookUser, LuHeartCrack, LuSearch, LuBell, LuHandshake } from "react-icons/lu";
 import { LuChartColumn } from "react-icons/lu";
 import { PiFlagBannerFoldBold } from "react-icons/pi";
 import { LuSquarePen } from 'react-icons/lu';
@@ -17,6 +17,7 @@ import { AdminEditVehicleTypeModal } from "@/components/admin/admin-edit-vehicle
 import { AdminStatsModal } from "@/components/admin/admin-stats-modal";
 import { AdminScenariosModal } from "@/components/admin/admin-scenarios-modal";
 import { AdminInjuriesGlitchesModal } from "@/components/admin/admin-injuries";
+import { AdminAlliancesModal } from "@/components/admin/admin-alliances";
 import { AdminCampaignManagementModal } from "@/components/admin/admin-campaign-management";
 import { AdminSupportToolsModal } from "@/components/admin/admin-support-tools";
 import { AdminNotificationsModal } from "@/components/admin/admin-notifications-modal";
@@ -34,6 +35,7 @@ export default function AdminPage() {
   const [showStats, setShowStats] = useState(false);
   const [showScenarios, setShowScenarios] = useState(false);
   const [showInjuriesGlitches, setShowInjuriesGlitches] = useState(false);
+  const [showAlliances, setShowAlliances] = useState(false);
   const [showCampaignManagement, setShowCampaignManagement] = useState(false);
   const [showSupportTools, setShowSupportTools] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -94,19 +96,25 @@ export default function AdminPage() {
       icon: LuBookUser
     },
     {
-      title: "Manage Scenarios",
-      description: "Add, edit, or delete scenarios",
+      title: "Alliances",
+      description: "Manage alliances",
+      action: () => setShowAlliances(true),
+      icon: LuHandshake
+    },
+    {
+      title: "Scenarios",
+      description: "Manage scenarios",
       action: () => setShowScenarios(true),
       icon: LuScrollText
     },
     {
-      title: "Injuries & Rig Glitches",
-      description: "Manage injuries and rig glitches",
+      title: "Lasting Injuries & Rig Glitches",
+      description: "Manage lasting injuries and rig glitches",
       action: () => setShowInjuriesGlitches(true),
       icon: LuHeartCrack
     },
     {
-      title: "Campaign Management",
+      title: "Campaigns, Territories, & Triumphs",
       description: "Manage campaign types, territories, and triumphs",
       action: () => setShowCampaignManagement(true),
       icon: PiFlagBannerFoldBold
@@ -272,6 +280,12 @@ export default function AdminPage() {
           <AdminInjuriesGlitchesModal
             onClose={() => setShowInjuriesGlitches(false)}
             onSubmit={() => setShowInjuriesGlitches(false)}
+          />
+        )}
+
+        {showAlliances && (
+          <AdminAlliancesModal
+            onClose={() => setShowAlliances(false)}
           />
         )}
 

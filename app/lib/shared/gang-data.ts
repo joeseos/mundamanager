@@ -4,16 +4,26 @@ import { unstable_cache } from 'next/cache';
 import { assembleGangFighters, assembleGangVehicles, groupBy, type GangFightersBundle } from './gang-assembly';
 import { WeaponProps, WargearItem } from '@/types/fighter';
 import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang';
+import { gangEditionSlug } from '@/types/edition';
+import { GangTacticsCard, GANG_TACTICS_CARD_SELECT, toGangTacticsCard } from '@/types/tactics-card';
 
 // =============================================================================
 // TYPES - Shared interfaces for gang data
 // =============================================================================
+
+/** The gang's spendable resources, all stored on the gangs row. */
+export interface GangResources {
+  credits: number;
+  reputation: number;
+  trade_points: number;
+}
 
 export interface GangBasic {
   id: string;
   name: string;
   gang_type: string;
   gang_type_id: string;
+  edition_slug?: string | null;
   gang_colour: string;
   reputation: number;
   alignment: string;
@@ -45,9 +55,17 @@ export interface GangBasic {
     gang_origin_categories?: {
       category_name: string;
     } | null;
+    editions?: {
+      slug: string;
+    } | null;
   } | null;
   custom_gang_type_id?: string | null;
   custom_gang_types?: null;
+  custom_gang_type_edition?: {
+    editions?: {
+      slug: string;
+    } | null;
+  } | null;
   image_url?: string;
   default_gang_image?: number | null;
   hidden: boolean;
@@ -91,7 +109,6 @@ export interface GangCampaign {
   campaign_gang_id: string;
   campaign_name: string;
   role: string;
-  status: string;
   invited_at?: string;
   invited_by?: string;
   trading_posts?: string[] | null;
@@ -117,11 +134,12 @@ export interface GangFighter {
   fighter_name: string;
   label?: string;
   fighter_type: string;
-  fighter_class: string;
-  fighter_sub_type?: {
-    fighter_sub_type: string;
-    fighter_sub_type_id: string;
+  fighter_subtypes: string[];
+  fighter_specialisation?: {
+    fighter_specialisation: string;
+    fighter_specialisation_id: string;
   };
+  fighter_variant?: string | null;
   alliance_crew_name?: string;
   position?: string;
   xp: number;
@@ -140,6 +158,10 @@ export interface GangFighter {
   cool: number;
   willpower: number;
   intelligence: number;
+  save?: number | null;
+  edition_slug?: string | null;
+  /** null means N/A: this fighter's type cannot gain XP. */
+  starting_xp: number | null;
   weapons: WeaponProps[];
   wargear: WargearItem[];
   effects: Record<string, any[]>;
@@ -171,6 +193,7 @@ export interface GangFighter {
 
 export interface GangCore extends GangBasic {
   credits: number;
+  trade_points: number;
   rating: number;
   wealth: number;
   alliance: Alliance | null;
@@ -203,6 +226,7 @@ export const getGangCore = async (gangId: string, supabase: any): Promise<GangCo
           created_at,
           last_updated,
           credits,
+          trade_points,
           rating,
           wealth,
           alliance_id,
@@ -231,9 +255,17 @@ export const getGangCore = async (gangId: string, supabase: any): Promise<GangCo
             gang_origin_category_id,
             gang_origin_categories!gang_origin_category_id (
               category_name
+            ),
+            editions:edition_id (
+              slug
             )
           ),
           custom_gang_type_id,
+          custom_gang_type_edition:custom_gang_types!custom_gang_type_id (
+            editions:edition_id (
+              slug
+            )
+          ),
           image_url,
           default_gang_image,
           hidden
@@ -249,14 +281,54 @@ export const getGangCore = async (gangId: string, supabase: any): Promise<GangCo
       if (!data) return null;
       return {
         ...data,
+        edition_slug: gangEditionSlug(data),
         rating: (data.rating ?? 0) as number,
         wealth: (data.wealth ?? 0) as number,
         alliance: data.alliance ?? null,
       };
     },
-    [`gang-core-v2-${gangId}`],
+    [`gang-core-v3-${gangId}`],
     {
       tags: [TAGS.gang(gangId)],
+      revalidate: false
+    }
+  )();
+};
+
+/**
+ * Get the gang's spendable resources: credits, reputation and Trade Points.
+ * All three live on the gangs row, so this is a selector over getGangCore —
+ * the same cache entry the gang page already holds, no extra query or entry.
+ */
+export const getGangResources = async (gangId: string, supabase: any): Promise<GangResources> => {
+  const core = await getGangCore(gangId, supabase);
+  return {
+    credits: core?.credits ?? 0,
+    reputation: core?.reputation ?? 0,
+    trade_points: core?.trade_points ?? 0
+  };
+};
+
+/**
+ * Get the Gang Tactics cards a gang holds, flattened with their catalogue name
+ * and D66 range. Callers gate on hasGangTacticsCards(), not this.
+ * Cache: gang-tactics-cards-{id}
+ */
+export const getGangTacticsCards = async (gangId: string, supabase: any): Promise<GangTacticsCard[]> => {
+  return unstable_cache(
+    async () => {
+      const { data, error } = await supabase
+        .from('gang_tactics_cards')
+        .select(GANG_TACTICS_CARD_SELECT)
+        .eq('gang_id', gangId);
+
+      if (error) throw error;
+
+      return (data ?? []).map(toGangTacticsCard);
+    },
+    [`gang-tactics-cards-${gangId}`],
+    {
+      tags: [TAGS.gangTacticsCards(gangId)],
       revalidate: false
     }
   )();
@@ -467,7 +539,6 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
           campaign_allegiance_id,
           campaign_members!campaign_member_id (
             role,
-            status,
             invited_at,
             invited_by
           ),
@@ -518,7 +589,7 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
 
       // Rows whose embedded campaign_members join returned no role need a
       // fallback lookup considering ALL of the user's member entries.
-      type MemberEntry = { campaign_id?: string; user_id?: string; role: string; status: string | null; invited_at: string; invited_by: string };
+      type MemberEntry = { campaign_id?: string; user_id?: string; role: string; invited_at: string; invited_by: string };
       const fallbackRows = (data || []).filter(
         (cg: any) => cg.campaigns && (!cg.campaign_members || !(cg.campaign_members as any)?.role)
       );
@@ -603,7 +674,7 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
         fallbackRows.length > 0
           ? supabase
               .from('campaign_members')
-              .select('campaign_id, user_id, role, status, invited_at, invited_by')
+              .select('campaign_id, user_id, role, invited_at, invited_by')
               .in('campaign_id', Array.from(new Set(fallbackRows.map((cg: any) => (cg.campaigns as any).id))))
               .in('user_id', Array.from(new Set(fallbackRows.map((cg: any) => (cg as any).user_id))))
           : Promise.resolve({ data: [] })
@@ -735,7 +806,6 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
             campaign_gang_id: cg.id,
             campaign_name: (cg.campaigns as any).campaign_name,
             role: (memberData as any)?.role,
-            status: (memberData as any)?.status,
             invited_at: (memberData as any)?.invited_at,
             invited_by: (memberData as any)?.invited_by,
             trading_posts: tradingPosts,
@@ -751,7 +821,7 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
 
       return campaigns;
     },
-    [`gang-campaigns-v2-${gangId}`],
+    [`gang-campaigns-v3-${gangId}`],
     {
       tags: [
         TAGS.gangCampaigns(gangId),
@@ -785,6 +855,8 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
  */
 export interface GetGangFightersListOptions {
   expandLoadoutsForPrint?: boolean;
+  /** Resolved by the getGangFightersList selector from the gang core entry. */
+  gangEditionSlug?: string | null;
 }
 
 /**
@@ -825,10 +897,11 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
             cool,
             willpower,
             intelligence,
+            save,
             xp,
+            starting_xp,
             special_rules,
-            fighter_class,
-            fighter_class_id,
+            fighter_subtypes,
             fighter_type,
             fighter_type_id,
             custom_fighter_type_id,
@@ -838,7 +911,8 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
               fighter_type_id,
               name
             ),
-            fighter_sub_type_id,
+            fighter_specialisation_id,
+            fighter_variant,
             killed,
             starved,
             retired,
@@ -853,16 +927,23 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
             image_url,
             position,
             active_loadout_id,
+            is_vehicle,
             fighter_types!fighter_type_id (
               fighter_type,
+              fighter_subtypes,
               alliance_crew_name,
               cost,
               is_spyrer,
-              gang_type_id
+              is_vehicle,
+              gang_type_id,
+              edition_id,
+              editions:edition_id (
+                slug
+              )
             ),
-            fighter_sub_types!fighter_sub_type_id (
+            fighter_specialisations!fighter_specialisation_id (
               id,
-              sub_type_name
+              specialisation_name
             )
           `)
           .eq('gang_id', gangId),
@@ -946,6 +1027,7 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
             strength,
             ap,
             damage,
+            lethality,
             ammo,
             traits,
             sort_order
@@ -968,6 +1050,7 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
             strength,
             ap,
             damage,
+            lethality,
             ammo,
             traits,
             sort_order
@@ -1063,7 +1146,8 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
                 fighter_effect_skills!fighter_effect_skill_id (
                   fighter_effects (
                     effect_name,
-                    type_specific_data
+                    type_specific_data,
+                    fighter_equipment_id
                   )
                 )
               `)
@@ -1131,7 +1215,7 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
         capturedByGangs: capturedByGangsRes.data || []
       };
     },
-    [`gang-fighters-bundle-v3-${gangId}`],
+    [`gang-fighters-bundle-v4-${gangId}`],
     {
       tags: [TAGS.gang(gangId)],
       revalidate: false
@@ -1149,8 +1233,15 @@ export const getGangFightersList = async (
   supabase: any,
   options?: GetGangFightersListOptions
 ): Promise<GangFighter[]> => {
-  const bundle = await getGangFightersBundle(gangId, supabase);
-  return assembleGangFighters(bundle, options);
+  // Every fighter in a roster belongs to one gang, so the edition is resolved
+  // once from the gang core entry (warm by the time the gang and print pages
+  // reach this) rather than per fighter from fighter_types — which yields null
+  // for custom fighter types, and would leave them with no edition at all.
+  const [bundle, core] = await Promise.all([
+    getGangFightersBundle(gangId, supabase),
+    getGangCore(gangId, supabase)
+  ]);
+  return assembleGangFighters(bundle, { ...options, gangEditionSlug: core?.edition_slug ?? null });
 };
 
 /**
@@ -1194,14 +1285,14 @@ export const getUserProfile = async (userId: string, supabase: any): Promise<{
 export interface OoaBreakdownItem {
   fighter_name: string;
   fighter_type: string;
-  fighter_class: string;
+  fighter_subtypes: string[];
   kills: number;
 }
 
 export interface DeathsBreakdownItem {
   fighter_name: string;
   fighter_type: string;
-  fighter_class: string;
+  fighter_subtypes: string[];
 }
 
 export interface GangFighterStats {
@@ -1219,7 +1310,7 @@ export const getGangFighterStats = async (
     async () => {
       const { data: fighters, error } = await supabase
         .from('fighters')
-        .select('fighter_name, fighter_type, fighter_class, kills, killed')
+        .select('fighter_name, fighter_type, fighter_subtypes, kills, killed')
         .eq('gang_id', gangId);
 
       if (error) throw error;
@@ -1235,20 +1326,20 @@ export const getGangFighterStats = async (
 
       const ooaBreakdown: OoaBreakdownItem[] = fighterList
         .filter((f: { kills: number }) => (Number(f.kills) || 0) > 0)
-        .map((f: { fighter_name: string; fighter_type?: string; fighter_class?: string; kills: number }) => ({
+        .map((f: { fighter_name: string; fighter_type?: string; fighter_subtypes?: string[]; kills: number }) => ({
           fighter_name: f.fighter_name || 'Unknown',
           fighter_type: f.fighter_type || '—',
-          fighter_class: f.fighter_class || '—',
+          fighter_subtypes: f.fighter_subtypes || [],
           kills: Number(f.kills) || 0
         }))
         .sort((a: OoaBreakdownItem, b: OoaBreakdownItem) => b.kills - a.kills);
 
       const deathsBreakdown: DeathsBreakdownItem[] = fighterList
         .filter((f: { killed: boolean }) => f.killed === true)
-        .map((f: { fighter_name: string; fighter_type?: string; fighter_class?: string }) => ({
+        .map((f: { fighter_name: string; fighter_type?: string; fighter_subtypes?: string[] }) => ({
           fighter_name: f.fighter_name || 'Unknown',
           fighter_type: f.fighter_type || '—',
-          fighter_class: f.fighter_class || '—'
+          fighter_subtypes: f.fighter_subtypes || []
         }));
 
       return {
@@ -1258,7 +1349,7 @@ export const getGangFighterStats = async (
         deaths_breakdown: deathsBreakdown
       };
     },
-    [`gang-fighter-stats-v2-${gangId}`],
+    [`gang-fighter-stats-v3-${gangId}`],
     {
       tags: [TAGS.gang(gangId)],
       revalidate: false

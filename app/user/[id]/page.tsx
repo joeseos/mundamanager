@@ -21,6 +21,10 @@ import { CustomGangType } from "@/app/actions/customise/custom-gang-types";
 import { CustomTradingPost } from "@/app/actions/customise/custom-trading-posts";
 import { CustomCollectionWithItems } from "@/app/lib/customise/custom-collections";
 import { useClaims } from "@/hooks/use-claims";
+import { useHomeEdition } from "@/hooks/use-home-edition";
+import { EditionToggle } from "@/components/home/edition-toggle";
+import { sameEditionForDisplay } from "@/types/edition";
+import type { UserCampaign } from "@/types/campaign";
 import { toast } from 'sonner';
 
 import Link from "next/link";
@@ -44,18 +48,14 @@ interface UserData {
     reputation: number;
     rating?: number;
     created_at: string;
+    edition_slug: string | null;
   }>;
   campaigns: Array<{
     id: string; // campaign_members id
     role: string;
-    status: string;
     joined_at: string;
     campaign_id: string;
-    campaign: {
-      id: string;
-      campaign_name: string;
-      status: string | null;
-    } | null;
+    campaign: UserCampaign | null;
   }>;
   customAssets: {
     equipment: number;
@@ -94,6 +94,9 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
   });
 
   const { userId: currentUserId } = useClaims();
+  // Same edition the home Custom Assets tab is on, so a profile never renders an
+  // N26 asset under N23 rules.
+  const { editionSlug, setEditionSlug } = useHomeEdition();
 
   // Scroll to top when component mounts
   useEffect(() => {
@@ -124,14 +127,45 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
 
   const { profile, gangs, campaigns, customAssets, customAssetsData } = userData;
 
+  const byEdition = <T extends { edition_slug?: string | null }>(items: T[]) =>
+    items.filter(item => sameEditionForDisplay(item.edition_slug, editionSlug));
+
+  const editionAssets = {
+    gangTypes: byEdition(customAssetsData.gangTypes),
+    tradingPosts: byEdition(customAssetsData.tradingPosts),
+    equipment: byEdition(customAssetsData.equipment),
+    fighters: byEdition(customAssetsData.fighters),
+    skills: byEdition(customAssetsData.skills),
+    collections: byEdition(customAssetsData.collections ?? []),
+  };
+  const editionGangs = gangs.filter(gang =>
+    sameEditionForDisplay(gang.edition_slug, editionSlug)
+  );
+  const editionCampaigns = campaigns.filter(campaign =>
+    campaign.campaign != null &&
+    sameEditionForDisplay(campaign.campaign?.edition_slug, editionSlug)
+  );
+  const editionAssetCount = Object.values(editionAssets).reduce(
+    (total, assets) => total + assets.length,
+    0
+  );
+  const hasAnyCustomAssets =
+    customAssets.equipment > 0 ||
+    customAssets.fighters > 0 ||
+    customAssets.skills > 0 ||
+    customAssets.gangTypes > 0 ||
+    customAssets.tradingPosts > 0 ||
+    (customAssets.collections || 0) > 0;
+
   // Get arbitrator campaigns for sharing custom assets (only when viewing own profile)
   const userCampaigns = currentUserId === profile.id
-    ? campaigns
+    ? editionCampaigns
         .filter(c => c.role === 'arbitrator' && c.campaign)
         .map(c => ({
           id: c.campaign!.id,
           campaign_name: c.campaign!.campaign_name,
-          status: c.campaign!.status
+          status: c.campaign!.status,
+          edition_slug: c.campaign!.edition_slug
         }))
     : [];
 
@@ -140,7 +174,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
       <div className="container ml-[10px] mr-[10px] max-w-4xl w-full space-y-6 mt-2">
         {/* User Profile Header */}
         <div className="bg-card shadow-md rounded-lg p-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between gap-3">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
                 {profile.username}
@@ -152,15 +186,18 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
                 Member since: {new Date(profile.created_at).toISOString().split('T')[0]}
               </p>
             </div>
-            {profile.patreon_tier_id && profile.patron_status === 'active_patron' && (
-              <Badge variant="outline" className="flex items-center gap-1">
-                <PatreonSupporterIcon
-                  patreonTierId={profile.patreon_tier_id}
-                  patreonTierTitle={profile.patreon_tier_title}
-                />
-                {profile.patreon_tier_title || 'Patreon Supporter'}
-              </Badge>
-            )}
+            <div className="flex shrink-0 items-center gap-3">
+              {profile.patreon_tier_id && profile.patron_status === 'active_patron' && (
+                <Badge variant="outline" className="flex items-center gap-1">
+                  <PatreonSupporterIcon
+                    patreonTierId={profile.patreon_tier_id}
+                    patreonTierTitle={profile.patreon_tier_title}
+                  />
+                  {profile.patreon_tier_title || 'Patreon Supporter'}
+                </Badge>
+              )}
+              <EditionToggle value={editionSlug} onChange={setEditionSlug} />
+            </div>
           </div>
         </div>
 
@@ -170,7 +207,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
             <div className="flex items-center gap-3">
               <FaUsers className="h-8 w-8 text-muted-foreground" />
               <div>
-                <p className="text-2xl font-bold">{gangs.length}</p>
+                <p className="text-2xl font-bold">{editionGangs.length}</p>
                 <p className="text-sm text-muted-foreground">Gangs</p>
               </div>
             </div>
@@ -180,7 +217,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
             <div className="flex items-center gap-3">
               <PiFlagBannerFoldBold className="h-8 w-8 text-muted-foreground" />
               <div>
-                <p className="text-2xl font-bold">{campaigns.length}</p>
+                <p className="text-2xl font-bold">{editionCampaigns.length}</p>
                 <p className="text-sm text-muted-foreground">Campaigns</p>
               </div>
             </div>
@@ -191,7 +228,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
               <MdOutlineColorLens className="h-8 w-8 text-muted-foreground" />
               <div>
                 <p className="text-2xl font-bold">
-                  {customAssets.equipment + customAssets.fighters + customAssets.skills + customAssets.gangTypes + customAssets.tradingPosts + (customAssets.collections || 0)}
+                  {editionAssetCount}
                 </p>
                 <p className="text-sm text-muted-foreground">Custom Assets</p>
               </div>
@@ -200,7 +237,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
         </div>
 
         {/* Gangs Section */}
-        {gangs.length > 0 && (
+        {editionGangs.length > 0 && (
           <div className="bg-card shadow-md rounded-lg p-4">
             <div className="mb-4">
               <h2 className="text-xl md:text-2xl font-bold flex items-center gap-2">
@@ -212,7 +249,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
               </p>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
-              {gangs.map((gang) => (
+              {editionGangs.map((gang) => (
                 <Link
                   key={gang.id}
                   href={`/gang/${gang.id}`}
@@ -237,7 +274,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
         )}
 
         {/* Campaigns Section */}
-        {campaigns.length > 0 && (
+        {editionCampaigns.length > 0 && (
           <div className="bg-card shadow-md rounded-lg p-4">
             <div className="mb-4">
               <h2 className="text-xl md:text-2xl font-bold flex items-center gap-2">
@@ -249,7 +286,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
               </p>
             </div>
             <div className="space-y-1">
-              {campaigns.map((campaign) => (
+              {editionCampaigns.map((campaign) => (
                 <Link
                   key={campaign.id}
                   href={`/campaigns/${campaign.campaign_id}`}
@@ -278,7 +315,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
         )}
 
         {/* Custom Assets Section */}
-        {(customAssets.equipment > 0 || customAssets.fighters > 0 || customAssets.skills > 0 || customAssets.gangTypes > 0 || customAssets.tradingPosts > 0 || (customAssets.collections || 0) > 0) && (
+        {hasAnyCustomAssets && (
           <div className="bg-card shadow-md rounded-lg p-4">
             <div className="mb-4">
               <h2 className="text-xl md:text-2xl font-bold flex items-center gap-2">
@@ -291,10 +328,16 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
             </div>
             
             <div className="space-y-6">
+              {editionAssetCount === 0 && (
+                <p className="text-muted-foreground">
+                  No custom assets for {editionSlug.toUpperCase()}
+                </p>
+              )}
               {/* Custom Gang Types */}
-              {customAssetsData.gangTypes.length > 0 && (
+              {editionAssets.gangTypes.length > 0 && (
                 <CustomiseGangTypes
-                  initialGangTypes={customAssetsData.gangTypes}
+                  initialGangTypes={editionAssets.gangTypes}
+                  editionSlug={editionSlug}
                   readOnly={currentUserId !== profile.id}
                   userId={currentUserId || undefined}
                   userCampaigns={userCampaigns}
@@ -302,9 +345,10 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
               )}
 
               {/* Custom Trading Posts */}
-              {customAssetsData.tradingPosts.length > 0 && (
+              {editionAssets.tradingPosts.length > 0 && (
                 <CustomiseTradingPosts
-                  initialTradingPosts={customAssetsData.tradingPosts}
+                  initialTradingPosts={editionAssets.tradingPosts}
+                  editionSlug={editionSlug}
                   readOnly={currentUserId !== profile.id}
                   userId={currentUserId || undefined}
                   userCampaigns={userCampaigns}
@@ -312,9 +356,10 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
               )}
 
               {/* Custom Equipment */}
-              {customAssetsData.equipment.length > 0 && (
+              {editionAssets.equipment.length > 0 && (
                 <CustomiseEquipment
-                  initialEquipment={customAssetsData.equipment}
+                  initialEquipment={editionAssets.equipment}
+                  editionSlug={editionSlug}
                   readOnly={currentUserId !== profile.id}
                   userId={currentUserId || undefined}
                   userCampaigns={userCampaigns}
@@ -322,17 +367,19 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
               )}
 
               {/* Custom Fighters */}
-              {customAssetsData.fighters.length > 0 && (
-                <CustomiseFighters 
-                  initialFighters={customAssetsData.fighters} 
+              {editionAssets.fighters.length > 0 && (
+                <CustomiseFighters
+                  initialFighters={editionAssets.fighters}
+                  editionSlug={editionSlug}
                   readOnly={currentUserId !== profile.id}
                 />
               )}
 
               {/* Custom Skills */}
-              {customAssetsData.skills.length > 0 && (
+              {editionAssets.skills.length > 0 && (
                 <CustomiseSkills
-                  initialSkills={customAssetsData.skills}
+                  initialSkills={editionAssets.skills}
+                  editionSlug={editionSlug}
                   readOnly={currentUserId !== profile.id}
                   userId={currentUserId || undefined}
                   userCampaigns={userCampaigns}
@@ -340,9 +387,10 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
               )}
 
               {/* Collections */}
-              {(customAssetsData.collections?.length || 0) > 0 && (
+              {editionAssets.collections.length > 0 && (
                 <CustomiseCollections
-                  initialCollections={customAssetsData.collections}
+                  initialCollections={editionAssets.collections}
+                  editionSlug={editionSlug}
                   readOnly={currentUserId !== profile.id}
                   userId={currentUserId || undefined}
                   userCampaigns={userCampaigns}
@@ -353,7 +401,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
         )}
 
         {/* Empty State */}
-        {gangs.length === 0 && campaigns.length === 0 && customAssets.equipment === 0 && customAssets.fighters === 0 && customAssets.skills === 0 && customAssets.gangTypes === 0 && customAssets.tradingPosts === 0 && (customAssets.collections || 0) === 0 && (
+        {editionGangs.length === 0 && editionCampaigns.length === 0 && editionAssetCount === 0 && (
           <div className="bg-card shadow-md rounded-lg p-8 text-center">
             <FaUser className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">No Public Activity</h3>

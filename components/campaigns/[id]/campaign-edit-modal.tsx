@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
@@ -16,10 +16,12 @@ import { tradingPostRank } from "@/utils/tradingPostRank";
 import CampaignAllegiancesActions from "@/components/campaigns/[id]/campaign-allegiances-actions";
 import CampaignResourcesActions from "@/components/campaigns/[id]/campaign-resources-actions";
 import { Badge } from "@/components/ui/badge";
+import { sameEditionForDisplay } from '@/types/edition';
 
 interface TradingPostType {
   id: string;
   trading_post_name: string;
+  edition_slug?: string | null;
 }
 
 interface EditCampaignModalProps {
@@ -29,10 +31,12 @@ interface EditCampaignModalProps {
     campaign_name: string;
     description: string;
     status: string | null;
+    allow_join_requests?: boolean;
     trading_posts: string[];
     custom_trading_posts: string[];
     campaign_type_name?: string;
     campaign_type_id?: string;
+    edition_slug?: string | null;
     discord_guild_id?: string | null;
     discord_channel_id?: string | null;
     discord_channel_type?: number | null;
@@ -44,6 +48,7 @@ interface EditCampaignModalProps {
     trading_posts: string[];
     custom_trading_posts: string[];
     status: string;
+    allow_join_requests: boolean;
     discord_guild_id?: string | null;
     discord_channel_id?: string | null;
     discord_channel_type?: number | null;
@@ -89,6 +94,7 @@ export default function CampaignEditModal({
     campaignName: campaignData.campaign_name,
     description: campaignData.description ?? '',
     status: campaignData.status || 'Active',
+    allowJoinRequests: campaignData.allow_join_requests ?? false,
     tradingPosts: campaignData.trading_posts || [],
     customTradingPosts: campaignData.custom_trading_posts || [],
   });
@@ -102,6 +108,20 @@ export default function CampaignEditModal({
 
   const router = useRouter();
 
+  const editionTradingPostTypes = useMemo(
+    () => tradingPostTypes.filter(type =>
+      sameEditionForDisplay(type.edition_slug, campaignData.edition_slug)
+    ),
+    [tradingPostTypes, campaignData.edition_slug]
+  );
+
+  const editionCustomTradingPostTypes = useMemo(
+    () => customTradingPostTypes.filter(type =>
+      sameEditionForDisplay(type.edition_slug, campaignData.edition_slug)
+    ),
+    [customTradingPostTypes, campaignData.edition_slug]
+  );
+
   const [prevCampaignData, setPrevCampaignData] = useState(campaignData);
   if (campaignData !== prevCampaignData) {
     setPrevCampaignData(campaignData);
@@ -109,6 +129,7 @@ export default function CampaignEditModal({
       campaignName: campaignData.campaign_name,
       description: campaignData.description ?? '',
       status: campaignData.status || 'Active',
+      allowJoinRequests: campaignData.allow_join_requests ?? false,
       tradingPosts: campaignData.trading_posts || [],
       customTradingPosts: campaignData.custom_trading_posts || [],
     });
@@ -152,12 +173,15 @@ export default function CampaignEditModal({
 
   // Handler for form submission
   const handleSubmit = async () => {
+    // Saved as-is. The checkbox list is already edition-filtered, and
+    // re-filtering here would wipe every trading post if it evaluated empty.
     const saveData: Parameters<typeof onSave>[0] = {
       campaign_name: formValues.campaignName,
       description: formValues.description,
       trading_posts: formValues.tradingPosts,
       custom_trading_posts: formValues.customTradingPosts,
       status: formValues.status,
+      allow_join_requests: formValues.allowJoinRequests,
     };
 
     // Include discord fields if guild is connected
@@ -199,6 +223,7 @@ export default function CampaignEditModal({
       trading_posts: formValues.tradingPosts,
       custom_trading_posts: formValues.customTradingPosts,
       status: formValues.status,
+      allow_join_requests: formValues.allowJoinRequests,
       discord_guild_id: null,
       discord_channel_id: null,
       discord_channel_type: 0,
@@ -309,6 +334,29 @@ export default function CampaignEditModal({
               />
             </div>
 
+            {/* Join Requests */}
+            <label
+              htmlFor="allow-join-requests"
+              className="flex items-center space-x-2 cursor-pointer"
+            >
+              <Checkbox
+                id="allow-join-requests"
+                checked={formValues.allowJoinRequests}
+                onCheckedChange={(checked) => setFormValues(prev => ({
+                  ...prev,
+                  allowJoinRequests: checked === true
+                }))}
+              />
+              <span className="text-sm font-medium">Allow join requests</span>
+              <span
+                className="relative cursor-pointer text-muted-foreground hover:text-foreground"
+                data-tooltip-id="resources-tooltip"
+                data-tooltip-description="When enabled, any logged-in user can request to join this campaign from the campaign page. Campaign owners and arbitrators receive a notification to accept or decline each request."
+              >
+                <ImInfo />
+              </span>
+            </label>
+
             {/* Resources Section */}
             <div>
               <h3 className="text-sm font-medium flex items-center space-x-2">
@@ -348,7 +396,7 @@ export default function CampaignEditModal({
             )}
 
             {/* Trading Posts */}
-            <div className="space-y-2 text-sm font-medium mb-1">
+            <div className="space-y-2">
               <label className="flex items-center justify-between text-sm font-medium">
                 <div className="flex items-center space-x-2">
                   <span>Authorised Trading Posts</span>
@@ -361,16 +409,19 @@ export default function CampaignEditModal({
                   </span>
                 </div>
                 <span className="text-xs text-muted-foreground">
-                  {formValues.tradingPosts.length + formValues.customTradingPosts.length} selected
+                  {(
+                    formValues.tradingPosts.filter(id => editionTradingPostTypes.some(type => type.id === id)).length
+                    + formValues.customTradingPosts.filter(id => editionCustomTradingPostTypes.some(type => type.id === id)).length
+                  )} selected
                 </span>
               </label>
-              {tradingPostTypes.length === 0 ? (
+              {editionTradingPostTypes.length === 0 && editionCustomTradingPostTypes.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  No trading posts available. Add trading post types in the admin section first.
+                  No trading posts available for this campaign&apos;s edition.
                 </p>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {tradingPostTypes
+                  {editionTradingPostTypes
                     .sort((a, b) => {
                       const rankA = tradingPostRank[a.trading_post_name.toLowerCase()] ?? Infinity;
                       const rankB = tradingPostRank[b.trading_post_name.toLowerCase()] ?? Infinity;
@@ -406,7 +457,7 @@ export default function CampaignEditModal({
                     })}
 
                   {/* Custom Trading Posts */}
-                  {customTradingPostTypes.map((type) => (
+                  {editionCustomTradingPostTypes.map((type) => (
                     <label
                       key={`custom-${type.id}`}
                       htmlFor={`custom-trading-post-${type.id}`}

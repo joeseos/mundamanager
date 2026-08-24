@@ -5,51 +5,50 @@ import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useMemo, useRef, Suspense } from "react";
 import { createClient } from "@/utils/supabase/client";
+import {
+  EMPTY_PASSWORD_REQUIREMENTS,
+  PASSWORD_ERROR_MESSAGE,
+  checkPasswordRequirements,
+  isPasswordValid,
+} from "@/utils/auth";
 import { LuEye, LuEyeOff } from "react-icons/lu";
 
 function UpdatePasswordFormContent() {
   const [message, setMessage] = useState<Message>({} as Message);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [passwordRequirements, setPasswordRequirements] = useState({
-    hasLowerCase: false,
-    hasUpperCase: false,
-    hasNumber: false,
-    hasSpecialChar: false,
-    hasMinLength: false,
-  });
+  const [passwordRequirements, setPasswordRequirements] = useState(EMPTY_PASSWORD_REQUIREMENTS);
   const searchParams = useSearchParams();
   const router = useRouter();
-  const supabase = createClient();
-
-  const checkPasswordRequirements = (password: string) => {
-    setPasswordRequirements({
-      hasLowerCase: /[a-z]/.test(password),
-      hasUpperCase: /[A-Z]/.test(password),
-      hasNumber: /\d/.test(password),
-      hasSpecialChar: /[!@#$%^&*()_+\-=\[\]{}|;:,.<>?~]/.test(password),
-      hasMinLength: password.length >= 6,
-    });
-  };
+  const supabase = useMemo(() => createClient(), []);
+  // verifyOtp spends a one-time token, so this must not run twice under StrictMode.
+  const hasVerifiedRef = useRef(false);
 
   useEffect(() => {
+    if (hasVerifiedRef.current) return;
+    hasVerifiedRef.current = true;
+
     const setupPasswordReset = async () => {
       try {
-        const token_hash = searchParams.get('token_hash');
-        const type = searchParams.get('type');
-
-        if (!token_hash || !type) {
-          router.push('/sign-in?error=' + encodeURIComponent('Invalid password reset link'));
+        // GoTrue reports a dead link (expired, already used) on the redirect itself.
+        if (searchParams.get('error')) {
+          console.error('Recovery link rejected:', searchParams.get('error_description') ?? searchParams.get('error'));
+          router.push('/sign-in?error=' + encodeURIComponent('Invalid or expired password reset link'));
           return;
         }
 
-        // Exchange the token for a session
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (!session) {
-          // If no session, verify the OTP to create one
+        const token_hash = searchParams.get('token_hash');
+        const type = searchParams.get('type');
+
+        // A {{ .TokenHash }} template sends the token here to exchange; a
+        // {{ .ConfirmationURL }} one arrives with the session already established.
+        if (token_hash && type === 'recovery') {
+          // Drop any existing session, or a reset link followed while signed in
+          // as someone else changes that account's password.
+          await supabase.auth.signOut({ scope: 'local' });
+
           const { error: verifyError } = await supabase.auth.verifyOtp({
             token_hash,
             type: 'recovery'
@@ -60,6 +59,15 @@ function UpdatePasswordFormContent() {
             router.push('/sign-in?error=' + encodeURIComponent('Invalid or expired password reset link'));
             return;
           }
+          return;
+        }
+
+        // No token, so the session GoTrue established is the only authorisation.
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (!session) {
+          router.push('/sign-in?error=' + encodeURIComponent('Invalid password reset link'));
+          return;
         }
       } catch (error) {
         console.error('Error in recovery flow:', error);
@@ -68,7 +76,7 @@ function UpdatePasswordFormContent() {
     };
 
     setupPasswordReset();
-  }, [searchParams, router, supabase.auth]);
+  }, [searchParams, router, supabase]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -78,14 +86,8 @@ function UpdatePasswordFormContent() {
     const formData = new FormData(e.currentTarget);
     const password = formData.get('password') as string;
 
-    const hasLowerCase = /[a-z]/.test(password);
-    const hasUpperCase = /[A-Z]/.test(password);
-    const hasNumber = /\d/.test(password);
-    const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{}|;:,.<>?~]/.test(password);
-    const hasMinLength = password.length >= 6;
-
-    if (!hasLowerCase || !hasUpperCase || !hasNumber || !hasSpecialChar || !hasMinLength) {
-      setMessage({ error: 'Password must contain at least 6 characters, including uppercase, lowercase, number, and special character' });
+    if (!isPasswordValid(password)) {
+      setMessage({ error: PASSWORD_ERROR_MESSAGE });
       setIsSubmitting(false);
       return;
     }
@@ -96,9 +98,9 @@ function UpdatePasswordFormContent() {
       if (error) {
         setMessage({ error: error.message });
       } else {
-        // Sign out after password update
         await supabase.auth.signOut();
-        router.push('/sign-in?success=' + encodeURIComponent('Password updated successfully. Please sign in with your new password.'));
+        // Full document load so the header rebuilds from the cleared cookies.
+        window.location.assign('/sign-in?success=' + encodeURIComponent('Password updated successfully. Please sign in with your new password.'));
       }
     } catch (error) {
       console.error('Error updating password:', error);
@@ -126,7 +128,7 @@ function UpdatePasswordFormContent() {
               required
               className="text-foreground pr-10"
               minLength={6}
-              onChange={(e) => checkPasswordRequirements(e.target.value)}
+              onChange={(e) => setPasswordRequirements(checkPasswordRequirements(e.target.value))}
             />
             <button
               type="button"

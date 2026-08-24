@@ -1,0 +1,43 @@
+/**
+ * N23 equipment category sort order. Only apply for N23 equipment.
+ *
+ * Keep this list in sync with `equipment_categories` rows for the N23 edition.
+ * A category missing here still appears in the UI, but sorts to the end
+ * (see compareEquipmentCategories fallback).
+ */
+export const equipmentCategoryRankN23: { [key: string]: number } = {
+  "ammunition": 0,
+  "special ammunition": 1,
+  //
+  "basic weapons": 10,
+  "auxiliary weapons": 11,
+  "pistols": 12,
+  "special weapons": 13,
+  "heavy weapons": 14,
+  "power pack weapons": 15,
+  "close combat weapons": 16,
+  "grenades": 17,
+  "booby traps": 18,
+  //
+  "armour": 30,
+  "field armour": 31,
+  "bionics": 32,
+  "archaeo-cyberteknika": 33,
+  "gang equipment": 34,
+  "spyrer equipment": 35,
+  "personal equipment": 36,
+  "mounts": 37,
+  "chems": 38,
+  "chem alchemy": 39,
+  "weapon accessories": 40,
+  "status items: exotic beasts": 41,
+  "status items: extravagant goods": 42,
+  "status items: servo skulls": 43,
+  //
+  "vehicles": 50,
+  "cargo loads": 51,
+  "vehicle upgrades": 52,
+  "vehicle wargear": 53,
+  //
+  "special terrain": 60,
+};

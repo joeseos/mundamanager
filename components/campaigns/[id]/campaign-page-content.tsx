@@ -28,6 +28,7 @@ import type { Battle, CampaignType } from '@/types/campaign';
 import type { BattleSession } from '@/types/battle-session';
 import CampaignBattleSessions from "@/components/campaigns/[id]/campaign-battle-sessions";
 import { updateCampaignSettings } from "@/app/actions/campaigns/[id]/campaign-settings";
+import { requestToJoinCampaign, withdrawJoinRequest } from "@/app/actions/campaigns/[id]/campaign-join-requests";
 import { CampaignNotes } from "@/components/campaigns/[id]/campaign-notes";
 import CampaignMap from "./campaign-map"
 import { TbMapSearch } from "react-icons/tb";
@@ -45,7 +46,6 @@ interface Member {
   user_id: string;
   username: string;
   role: 'OWNER' | 'ARBITRATOR' | 'MEMBER';
-  status: string | null;
   invited_at: string;
   joined_at: string | null;
   invited_by: string;
@@ -96,6 +96,7 @@ interface AllTerritory {
   territory_name: string;
   campaign_type_id: string | null;
   territory_id?: string | null;
+  edition_slug?: string | null;
 }
 
 
@@ -106,6 +107,7 @@ interface CampaignPageContentProps {
     campaign_type_id: string;
     campaign_type_name: string;
     campaign_type_image_url?: string;
+    edition_slug?: string | null;
     image_url?: string;
     status: string | null;
     description: string;
@@ -119,6 +121,7 @@ interface CampaignPageContentProps {
     discord_guild_id?: string | null;
     discord_channel_id?: string | null;
     discord_channel_type?: number | null;
+    allow_join_requests?: boolean;
     battles: Battle[];
     battleSessions?: BattleSession[];
     triumphs: {
@@ -137,10 +140,11 @@ interface CampaignPageContentProps {
   };
   userId?: string;
   permissions: CampaignPermissions | null;
+  hasPendingJoinRequest?: boolean;
   campaignTypes: CampaignType[];
   allTerritories: AllTerritory[];
-  tradingPostTypes?: Array<{ id: string; trading_post_name: string }>;
-  customTradingPostTypes?: Array<{ id: string; trading_post_name: string }>;
+  tradingPostTypes?: Array<{ id: string; trading_post_name: string; edition_slug?: string | null }>;
+  customTradingPostTypes?: Array<{ id: string; trading_post_name: string; edition_slug?: string | null }>;
   campaignAllegiances?: Array<{ id: string; allegiance_name: string; is_custom: boolean }>;
   campaignResources?: Array<{ id: string; resource_name: string; is_custom: boolean }>;
   mapData?: {
@@ -170,9 +174,10 @@ const formatDate = (dateString: string | null) => {
 };
 
 export default function CampaignPageContent({ 
-  campaignData: initialCampaignData, 
-  userId, 
-  permissions, 
+  campaignData: initialCampaignData,
+  userId,
+  permissions,
+  hasPendingJoinRequest = false,
   campaignTypes, 
   allTerritories,
   tradingPostTypes,
@@ -184,6 +189,8 @@ export default function CampaignPageContent({
 }: CampaignPageContentProps) {
   const [campaignData, setCampaignData] = useState(initialCampaignData);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [joinRequestPending, setJoinRequestPending] = useState(hasPendingJoinRequest);
+  const [joinRequestProcessing, setJoinRequestProcessing] = useState(false);
   
   const { shareUrl } = useShare();
   const campaignContentRef = useRef<HTMLDivElement>(null);
@@ -305,6 +312,7 @@ export default function CampaignPageContent({
     status: string;
     trading_posts: string[];
     custom_trading_posts: string[];
+    allow_join_requests: boolean;
     discord_guild_id?: string | null;
     discord_channel_id?: string | null;
     discord_channel_type?: number | null;
@@ -317,6 +325,7 @@ export default function CampaignPageContent({
         trading_posts: formValues.trading_posts,
         custom_trading_posts: formValues.custom_trading_posts,
         status: formValues.status,
+        allow_join_requests: formValues.allow_join_requests,
         ...(formValues.discord_guild_id !== undefined && { discord_guild_id: formValues.discord_guild_id }),
         ...(formValues.discord_channel_id !== undefined && { discord_channel_id: formValues.discord_channel_id }),
         ...(formValues.discord_channel_type !== undefined && { discord_channel_type: formValues.discord_channel_type }),
@@ -336,6 +345,7 @@ export default function CampaignPageContent({
         trading_posts: formValues.trading_posts,
         custom_trading_posts: formValues.custom_trading_posts,
         status: formValues.status,
+        allow_join_requests: formValues.allow_join_requests,
         updated_at: now,
         ...(formValues.discord_guild_id !== undefined && { discord_guild_id: formValues.discord_guild_id }),
         ...(formValues.discord_channel_id !== undefined && { discord_channel_id: formValues.discord_channel_id }),
@@ -350,6 +360,46 @@ export default function CampaignPageContent({
       console.error('Error updating campaign:', error);
       toast.error("Failed to update campaign settings");
       return false;
+    }
+  };
+
+  // Shown to logged-in non-members of campaigns that opted into join requests
+  const canRequestToJoin = !!userId
+    && !safePermissions.campaignRole
+    && !safePermissions.isAdmin
+    && !!campaignData.allow_join_requests;
+
+  const handleRequestToJoin = async () => {
+    setJoinRequestProcessing(true);
+    try {
+      const result = await requestToJoinCampaign({ campaignId: campaignData.id });
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      setJoinRequestPending(true);
+      toast.success("Join request sent to the campaign's arbitrators");
+    } catch (error) {
+      console.error('Error requesting to join campaign:', error);
+      toast.error(error instanceof Error ? error.message : "Failed to send join request");
+    } finally {
+      setJoinRequestProcessing(false);
+    }
+  };
+
+  const handleWithdrawJoinRequest = async () => {
+    setJoinRequestProcessing(true);
+    try {
+      const result = await withdrawJoinRequest({ campaignId: campaignData.id });
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      setJoinRequestPending(false);
+      toast.success("Join request cancelled");
+    } catch (error) {
+      console.error('Error withdrawing join request:', error);
+      toast.error(error instanceof Error ? error.message : "Failed to cancel join request");
+    } finally {
+      setJoinRequestProcessing(false);
     }
   };
 
@@ -535,9 +585,28 @@ export default function CampaignPageContent({
 
             {/* Right Section: Content */}
             <div className="grow w-full">
-                             <div className="flex justify-between items-start mb-1">
-                 <h2 className="text-xl md:text-2xl font-bold">{campaignData.campaign_name}</h2>
-                 <div className="flex gap-2 print:hidden">
+                             <div className="flex justify-between items-start mb-1 gap-2">
+                 <h2 className="text-xl md:text-2xl font-bold min-w-0 break-words">{campaignData.campaign_name}</h2>
+                 <div className="flex gap-2 shrink-0 print:hidden">
+                   {canRequestToJoin && (
+                     joinRequestPending ? (
+                       <Button
+                         onClick={handleWithdrawJoinRequest}
+                         disabled={joinRequestProcessing}
+                         variant="outline"
+                       >
+                         {joinRequestProcessing ? 'Cancelling...' : 'Cancel join request'}
+                       </Button>
+                     ) : (
+                       <Button
+                         onClick={handleRequestToJoin}
+                         disabled={joinRequestProcessing}
+                         className="bg-neutral-900 text-white hover:bg-gray-800"
+                       >
+                         {joinRequestProcessing ? 'Requesting...' : 'Request to join'}
+                       </Button>
+                     )
+                   )}
                    {safePermissions.canEditCampaign && (
                      <Button
                        onClick={() => setShowEditModal(true)}
@@ -743,6 +812,7 @@ export default function CampaignPageContent({
               )}
               <MembersTable
                 campaignId={campaignData.id}
+                campaignEditionSlug={campaignData.edition_slug ?? null}
                 isAdmin={isAdmin}
                 members={campaignData.members}
                 userId={userId}
@@ -1004,8 +1074,10 @@ export default function CampaignPageContent({
             trading_posts: campaignData.trading_posts || [],
             custom_trading_posts: campaignData.custom_trading_posts || [],
             status: campaignData.status,
+            allow_join_requests: campaignData.allow_join_requests ?? false,
             campaign_type_name: campaignData.campaign_type_name,
             campaign_type_id: campaignData.campaign_type_id,
+            edition_slug: campaignData.edition_slug ?? null,
             discord_guild_id: campaignData.discord_guild_id,
             discord_channel_id: campaignData.discord_channel_id,
             discord_channel_type: campaignData.discord_channel_type,
@@ -1079,6 +1151,7 @@ export default function CampaignPageContent({
           onClose={() => setShowTerritoryModal(false)}
           campaignId={campaignData.id}
           campaignTypeId={campaignData.campaign_type_id}
+          editionSlug={campaignData.edition_slug ?? null}
           campaignTypes={campaignTypes}
           allTerritories={allTerritories}
           existingCampaignTerritories={campaignData.territories.map(territory => ({
@@ -1095,6 +1168,7 @@ export default function CampaignPageContent({
         fetchUrl={`/api/campaigns/${campaignData.id}/logs`}
         title="Campaign Activity Logs"
         emptyMessage="No activity logs found for this campaign."
+        editionSlug={campaignData.edition_slug ?? null}
         isOpen={showLogsModal}
         onClose={() => setShowLogsModal(false)}
       />

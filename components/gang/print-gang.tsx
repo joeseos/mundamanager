@@ -6,9 +6,11 @@ import { FighterProps, Vehicle, FighterEffect } from "@/types/fighter";
 import { Equipment } from "@/types/equipment";
 import { VehicleEquipment } from "@/types/fighter";
 import { calculateAdjustedStats, applySpecialRulesModifiers } from "@/utils/effect-modifiers";
-import { injuryAggregationLabel } from "@/utils/bitterEnmityDisplay";
+import { sortFightersByPositioning } from "@/utils/fighter-positioning";
+import { injuryAggregationLabel } from "@/utils/injuryTarget";
 import WeaponTable from "./fighter-card-weapon-table";
 import { StatsTable, StatsType } from "../ui/fighter-card-stats-table";
+import { hasAlignment, hasSaveCharacteristic, hasTradePoints } from "@/types/edition";
 import { MdCheckBoxOutlineBlank } from "react-icons/md";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
@@ -42,6 +44,8 @@ interface PrintGangProps {
     gang_colour: string | null;
     credits: number | null;
     reputation: number | null;
+    trade_points?: number | null;
+    edition_slug?: string | null;
     rating: number | null;
     wealth: number | null;
     alignment: string;
@@ -134,6 +138,8 @@ export default function PrintGang({ gang }: PrintGangProps) {
     rating,
     wealth,
     reputation,
+    trade_points,
+    edition_slug,
     alignment,
     alliance_name,
     gang_affiliation_name,
@@ -185,7 +191,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
   const [showAdditionalDetails, setShowAdditionalDetails] = useState(true);
   const [showInactiveFighterLoadouts, setShowInactiveFighterLoadouts] = useState(false);
   const [cardsGangCardsPosition, setCardsGangCardsPosition] = useState<"before" | "after">("before");
-  const [scaleCardsToContent, setScaleCardsToContent] = useState(false);
+  const [scaleCardsToContent, setScaleCardsToContent] = useState(true);
 
   // Handle print with style
   const handlePrint = () => {
@@ -201,42 +207,35 @@ export default function PrintGang({ gang }: PrintGangProps) {
     }, 100);
   };
 
-  // Order fighters by positioning and filter based on options
-  const positionMap: Record<string, number> = {};
-  Object.entries(positioning || {}).forEach(([pos, fighterId]) => {
-    positionMap[fighterId] = Number(pos);
-  });
-
   // Use pre-filtered list when "Inactive Fighters Loadouts" is off (server-side filter is reliable)
   const sourceFighters =
     !showInactiveFighterLoadouts && fightersActiveLoadoutOnly.length > 0
       ? fightersActiveLoadoutOnly
       : fighters;
 
-  const sortedFighters = [...sourceFighters]
-    .filter((f) => {
-      // Filter out inactive fighters if option is disabled
-      if (!showInactiveFighters && (f.killed || f.enslaved || f.retired)) {
-        return false;
-      }
-      // Filter out fighters in recovery if option is disabled
-      if (!showFightersInRecovery && f.recovery) {
-        return false;
-      }
-      // If both options are disabled, only show active fighters (not killed, not enslaved, not retired, not captured, not in recovery)
-      if (!showInactiveFighters && !showFightersInRecovery) {
-        return !f.killed && !f.enslaved && !f.retired && !f.recovery;
-      }
-      return true;
-    })
-    .sort((a, b) => {
-      const posA = positionMap[a.id] ?? Number.MAX_SAFE_INTEGER;
-      const posB = positionMap[b.id] ?? Number.MAX_SAFE_INTEGER;
-      if (posA !== posB) return posA - posB;
-      const loadoutIdA = (a as { active_loadout_id?: string }).active_loadout_id ?? "";
-      const loadoutIdB = (b as { active_loadout_id?: string }).active_loadout_id ?? "";
-      return loadoutIdA.localeCompare(loadoutIdB);
-    });
+  const filteredFighters = sourceFighters.filter((f) => {
+    // Filter out inactive fighters if option is disabled
+    if (!showInactiveFighters && (f.killed || f.enslaved || f.retired)) {
+      return false;
+    }
+    // Filter out fighters in recovery if option is disabled
+    if (!showFightersInRecovery && f.recovery) {
+      return false;
+    }
+    // If both options are disabled, only show active fighters (not killed, not enslaved, not retired, not captured, not in recovery)
+    if (!showInactiveFighters && !showFightersInRecovery) {
+      return !f.killed && !f.enslaved && !f.retired && !f.recovery;
+    }
+    return true;
+  });
+
+  // Order fighters by positioning; fighters sharing a position (multiple loadouts)
+  // keep a stable order by active loadout id.
+  const sortedFighters = sortFightersByPositioning(filteredFighters, positioning, (a, b) => {
+    const loadoutIdA = (a as { active_loadout_id?: string }).active_loadout_id ?? "";
+    const loadoutIdB = (b as { active_loadout_id?: string }).active_loadout_id ?? "";
+    return loadoutIdA.localeCompare(loadoutIdB);
+  });
 
   return (
     <div className="min-h-screen print:min-h-0 text-foreground w-full">
@@ -353,7 +352,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                         checked={scaleCardsToContent}
                         onCheckedChange={(checked) => setScaleCardsToContent(checked === true)}
                       />
-                      <span className="text-sm">Scale each Card to Content</span>
+                      <span className="text-sm">Adjust Cards Height to Content</span>
                     </label>
                   </>
                 )}
@@ -466,6 +465,12 @@ export default function PrintGang({ gang }: PrintGangProps) {
                   <span className="font-semibold">Reputation:</span>
                   <span>{reputation ?? 0}</span>
                 </div>
+                {hasTradePoints(edition_slug) && (
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">Trade Points:</span>
+                    <span>{trade_points ?? 0}</span>
+                  </div>
+                )}
               </div>
             </div>
             {alliance_name && (
@@ -505,15 +510,15 @@ export default function PrintGang({ gang }: PrintGangProps) {
                   Weapons
                 </th>
                 <th className="border border-black px-1 py-1 text-left w-[260px]">
-                  Wargear, Injuries & Notes
+                  Wargear, Lasting Injuries & Notes
                 </th>
               </tr>
             </thead>
             <tbody>
               {sortedFighters.map((fighter, index) => {
                 const adjustedStats = calculateAdjustedStats(fighter);
-                const isCrew = fighter.fighter_class === "Crew";
-                const vehicle = fighter.vehicles && fighter.vehicles.length > 0 
+                const isCrew = fighter.fighter_subtypes?.includes('Crew') || false;
+                const vehicle = fighter.vehicles && fighter.vehicles.length > 0
                   ? (fighter.vehicles[0] as unknown as Vehicle)
                   : undefined;
                 const vehicleStats = isCrew ? calculateVehicleStats(vehicle) : null;
@@ -672,6 +677,9 @@ export default function PrintGang({ gang }: PrintGangProps) {
                       'W': adjustedStats.wounds,
                       'I': `${adjustedStats.initiative}+`,
                       'A': adjustedStats.attacks,
+                      ...(hasSaveCharacteristic(fighter.edition_slug) && {
+                        'Sv': adjustedStats.save != null ? `${adjustedStats.save}+` : '-'
+                      }),
                       'Ld': `${adjustedStats.leadership}+`,
                       'Cl': `${adjustedStats.cool}+`,
                       'Wil': `${adjustedStats.willpower}+`,
@@ -698,10 +706,12 @@ export default function PrintGang({ gang }: PrintGangProps) {
                        </div>
                        <div className="text-[9px] mt-[1px] flex items-center justify-between gap-2">
                          <div>
-                           {fighter.fighter_type}
-                           {fighter.fighter_class
-                             ? ` • ${fighter.fighter_class}`
-                             : ""}
+                           {[
+                             fighter.fighter_type,
+                             fighter.fighter_subtypes?.join(', '),
+                             fighter.fighter_variant,
+                             fighter.fighter_specialisation?.fighter_specialisation,
+                           ].filter(Boolean).join(' • ')}
                          </div>
                          {/* W/FW boxes */}
                          {showWFWBoxes && (
@@ -756,7 +766,12 @@ export default function PrintGang({ gang }: PrintGangProps) {
                          )}
                        </div>
                        <div className="mt-1 [&_table]:text-[9px] [&_th]:text-[9px] [&_td]:text-[9px]">
-                         <StatsTable data={stats} isCrew={isCrew} viewMode={PRINT_GANG_VIEW_MODE} />
+                         <StatsTable
+                           data={stats}
+                           isCrew={isCrew}
+                           viewMode={PRINT_GANG_VIEW_MODE}
+                           editionSlug={fighter.edition_slug ?? edition_slug}
+                         />
                        </div>
                        {skillsText && (
                          <div className="mt-1 text-[10px]">
@@ -819,7 +834,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                         if (!isCrew && fighter.weapons && fighter.weapons.length > 0) {
                           return (
                             <div className="roster-weapons-table [&_table]:text-[9px] [&_th]:text-[9px] [&_td]:text-[9px]">
-                              <WeaponTable weapons={fighter.weapons} viewMode={PRINT_GANG_VIEW_MODE} />
+                              <WeaponTable weapons={fighter.weapons} viewMode={PRINT_GANG_VIEW_MODE} editionSlug={fighter.edition_slug} />
                             </div>
                           );
                         }
@@ -837,12 +852,12 @@ export default function PrintGang({ gang }: PrintGangProps) {
                             <div className="space-y-1">
                               {hasCrewWeapons && (
                                 <div className="roster-weapons-table [&_table]:text-[9px] [&_th]:text-[9px] [&_td]:text-[9px]">
-                                  <WeaponTable weapons={fighter.weapons} entity="crew" viewMode={PRINT_GANG_VIEW_MODE} />
+                                  <WeaponTable weapons={fighter.weapons} entity="crew" viewMode={PRINT_GANG_VIEW_MODE} editionSlug={fighter.edition_slug} />
                                 </div>
                               )}
                               {hasVehicleWeapons && (
                                 <div className="roster-weapons-table [&_table]:text-[9px] [&_th]:text-[9px] [&_td]:text-[9px]">
-                                  <WeaponTable weapons={vehicleWeapons} entity="vehicle" viewMode={PRINT_GANG_VIEW_MODE} />
+                                  <WeaponTable weapons={vehicleWeapons} entity="vehicle" viewMode={PRINT_GANG_VIEW_MODE} editionSlug={fighter.edition_slug} />
                                 </div>
                               )}
                             </div>
@@ -892,7 +907,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                          )}
                          {injuriesText && (
                            <div>
-                             <span className="font-semibold">Injuries:</span>{" "}
+                             <span className="font-semibold">Lasting Injuries:</span>{" "}
                              <span>{injuriesText}</span>
                            </div>
                          )}
@@ -995,7 +1010,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
               ["--ring" as any]: "var(--light-ring)",
             }} // Enforce light theme colors for Cards View
           >
-            <div className={`print-gang-cards justify-center print:justify-start flex flex-wrap items-start content-start gap-[6px] [&_.fighter-card-bg]:w-[630px]! ${scaleCardsToContent ? '[&_.fighter-card-bg]:h-auto!' : '[&_.fighter-card-bg]:h-[435px]!'} [&_.fighter-card-bg]:shadow-none! [&_.fighter-card-bg]:border-[3px]! [&_.fighter-card-bg]:break-inside-avoid [&_.fighter-card-bg]:rounded-lg [&_.fighter-card-bg]:text-base! [&_.fighter-card-bg]:bg-[#faf9f7]! [&_.fighter-card-bg]:text-black! [&_.fighter-card-bg:hover]:scale-100! [&_.fighter-card-bg:hover]:shadow-none! [&_.fighter-card-bg]:transition-none! [&_.fighter-card-bg_.grid]:gap-y-0! [&_.fighter-card-bg_.grid]:mt-1! [&_.fighter-card-bg_.inline-flex.rounded-sm]:border-2! [&_.fighter-card-bg_.inline-flex.rounded-sm]:border-black! [&_.fighter-card-bg_.bg-secondary]:shadow-none! [&_.fighter-card-bg]:bg-[url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/fighter-card-background-5-light_web_ynpbac.webp')]! ${printStyle === 'eco' ? '[&_.fighter-card-bg]:bg-none! [&_.fighter-card-bg]:bg-transparent! [&_.fancy-print-top-bar]:bg-none! [&_.fancy-print-keep-color-heading]:text-inherit! [&_.fancy-print-keep-color-subtitle]:text-inherit!' : '[&_.fancy-print-keep-color-heading]:text-white! [&_.fancy-print-keep-color-subtitle]:text-gray-300!'}`}>
+            <div className={`print-gang-cards justify-center print:justify-start flex flex-wrap content-start gap-[6px] ${scaleCardsToContent ? 'items-stretch [&_.fighter-card-bg]:h-auto! [&_.fighter-card-bg]:flex! [&_.fighter-card-bg]:flex-col!' : 'items-start [&_.fighter-card-bg]:h-[435px]!'} [&_.fighter-card-bg]:w-[630px]! [&_.fighter-card-bg]:shadow-none! [&_.fighter-card-bg]:border-[3px]! [&_.fighter-card-bg]:break-inside-avoid [&_.fighter-card-bg]:rounded-lg [&_.fighter-card-bg]:text-base! [&_.fighter-card-bg]:bg-[#faf9f7]! [&_.fighter-card-bg]:text-black! [&_.fighter-card-bg:hover]:scale-100! [&_.fighter-card-bg:hover]:shadow-none! [&_.fighter-card-bg]:transition-none! [&_.fighter-card-bg_.grid]:gap-y-0! [&_.fighter-card-bg_.grid]:mt-1! [&_.fighter-card-bg_.inline-flex.rounded-sm]:border-2! [&_.fighter-card-bg_.inline-flex.rounded-sm]:border-black! [&_.fighter-card-bg_.bg-secondary]:shadow-none! [&_.fighter-card-bg]:bg-[url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/fighter-card-background-5-light_web_ynpbac.webp')]! ${printStyle === 'eco' ? '[&_.fighter-card-bg]:bg-none! [&_.fighter-card-bg]:bg-transparent! [&_.fancy-print-top-bar]:bg-none! [&_.fancy-print-keep-color-heading]:text-inherit! [&_.fancy-print-keep-color-subtitle]:text-inherit!' : '[&_.fancy-print-keep-color-heading]:text-white! [&_.fancy-print-keep-color-subtitle]:text-gray-300!'}`}>
               {cardsGangCardsPosition === "before" && (
                 <>
                   {/* Gang Card */}
@@ -1098,20 +1113,24 @@ export default function PrintGang({ gang }: PrintGangProps) {
                           )}
         
                           {/* Alignment & Alliance */}
-                          <div className="text-muted-foreground text-sm">
-                            <div className="flex flex-wrap gap-x-2 gap-y-1">
-                              {/* Alignment */}
-                              <div className="flex items-center gap-1 text-sm">
-                                Alignment: <Badge variant="secondary">{alignment}</Badge>
+                          {(hasAlignment(edition_slug) || alliance_name) && (
+                            <div className="text-muted-foreground text-sm">
+                              <div className="flex flex-wrap gap-x-2 gap-y-1">
+                                {/* Alignment */}
+                                {hasAlignment(edition_slug) && (
+                                  <div className="flex items-center gap-1 text-sm">
+                                    Alignment: <Badge variant="secondary">{alignment}</Badge>
+                                  </div>
+                                )}
+                                {/* Alliance */}
+                                {alliance_name && (
+                                  <div className="flex items-center gap-1 text-sm">
+                                    Alliance: <Badge variant="secondary">{alliance_name}</Badge>
+                                  </div>
+                                )}
                               </div>
-                              {/* Alliance */}
-                              {alliance_name && (
-                                <div className="flex items-center gap-1 text-sm">
-                                  Alliance: <Badge variant="secondary">{alliance_name}</Badge>
-                                </div>
-                              )}
                             </div>
-                          </div>
+                          )}
                         </div>
         
                         {/* Campaign Attributes */}
@@ -1161,6 +1180,12 @@ export default function PrintGang({ gang }: PrintGangProps) {
                               <span className="text-muted-foreground">Reputation:</span>
                               <span className="font-semibold">{reputation ?? 0}</span>
                             </div>
+                            {hasTradePoints(edition_slug) && (
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Trade Points:</span>
+                                <span className="font-semibold">{trade_points ?? 0}</span>
+                              </div>
+                            )}
                             {/* Dynamic Campaign Resources */}
                             {campaignResources.map((resource: { resource_id: string; resource_name: string; quantity: number }) => (
                               <div key={resource.resource_id} className="flex justify-between">
@@ -1274,7 +1299,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                     : undefined;
 
                   const adjustedStats = calculateAdjustedStats(fighter);
-                  const isCrew = fighter.fighter_class === "Crew";
+                  const isCrew = fighter.fighter_subtypes?.includes('Crew') || false;
                   const vehicleStats = isCrew
                     ? calculateVehicleStats(vehicle)
                     : null;
@@ -1298,14 +1323,22 @@ export default function PrintGang({ gang }: PrintGangProps) {
                   const fighterCurrentStats = fighter.current_stats || fighterBaseStats;
 
                   return (
-                    // div cannot have h-[435px] as it will break the print layout of XP and W/FW boxes when they are enabled
-                    <div key={`${fighter.id}-${(fighter as { active_loadout_id?: string }).active_loadout_id ?? 'default'}`} className="w-[630px] break-inside-avoid">
+                    // Cannot put h-[435px] on this slot: XP / W/FW footers sit outside the card.
+                    // Auto-height: stretch this slot to the row, then grow the card to fill it.
+                    // DOM: FighterCardActionMenu is a fragment in print → FighterCard's `relative`
+                    // wrapper → `.fighter-card-bg`. `contents` collapses that relative wrapper so
+                    // the card is this slot's flex child (avoids a brittle :first-child grow chain).
+                    <div
+                      key={`${fighter.id}-${(fighter as { active_loadout_id?: string }).active_loadout_id ?? 'default'}`}
+                      className={`w-[630px] break-inside-avoid${scaleCardsToContent ? ' flex flex-col [&>*:first-child]:contents [&_.fighter-card-bg]:min-h-0 [&_.fighter-card-bg]:grow' : ''}`}
+                    >
                       <FighterCard
                         id={fighter.id}
                         name={fighter.fighter_name}
                         type={fighter.fighter_type}
-                        fighter_class={fighter.fighter_class}
-                        fighter_sub_type={fighter.fighter_sub_type}
+                        fighter_subtypes={fighter.fighter_subtypes}
+                        fighter_specialisation={fighter.fighter_specialisation}
+                        fighter_variant={fighter.fighter_variant}
                         label={fighter.label}
                         credits={fighter.credits}
                         loadout_cost={fighter.loadout_cost}
@@ -1322,6 +1355,8 @@ export default function PrintGang({ gang }: PrintGangProps) {
                         cool={fighter.cool}
                         willpower={fighter.willpower}
                         intelligence={fighter.intelligence}
+                        save={fighter.save}
+                        edition_slug={fighter.edition_slug}
                         xp={fighter.xp}
                         advancements={fighter.advancements}
                         weapons={fighter.weapons}
@@ -1351,7 +1386,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                       />
 
                       {(showWFWBoxes || showXPBoxes) && (
-                        <div className="-mt-[5px] border-[3px] border-black border-t-0 px-2 py-1 text-[9px] leading-tight bg-card text-black rounded-b-lg">
+                        <div className="-mt-[5px] border-[3px] border-black border-t-0 px-2 py-1 text-[9px] leading-tight bg-card text-black rounded-b-lg shrink-0">
                           {/* W/FW boxes */}
                           {showWFWBoxes && (
                             <div className="mt-1 flex items-center justify-between gap-2">
@@ -1537,20 +1572,24 @@ export default function PrintGang({ gang }: PrintGangProps) {
                       )}
     
                       {/* Alignment & Alliance */}
-                      <div className="text-muted-foreground text-sm">
-                        <div className="flex flex-wrap gap-x-2 gap-y-1">
-                          {/* Alignment */}
-                          <div className="flex items-center gap-1 text-sm">
-                            Alignment: <Badge variant="secondary">{alignment}</Badge>
+                      {(hasAlignment(edition_slug) || alliance_name) && (
+                        <div className="text-muted-foreground text-sm">
+                          <div className="flex flex-wrap gap-x-2 gap-y-1">
+                            {/* Alignment */}
+                            {hasAlignment(edition_slug) && (
+                              <div className="flex items-center gap-1 text-sm">
+                                Alignment: <Badge variant="secondary">{alignment}</Badge>
+                              </div>
+                            )}
+                            {/* Alliance */}
+                            {alliance_name && (
+                              <div className="flex items-center gap-1 text-sm">
+                                Alliance: <Badge variant="secondary">{alliance_name}</Badge>
+                              </div>
+                            )}
                           </div>
-                          {/* Alliance */}
-                          {alliance_name && (
-                            <div className="flex items-center gap-1 text-sm">
-                              Alliance: <Badge variant="secondary">{alliance_name}</Badge>
-                            </div>
-                          )}
                         </div>
-                      </div>
+                      )}
                     </div>
     
                     {/* Campaign Attributes */}
@@ -1600,6 +1639,12 @@ export default function PrintGang({ gang }: PrintGangProps) {
                           <span className="text-muted-foreground">Reputation:</span>
                           <span className="font-semibold">{reputation ?? 0}</span>
                         </div>
+                        {hasTradePoints(edition_slug) && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Trade Points:</span>
+                            <span className="font-semibold">{trade_points ?? 0}</span>
+                          </div>
+                        )}
                         {/* Dynamic Campaign Resources */}
                         {campaignResources.map((resource: { resource_id: string; resource_name: string; quantity: number }) => (
                           <div key={resource.resource_id} className="flex justify-between">

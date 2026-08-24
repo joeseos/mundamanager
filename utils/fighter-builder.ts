@@ -16,6 +16,7 @@ export interface FighterStats {
   cool: number;
   willpower: number;
   intelligence: number;
+  save?: number | null;
 }
 
 /**
@@ -70,7 +71,8 @@ export function createStats(stats: FighterStats): FighterStats {
     leadership: stats.leadership,
     cool: stats.cool,
     willpower: stats.willpower,
-    intelligence: stats.intelligence
+    intelligence: stats.intelligence,
+    save: stats.save ?? null
   };
 }
 
@@ -81,8 +83,9 @@ export interface AddFighterServerData {
   fighter_id: string;
   fighter_name: string;
   fighter_type: string;
-  fighter_class: string;
-  fighter_sub_type_id?: string;
+  fighter_subtypes?: string[];
+  fighter_specialisation_id?: string | null;
+  fighter_variant?: string | null;
   free_skill: boolean;
   rating_cost?: number;
   cost: number;
@@ -124,7 +127,7 @@ export interface ExoticBeastServerData {
   id: string;
   fighter_name: string;
   fighter_type: string;
-  fighter_class: string;
+  fighter_subtypes?: string[];
   fighter_type_id: string;
   credits: number;
   owner?: { fighter_name: string };
@@ -140,7 +143,10 @@ export interface ExoticBeastServerData {
   cool: number;
   willpower: number;
   intelligence: number;
+  save?: number | null;
   xp: number;
+  /** null means N/A: this beast's type cannot gain XP. */
+  starting_xp?: number | null;
   kills: number;
   equipment: Array<{
     fighter_equipment_id: string;
@@ -245,7 +251,7 @@ function buildEffectsFromAppliedEffects(
 export function buildFighterFromServerData(
   data: AddFighterServerData,
   fighterTypeId: string,
-  subTypeName?: string
+  specialisationName?: string
 ): FighterProps {
   const displayCost = data.rating_cost ?? data.cost;
 
@@ -254,11 +260,12 @@ export function buildFighterFromServerData(
     fighter_name: data.fighter_name,
     fighter_type_id: fighterTypeId,
     fighter_type: data.fighter_type,
-    fighter_class: data.fighter_class,
-    fighter_sub_type: data.fighter_sub_type_id ? {
-      fighter_sub_type_id: data.fighter_sub_type_id,
-      fighter_sub_type: subTypeName || ''
+    fighter_subtypes: data.fighter_subtypes ?? [],
+    fighter_specialisation: data.fighter_specialisation_id ? {
+      fighter_specialisation_id: data.fighter_specialisation_id,
+      fighter_specialisation: specialisationName || ''
     } : undefined,
+    fighter_variant: data.fighter_variant ?? null,
     credits: displayCost,
     movement: data.base_stats.movement,
     weapon_skill: data.base_stats.weapon_skill,
@@ -272,6 +279,7 @@ export function buildFighterFromServerData(
     cool: data.base_stats.cool,
     willpower: data.base_stats.willpower,
     intelligence: data.base_stats.intelligence,
+    save: data.base_stats.save ?? null,
     xp: data.stats.xp,
     kills: 0,
     weapons: buildWeaponsFromEquipment(data.equipment),
@@ -305,14 +313,15 @@ export function buildBeastFromServerData(beast: ExoticBeastServerData): FighterP
     leadership: beast.leadership,
     cool: beast.cool,
     willpower: beast.willpower,
-    intelligence: beast.intelligence
+    intelligence: beast.intelligence,
+    save: beast.save ?? null
   };
 
   return {
     id: beast.id,
     fighter_name: beast.fighter_name,
     fighter_type: beast.fighter_type,
-    fighter_class: beast.fighter_class,
+    fighter_subtypes: beast.fighter_subtypes ?? [],
     fighter_type_id: beast.fighter_type_id,
     credits: beast.credits,
     owner_name: beast.owner?.fighter_name,
@@ -328,7 +337,9 @@ export function buildBeastFromServerData(beast: ExoticBeastServerData): FighterP
     cool: stats.cool,
     willpower: stats.willpower,
     intelligence: stats.intelligence,
+    save: stats.save ?? null,
     xp: beast.xp,
+    starting_xp: beast.starting_xp ?? null,
     kills: beast.kills,
     weapons: buildWeaponsFromEquipment(beast.equipment),
     wargear: buildWargearFromEquipment(beast.equipment),

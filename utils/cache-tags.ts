@@ -30,11 +30,14 @@ export const TAGS = {
   gangCampaigns: (id: string) => `gang-campaigns-${id}`,
   gangPositioning: (id: string) => `gang-positioning-${id}`,
   gangStash: (id: string) => `gang-stash-${id}`,
+  gangTacticsCards: (id: string) => `gang-tactics-cards-${id}`,
   fighter: (id: string) => `fighter-${id}`,
   campaign: (id: string) => `campaign-${id}`,
   user: (id: string) => `user-${id}`,
   customs: (userId: string) => `custom-${userId}`,
   permission: (userId: string, gangId: string) => `check-permission-${userId}-${gangId}`,
+  // All cached permission entries for one user, across every gang (busted on sign-in)
+  userPermissions: (userId: string) => `user-permissions-${userId}`,
 
   // Battle sessions keep their own namespace: live battles mutate frequently
   // and must not thrash the gang bundles.
@@ -42,6 +45,7 @@ export const TAGS = {
   gangBattleSessions: (gangId: string) => `gang-battle-sessions-${gangId}`,
 
   // Global reference data
+  globalEditions: () => 'global-editions',
   globalGangTypes: () => 'global-gang-types',
   globalTerritories: () => 'global-territories-list',
   globalScenarios: () => 'global-scenarios',
@@ -108,6 +112,14 @@ export const invalidateGangStash = (gangId: string) => {
   bust(TAGS.gangStash(gangId));
 };
 
+/**
+ * The gang's tactics cards changed (added, described or removed). That list
+ * only — nothing feeds rating, credits or the fighters bundle.
+ */
+export const invalidateGangTacticsCards = (gangId: string) => {
+  bust(TAGS.gangTacticsCards(gangId));
+};
+
 /** Campaign content changed (settings/territories/resources/allegiances/…). */
 export const invalidateCampaign = (campaignId: string) => {
   bust(TAGS.campaign(campaignId));
@@ -137,6 +149,11 @@ export const invalidatePermission = (userId: string, gangId: string) => {
   bust(TAGS.permission(userId, gangId));
 };
 
+/** Every cached permission entry for a user, across all gangs (fired on sign-in). */
+export const invalidateUserPermissions = (userId: string) => {
+  bust(TAGS.userPermissions(userId));
+};
+
 /** A single battle session's data changed. */
 export const invalidateBattleSession = (sessionId: string) => {
   bust(TAGS.battleSession(sessionId));
@@ -146,6 +163,29 @@ export const invalidateBattleSession = (sessionId: string) => {
 export const invalidateBattleSessions = (gangId: string) => {
   bust(TAGS.gangBattleSessions(gangId));
 };
+
+/**
+ * Global campaign catalog lists (campaign types + territory templates).
+ * Call after admin edits, or to drop every unstable_cache entry that shares
+ * these tags (including older key names after a key rename).
+ */
+export function invalidateCampaignCatalogLists() {
+  bust(TAGS.campaignTypes());
+  bust(TAGS.globalTerritories());
+}
+
+let didPurgePreEditionCampaignCatalogCaches = false;
+
+/**
+ * One-shot per process: expire pre-rename catalog cache keys that still share
+ * the campaign-types / territories tags (e.g. `campaign-types` entries from
+ * before the move to `campaign-types-with-edition`).
+ */
+export function purgePreEditionCampaignCatalogCachesOnce() {
+  if (didPurgePreEditionCampaignCatalogCaches) return;
+  didPurgePreEditionCampaignCatalogCaches = true;
+  invalidateCampaignCatalogLists();
+}
 
 // Global reference data
 export const invalidatePatreonSupporters = () => bust(TAGS.globalPatreonSupporters());

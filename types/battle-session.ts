@@ -38,6 +38,11 @@ export interface BattleSession {
   round: number;
   campaign_battle_id: string | null;
   claimed_territory: string | null;
+  /**
+   * Ruleset the session is played under, flattened from battle_sessions.edition_id
+   * by the loader. Null means no edition-specific behaviour applies.
+   */
+  edition_slug?: string | null;
 }
 
 export interface BattleSessionParticipant {

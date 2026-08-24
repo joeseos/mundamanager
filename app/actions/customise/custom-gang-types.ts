@@ -3,16 +3,17 @@
 import { invalidateUserCustoms } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
+import { getEditionIdBySlug } from '@/app/lib/editions';
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
 import { removeItemFromAllCollections } from './custom-collections';
+import { getCustomGangTypeEditionFields } from './custom-gang-type-editions';
 
 export interface CustomGangTypeData {
   gang_type: string;
   alignment?: 'Outlaw' | 'Law Abiding' | 'Unaligned' | null;
   description?: string | null;
+  edition_slug?: string;
 }
-
-const DEFAULT_TRADING_POST_TYPE_ID = 'cada4005-66e3-4e3c-8a77-146329bd1eda';
 
 export interface CustomGangType {
   id: string;
@@ -24,6 +25,7 @@ export interface CustomGangType {
   default_image_urls?: any | null;
   created_at: string;
   updated_at?: string | null;
+  edition_slug?: string | null;
   // Joined data
   trading_post_type_name?: string | null;
 }
@@ -40,6 +42,10 @@ export async function createCustomGangType(
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
+    const editionFields = getCustomGangTypeEditionFields(
+      data.edition_slug,
+      await getEditionIdBySlug(data.edition_slug)
+    );
 
     const { data: newGangType, error: insertError } = await supabase
       .from('custom_gang_types')
@@ -48,7 +54,7 @@ export async function createCustomGangType(
         gang_type: data.gang_type.trimEnd(),
         alignment: data.alignment || null,
         description,
-        trading_post_type_id: DEFAULT_TRADING_POST_TYPE_ID,
+        ...editionFields,
         created_at: new Date().toISOString(),
       })
       .select()
@@ -83,6 +89,10 @@ export async function updateCustomGangType(
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
+    const editionFields = getCustomGangTypeEditionFields(
+      data.edition_slug,
+      await getEditionIdBySlug(data.edition_slug)
+    );
 
     // Verify ownership
     const { data: existing, error: fetchError } = await supabase
@@ -102,7 +112,7 @@ export async function updateCustomGangType(
         gang_type: data.gang_type.trimEnd(),
         alignment: data.alignment || null,
         description,
-        trading_post_type_id: DEFAULT_TRADING_POST_TYPE_ID,
+        ...editionFields,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,22 +8,27 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from 'sonner';
 import { HiX } from "react-icons/hi";
 import { GangType, Equipment } from "@/types/gang";
-import { skillSetRank } from "@/utils/skillSetRank";
-import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
+import { EditionSelect, useEditions } from '@/components/edition-select';
+import { hasAlignment, hasSaveCharacteristic, allowsMultipleSubtypes, hasStartingXp, hasVehicles } from '@/types/edition';
+import { toggleFighterSubtype } from '@/utils/fighter-subtype-picker';
+import { getSkillSetRank } from "@/utils/skillSetRank";
+import { compareEquipmentCategories } from "@/utils/getEquipmentCategoryRank";
 
 interface AdminCreateFighterTypeModalProps {
   onClose: () => void;
   onSubmit?: () => void;
 }
 
-interface FighterClass {
+interface FighterSubtype {
   id: string;
-  class_name: string;
+  subtype_name: string;
+  edition_id?: string | null;
 }
 
 interface SkillType {
   id: string;
   skill_type: string;
+  edition_id?: string | null;
 }
 
 interface Skill {
@@ -41,6 +46,7 @@ interface EquipmentWithId extends Equipment {
   cost: number;
   availability?: string | null;
   equipment_category: string;
+  edition_id?: string | null;
 }
 
 export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFighterTypeModalProps) {
@@ -48,8 +54,10 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   const [fighterType, setFighterType] = useState('');
   const [baseCost, setBaseCost] = useState('');
   const [delegationCost, setDelegationCost] = useState('');
+  const [startingXp, setStartingXp] = useState('');
   const [selectedGangType, setSelectedGangType] = useState('');
-  const [selectedFighterClass, setSelectedFighterClass] = useState<FighterClass | ''>('');
+  const [editionId, setEditionId] = useState('');
+  const [selectedFighterSubtypes, setSelectedFighterSubtypes] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   
   const [movement, setMovement] = useState('');
@@ -64,15 +72,19 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   const [willpower, setWillpower] = useState('');
   const [intelligence, setIntelligence] = useState('');
   const [attacks, setAttacks] = useState('');
-  const [specialSkills, setSpecialSkills] = useState('');
+  const [save, setSave] = useState('');
+  const [specialRules, setSpecialRules] = useState<string[]>([]);
+  const [newSpecialRule, setNewSpecialRule] = useState('');
   const [freeSkill, setFreeSkill] = useState(false);
   const [isGangAddition, setIsGangAddition] = useState(false);
   const [isDramatisPersonae, setIsDramatisPersonae] = useState(false);
   const [isSpyrer, setIsSpyrer] = useState(false);
+  const [isVehicle, setIsVehicle] = useState(false);
   const [alignment, setAlignment] = useState<string>('');
   const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
   const [selectedSkillType, setSelectedSkillType] = useState('');
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [loadedSkills, setLoadedSkills] = useState<Skill[]>([]);
   const [equipmentListSelections, setEquipmentListSelections] = useState<string[]>([]);
   const [equipmentDiscounts, setEquipmentDiscounts] = useState<{
     equipment_id: string;
@@ -81,11 +93,22 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   const [selectedAdjustedCostEquipment, setSelectedAdjustedCostEquipment] = useState('');
   const [adjustedCostAmount, setAdjustedCostAmount] = useState('');
   const [showAdjustedCostDialog, setShowAdjustedCostDialog] = useState(false);
-  const [subTypeName, setSubTypeName] = useState('');
+  const [variantName, setVariantName] = useState('');
+  const [specialisationCatalogId, setSpecialisationCatalogId] = useState('');
+
+  const { data: fighterSpecialisations = [] } = useQuery<Array<{ id: string; specialisation_name: string }>>({
+    queryKey: ['admin-fighter-specialisations'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/fighter-specialisations');
+      if (!response.ok) throw new Error('Failed to fetch fighter specialisations');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
   
 
-  const isCrew = selectedFighterClass && selectedFighterClass.class_name === 'Crew';
+  const isCrew = selectedFighterSubtypes.includes('Crew');
 
   const { data: gangTypes = [] } = useQuery<GangType[]>({
     queryKey: ['admin-gang-types'],
@@ -96,6 +119,15 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
     },
     staleTime: 5 * 60 * 1000,
   });
+
+  // Edition filters gang types, fighter subtypes, equipment, and skill sets;
+  // the fighter type's edition is still derived server-side from its gang type
+  const { data: editions = [] } = useEditions();
+  const editionSlug = editions.find(edition => edition.id === editionId)?.slug;
+  const showSave = hasSaveCharacteristic(editionSlug);
+  const allowMultipleSubtypes = allowsMultipleSubtypes(editionSlug);
+  const showStartingXp = hasStartingXp(editionSlug);
+  const showAlignment = hasAlignment(editionSlug);
 
   const { data: equipment = [] } = useQuery<EquipmentWithId[]>({
     queryKey: ['admin-equipment-list'],
@@ -112,11 +144,11 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: fighterClasses = [] } = useQuery<FighterClass[]>({
-    queryKey: ['admin-fighter-classes'],
+  const { data: fighterSubtypes = [] } = useQuery<FighterSubtype[]>({
+    queryKey: ['admin-fighter-subtypes'],
     queryFn: async () => {
-      const response = await fetch('/api/admin/fighter-classes');
-      if (!response.ok) throw new Error('Failed to fetch fighter classes');
+      const response = await fetch('/api/admin/fighter-subtypes');
+      if (!response.ok) throw new Error('Failed to fetch fighter subtypes');
       return response.json();
     },
     staleTime: 5 * 60 * 1000,
@@ -132,10 +164,133 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
     staleTime: 5 * 60 * 1000,
   });
 
+  const filteredGangTypes = useMemo(
+    () => editionId ? gangTypes.filter(type => type.edition_id === editionId) : gangTypes,
+    [gangTypes, editionId]
+  );
+
+  const filteredFighterSubtypes = useMemo(
+    () => editionId ? fighterSubtypes.filter(fc => fc.edition_id === editionId) : fighterSubtypes,
+    [fighterSubtypes, editionId]
+  );
+
+  const fighterSubtypesForDisplay = useMemo(
+    () => [...filteredFighterSubtypes].sort((a, b) => a.subtype_name.localeCompare(b.subtype_name)),
+    [filteredFighterSubtypes]
+  );
+
+  const filteredSkillTypes = useMemo(
+    () => editionId ? skillTypes.filter(type => type.edition_id === editionId) : skillTypes,
+    [skillTypes, editionId]
+  );
+
+  const groupedSkillTypes = useMemo(() => {
+    const skillSetRank = getSkillSetRank(editionSlug);
+    return Object.entries(
+      [...filteredSkillTypes]
+        .sort((a, b) => {
+          const rankA = skillSetRank[a.skill_type.toLowerCase()] ?? Infinity;
+          const rankB = skillSetRank[b.skill_type.toLowerCase()] ?? Infinity;
+          return rankA - rankB;
+        })
+        .reduce((groups, type) => {
+          const rank = skillSetRank[type.skill_type.toLowerCase()] ?? Infinity;
+          let groupLabel = "Misc."; // Default category for unranked skills
+
+          if (rank <= 19) groupLabel = "Universal Skills";
+          else if (rank <= 39) groupLabel = "Gang-specific Skills";
+          else if (rank <= 59) groupLabel = "Wyrd Powers";
+          else if (rank <= 69) groupLabel = "Cult Wyrd Powers";
+          else if (rank <= 79) groupLabel = "Psychoteric Whispers";
+          else if (rank <= 89) groupLabel = "Legendary Names";
+          else if (rank <= 99) groupLabel = "Ironhead Squat Mining Clans";
+
+          if (!groups[groupLabel]) groups[groupLabel] = [];
+          groups[groupLabel].push(type);
+          return groups;
+        }, {} as Record<string, SkillType[]>)
+    );
+  }, [filteredSkillTypes, editionSlug]);
+
+  const filteredEquipment = useMemo(
+    () => editionId ? equipment.filter(item => item.edition_id === editionId) : equipment,
+    [equipment, editionId]
+  );
+
+  const handleToggleFighterSubtype = (subtypeName: string, checked: boolean) => {
+    setSelectedFighterSubtypes(
+      toggleFighterSubtype(selectedFighterSubtypes, filteredFighterSubtypes, subtypeName, checked)
+    );
+  };
+
+  const handleEditionChange = (newEditionId: string) => {
+    setEditionId(newEditionId);
+
+    // Skills are edition-owned through their skill set. Unknown skill metadata
+    // is discarded as well so a stale selection can never be submitted after
+    // the user explicitly changes edition.
+    setSelectedSkills(prev => prev.filter(skillId => {
+      const skill = loadedSkills.find(candidate => candidate.id === skillId);
+      const skillType = skillTypes.find(type => type.id === skill?.skill_type_id);
+      return !!skillType && (!newEditionId || skillType.edition_id === newEditionId);
+    }));
+
+    const newEditionSlug = editions.find(edition => edition.id === newEditionId)?.slug;
+
+    if (!hasVehicles(newEditionSlug)) {
+      setIsVehicle(false);
+    }
+
+    if (!hasAlignment(newEditionSlug)) {
+      setAlignment('');
+    }
+
+    const subtypesForEdition = newEditionId
+      ? fighterSubtypes.filter(fc => fc.edition_id === newEditionId)
+      : fighterSubtypes;
+    const subtypeNames = new Set(subtypesForEdition.map(fc => fc.subtype_name));
+    let nextSubtypes = selectedFighterSubtypes.filter(name => subtypeNames.has(name));
+    // A single-subtype edition must not leave extra subtypes selected but hidden
+    // behind the dropdown, where they would still be submitted
+    if (!allowsMultipleSubtypes(newEditionSlug)) {
+      nextSubtypes = nextSubtypes.slice(0, 1);
+    }
+    setSelectedFighterSubtypes(nextSubtypes);
+
+    if (newEditionId && selectedGangType) {
+      const gangType = gangTypes.find(type => type.gang_type_id === selectedGangType);
+      if (gangType && gangType.edition_id !== newEditionId) {
+        setSelectedGangType('');
+      }
+    }
+
+    const equipmentIds = new Set(
+      (newEditionId
+        ? equipment.filter(item => item.edition_id === newEditionId)
+        : equipment
+      ).map(item => item.id)
+    );
+    setSelectedEquipment(prev => prev.filter(id => equipmentIds.has(id)));
+    setEquipmentListSelections(prev => prev.filter(id => equipmentIds.has(id)));
+    setEquipmentDiscounts(prev => prev.filter(d => equipmentIds.has(d.equipment_id)));
+    if (selectedAdjustedCostEquipment && !equipmentIds.has(selectedAdjustedCostEquipment)) {
+      setSelectedAdjustedCostEquipment('');
+    }
+
+    if (selectedSkillType) {
+      const skillType = skillTypes.find(type => type.id === selectedSkillType);
+      if (skillType && newEditionId && skillType.edition_id !== newEditionId) {
+        setSelectedSkillType('');
+      }
+    }
+  };
+
   const { data: skills = [] } = useQuery<Skill[]>({
-    queryKey: ['admin-skills', selectedSkillType],
+    queryKey: ['admin-skills', selectedSkillType, editionId],
     queryFn: async () => {
-      const response = await fetch(`/api/admin/skills?skill_type_id=${selectedSkillType}`);
+      const params = new URLSearchParams({ skill_type_id: selectedSkillType });
+      if (editionId) params.set('edition_id', editionId);
+      const response = await fetch(`/api/admin/skills?${params}`);
       if (!response.ok) throw new Error('Failed to fetch skills');
       const data = await response.json();
       return Array.isArray(data) ? data : data.skills || [];
@@ -144,12 +299,28 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
     staleTime: 5 * 60 * 1000,
   });
 
-  const handleSubmit = async () => {
-    // Check if selected fighter class is Crew
-    const isCrew = selectedFighterClass && selectedFighterClass.class_name === 'Crew';
+  const handleAddSpecialRule = () => {
+    if (!newSpecialRule.trim()) return;
 
-    // Modify validation for Crew class
-    if (!selectedGangType || !selectedFighterClass || !fighterType) {
+    if (specialRules.includes(newSpecialRule.trim())) {
+      setNewSpecialRule('');
+      return;
+    }
+
+    setSpecialRules(prev => [...prev, newSpecialRule.trim()]);
+    setNewSpecialRule('');
+  };
+
+  const handleRemoveSpecialRule = (ruleToRemove: string) => {
+    setSpecialRules(prev => prev.filter(rule => rule !== ruleToRemove));
+  };
+
+  const handleSubmit = async () => {
+    // Check if selected fighter subtype is Crew
+    const isCrew = selectedFighterSubtypes.includes('Crew');
+
+    // Modify validation for Crew subtype
+    if (!selectedGangType || selectedFighterSubtypes.length === 0 || !fighterType) {
       toast.error("Please fill in all required fields");
       return false;
     }
@@ -168,57 +339,13 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
 
     setIsLoading(true);
     try {
-      // Handle sub-type if provided
-      let subTypeId = null;
-      if (subTypeName.trim()) {
-        try {
-          // First, check if a sub-type with this name (case insensitive) already exists
-          const checkResponse = await fetch('/api/admin/fighter-sub-types');
-          if (!checkResponse.ok) throw new Error('Failed to fetch sub-types');
-          
-          const existingSubTypes = await checkResponse.json();
-          const matchingSubType = existingSubTypes.find(
-            (st: any) => st.sub_type_name.toLowerCase() === subTypeName.trim().toLowerCase()
-          );
-          
-          if (matchingSubType) {
-            // Use existing sub-type
-            subTypeId = matchingSubType.id;
-            
-            // Show toast notification
-            toast.success(`Using existing sub-type "${matchingSubType.sub_type_name}" instead of creating a duplicate`);
-          } else {
-            // Create new sub-type with proper capitalization
-            const formattedName = subTypeName.trim().charAt(0).toUpperCase() + subTypeName.trim().slice(1);
-            
-            const subTypeResponse = await fetch('/api/admin/fighter-sub-types', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ sub_type_name: formattedName }),
-            });
-            
-            if (!subTypeResponse.ok) throw new Error('Failed to create fighter sub-type');
-            
-            const newSubType = await subTypeResponse.json();
-            subTypeId = newSubType.id;
-          }
-        } catch (error) {
-          console.error('Error handling sub-type:', error);
-          toast.error('Failed to process fighter sub-type');
-          return false;
-        }
-      }
-
       const requestData = {
         fighterType,
         baseCost: parseInt(baseCost),
         gangTypeId: selectedGangType,
-        fighterClass: selectedFighterClass.class_name,
-        fighterClassId: selectedFighterClass.id,
-        fighterSubTypeId: subTypeId,
-        fighterSubType: subTypeName.trim() || null,
+        fighterSubtypes: selectedFighterSubtypes,
+        fighterVariant: variantName.trim() || null,
+        fighterSpecialisationId: specialisationCatalogId || null,
         movement: movement ? parseInt(movement) : null,
         weapon_skill: weaponSkill ? parseInt(weaponSkill) : null,
         ballistic_skill: ballisticSkill ? parseInt(ballisticSkill) : null,
@@ -231,13 +358,19 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         willpower: willpower ? parseInt(willpower) : null,
         intelligence: intelligence ? parseInt(intelligence) : null,
         attacks: attacks ? parseInt(attacks) : null,
-        special_rules: specialSkills.split(',').map(skill => skill.trim()).filter(Boolean),
+        save: showSave && save ? parseInt(save) : null,
+        special_rules: specialRules,
         free_skill: freeSkill,
         is_gang_addition: isGangAddition,
         is_dramatis_personae: isDramatisPersonae,
         is_spyrer: isSpyrer,
-        alignment: alignment || null,
+        is_vehicle: isVehicle,
+        alignment: showAlignment ? (alignment || null) : null,
         delegation_cost: delegationCost ? parseInt(delegationCost) : null,
+        // Blank means N/A — a type that can never gain XP — and stores null.
+        // Editions without the concept send an explicit 0 instead: the field is
+        // hidden for them, and their fighters do gain XP, starting from none.
+        starting_xp: showStartingXp ? (startingXp === '' ? null : parseInt(startingXp)) : 0,
         default_equipment: selectedEquipment,
         default_skills: selectedSkills,
         equipment_list: equipmentListSelections,
@@ -261,7 +394,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
 
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['admin-gang-types'] }),
-        queryClient.invalidateQueries({ queryKey: ['admin-fighter-classes'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-fighter-subtypes'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-skill-types'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-skills'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-equipment'] }),
@@ -304,6 +437,8 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
 
         <div className="px-[10px] py-4 overflow-y-auto grow">
           <div className="space-y-4">
+            <EditionSelect value={editionId} onChange={handleEditionChange} defaultToCurrent />
+
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Gang Type *
@@ -314,7 +449,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                 className="w-full p-2 border rounded-md"
               >
                 <option value="">Select gang type</option>
-                {gangTypes.map((type) => (
+                {filteredGangTypes.map((type) => (
                   <option key={type.gang_type_id} value={type.gang_type_id}>
                     {type.gang_type}
                   </option>
@@ -322,8 +457,8 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
               </select>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-1">
+            <div className={`grid grid-cols-1 ${allowMultipleSubtypes ? '' : 'md:grid-cols-2'} gap-4`}>
+              <div className={allowMultipleSubtypes ? '' : 'md:col-span-1'}>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Fighter Type *
                 </label>
@@ -336,40 +471,76 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                 />
               </div>
 
-              <div className="md:col-span-1">
-                <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Fighter Class *
-                </label>
-                <select
-                  value={selectedFighterClass ? selectedFighterClass.id : ''}
-                  onChange={(e) => {
-                    const selectedClass = fighterClasses.find(fc => fc.id === e.target.value);
-                    setSelectedFighterClass(selectedClass || '');
-                  }}
-                  className="w-full p-2 border rounded-md"
-                >
-                  <option value="">Select fighter class</option>
-                  {fighterClasses.map((fighterClass) => (
-                    <option key={fighterClass.id} value={fighterClass.id}>
-                      {fighterClass.class_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {!allowMultipleSubtypes && (
+                <div className="md:col-span-1">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    Fighter Subtype *
+                  </label>
+                  <select
+                    value={selectedFighterSubtypes[0] ?? ''}
+                    onChange={(e) => setSelectedFighterSubtypes(e.target.value ? [e.target.value] : [])}
+                    className="w-full p-2 border rounded-md"
+                  >
+                    <option value="">Select fighter subtype</option>
+                    {fighterSubtypesForDisplay.map((fighterSubtype) => (
+                      <option key={fighterSubtype.id} value={fighterSubtype.subtype_name}>
+                        {fighterSubtype.subtype_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
+
+            {allowMultipleSubtypes && (
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
+                  Fighter Subtype *
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-2">
+                  {fighterSubtypesForDisplay.map((fighterSubtype) => (
+                    <label key={fighterSubtype.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <Checkbox
+                        checked={selectedFighterSubtypes.includes(fighterSubtype.subtype_name)}
+                        onCheckedChange={(checked) => handleToggleFighterSubtype(fighterSubtype.subtype_name, checked === true)}
+                      />
+                      <span>{fighterSubtype.subtype_name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
               <div className="md:col-span-1">
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Fighter Sub-type
+                  Fighter Variant
                 </label>
                 <Input
                   type="text"
-                  value={subTypeName}
-                  onChange={(e) => setSubTypeName(e.target.value)}
-                  placeholder="e.g. Subjugator (leave blank to use the Default sub-type)"
+                  value={variantName}
+                  onChange={(e) => setVariantName(e.target.value)}
+                  placeholder="e.g. Bonecrusher (leave blank for the default)"
                   className="w-full"
                 />
+              </div>
+
+              <div className="md:col-span-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
+                  Fighter Specialisation
+                </label>
+                <select
+                  value={specialisationCatalogId}
+                  onChange={(e) => setSpecialisationCatalogId(e.target.value)}
+                  className="w-full p-2 border rounded-md"
+                >
+                  <option value="">None</option>
+                  {fighterSpecialisations.map((specialisation) => (
+                    <option key={specialisation.id} value={specialisation.id}>
+                      {specialisation.specialisation_name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="md:col-span-1">
@@ -389,21 +560,23 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Alignment
-                </label>
-                <select
-                  value={alignment}
-                  onChange={(e) => setAlignment(e.target.value)}
-                  className="w-full p-2 border rounded-md"
-                >
-                  <option value="">Select Alignment</option>
-                  <option value="Law Abiding">Law Abiding</option>
-                  <option value="Outlaw">Outlaw</option>
-                  <option value="Unaligned">Unaligned</option>
-                </select>
-              </div>
+              {showAlignment && (
+                <div>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    Alignment
+                  </label>
+                  <select
+                    value={alignment}
+                    onChange={(e) => setAlignment(e.target.value)}
+                    className="w-full p-2 border rounded-md"
+                  >
+                    <option value="">Select Alignment</option>
+                    <option value="Law Abiding">Law Abiding</option>
+                    <option value="Outlaw">Outlaw</option>
+                    <option value="Unaligned">Unaligned</option>
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
@@ -418,6 +591,25 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                   min="0"
                 />
               </div>
+
+              {showStartingXp && (
+                <div>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    Starting XP
+                  </label>
+                  <Input
+                    type="number"
+                    value={startingXp}
+                    onChange={(e) => setStartingXp(e.target.value)}
+                    placeholder="Leave blank for N/A"
+                    className="w-full"
+                    min="0"
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Blank means this type can never gain XP.
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-2 md:gap-4">
@@ -517,6 +709,20 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                 />
               </div>
 
+              {showSave && (
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
+                    Sv
+                  </label>
+                  <Input
+                    type="text"
+                    value={save}
+                    onChange={(e) => setSave(e.target.value)}
+                    className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1">
                   Ld *
@@ -568,18 +774,46 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
 
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
-                Special Skills
+                Special Rules
               </label>
-              <Input
-                type="text"
-                value={specialSkills}
-                onChange={(e) => setSpecialSkills(e.target.value)}
-                placeholder="e.g. Gang Hierarchy (Champion), Tools of the Trade, Combat Chems Stash"
-                className="w-full"
-              />
-              <p className="text-sm text-muted-foreground mt-1">
-                Separate multiple skills with commas
-              </p>
+              <div className="flex space-x-2 mb-2">
+                <Input
+                  type="text"
+                  value={newSpecialRule}
+                  onChange={(e) => setNewSpecialRule(e.target.value)}
+                  placeholder="Add a Special Rule"
+                  className="grow"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddSpecialRule();
+                    }
+                  }}
+                />
+                <Button
+                  onClick={handleAddSpecialRule}
+                  type="button"
+                >
+                  Add
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {specialRules.map((rule, index) => (
+                  <div
+                    key={index}
+                    className="bg-muted px-3 py-1 rounded-full flex items-center text-sm"
+                  >
+                    <span>{rule}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSpecialRule(rule)}
+                      className="ml-2 text-muted-foreground hover:text-foreground focus:outline-hidden"
+                    >
+                      <HiX className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div>
@@ -599,7 +833,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                 className="w-full p-2 border rounded-md"
               >
                 <option value="">Select equipment to add</option>
-                {equipment
+                {filteredEquipment
                   .filter(item => !selectedEquipment.includes(item.id))
                   .map((item) => (
                     <option key={item.id} value={item.id}>
@@ -644,30 +878,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                 >
                   <option value="">Select a skill set</option>
 
-                  {Object.entries(
-                    skillTypes
-                      .sort((a, b) => {
-                        const rankA = skillSetRank[a.skill_type.toLowerCase()] ?? Infinity;
-                        const rankB = skillSetRank[b.skill_type.toLowerCase()] ?? Infinity;
-                        return rankA - rankB;
-                      })
-                      .reduce((groups, type) => {
-                        const rank = skillSetRank[type.skill_type.toLowerCase()] ?? Infinity;
-                        let groupLabel = "Misc."; // Default category for unranked skills
-
-                        if (rank <= 19) groupLabel = "Universal Skills";
-                        else if (rank <= 39) groupLabel = "Gang-specific Skills";
-                        else if (rank <= 59) groupLabel = "Wyrd Powers";
-                        else if (rank <= 69) groupLabel = "Cult Wyrd Powers";
-                        else if (rank <= 79) groupLabel = "Psychoteric Whispers";
-                        else if (rank <= 89) groupLabel = "Legendary Names";
-                        else if (rank <= 99) groupLabel = "Ironhead Squat Mining Clans";
-
-                        if (!groups[groupLabel]) groups[groupLabel] = [];
-                        groups[groupLabel].push(type);
-                        return groups;
-                      }, {} as Record<string, typeof skillTypes>)
-                  ).map(([groupLabel, skillList]) => (
+                  {groupedSkillTypes.map(([groupLabel, skillList]) => (
                     <optgroup key={groupLabel} label={groupLabel}>
                       {skillList.map((type) => (
                         <option key={type.id} value={type.id}>
@@ -683,6 +894,14 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                   onChange={(e) => {
                     const value = e.target.value;
                     if (value && !selectedSkills.includes(value)) {
+                      const selectedSkill = skills.find(skill => skill.id === value);
+                      if (selectedSkill) {
+                        setLoadedSkills(previous => {
+                          const merged = new Map(previous.map(skill => [skill.id, skill]));
+                          merged.set(selectedSkill.id, selectedSkill);
+                          return Array.from(merged.values());
+                        });
+                      }
                       setSelectedSkills([...selectedSkills, value]);
                     }
                     e.target.value = "";
@@ -702,8 +921,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
 
                 <div className="mt-2 flex flex-wrap gap-2">
                   {selectedSkills.map((skillId) => {
-                    const skill = skills.find(s => s.id === skillId) || 
-                                skills.find(s => s.id === skillId);
+                    const skill = loadedSkills.find(s => s.id === skillId);
                     if (!skill) return null;
                     
                     return (
@@ -782,6 +1000,22 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                   Spyrer
                 </label>
               </div>
+
+              {hasVehicles(editionSlug) && (
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="vehicle"
+                    checked={isVehicle}
+                    onCheckedChange={(checked) => setIsVehicle(checked === true)}
+                  />
+                  <label
+                    htmlFor="vehicle"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Vehicle
+                  </label>
+                </div>
+              )}
             </div>
 
             <div>
@@ -800,7 +1034,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                 className="w-full p-2 border rounded-md"
               >
                 <option value="">Available equipment</option>
-                {equipment
+                {[...filteredEquipment]
                   .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name))
                   .map((item) => (
                     <option key={item.id} value={item.id}>
@@ -815,11 +1049,12 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                     .map(equipId => equipment.find(e => e.id === equipId))
                     .filter(item => item !== undefined) // Remove null values
                     .sort((a, b) => {
-                      const rankA = equipmentCategoryRank[a!.equipment_category.toLowerCase()] ?? Infinity;
-                      const rankB = equipmentCategoryRank[b!.equipment_category.toLowerCase()] ?? Infinity;
-
-                      // First, sort by equipment category rank
-                      if (rankA !== rankB) return rankA - rankB;
+                      const categoryCompare = compareEquipmentCategories(
+                        a!.equipment_category,
+                        b!.equipment_category,
+                        editionSlug
+                      );
+                      if (categoryCompare !== 0) return categoryCompare;
 
                       // If same category, sort alphabetically by equipment name
                       return a!.equipment_name.localeCompare(b!.equipment_name);
@@ -933,7 +1168,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                           className="w-full p-2 border rounded-md"
                         >
                           <option value="">Select equipment</option>
-                          {equipment
+                          {filteredEquipment
                             .filter(item => !equipmentDiscounts.some(
                               adjusted_cost => adjusted_cost.equipment_id === item.id
                             ))
@@ -1016,12 +1251,12 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
           <Button
             onClick={handleSubmit}
             disabled={
-              !baseCost || 
-              !selectedGangType || 
-              !selectedFighterClass || 
+              !baseCost ||
+              !selectedGangType ||
+              selectedFighterSubtypes.length === 0 ||
               !fighterType ||
               !ballisticSkill ||
-              (!selectedFighterClass || selectedFighterClass.class_name !== 'Crew') && (
+              !isCrew && (
                 !movement ||
                 !weaponSkill ||
                 !strength ||
@@ -1044,4 +1279,4 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
       </div>
     </div>
   );
-} 
+}

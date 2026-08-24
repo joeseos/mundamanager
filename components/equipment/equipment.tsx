@@ -9,13 +9,20 @@ import { Equipment, WeaponProfile, EquipmentGrants } from '@/types/equipment';
 import { LuChevronRight } from "react-icons/lu";
 import { HiX } from "react-icons/hi";
 import { Switch } from "@/components/ui/switch";
-import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { LuX } from "react-icons/lu";
 import { RangeSlider } from "@/components/ui/range-slider";
 import { EquipmentTooltipTrigger } from './equipment-tooltip';
 import { PurchaseModal } from './purchase-modal';
-import { usePurchaseEquipment } from '@/hooks/use-purchase-equipment';
+import { usePurchaseEquipment, type EquipmentBoughtResult } from '@/hooks/use-purchase-equipment';
 import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
+import { hasEquipmentSuperCategories, hasTradePoints } from '@/types/edition';
+import { isExclusiveTradePoints, parseTradePointsCost } from '@/utils/campaigns/resources';
+import { compareEquipmentCategories } from '@/utils/getEquipmentCategoryRank';
+import {
+  getEquipmentCategoryDisplayNameN26,
+  getEquipmentSuperCategoryN26,
+  equipmentSuperCategoryRankN26,
+} from '@/utils/equipmentCategoryRankN26';
 
 interface ItemModalProps {
   title: string;
@@ -43,7 +50,9 @@ interface ItemModalProps {
   campaignGangId?: string;
   gangCampaignResources?: GangCampaignResource[];
   gangReputation?: number;
-  onEquipmentBought?: (newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment, newGangRating?: number, newGangWealth?: number) => void;
+  editionSlug?: string | null;
+  gangTradePoints?: number;
+  onEquipmentBought?: (result: EquipmentBoughtResult) => void;
   onPurchaseRequest?: (payload: { params: any; item: Equipment }) => void;
   // Optional: pass fighter weapons to avoid client fetch in target selection
   fighterWeapons?: { id: string; name: string; equipment_category?: string; effect_names?: string[] }[];
@@ -55,6 +64,7 @@ interface RawEquipmentData {
   availability: string | null;
   base_cost: number;
   adjusted_cost: number;
+  trade_points?: string | null;
   equipment_category: string;
   equipment_type: 'weapon' | 'wargear' | 'vehicle_upgrade';
   created_at: string;
@@ -106,10 +116,13 @@ const ItemModal: React.FC<ItemModalProps> = ({
   campaignGangId,
   gangCampaignResources,
   gangReputation,
+  editionSlug,
+  gangTradePoints,
   onEquipmentBought,
   onPurchaseRequest,
   fighterWeapons
 }) => {
+  const showTradePoints = hasTradePoints(editionSlug);
   const [equipment, setEquipment] = useState<Record<string, Equipment[]>>({});
   const [categoryLoadingStates] = useState<Record<string, boolean>>({});
   const [searchQuery, setSearchQuery] = useState('');
@@ -128,12 +141,29 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const [cachedAllCategories, setCachedAllCategories] = useState<string[]>([]);
   const [cachedEquipment, setCachedEquipment] = useState<Record<string, Record<string, Equipment[]>>>({
     fighter: {},
-    all: {}
+    all: {},
+    tradingpost: {}
+  });
+  // Whether a bucket has been fetched, tracked separately from its contents: a
+  // fighter with no equipment list caches a legitimately empty result, and an
+  // emptiness test cannot tell that apart from "never fetched".
+  const [loadedBuckets, setLoadedBuckets] = useState<{ all: boolean; fighter: boolean; tradingpost: boolean }>({
+    all: false,
+    fighter: false,
+    tradingpost: false
   });
   const [isLoadingAllEquipment, setIsLoadingAllEquipment] = useState(false);
   const [costRange, setCostRange] = useState<[number, number]>([10, 160]);
   const [availabilityRange, setAvailabilityRange] = useState<[number, number]>([6, 12]);
+  const [tradePointsRange, setTradePointsRange] = useState<[number, number]>([0, 5]);
   const [includeLegacy, setIncludeLegacy] = useState<boolean>(false);
+
+  // Which rarity axis this list filters on: N26 gates equipment by Trade Points where
+  // earlier editions use Availability, and a fighter's own list has neither.
+  const rarityFilter: 'none' | 'tradePoints' | 'availability' =
+    equipmentListType === 'fighters-list' ? 'none' : showTradePoints ? 'tradePoints' : 'availability';
+
+  const chargesTradePoints = showTradePoints && equipmentListType !== 'fighters-list';
 
   const { purchaseEquipment } = usePurchaseEquipment({
     session,
@@ -242,6 +272,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
         ? `Vehicle type information is missing. Vehicle: ${vehicleType || 'unknown'}`
         : 'Fighter type information is missing';
       setError(errorMessage);
+      // Returns before the try below, so release the in-flight flag here or the
+      // modal stays wedged with no way to retry.
+      setIsLoadingAllEquipment(false);
       return;
     }
 
@@ -320,6 +353,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
           cost: item.adjusted_cost,
           base_cost: item.base_cost,
           adjusted_cost: item.adjusted_cost,
+          trade_points: item.trade_points ?? undefined,
           equipment_type: item.equipment_type as 'weapon' | 'wargear' | 'vehicle_upgrade',
           fighter_weapon_id: item.fighter_weapon_id || undefined,
           master_crafted: item.master_crafted || false,
@@ -382,14 +416,17 @@ const ItemModal: React.FC<ItemModalProps> = ({
       if (equipmentListType === 'unrestricted') {
         setCachedAllCategories(uniqueCategories);
         setCachedEquipment(prev => ({ ...prev, all: equipmentByCategory }));
+        setLoadedBuckets(prev => ({ ...prev, all: true }));
       } else if (equipmentListType === 'fighters-list') {
         setCachedFighterCategories(uniqueCategories);
         setCachedEquipment(prev => ({ ...prev, fighter: equipmentByCategory }));
+        setLoadedBuckets(prev => ({ ...prev, fighter: true }));
       } else if (equipmentListType === 'fighters-tradingpost') {
         // Only cache when not using campaign filter (campaign-filtered results would overwrite unfiltered cache)
         if (campaignTradingPostIds === undefined) {
           setCachedFighterTPCategories(uniqueCategories);
           setCachedEquipment(prev => ({ ...prev, tradingpost: equipmentByCategory }));
+          setLoadedBuckets(prev => ({ ...prev, tradingpost: true }));
         }
       }
 
@@ -458,20 +495,23 @@ const ItemModal: React.FC<ItemModalProps> = ({
   }, [onClose]);
 
   const canAffordEquipment = (item: Equipment) => {
-    return gangCredits >= (item.adjusted_cost ?? item.cost);
+    const canAffordCredits = gangCredits >= (item.adjusted_cost ?? item.cost);
+    if (!chargesTradePoints) return canAffordCredits;
+    const tradePointsCost = parseTradePointsCost(item.trade_points);
+    return canAffordCredits && tradePointsCost <= (gangTradePoints ?? 0);
   };
 
-  const cacheRestorationKey = `${equipmentListType}:${cachedAllCategories.length}:${cachedFighterCategories.length}:${cachedFighterTPCategories.length}:${campaignTradingPostIds === undefined ? 'no-campaign' : 'campaign'}`;
+  const cacheRestorationKey = `${equipmentListType}:${loadedBuckets.all}:${loadedBuckets.fighter}:${loadedBuckets.tradingpost}:${campaignTradingPostIds === undefined ? 'no-campaign' : 'campaign'}`;
   const [prevCacheRestorationKey, setPrevCacheRestorationKey] = useState(cacheRestorationKey);
   if (cacheRestorationKey !== prevCacheRestorationKey) {
     setPrevCacheRestorationKey(cacheRestorationKey);
-    if (equipmentListType === 'unrestricted' && cachedAllCategories.length > 0 && cachedEquipment.all && Object.keys(cachedEquipment.all).length > 0) {
+    if (equipmentListType === 'unrestricted' && loadedBuckets.all) {
       setAvailableCategories(cachedAllCategories);
       setEquipment(cachedEquipment.all);
-    } else if (equipmentListType === 'fighters-list' && cachedFighterCategories.length > 0 && cachedEquipment.fighter && Object.keys(cachedEquipment.fighter).length > 0) {
+    } else if (equipmentListType === 'fighters-list' && loadedBuckets.fighter) {
       setAvailableCategories(cachedFighterCategories);
       setEquipment(cachedEquipment.fighter);
-    } else if (equipmentListType === 'fighters-tradingpost' && campaignTradingPostIds === undefined && cachedFighterTPCategories.length > 0 && cachedEquipment.tradingpost && Object.keys(cachedEquipment.tradingpost).length > 0) {
+    } else if (equipmentListType === 'fighters-tradingpost' && campaignTradingPostIds === undefined && loadedBuckets.tradingpost) {
       setAvailableCategories(cachedFighterTPCategories);
       setEquipment(cachedEquipment.tradingpost);
     }
@@ -485,20 +525,32 @@ const ItemModal: React.FC<ItemModalProps> = ({
     const contextKey = `${equipmentListType}:${campaignTPKey}:${campaignCustomTPKey}`;
 
     // Skip if cache was already restored during render
-    if (equipmentListType === 'unrestricted' && cachedAllCategories.length > 0 && cachedEquipment.all && Object.keys(cachedEquipment.all).length > 0) return;
-    if (equipmentListType === 'fighters-list' && cachedFighterCategories.length > 0 && cachedEquipment.fighter && Object.keys(cachedEquipment.fighter).length > 0) return;
-    if (equipmentListType === 'fighters-tradingpost' && campaignTradingPostIds === undefined && cachedFighterTPCategories.length > 0 && cachedEquipment.tradingpost && Object.keys(cachedEquipment.tradingpost).length > 0) return;
+    if (equipmentListType === 'unrestricted' && loadedBuckets.all) return;
+    if (equipmentListType === 'fighters-list' && loadedBuckets.fighter) return;
+    if (equipmentListType === 'fighters-tradingpost' && campaignTradingPostIds === undefined && loadedBuckets.tradingpost) return;
 
-    if (fetchedContextsRef.current.has(contextKey) && Object.keys(equipment).length > 0) return;
+    // Authoritative on its own: an empty result is still a fetched result, and the
+    // campaign-filtered Trading Post has no cache bucket to fall back on. Tab
+    // switches clear this ref, so a deliberate reload still goes through.
+    if (fetchedContextsRef.current.has(contextKey)) return;
 
     fetchedContextsRef.current.add(contextKey);
     fetchAllCategories();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, equipmentListType, cachedAllCategories.length, cachedFighterCategories.length, cachedFighterTPCategories.length, isLoadingAllEquipment, campaignTPKey]);
+  }, [session, equipmentListType, loadedBuckets.all, loadedBuckets.fighter, loadedBuckets.tradingpost, isLoadingAllEquipment, campaignTPKey, campaignCustomTPKey]);
 
-  const { computedMinCost, computedMaxCost, computedMinAvailability, computedMaxAvailability } = useMemo(() => {
+  const { computedMinCost, computedMaxCost, computedMinAvailability, computedMaxAvailability, computedMinTradePoints, computedMaxTradePoints } = useMemo(() => {
     const allEquipment = Object.values(equipment).flat();
-    if (allEquipment.length === 0) return { computedMinCost: 10, computedMaxCost: 160, computedMinAvailability: 6, computedMaxAvailability: 12 };
+    if (allEquipment.length === 0) {
+      return {
+        computedMinCost: 10,
+        computedMaxCost: 160,
+        computedMinAvailability: 6,
+        computedMaxAvailability: 12,
+        computedMinTradePoints: 0,
+        computedMaxTradePoints: 5,
+      };
+    }
 
     const costs = allEquipment.map(item => item.adjusted_cost ?? item.cost);
     const availabilities = allEquipment
@@ -509,12 +561,15 @@ const ItemModal: React.FC<ItemModalProps> = ({
         return 0;
       })
       .filter(val => !isNaN(val));
+    const tradePointsValues = allEquipment.map(item => parseTradePointsCost(item.trade_points));
 
     return {
       computedMinCost: costs.length > 0 ? Math.min(...costs) : 10,
       computedMaxCost: costs.length > 0 ? Math.max(...costs) : 160,
       computedMinAvailability: availabilities.length > 0 ? Math.min(...availabilities) : 6,
       computedMaxAvailability: availabilities.length > 0 ? Math.max(...availabilities) : 12,
+      computedMinTradePoints: tradePointsValues.length > 0 ? Math.min(...tradePointsValues) : 0,
+      computedMaxTradePoints: tradePointsValues.length > 0 ? Math.max(...tradePointsValues) : 5,
     };
   }, [equipment]);
 
@@ -527,10 +582,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
     if (equipmentCount > 0) {
       setCostRange([computedMinCost, computedMaxCost]);
       setAvailabilityRange([computedMinAvailability, computedMaxAvailability]);
+      setTradePointsRange([computedMinTradePoints, computedMaxTradePoints]);
     }
   }
 
-  // Filter equipment based on cost and availability ranges
+  // Filter equipment based on cost and availability / trade points ranges
   const filterEquipment = (items: Equipment[]) => {
     return items.filter(item => {
       const cost = item.adjusted_cost ?? item.cost;
@@ -550,10 +606,13 @@ const ItemModal: React.FC<ItemModalProps> = ({
       }
 
       const costInRange = cost >= costRange[0] && cost <= costRange[1];
-      const availabilityInRange = availability >= availabilityRange[0] &&
-        availability <= availabilityRange[1];
+      const tradePoints = parseTradePointsCost(item.trade_points);
+      const rarityInRange =
+        rarityFilter === 'tradePoints' ? tradePoints >= tradePointsRange[0] && tradePoints <= tradePointsRange[1] :
+        rarityFilter === 'availability' ? availability >= availabilityRange[0] && availability <= availabilityRange[1] :
+        true;
 
-      return costInRange && availabilityInRange &&
+      return costInRange && rarityInRange &&
         item.equipment_name.toLowerCase().includes(searchQuery);
     });
   };
@@ -563,6 +622,75 @@ const ItemModal: React.FC<ItemModalProps> = ({
     id: name,
     category_name: name
   }));
+
+  const useN26CategoryFormation = hasEquipmentSuperCategories(editionSlug);
+
+  const visibleCategories = useMemo(() => {
+    return categories
+      .filter(category => {
+        const isVehicleAllowed = isVehicleEquipment && allowedCategories
+          ? allowedCategories.includes(category.category_name)
+          : !isVehicleEquipment;
+
+        const isAvailable = availableCategories.includes(category.category_name);
+
+        const hasMatchingEquipment = !searchQuery ||
+          (equipment[category.category_name] &&
+           filterEquipment(equipment[category.category_name]).length > 0);
+
+        return isVehicleAllowed && isAvailable && hasMatchingEquipment;
+      })
+      .sort((a, b) => {
+        if (useN26CategoryFormation) {
+          const superA = getEquipmentSuperCategoryN26(a.category_name) ?? '';
+          const superB = getEquipmentSuperCategoryN26(b.category_name) ?? '';
+          const superRankA = equipmentSuperCategoryRankN26[superA.toLowerCase()];
+          const superRankB = equipmentSuperCategoryRankN26[superB.toLowerCase()];
+          if (superRankA !== undefined || superRankB !== undefined) {
+            if (superRankA === undefined) return 1;
+            if (superRankB === undefined) return -1;
+            if (superRankA !== superRankB) return superRankA - superRankB;
+          }
+        }
+        return compareEquipmentCategories(a.category_name, b.category_name, editionSlug);
+      });
+  }, [
+    categories,
+    isVehicleEquipment,
+    allowedCategories,
+    availableCategories,
+    searchQuery,
+    equipment,
+    costRange,
+    availabilityRange,
+    tradePointsRange,
+    rarityFilter,
+    useN26CategoryFormation,
+    editionSlug,
+  ]);
+
+  const categoryGroups = useMemo(() => {
+    if (!useN26CategoryFormation) {
+      return [{ superCategory: null as string | null, categories: visibleCategories }];
+    }
+
+    const groups: { superCategory: string | null; categories: Category[] }[] = [];
+    for (const category of visibleCategories) {
+      const superCategory = getEquipmentSuperCategoryN26(category.category_name) ?? null;
+      const last = groups[groups.length - 1];
+      if (last && last.superCategory === superCategory) {
+        last.categories.push(category);
+      } else {
+        groups.push({ superCategory, categories: [category] });
+      }
+    }
+    return groups;
+  }, [useN26CategoryFormation, visibleCategories]);
+
+  const getCategoryDisplayName = (categoryName: string) =>
+    useN26CategoryFormation
+      ? getEquipmentCategoryDisplayNameN26(categoryName)
+      : categoryName;
 
   const modalContent = (
     <>
@@ -585,15 +713,25 @@ const ItemModal: React.FC<ItemModalProps> = ({
             <div className="flex flex-row gap-3 pr-8">
               <h2 className="text-xl font-semibold">{title}</h2>
               <div className="ml-auto flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Gang Credits</span>
-                <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
-                  {gangCredits}
-                </span>
+                <div className="flex items-center gap-0.5">
+                  <span className="text-xs text-muted-foreground">Credits</span>
+                  <span className="bg-green-500 text-white px-3 py-1 rounded-full text-xs">
+                    {gangCredits}
+                  </span>
+                </div>
+                {showTradePoints && (
+                  <div className="flex items-center gap-0.5">
+                    <span className="text-xs text-muted-foreground">TP</span>
+                    <span className="bg-sky-500 text-white px-3 py-1 rounded-full text-xs">
+                      {gangTradePoints ?? 0}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-3 justify-center">
               {!isStashMode && (
-                <label className="flex text-sm text-muted-foreground cursor-pointer whitespace-nowrap leading-8">
+                <label className="flex items-center text-sm text-muted-foreground cursor-pointer whitespace-nowrap">
                   <input
                     type="radio"
                     name="equipment-list"
@@ -609,7 +747,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                   {isVehicleEquipment ? "Vehicle's List" : "Fighter's List"}
                 </label>
               )}
-              <label className="flex text-sm text-muted-foreground cursor-pointer whitespace-nowrap">
+              <label className="flex items-center text-sm text-muted-foreground cursor-pointer whitespace-nowrap">
                 <input
                   type="radio"
                   name="equipment-list"
@@ -624,7 +762,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 />
                 Trading Post
               </label>
-              <label className="flex text-sm text-muted-foreground cursor-pointer whitespace-nowrap">
+              <label className="flex items-center text-sm text-muted-foreground cursor-pointer whitespace-nowrap">
                 <input
                   type="radio"
                   name="equipment-list"
@@ -687,13 +825,26 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 </label>
               )}
               
-              {equipmentListType !== 'fighters-list' && (
+              {rarityFilter === 'availability' && (
                 <RangeSlider
                   label="Availability"
                   value={availabilityRange}
                   onValueChange={setAvailabilityRange}
                   min={computedMinAvailability}
                   max={computedMaxAvailability}
+                  step={1}
+                  formatValue={(val) => `${val}`}
+                  className="flex-1"
+                />
+              )}
+
+              {rarityFilter === 'tradePoints' && (
+                <RangeSlider
+                  label="Trade Points"
+                  value={tradePointsRange}
+                  onValueChange={setTradePointsRange}
+                  min={computedMinTradePoints}
+                  max={computedMaxTradePoints}
                   step={1}
                   formatValue={(val) => `${val}`}
                   className="flex-1"
@@ -718,34 +869,21 @@ const ItemModal: React.FC<ItemModalProps> = ({
             <div className="flex flex-col">
               {error && <p className="text-red-500 p-4">{error}</p>}
 
-              {categories
-                .filter(category => {
-                  const isVehicleAllowed = isVehicleEquipment && allowedCategories
-                    ? allowedCategories.includes(category.category_name)
-                    : !isVehicleEquipment;
-
-                  const isAvailable = availableCategories.includes(category.category_name);
-
-                  // When searching, only show categories that have matching equipment
-                  const hasMatchingEquipment = !searchQuery || 
-                    (equipment[category.category_name] && 
-                     filterEquipment(equipment[category.category_name]).length > 0);
-
-                  return isVehicleAllowed && isAvailable && hasMatchingEquipment;
-                })
-                .sort((a, b) => {
-                  const rankA = equipmentCategoryRank[a.category_name.toLowerCase()] ?? Infinity;
-                  const rankB = equipmentCategoryRank[b.category_name.toLowerCase()] ?? Infinity;
-                  return rankA - rankB;
-                })
-                .map((category) => (
+              {categoryGroups.map((group) => (
+                <div key={group.superCategory ?? '__ungrouped__'}>
+                  {group.superCategory && (
+                    <div className="px-2 py-2 text-sm font-bold uppercase tracking-wide text-muted-foreground bg-card border-b">
+                      {group.superCategory}
+                    </div>
+                  )}
+                  {group.categories.map((category) => (
                   <div key={category.id}>
                     <Button
                       variant="ghost"
                       className="relative flex w-full justify-between rounded-none px-4 py-4 text-base font-semibold bg-muted hover:bg-muted mb-[1px]"
                       onClick={() => toggleCategory(category)}
                     >
-                      <span>{category.category_name}</span>
+                      <span>{getCategoryDisplayName(category.category_name)}</span>
                       <LuChevronRight
                         className={`h-4 w-4 transition-transform duration-200 ${
                           expandedCategories.has(category.category_name) ? "rotate-90" : ""
@@ -772,6 +910,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                     item={item}
                                     className="flex-1 pl-4 leading-none"
                                     options={{ equipmentListType, isVehicleEquipment }}
+                                    editionSlug={editionSlug}
                                   >
                                     <div className="flex items-center gap-2 flex-wrap">
                                       <span className="text-sm font-medium">
@@ -817,7 +956,27 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                         <span className="text-[10px] font-medium">{item.cost}</span>
                                       </div>
                                     )}
-                                    {equipmentListType !== 'fighters-list' && (
+                                    {rarityFilter === 'tradePoints' && (() => {
+                                      const isExclusive = isExclusiveTradePoints(item.trade_points);
+                                      const canAffordTradePoints = parseTradePointsCost(item.trade_points) <= (gangTradePoints ?? 0);
+                                      return (
+                                        <div
+                                          className={`min-w-6 h-6 rounded-full flex items-center justify-center text-white px-1.5 ${
+                                            isExclusive
+                                              ? 'bg-rose-500'
+                                              : canAffordTradePoints
+                                                ? 'bg-sky-500'
+                                                : 'bg-gray-500'
+                                          }`}
+                                          title="Trade Points"
+                                        >
+                                          <span className="text-[10px] font-medium">
+                                            {isExclusive ? 'E' : `TP ${parseTradePointsCost(item.trade_points)}`}
+                                          </span>
+                                        </div>
+                                      );
+                                    })()}
+                                    {rarityFilter === 'availability' && (
                                       <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white ${
                                         item.availability?.startsWith('R') ? 'bg-sky-500' :
                                         item.availability?.startsWith('I') ? 'bg-orange-500' :
@@ -857,14 +1016,16 @@ const ItemModal: React.FC<ItemModalProps> = ({
                     )}
                     <div className="h-[1px] w-full bg-secondary" />
                   </div>
-                ))}
+                  ))}
+                </div>
+              ))}
             </div>
             {buyModalData && (
               <PurchaseModal
                 item={buyModalData}
                 gangCredits={gangCredits}
                 onClose={() => setBuyModalData(null)}
-                onConfirm={({ cost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, equipmentTarget, selectedGrantEquipmentIds, resourceCost }) => {
+                onConfirm={({ cost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, equipmentTarget, selectedGrantEquipmentIds, resourceCost, tradePoints }) => {
                   purchaseEquipment({
                     item: buyModalData,
                     manualCost: cost,
@@ -874,6 +1035,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                     equipmentTarget,
                     selectedGrantEquipmentIds: selectedGrantEquipmentIds || [],
                     resourceCost,
+                    tradePoints,
                   })
                 }}
                 isStashPurchase={Boolean(isStashMode || (!fighterId && !vehicleId))}
@@ -882,6 +1044,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 equipmentListType={equipmentListType}
                 gangCampaignResources={gangCampaignResources}
                 gangReputation={gangReputation}
+                editionSlug={editionSlug}
+                gangTradePoints={gangTradePoints}
               />
             )}
           </div>

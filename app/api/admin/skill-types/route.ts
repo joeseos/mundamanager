@@ -13,14 +13,15 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from('skill_types')
-      .select('id, name')
+      .select('id, name, edition_id')
       .order('name');
 
     if (error) throw error;
 
     const transformedData = data.map(type => ({
       id: type.id,
-      skill_type: type.name
+      skill_type: type.name,
+      edition_id: type.edition_id
     }));
 
     return NextResponse.json(transformedData);
@@ -44,7 +45,8 @@ export async function POST(request: Request) {
     const skillTypeData = await request.json();
 
     const formattedData = {
-      name: skillTypeData.name
+      name: skillTypeData.name,
+      edition_id: skillTypeData.edition_id || null
     };
 
     const { data, error } = await supabase
@@ -80,6 +82,7 @@ export async function PATCH(request: Request) {
     const formattedData = {
       name: skillTypeData.name,
       id: skillTypeData.id,
+      edition_id: skillTypeData.edition_id || null,
     };
 
     const { data, error } = await supabase

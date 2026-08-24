@@ -24,16 +24,17 @@ export type { WeaponProfile, Weapon };
 export interface FighterType {
   id: string;
   fighter_type: string;
-  fighter_class: string;
-  fighter_class_id?: string;
+  fighter_subtypes: string[];
   gang_type_id: string;
   gang_type: string;
-  fighter_sub_type: string;
-  fighter_sub_type_id?: string;
-  fighter_sub_types?: {
-    sub_type_name: string;
+  fighter_specialisation: string;
+  fighter_specialisation_id?: string;
+  fighter_specialisations?: {
+    specialisation_name: string;
   } | null;
+  fighter_variant?: string | null;
   alliance_crew_name?: string;
+  edition_id?: string | null;
   cost: number;
   movement: number;
   weapon_skill: number;
@@ -51,6 +52,7 @@ export interface FighterType {
   free_skill: boolean;
   default_equipment?: string[];
   is_spyrer?: boolean;
+  is_vehicle?: boolean;
 }
 
 export interface WargearItem {
@@ -125,9 +127,12 @@ export type FighterSkills = Record<string, {
   fighter_injury_id?: string | null;
   injury_name?: string;
   custom_skill_id?: string | null;
-  bitter_enmity_target_gang_id?: string;
-  bitter_enmity_target_gang_name?: string;
-  bitter_enmity_target_gang_colour?: string | null;
+  granted_by_equipment_id?: string;
+  /** Hatred (X) target of the injury that granted this skill, if any. See utils/injuryTarget.ts. */
+  hatred_target_kind?: 'gang' | 'gang_type' | 'fighter';
+  hatred_target_id?: string;
+  hatred_target_name?: string;
+  hatred_target_colour?: string | null;
 }>;
 
 export interface FighterProps {
@@ -152,7 +157,11 @@ export interface FighterProps {
   cool: number;
   willpower: number;
   intelligence: number;
+  save?: number | null;
+  edition_slug?: string | null;
   xp: number;
+  /** null means N/A: this fighter's type cannot gain XP. */
+  starting_xp?: number | null;
   kills: number;
   kill_count?: number;
   gang_id?: string;
@@ -173,8 +182,7 @@ export interface FighterProps {
   captured_by_gang_id?: string | null;
   captured_by_gang_name?: string;
   free_skill?: boolean;
-  fighter_class?: string;
-  fighter_class_id?: string;
+  fighter_subtypes: string[];
   note?: string;
   effects: {
     injuries: FighterEffect[];
@@ -188,9 +196,15 @@ export interface FighterProps {
     user: FighterEffect[];
     skills: FighterEffect[];
     'power-boosts': FighterEffect[];
+    /**
+     * Only an N26 vehicle carries this: it is a fighter, so its Lasting Damage
+     * sits in its own effects rather than on an attached `vehicles` row.
+     */
+    'lasting damages'?: FighterEffect[];
   };
   vehicles?: Vehicle[];
   is_spyrer?: boolean;
+  is_vehicle?: boolean;
   
   // Base stats (original values)
   base_stats: {
@@ -226,11 +240,12 @@ export interface FighterProps {
 
   skills?: FighterSkills; // Use the standardized type
 
-  fighter_sub_type?: {
-    fighter_sub_type: string;
-    fighter_sub_type_id: string;
+  fighter_specialisation?: {
+    fighter_specialisation: string;
+    fighter_specialisation_id: string;
   } | null;
-  
+  fighter_variant?: string | null;
+
   owner_name?: string; // Name of the fighter who owns this fighter (for exotic beasts)
   beast_equipment_stashed?: boolean; // Whether the equipment granting this beast is in stash
   image_url?: string; // URL to the fighter's image
@@ -239,8 +254,8 @@ export interface FighterProps {
   selected_archetype_id?: string | null; // ID of the selected skill archetype (for Underhive Outcasts)
 }
 
-// Update the FIGHTER_CLASSES to include all classes from fighterClassRank
-export const FIGHTER_CLASSES = [
+// Update the FIGHTER_SUBTYPES to include all subtypes from fighterSubtypeRankN23 / fighterSubtypeRankN26
+export const FIGHTER_SUBTYPES = [
   'Leader',
   'Champion',
   'Prospect',
@@ -250,17 +265,19 @@ export const FIGHTER_CLASSES = [
   'Crew',
   'Exotic Beast',
   'Exotic Beast Specialist',
-  'Brute'
+  'Brute',
+  'Beast',
+  'Pet'
 ] as const;
 
-export type FighterClass = typeof FIGHTER_CLASSES[number];
+export type FighterSubtype = typeof FIGHTER_SUBTYPES[number];
 
 // Archetype interface for Underhive Outcasts skill access
 export interface Archetype {
   id: string;
   name: string;
   description: string | null;
-  fighter_class_id: string | null;
+  fighter_subtype_id: string | null;
   skill_access: Array<{
     skill_type_id: string;
     access_level: 'primary' | 'secondary';
@@ -288,11 +305,16 @@ export interface CustomFighterType {
   intelligence?: number;
   gang_type_id?: string;
   custom_gang_type_id?: string | null;
+  /** N26 Sv. Null on editions without the characteristic. */
+  save?: number | null;
+  /** N26 starting XP. Null means N/A — the fighter can never gain XP. */
+  starting_xp?: number | null;
+  /** N26 makes vehicles fighter types rather than a catalog of their own. */
+  is_vehicle?: boolean;
   special_rules?: string[];
   free_skill?: boolean;
   delegation_cost?: number | null;
-  fighter_class?: string;
-  fighter_class_id?: string;
+  fighter_subtypes: string[];
   description?: string | null;
   skill_access?: {
     skill_type_id: string;
@@ -315,5 +337,5 @@ export interface CustomFighterType {
   }[];
   created_at: string;
   updated_at?: string;
+  edition_slug?: string | null;
 }
-

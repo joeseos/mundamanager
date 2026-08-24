@@ -11,6 +11,9 @@ import { toast } from 'sonner';
 import { LuEye, LuSquarePen, LuTrash2 } from 'react-icons/lu';
 import { FaRegCopy } from 'react-icons/fa';
 import { FiShare2 } from 'react-icons/fi';
+import { BiSolidNotepad } from 'react-icons/bi';
+import { Tooltip } from 'react-tooltip';
+import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ShareCustomCollectionModal } from '@/components/customise/custom-shared';
 import {
@@ -31,6 +34,7 @@ import type { CustomGangType } from '@/app/actions/customise/custom-gang-types';
 import type { CustomTradingPost } from '@/app/actions/customise/custom-trading-posts';
 import type { UserCampaign } from '@/types/campaign';
 
+
 const TYPE_LABELS: Record<CollectionItemType, string> = {
   gang_type: 'Gang Type',
   fighter_type: 'Fighter',
@@ -50,8 +54,11 @@ interface CustomiseCollectionsProps {
   userId?: string;
   userCampaigns?: UserCampaign[];
   readOnly?: boolean;
+  /** Edition of everything shown here, and of anything created. */
+  editionSlug: string;
   // Candidate custom assets to add into a collection — the same arrays the Custom Assets
-  // tab already holds, so the editor needs no extra fetch.
+  // tab already holds, already filtered to editionSlug, so the item picker is
+  // edition-correct without filtering again here.
   customEquipment?: CustomEquipment[];
   customFighterTypes?: CustomFighterType[];
   customSkills?: CustomSkill[];
@@ -65,6 +72,7 @@ export function CustomiseCollections({
   userId,
   userCampaigns = [],
   readOnly = false,
+  editionSlug,
   customEquipment = [],
   customFighterTypes = [],
   customSkills = [],
@@ -72,6 +80,11 @@ export function CustomiseCollections({
   customTradingPosts = [],
 }: CustomiseCollectionsProps) {
   const [collections, setCollections] = useState<CustomCollectionWithItems[]>(initialCollections);
+  const [prevInitialCollections, setPrevInitialCollections] = useState(initialCollections);
+  if (initialCollections !== prevInitialCollections) {
+    setPrevInitialCollections(initialCollections);
+    setCollections(initialCollections);
+  }
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editModalData, setEditModalData] = useState<CustomCollectionWithItems | null>(null);
   const [viewModalData, setViewModalData] = useState<CustomCollectionWithItems | null>(null);
@@ -120,6 +133,7 @@ export function CustomiseCollections({
         description: data.description ?? null,
         items: [],
         resolvedItems: [],
+        edition_slug: data.edition_slug ?? null,
         created_at: new Date().toISOString(),
       };
       const previous = collections;
@@ -259,7 +273,7 @@ export function CustomiseCollections({
 
   const handleCreateConfirm = () => {
     if (!isFormValid()) return false;
-    createMutation.mutate({ name: formData.name, description: formData.description || null });
+    createMutation.mutate({ name: formData.name, description: formData.description || null, edition_slug: editionSlug });
     setIsAddModalOpen(false);
     resetForm();
     return true;
@@ -292,12 +306,12 @@ export function CustomiseCollections({
   };
 
   const columns: ListColumn[] = [
-    { key: 'name', label: 'Asset Collection', align: 'left', width: '35%' },
+    { key: 'name', label: 'Name', align: 'left', width: '35%' },
     {
       key: 'resolvedItems',
       label: 'Items',
       align: 'left',
-      width: '15%',
+      width: '55%',
       cellClassName: 'text-sm text-muted-foreground',
       render: (value) => {
         const count = (value as ResolvedCollectionItem[]).length;
@@ -306,11 +320,20 @@ export function CustomiseCollections({
     },
     {
       key: 'description',
-      label: 'Description',
+      label: 'Desc.',
       align: 'left',
-      width: '45%',
-      cellClassName: 'text-sm text-muted-foreground',
-      render: (value) => (value as string) || '-',
+      width: '5%',
+      render: (_value, item: CustomCollectionWithItems) =>
+        item.description?.trim() ? (
+          <span
+            className="inline-flex text-muted-foreground hover:text-foreground cursor-help"
+            data-tooltip-id="custom-collection-description-tooltip"
+            data-tooltip-title={item.name}
+            data-tooltip-description={item.description}
+          >
+            <BiSolidNotepad className="text-lg" aria-label="View asset collection description" />
+          </span>
+        ) : null,
     },
   ];
 
@@ -468,6 +491,21 @@ export function CustomiseCollections({
           onClose={() => setShareModalData(null)}
         />
       )}
+
+      <Tooltip
+        id="custom-collection-description-tooltip"
+        place="top"
+        className="bg-neutral-900! text-white! text-xs! z-[2000]!"
+        delayHide={100}
+        clickable={true}
+        render={renderDescriptionTooltip}
+        style={{
+          padding: '6px',
+          width: '24rem',
+          maxWidth: '90vw',
+          maxHeight: '60vh',
+        }}
+      />
     </div>
   );
 }

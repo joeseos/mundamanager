@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { getUserIdFromClaims } from "@/utils/auth";
+import { editionSlugFromJoin, sameEditionForDisplay, withEditionSlug } from "@/types/edition";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -28,7 +29,7 @@ export async function GET(request: Request) {
     // Build query - include gang origin data
     let query = supabase
       .from('gang_types')
-      .select('gang_type_id, gang_type, alignment, image_url, default_image_urls, affiliation, gang_origin_category_id')
+      .select('gang_type_id, gang_type, alignment, image_url, default_image_urls, affiliation, gang_origin_category_id, editions:edition_id (slug)')
       .order('gang_type');
 
     // Only filter out hidden types if user is not admin
@@ -45,7 +46,7 @@ export async function GET(request: Request) {
     // Run gang_types and affiliations in parallel (independent queries)
     const [gangTypesResult, affiliationsResult] = await Promise.all([
       query,
-      supabase.from('gang_affiliation').select('id, name').order('name'),
+      supabase.from('gang_affiliation').select('id, name, editions:edition_id (slug)').order('name'),
     ]);
 
     const { data: gangTypes, error } = gangTypesResult;
@@ -54,7 +55,11 @@ export async function GET(request: Request) {
     let allAffiliations: any[] = [];
     const { data: affiliations, error: affiliationError } = affiliationsResult;
     if (!affiliationError && affiliations) {
-      allAffiliations = affiliations;
+      allAffiliations = affiliations.map((affiliation) => ({
+        id: affiliation.id,
+        name: affiliation.name,
+        edition_slug: editionSlugFromJoin((affiliation as any).editions)
+      }));
     }
 
     // Get unique origin category IDs from gang types that have them
@@ -103,9 +108,13 @@ export async function GET(request: Request) {
         ? (originsByCategory[gangType.gang_origin_category_id] || [])
         : [];
 
+      const gangTypeWithEdition = withEditionSlug(gangType);
+
       return {
-        ...gangType,
-        available_affiliations: gangType.affiliation ? allAffiliations : [],
+        ...gangTypeWithEdition,
+        available_affiliations: gangType.affiliation
+          ? allAffiliations.filter(a => sameEditionForDisplay(a.edition_slug, gangTypeWithEdition.edition_slug))
+          : [],
         available_origins: availableOrigins
       };
     });
@@ -113,7 +122,7 @@ export async function GET(request: Request) {
     // Fetch user's own custom gang types
     const { data: ownCustomGangTypes } = await supabase
       .from('custom_gang_types')
-      .select('id, gang_type, alignment, default_image_urls')
+      .select('id, gang_type, alignment, default_image_urls, editions:edition_id (slug)')
       .eq('user_id', userId)
       .order('gang_type');
 
@@ -140,7 +149,7 @@ export async function GET(request: Request) {
       if (gangTypeIds.length > 0) {
         const { data: shared } = await supabase
           .from('custom_gang_types')
-          .select('id, gang_type, alignment, default_image_urls')
+          .select('id, gang_type, alignment, default_image_urls, editions:edition_id (slug)')
           .in('id', gangTypeIds);
 
         sharedCustomGangTypes = shared || [];
@@ -163,6 +172,7 @@ export async function GET(request: Request) {
       default_image_urls: cgt.default_image_urls,
       affiliation: false,
       gang_origin_category_id: null,
+      edition_slug: editionSlugFromJoin((cgt as any).editions),
       is_custom: true,
       available_affiliations: [],
       available_origins: []

@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
+import { getUserIdFromClaims } from "@/utils/auth";
 
 export interface CreateGangLogParams {
   gang_id: string;
@@ -20,16 +21,13 @@ export interface GangLogActionResult {
 export async function createGangLog(params: CreateGangLogParams): Promise<GangLogActionResult> {
   try {
     const supabase = await createClient();
-    
-    // Get the current user
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
+
+    // Claims are verified locally; getUser() would be a network round trip per log write
+    const userId = params.user_id || await getUserIdFromClaims(supabase);
+
+    if (!userId) {
       throw new Error('User not authenticated');
     }
-
-    // Use user_id from params or fallback to current user
-    const userId = params.user_id || user.id;
 
     // Insert gang log
     const { data, error } = await supabase

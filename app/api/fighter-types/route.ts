@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
-import { gangVariantFighterModifiers } from '@/utils/gangVariantMap';
 import { getUserCustomFighterTypes } from '@/app/lib/customise/custom-fighters';
 import { getUserIdFromClaims } from "@/utils/auth";
+import { withEditionSlug } from '@/types/edition';
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
+
+const variantGangTypeName = (variant: string) => `Variant: ${variant}`;
+
+// Keyed by name so a later edition's re-issue of the variant inherits the rule.
+const variantsWithoutLeaders = new Set(['secundan incursion']);
 
 // Fetch the user's own custom fighters plus any shared with them through campaigns,
 // de-duplicated by id.
@@ -29,12 +34,14 @@ async function getCombinedCustomFighters(supabase: SupabaseServerClient, userId:
     const fighterIds = sharedFighterIds?.map(sf => sf.custom_fighter_type_id).filter(Boolean) || [];
 
     if (fighterIds.length > 0) {
+      // Same edition embed as getUserCustomFighterTypes, so shared fighters
+      // carry an edition_slug rather than losing their edition features.
       const { data: sharedFighters } = await supabase
         .from('custom_fighter_types')
-        .select('*')
+        .select('*, editions:edition_id (slug)')
         .in('id', fighterIds);
 
-      sharedCustomFighters = sharedFighters || [];
+      sharedCustomFighters = (sharedFighters || []).map(withEditionSlug);
     }
   }
 
@@ -54,7 +61,7 @@ function transformCustomFighter(cf: any) {
   return {
     id: cf.id,
     fighter_type: cf.fighter_type,
-    fighter_class: cf.fighter_class || 'Custom',
+    fighter_subtypes: cf.fighter_subtypes || ['Custom'],
     gang_type: cf.gang_type,
     cost: cf.cost,
     gang_type_id: cf.gang_type_id,
@@ -73,6 +80,8 @@ function transformCustomFighter(cf: any) {
     willpower: cf.willpower,
     intelligence: cf.intelligence,
     attacks: cf.attacks,
+    save: cf.save ?? null,
+    edition_slug: cf.edition_slug ?? null,
     limitation: null,
     alignment: null,
     default_equipment: [],
@@ -80,13 +89,147 @@ function transformCustomFighter(cf: any) {
     alliance_id: '',
     alliance_crew_name: '',
     equipment_selection: null,
-    sub_type: null,
-    fighter_sub_type_id: null,
+    specialisation: null,
+    fighter_specialisation_id: null,
     available_legacies: [],
     is_custom_fighter: true,
     free_skill: cf.free_skill || false,
-    delegation_cost: cf.delegation_cost ?? null
+    delegation_cost: cf.delegation_cost ?? null,
+    is_vehicle: cf.is_vehicle ?? false
   };
+}
+
+const subtypeKey = (row: any) =>
+  ((row.fighter_subtypes ?? []) as string[]).map(s => s.toLowerCase().trim()).sort().join(',');
+
+const containsAllSubtypes = (subtypes: string[], base: string[]) => {
+  const have = new Set(subtypes.map(s => s.toLowerCase().trim()));
+  return base.every(name => have.has(name.toLowerCase().trim()));
+};
+
+// include_all_types returns every edition at once and is only narrowed to the gang's own
+// edition on the client, so the edition is part of the bucket: a family never spans two.
+const familyBucket = (row: any) => `${row.edition_slug ?? ''}::${row.fighter_type}`;
+
+/**
+ * Tags each row with its variant family — same fighter_type, and one row's subtype set
+ * containing the other's — named after the family's smallest (base) set. N26 variants can
+ * add a subtype, "Master of Shadow (Leader)" next to "(Leader, Wyrd)", which an exact
+ * subtype match lists as unrelated fighters. Disjoint sets stay apart, so N23's
+ * "Gunner (Ganger)" and "Gunner (Specialist)" keep their own entries.
+ */
+function withVariantGroups(rows: any[]) {
+  const byBucket = new Map<string, any[]>();
+  for (const row of rows) {
+    const group = byBucket.get(familyBucket(row));
+    if (group) group.push(row);
+    else byBucket.set(familyBucket(row), [row]);
+  }
+
+  const baseOfSet = new Map<string, { key: string; names: string[] }>();
+
+  for (const [bucket, group] of byBucket) {
+    const sets = new Map<string, string[]>();
+    for (const row of group) {
+      if (!sets.has(subtypeKey(row))) sets.set(subtypeKey(row), row.fighter_subtypes ?? []);
+    }
+
+    const bases: Array<{ key: string; names: string[] }> = [];
+    const smallestFirst = [...sets].sort(([keyA, a], [keyB, b]) =>
+      a.length - b.length || keyA.localeCompare(keyB)
+    );
+
+    for (const [key, names] of smallestFirst) {
+      const base = bases
+        .filter(candidate => containsAllSubtypes(names, candidate.names))
+        .sort((a, b) => b.names.length - a.names.length)[0];
+      if (!base) bases.push({ key, names });
+      baseOfSet.set(`${bucket}::${key}`, base ?? { key, names });
+    }
+  }
+
+  return rows.map(row => {
+    const base = baseOfSet.get(`${familyBucket(row)}::${subtypeKey(row)}`)!;
+    const inBase = new Set(base.names.map(name => name.toLowerCase().trim()));
+    const added = ((row.fighter_subtypes ?? []) as string[]).filter(
+      name => !inBase.has(name.toLowerCase().trim())
+    );
+    return {
+      ...row,
+      typeSubtypeKey: `${familyBucket(row)}::${base.key}`,
+      variantLabel:
+        row.fighter_variant || row.specialisation?.specialisation_name || added.join(', ') || 'Default',
+    };
+  });
+}
+
+// null means "no filter", which is what callers outside the gang add-modals want.
+function filterByIsVehicle(rows: any[], isVehicleParam: string | null) {
+  if (isVehicleParam === null) return rows;
+  const wantVehicles = isVehicleParam === 'true';
+  return rows.filter((type: any) => Boolean(type.is_vehicle) === wantVehicles);
+}
+
+async function getGangEditionId(
+  supabase: SupabaseServerClient,
+  gangTypeId: string | null,
+  customGangTypeId: string | null
+) {
+  if (gangTypeId) {
+    const { data } = await supabase
+      .from('gang_types')
+      .select('edition_id')
+      .eq('gang_type_id', gangTypeId)
+      .maybeSingle();
+    return data?.edition_id ?? null;
+  }
+  if (customGangTypeId) {
+    const { data } = await supabase
+      .from('custom_gang_types')
+      .select('edition_id')
+      .eq('id', customGangTypeId)
+      .maybeSingle();
+    return data?.edition_id ?? null;
+  }
+  return null;
+}
+
+// Vehicles any gang of this edition may take. N23 spells this as vehicle_types.gang_type_id
+// IS NULL; fighter_types.gang_type_id is NOT NULL, so the equivalent is the edition's
+// "Available to All" gang type. Resolving nothing is normal, not an error.
+async function getAvailableToAllFighterTypes(
+  supabase: SupabaseServerClient,
+  gangTypeId: string | null,
+  customGangTypeId: string | null
+) {
+  const editionId = await getGangEditionId(supabase, gangTypeId, customGangTypeId);
+  if (!editionId) return [];
+
+  const { data: sharedGangType } = await supabase
+    .from('gang_types')
+    .select('gang_type_id')
+    .eq('gang_type', 'Available to All')
+    .eq('edition_id', editionId)
+    .maybeSingle();
+
+  if (!sharedGangType?.gang_type_id) return [];
+
+  const { data, error } = await supabase.rpc('get_fighter_types_with_cost', {
+    p_gang_type_id: sharedGangType.gang_type_id,
+    p_gang_affiliation_id: null,
+    p_is_gang_addition: false
+  });
+
+  if (error) {
+    console.error('Error fetching Available to All fighter types:', error);
+    return [];
+  }
+  return data ?? [];
+}
+
+function mergeById(existing: any[], extra: any[]) {
+  const seen = new Set(existing.map((row: any) => row.id));
+  return [...existing, ...extra.filter((row: any) => !seen.has(row.id))];
 }
 
 export async function GET(request: Request) {
@@ -99,6 +242,8 @@ export async function GET(request: Request) {
   const includeCustomFighters = searchParams.get('include_custom_fighters') === 'true';
   const includeAllGangType = searchParams.get('include_all_gang_type') === 'true';
   const includeAllTypes = searchParams.get('include_all_types') === 'true';
+  // Tri-state: 'true' = vehicles only, 'false' = no vehicles, absent = unfiltered.
+  const isVehicleParam = searchParams.get('is_vehicle');
 
   if (!gangId && !isGangAddition && !includeAllTypes) {
     return NextResponse.json({ error: 'Gang ID is required' }, { status: 400 });
@@ -131,7 +276,11 @@ export async function GET(request: Request) {
         })
         .map(transformCustomFighter);
 
-      return NextResponse.json(data);
+      if (isVehicleParam === 'true') {
+        data = mergeById(data, await getAvailableToAllFighterTypes(supabase, gangTypeId, customGangTypeId));
+      }
+
+      return NextResponse.json(withVariantGroups(filterByIsVehicle(data, isVehicleParam)));
     }
 
     if (includeAllTypes) {
@@ -212,7 +361,7 @@ export async function GET(request: Request) {
     }
 
     // Fetch gang variants from the database
-    let gangVariants: Array<{id: string, variant: string}> = [];
+    let gangVariants: Array<{id: string, variant: string, edition_id: string | null}> = [];
     if (!isGangAddition) {
       try {
         // Get gang data including gang_variants
@@ -231,7 +380,7 @@ export async function GET(request: Request) {
         if (gangData.gang_variants && Array.isArray(gangData.gang_variants) && gangData.gang_variants.length > 0) {
           const { data: variantDetails, error: variantError } = await supabase
             .from('gang_variant_types')
-            .select('id, variant')
+            .select('id, variant, edition_id')
             .in('id', gangData.gang_variants);
 
           if (variantError) {
@@ -247,18 +396,32 @@ export async function GET(request: Request) {
       }
 
       if (gangVariants.length > 0) {
-        for (const variant of gangVariants) {
-          const variantModifier = gangVariantFighterModifiers[variant.id];
-          if (!variantModifier) continue;
+        // Match on edition too — "Malstrain Corrupted" exists in both N23 and N26.
+        const { data: variantGangTypes, error: variantGangTypesError } = await supabase
+          .from('gang_types')
+          .select('gang_type_id, gang_type, edition_id')
+          .in('gang_type', gangVariants.map(v => variantGangTypeName(v.variant)));
 
-          // Apply variant rules (like removing Leaders)
-          if (variantModifier.removeLeaders) {
-            data = data.filter((type: any) => type.fighter_class !== 'Leader');
+        // Falling through to "no variant fighters" is a fine degradation, but a failure here
+        // looks identical to a variant having no pool, so say so rather than vanish silently.
+        if (variantGangTypesError) {
+          console.error('Error fetching variant gang types:', variantGangTypesError);
+        }
+
+        for (const variant of gangVariants) {
+          if (variantsWithoutLeaders.has(variant.variant.toLowerCase())) {
+            data = data.filter((type: any) => !(type.fighter_subtypes ?? []).includes('Leader'));
           }
+
+          const variantGangTypeId = (variantGangTypes ?? []).find(gt =>
+            gt.gang_type === variantGangTypeName(variant.variant) &&
+            gt.edition_id === variant.edition_id
+          )?.gang_type_id;
+          if (!variantGangTypeId) continue;
 
           // Fetch variant-specific fighter types and merge
           const { data: variantData, error: variantError } = await supabase.rpc('get_fighter_types_with_cost', {
-            p_gang_type_id: variantModifier.variantGangTypeId,
+            p_gang_type_id: variantGangTypeId,
             p_gang_affiliation_id: null,
             p_is_gang_addition: false
           });
@@ -306,7 +469,12 @@ export async function GET(request: Request) {
       }
     }
 
-    return NextResponse.json(data);
+    // include_all_types already returns every gang type's fighters, shared ones included.
+    if (isVehicleParam === 'true' && !includeAllTypes) {
+      data = mergeById(data, await getAvailableToAllFighterTypes(supabase, gangTypeId, customGangTypeId));
+    }
+
+    return NextResponse.json(withVariantGroups(filterByIsVehicle(data, isVehicleParam)));
   } catch (error) {
     console.error('Error fetching fighter types:', error);
     return NextResponse.json({ error: 'Error fetching fighter types' }, { status: 500 });

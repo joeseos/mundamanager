@@ -7,8 +7,9 @@ import Modal from "@/components/ui/modal";
 import { Skill, FighterSkills, FighterEffect as FighterEffectType } from '@/types/fighter';
 import { TypeSpecificData } from '@/types/fighter-effect';
 import { createClient } from '@/utils/supabase/client';
-import { skillSetRank } from "@/utils/skillSetRank";
+import { getSkillSetRank } from "@/utils/skillSetRank";
 import { characteristicRank } from "@/utils/characteristicRank";
+import { openAdvancementsFor } from "@/utils/advancementRanks";
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -16,6 +17,9 @@ import {
   addCharacteristicAdvancement, 
   addSkillAdvancement, 
   applyPromotionWithSkillAdvancement,
+  applyN26ProspectPromotion,
+  applyN26GangerChampionPromotion,
+  applyN26ChampionLeaderPromotion,
   deleteAdvancement,
   verifyAndLogRolledGangerAdvancementRoll,
   verifyAndLogRolledSkillAdvancementRoll
@@ -31,14 +35,25 @@ import {
   rollNd6Outcome,
   GANGER_EXOTIC_BEAST_ADVANCEMENT_TABLE,
   resolveGangerExoticBeastAdvancementFromUtil,
-  type TableEntry
+  N26_ADVANCEMENT_TABLE,
+  resolveN26AdvancementFromUtil,
+  type TableEntry,
+  type N26AdvancementEntry
 } from '@/utils/dice';
+import { hasCumulativeXp } from '@/types/edition';
+import {
+  N26_CHAMPION_PROMOTION_SKILL_NAME,
+  N26_PROSPECT_PROMOTION_CREDITS,
+  getN26ProspectSpecialisation,
+} from '@/utils/keepTypePromotionN26';
 
 // AdvancementModal Interfaces
 interface AdvancementModalProps {
   fighterId: string;
   currentXp: number;
-  fighterClass: string;
+  openAdvancements: number;
+  editionSlug?: string | null;
+  fighterSubtypes: string[];
   advancements: Array<FighterEffectType>;
   skills: Record<string, any>;
   onClose: () => void;
@@ -54,14 +69,13 @@ interface AdvancementModalProps {
   fighterSpecialRules?: string[];
   fighterTypeName?: string;
   fighterTypeId?: string;
-  fighterSubTypeId?: string;
+  fighterSpecialisationId?: string;
   onFighterDetailsUpdate?: (patch: {
-    fighter_class?: string;
-    fighter_class_id?: string;
+    fighter_subtypes?: string[];
     fighter_type?: string;
     fighter_type_id?: string;
-    fighter_sub_type?: string | null;
-    fighter_sub_type_id?: string | null;
+    fighter_specialisation?: string | null;
+    fighter_specialisation_id?: string | null;
     special_rules?: string[];
   }) => void;
 }
@@ -111,7 +125,7 @@ interface SkillResponse {
     is_custom: boolean;
   }[];
   fighter_id: string;
-  fighter_class: string;
+  fighter_subtypes: string[];
 }
 
 interface SkillAcquisitionType {
@@ -167,9 +181,11 @@ interface FighterChanges {
 
 interface AdvancementsListProps {
   fighterXp: number;
+  fighterStartingXp?: number | null;
   fighterChanges?: FighterChanges;
   fighterId: string;
-  fighterClass: string;
+  editionSlug?: string | null;
+  fighterSubtypes: string[];
   advancements: Array<FighterEffectType>;
   skills: FighterSkills;
   userPermissions: UserPermissions;
@@ -183,14 +199,13 @@ interface AdvancementsListProps {
   fighterSpecialRules?: string[];
   fighterTypeName?: string;
   fighterTypeId?: string;
-  fighterSubTypeId?: string;
+  fighterSpecialisationId?: string;
   onFighterDetailsUpdate?: (patch: {
-    fighter_class?: string;
-    fighter_class_id?: string;
+    fighter_subtypes?: string[];
     fighter_type?: string;
     fighter_type_id?: string;
-    fighter_sub_type?: string | null;
-    fighter_sub_type_id?: string | null;
+    fighter_specialisation?: string | null;
+    fighter_specialisation_id?: string | null;
     special_rules?: string[];
   }) => void;
 }
@@ -304,8 +319,10 @@ type SkillSetComboboxOption = {
 function buildSkillSetComboboxOptions(
   categories: SkillType[],
   skillAccess: SkillAccess[],
-  highlightPrimaryOnly: boolean
+  highlightPrimaryOnly: boolean,
+  editionSlug?: string | null
 ): SkillSetComboboxOption[] {
+  const skillSetRank = getSkillSetRank(editionSlug);
   const skillAccessMap = new Map<string, SkillAccess>();
   skillAccess.forEach((a) => skillAccessMap.set(a.skill_type_id, a));
 
@@ -398,6 +415,7 @@ function buildSkillSetComboboxOptions(
 }
 
 const GANGER_ADVANCEMENT_TABLE_LABEL = 'Ganger / Exotic Beast Advancement';
+const N26_ADVANCEMENT_TABLE_LABEL = 'Advancement';
 
 const CHAMPION_PROMOTION_XP_COST = 12;
 const CHAMPION_PROMOTION_CREDITS_INCREASE = 40;
@@ -416,17 +434,40 @@ const GANGER_ADVANCEMENT_COMBO_OPTIONS: GangerAdvancementComboRow[] = GANGER_EXO
   })
 );
 
-function formatGangerAdvancementRangeLabel(entry: TableEntry): string {
+function formatAdvancementRangeLabel(entry: { range: readonly [number, number] }): string {
   const [a, b] = entry.range;
   return a === b ? `${a}` : `${a}-${b}`;
 }
 
-type GangerCharAdv = {
+/** N26 applies one table to every subtype — no Ganger/Exotic Beast split — so
+ *  every N26 fighter picks from these. */
+type N26AdvancementComboRow = N26AdvancementEntry & { id: string };
+
+const N26_ADVANCEMENT_COMBO_OPTIONS: N26AdvancementComboRow[] = N26_ADVANCEMENT_TABLE.map((entry) => ({
+  ...entry,
+  id: `n26-adv-${entry.range[0]}-${entry.range[1]}`
+}));
+
+/**
+ * One entry of the `characteristics` map returned by
+ * get_fighter_available_advancements, keyed by effect_name.
+ *
+ * The RPC resolves the fighter's edition from its gang and returns only that
+ * edition's rows, so this map is the edition-scoped catalog as well as the
+ * per-fighter costs. It is the modal's only source of characteristics — reading
+ * fighter_effect_types directly would offer every edition's rows at once, since
+ * effect_name repeats across editions.
+ */
+type CharacteristicAdvancement = {
   id: string;
   characteristic_code: string;
   xp_cost: number;
+  base_xp_cost: number;
   credits_increase: number;
   times_increased?: number;
+  is_available: boolean;
+  has_enough_xp: boolean;
+  can_purchase: boolean;
 };
 
 type AdvancementTypeValue = 'characteristic' | 'skill' | 'promotion_to_champion' | '';
@@ -437,7 +478,9 @@ type ChampionPendingPromotion = FighterPromotionResult;
 export function AdvancementModal({
   fighterId,
   currentXp,
-  fighterClass,
+  openAdvancements,
+  editionSlug = null,
+  fighterSubtypes,
   advancements,
   skills,
   onClose,
@@ -453,16 +496,16 @@ export function AdvancementModal({
   fighterSpecialRules = [],
   fighterTypeName = '',
   fighterTypeId = '',
-  fighterSubTypeId = '',
+  fighterSpecialisationId = '',
   onFighterDetailsUpdate
 }: AdvancementModalProps) {
   
-  const [categories, setCategories] = useState<(StatChangeCategory | SkillType)[]>([]);
+  const [skillSetCategories, setSkillSetCategories] = useState<SkillType[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [availableAdvancements, setAvailableAdvancements] = useState<AvailableAdvancement[]>([]);
   const [selectedAdvancement, setSelectedAdvancement] = useState<AvailableAdvancement | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [skillSetsLoading, setSkillSetsLoading] = useState(true);
   const [skillsLoading, setSkillsLoading] = useState(false);
   const [advancementType, setAdvancementType] = useState<AdvancementTypeValue>('');
   const [skillAcquisitionType, setSkillAcquisitionType] = useState<string>('');
@@ -476,7 +519,53 @@ export function AdvancementModal({
   // Ganger / Exotic Beast advancement roll UI (inline)
   const [gangerSelectedRowId, setGangerSelectedRowId] = useState('');
   const [gangerRollCooldown, setGangerRollCooldown] = useState(false);
-  const [gangerCharMap, setGangerCharMap] = useState<Record<string, GangerCharAdv>>({});
+  const [n26RollCooldown, setN26RollCooldown] = useState(false);
+  /** The chosen N26 result drives the ordinary flow; it has no purchase path. */
+  const [n26SelectedRowId, setN26SelectedRowId] = useState('');
+  const [n26CharacteristicName, setN26CharacteristicName] = useState('');
+  const [characteristicAdvancements, setCharacteristicAdvancements] = useState<Record<string, CharacteristicAdvancement>>({});
+  /** Whether the RPC has answered — distinct from it having returned rows, so an
+   *  edition with no Advancements ends the spinner instead of hanging on it. */
+  const [characteristicsLoaded, setCharacteristicsLoaded] = useState(false);
+  /** Why the catalog is missing, when it is. Held separately from `error` because
+   *  the fetch can fail before an advancement type is picked — the characteristic
+   *  UI surfaces it whenever it renders, and the Ganger roll UI ignores it. */
+  const [characteristicsError, setCharacteristicsError] = useState<string | null>(null);
+
+  // N26 earns Advancements by rank and spends no XP, so every fighter rolls on
+  // one table and no XP price is ever paid. The N23 subtype-specific tables and
+  // escalating costs do not apply.
+  const isCumulativeXp = hasCumulativeXp(editionSlug);
+
+  /**
+   * The characteristic list is derived from the RPC's map, not fetched and stored:
+   * the RPC has already scoped the rows to the fighter's edition, and effect_name
+   * repeats across editions, so reading fighter_effect_types directly would list
+   * every characteristic once per edition.
+   */
+  const characteristicCategories = useMemo<StatChangeCategory[]>(
+    () =>
+      Object.entries(characteristicAdvancements).map(([effect_name, info]) => ({
+        id: info.id,
+        effect_name,
+        type: 'characteristic' as const
+      })),
+    [characteristicAdvancements]
+  );
+
+  const categories: (StatChangeCategory | SkillType)[] =
+    advancementType === 'characteristic' ? characteristicCategories : skillSetCategories;
+
+  // Characteristics wait on the RPC, skill sets on their own fetch.
+  const loading =
+    advancementType === 'characteristic' ? !characteristicsLoaded : skillSetsLoading;
+
+  // A failed catalog fetch clears the spinner and leaves the dropdown empty, so
+  // say why instead of showing an unexplained empty list. Read at render rather
+  // than branched on inside the fetch, which cannot see the advancement type the
+  // user picks after it has already run.
+  const displayedError =
+    advancementType === 'characteristic' ? (characteristicsError ?? error) : error;
   const [gangerSpecialistCosts, setGangerSpecialistCosts] = useState<{ xp_cost: number; credits_increase: number }>({
     xp_cost: 6,
     credits_increase: 20
@@ -673,20 +762,31 @@ export function AdvancementModal({
     [gangerSelectedRowId]
   );
 
-  const isGangerOrExoticBeastClass =
-    fighterClass === 'Ganger' || fighterClass === 'Exotic Beast';
+  const n26SelectedRow = useMemo(
+    () => N26_ADVANCEMENT_COMBO_OPTIONS.find((r) => r.id === n26SelectedRowId),
+    [n26SelectedRowId]
+  );
 
+  const isGangerOrExoticBeastSubtype =
+    fighterSubtypes.includes('Ganger') || fighterSubtypes.includes('Exotic Beast');
+
+  // Edition matters as much as subtype: N26 never renders the Ganger picker, so a
+  // Ganger-subtyped N26 fighter would route Buy through a flow it can never satisfy.
   const gangerModalRollBuy =
-    isGangerOrExoticBeastClass &&
+    isGangerOrExoticBeastSubtype &&
+    !isCumulativeXp &&
     !!userPermissions &&
     !!onFighterDetailsUpdate;
 
+  // Promotions run between fighter subtypes, so vehicles are never a target — and the
+  // modal's "include all gang fighter types" option would otherwise offer them.
   const { data: preFetchedFighterTypes = [] } = useQuery({
-    queryKey: ['fighter-types-edit', gangId, gangTypeId, customGangTypeId],
+    queryKey: ['fighter-types-edit', gangId, gangTypeId, customGangTypeId, false],
     queryFn: async () => {
       const params = new URLSearchParams({
         gang_id: gangId,
-        is_gang_addition: 'false'
+        is_gang_addition: 'false',
+        is_vehicle: 'false'
       });
       if (gangTypeId) params.set('gang_type_id', gangTypeId);
       if (customGangTypeId) params.set('custom_gang_type_id', customGangTypeId);
@@ -699,8 +799,22 @@ export function AdvancementModal({
     staleTime: 10 * 60 * 1000,
   });
 
+  /**
+   * The one read of get_fighter_available_advancements. It feeds the
+   * characteristic dropdown, the cost panel behind it, and the Ganger/Exotic Beast
+   * roll UI, all of which used to fetch for themselves.
+   *
+   * Deliberately uncached: the response carries times_increased, the escalating
+   * xp_cost and has_enough_xp, all of which move the moment an Advancement is
+   * added.
+   */
+  // N26 resolves a characteristic to its effect type id when a result's radio is
+  // clicked, which happens before an advancement type is set — so it loads on open.
+  const needsAdvancementCatalog =
+    isGangerOrExoticBeastSubtype || isCumulativeXp || advancementType === 'characteristic';
+
   useEffect(() => {
-    if (!isGangerOrExoticBeastClass || !fighterId) return;
+    if (!needsAdvancementCatalog || !fighterId) return;
     let cancelled = false;
     const run = async () => {
       try {
@@ -718,11 +832,22 @@ export function AdvancementModal({
             body: JSON.stringify({ fighter_id: fighterId })
           }
         );
-        if (!response.ok || cancelled) return;
+        if (cancelled) return;
+        if (!response.ok) {
+          // 401 here is an expired session: the RPC is granted to authenticated
+          // only. Either way the dropdown would otherwise just come up empty.
+          setCharacteristicsError(
+            response.status === 401
+              ? 'Session expired — reload to load characteristics'
+              : 'Failed to load characteristics'
+          );
+          return;
+        }
         const data = await response.json();
         if (cancelled) return;
-        const ch = data?.characteristics as Record<string, GangerCharAdv> | undefined;
-        if (ch && typeof ch === 'object') setGangerCharMap(ch);
+        const ch = data?.characteristics as Record<string, CharacteristicAdvancement> | undefined;
+        if (ch && typeof ch === 'object') setCharacteristicAdvancements(ch);
+        setCharacteristicsError(null);
         const spec = data?.ganger_to_specialist_advancement as
           | { xp_cost?: number; credits_increase?: number }
           | undefined;
@@ -733,14 +858,17 @@ export function AdvancementModal({
           });
         }
       } catch {
-        // non-fatal
+        if (!cancelled) setCharacteristicsError('Failed to load characteristics');
+      } finally {
+        // Answered, for better or worse: release anything waiting on the catalog.
+        if (!cancelled) setCharacteristicsLoaded(true);
       }
     };
     void run();
     return () => {
       cancelled = true;
     };
-  }, [fighterId, isGangerOrExoticBeastClass]);
+  }, [fighterId, needsAdvancementCatalog]);
 
   const gangerPromotionTypeId = gangerPendingPromotion?.fighter_type_id;
   const shouldFetchPreviewSkillAccess = gangerSelectedRow?.kind === 'specialist' && !!gangerPromotionTypeId;
@@ -927,6 +1055,35 @@ export function AdvancementModal({
     }
   });
 
+  const logN26RollMutation = useMutation({
+    mutationFn: async (variables: { outcome_label: string; dice_data: Record<string, unknown> }) => {
+      const result = await verifyAndLogRolledGangerAdvancementRoll({
+        fighter_id: fighterId,
+        advancement_table: N26_ADVANCEMENT_TABLE_LABEL,
+        outcome_label: variables.outcome_label,
+        dice_data: variables.dice_data
+      });
+      if (!result.success) throw new Error(result.error || 'Failed to log advancement roll');
+      return result;
+    },
+    onSuccess: () => {
+      toast.success('Advancement roll logged');
+    },
+    onError: (e: Error) => {
+      toast.error(e?.message || 'Failed to log advancement roll');
+    }
+  });
+
+  const logN26RollWithCooldown = (outcomeLabel: string, rollTotal: number, dice: number[]) => {
+    if (n26RollCooldown || logN26RollMutation.isPending) return;
+    setN26RollCooldown(true);
+    try {
+      logN26RollMutation.mutate({ outcome_label: outcomeLabel, dice_data: { result: rollTotal, dice } });
+    } finally {
+      setTimeout(() => setN26RollCooldown(false), 2000);
+    }
+  };
+
   const logGangerSubRollMutation = useMutation({
     mutationFn: async (variables: { outcome_label: string; dice_data: Record<string, unknown> }) => {
       const result = await verifyAndLogRolledGangerAdvancementRoll({
@@ -1012,12 +1169,11 @@ export function AdvancementModal({
     },
     onSuccess: (_data, vars) => {
       onFighterDetailsUpdate?.({
-        fighter_class: vars.promotion.fighter_class,
-        fighter_class_id: vars.promotion.fighter_class_id,
+        fighter_subtypes: vars.promotion.fighter_subtypes,
         fighter_type: vars.promotion.fighter_type,
         fighter_type_id: vars.promotion.fighter_type_id,
-        fighter_sub_type: vars.promotion.fighter_sub_type ?? null,
-        fighter_sub_type_id: vars.promotion.fighter_sub_type_id ?? null,
+        fighter_specialisation: vars.promotion.fighter_specialisation ?? null,
+        fighter_specialisation_id: vars.promotion.fighter_specialisation_id ?? null,
         special_rules: vars.promotion.special_rules
       });
       toast.success('Advancement purchased');
@@ -1068,12 +1224,11 @@ export function AdvancementModal({
     },
     onSuccess: (_data, vars) => {
       onFighterDetailsUpdate?.({
-        fighter_class: vars.promotion.fighter_class,
-        fighter_class_id: vars.promotion.fighter_class_id,
+        fighter_subtypes: vars.promotion.fighter_subtypes,
         fighter_type: vars.promotion.fighter_type,
         fighter_type_id: vars.promotion.fighter_type_id,
-        fighter_sub_type: vars.promotion.fighter_sub_type ?? null,
-        fighter_sub_type_id: vars.promotion.fighter_sub_type_id ?? null,
+        fighter_specialisation: vars.promotion.fighter_specialisation ?? null,
+        fighter_specialisation_id: vars.promotion.fighter_specialisation_id ?? null,
         special_rules: vars.promotion.special_rules
       });
       toast.success('Advancement purchased');
@@ -1112,7 +1267,7 @@ export function AdvancementModal({
         toast.error('Select a table outcome');
         return false;
       }
-      const det = gangerCharMap[gangerPairStatName];
+      const det = characteristicAdvancements[gangerPairStatName];
       if (!det?.id) {
         toast.error('Could not resolve characteristic data');
         return false;
@@ -1141,7 +1296,7 @@ export function AdvancementModal({
       gangerSelectedRowId,
       gangerSelectedRow,
       gangerPairStatName,
-      gangerCharMap,
+      characteristicAdvancements,
       currentXp,
       fighterId,
       addCharacteristicMutation
@@ -1287,7 +1442,7 @@ export function AdvancementModal({
     if (!gangerSelectedRowId || !gangerSelectedRow) return { canBuy: false, pending };
     if (editableXpCost < 0 || currentXp < editableXpCost) return { canBuy: false, pending };
     if (gangerSelectedRow.kind === 'pair') {
-      const ok = !!(gangerPairStatName && gangerCharMap[gangerPairStatName]?.id);
+      const ok = !!(gangerPairStatName && characteristicAdvancements[gangerPairStatName]?.id);
       return { canBuy: ok, pending };
     }
     if (gangerSelectedRow.kind === 'specialist') {
@@ -1313,7 +1468,7 @@ export function AdvancementModal({
     editableXpCost,
     currentXp,
     gangerPairStatName,
-    gangerCharMap,
+    characteristicAdvancements,
     gangerPendingPromotion,
     gangerSelectedSkillSetId,
     gangerPreviewSkillAccess,
@@ -1325,12 +1480,12 @@ export function AdvancementModal({
   ]);
 
   const gangerCostsDepsKey = `${gangerModalRollBuy}-${gangerSelectedRow?.kind}-${gangerPairStatName}-${gangerCostsUserOverride}`;
-  const [prevGangerCostsDeps, setPrevGangerCostsDeps] = useState({ key: gangerCostsDepsKey, gangerCharMap, gangerSpecialistCosts });
-  if (gangerCostsDepsKey !== prevGangerCostsDeps.key || gangerCharMap !== prevGangerCostsDeps.gangerCharMap || gangerSpecialistCosts !== prevGangerCostsDeps.gangerSpecialistCosts) {
-    setPrevGangerCostsDeps({ key: gangerCostsDepsKey, gangerCharMap, gangerSpecialistCosts });
+  const [prevGangerCostsDeps, setPrevGangerCostsDeps] = useState({ key: gangerCostsDepsKey, characteristicAdvancements, gangerSpecialistCosts });
+  if (gangerCostsDepsKey !== prevGangerCostsDeps.key || characteristicAdvancements !== prevGangerCostsDeps.characteristicAdvancements || gangerSpecialistCosts !== prevGangerCostsDeps.gangerSpecialistCosts) {
+    setPrevGangerCostsDeps({ key: gangerCostsDepsKey, characteristicAdvancements, gangerSpecialistCosts });
     if (gangerModalRollBuy && gangerSelectedRow) {
       if (gangerSelectedRow.kind === 'pair' && gangerPairStatName) {
-        const det = gangerCharMap[gangerPairStatName];
+        const det = characteristicAdvancements[gangerPairStatName];
         if (det && !gangerCostsUserOverride) {
           setEditableXpCost(det.xp_cost ?? 6);
           setEditableCreditsIncrease(det.credits_increase ?? 0);
@@ -1438,7 +1593,7 @@ export function AdvancementModal({
   const gangerAdvancementComboboxOptions = useMemo(
     () =>
       GANGER_ADVANCEMENT_COMBO_OPTIONS.flatMap((row) => {
-        const range = formatGangerAdvancementRangeLabel(row);
+        const range = formatAdvancementRangeLabel(row);
         const displayText = `${range}: ${row.name}`;
         return [
           {
@@ -1456,14 +1611,70 @@ export function AdvancementModal({
     []
   );
 
+  const n26AdvancementComboboxOptions = useMemo(
+    () =>
+      N26_ADVANCEMENT_COMBO_OPTIONS.map((row) => {
+        const range = formatAdvancementRangeLabel(row);
+        return {
+          value: row.id,
+          label: (
+            <>
+              <span className="text-muted-foreground inline-block w-14 text-center mr-1">{range}</span>
+              {row.name}
+            </>
+          ),
+          displayValue: `${range}: ${row.name}`
+        };
+      }),
+    []
+  );
+
+  /** The effect watching selectedCategory fills in costs from the RPC map. */
+  const selectN26Characteristic = useCallback(
+    (name: string) => {
+      setN26CharacteristicName(name);
+      setAdvancementType('characteristic');
+      setSkillAcquisitionType('');
+      setSkillRollResult(null);
+      setSelectedAdvancement(null);
+      setSelectedCategory(characteristicAdvancements[name]?.id ?? '');
+    },
+    [characteristicAdvancements]
+  );
+
+  const selectN26SkillOutcome = useCallback(() => {
+    setN26CharacteristicName('');
+    setAdvancementType('skill');
+    setSelectedCategory('');
+    setSelectedAdvancement(null);
+    setSkillAcquisitionType('');
+    setSkillRollResult(null);
+    setAvailableAdvancements([]);
+  }, []);
+
+  const selectN26Row = useCallback((rowId: string) => {
+    const row = N26_ADVANCEMENT_COMBO_OPTIONS.find((r) => r.id === rowId);
+    // Nothing to disambiguate on a skill-only result, so skip the confirm step.
+    const skillOnly = !!row?.skillAcquisitionTypeIds?.length && !row?.characteristics?.length;
+    setN26SelectedRowId(rowId);
+    setN26CharacteristicName('');
+    setAdvancementType(skillOnly ? 'skill' : '');
+    setSelectedCategory('');
+    setSelectedAdvancement(null);
+    setSkillAcquisitionType('');
+    setSkillRollResult(null);
+    setAvailableAdvancements([]);
+  }, []);
+
   const gangerSpecialistSkillSetComboboxOptions = useMemo(
     () =>
       buildSkillSetComboboxOptions(
         gangerSpecialistSkillCategories,
         gangerPreviewSkillAccess,
-        true
+        true,
+        editionSlug
       ),
-    [gangerSpecialistSkillCategories, gangerPreviewSkillAccess]
+    [gangerSpecialistSkillCategories, gangerPreviewSkillAccess, editionSlug]
   );
 
   const gangerSelectedSkillSetAccess = useMemo<'primary' | 'secondary' | 'allowed' | null>(() => {
@@ -1494,15 +1705,15 @@ export function AdvancementModal({
       : '';
 
   const gangerPairDetail =
-    gangerSelectedRow?.kind === 'pair' && gangerPairStatName ? gangerCharMap[gangerPairStatName] : null;
+    gangerSelectedRow?.kind === 'pair' && gangerPairStatName ? characteristicAdvancements[gangerPairStatName] : null;
 
   const advancementTypeComboboxOptions = useMemo(() => {
     const options: Array<{ value: string; label: string }> = [...ADVANCEMENT_TYPE_COMBOBOX_OPTIONS];
-    if (fighterClass === 'Specialist' || fighterClass === 'Exotic Beast Specialist') {
+    if (fighterSubtypes.includes('Specialist') || fighterSubtypes.includes('Exotic Beast Specialist')) {
       options.push({ value: 'promotion_to_champion', label: 'Promotion to Champion' });
     }
     return options;
-  }, [fighterClass]);
+  }, [fighterSubtypes]);
 
   const isSkillLikeAdvancementType =
     advancementType === 'skill' || advancementType === 'promotion_to_champion';
@@ -1560,8 +1771,8 @@ export function AdvancementModal({
     statChangeCategories.forEach((category) => {
       const rank = characteristicRank[category.effect_name.toLowerCase()] ?? Infinity;
       let groupLabel = 'Misc.';
-      if (rank <= 8) groupLabel = 'Main Characteristics';
-      else if (rank <= 12) groupLabel = 'Psychology Characteristics';
+      if (rank <= 9) groupLabel = 'Main Characteristics';
+      else if (rank <= 13) groupLabel = 'Psychology Characteristics';
       if (!groupByLabel[groupLabel]) groupByLabel[groupLabel] = [];
       groupByLabel[groupLabel].push(category);
     });
@@ -1622,14 +1833,16 @@ export function AdvancementModal({
     return buildSkillSetComboboxOptions(
       skillCategories,
       accessSource,
-      advancementType === 'promotion_to_champion'
+      advancementType === 'promotion_to_champion',
+      editionSlug
     );
   }, [
     isSkillLikeAdvancementType,
     advancementType,
     categories,
     skillAccess,
-    championPreviewSkillAccess
+    championPreviewSkillAccess,
+    editionSlug
   ]);
 
   /**
@@ -1643,16 +1856,25 @@ export function AdvancementModal({
     );
     const allTypes = sample?.available_acquisition_types ?? [];
     if (allTypes.length === 0) return [];
+    // Access level is the only filter. An N26 result deliberately does not narrow this
+    // further: its table is an upper bound the player picks from, not a restriction.
     const allowedIds = new Set(getAllowedAcquisitionTypeIds(selectedSkillSetAccess, allTypes));
     return allTypes
       .filter((t) => allowedIds.has(t.type_id))
       .sort((a, b) => a.xp_cost - b.xp_cost)
-      .map((t) => ({
-        value: t.type_id,
-        label: `${t.name} (${t.xp_cost} XP, ${t.credit_cost} credits)`,
-        displayValue: `${t.name} (${t.xp_cost} XP, ${t.credit_cost} credits)`
-      }));
-  }, [advancementType, selectedCategory, availableAdvancements, selectedSkillSetAccess]);
+      .map((t) => {
+        const label = isCumulativeXp
+          ? t.name
+          : `${t.name} (${t.xp_cost} XP, ${t.credit_cost} credits)`;
+        return { value: t.type_id, label, displayValue: label };
+      });
+  }, [
+    advancementType,
+    selectedCategory,
+    availableAdvancements,
+    selectedSkillSetAccess,
+    isCumulativeXp
+  ]);
 
   /** Skill combobox options for the selected Skill Set; already-owned skills are disabled. */
   const skillComboboxOptions = useMemo(() => {
@@ -1683,6 +1905,11 @@ export function AdvancementModal({
       const sample = availableAdvancements.find(
         (a) => a.available_acquisition_types && a.available_acquisition_types.length > 0
       );
+      if (isCumulativeXp) {
+        setEditableXpCost(0);
+        setEditableCreditsIncrease(n26SelectedRow?.credits ?? 0);
+        return;
+      }
       const matched = sample?.available_acquisition_types?.find((t) => t.type_id === typeId);
       if (matched) {
         setEditableXpCost(matched.xp_cost);
@@ -1692,59 +1919,38 @@ export function AdvancementModal({
         setEditableCreditsIncrease(0);
       }
     },
-    [availableAdvancements]
+    [availableAdvancements, isCumulativeXp, n26SelectedRow]
   );
 
-  // Fetch stat change categories
+  // Fetch skill sets. Characteristics need no fetch here — they are derived from
+  // the advancement RPC above.
   useEffect(() => {
-    const fetchCategories = async () => {
-      if (!advancementType) return;
+    if (advancementType !== 'skill' && advancementType !== 'promotion_to_champion') return;
 
-      setLoading(true);
+    const fetchSkillSets = async () => {
+      setSkillSetsLoading(true);
       try {
-        if (advancementType === 'skill' || advancementType === 'promotion_to_champion') {
-          // Use the API route so both standard and custom skill types (including
-          // campaign-shared customs) are returned.
-          const response = await fetch(`/api/skill-types?fighterId=${encodeURIComponent(fighterId)}`);
-          if (!response.ok) throw new Error('Failed to fetch skill sets');
-          const data = await response.json();
-          const categoriesWithType = (data as Array<{ id: string; name: string; is_custom?: boolean }>).map(
-            (cat) => ({
-              ...cat,
-              type: 'skill' as const
-            })
-          );
-          setCategories(categoriesWithType);
-        } else {
-          const supabase = createClient();
-          const { data: { session } } = await supabase.auth.getSession();
-          const response = await fetch(
-            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/fighter_effect_types?fighter_effect_category_id=eq.789b2065-c26d-453b-a4d5-81c04c5d4419`,
-            {
-              headers: {
-                'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-                'Authorization': `Bearer ${session?.access_token || ''}`,
-                'Content-Type': 'application/json',
-              }
-            }
-          );
-          if (!response.ok) throw new Error('Failed to fetch characteristics');
-          const data = await response.json();
-          const categoriesWithType = data.map((cat: any) => ({
+        // Use the API route so both standard and custom skill types (including
+        // campaign-shared customs) are returned.
+        const response = await fetch(`/api/skill-types?fighterId=${encodeURIComponent(fighterId)}`);
+        if (!response.ok) throw new Error('Failed to fetch skill sets');
+        const data = await response.json();
+        const categoriesWithType = (data as Array<{ id: string; name: string; is_custom?: boolean }>).map(
+          (cat) => ({
             ...cat,
-            type: 'characteristic' as const
-          }));
-          setCategories(categoriesWithType);
-        }
+            type: 'skill' as const
+          })
+        );
+        setSkillSetCategories(categoriesWithType);
       } catch (err) {
         setError(`Failed to load ${advancementType} categories`);
         console.error(err);
       } finally {
-        setLoading(false);
+        setSkillSetsLoading(false);
       }
     };
 
-    fetchCategories();
+    fetchSkillSets();
   }, [advancementType, fighterId]);
 
   // Fetch available advancements when category is selected
@@ -1755,36 +1961,6 @@ export function AdvancementModal({
       try {
 
         if (advancementType === 'characteristic') {
-          // Only fetch characteristics if a category is selected
-          if (!selectedCategory) return;
-
-          
-          const supabase = createClient();
-          const { data: { session } } = await supabase.auth.getSession();
-          const response = await fetch(
-            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_fighter_available_advancements`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-                'Authorization': `Bearer ${session?.access_token || ''}`
-              },
-              body: JSON.stringify({
-                fighter_id: fighterId
-              })
-            }
-          );
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Response status:', response.status);
-            console.error('Response text:', errorText);
-            throw new Error('Failed to fetch available characteristics');
-          }
-
-          const data = await response.json();
-
           // Find the category name from the selected category
           const selectedCategoryObj = categories.find(cat => cat.id === selectedCategory);
           if (!selectedCategoryObj || !isStatChangeCategory(selectedCategoryObj)) {
@@ -1792,9 +1968,9 @@ export function AdvancementModal({
             return;
           }
 
-
-          // Get the advancement details for the selected characteristic
-          const advancementDetails = data.characteristics[selectedCategoryObj.effect_name];
+          // Costs come from the same RPC map that supplied the dropdown, so
+          // selecting a characteristic costs no round trip.
+          const advancementDetails = characteristicAdvancements[selectedCategoryObj.effect_name];
           if (!advancementDetails) {
             console.error('No advancement details found for category:', selectedCategoryObj.effect_name);
             return;
@@ -1879,7 +2055,7 @@ export function AdvancementModal({
     };
 
     fetchAvailableAdvancements();
-  }, [advancementType, selectedCategory, fighterId, currentXp, categories]);
+  }, [advancementType, selectedCategory, fighterId, currentXp, categories, characteristicAdvancements]);
 
   // Set initial values when an advancement/acquisition type is selected
   const [prevSelectedAdvancement, setPrevSelectedAdvancement] = useState(selectedAdvancement);
@@ -1990,7 +2166,7 @@ export function AdvancementModal({
   };
 
   const isGangerOrExoticBeastRestricted =
-    fighterClass === 'Ganger' || fighterClass === 'Exotic Beast';
+    fighterSubtypes.includes('Ganger') || fighterSubtypes.includes('Exotic Beast');
 
   const handleAdvancementPurchase = async () => {
     if (gangerModalRollBuy) {
@@ -2119,8 +2295,16 @@ export function AdvancementModal({
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <h3 className="text-xl md:text-2xl font-bold text-foreground">Advancements</h3>
           <div className="flex items-center">
-            <span className="mr-2 text-sm text-muted-foreground">XP</span>
-            <span className="bg-green-500 text-white text-sm rounded-full px-2 py-1">{currentXp}</span>
+            {isCumulativeXp ? (
+              <span className="align-middle inline-flex items-center rounded-full bg-green-500 px-2 py-0.5 text-xs font-semibold text-white">
+                Available: {openAdvancements}
+              </span>
+            ) : (
+              <>
+                <span className="mr-2 text-sm text-muted-foreground">XP</span>
+                <span className="bg-green-500 text-white text-sm rounded-full px-2 py-1">{currentXp}</span>
+              </>
+            )}
             <button
               onClick={onClose}
               className="ml-3 text-muted-foreground hover:text-muted-foreground text-xl"
@@ -2133,13 +2317,103 @@ export function AdvancementModal({
         <div className="p-2 overflow-y-auto grow">
           <div className="mb-4">
             <p className="text-sm text-muted-foreground mb-2">
-              XP cost and rating increase are automatically calculated based on the type and number of advancements.
+              {isCumulativeXp
+                ? 'Rating increase is automatically calculated based on the type and number of advancements. The roll is recorded in your gang log. You can select or adjust the outcome below, whether using this roll or applying your own.'
+                : 'XP cost and rating increase are automatically calculated based on the type and number of advancements.'}
             </p>
           </div>
 
-          {userPermissions &&
+          {isCumulativeXp && userPermissions && (
+            <div className="mb-4 space-y-4">
+              <div className="space-y-2">
+                <DiceRoller
+                  items={N26_ADVANCEMENT_TABLE}
+                  getRange={(r) => ({ min: r.range[0], max: r.range[1] })}
+                  getName={(r) => r.name}
+                  inline
+                  rollFn={() => rollNd6Outcome(2)}
+                  resolveNameForRoll={(t) => resolveN26AdvancementFromUtil(t)?.name}
+                  onRolled={(rolled) => {
+                    if (rolled.length > 0) {
+                      const { roll: total, dice } = rolled[0];
+                      const row = resolveN26AdvancementFromUtil(total);
+                      if (row) {
+                        // Preselect the roll; picking a lower result stays allowed.
+                        const combo = N26_ADVANCEMENT_COMBO_OPTIONS.find(
+                          (o) => o.range[0] === row.range[0] && o.range[1] === row.range[1]
+                        );
+                        if (combo) selectN26Row(combo.id);
+                        logN26RollWithCooldown(row.name, total, dice);
+                      }
+                    }
+                  }}
+                  onRoll={(total, dice) => {
+                    const row = resolveN26AdvancementFromUtil(total);
+                    if (row) logN26RollWithCooldown(row.name, total, dice);
+                  }}
+                  buttonText="Roll 2D6"
+                  disabled={!userPermissions.canEdit || logN26RollMutation.isPending || n26RollCooldown}
+                />
+              </div>
+
+              <div className="space-y-2 pt-2 border-t">
+                <label className="text-sm font-medium">Advancements</label>
+                <Combobox
+                  value={n26SelectedRowId}
+                  onValueChange={selectN26Row}
+                  placeholder="Select an Advancement"
+                  options={n26AdvancementComboboxOptions}
+                  dropdownPlacement="down"
+                />
+              </div>
+
+              {n26SelectedRow?.characteristics?.length ? (
+                <div className="space-y-3 border-t pt-3">
+                  <p className="text-sm font-medium">Choose a characteristic</p>
+                  <div className="flex flex-col gap-2">
+                    {n26SelectedRow.characteristics.map((name) => (
+                      <label key={name} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="radio"
+                          name="n26-characteristic"
+                          checked={n26CharacteristicName === name}
+                          onChange={() => selectN26Characteristic(name)}
+                          disabled={!characteristicsLoaded || !characteristicAdvancements[name]}
+                        />
+                        {name}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {n26SelectedRow?.skillAcquisitionTypeIds?.length ? (
+                <div className="space-y-3 border-t pt-3">
+                  <p className="text-sm font-medium">Choose a skill</p>
+                  {advancementType !== 'skill' ? (
+                    <Button
+                      type="button"
+                      variant="default"
+                      className="w-full sm:w-auto"
+                      onClick={selectN26SkillOutcome}
+                      disabled={!userPermissions.canEdit}
+                    >
+                      Take a skill instead
+                    </Button>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Pick a Skill Set below, then the skill this result awards.
+                    </p>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          )}
+
+          {!isCumulativeXp &&
+            userPermissions &&
             onFighterDetailsUpdate &&
-            (fighterClass === 'Ganger' || fighterClass === 'Exotic Beast') && (
+            (fighterSubtypes.includes('Ganger') || fighterSubtypes.includes('Exotic Beast')) && (
               <div className="mb-4 space-y-4">
                 <div>
                   <h4 className="font-semibold">Ganger / Exotic Beast</h4>
@@ -2246,7 +2520,7 @@ export function AdvancementModal({
                       <p className="text-xs text-green-600 dark:text-green-400">
                         Promotion to{' '}
                         <strong>
-                          {gangerPendingPromotion.fighter_type} ({gangerPendingPromotion.fighter_class})
+                          {gangerPendingPromotion.fighter_type} ({gangerPendingPromotion.fighter_subtypes.join(', ')})
                         </strong>{' '}
                         confirmed. Once the advancement is applied, this promotion cannot be undone.
                       </p>
@@ -2326,12 +2600,14 @@ export function AdvancementModal({
                 )}
 
                 <FighterPromotionModal
-                  currentClass={fighterClass}
+                  currentSubtype={fighterSubtypes[0] || ''}
+                  currentSubtypes={fighterSubtypes}
                   currentSpecialRules={fighterSpecialRules}
                   currentFighterType={fighterTypeName}
                   currentFighterTypeId={fighterTypeId}
-                  currentFighterSubTypeId={fighterSubTypeId || undefined}
+                  currentFighterSpecialisationId={fighterSpecialisationId || undefined}
                   fighterTypes={preFetchedFighterTypes}
+                  editionSlug={editionSlug}
                   isOpen={gangerPromotionOpen}
                   onClose={() => setGangerPromotionOpen(false)}
                   onPromoted={(data) => {
@@ -2343,9 +2619,12 @@ export function AdvancementModal({
             )}
 
           <div className="space-y-4">
-          {!isGangerOrExoticBeastRestricted && (
+          {(!isGangerOrExoticBeastRestricted || isCumulativeXp) && (
             <>
-            <div className="relative">
+            {/* The N26 result sets the advancement type itself, so this free-choice
+                picker would be a second route to the same purchase, untied to the
+                table. N23 Gangers are hidden from it for the same reason. */}
+            <div className={isCumulativeXp ? 'hidden' : 'relative'}>
               <Combobox
                 value={advancementType}
                 onValueChange={(v) => {
@@ -2385,7 +2664,7 @@ export function AdvancementModal({
                   <p className="text-xs text-green-600 dark:text-green-400">
                     Promotion to{' '}
                     <strong>
-                      {championPendingPromotion.fighter_type} ({championPendingPromotion.fighter_class})
+                      {championPendingPromotion.fighter_type} ({championPendingPromotion.fighter_subtypes.join(', ')})
                     </strong>{' '}
                     confirmed. Once the advancement is applied, this promotion cannot be undone.
                   </p>
@@ -2466,12 +2745,14 @@ export function AdvancementModal({
 
                 {onFighterDetailsUpdate && (
                   <FighterPromotionModal
-                    currentClass={fighterClass}
+                    currentSubtype={fighterSubtypes[0] || ''}
+                    currentSubtypes={fighterSubtypes}
                     currentSpecialRules={fighterSpecialRules}
                     currentFighterType={fighterTypeName}
                     currentFighterTypeId={fighterTypeId}
-                    currentFighterSubTypeId={fighterSubTypeId || undefined}
+                    currentFighterSpecialisationId={fighterSpecialisationId || undefined}
                     fighterTypes={preFetchedFighterTypes}
+                    editionSlug={editionSlug}
                     isOpen={championPromotionOpen}
                     onClose={() => setChampionPromotionOpen(false)}
                     onPromoted={(data) => {
@@ -2487,7 +2768,7 @@ export function AdvancementModal({
               </div>
             )}
 
-            {advancementType === 'characteristic' && !loading && (
+            {advancementType === 'characteristic' && !loading && !isCumulativeXp && (
               <div className="relative">
                 <Combobox
                   value={selectedCategory}
@@ -2592,7 +2873,9 @@ export function AdvancementModal({
             </>
           )}
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className={isCumulativeXp ? '' : 'grid grid-cols-2 gap-4'}>
+              {/* No XP is spent in a rank-based edition, so there is no cost to show or edit. */}
+              {!isCumulativeXp && (
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
                   XP Cost
@@ -2608,6 +2891,7 @@ export function AdvancementModal({
                   min="0"
                 />
               </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Cost Increase in Credits
@@ -2633,8 +2917,8 @@ export function AdvancementModal({
               </div>
             </div>
 
-            {error && (
-              <p className="text-red-500 text-sm">{error}</p>
+            {displayedError && (
+              <p className="text-red-500 text-sm">{displayedError}</p>
             )}
             <div className="border-t pt-2 flex justify-end gap-2">
             <button
@@ -2653,7 +2937,7 @@ export function AdvancementModal({
               }`}
                 disabled={buyAdvancementDisabled}
               >
-                Buy Advancement
+                Confirm
               </Button>
             </div>
           </div>
@@ -2666,9 +2950,11 @@ export function AdvancementModal({
 // AdvancementsList Component
 export function AdvancementsList({
   fighterXp,
+  fighterStartingXp = null,
   fighterChanges = { advancement: [], characteristics: [], skills: [] },
   fighterId,
-  fighterClass,
+  editionSlug = null,
+  fighterSubtypes,
   advancements = [],
   skills = {},
   userPermissions,
@@ -2682,21 +2968,26 @@ export function AdvancementsList({
   fighterSpecialRules = [],
   fighterTypeName = '',
   fighterTypeId = '',
-  fighterSubTypeId = '',
+  fighterSpecialisationId = '',
   onFighterDetailsUpdate
 }: AdvancementsListProps) {
   const [isAdvancementModalOpen, setIsAdvancementModalOpen] = useState(false);
   const [isStandalonePromotionOpen, setIsStandalonePromotionOpen] = useState(false);
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string; type: string } | null>(null);
 
-  const showPromoteButton = ['Ganger', 'Juve', 'Prospect', 'Champion', 'Specialist', 'Exotic Beast', 'Exotic Beast Specialist'].includes(fighterClass);
+  // No XP is spent on Advancements in a rank-based edition, so there is no XP
+  // cost to list and nothing to refund when one is undone.
+  const isCumulativeXp = hasCumulativeXp(editionSlug);
+
+  const showPromoteButton = fighterSubtypes.some(c => ['Ganger', 'Juve', 'Prospect', 'Champion', 'Specialist', 'Exotic Beast', 'Exotic Beast Specialist'].includes(c));
 
   const { data: preFetchedFighterTypes = [] } = useQuery({
-    queryKey: ['fighter-types-edit', gangId, gangTypeId, customGangTypeId],
+    queryKey: ['fighter-types-edit', gangId, gangTypeId, customGangTypeId, false],
     queryFn: async () => {
       const params = new URLSearchParams({
         gang_id: gangId,
-        is_gang_addition: 'false'
+        is_gang_addition: 'false',
+        is_vehicle: 'false'
       });
       if (gangTypeId) params.set('gang_type_id', gangTypeId);
       if (customGangTypeId) params.set('custom_gang_type_id', customGangTypeId);
@@ -2709,24 +3000,64 @@ export function AdvancementsList({
     staleTime: 10 * 60 * 1000,
   });
 
-  const currentPromotionSubType = useMemo(() => {
+  const currentPromotionSpecialisation = useMemo(() => {
     const match = preFetchedFighterTypes.find((ft: any) => ft.id === fighterTypeId);
     return {
-      fighter_sub_type: match?.sub_type?.sub_type_name ?? null,
-      fighter_sub_type_id: fighterSubTypeId || (match?.sub_type?.id ?? null),
+      fighter_specialisation: match?.specialisation?.specialisation_name ?? null,
+      fighter_specialisation_id: fighterSpecialisationId || (match?.specialisation?.id ?? null),
     };
-  }, [preFetchedFighterTypes, fighterTypeId, fighterSubTypeId]);
+  }, [preFetchedFighterTypes, fighterTypeId, fighterSpecialisationId]);
 
   const standalonePromotionMutation = useMutation({
     mutationFn: async (promotion: FighterPromotionResult) => {
+      if (promotion.kind === 'n26_prospect') {
+        if (!promotion.fighter_specialisation_id) {
+          throw new Error('Specialisation is required for Prospect promotion');
+        }
+        const result = await applyN26ProspectPromotion({
+          fighter_id: fighterId,
+          fighter_specialisation_id: promotion.fighter_specialisation_id,
+          special_rules: promotion.special_rules,
+        });
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to promote fighter');
+        }
+        return result;
+      }
+
+      if (promotion.kind === 'n26_ganger_champion') {
+        const result = await applyN26GangerChampionPromotion({
+          fighter_id: fighterId,
+          special_rules: promotion.special_rules,
+        });
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to promote fighter');
+        }
+        return result;
+      }
+
+      if (promotion.kind === 'n26_champion_leader') {
+        if (!promotion.fighter_type_id) {
+          throw new Error('A Leader fighter type is required');
+        }
+        const result = await applyN26ChampionLeaderPromotion({
+          fighter_id: fighterId,
+          fighter_type_id: promotion.fighter_type_id,
+          special_rules: promotion.special_rules,
+        });
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to promote fighter');
+        }
+        return result;
+      }
+
       const result = await updateFighterDetails({
         fighter_id: fighterId,
-        fighter_class: promotion.fighter_class,
-        fighter_class_id: promotion.fighter_class_id,
+        fighter_subtypes: promotion.fighter_subtypes,
         fighter_type: promotion.fighter_type,
         fighter_type_id: promotion.fighter_type_id,
-        fighter_sub_type: promotion.fighter_sub_type ?? null,
-        fighter_sub_type_id: promotion.fighter_sub_type_id ?? null,
+        fighter_specialisation: promotion.fighter_specialisation ?? null,
+        fighter_specialisation_id: promotion.fighter_specialisation_id ?? null,
         special_rules: promotion.special_rules,
       });
       if (!result.success) {
@@ -2736,22 +3067,99 @@ export function AdvancementsList({
     },
     onMutate: async (promotion) => {
       const previousPatch = {
-        fighter_class: fighterClass,
+        fighter_subtypes: fighterSubtypes,
         fighter_type: fighterTypeName,
         fighter_type_id: fighterTypeId,
         special_rules: fighterSpecialRules,
-        ...currentPromotionSubType,
+        ...currentPromotionSpecialisation,
       };
+      const previousSkills = { ...skills };
+      const creditsIncrease =
+        promotion.kind === 'n26_prospect'
+          ? (promotion.credits_increase ?? N26_PROSPECT_PROMOTION_CREDITS)
+          : 0;
+      const optimisticSkillName =
+        promotion.kind === 'n26_prospect' && promotion.fighter_specialisation_id
+          ? getN26ProspectSpecialisation(promotion.fighter_specialisation_id)?.skillName
+          : promotion.kind === 'n26_ganger_champion' || promotion.kind === 'n26_champion_leader'
+            ? N26_CHAMPION_PROMOTION_SKILL_NAME
+            : undefined;
+
       onFighterDetailsUpdate?.(promotion);
-      return { previousPatch };
+
+      // Grant is not an Advancement (is_advance: false) — lands in Skills.
+      // Champion→Leader skips optimistic grant when Inspiring is already present.
+      if (optimisticSkillName && onSkillUpdate && !skills[optimisticSkillName]) {
+        const optimisticId =
+          promotion.kind === 'n26_prospect'
+            ? `optimistic-n26-prospect-${promotion.fighter_specialisation_id}`
+            : promotion.kind === 'n26_champion_leader'
+              ? 'optimistic-n26-champion-leader'
+              : 'optimistic-n26-ganger-champion';
+        onSkillUpdate({
+          ...skills,
+          [optimisticSkillName]: {
+            id: optimisticId,
+            name: optimisticSkillName,
+            xp_cost: 0,
+            credits_increase: creditsIncrease,
+            is_advance: false,
+            acquired_at: new Date().toISOString(),
+          } as any,
+        });
+      }
+
+      if (creditsIncrease > 0 && onXpCreditsUpdate) {
+        onXpCreditsUpdate(0, creditsIncrease);
+      }
+
+      return { previousPatch, previousSkills, creditsIncrease, optimisticSkillName };
     },
-    onSuccess: () => {
+    onSuccess: (result, promotion, context) => {
+      // Replace optimistic skill id with the real fighter_skills row id
+      const isPromotionSkillGrant =
+        promotion.kind === 'n26_prospect' ||
+        promotion.kind === 'n26_ganger_champion' ||
+        promotion.kind === 'n26_champion_leader';
+      const skillId =
+        isPromotionSkillGrant && result && 'advancement' in result
+          ? result.advancement?.id
+          : undefined;
+      if (
+        isPromotionSkillGrant &&
+        context?.optimisticSkillName &&
+        skillId &&
+        onSkillUpdate &&
+        context.previousSkills
+      ) {
+        const skillName = context.optimisticSkillName;
+        onSkillUpdate({
+          ...context.previousSkills,
+          [skillName]: {
+            id: skillId,
+            name: skillName,
+            xp_cost: 0,
+            credits_increase:
+              promotion.kind === 'n26_prospect'
+                ? (context.creditsIncrease ?? N26_PROSPECT_PROMOTION_CREDITS)
+                : 0,
+            is_advance: false,
+            acquired_at: new Date().toISOString(),
+          } as any,
+        });
+      }
       setIsStandalonePromotionOpen(false);
       toast.success('Fighter promoted successfully');
     },
     onError: (error, _promotion, context) => {
       if (context?.previousPatch) {
         onFighterDetailsUpdate?.(context.previousPatch);
+      }
+      if (context?.previousSkills && onSkillUpdate) {
+        onSkillUpdate(context.previousSkills);
+      }
+      if (context?.creditsIncrease && onXpCreditsUpdate) {
+        onXpCreditsUpdate(0, -context.creditsIncrease);
       }
       toast.error(error instanceof Error ? error.message : 'Failed to promote fighter');
     },
@@ -2967,17 +3375,34 @@ export function AdvancementsList({
   }, [advancements, advancementSkills]);
 
   const advancementCount = advancements.length + advancementSkills.length;
+
+  // advancementCount is the taken count: effects plus is_advance skills.
+  const openAdvancements = openAdvancementsFor(
+    editionSlug,
+    fighterStartingXp,
+    fighterXp,
+    advancementCount,
+  );
+
   const title = (
     <>
       <span className="sm:hidden">Advanc.</span>
       <span className="hidden sm:inline">Advancements</span>
-      {advancementCount > 0 && (
-        <>
-          {' '}
+      {isCumulativeXp ? (
+        openAdvancements > 0 ? (
+          <span className="ml-auto inline-flex items-center gap-1 mr-1 whitespace-nowrap">
+            <span className="align-middle inline-flex items-center rounded-full bg-green-500 px-2 py-0.5 text-xs font-semibold text-white">
+              <span className="sm:hidden">Avail: {openAdvancements}</span>
+              <span className="hidden sm:inline">Available: {openAdvancements}</span>
+            </span>
+          </span>
+        ) : null
+      ) : advancementCount > 0 ? (
+        <span className="ml-auto whitespace-nowrap">
           <span className="text-sm sm:hidden">({advancementCount})</span>
           <span className="text-sm hidden sm:inline">(Adv. count: {advancementCount})</span>
-        </>
-      )}
+        </span>
+      ) : null}
     </>
   );
 
@@ -2985,8 +3410,20 @@ export function AdvancementsList({
     <>
       <List
         title={title}
+        titleClassName="flex flex-1 items-center min-w-0"
         items={transformedAdvancements}
-        columns={[
+        columns={isCumulativeXp ? [
+          {
+            key: 'name',
+            label: 'Name',
+            width: '75%'
+          },
+          {
+            key: 'credits_increase',
+            label: 'Cost',
+            align: 'right'
+          }
+        ] : [
           {
             key: 'name',
             label: 'Name',
@@ -3037,12 +3474,14 @@ export function AdvancementsList({
 
       {/* Modals */}
       <FighterPromotionModal
-        currentClass={fighterClass}
+        currentSubtype={fighterSubtypes[0] || ''}
+        currentSubtypes={fighterSubtypes}
         currentSpecialRules={fighterSpecialRules}
         currentFighterType={fighterTypeName}
         currentFighterTypeId={fighterTypeId}
-        currentFighterSubTypeId={fighterSubTypeId || undefined}
+        currentFighterSpecialisationId={fighterSpecialisationId || undefined}
         fighterTypes={preFetchedFighterTypes}
+        editionSlug={editionSlug}
         isOpen={isStandalonePromotionOpen}
         onClose={() => setIsStandalonePromotionOpen(false)}
         showXpPromotionHint
@@ -3055,7 +3494,9 @@ export function AdvancementsList({
         <AdvancementModal
           fighterId={fighterId}
           currentXp={fighterXp}
-          fighterClass={fighterClass}
+          openAdvancements={openAdvancements}
+          editionSlug={editionSlug}
+          fighterSubtypes={fighterSubtypes}
           advancements={advancements}
           skills={skills}
           onClose={() => setIsAdvancementModalOpen(false)}
@@ -3071,7 +3512,7 @@ export function AdvancementsList({
           fighterSpecialRules={fighterSpecialRules}
           fighterTypeName={fighterTypeName}
           fighterTypeId={fighterTypeId}
-          fighterSubTypeId={fighterSubTypeId}
+          fighterSpecialisationId={fighterSpecialisationId}
           onFighterDetailsUpdate={onFighterDetailsUpdate}
         />
       )}
@@ -3083,7 +3524,11 @@ export function AdvancementsList({
             <div>
               <p>Are you sure you want to undo <strong>{deleteModalData.name}</strong>?</p>
               <br />
-              <p>XP spent will be refunded and the fighter&apos;s value will be adjusted accordingly.</p>
+              <p>
+                {isCumulativeXp
+                  ? "The fighter's value will be adjusted accordingly."
+                  : "XP spent will be refunded and the fighter's value will be adjusted accordingly."}
+              </p>
             </div>
           }
           onClose={() => setDeleteModalData(null)}

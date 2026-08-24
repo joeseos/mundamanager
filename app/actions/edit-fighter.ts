@@ -10,6 +10,11 @@ import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { logFighterAction } from './logs/fighter-logs';
 import { countsTowardRating, hasKilledStatusFlag } from '@/utils/fighter-status';
 import { updateGangFinancials, updateGangRatingSimple, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
+import { insertFighterOoaRecords } from './fighter-ooa-records';
+import { allowsMultipleSubtypes } from '@/types/edition';
+import { resolveFighterEditionSlug } from '@/utils/fighter-subtype-grants';
+import { assertArchetypeAssignable } from '@/utils/assertArchetypeAssignable';
+import { mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -111,19 +116,94 @@ export interface UpdateFighterDetailsParams {
   kill_count?: number;
   cost_adjustment?: number;
   special_rules?: string[];
-  fighter_class?: string;
-  fighter_class_id?: string;
+  fighter_subtypes?: string[];
   fighter_type?: string;
   fighter_type_id?: string | null;
   custom_fighter_type_id?: string | null;
-  fighter_sub_type?: string | null;
-  fighter_sub_type_id?: string | null;
+  fighter_specialisation?: string | null;
+  fighter_specialisation_id?: string | null;
   note?: string;
   note_backstory?: string;
   fighter_gang_legacy_id?: string | null;
   selected_archetype_id?: string | null;
   // New: optional stat adjustments to be applied as user effects
   stat_adjustments?: Record<string, number>;
+}
+
+/** Trim, drop empties, dedupe while preserving first-seen order. */
+function normalizeFighterSubtypeNames(subtypes: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const raw of subtypes) {
+    const name = typeof raw === 'string' ? raw.trim() : '';
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    result.push(name);
+  }
+  return result;
+}
+
+
+async function validateFighterSubtypesForUpdate(
+  supabase: any,
+  fighterId: string,
+  subtypes: string[],
+  currentSubtypes?: string[] | null
+): Promise<
+  // Nullable: an unresolved edition is legacy N23, not a failure
+  | { ok: true; subtypes: string[]; editionSlug: string | null }
+  | { ok: false; error: string }
+> {
+  const normalized = normalizeFighterSubtypeNames(subtypes);
+  const previous = normalizeFighterSubtypeNames(
+    Array.isArray(currentSubtypes) ? currentSubtypes : []
+  );
+
+  // Mirror client confirmDisabled: do not allow wiping a non-empty subtype list
+  if (normalized.length === 0 && previous.length > 0) {
+    return {
+      ok: false,
+      error: 'At least one fighter subtype is required.',
+    };
+  }
+
+  const editionSlug = await resolveFighterEditionSlug(supabase, fighterId);
+
+  // allowsMultipleSubtypes(null) is false, so an unresolved edition keeps the
+  // legacy single-subtype rule instead of rejecting the save outright.
+  if (!allowsMultipleSubtypes(editionSlug) && normalized.length > 1) {
+    return {
+      ok: false,
+      error: 'This edition only allows one fighter subtype.',
+    };
+  }
+
+  // No edition means no catalog to check against; legacy rows keep their names.
+  if (editionSlug && normalized.length > 0) {
+    const { data: catalog, error: catalogError } = await supabase
+      .from('fighter_subtypes')
+      .select('subtype_name, editions!inner ( slug )')
+      .eq('editions.slug', editionSlug);
+
+    if (catalogError) {
+      return { ok: false, error: 'Failed to validate fighter subtypes.' };
+    }
+
+    const validNames = new Set((catalog ?? []).map((row: { subtype_name: string }) => row.subtype_name));
+    // Names the fighter already carries are grandfathered — 133 fighters hold
+    // alliance-crew subtypes that were never rows in fighter_subtypes.
+    const unknown = normalized.filter(
+      name => !validNames.has(name) && !previous.includes(name)
+    );
+    if (unknown.length > 0) {
+      return {
+        ok: false,
+        error: `Unknown fighter subtype(s) for this edition: ${unknown.join(', ')}`,
+      };
+    }
+  }
+
+  return { ok: true, subtypes: normalized, editionSlug };
 }
 
 interface EditFighterResult {
@@ -143,6 +223,8 @@ interface EditFighterResult {
     kill_count?: number;
   };
   error?: string;
+  /** Partial-success note (e.g. archetype saved but skill-access overrides failed) */
+  warning?: string;
   fighter?: {
     id: string;
     fighter_name: string;
@@ -1178,6 +1260,13 @@ export interface UpdateFighterXpWithOoaParams {
   xp_breakdown?: Record<string, number>;
   /** Optional note for Misc. XP - logged if present when misc is in breakdown */
   xp_misc_note?: string;
+  /** Campaign the OOA/wreck happened in (for context, optional) */
+  campaign_id?: string;
+  /** Optional records of opposing fighters taken OOA / vehicles wrecked. Snapshots are computed server-side. Omit injured_fighter_id for an unknown target. */
+  ooa_records?: Array<{
+    injured_fighter_id?: string;
+    event_type: 'out_of_action' | 'vehicle_wrecked';
+  }>;
 }
 
 export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParams): Promise<EditFighterResult> {
@@ -1189,13 +1278,15 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
     // Get fighter data (RLS will handle permissions)
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, xp, kills, kill_count, fighter_name, fighter_type_id, fighter_types(is_spyrer)')
+      .select('id, gang_id, xp, kills, kill_count, fighter_name, fighter_type, fighter_subtypes, fighter_type_id, fighter_types(is_spyrer), gangs!gang_id(name)')
       .eq('id', params.fighter_id)
       .single();
 
     if (fighterError || !fighter) {
       throw new Error('Fighter not found');
     }
+
+    const causingGang = fighter.gangs && typeof fighter.gangs === 'object' ? fighter.gangs : null;
 
     // Type-safe access to fighter_types (may be null for custom fighters)
     const fighterTypes = fighter.fighter_types;
@@ -1249,6 +1340,24 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
       console.error('Failed to log fighter XP change:', logError);
     }
 
+    // Record OOA / vehicle-wreck targets (optional). Failure here does not fail the XP write.
+    if (params.ooa_records && params.ooa_records.length > 0) {
+      try {
+        await insertFighterOoaRecords(supabase, {
+          causing_fighter_id: params.fighter_id,
+          causing_fighter_name: fighter.fighter_name,
+          causing_fighter_type: fighter.fighter_type,
+          causing_fighter_subtypes: fighter.fighter_subtypes ?? [],
+          causing_gang_id: fighter.gang_id,
+          causing_gang_name: (causingGang as any)?.name ?? null,
+          campaign_id: params.campaign_id,
+          records: params.ooa_records
+        });
+      } catch (recordError) {
+        console.error('Failed to record fighter OOA/wreck targets:', recordError);
+      }
+    }
+
     // Invalidate cache - surgical XP-only invalidation
     revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
     invalidateGang(fighter.gang_id);
@@ -1286,7 +1395,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     // Get fighter data (RLS will handle permissions)
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, user_id, cost_adjustment, kills, kill_count, killed, retired, enslaved, captured, fighter_name')
+      .select('id, gang_id, user_id, cost_adjustment, kills, kill_count, killed, retired, enslaved, captured, fighter_name, fighter_subtypes, selected_archetype_id')
       .eq('id', params.fighter_id)
       .single();
 
@@ -1310,27 +1419,188 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (params.kill_count !== undefined) updateData.kill_count = params.kill_count;
     if (params.cost_adjustment !== undefined) updateData.cost_adjustment = params.cost_adjustment;
     if (params.special_rules !== undefined) updateData.special_rules = params.special_rules;
-    if (params.fighter_class !== undefined) updateData.fighter_class = params.fighter_class;
-    if (params.fighter_class_id !== undefined) updateData.fighter_class_id = params.fighter_class_id;
+
+    // undefined = not resolved yet; null = resolved to no edition (legacy N23)
+    let resolvedEditionSlug: string | null | undefined;
+
+    if (params.fighter_subtypes !== undefined) {
+      const validated = await validateFighterSubtypesForUpdate(
+        supabase,
+        params.fighter_id,
+        params.fighter_subtypes,
+        fighter.fighter_subtypes
+      );
+      if (!validated.ok) {
+        return { success: false, error: validated.error };
+      }
+      updateData.fighter_subtypes = validated.subtypes;
+      resolvedEditionSlug = validated.editionSlug;
+    }
     if (params.fighter_type !== undefined) updateData.fighter_type = params.fighter_type;
     if (params.fighter_type_id !== undefined) updateData.fighter_type_id = params.fighter_type_id;
     if (params.custom_fighter_type_id !== undefined) updateData.custom_fighter_type_id = params.custom_fighter_type_id;
-    if (params.fighter_sub_type !== undefined) updateData.fighter_sub_type = params.fighter_sub_type;
-    if (params.fighter_sub_type_id !== undefined) updateData.fighter_sub_type_id = params.fighter_sub_type_id;
+    if (params.fighter_specialisation !== undefined) updateData.fighter_specialisation = params.fighter_specialisation;
+    if (params.fighter_specialisation_id !== undefined) updateData.fighter_specialisation_id = params.fighter_specialisation_id;
+
+    // An explicit specialisation from the caller wins over the type row's.
+    if (params.fighter_type_id !== undefined || params.custom_fighter_type_id !== undefined) {
+      const { data: typeRow } = params.fighter_type_id
+        ? await supabase
+            .from('fighter_types')
+            .select('fighter_variant, fighter_specialisation_id')
+            .eq('id', params.fighter_type_id)
+            .maybeSingle()
+        : { data: null };
+
+      updateData.fighter_variant = typeRow?.fighter_variant ?? null;
+      if (params.fighter_specialisation_id === undefined) {
+        updateData.fighter_specialisation_id = typeRow?.fighter_specialisation_id ?? null;
+      }
+    }
     if (params.note !== undefined) updateData.note = params.note;
     if (params.note_backstory !== undefined) updateData.note_backstory = params.note_backstory;
     if (params.fighter_gang_legacy_id !== undefined) updateData.fighter_gang_legacy_id = params.fighter_gang_legacy_id;
-    if (params.selected_archetype_id !== undefined) updateData.selected_archetype_id = params.selected_archetype_id;
+
+    // Archetype: reject illegal assigns; clear when subtypes invalidate the current one
+    const previousArchetypeId: string | null = fighter.selected_archetype_id ?? null;
+    let clearedArchetype = false;
+    let archetypeIdForOverrides: string | null = null;
+
+    const wantsExplicitClear =
+      params.selected_archetype_id !== undefined && !params.selected_archetype_id;
+    const wantsAssignableCheck =
+      Boolean(params.selected_archetype_id) ||
+      (params.selected_archetype_id === undefined &&
+        params.fighter_subtypes !== undefined &&
+        Boolean(previousArchetypeId));
+
+    if (wantsExplicitClear) {
+      updateData.selected_archetype_id = null;
+      if (previousArchetypeId) clearedArchetype = true;
+    } else if (wantsAssignableCheck) {
+      const { data: gangData, error: gangError } = await supabase
+        .from('gangs')
+        .select('gang_type_id')
+        .eq('id', fighter.gang_id)
+        .single();
+
+      if (gangError || !gangData) {
+        throw new Error('Gang not found');
+      }
+
+      const effectiveSubtypes: string[] =
+        updateData.fighter_subtypes ?? fighter.fighter_subtypes ?? [];
+      const fighterSubtypes = effectiveSubtypes.length ? effectiveSubtypes : ['Custom'];
+
+      const checkArchetypeAssignable = async (archetypeId: string) => {
+        // undefined, not falsy: null is a resolved answer (legacy N23), not a cache miss
+        if (resolvedEditionSlug === undefined) {
+          resolvedEditionSlug = await resolveFighterEditionSlug(supabase, params.fighter_id);
+        }
+        return assertArchetypeAssignable(supabase, {
+          gangTypeId: gangData.gang_type_id,
+          fighterSubtypes,
+          archetypeId,
+          editionSlug: resolvedEditionSlug,
+        });
+      };
+
+      if (params.selected_archetype_id) {
+        const assignable = await checkArchetypeAssignable(params.selected_archetype_id);
+        if (!assignable.ok) {
+          // Same save also changed subtypes: drop the stale archetype instead of failing the edit
+          if (params.fighter_subtypes !== undefined) {
+            updateData.selected_archetype_id = null;
+            if (previousArchetypeId) clearedArchetype = true;
+          } else {
+            return { success: false, error: assignable.error };
+          }
+        } else {
+          updateData.selected_archetype_id = params.selected_archetype_id;
+          if (params.selected_archetype_id !== previousArchetypeId) {
+            archetypeIdForOverrides = params.selected_archetype_id;
+          }
+        }
+      } else if (previousArchetypeId) {
+        // Subtypes changed without an explicit archetype write — drop if no longer assignable
+        const assignable = await checkArchetypeAssignable(previousArchetypeId);
+        if (!assignable.ok) {
+          updateData.selected_archetype_id = null;
+          clearedArchetype = true;
+        }
+      }
+    }
 
     // Update fighter
     const { data: updatedFighter, error: updateError } = await supabase
       .from('fighters')
       .update(updateData)
       .eq('id', params.fighter_id)
-      .select('id, fighter_name, label, kills, kill_count, cost_adjustment')
+      .select('id, fighter_name, label, kills, kill_count, cost_adjustment, fighter_subtypes, selected_archetype_id')
       .single();
 
     if (updateError) throw updateError;
+
+    // Keep skill-access overrides in sync with the persisted archetype (server-derived, not client-supplied)
+    const ARCHETYPE_SKILL_ACCESS_WARNING =
+      'Fighter updated but skill access save failed. Please try again via Customise Skill Set Access.';
+    let archetypeSkillAccessWarning: string | undefined;
+
+    if (clearedArchetype) {
+      const { error: overrideDeleteError } = await supabase
+        .from('fighter_skill_access_override')
+        .delete()
+        .eq('fighter_id', params.fighter_id);
+
+      if (overrideDeleteError) {
+        console.error('Failed to clear skill access overrides after archetype removal:', overrideDeleteError);
+        archetypeSkillAccessWarning = ARCHETYPE_SKILL_ACCESS_WARNING;
+      }
+    } else if (archetypeIdForOverrides) {
+      try {
+        const { data: archetypeData, error: archetypeFetchError } = await supabase
+          .from('skill_access_archetypes')
+          .select('skill_access')
+          .eq('id', archetypeIdForOverrides)
+          .single();
+
+        if (archetypeFetchError || !archetypeData) {
+          console.error('Failed to fetch archetype for skill-access overrides:', archetypeFetchError);
+          archetypeSkillAccessWarning = ARCHETYPE_SKILL_ACCESS_WARNING;
+        } else if (archetypeData.skill_access && Array.isArray(archetypeData.skill_access)) {
+          const overrides = mapArchetypeSkillAccessToOverrides(archetypeData.skill_access);
+
+          const { error: overrideDeleteError } = await supabase
+            .from('fighter_skill_access_override')
+            .delete()
+            .eq('fighter_id', params.fighter_id);
+
+          if (overrideDeleteError) {
+            console.error('Failed to clear prior skill access overrides:', overrideDeleteError);
+            archetypeSkillAccessWarning = ARCHETYPE_SKILL_ACCESS_WARNING;
+          } else if (overrides.length > 0) {
+            const overrideRows = overrides.map(sa => ({
+              fighter_id: params.fighter_id,
+              skill_type_id: sa.skill_type_id,
+              access_level: sa.access_level,
+              user_id: fighter.user_id,
+            }));
+
+            const { error: overrideInsertError } = await supabase
+              .from('fighter_skill_access_override')
+              .insert(overrideRows);
+
+            if (overrideInsertError) {
+              console.error('Failed to insert archetype skill-access overrides:', overrideInsertError);
+              archetypeSkillAccessWarning = ARCHETYPE_SKILL_ACCESS_WARNING;
+            }
+          }
+        }
+      } catch (archetypeError) {
+        console.error('Error applying archetype skill-access overrides:', archetypeError);
+        archetypeSkillAccessWarning = ARCHETYPE_SKILL_ACCESS_WARNING;
+      }
+    }
 
     // If cost_adjustment changed and fighter is active, update rating and wealth by delta
     let costAdjustmentDelta = 0;
@@ -1490,6 +1760,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
 
     return {
       success: true,
+      warning: archetypeSkillAccessWarning,
       data: { 
         fighter: updatedFighter
       }

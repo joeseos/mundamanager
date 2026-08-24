@@ -5,6 +5,7 @@ import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
 
 import { logGangJoinedCampaign, logGangLeftCampaign } from "../../logs/gang-campaign-logs";
 import { getAuthenticatedUser } from '@/utils/auth';
+import { assertGangMatchesCampaignEdition } from './assert-gang-campaign-edition';
 
 export interface AddGangToCampaignParams {
   campaignId: string;
@@ -59,6 +60,11 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
     let insertedCampaignGangId: string | null = null;
     let insertedStatus: string | null = null;
     const now = new Date().toISOString();
+
+    const editionCheck = await assertGangMatchesCampaignEdition(supabase, campaignId, gangId);
+    if (!editionCheck.ok) {
+      return { success: false, error: editionCheck.error };
+    }
 
     // Prepare allegiance fields
     const allegianceData: any = {};

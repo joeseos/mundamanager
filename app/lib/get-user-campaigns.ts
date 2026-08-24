@@ -1,5 +1,6 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
+import { editionSlugFromJoin } from '@/types/edition';
 
 export type Campaign = {
   id: string;
@@ -10,12 +11,13 @@ export type Campaign = {
   created_at: string;
   updated_at: string;
   role?: string;
-  status?: string;
   image_url: string;
   campaign_type_image_url: string;
   user_gangs?: { id: string; name: string }[];
   is_favourite: boolean;
   favourite_order: number | null;
+  /** Derived from campaign_types; null treated as n23 by home filters. */
+  edition_slug: string | null;
 };
 
 export const getUserCampaigns = async (userId: string, supabase: any): Promise<Campaign[]> => {
@@ -24,7 +26,7 @@ export const getUserCampaigns = async (userId: string, supabase: any): Promise<C
       try {
         const { data: campaignMembers, error: membersError } = await supabase
           .from('campaign_members')
-          .select('id, campaign_id, role, status, is_favourite, favourite_order')
+          .select('id, campaign_id, role, is_favourite, favourite_order')
           .eq('user_id', userId);
 
         if (membersError) {
@@ -55,7 +57,7 @@ export const getUserCampaigns = async (userId: string, supabase: any): Promise<C
         const campaignTypeIds = Array.from(new Set(campaigns.map((c: any) => c.campaign_type_id)));
         const { data: campaignTypes, error: typesError } = await supabase
           .from('campaign_types')
-          .select('id, campaign_type_name, image_url')
+          .select('id, campaign_type_name, image_url, editions:edition_id(slug)')
           .in('id', campaignTypeIds);
 
         if (typesError) {
@@ -76,11 +78,11 @@ export const getUserCampaigns = async (userId: string, supabase: any): Promise<C
             created_at: campaign.created_at,
             updated_at: campaign.updated_at,
             role: memberData?.role || '',
-            status: memberData?.status || '',
             image_url: campaign.image_url || '',
             campaign_type_image_url: typeData?.image_url || '',
             is_favourite: memberData?.is_favourite ?? false,
             favourite_order: memberData?.favourite_order ?? null,
+            edition_slug: (typeData as any)?.editions?.slug ?? null,
           };
         }) as Campaign[];
 
@@ -130,7 +132,8 @@ export const getUserCampaigns = async (userId: string, supabase: any): Promise<C
           // captureException(error)
         }
 
-        return [];
+        // Rethrow: unstable_cache would persist a returned [] with no TTL.
+        throw error;
       }
     },
     [`user-campaigns-v2-${userId}`],
@@ -148,7 +151,7 @@ export const getUserCampaigns = async (userId: string, supabase: any): Promise<C
 export const getUserShareCampaigns = async (
   userId: string,
   supabase: any
-): Promise<Array<{ id: string; campaign_name: string; status: string | null }>> => {
+): Promise<Array<{ id: string; campaign_name: string; status: string | null; edition_slug: string | null }>> => {
   return unstable_cache(
     async () => {
       const { data: campaignMembers } = await supabase
@@ -162,13 +165,16 @@ export const getUserShareCampaigns = async (
 
       const { data: campaignsForShare } = await supabase
         .from('campaigns')
-        .select('id, campaign_name, status')
+        .select('id, campaign_name, status, campaign_types!campaign_type_id (editions:edition_id (slug))')
         .in('id', campaignIds)
         .order('campaign_name');
 
-      return campaignsForShare || [];
+      return (campaignsForShare || []).map(({ campaign_types, ...campaign }: any) => ({
+        ...campaign,
+        edition_slug: editionSlugFromJoin(campaign_types?.editions),
+      }));
     },
-    [`user-share-campaigns-v2-${userId}`],
+    [`user-share-campaigns-v3-${userId}`],
     {
       tags: [TAGS.user(userId)],
       revalidate: false

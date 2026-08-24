@@ -3,29 +3,8 @@
 import React from 'react';
 import { Tooltip, type TooltipRefProps } from 'react-tooltip';
 import { Equipment, WeaponProfile } from '@/types/equipment';
-
-const COARSE_MQ = '(hover: none) and (pointer: coarse)';
-let _coarseMql: MediaQueryList | null = null;
-const getCoarseMql = () => {
-  if (typeof window === 'undefined') return null;
-  return (_coarseMql ??= window.matchMedia(COARSE_MQ));
-};
-
-const subscribeCoarsePointer = (onStoreChange: () => void) => {
-  const mql = getCoarseMql();
-  mql?.addEventListener('change', onStoreChange);
-  return () => mql?.removeEventListener('change', onStoreChange);
-};
-const getCoarsePointerSnapshot = () => getCoarseMql()?.matches ?? false;
-const getCoarsePointerServerSnapshot = () => false;
-
-function useCoarsePointer() {
-  return React.useSyncExternalStore(
-    subscribeCoarsePointer,
-    getCoarsePointerSnapshot,
-    getCoarsePointerServerSnapshot,
-  );
-}
+import { hasLethalityStatline } from '@/types/edition';
+import { useCoarsePointer } from '@/hooks/use-coarse-pointer';
 
 export interface EquipmentTooltipOptions {
   equipmentListType?: 'fighters-list' | 'fighters-tradingpost' | 'unrestricted';
@@ -37,7 +16,7 @@ function hasProfileData(profile: WeaponProfile): boolean {
     profile.range_short || profile.range_long ||
     profile.acc_short || profile.acc_long ||
     profile.strength || profile.ap ||
-    profile.damage || profile.ammo ||
+    profile.damage || profile.lethality || profile.ammo ||
     profile.traits
   );
 }
@@ -93,11 +72,14 @@ function statCellClass(showBorderLeft: boolean, extra = '') {
   return [showBorderLeft ? 'border-l border-neutral-600' : '', TABLE_CELL_PADDING, extra].filter(Boolean).join(' ');
 }
 
-function EquipmentTooltipContent({ item, options }: { item: Equipment; options?: EquipmentTooltipOptions }) {
+function EquipmentTooltipContent({ item, options, editionSlug }: { item: Equipment; options?: EquipmentTooltipOptions; editionSlug?: string | null }) {
   const sourceParts = getEquipmentSourceParts(item, options);
   const isWeaponWithProfiles = item.equipment_type === 'weapon' && !!item.weapon_profiles?.length;
   const sortedProfiles = isWeaponWithProfiles ? getSortedWeaponProfiles(item) : [];
   const hasAnyProfileData = sortedProfiles.some(profile => hasProfileData(profile));
+  // Mirrors the fighter card's weapon table: N26 drops Acc, D and Am and adds
+  // Lethality. Same predicate, so the two tables cannot drift apart.
+  const usesLethality = hasLethalityStatline(editionSlug);
 
   return (
     <div className="text-xs">
@@ -105,28 +87,42 @@ function EquipmentTooltipContent({ item, options }: { item: Equipment; options?:
         hasAnyProfileData ? (
           <table className="w-full border-collapse">
             <thead>
-              <tr>
-                <th className="min-w-20 w-40 text-left"></th>
-                <th className="text-center text-[10px]" colSpan={2}>Rng</th>
-                <th className="text-center text-[10px]" colSpan={2}>Acc</th>
-                <th className="text-center"></th>
-                <th className="text-center"></th>
-                <th className="text-center"></th>
-                <th className="text-center"></th>
-                <th className="text-left"></th>
-              </tr>
-              <tr className="border-b border-neutral-500">
-                <th className={`${TABLE_CELL_PADDING} text-left text-[10px]`}>Weapon</th>
-                <th className={`min-w-6 border-l border-neutral-500 ${TABLE_CELL_PADDING} text-center text-[10px]`}>S</th>
-                <th className={`min-w-6 ${TABLE_CELL_PADDING} text-center text-[10px]`}>L</th>
-                <th className={`min-w-6 border-l border-neutral-500 ${TABLE_CELL_PADDING} text-center text-[10px]`}>S</th>
-                <th className={`min-w-6 ${TABLE_CELL_PADDING} text-center text-[10px]`}>L</th>
-                <th className={`border-l border-neutral-500 ${TABLE_CELL_PADDING} text-center text-[10px]`}>Str</th>
-                <th className={`border-l border-neutral-500 ${TABLE_CELL_PADDING} text-center text-[10px]`}>AP</th>
-                <th className={`border-l border-neutral-500 ${TABLE_CELL_PADDING} text-center text-[10px]`}>D</th>
-                <th className={`border-l border-neutral-500 ${TABLE_CELL_PADDING} text-center text-[10px]`}>Am</th>
-                <th className={`max-w-[22vw] border-l border-neutral-500 ${TABLE_CELL_PADDING} text-left text-[10px]`}>Traits</th>
-              </tr>
+              {usesLethality ? (
+                <tr className="border-b border-neutral-500">
+                  <th className={`min-w-20 w-40 ${TABLE_CELL_PADDING} text-left text-[10px]`}>Weapon</th>
+                  <th className={`min-w-6 border-l border-neutral-500 ${TABLE_CELL_PADDING} text-center text-[10px]`}>SR</th>
+                  <th className={`min-w-6 border-l border-neutral-500 ${TABLE_CELL_PADDING} text-center text-[10px]`}>LR</th>
+                  <th className={`border-l border-neutral-500 ${TABLE_CELL_PADDING} text-center text-[10px]`}>Str</th>
+                  <th className={`border-l border-neutral-500 ${TABLE_CELL_PADDING} text-center text-[10px]`}>AP</th>
+                  <th className={`border-l border-neutral-500 ${TABLE_CELL_PADDING} text-center text-[10px]`}>L</th>
+                  <th className={`max-w-[22vw] border-l border-neutral-500 ${TABLE_CELL_PADDING} text-left text-[10px]`}>Traits</th>
+                </tr>
+              ) : (
+                <>
+                  <tr>
+                    <th className="min-w-20 w-40 text-left"></th>
+                    <th className="text-center text-[10px]" colSpan={2}>Rng</th>
+                    <th className="text-center text-[10px]" colSpan={2}>Acc</th>
+                    <th className="text-center"></th>
+                    <th className="text-center"></th>
+                    <th className="text-center"></th>
+                    <th className="text-center"></th>
+                    <th className="text-left"></th>
+                  </tr>
+                  <tr className="border-b border-neutral-500">
+                    <th className={`${TABLE_CELL_PADDING} text-left text-[10px]`}>Weapon</th>
+                    <th className={`min-w-6 border-l border-neutral-500 ${TABLE_CELL_PADDING} text-center text-[10px]`}>S</th>
+                    <th className={`min-w-6 ${TABLE_CELL_PADDING} text-center text-[10px]`}>L</th>
+                    <th className={`min-w-6 border-l border-neutral-500 ${TABLE_CELL_PADDING} text-center text-[10px]`}>S</th>
+                    <th className={`min-w-6 ${TABLE_CELL_PADDING} text-center text-[10px]`}>L</th>
+                    <th className={`border-l border-neutral-500 ${TABLE_CELL_PADDING} text-center text-[10px]`}>Str</th>
+                    <th className={`border-l border-neutral-500 ${TABLE_CELL_PADDING} text-center text-[10px]`}>AP</th>
+                    <th className={`border-l border-neutral-500 ${TABLE_CELL_PADDING} text-center text-[10px]`}>D</th>
+                    <th className={`border-l border-neutral-500 ${TABLE_CELL_PADDING} text-center text-[10px]`}>Am</th>
+                    <th className={`max-w-[22vw] border-l border-neutral-500 ${TABLE_CELL_PADDING} text-left text-[10px]`}>Traits</th>
+                  </tr>
+                </>
+              )}
             </thead>
             <tbody>
               {sortedProfiles.map((profile) => {
@@ -140,13 +136,21 @@ function EquipmentTooltipContent({ item, options }: { item: Equipment; options?:
                     {profileHasData ? (
                       <>
                         <td className={statCellClass(true, 'text-center align-top')}>{profile.range_short ?? '-'}</td>
-                        <td className={statCellClass(false, 'text-center align-top')}>{profile.range_long ?? '-'}</td>
-                        <td className={statCellClass(true, 'text-center align-top')}>{profile.acc_short ?? '-'}</td>
-                        <td className={statCellClass(false, 'text-center align-top')}>{profile.acc_long ?? '-'}</td>
+                        <td className={statCellClass(usesLethality, 'text-center align-top')}>{profile.range_long ?? '-'}</td>
+                        {!usesLethality && (
+                          <>
+                            <td className={statCellClass(true, 'text-center align-top')}>{profile.acc_short ?? '-'}</td>
+                            <td className={statCellClass(false, 'text-center align-top')}>{profile.acc_long ?? '-'}</td>
+                          </>
+                        )}
                         <td className={statCellClass(true, 'text-center align-top')}>{profile.strength ?? '-'}</td>
                         <td className={statCellClass(true, 'text-center align-top')}>{profile.ap ?? '-'}</td>
-                        <td className={statCellClass(true, 'text-center align-top')}>{profile.damage ?? '-'}</td>
-                        <td className={statCellClass(true, 'text-center align-top')}>{profile.ammo ?? '-'}</td>
+                        <td className={statCellClass(true, 'text-center align-top')}>
+                          {(usesLethality ? profile.lethality : profile.damage) ?? '-'}
+                        </td>
+                        {!usesLethality && (
+                          <td className={statCellClass(true, 'text-center align-top')}>{profile.ammo ?? '-'}</td>
+                        )}
                         <td className={statCellClass(true, 'max-w-[22vw] whitespace-normal align-top')}>{profile.traits ?? '-'}</td>
                       </>
                     ) : (
@@ -156,9 +160,13 @@ function EquipmentTooltipContent({ item, options }: { item: Equipment; options?:
                         <td className={statCellClass(false, 'text-center')}></td>
                         <td className={statCellClass(false, 'text-center')}></td>
                         <td className={statCellClass(false, 'text-center')}></td>
-                        <td className={statCellClass(false, 'text-center')}></td>
-                        <td className={statCellClass(false, 'text-center')}></td>
-                        <td className={statCellClass(false, 'text-center')}></td>
+                        {!usesLethality && (
+                          <>
+                            <td className={statCellClass(false, 'text-center')}></td>
+                            <td className={statCellClass(false, 'text-center')}></td>
+                            <td className={statCellClass(false, 'text-center')}></td>
+                          </>
+                        )}
                         <td className={statCellClass(false)}></td>
                       </>
                     )}
@@ -191,9 +199,10 @@ interface EquipmentTooltipTriggerProps {
   children: React.ReactNode;
   className?: string;
   options?: EquipmentTooltipOptions;
+  editionSlug?: string | null;
 }
 
-export function EquipmentTooltipTrigger({ item, children, className, options }: EquipmentTooltipTriggerProps) {
+export function EquipmentTooltipTrigger({ item, children, className, options, editionSlug }: EquipmentTooltipTriggerProps) {
   const tooltipId = React.useId();
   const tooltipRef = React.useRef<TooltipRefProps>(null);
   const touchStartRef = React.useRef<{ x: number; y: number } | null>(null);
@@ -258,7 +267,7 @@ export function EquipmentTooltipTrigger({ item, children, className, options }: 
           onTouchStart={isCoarsePointer ? handleMobileTooltipTouchStart : undefined}
           onTouchEnd={isCoarsePointer ? handleMobileTooltipTouchEnd : undefined}
         >
-          <EquipmentTooltipContent item={item} options={options} />
+          <EquipmentTooltipContent item={item} options={options} editionSlug={editionSlug} />
         </div>
       </Tooltip>
     </>

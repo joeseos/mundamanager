@@ -6,6 +6,7 @@ import { createClient } from "@/utils/supabase/server";
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { logGangResourceChanges } from './logs/gang-resource-logs';
+import { gangEditionSlug, hasTradePoints } from '@/types/edition';
 
 interface UpdateGangParams {
   gang_id: string;
@@ -20,6 +21,8 @@ interface UpdateGangParams {
   gang_origin_id?: string | null;
   reputation?: number;
   reputation_operation?: 'add' | 'subtract';
+  trade_points?: number;
+  trade_points_operation?: 'add' | 'subtract';
   // Dynamic resources - array of updates for campaign_gang_resources
   resources?: Array<{
     resource_id: string;
@@ -39,6 +42,7 @@ interface UpdateGangResult {
     name: string;
     credits: number;
     reputation: number;
+    trade_points: number;
     alignment: string;
     alliance_id: string | null;
     alliance_name?: string;
@@ -73,7 +77,11 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     // Get gang information (RLS will handle permissions)
     const { data: gang, error: gangError } = await supabase
       .from('gangs')
-      .select('id, user_id, credits, reputation, rating, wealth')
+      .select(`
+        id, user_id, credits, reputation, trade_points, rating, wealth,
+        gang_types!gang_type_id ( editions:edition_id ( slug ) ),
+        custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
+      `)
       .eq('id', params.gang_id)
       .single();
 
@@ -147,6 +155,21 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         : (gang.reputation || 0) - params.reputation;
     }
 
+    // Gate the write on the gang's own edition, derived server-side via its gang
+    // type, so the resource can never be set for an edition that lacks it even if
+    // a client sends the field.
+    let tradePointsChanged = false;
+    if (params.trade_points !== undefined && params.trade_points_operation) {
+      const editionSlug = gangEditionSlug(gang);
+      if (!hasTradePoints(editionSlug)) {
+        throw new Error('Trade Points is not available for this gang edition');
+      }
+      updates.trade_points = params.trade_points_operation === 'add'
+        ? (gang.trade_points || 0) + params.trade_points
+        : (gang.trade_points || 0) - params.trade_points;
+      tradePointsChanged = true;
+    }
+
     // Handle gang variants - store as JSONB array
     if (params.gang_variants !== undefined) {
       updates.gang_variants = params.gang_variants;
@@ -162,6 +185,7 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         name,
         credits,
         reputation,
+        trade_points,
         alignment,
         alliance_id,
         gang_affiliation_id,
@@ -361,9 +385,10 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       invalidateGangFinancials(params.gang_id);
     }
     
-    // Invalidate reputation cache if changed
-    if (params.reputation !== undefined && params.reputation_operation) {
-      invalidateGang(params.gang_id);
+    // Reputation and trade points live in the gang core entry, and their
+    // cross-page copies under the overview tag
+    if ((params.reputation !== undefined && params.reputation_operation) || tradePointsChanged) {
+      invalidateGangFinancials(params.gang_id);
     }
 
     // Invalidate campaign resources cache if resources were updated
@@ -428,8 +453,15 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         reputation: updates.reputation ?? (gang.reputation || 0)
       };
 
+      // Only include Trade Points in the log when it actually changed, so
+      // non-N26 gangs never get a spurious "trade points" log entry.
+      if (tradePointsChanged) {
+        oldState['trade points'] = gang.trade_points || 0;
+        newState['trade points'] = updates.trade_points ?? (gang.trade_points || 0);
+      }
+
       // Only log if something changed
-      if (Object.keys(oldResourceStates).length > 0 || creditsChanged || (params.reputation !== undefined && params.reputation_operation)) {
+      if (Object.keys(oldResourceStates).length > 0 || creditsChanged || (params.reputation !== undefined && params.reputation_operation) || tradePointsChanged) {
         // Use gang owner's user_id so logs are attributed to the owner even
         // when an arbitrator edits on their behalf (matches gang-campaign-logs).
         // Ownerless gangs fall back to the caller inside createGangLog.
@@ -457,6 +489,7 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
           ? financialResult.newValues.credits
           : updatedGang.credits,
         reputation: updatedGang.reputation,
+        trade_points: updatedGang.trade_points,
         alignment: updatedGang.alignment,
         alliance_id: updatedGang.alliance_id,
         alliance_name: allianceName || undefined,

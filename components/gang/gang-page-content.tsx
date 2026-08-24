@@ -16,7 +16,9 @@ import { FaUsers, FaBox, FaTruckMoving } from 'react-icons/fa';
 import { PiFlagBannerFoldBold } from 'react-icons/pi';
 import { LuClipboard, LuSwords } from 'react-icons/lu';
 import GangBattleSessions from "@/components/gang/battle-sessions-tab";
+import GangTacticsCards from "@/components/gang/gang-tactics-cards";
 import type { BattleSession } from "@/types/battle-session";
+import type { GangTacticsCard } from "@/types/tactics-card";
 import { FighterCardModalsProvider } from "@/components/gang/fighter-card-modals-context";
 import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { InjuriesList } from "@/components/fighter/fighter-injury-list";
@@ -26,6 +28,7 @@ import { editFighterStatus } from "@/app/actions/edit-fighter";
 import { toast } from 'sonner';
 import type { FighterEffect } from '@/types/fighter';
 import { hasKilledStatusFlag, countsTowardRating } from '@/utils/fighter-status';
+import { hasVehicles, hasGangTacticsCards } from '@/types/edition';
 
 interface GangPageContentProps {
   initialGangData: any; // We'll type this properly based on the processed data structure
@@ -41,6 +44,7 @@ interface GangDataState {
     gang_type_id?: string | null;
     custom_gang_type_id?: string | null;
     gang_type: string;
+    edition_slug?: string | null;
     gang_type_image_url: string;
     image_url?: string;
     default_gang_image?: number | null;
@@ -48,6 +52,7 @@ interface GangDataState {
     gang_colour: string;
     credits: number;
     reputation: number;
+    trade_points: number;
     rating: number;
     wealth: number;
     alignment: string;
@@ -76,6 +81,7 @@ interface GangDataState {
     patron_status?: string;
     hidden: boolean;
     battleSessions?: BattleSession[];
+    tacticsCards?: GangTacticsCard[];
   };
   stash: StashItem[];
 }
@@ -138,6 +144,16 @@ export default function GangPageContent({
       processedData: {
         ...prev.processedData,
         wealth: newWealth
+      }
+    }));
+  }, []);
+
+  const handleGangTradePointsUpdate = useCallback((newTradePoints: number) => {
+    setGangData((prev: GangDataState) => ({
+      ...prev,
+      processedData: {
+        ...prev.processedData,
+        trade_points: newTradePoints
       }
     }));
   }, []);
@@ -371,6 +387,16 @@ export default function GangPageContent({
     }));
   }, []);
 
+  const handleTacticsCardsUpdate = useCallback((updatedTacticsCards: GangTacticsCard[]) => {
+    setGangData((prev: GangDataState) => ({
+      ...prev,
+      processedData: {
+        ...prev.processedData,
+        tacticsCards: updatedTacticsCards
+      }
+    }));
+  }, []);
+
   const handleNoteBackstoryUpdate = useCallback((updatedNoteBackstory: string) => {
     setGangData((prev: GangDataState) => ({
       ...prev,
@@ -423,8 +449,8 @@ export default function GangPageContent({
 
   const openVehicleDamageModal = useCallback((fighterId: string, options?: { openAddModal?: boolean }) => {
     const fighter = gangData.processedData.fighters.find(f => f.id === fighterId) || null;
-    // Only set if fighter has a vehicle
-    if (fighter && fighter.vehicles && fighter.vehicles.length > 0) {
+    // Either an attached vehicle (N23) or a vehicle that is itself the fighter (N26)
+    if (fighter && ((fighter.vehicles && fighter.vehicles.length > 0) || fighter.is_vehicle)) {
       setVehicleModalFighter(fighter);
       setVehicleModalOpenAddOnMount(options?.openAddModal ?? false);
     }
@@ -594,6 +620,145 @@ export default function GangPageContent({
     gangCampaignResources: gangCampaigns[0]?.resources,
   } : {};
 
+  // N26 vehicles are fighter types, so they live on the Gang tab rather than a roster of their own.
+  const showVehicleRoster = !hasVehicles(gangData.processedData.edition_slug);
+
+  // One entry per tab so the titles, icons and panels can never drift out of step.
+  const tabs = [
+    {
+      title: 'Gang',
+      icon: <FaUsers key="users" />,
+      content: (
+        <div key="gang" className="container max-w-full w-full space-y-4 print:print-fighters">
+          <Gang
+            {...gangData.processedData}
+            initialFighters={gangData.processedData.fighters}
+            stash={gangData.stash}
+            onVehicleAdd={handleVehicleAdd}
+            onFighterAdd={handleFighterAdd}
+            onFighterRollback={handleFighterRollback}
+            onFighterReconcile={handleFighterReconcile}
+            onFighterUpdate={handleFighterUpdate}
+            onGangCreditsUpdate={handleGangCreditsUpdate}
+            onGangWealthUpdate={handleGangWealthUpdate}
+            gang_variants={gangData.processedData.gang_variants}
+            vehicles={gangData.processedData.vehicles || []}
+            userPermissions={userPermissions}
+          />
+        </div>
+      ),
+    },
+    {
+      title: 'Stash',
+      icon: <FaBox key="box" />,
+      content: (
+        <GangInventory
+          key="stash"
+          stash={gangData.stash}
+          fighters={gangData.processedData.fighters}
+          title="Stash"
+          onStashUpdate={handleStashUpdate}
+          onFighterUpdate={handleFighterUpdate}
+          vehicles={gangData.processedData.vehicles || []}
+          gangTypeId={gangData.processedData.gang_type_id ?? undefined}
+          gangId={gangId}
+          gangCredits={gangData.processedData.credits}
+          onGangCreditsUpdate={handleGangCreditsUpdate}
+          onGangRatingUpdate={handleGangRatingUpdate}
+          onGangWealthUpdate={handleGangWealthUpdate}
+          userPermissions={userPermissions}
+          {...gangCampaignProps}
+          gangReputation={gangData.processedData.reputation}
+          editionSlug={gangData.processedData.edition_slug}
+          gangTradePoints={gangData.processedData.trade_points}
+          onGangTradePointsUpdate={handleGangTradePointsUpdate}
+          positioning={gangData.processedData.positioning}
+        />
+      ),
+    },
+    ...(showVehicleRoster ? [{
+      title: 'Vehicles',
+      icon: <FaTruckMoving key="car" />,
+      content: (
+        <GangVehicles
+          key="vehicles"
+          vehicles={gangData.processedData.vehicles || []}
+          fighters={gangData.processedData.fighters || []}
+          gangId={gangId}
+          gangTypeId={gangData.processedData.gang_type_id}
+          onVehicleUpdate={handleVehicleUpdate}
+          onFighterUpdate={handleFighterUpdate}
+          userPermissions={userPermissions}
+          onGangCreditsUpdate={handleGangCreditsUpdate}
+          onGangRatingUpdate={handleGangRatingUpdate}
+          onGangWealthUpdate={handleGangWealthUpdate}
+          currentRating={gangData.processedData.rating}
+          currentWealth={gangData.processedData.wealth}
+          positioning={gangData.processedData.positioning}
+        />
+      ),
+    }] : []),
+    {
+      title: 'Campaign',
+      icon: <PiFlagBannerFoldBold key="map" />,
+      content: (
+        <div key="campaign" className="bg-card shadow-md rounded-lg p-4">
+          <h2 className="text-xl md:text-2xl font-bold mb-4">Campaign</h2>
+          <GangTerritories
+            gangId={gangId}
+            campaigns={gangData.processedData.campaigns || []}
+            editionSlug={gangData.processedData.edition_slug}
+          />
+        </div>
+      ),
+    },
+    {
+      title: 'Notes',
+      icon: <LuClipboard key="note" />,
+      content: (
+        <GangNotes
+          key="notes"
+          gangId={gangId}
+          initialNote={gangData.processedData.note || ''}
+          initialNoteBackstory={gangData.processedData.note_backstory || ''}
+          initialNotePrivate={gangData.processedData.note_private || ''}
+          initialNotePrivateUpdatedAt={gangData.processedData.note_private_updated_at}
+          onNoteUpdate={handleNoteUpdate}
+          onNoteBackstoryUpdate={handleNoteBackstoryUpdate}
+          onNotePrivateUpdate={handleNotePrivateUpdate}
+          userPermissions={userPermissions}
+        />
+      ),
+    },
+    {
+      title: 'Battles',
+      icon: <LuSwords key="swords" />,
+      content: (
+        <div key="battles" className="space-y-4">
+          {hasGangTacticsCards(gangData.processedData.edition_slug) && (
+            <div className="bg-card shadow-md rounded-lg p-4">
+              <GangTacticsCards
+                gangId={gangId}
+                editionSlug={gangData.processedData.edition_slug}
+                tacticsCards={gangData.processedData.tacticsCards || []}
+                onTacticsCardsUpdate={handleTacticsCardsUpdate}
+                userPermissions={userPermissions}
+              />
+            </div>
+          )}
+          <GangBattleSessions
+            sessions={gangData.processedData.battleSessions || []}
+            gangId={gangId}
+            gangName={gangData.processedData.name}
+            editionSlug={gangData.processedData.edition_slug}
+            campaignId={(gangData.processedData.campaigns || [])[0]?.campaign_id}
+            sessionUrl={(id) => `/gang/${gangId}/battle-session/${id}`}
+          />
+        </div>
+      ),
+    },
+  ];
+
   return (
     <FighterCardModalsProvider value={fighterCardModalsValue}>
       {/* Fighter card context modals */}
@@ -607,6 +772,9 @@ export default function GangPageContent({
           currentKillCount={xpModalFighter.kill_count ?? 0}
           is_spyrer={xpModalFighter.is_spyrer}
           helperFighterName={xpModalFighter.fighter_name}
+          gangId={gangId}
+          campaignId={gangCampaigns[0]?.campaign_id}
+          editionSlug={gangData.processedData.edition_slug}
           onClose={() => setXpModalFighter(null)}
           onXpUpdated={(newXp, _newTotalXp, newKills, newKillCount) => {
             setGangData(prev => ({
@@ -697,8 +865,9 @@ export default function GangPageContent({
               fighterKilled={currentFighter.killed}
               fighterCaptured={currentFighter.captured}
               fighterCapturedByGangId={currentFighter.captured_by_gang_id ?? null}
+              editionSlug={gangData.processedData.edition_slug ?? null}
               userPermissions={userPermissions}
-              fighter_class={currentFighter.fighter_class}
+              fighter_subtypes={currentFighter.fighter_subtypes}
               is_spyrer={currentFighter.is_spyrer}
               kill_count={currentFighter.kill_count ?? 0}
               skills={currentFighter.skills || {}}
@@ -783,11 +952,13 @@ export default function GangPageContent({
         );
       })()}
 
-      {vehicleModalFighter && vehicleModalFighter.vehicles && vehicleModalFighter.vehicles[0] && (() => {
+      {vehicleModalFighter && (() => {
         // Use latest fighter/vehicle from gangData so the list reflects optimistic updates
         const currentFighter = gangData.processedData.fighters.find(f => f.id === vehicleModalFighter.id) ?? vehicleModalFighter;
+        // N23 hangs the damages off a `vehicles` row; on N26 the vehicle is the fighter,
+        // so they sit in the fighter's own effects and there is no vehicle id to scope by.
         const currentVehicle = currentFighter.vehicles?.[0];
-        if (!currentVehicle) return null;
+        if (!currentVehicle && !currentFighter.is_vehicle) return null;
         const vehicleDamageModalTitle = vehicleModalOpenAddOnMount ? "Add Lasting Damage" : "Vehicle Lasting Damage";
         return (
           <Modal
@@ -807,9 +978,7 @@ export default function GangPageContent({
                 setVehicleModalOpenAddOnMount(false);
               }}
               damages={
-                currentVehicle.effects
-                  ? currentVehicle.effects["lasting damages"] || []
-                  : []
+                (currentVehicle ? currentVehicle.effects : currentFighter.effects)?.["lasting damages"] || []
               }
               onDamageUpdate={(updatedDamages) => {
                 setGangData(prev => ({
@@ -819,7 +988,12 @@ export default function GangPageContent({
                     fighters: prev.processedData.fighters.map(f => {
                       if (f.id !== currentFighter.id) return f;
 
-                      if (!f.vehicles || f.vehicles.length === 0) return f;
+                      if (!f.vehicles || f.vehicles.length === 0) {
+                        return {
+                          ...f,
+                          effects: { ...(f.effects || {}), "lasting damages": updatedDamages },
+                        };
+                      }
                       const [firstVehicle, ...restVehicles] = f.vehicles;
 
                       return {
@@ -839,104 +1013,45 @@ export default function GangPageContent({
                   },
                 }));
               }}
+              onFighterStatusUpdate={(status) => {
+                setGangData(prev => ({
+                  ...prev,
+                  processedData: {
+                    ...prev.processedData,
+                    fighters: prev.processedData.fighters.map(f =>
+                      f.id === currentFighter.id
+                        ? {
+                            ...f,
+                            ...(status.recovery !== undefined && { recovery: status.recovery }),
+                            ...(status.captured !== undefined && { captured: status.captured }),
+                            ...(status.capturedByGangId !== undefined && {
+                              captured_by_gang_id: status.capturedByGangId
+                            }),
+                            ...(status.killed !== undefined && { killed: status.killed })
+                          }
+                        : f
+                    ),
+                  },
+                }));
+              }}
               fighterId={currentFighter.id}
-              vehicleId={currentVehicle.id}
+              vehicleId={currentVehicle?.id ?? null}
               gangId={gangId}
               vehicle={currentVehicle}
               gangCredits={gangData.processedData.credits}
               onGangCreditsUpdate={handleGangCreditsUpdate}
               userPermissions={userPermissions}
+              editionSlug={gangData.processedData.edition_slug ?? null}
+              fighterCampaigns={currentFighter.campaigns ?? gangData.processedData.campaigns}
+              fighterRecovery={currentFighter.recovery}
             />
           </Modal>
         );
       })()}
 
       <div>
-      <Tabs tabTitles={['Gang', 'Stash', 'Vehicles', 'Campaign', 'Notes', 'Battles']}
-         tabIcons={[
-           <FaUsers key="users" />,
-           <FaBox key="box" />,
-           <FaTruckMoving key="car" />,
-           <PiFlagBannerFoldBold key="map" />,
-           <LuClipboard key="note" />,
-           <LuSwords key="swords" />
-         ]}
-        >
-        <div className="container max-w-full w-full space-y-4 print:print-fighters">
-          <Gang
-            {...gangData.processedData}
-            initialFighters={gangData.processedData.fighters}
-            stash={gangData.stash}
-            onVehicleAdd={handleVehicleAdd}
-            onFighterAdd={handleFighterAdd}
-            onFighterRollback={handleFighterRollback}
-            onFighterReconcile={handleFighterReconcile}
-            onFighterUpdate={handleFighterUpdate}
-            onGangCreditsUpdate={handleGangCreditsUpdate}
-            onGangWealthUpdate={handleGangWealthUpdate}
-            gang_variants={gangData.processedData.gang_variants}
-            vehicles={gangData.processedData.vehicles || []}
-            userPermissions={userPermissions}
-          />
-        </div>
-        <GangInventory
-          stash={gangData.stash}
-          fighters={gangData.processedData.fighters}
-          title="Stash"
-          onStashUpdate={handleStashUpdate}
-          onFighterUpdate={handleFighterUpdate}
-          vehicles={gangData.processedData.vehicles || []}
-          gangTypeId={gangData.processedData.gang_type_id ?? undefined}
-          gangId={gangId}
-          gangCredits={gangData.processedData.credits}
-          onGangCreditsUpdate={handleGangCreditsUpdate}
-          onGangRatingUpdate={handleGangRatingUpdate}
-          onGangWealthUpdate={handleGangWealthUpdate}
-          userPermissions={userPermissions}
-          {...gangCampaignProps}
-          gangReputation={gangData.processedData.reputation}
-          positioning={gangData.processedData.positioning}
-        />
-        <GangVehicles
-          vehicles={gangData.processedData.vehicles || []}
-          fighters={gangData.processedData.fighters || []}
-          gangId={gangId}
-          gangTypeId={gangData.processedData.gang_type_id}
-          onVehicleUpdate={handleVehicleUpdate}
-          onFighterUpdate={handleFighterUpdate}
-          userPermissions={userPermissions}
-          onGangCreditsUpdate={handleGangCreditsUpdate}
-          onGangRatingUpdate={handleGangRatingUpdate}
-          onGangWealthUpdate={handleGangWealthUpdate}
-          currentRating={gangData.processedData.rating}
-          currentWealth={gangData.processedData.wealth}
-          positioning={gangData.processedData.positioning}
-        />
-        <div className="bg-card shadow-md rounded-lg p-4">
-          <h2 className="text-xl md:text-2xl font-bold mb-4">Campaign</h2>
-          <GangTerritories 
-            gangId={gangId} 
-            campaigns={gangData.processedData.campaigns || []} 
-          />
-        </div>
-        <GangNotes
-          gangId={gangId}
-          initialNote={gangData.processedData.note || ''}
-          initialNoteBackstory={gangData.processedData.note_backstory || ''}
-          initialNotePrivate={gangData.processedData.note_private || ''}
-          initialNotePrivateUpdatedAt={gangData.processedData.note_private_updated_at}
-          onNoteUpdate={handleNoteUpdate}
-          onNoteBackstoryUpdate={handleNoteBackstoryUpdate}
-          onNotePrivateUpdate={handleNotePrivateUpdate}
-          userPermissions={userPermissions}
-        />
-        <GangBattleSessions
-          sessions={gangData.processedData.battleSessions || []}
-          gangId={gangId}
-          gangName={gangData.processedData.name}
-          campaignId={(gangData.processedData.campaigns || []).find((c: any) => !c.status || c.status === 'ACCEPTED')?.campaign_id}
-          sessionUrl={(id) => `/gang/${gangId}/battle-session/${id}`}
-        />
+      <Tabs tabTitles={tabs.map(tab => tab.title)} tabIcons={tabs.map(tab => tab.icon)}>
+        {tabs.map(tab => tab.content)}
       </Tabs>
       </div>
     </FighterCardModalsProvider>

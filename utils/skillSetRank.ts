@@ -1,55 +1,29 @@
-export const skillSetRank: { [key: string]: number } = {
-  "agility": 1,
-  "brawn": 2,
-  "combat": 3,
-  "cunning": 4,
-  "driving": 5,
-  "ferocity": 6,
-  "leadership": 7,
-  "savant": 8,
-  "shooting": 9,
-  //
-  "bravado": 20,
-  "finesse": 21,
-  "muscle": 22,
-  "obfuscation": 23,
-  "palanite drill": 24,
-  "piety": 25,
-  "savagery": 26,
-  "tech": 27,
-  "wastelands": 28,
-  "wisdom of the ancients": 29,
-  //
-  "wyrd powers (core rulebook)": 40,
-  "biomancy discipline": 41,
-  "chronomancy discipline": 42,
-  "divination discipline": 43,
-  "pyromancy discipline": 44,
-  "technomancy discipline": 45,
-  "telepathy discipline": 46,
-  "telekinesis discipline": 47,
-  //
-  "chaos cult wyrd powers": 60,
-  "genestealer cult wyrd powers": 61,
-  "malstrain wyrd powers": 62,
-  "ogryn wyrd powers": 63,
-  //
-  "madness": 70,
-  "darkness": 71,
-  "delusion": 72,
-  //
-  "impressive leadership": 80,
-  "improbable beatdowns": 81,
-  "incredible drives": 82,
-  "unbelievable escapes": 83,
-  //
-  "anglish mining clan": 90,
-  "scragfrid mining clan": 91,
-  "svardhol mining clan": 92,
-  "tapferkeit mining clan": 93,
-  "helmaeth mining clan": 94,
-  "snorrag mining clan": 95,
-  "trocken mining clan": 96,
-  "vossinki mining clan": 97,
-  "splinter mining clan": 98,
+import type { EditionSlug } from '@/types/edition';
+import { skillSetRankN23 } from '@/utils/skillSetRankN23';
+import { skillSetRankN26 } from '@/utils/skillSetRankN26';
+
+export { skillSetRankN23 } from '@/utils/skillSetRankN23';
+export { skillSetRankN26 } from '@/utils/skillSetRankN26';
+
+/**
+ * Keyed by EditionSlug so a new edition is a compile error here until it states
+ * its own order, matching LIMITS_BY_EDITION, INJURY_TABLES_BY_EDITION and
+ * CATEGORY_RANK_BY_EDITION.
+ */
+const SKILL_SET_RANK_BY_EDITION: Record<EditionSlug, { [key: string]: number }> = {
+  n23: skillSetRankN23,
+  n26: skillSetRankN26,
 };
+
+/**
+ * Edition-scoped skill-set sort and group order. An unset or unrecognised slug
+ * gets no ranking, so callers group everything under "Misc." rather than
+ * borrowing another edition's order — the same choice the sibling registries
+ * make. A caller landing here is a signal its edition never resolved.
+ */
+export function getSkillSetRank(
+  editionSlug?: string | null
+): { [key: string]: number } {
+  if (!editionSlug) return {};
+  return SKILL_SET_RANK_BY_EDITION[editionSlug as EditionSlug] ?? {};
+}

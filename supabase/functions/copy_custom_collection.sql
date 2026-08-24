@@ -18,6 +18,7 @@ DECLARE
   v_new_items jsonb;
   v_name text;
   v_description text;
+  v_edition uuid;
   v_before bigint;
   v_after bigint;
   -- closure id-sets
@@ -40,8 +41,8 @@ BEGIN
     RAISE EXCEPTION 'Not authenticated';
   END IF;
 
-  SELECT p.items, p.name, p.description
-    INTO v_items, v_name, v_description
+  SELECT p.items, p.name, p.description, p.edition_id
+    INTO v_items, v_name, v_description, v_edition
   FROM public.custom_collections p
   WHERE p.id = p_collection_id;
 
@@ -67,10 +68,14 @@ BEGIN
     v_before := cardinality(v_eq) + cardinality(v_st) + cardinality(v_sk)
               + cardinality(v_gt) + cardinality(v_ft) + cardinality(v_tp);
 
-    -- fighter types belonging to in-scope gang types
+    -- fighter types belonging to in-scope gang types, as their author defined them.
+    -- Scoped to the owner: SELECT RLS here is USING (true), so an unscoped pull also
+    -- clones fighters other users attached to the same gang type.
     v_ft := ARRAY(SELECT DISTINCT f FROM (
               SELECT unnest(v_ft) AS f
-              UNION SELECT cft.id FROM public.custom_fighter_types cft WHERE cft.custom_gang_type_id = ANY(v_gt)
+              UNION SELECT cft.id FROM public.custom_fighter_types cft
+                    JOIN public.custom_gang_types cgt ON cgt.id = cft.custom_gang_type_id
+                    WHERE cft.custom_gang_type_id = ANY(v_gt) AND cft.user_id = cgt.user_id
             ) s WHERE f IS NOT NULL);
 
     -- gang types referenced by in-scope fighter types and trading posts
@@ -95,10 +100,13 @@ BEGIN
                     WHERE cs.id = ANY(v_sk) AND cs.custom_skill_type_id IS NOT NULL
             ) s WHERE t IS NOT NULL);
 
-    -- all skills belonging to in-scope skill types (clone the whole set)
+    -- all skills belonging to in-scope skill types, as their author defined them.
+    -- Owner-scoped for the same reason as the fighter closure above.
     v_sk := ARRAY(SELECT DISTINCT k FROM (
               SELECT unnest(v_sk) AS k
-              UNION SELECT cs.id FROM public.custom_skills cs WHERE cs.custom_skill_type_id = ANY(v_st)
+              UNION SELECT cs.id FROM public.custom_skills cs
+                    JOIN public.custom_skill_types cst ON cst.id = cs.custom_skill_type_id
+                    WHERE cs.custom_skill_type_id = ANY(v_st) AND cs.user_id = cst.user_id
             ) s WHERE k IS NOT NULL);
 
     -- equipment referenced by fighter defaults / fighter equipment / trading posts
@@ -131,8 +139,8 @@ BEGIN
 
   -- Clone in topological order. Custom FKs remapped via maps; standard/global FKs kept.
 
-  INSERT INTO public.custom_skill_types (id, created_at, user_id, name)
-  SELECT (v_map_st ->> st.id::text)::uuid, now(), v_user, st.name
+  INSERT INTO public.custom_skill_types (id, created_at, user_id, name, edition_id)
+  SELECT (v_map_st ->> st.id::text)::uuid, now(), v_user, st.name, st.edition_id
   FROM public.custom_skill_types st WHERE st.id = ANY(v_st);
 
   INSERT INTO public.custom_skills (id, created_at, user_id, skill_name, skill_type_id, custom_skill_type_id, description)
@@ -142,36 +150,38 @@ BEGIN
 
   INSERT INTO public.custom_equipment (id, created_at, user_id, equipment_name, availability, cost, variant,
                                        equipment_category, equipment_category_id, equipment_type, is_editable,
-                                       is_consumable, description)
+                                       is_consumable, description, edition_id)
   SELECT (v_map_eq ->> ce.id::text)::uuid, now(), v_user, ce.equipment_name, ce.availability, ce.cost, ce.variant,
          ce.equipment_category, ce.equipment_category_id, ce.equipment_type, true,
-         ce.is_consumable, ce.description
+         ce.is_consumable, ce.description, ce.edition_id
   FROM public.custom_equipment ce WHERE ce.id = ANY(v_eq);
 
   INSERT INTO public.custom_weapon_profiles (id, custom_equipment_id, created_at, profile_name, range_short,
-                                             range_long, acc_short, acc_long, strength, ap, damage, ammo,
-                                             traits, weapon_group_id, sort_order, user_id)
+                                             range_long, acc_short, acc_long, strength, ap, damage, lethality,
+                                             ammo, traits, weapon_group_id, sort_order, user_id)
   SELECT gen_random_uuid(), (v_map_eq ->> wp.custom_equipment_id::text)::uuid, now(), wp.profile_name, wp.range_short,
-         wp.range_long, wp.acc_short, wp.acc_long, wp.strength, wp.ap, wp.damage, wp.ammo,
-         wp.traits, (v_map_eq ->> wp.weapon_group_id::text)::uuid, wp.sort_order, v_user
+         wp.range_long, wp.acc_short, wp.acc_long, wp.strength, wp.ap, wp.damage, wp.lethality,
+         wp.ammo, wp.traits, (v_map_eq ->> wp.weapon_group_id::text)::uuid, wp.sort_order, v_user
   FROM public.custom_weapon_profiles wp WHERE wp.custom_equipment_id = ANY(v_eq);
 
   INSERT INTO public.custom_gang_types (id, created_at, user_id, gang_type, alignment, trading_post_type_id,
-                                        default_image_urls, description)
+                                        default_image_urls, description, edition_id)
   SELECT (v_map_gt ->> gt.id::text)::uuid, now(), v_user, gt.gang_type, gt.alignment, gt.trading_post_type_id,
-         gt.default_image_urls, gt.description
+         gt.default_image_urls, gt.description, gt.edition_id
   FROM public.custom_gang_types gt WHERE gt.id = ANY(v_gt);
 
   INSERT INTO public.custom_fighter_types (id, created_at, user_id, fighter_type, gang_type, cost, movement,
                                            weapon_skill, ballistic_skill, strength, toughness, wounds, initiative,
                                            attacks, leadership, cool, willpower, intelligence, gang_type_id,
-                                           special_rules, free_skill, fighter_class, fighter_class_id,
-                                           custom_gang_type_id, description)
+                                           special_rules, free_skill,
+                                           fighter_subtypes, custom_gang_type_id, description, edition_id, save,
+                                           starting_xp, is_vehicle)
   SELECT (v_map_ft ->> cft.id::text)::uuid, now(), v_user, cft.fighter_type, cft.gang_type, cft.cost, cft.movement,
          cft.weapon_skill, cft.ballistic_skill, cft.strength, cft.toughness, cft.wounds, cft.initiative,
          cft.attacks, cft.leadership, cft.cool, cft.willpower, cft.intelligence, cft.gang_type_id,
-         cft.special_rules, cft.free_skill, cft.fighter_class, cft.fighter_class_id,
-         (v_map_gt ->> cft.custom_gang_type_id::text)::uuid, cft.description
+         cft.special_rules, cft.free_skill,
+         cft.fighter_subtypes, (v_map_gt ->> cft.custom_gang_type_id::text)::uuid, cft.description, cft.edition_id,
+         cft.save, cft.starting_xp, cft.is_vehicle
   FROM public.custom_fighter_types cft WHERE cft.id = ANY(v_ft);
 
   INSERT INTO public.fighter_type_skill_access (id, fighter_type_id, skill_type_id, access_level,
@@ -192,8 +202,8 @@ BEGIN
          (v_map_ft ->> fe.custom_fighter_type_id::text)::uuid
   FROM public.custom_fighter_type_equipment fe WHERE fe.custom_fighter_type_id = ANY(v_ft);
 
-  INSERT INTO public.custom_trading_posts (id, created_at, user_id, custom_trading_post_name, description)
-  SELECT (v_map_tp ->> tp.id::text)::uuid, now(), v_user, tp.custom_trading_post_name, tp.description
+  INSERT INTO public.custom_trading_posts (id, created_at, user_id, custom_trading_post_name, description, edition_id)
+  SELECT (v_map_tp ->> tp.id::text)::uuid, now(), v_user, tp.custom_trading_post_name, tp.description, tp.edition_id
   FROM public.custom_trading_posts tp WHERE tp.id = ANY(v_tp);
 
   INSERT INTO public.custom_trading_post_equipment (id, created_at, user_id, custom_trading_post_id, equipment_id,
@@ -241,8 +251,8 @@ BEGIN
     WHERE mapped.nid IS NOT NULL
   ), '[]'::jsonb);
 
-  INSERT INTO public.custom_collections (id, created_at, user_id, name, description, items)
-  VALUES (v_new_collection, now(), v_user, COALESCE(p_name, v_name), v_description, v_new_items);
+  INSERT INTO public.custom_collections (id, created_at, user_id, name, description, items, edition_id)
+  VALUES (v_new_collection, now(), v_user, COALESCE(p_name, v_name), v_description, v_new_items, v_edition);
   RETURN v_new_collection;
 END;
 $$;

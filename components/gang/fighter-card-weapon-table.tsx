@@ -1,14 +1,16 @@
 import React, { useMemo } from 'react';
 import { Weapon, WeaponProfile } from '@/types/equipment';
 import { GangViewMode } from '@/components/gang/ViewModeDropdown';
+import { hasLethalityStatline } from '@/types/edition';
 
 interface WeaponTableProps {
   weapons: Weapon[];
   entity?: 'crew' | 'vehicle';
   viewMode?: GangViewMode;
+  editionSlug?: string | null;
 }
 
-const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) => {
+const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode, editionSlug }) => {
   // Memoize formatting functions
   const formatters = useMemo(() => ({
     formatValue: (value: string | number | null | undefined) => {
@@ -51,6 +53,10 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
   const isNormalView = viewMode === 'normal';
   const pClass = isNormalView ? 'p-1' : 'p-px';
 
+  // N26 drops Acc, Damage and Ammo as columns (ammo and damage are written into
+  // Traits) and adds Lethality, so the two editions render different tables.
+  const usesLethality = hasLethalityStatline(editionSlug);
+
   const rngAccHeaderSizeClass =
     viewMode === 'print'
       ? 'text-[8px]'
@@ -85,6 +91,7 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
       profile.strength,
       profile.ap,
       profile.damage,
+      profile.lethality,
       profile.ammo,
       profile.traits
     ].join('|');
@@ -170,36 +177,65 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
       <table className="w-full border-collapse table-weapons text-[12px] print:text-[13px]">
         <colgroup>
           <col style={{ width: '30%' }}/>
+          {/* The five stat columns both editions share -- the last is Lethality
+              on N26 and D on N23. N23 then adds Acc S, Acc L and Am. */}
           <col style={{ width: '2rem' }}/>
           <col style={{ width: '2rem' }}/>
           <col style={{ width: '2rem' }}/>
           <col style={{ width: '2rem' }}/>
           <col style={{ width: '2rem' }}/>
-          <col style={{ width: '2rem' }}/>
-          <col style={{ width: '2rem' }}/>
-          <col style={{ width: '2rem' }}/>
+          {!usesLethality && (
+            <>
+              <col style={{ width: '2rem' }}/>
+              <col style={{ width: '2rem' }}/>
+              <col style={{ width: '2rem' }}/>
+            </>
+          )}
           <col style={{ width: '35%' }}/>
         </colgroup>
         <thead>
-          <tr>
-            <th className={`${pClass} text-left align-bottom`} rowSpan={2}>
-              {entity === 'vehicle' ? 'Vehicle Weapon' : entity === 'crew' ? 'Crew Weapon' : 'Weapon'}
-            </th>
-            <th className={`${pClass} text-center ${rngAccHeaderSizeClass}`} colSpan={2}>Rng</th>
-            <th className={`${pClass} text-center ${rngAccHeaderSizeClass}`} colSpan={2}>Acc</th>
-            <th className={`${pClass} text-center`} colSpan={5}></th>
-          </tr>
-          <tr>
-            <th className={`${pClass} text-center border-l border-black`}>S</th>
-            <th className={`${pClass} text-center`}>L</th>
-            <th className={`${pClass} text-center border-l border-black`}>S</th>
-            <th className={`${pClass} text-center`}>L</th>
-            <th className={`${pClass} text-center border-l border-black`}>Str</th>
-            <th className={`${pClass} text-center border-l border-black`}>AP</th>
-            <th className={`${pClass} text-center border-l border-black`}>D</th>
-            <th className={`${pClass} text-center border-l border-black`}>Am</th>
-            <th className={`${pClass} text-left border-l border-black`}>Traits</th>
-          </tr>
+          {usesLethality ? (
+            <>
+              {/* Empty stand-in for N23's Rng/Acc group row, so both editions leave
+                  the same gap under the characteristics table. */}
+              <tr aria-hidden="true">
+                <th className={`${pClass} ${rngAccHeaderSizeClass}`} colSpan={7}>&nbsp;</th>
+              </tr>
+              <tr>
+                <th className={`${pClass} text-left`}>
+                  {entity === 'vehicle' ? 'Vehicle Weapon' : entity === 'crew' ? 'Crew Weapon' : 'Weapon'}
+                </th>
+                <th className={`${pClass} text-center border-l border-black`}>SR</th>
+                <th className={`${pClass} text-center border-l border-black`}>LR</th>
+                <th className={`${pClass} text-center border-l border-black`}>Str</th>
+                <th className={`${pClass} text-center border-l border-black`}>AP</th>
+                <th className={`${pClass} text-center border-l border-black`}>L</th>
+                <th className={`${pClass} text-left border-l border-black`}>Traits</th>
+              </tr>
+            </>
+          ) : (
+            <>
+              <tr>
+                <th className={`${pClass} text-left align-bottom`} rowSpan={2}>
+                  {entity === 'vehicle' ? 'Vehicle Weapon' : entity === 'crew' ? 'Crew Weapon' : 'Weapon'}
+                </th>
+                <th className={`${pClass} text-center ${rngAccHeaderSizeClass}`} colSpan={2}>Rng</th>
+                <th className={`${pClass} text-center ${rngAccHeaderSizeClass}`} colSpan={2}>Acc</th>
+                <th className={`${pClass} text-center`} colSpan={5}></th>
+              </tr>
+              <tr>
+                <th className={`${pClass} text-center border-l border-black`}>S</th>
+                <th className={`${pClass} text-center`}>L</th>
+                <th className={`${pClass} text-center border-l border-black`}>S</th>
+                <th className={`${pClass} text-center`}>L</th>
+                <th className={`${pClass} text-center border-l border-black`}>Str</th>
+                <th className={`${pClass} text-center border-l border-black`}>AP</th>
+                <th className={`${pClass} text-center border-l border-black`}>D</th>
+                <th className={`${pClass} text-center border-l border-black`}>Am</th>
+                <th className={`${pClass} text-left border-l border-black`}>Traits</th>
+              </tr>
+            </>
+          )}
         </thead>
         <tbody>
           {variantBlocks.map((block, blockIdx) => {
@@ -288,15 +324,19 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
                   <td className={`${pClass} text-center border-l border-black whitespace-nowrap align-top`}>
                     {formatters.formatRange(profile.range_short)}
                   </td>
-                  <td className={`${pClass} text-center whitespace-nowrap align-top`}>
+                  <td className={`${pClass} text-center ${usesLethality ? 'border-l border-black' : ''} whitespace-nowrap align-top`}>
                     {formatters.formatRange(profile.range_long)}
                   </td>
-                  <td className={`${pClass} text-center border-l border-black whitespace-nowrap align-top`}>
-                    {formatters.formatAccuracy(profile.acc_short)}
-                  </td>
-                  <td className={`${pClass} text-center whitespace-nowrap align-top`}>
-                    {formatters.formatAccuracy(profile.acc_long)}
-                  </td>
+                  {!usesLethality && (
+                    <>
+                      <td className={`${pClass} text-center border-l border-black whitespace-nowrap align-top`}>
+                        {formatters.formatAccuracy(profile.acc_short)}
+                      </td>
+                      <td className={`${pClass} text-center whitespace-nowrap align-top`}>
+                        {formatters.formatAccuracy(profile.acc_long)}
+                      </td>
+                    </>
+                  )}
                   <td className={`${pClass} text-center border-l border-black whitespace-nowrap align-top`}>
                     {formatStrength(profile.strength)}
                   </td>
@@ -304,11 +344,13 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
                     {formatters.formatAp(profile.ap)}
                   </td>
                   <td className={`${pClass} text-center border-l border-black whitespace-nowrap align-top`}>
-                    {formatters.formatValue(profile.damage)}
+                    {formatters.formatValue(usesLethality ? profile.lethality : profile.damage)}
                   </td>
-                  <td className={`${pClass} text-center border-l border-black whitespace-nowrap align-top`}>
-                    {formatters.formatAmmo(profile.ammo)}
-                  </td>
+                  {!usesLethality && (
+                    <td className={`${pClass} text-center border-l border-black whitespace-nowrap align-top`}>
+                      {formatters.formatAmmo(profile.ammo)}
+                    </td>
+                  )}
                   <td className={`${pClass} text-left border-l border-black whitespace-normal align-top`}>
                     {traitsList.join(', ')}
                   </td>

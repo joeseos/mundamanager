@@ -112,7 +112,9 @@ export async function logVehicleAction(params: VehicleLogParams): Promise<GangLo
         break;
       case 'vehicle_damage_repaired':
         actionType = 'vehicle_damage_repaired';
-        description = `Vehicle "${vehicleName}" (owned by ${fighterName}) has been repaired for ${params.cost}. This removed ${params.damage_name} and was negotiated to ${params.repair_type?.toString()}.${financialChanges}`;
+        // No repair_type: a flat per-damage repair, with no negotiated quality to report
+        const negotiated = params.repair_type ? ` and was negotiated to ${params.repair_type}` : '';
+        description = `Vehicle "${vehicleName}" (owned by ${fighterName}) has been repaired for ${params.cost}. This removed ${params.damage_name}${negotiated}.${financialChanges}`;
         break;
       case 'vehicle_damage_removed':
         actionType = 'vehicle_damage_removed';

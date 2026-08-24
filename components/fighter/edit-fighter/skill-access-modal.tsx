@@ -9,12 +9,13 @@ import {
   saveFighterSkillAccessOverrides,
   type SkillAccessOverride
 } from '@/app/actions/fighter-skill-access';
-import { skillSetRank } from "@/utils/skillSetRank";
+import { getSkillSetRank } from "@/utils/skillSetRank";
 
 interface SkillAccessModalProps {
   fighterId: string;
   isOpen: boolean;
   onClose: () => void;
+  editionSlug?: string | null;
 }
 
 type AccessLevel = 'default' | 'primary' | 'secondary' | 'allowed' | 'denied';
@@ -29,19 +30,23 @@ interface LocalSkillAccess {
 export function SkillAccessModal({
   fighterId,
   isOpen,
-  onClose
+  onClose,
+  editionSlug
 }: SkillAccessModalProps) {
   
   const queryClient = useQueryClient();
   const [skillAccess, setSkillAccess] = useState<LocalSkillAccess[]>([]);
   const [hasInitialized, setHasInitialized] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const skillSetRank = getSkillSetRank(editionSlug);
 
-  // Fetch all skill types using TanStack Query
+  // Fetch edition-scoped skill types using TanStack Query
   const { data: allSkillTypes, isLoading: isLoadingSkillTypes, error: skillTypesError } = useQuery({
-    queryKey: ['skill-types'],
+    queryKey: ['skill-types', fighterId, editionSlug ?? null],
     queryFn: async () => {
-      const response = await fetch('/api/skill-types');
+      const params = new URLSearchParams({ fighterId });
+      if (editionSlug) params.set('edition_slug', editionSlug);
+      const response = await fetch(`/api/skill-types?${params}`);
       if (!response.ok) {
         throw new Error('Failed to fetch skill types');
       }
@@ -134,7 +139,7 @@ export function SkillAccessModal({
     });
 
     return result;
-  }, [allSkillTypes, skillAccessData]);
+  }, [allSkillTypes, skillAccessData, editionSlug, skillSetRank]);
 
   // Sync computed data to local state once per modal open
   const [prevComputedSkillAccess, setPrevComputedSkillAccess] = useState(computedSkillAccess);

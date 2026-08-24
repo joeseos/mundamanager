@@ -26,10 +26,11 @@ import { updateGangPositioning } from '@/app/actions/update-gang-positioning';
 import { FaRegCopy } from 'react-icons/fa';
 import CopyGangModal from './copy-gang-modal';
 import { Tooltip } from 'react-tooltip';
-import { fighterClassRank } from '@/utils/fighterClassRank';
+import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { GangImageEditModal } from './gang-image-edit-modal';
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { hasAlignment, hasTradePoints, hasVehicles } from '@/types/edition';
 
 
 interface GangProps {
@@ -38,6 +39,7 @@ interface GangProps {
   gang_type_id?: string | null;
   custom_gang_type_id?: string | null;
   gang_type?: string;
+  edition_slug?: string | null;
   gang_type_image_url: string;
   image_url?: string;
   default_gang_image?: number | null;
@@ -45,6 +47,7 @@ interface GangProps {
   gang_colour: string | null;
   credits: number | null;
   reputation: number | null;
+  trade_points?: number | null;
   rating: number | null;
   wealth?: number | null;
   alignment: string;
@@ -113,12 +116,14 @@ export default function Gang({
   gang_type_id,
   custom_gang_type_id,
   gang_type,
+  edition_slug,
   image_url,
   default_gang_image,
   gang_type_default_image_urls,
   gang_colour: initialGangColour,
   credits: initialCredits,
   reputation: initialReputation,
+  trade_points: initialTradePoints,
   rating: initialRating,
   wealth: initialWealth,
   alignment: initialAlignment,
@@ -163,6 +168,7 @@ export default function Gang({
   const [name, setName] = useState(initialName)
   const [credits, setCredits] = useState(initialCredits ?? 0)
   const [reputation, setReputation] = useState(initialReputation ?? 0)
+  const [tradePoints, setTradePoints] = useState(initialTradePoints ?? 0)
   // Dynamic resources from normalised tables
   const [campaignResources, setCampaignResources] = useState<Array<{
     resource_id: string;
@@ -216,7 +222,7 @@ export default function Gang({
   const [showGangAdditionsModal, setShowGangAdditionsModal] = useState(false);
   const [gangIsVariant, setGangIsVariant] = useState(safeGangVariant.length > 0);
   const [gangVariants, setGangVariants] = useState<Array<{id: string, variant: string}>>(safeGangVariant);
-  const [availableVariants, setAvailableVariants] = useState<Array<{id: string, variant: string}>>([]);
+  const [availableVariants, setAvailableVariants] = useState<Array<{id: string, variant: string, edition_slug?: string | null}>>([]);
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
@@ -312,41 +318,47 @@ export default function Gang({
     );
   }, [fighters]);
 
-  // Fighters composition for tooltip: group by fighter_type and fighter_class
-  const fighterTypeClassCounts = useMemo(() => {
-    const counts = new Map<string, { label: string; count: number; classKey: string }>();
+  // Fighters composition for tooltip: group by fighter_type and fighter_subtypes
+  const fighterTypeSubtypeCounts = useMemo(() => {
+    const counts = new Map<string, { label: string; count: number; subtypes: string[] }>();
     for (const fighter of activeFighters) {
       const typeLabel = fighter.fighter_type || 'Unknown Type';
-      const classLabel = fighter.fighter_class || 'Unknown Class';
-      const key = `${typeLabel} (${classLabel})`;
-      const classKey = (fighter.fighter_class || 'unknown').toLowerCase();
+      const subtypeLabel = fighter.fighter_subtypes?.join(', ') || 'Unknown Subtype';
+      const key = `${typeLabel} (${subtypeLabel})`;
       const existing = counts.get(key);
       if (existing) {
         existing.count += 1;
       } else {
-        counts.set(key, { label: key, count: 1, classKey });
+        counts.set(key, {
+          label: key,
+          count: 1,
+          subtypes: fighter.fighter_subtypes ?? [],
+        });
       }
     }
     return Array.from(counts.values()).sort((a, b) => {
-      const rankA = fighterClassRank[a.classKey] ?? Infinity;
-      const rankB = fighterClassRank[b.classKey] ?? Infinity;
+      const rankA = getFighterSubtypeSortRank(a.subtypes, edition_slug);
+      const rankB = getFighterSubtypeSortRank(b.subtypes, edition_slug);
       if (rankA !== rankB) return rankA - rankB;
       return a.label.localeCompare(b.label);
     });
-  }, [activeFighters]);
+  }, [activeFighters, edition_slug]);
 
-  const fighterTypeClassTotal = useMemo(() => {
-    return fighterTypeClassCounts.reduce((sum, item) => sum + item.count, 0);
-  }, [fighterTypeClassCounts]);
+  const fighterTypeSubtypeTotal = useMemo(() => {
+    return fighterTypeSubtypeCounts.reduce((sum, item) => sum + item.count, 0);
+  }, [fighterTypeSubtypeCounts]);
 
   const wealthBreakdownRows = useMemo(() => {
     return [
       { label: 'Gang Rating', value: rating },
       { label: 'Credits', value: credits },
       { label: 'Stash', value: totalStashValue },
-      { label: 'Vehicles (without crew)', value: unassignedVehiclesValue },
+      // An edition whose vehicles are fighters has no unassigned vehicles to count.
+      ...(hasVehicles(edition_slug)
+        ? []
+        : [{ label: 'Vehicles (without crew)', value: unassignedVehiclesValue }]),
     ];
-  }, [credits, totalStashValue, unassignedVehiclesValue, rating]);
+  }, [credits, totalStashValue, unassignedVehiclesValue, rating, edition_slug]);
 
   const wealthBreakdownTotal = useMemo(() => {
     return wealthBreakdownRows.reduce((sum, item) => sum + item.value, 0);
@@ -466,7 +478,7 @@ export default function Gang({
       const snapshot = {
         name, credits, wealth, alignment, allianceId, allianceName,
         gangAffiliationId, gangAffiliationName, gangOriginId, gangOriginName,
-        reputation,
+        reputation, tradePoints,
         gangVariants: [...gangVariants], gangIsVariant, gangColour, hidden,
         campaignResources: [...campaignResources]
       };
@@ -510,6 +522,10 @@ export default function Gang({
         setReputation(snapshot.reputation + (updates.reputation_operation === 'add' ? updates.reputation : -updates.reputation));
       }
 
+      if (updates.trade_points !== undefined && updates.trade_points_operation) {
+        setTradePoints(snapshot.tradePoints + (updates.trade_points_operation === 'add' ? updates.trade_points : -updates.trade_points));
+      }
+
       if (updates.gang_variants !== undefined) {
         const newVariants = updates.gang_variants.map((variantId: string) =>
           availableVariants.find(v => v.id === variantId) ||
@@ -538,6 +554,7 @@ export default function Gang({
         setGangOriginId(s.gangOriginId);
         setGangOriginName(s.gangOriginName);
         setReputation(s.reputation);
+        setTradePoints(s.tradePoints);
         setGangVariants(s.gangVariants);
         setGangIsVariant(s.gangIsVariant);
         setGangColour(s.gangColour);
@@ -841,7 +858,7 @@ export default function Gang({
 
   const visibleFighters = useMemo(() => {
     return fighters.filter(fighter => {
-      if (fighter.fighter_class?.toLowerCase().startsWith('exotic beast') && fighter.beast_equipment_stashed) {
+      if (fighter.fighter_subtypes?.some(c => c.toLowerCase().startsWith('exotic beast') || c.toLowerCase() === 'pet') && fighter.beast_equipment_stashed) {
         return false;
       }
       return true;
@@ -1106,22 +1123,26 @@ export default function Gang({
                 )}
 
                 {/* Alignment, Alliance */}
-                <div className="text-muted-foreground text-sm">
-                  <div className="flex flex-wrap gap-x-2 gap-y-1">
-                    {/* Alignment */}
-                    <div className="flex items-center gap-1 text-sm">
-                      Alignment:
-                      <Badge variant="secondary">{alignment}</Badge>
+                {(hasAlignment(edition_slug) || (allianceId && allianceName)) && (
+                  <div className="text-muted-foreground text-sm">
+                    <div className="flex flex-wrap gap-x-2 gap-y-1">
+                      {/* Alignment */}
+                      {hasAlignment(edition_slug) && (
+                        <div className="flex items-center gap-1 text-sm">
+                          Alignment:
+                          <Badge variant="secondary">{alignment}</Badge>
+                        </div>
+                      )}
+                      {/* Alliance */}
+                      {allianceId && allianceName && (
+                        <div className="flex items-center gap-1 text-sm">
+                          Alliance:
+                          <Badge variant="secondary">{allianceName}</Badge>
+                        </div>
+                      )}
                     </div>
-                    {/* Alliance */}
-                    {allianceId && allianceName && (
-                      <div className="flex items-center gap-1 text-sm">
-                        Alliance:
-                        <Badge variant="secondary">{allianceName}</Badge>
-                      </div>
-                    )}
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Campaign Attributes */}
@@ -1184,6 +1205,12 @@ export default function Gang({
                     <span className="text-muted-foreground">Reputation:</span>
                     <span className="font-semibold">{reputation != null ? reputation : 0}</span>
                   </div>
+                  {hasTradePoints(edition_slug) && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Trade Points:</span>
+                      <span className="font-semibold">{tradePoints != null ? tradePoints : 0}</span>
+                    </div>
+                  )}
                   {/* Dynamic Campaign Resources */}
                   {campaignResources.map((resource) => (
                     <div key={resource.resource_id} className="flex justify-between">
@@ -1243,6 +1270,8 @@ export default function Gang({
             gangName={name}
             credits={credits}
             reputation={reputation}
+            tradePoints={tradePoints}
+            editionSlug={edition_slug}
             isGangOwner={userPermissions?.isOwner}
             isAdmin={userPermissions?.isAdmin}
             alignment={alignment}
@@ -1271,6 +1300,7 @@ export default function Gang({
               gangId={id}
               gangTypeId={gang_type_id}
               customGangTypeId={custom_gang_type_id}
+              editionSlug={edition_slug}
               initialCredits={credits}
               onFighterAdded={handleFighterAdded}
               onFighterRollback={onFighterRollback}
@@ -1280,20 +1310,39 @@ export default function Gang({
             />
           )}
 
+          {/* An edition whose vehicles are fighter types adds them as fighters. */}
           {showAddVehicleModal && (
-            <AddVehicle
-              showModal={showAddVehicleModal}
-              setShowModal={setShowAddVehicleModal}
-              gangId={id}
-              initialCredits={credits}
-              onVehicleAdd={handleVehicleAdded}
-              onGangCreditsUpdate={onGangCreditsUpdate}
-              onGangWealthUpdate={onGangWealthUpdate}
-              fighters={fighters}
-              positioning={positioning}
-              onFighterUpdate={onFighterUpdate}
-              userPermissions={userPermissions}
-            />
+            hasVehicles(edition_slug) ? (
+              <FighterAddModal
+                catalog="vehicles"
+                showModal={showAddVehicleModal}
+                setShowModal={setShowAddVehicleModal}
+                gangId={id}
+                gangTypeId={gang_type_id}
+                customGangTypeId={custom_gang_type_id}
+                editionSlug={edition_slug}
+                initialCredits={credits}
+                onFighterAdded={handleFighterAdded}
+                onFighterRollback={onFighterRollback}
+                onFighterReconcile={onFighterReconcile}
+                gangVariants={gangVariants}
+                gangAffiliationId={gangAffiliationId}
+              />
+            ) : (
+              <AddVehicle
+                showModal={showAddVehicleModal}
+                setShowModal={setShowAddVehicleModal}
+                gangId={id}
+                initialCredits={credits}
+                onVehicleAdd={handleVehicleAdded}
+                onGangCreditsUpdate={onGangCreditsUpdate}
+                onGangWealthUpdate={onGangWealthUpdate}
+                fighters={fighters}
+                positioning={positioning}
+                onFighterUpdate={onFighterUpdate}
+                userPermissions={userPermissions}
+              />
+            )
           )}
 
           {showGangAdditionsModal && (
@@ -1303,6 +1352,7 @@ export default function Gang({
               setShowModal={setShowGangAdditionsModal}
               gangId={id}
               gangTypeId={gang_type_id}
+              editionSlug={edition_slug}
               initialCredits={credits}
               onFighterAdded={handleFighterAdded}
               onFighterRollback={onFighterRollback}
@@ -1313,6 +1363,7 @@ export default function Gang({
 
           <LogModal
             fetchUrl={`/api/gangs/${id}/logs`}
+            editionSlug={edition_slug}
             isOpen={showLogsModal}
             onClose={() => setShowLogsModal(false)}
             fighters={allFightersForLogs}
@@ -1347,11 +1398,11 @@ export default function Gang({
           >
             <div>
               <div className="mb-1.5 text-sm font-semibold">Gang Composition</div>
-              {fighterTypeClassCounts.length === 0 ? (
+              {fighterTypeSubtypeCounts.length === 0 ? (
                 <div>No fighters</div>
               ) : (
                 <>
-                  {fighterTypeClassCounts.map(({ label, count }) => (
+                  {fighterTypeSubtypeCounts.map(({ label, count }) => (
                     <div key={label} className="flex justify-between gap-3">
                       <span>{label}</span>
                       <span>{count}</span>
@@ -1359,7 +1410,7 @@ export default function Gang({
                   ))}
                   <div className="mt-1 flex justify-between gap-3 border-t border-neutral-700 pt-1">
                     <span>Total :</span>
-                    <span>{fighterTypeClassTotal}</span>
+                    <span>{fighterTypeSubtypeTotal}</span>
                   </div>
                 </>
               )}

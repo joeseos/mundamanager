@@ -3,7 +3,7 @@
 import { invalidateCampaign, invalidateUserCustoms } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
-
+import { getEditionIdBySlug } from '@/app/lib/editions';
 import { removeItemFromAllCollections } from './custom-collections';
 
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
@@ -11,6 +11,7 @@ import { getCustomDescriptionLengthError, normalizeCustomDescription } from './c
 export interface CustomTradingPostData {
   custom_trading_post_name: string;
   description?: string | null;
+  edition_slug?: string;
 }
 
 export interface CustomTradingPost {
@@ -20,6 +21,7 @@ export interface CustomTradingPost {
   description?: string | null;
   created_at: string;
   updated_at?: string | null;
+  edition_slug?: string | null;
 }
 
 export async function createCustomTradingPost(
@@ -40,6 +42,7 @@ export async function createCustomTradingPost(
         user_id: user.id,
         custom_trading_post_name: data.custom_trading_post_name.trimEnd(),
         description,
+        edition_id: await getEditionIdBySlug(data.edition_slug),
       })
       .select()
       .single();
@@ -302,7 +305,17 @@ export async function getTPEquipment(
 
 export async function addTPEquipmentBatch(
   tradingPostId: string,
-  items: Array<{ equipmentId: string; isCustom: boolean; costOverride?: number | null; availabilityOverride?: string | null }>
+  items: Array<{
+    equipmentId: string;
+    isCustom: boolean;
+    costOverride?: number | null;
+    costTypeResourceId?: string | null;
+    costCampaignResourceId?: string | null;
+    costReputation?: boolean;
+    costResourceAmount?: number | null;
+    availabilityOverride?: string | null;
+    banned?: boolean;
+  }>
 ): Promise<{ success: boolean; data?: Array<{ id: string; equipment_id: string | null; custom_equipment_id: string | null }>; error?: string }> {
   try {
     const supabase = await createClient();
@@ -333,10 +346,15 @@ export async function addTPEquipmentBatch(
       user_id: user.id,
       custom_trading_post_id: tradingPostId,
       sort_order: startSort + i,
+      banned: item.banned ?? false,
       ...(item.isCustom
         ? { custom_equipment_id: item.equipmentId }
         : { equipment_id: item.equipmentId }),
       ...(item.costOverride != null ? { cost_override: item.costOverride } : {}),
+      ...(item.costTypeResourceId != null ? { cost_type_resource_id: item.costTypeResourceId } : {}),
+      ...(item.costCampaignResourceId != null ? { cost_campaign_resource_id: item.costCampaignResourceId } : {}),
+      ...(item.costReputation ? { cost_reputation: true } : {}),
+      ...(item.costResourceAmount != null ? { cost_resource_amount: item.costResourceAmount } : {}),
       ...(item.availabilityOverride != null ? { availability_override: item.availabilityOverride } : {}),
     }));
 

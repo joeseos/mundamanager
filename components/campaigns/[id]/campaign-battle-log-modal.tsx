@@ -14,7 +14,7 @@ import { createBattleLog, updateBattleLog, BattleLogParams } from "@/app/actions
 import { useMutation } from '@tanstack/react-query';
 import { Battle, BattleParticipant, CampaignGang, Territory as BaseTerritory, Scenario } from '@/types/campaign';
 import { getClaimerGangId, getWinnerIds } from '@/utils/battle-winners';
-import { useWinnerSelection } from '@/utils/hooks/use-winner-selection';
+import { useWinnerSelection } from '@/hooks/use-winner-selection';
 
 interface BattleLogTerritory extends BaseTerritory {
   default_gang_territory?: boolean;
@@ -33,7 +33,7 @@ interface CampaignBattleLogModalProps {
   userRole?: 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 }
 
-const reportCharLimit = 1024;
+const reportCharLimit = 4096;
 
 type GangRole = 'none' | 'attacker' | 'defender';
 

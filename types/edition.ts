@@ -1,0 +1,336 @@
+// Edition slugs (never key behaviour off an edition uuid). These are the single
+// source for the literals; EditionSlug derives from them.
+export const EDITION_N23 = 'n23';
+export const EDITION_N26 = 'n26';
+
+export type EditionSlug = typeof EDITION_N23 | typeof EDITION_N26;
+
+/**
+ * True when two editions should be shown together. A missing slug counts as N23:
+ * legacy rows predate edition_id. Filtering only — to gate an action use
+ * editionsConflict, which does not read an unresolved edition as N23.
+ */
+export function sameEditionForDisplay(
+  a?: string | null,
+  b?: string | null
+): boolean {
+  return (a ?? EDITION_N23) === (b ?? EDITION_N23);
+}
+
+/**
+ * True when two editions are known to be different. Null makes no claim, so a
+ * guard built on this rejects a definite mismatch and never blocks a user over
+ * an edition that failed to resolve.
+ */
+export const editionsConflict = (
+  a?: string | null,
+  b?: string | null
+): boolean => a != null && b != null && a !== b;
+
+/** An `editions:edition_id (…)` embed. PostgREST returns a to-one embed as an
+ *  object, but generated types sometimes widen it to an array. */
+export type EditionJoin = { slug: string } | { slug: string }[] | null | undefined;
+
+function firstOf<T>(value: T | T[] | null | undefined): T | null {
+  if (!value) return null;
+  return (Array.isArray(value) ? value[0] : value) ?? null;
+}
+
+export function editionSlugFromJoin(editions: EditionJoin): string | null {
+  return firstOf(editions)?.slug ?? null;
+}
+
+/**
+ * Flattens an `editions:edition_id (slug)` embed into a plain `edition_slug`.
+ * Every server fetcher of edition-scoped rows runs its rows through this, so
+ * the browser never has to resolve an edition uuid.
+ */
+export function withEditionSlug<T extends Record<string, any>>(
+  row: T
+): T & { edition_slug: string | null } {
+  const { editions, ...rest } = row;
+  return { ...rest, edition_slug: editionSlugFromJoin(editions) } as T & {
+    edition_slug: string | null;
+  };
+}
+
+/**
+ * The `editions` embed from whichever gang type applies. Gangs have no
+ * edition_id of their own. Accepts every custom-gang-type alias in use, since
+ * callers spell it differently depending on what else their query selects.
+ */
+export function gangEditionJoin(
+  gang: any
+): { id?: string; slug?: string } | null {
+  if (!gang) return null;
+  const aliases = [
+    'gang_types',
+    'custom_gang_types',
+    'custom_gang_type',
+    'custom_gang_type_edition',
+  ];
+  for (const alias of aliases) {
+    const editions = firstOf(firstOf<any>(gang[alias])?.editions);
+    if (editions) return editions;
+  }
+  return null;
+}
+
+/** A gang's edition slug, derived via its gang type. */
+export function gangEditionSlug(gang: any): string | null {
+  return gangEditionJoin(gang)?.slug ?? null;
+}
+
+/**
+ * Every edition-sensitive behaviour, one row per decision. Adding a slug to
+ * EditionSlug is one compile error per row, so a new edition answers each
+ * question on its own. Two behaviours that split the editions the same way today
+ * still get two rows.
+ *
+ * Keyed by capability, not by edition: a per-edition object could be cloned
+ * (`{ ...N26, tradePoints: false }`), which silently inherits every capability
+ * added afterwards. Inner keys must stay plain string literals — computed keys
+ * compile but switch off the completeness check.
+ *
+ * Values are usually boolean, but need not be — the constraint is `unknown` so a
+ * decision with more than two answers lives here too, as its own row with its own
+ * accessor (see beastSubtype). `can` still only accepts the boolean-valued rows.
+ *
+ * Covers the code path only: the editions table is the other half and nothing
+ * keeps them in sync, so a new edition needs a migration AND rows here.
+ */
+const EDITION_CAPABILITIES = {
+  /** Sv on the fighter profile */
+  saveCharacteristic:       { n23: false, n26: true  },
+  /** Suffix for I, Ld, Cl, Wil, and Int values on fighter profiles */
+  initiativeAndMentalCharacteristicSuffix: { n23: '+', n26: '' },
+  /** A fighter may hold several subtypes at once */
+  multipleFighterSubtypes:  { n23: false, n26: true  },
+  /**
+   * Custom fighter authoring offers a curated shortlist of subtypes rather than
+   * every row the edition defines. The N23 table mixes real subtypes with
+   * placeholders ('*', 'Others', 'Special Terrain') and alliance-only entries, so
+   * it needs the shortlist in utils/fighter-subtype-picker.ts. N26's subtypes are
+   * all authorable traits (abhuman types, vehicle locomotion, archetypes), and a
+   * shortlist would hide most of them.
+   */
+  curatedFighterSubtypes:   { n23: true,  n26: false },
+  /**
+   * Trade Points: gang-level resource and equipment catalog cost.
+   * When false, equipment uses Availability (Trading Post rarity) instead.
+   */
+  tradePoints:              { n23: false, n26: true  },
+  /** Fighter types carry a Starting XP value (feeds N26 advancement ranks) */
+  startingXp:               { n23: false, n26: true  },
+  /**
+   * XP accumulates and is never spent: Advancements are earned by reaching rank
+   * thresholds. When false, XP is a currency spent on Advancements and refunded
+   * if one is deleted.
+   */
+  cumulativeXp:             { n23: false, n26: true  },
+  /**
+   * Weapon profiles use the N26 statline (SR, LR, Str, AP, Lethality) rather
+   * than the N23 one (Rng S/L, Acc S/L, Str, AP, D, Am). Ammo and Damage are
+   * written into Traits on N26 profiles.
+   */
+  lethalityStatline:        { n23: false, n26: true  },
+  /**
+   * Fighter types can be vehicles (fighter_types.is_vehicle), and the Add Vehicle
+   * catalog is drawn from them. When false, vehicles are a catalog of their own
+   * (vehicle_types) and are assigned to a Crew fighter rather than being fighters.
+   */
+  vehicles:                 { n23: false, n26: true  },
+  /** Equipment categories group under UI-only super-categories in the modal */
+  equipmentSuperCategories: { n23: false, n26: true  },
+  /** Weapons can be bought master-crafted, at a higher rating cost */
+  masterCraftedWeapons:     { n23: true,  n26: false },
+  /** House Escher crafts custom elixirs into the gang stash */
+  chemAlchemy:              { n23: true,  n26: false },
+  /** Gang / fighter-type Law Abiding vs Outlaw alignment */
+  alignment:                { n23: true,  n26: false },
+  /** Gangs hold Gang Tactics cards drawn from an edition's tactics_cards catalogue */
+  gangTacticsCards:         { n23: false, n26: true  },
+  /** Fighters can be sold to the Guilders (the enslaved status) */
+  sellToGuilders:           { n23: true,  n26: false },
+  /**
+   * A sale is discounted by 10× a D6 roll. When false it is discounted to half
+   * the item's cost rounded up instead, with nothing to roll. Both floor at 5
+   * credits, and both are offered against a price that defaults to full value.
+   */
+  itemSaleD6Deduction:      { n23: true,  n26: false },
+  /**
+   * Gang additions are picked by category (Brutes, Hangers-on, Pets, Hired
+   * Guns, then one entry per alliance) rather than by raw fighter subtype.
+   */
+  gangAdditionCategories:   { n23: false, n26: true  },
+  /**
+   * What the edition calls an equipment-granted companion fighter. The subtype
+   * itself comes from the beast's fighter type; this is for copy about it.
+   */
+  beastSubtype:             { n23: 'Exotic Beast', n26: 'Pet' },
+  /**
+   * What the edition calls the between-battles phase, for UI copy only. The
+   * code path behind it keeps the N23 "downtime" naming across every edition.
+   */
+  downtimePhase:            { n23: 'Downtime', n26: 'Post-Cycle' },
+  /**
+   * Prospect promotion keeps fighter type, swaps Prospect for Ganger+Specialist,
+   * requires a specialisation pick, and grants the mapped skill (+15 rating).
+   * When false, Prospect uses the standard promote-to-Champion type picker.
+   */
+  prospectSpecialisationPromotion: { n23: false, n26: true },
+  /**
+   * Ganger→Champion promotion keeps fighter type, swaps Ganger for Champion,
+   * grants Inspiring, and does not change rating. When false, Ganger uses the
+   * standard promote-to-Specialist type picker (or Advancement for Specialist→Champion).
+   */
+  gangerChampionKeepTypePromotion: { n23: false, n26: true },
+  /**
+   * Champion→Leader promotion picks a Leader fighter type, rebuilds subtypes
+   * (drop Loner/Champion/Ganger/Prospect, add Leader), grants Inspiring if
+   * missing, and does not change rating. When false, Champion uses the
+   * standard promote-to-Leader type picker with catalog subtypes.
+   */
+  championLeaderTypePromotion: { n23: false, n26: true },
+} as const satisfies Record<string, Record<EditionSlug, unknown>>;
+
+type EditionCapability = keyof typeof EDITION_CAPABILITIES;
+
+type CapabilityAnswer<K extends EditionCapability> =
+  (typeof EDITION_CAPABILITIES)[K][EditionSlug];
+
+/** The rows `can` may be asked about, so a non-boolean row can't leak through it. */
+type BooleanCapability = {
+  [K in EditionCapability]: CapabilityAnswer<K> extends boolean ? K : never;
+}[EditionCapability];
+
+// Once per unrecognised slug, not once per lookup.
+const warnedSlugs = new Set<string>();
+
+/**
+ * An edition's answer for one capability, or undefined when the slug is missing
+ * or unrecognised. Each accessor decides what undefined means for its own rule.
+ */
+function answerFor<K extends EditionCapability>(
+  capability: K,
+  editionSlug?: string | null
+): CapabilityAnswer<K> | undefined {
+  // Missing slug: nothing edition-specific applies, and it is not drift, so it
+  // stays quiet. An unrecognised slug below is drift, and warns.
+  if (!editionSlug) return undefined;
+
+  const answers = EDITION_CAPABILITIES[capability] as Readonly<
+    Record<string, CapabilityAnswer<K> | undefined>
+  >;
+  const answer = answers[editionSlug];
+
+  if (answer === undefined && process.env.NODE_ENV !== 'production' && !warnedSlugs.has(editionSlug)) {
+    warnedSlugs.add(editionSlug);
+    console.warn(
+      `[edition] Unknown edition slug "${editionSlug}" — add it to EditionSlug ` +
+      `and answer every row in EDITION_CAPABILITIES. Until then all ` +
+      `edition-specific features are switched off for it.`
+    );
+  }
+  return answer;
+}
+
+function can(
+  capability: BooleanCapability,
+  editionSlug?: string | null
+): boolean {
+  return answerFor(capability, editionSlug) === true;
+}
+
+// The public API. Callers ask what an edition can do rather than comparing
+// slugs, and never reuse one predicate to gate an unrelated rule.
+export const hasSaveCharacteristic = (editionSlug?: string | null): boolean =>
+  can('saveCharacteristic', editionSlug);
+
+export const initiativeAndMentalCharacteristicSuffix = (
+  editionSlug?: string | null
+): '+' | '' =>
+  answerFor('initiativeAndMentalCharacteristicSuffix', editionSlug) ??
+  EDITION_CAPABILITIES.initiativeAndMentalCharacteristicSuffix.n23;
+
+export const allowsMultipleSubtypes = (editionSlug?: string | null): boolean =>
+  can('multipleFighterSubtypes', editionSlug);
+
+export const hasCuratedFighterSubtypes = (editionSlug?: string | null): boolean =>
+  can('curatedFighterSubtypes', editionSlug);
+
+export const hasTradePoints = (editionSlug?: string | null): boolean =>
+  can('tradePoints', editionSlug);
+
+export const hasStartingXp = (editionSlug?: string | null): boolean =>
+  can('startingXp', editionSlug);
+
+export const hasCumulativeXp = (editionSlug?: string | null): boolean =>
+  can('cumulativeXp', editionSlug);
+
+export const hasLethalityStatline = (editionSlug?: string | null): boolean =>
+  can('lethalityStatline', editionSlug);
+
+export const hasVehicles = (editionSlug?: string | null): boolean =>
+  can('vehicles', editionSlug);
+
+export const hasEquipmentSuperCategories = (
+  editionSlug?: string | null
+): boolean => can('equipmentSuperCategories', editionSlug);
+
+export const hasMasterCraftedWeapons = (editionSlug?: string | null): boolean =>
+  can('masterCraftedWeapons', editionSlug);
+
+export const hasChemAlchemy = (editionSlug?: string | null): boolean =>
+  can('chemAlchemy', editionSlug);
+
+export const hasAlignment = (editionSlug?: string | null): boolean =>
+  can('alignment', editionSlug);
+
+export const hasGangTacticsCards = (editionSlug?: string | null): boolean =>
+  can('gangTacticsCards', editionSlug);
+
+export const hasGuilderSales = (editionSlug?: string | null): boolean =>
+  can('sellToGuilders', editionSlug);
+
+export const hasItemSaleD6Deduction = (editionSlug?: string | null): boolean =>
+  can('itemSaleD6Deduction', editionSlug);
+
+export const hasGangAdditionCategories = (
+  editionSlug?: string | null
+): boolean => can('gangAdditionCategories', editionSlug);
+
+export const beastSubtypeName = (editionSlug?: string | null): string =>
+  answerFor('beastSubtype', editionSlug) ?? EDITION_CAPABILITIES.beastSubtype.n23;
+
+/**
+ * Wording for an edition that failed to resolve. Its own value rather than a
+ * reach into a real edition's row: an edition missing from the registry must not
+ * silently inherit another's naming, the same reason an unknown slug gets
+ * NO_CAPABILITIES rather than an alias. Editions the registry does know answer
+ * this row themselves — the completeness check makes that a compile error to skip.
+ */
+const UNRESOLVED_EDITION_DOWNTIME_PHASE = 'Downtime';
+
+export const downtimePhaseName = (editionSlug?: string | null): string =>
+  answerFor('downtimePhase', editionSlug) ?? UNRESOLVED_EDITION_DOWNTIME_PHASE;
+
+export const hasProspectSpecialisationPromotion = (
+  editionSlug?: string | null
+): boolean => can('prospectSpecialisationPromotion', editionSlug);
+
+export const hasGangerChampionKeepTypePromotion = (
+  editionSlug?: string | null
+): boolean => can('gangerChampionKeepTypePromotion', editionSlug);
+
+export const hasChampionLeaderTypePromotion = (
+  editionSlug?: string | null
+): boolean => can('championLeaderTypePromotion', editionSlug);
+
+export interface Edition {
+  id: string;
+  name: string;
+  slug: string;
+  is_current: boolean;
+  released_at: string | null;
+}

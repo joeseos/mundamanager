@@ -6,9 +6,22 @@ import { Combobox } from "@/components/ui/combobox";
 import { Checkbox } from "@/components/ui/checkbox";
 import { HiX } from "react-icons/hi";
 import { ImInfo } from "react-icons/im";
-import { fighterClassRank } from '@/utils/fighterClassRank';
+import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
+import {
+  hasChampionLeaderTypePromotion,
+  hasGangerChampionKeepTypePromotion,
+  hasProspectSpecialisationPromotion,
+} from '@/types/edition';
+import {
+  N26_CHAMPION_PROMOTION_SKILL_NAME,
+  N26_PROSPECT_PROMOTION_CREDITS,
+  N26_PROSPECT_SPECIALISATIONS,
+  buildN26ChampionLeaderPromotionSubtypes,
+  buildN26GangerChampionPromotionSubtypes,
+  buildN26ProspectPromotionSubtypes,
+} from '@/utils/keepTypePromotionN26';
 
-// Determines the target class for promotion based on current class
+// Determines the target subtype for promotion based on current subtype
 const PROMOTION_MAP: Record<string, string> = {
   'Ganger': 'Specialist',
   'Juve': 'Specialist',
@@ -19,8 +32,7 @@ const PROMOTION_MAP: Record<string, string> = {
   'Exotic Beast Specialist': 'Champion',
 };
 
-const EXOTIC_BEAST_SPECIALIST_CLASS_ID = '38598144-0f38-43c5-9a07-512106b9fc9e';
-const EXOTIC_BEAST_SPECIALIST_CLASS_NAME = 'Exotic Beast Specialist';
+const EXOTIC_BEAST_SPECIALIST_SUBTYPE_NAME = 'Exotic Beast Specialist';
 
 const normalizeSpecialRule = (rule: string) => rule.replace(/^"|"$/g, '');
 
@@ -30,60 +42,74 @@ function normalizeSpecialRules(rules: (string | unknown)[]): string[] {
     .filter(Boolean);
 }
 
+/** First subtype that has a promotion target — not blindly subtypes[0]. */
+function promotionSourceSubtype(subtypes: string[], fallback: string): string {
+  for (const subtype of subtypes) {
+    if (subtype in PROMOTION_MAP) return subtype;
+  }
+  return fallback;
+}
+
 type PromotionFighterType = FighterPromotionModalProps['fighterTypes'][number];
 
-function sortPromotionFighterTypes(types: PromotionFighterType[]): PromotionFighterType[] {
+function sortPromotionFighterTypes(
+  types: PromotionFighterType[],
+  editionSlug?: string | null
+): PromotionFighterType[] {
   return [...types].sort((a, b) => {
-    const classRankA = fighterClassRank[a.fighter_class.toLowerCase()] ?? Infinity;
-    const classRankB = fighterClassRank[b.fighter_class.toLowerCase()] ?? Infinity;
-    if (classRankA !== classRankB) return classRankA - classRankB;
+    const subtypeRankA = getFighterSubtypeSortRank(a.fighter_subtypes, editionSlug);
+    const subtypeRankB = getFighterSubtypeSortRank(b.fighter_subtypes, editionSlug);
+    if (subtypeRankA !== subtypeRankB) return subtypeRankA - subtypeRankB;
 
     const typeCompare = a.fighter_type.localeCompare(b.fighter_type);
     if (typeCompare !== 0) return typeCompare;
 
-    return (a.sub_type?.sub_type_name || '').localeCompare(b.sub_type?.sub_type_name || '');
+    return (a.specialisation?.specialisation_name || '').localeCompare(b.specialisation?.specialisation_name || '');
   });
 }
 
 function formatPromotionFighterTypeLabel(ft: PromotionFighterType): string {
-  const base = `${ft.fighter_type} (${ft.fighter_class})`;
-  return ft.sub_type?.sub_type_name ? `${base}, ${ft.sub_type.sub_type_name}` : base;
+  const base = `${ft.fighter_type} (${ft.fighter_subtypes.join(', ')})`;
+  return ft.specialisation?.specialisation_name ? `${base}, ${ft.specialisation.specialisation_name}` : base;
 }
 
 export type FighterPromotionResult = {
   fighter_type: string;
   fighter_type_id: string;
-  fighter_class: string;
-  fighter_class_id: string;
+  fighter_subtypes: string[];
   special_rules: string[];
-  fighter_sub_type?: string | null;
-  fighter_sub_type_id?: string | null;
+  fighter_specialisation?: string | null;
+  fighter_specialisation_id?: string | null;
+  /** N26 promotion recipes with skill grants. */
+  kind?: 'n26_prospect' | 'n26_ganger_champion' | 'n26_champion_leader';
+  credits_increase?: number;
 };
 
-function promotionSubTypeFields(
-  type?: { sub_type?: { id: string; sub_type_name: string } | null } | null
-): Pick<FighterPromotionResult, 'fighter_sub_type' | 'fighter_sub_type_id'> {
+function promotionSpecialisationFields(
+  type?: { specialisation?: { id: string; specialisation_name: string } | null } | null
+): Pick<FighterPromotionResult, 'fighter_specialisation' | 'fighter_specialisation_id'> {
   return {
-    fighter_sub_type: type?.sub_type?.sub_type_name ?? null,
-    fighter_sub_type_id: type?.sub_type?.id ?? null,
+    fighter_specialisation: type?.specialisation?.specialisation_name ?? null,
+    fighter_specialisation_id: type?.specialisation?.id ?? null,
   };
 }
 
 interface FighterPromotionModalProps {
-  currentClass: string;
+  currentSubtype: string;
+  currentSubtypes?: string[];
   currentSpecialRules: string[];
   currentFighterType?: string;
   currentFighterTypeId?: string;
-  currentFighterSubTypeId?: string;
+  currentFighterSpecialisationId?: string;
   fighterTypes: Array<{
     id: string;
     fighter_type: string;
-    fighter_class: string;
-    fighter_class_id?: string;
     special_rules?: string[];
+    fighter_subtypes: string[];
     total_cost: number;
-    sub_type?: { id: string; sub_type_name: string } | null;
+    specialisation?: { id: string; specialisation_name: string } | null;
   }>;
+  editionSlug?: string | null;
   isOpen: boolean;
   onClose: () => void;
   /** When true, shows guidance to use Add Advancement for XP-based promotion. */
@@ -92,60 +118,121 @@ interface FighterPromotionModalProps {
 }
 
 export function FighterPromotionModal({
-  currentClass,
+  currentSubtype,
+  currentSubtypes,
   currentSpecialRules,
   currentFighterType,
   currentFighterTypeId,
-  currentFighterSubTypeId,
+  currentFighterSpecialisationId,
   fighterTypes,
+  editionSlug = null,
   isOpen,
   onClose,
   showXpPromotionHint = false,
   onPromoted,
 }: FighterPromotionModalProps) {
   const [selectedTypeId, setSelectedTypeId] = useState('');
+  const [selectedSpecialisationId, setSelectedSpecialisationId] = useState('');
   const [newSpecialRules, setNewSpecialRules] = useState<string[]>([]);
   const [newRuleInput, setNewRuleInput] = useState('');
   const [includeAllGangFighterTypes, setIncludeAllGangFighterTypes] = useState(false);
 
-  const targetClass = PROMOTION_MAP[currentClass] || '';
-  const isExoticBeast = currentClass === 'Exotic Beast';
+  const resolvedSubtypes = currentSubtypes?.length ? currentSubtypes : (currentSubtype ? [currentSubtype] : []);
+  const isN26ProspectPromotion =
+    hasProspectSpecialisationPromotion(editionSlug) &&
+    resolvedSubtypes.includes('Prospect');
+  const isN26GangerChampionPromotion =
+    !isN26ProspectPromotion &&
+    hasGangerChampionKeepTypePromotion(editionSlug) &&
+    resolvedSubtypes.includes('Ganger') &&
+    !resolvedSubtypes.includes('Champion');
+  const isN26ChampionLeaderPromotion =
+    !isN26ProspectPromotion &&
+    !isN26GangerChampionPromotion &&
+    hasChampionLeaderTypePromotion(editionSlug) &&
+    resolvedSubtypes.includes('Champion') &&
+    !resolvedSubtypes.includes('Leader');
+  const sourceSubtype = promotionSourceSubtype(resolvedSubtypes, currentSubtype);
+  // Specialist+Champion would otherwise map Specialist→Champion; force Leader for this path.
+  const targetSubtype = isN26ChampionLeaderPromotion
+    ? 'Leader'
+    : (PROMOTION_MAP[sourceSubtype] || '');
+  const isExoticBeast = resolvedSubtypes.includes('Exotic Beast') || currentSubtype === 'Exotic Beast';
+  const isSimplifiedPath = isExoticBeast || isN26ProspectPromotion || isN26GangerChampionPromotion;
 
-  // Fighter types matching the standard promotion target class
+  const n26ProspectSubtypes = useMemo(
+    () => buildN26ProspectPromotionSubtypes(
+      currentSubtypes?.length ? currentSubtypes : (currentSubtype ? [currentSubtype] : [])
+    ),
+    [currentSubtypes, currentSubtype]
+  );
+
+  const n26GangerChampionSubtypes = useMemo(
+    () => buildN26GangerChampionPromotionSubtypes(
+      currentSubtypes?.length ? currentSubtypes : (currentSubtype ? [currentSubtype] : [])
+    ),
+    [currentSubtypes, currentSubtype]
+  );
+
+  const n26ChampionLeaderSubtypes = useMemo(
+    () => buildN26ChampionLeaderPromotionSubtypes(
+      currentSubtypes?.length ? currentSubtypes : (currentSubtype ? [currentSubtype] : [])
+    ),
+    [currentSubtypes, currentSubtype]
+  );
+
+  const specialisationComboboxOptions = useMemo(
+    () =>
+      N26_PROSPECT_SPECIALISATIONS.map((s) => ({
+        value: s.id,
+        label: s.name,
+        displayValue: s.name,
+      })),
+    []
+  );
+
+  // Fighter types matching the standard promotion target subtype
   const eligibleTypes = useMemo(() => {
-    if (isExoticBeast || !targetClass) return [];
+    if (isSimplifiedPath || !targetSubtype) return [];
     return sortPromotionFighterTypes(
-      fighterTypes.filter(ft => ft.fighter_class === targetClass)
+      fighterTypes.filter(ft => ft.fighter_subtypes.includes(targetSubtype)),
+      editionSlug
     );
-  }, [fighterTypes, targetClass, isExoticBeast]);
+  }, [fighterTypes, targetSubtype, isSimplifiedPath, editionSlug]);
 
   // Types shown in the combobox: eligible only, or all gang types when expanded
   const displayTypes = useMemo(() => {
-    if (isExoticBeast) return [];
+    if (isSimplifiedPath) return [];
     if (includeAllGangFighterTypes) {
-      return sortPromotionFighterTypes(fighterTypes);
+      return sortPromotionFighterTypes(fighterTypes, editionSlug);
     }
     return eligibleTypes;
-  }, [fighterTypes, eligibleTypes, isExoticBeast, includeAllGangFighterTypes]);
+  }, [fighterTypes, eligibleTypes, isSimplifiedPath, includeAllGangFighterTypes, editionSlug]);
 
   const selectedType = displayTypes.find(ft => ft.id === selectedTypeId);
+  const selectedSpecialisation = N26_PROSPECT_SPECIALISATIONS.find(
+    (s) => s.id === selectedSpecialisationId
+  );
 
-  const resolvedCurrentSubTypeId = useMemo(() => {
-    if (currentFighterSubTypeId) return currentFighterSubTypeId;
+  const resolvedCurrentSpecialisationId = useMemo(() => {
+    if (currentFighterSpecialisationId) return currentFighterSpecialisationId;
     if (!currentFighterTypeId) return '';
-    return fighterTypes.find(ft => ft.id === currentFighterTypeId)?.sub_type?.id ?? '';
-  }, [currentFighterSubTypeId, currentFighterTypeId, fighterTypes]);
+    return fighterTypes.find(ft => ft.id === currentFighterTypeId)?.specialisation?.id ?? '';
+  }, [currentFighterSpecialisationId, currentFighterTypeId, fighterTypes]);
 
   const fighterTypeComboboxOptions = useMemo(
     () =>
       displayTypes.map((ft) => {
         const labelText = formatPromotionFighterTypeLabel(ft);
-        const optionSubTypeId = ft.sub_type?.id ?? '';
-        const isDifferentSubType =
-          Boolean(resolvedCurrentSubTypeId) && optionSubTypeId !== resolvedCurrentSubTypeId;
+        const optionSpecialisationId = ft.specialisation?.id ?? '';
+        // Champion→Leader clears specialisation; do not mute Leaders for mismatch.
+        const isDifferentSpecialisation =
+          !isN26ChampionLeaderPromotion &&
+          Boolean(resolvedCurrentSpecialisationId) &&
+          optionSpecialisationId !== resolvedCurrentSpecialisationId;
         const isIneligibleForPromotion =
-          includeAllGangFighterTypes && Boolean(targetClass) && ft.fighter_class !== targetClass;
-        const useMutedStyle = isDifferentSubType || isIneligibleForPromotion;
+          includeAllGangFighterTypes && Boolean(targetSubtype) && !ft.fighter_subtypes.includes(targetSubtype);
+        const useMutedStyle = isDifferentSpecialisation || isIneligibleForPromotion;
 
         return {
           value: ft.id,
@@ -157,7 +244,13 @@ export function FighterPromotionModal({
           displayValue: labelText,
         };
       }),
-    [displayTypes, resolvedCurrentSubTypeId, includeAllGangFighterTypes, targetClass]
+    [
+      displayTypes,
+      resolvedCurrentSpecialisationId,
+      includeAllGangFighterTypes,
+      targetSubtype,
+      isN26ChampionLeaderPromotion,
+    ]
   );
 
   const normalizedCurrentSpecialRules = useMemo(
@@ -168,14 +261,16 @@ export function FighterPromotionModal({
   // Reset state on each open, pre-select the first eligible type
   const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
   if (isOpen && !prevIsOpen) {
-    if (isExoticBeast) {
+    if (isSimplifiedPath) {
       setSelectedTypeId('');
+      setSelectedSpecialisationId('');
       setIncludeAllGangFighterTypes(false);
       setNewSpecialRules(normalizeSpecialRules(currentSpecialRules));
       setNewRuleInput('');
     } else {
       setIncludeAllGangFighterTypes(false);
       setSelectedTypeId('');
+      setSelectedSpecialisationId('');
       setNewSpecialRules([]);
       setNewRuleInput('');
     }
@@ -213,15 +308,51 @@ export function FighterPromotionModal({
   };
 
   const handleConfirm = () => {
+    if (isN26ProspectPromotion) {
+      if (!selectedSpecialisation) return;
+      onPromoted({
+        kind: 'n26_prospect',
+        fighter_type: currentFighterType || '',
+        fighter_type_id: currentFighterTypeId || '',
+        fighter_subtypes: n26ProspectSubtypes,
+        special_rules: newSpecialRules,
+        fighter_specialisation: selectedSpecialisation.name,
+        fighter_specialisation_id: selectedSpecialisation.id,
+        credits_increase: N26_PROSPECT_PROMOTION_CREDITS,
+      });
+      return;
+    }
+    if (isN26GangerChampionPromotion) {
+      // Omit specialisation fields so optimistic UI does not clear an existing one.
+      onPromoted({
+        kind: 'n26_ganger_champion',
+        fighter_type: currentFighterType || '',
+        fighter_type_id: currentFighterTypeId || '',
+        fighter_subtypes: n26GangerChampionSubtypes,
+        special_rules: newSpecialRules,
+      });
+      return;
+    }
+    if (isN26ChampionLeaderPromotion) {
+      if (!selectedType) return;
+      // Omit specialisation fields so optimistic UI does not clear an existing one.
+      onPromoted({
+        kind: 'n26_champion_leader',
+        fighter_type: selectedType.fighter_type,
+        fighter_type_id: selectedType.id,
+        fighter_subtypes: n26ChampionLeaderSubtypes,
+        special_rules: newSpecialRules,
+      });
+      return;
+    }
     if (isExoticBeast) {
       const currentType = fighterTypes.find((ft) => ft.id === currentFighterTypeId);
       onPromoted({
         fighter_type: currentFighterType || '',
         fighter_type_id: currentFighterTypeId || '',
-        fighter_class: EXOTIC_BEAST_SPECIALIST_CLASS_NAME,
-        fighter_class_id: EXOTIC_BEAST_SPECIALIST_CLASS_ID,
+        fighter_subtypes: [EXOTIC_BEAST_SPECIALIST_SUBTYPE_NAME],
         special_rules: newSpecialRules,
-        ...promotionSubTypeFields(currentType),
+        ...promotionSpecialisationFields(currentType),
       });
       return;
     }
@@ -229,12 +360,15 @@ export function FighterPromotionModal({
     onPromoted({
       fighter_type: selectedType.fighter_type,
       fighter_type_id: selectedType.id,
-      fighter_class: selectedType.fighter_class,
-      fighter_class_id: selectedType.fighter_class_id || '',
+      fighter_subtypes: selectedType.fighter_subtypes,
       special_rules: newSpecialRules,
-      ...promotionSubTypeFields(selectedType),
+      ...promotionSpecialisationFields(selectedType),
     });
   };
+
+  const confirmDisabled = isN26ProspectPromotion
+    ? !selectedSpecialisation
+    : !isExoticBeast && !isN26GangerChampionPromotion && !selectedType;
 
   if (!isOpen) return null;
 
@@ -245,20 +379,64 @@ export function FighterPromotionModal({
       onClose={onClose}
       onConfirm={handleConfirm}
       confirmText="Confirm Promotion"
-      confirmDisabled={!isExoticBeast && !selectedType}
+      confirmDisabled={confirmDisabled}
       content={
         <div className="space-y-6">
-          {isExoticBeast ? (
+          {isN26ProspectPromotion ? (
+            <div className="space-y-4">
+              <p className="text-sm">
+                This fighter will remain a <strong>{currentFighterType || 'Prospect'}</strong>,
+                lose the <strong>Prospect</strong> subtype, and gain{' '}
+                <strong>Ganger</strong> and <strong>Specialist</strong>.
+                Rating increases by <strong>{N26_PROSPECT_PROMOTION_CREDITS}</strong>.
+              </p>
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Specialisation
+                </label>
+                <Combobox
+                  value={selectedSpecialisationId}
+                  onValueChange={setSelectedSpecialisationId}
+                  placeholder="Select a Specialisation"
+                  options={specialisationComboboxOptions}
+                  dropdownPlacement="down"
+                />
+                {selectedSpecialisation && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Grants skill: {selectedSpecialisation.skillName}
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : isN26GangerChampionPromotion ? (
+            <div>
+              <p className="text-sm">
+                This fighter will remain a <strong>{currentFighterType || 'Ganger'}</strong>,
+                lose the <strong>Ganger</strong> subtype, and gain <strong>Champion</strong>.
+                Grants skill: <strong>{N26_CHAMPION_PROMOTION_SKILL_NAME}</strong>.
+                Rating is unchanged.
+              </p>
+            </div>
+          ) : isExoticBeast ? (
             /* Exotic Beast simplified promotion UI */
             <div>
               <p className="text-sm">
-                This fighter will be promoted to <strong>{EXOTIC_BEAST_SPECIALIST_CLASS_NAME}</strong>.
+                This fighter will be promoted to <strong>{EXOTIC_BEAST_SPECIALIST_SUBTYPE_NAME}</strong>.
               </p>
             </div>
           ) : (
             /* Standard fighter type selection dropdown */
             <>
-              {showXpPromotionHint && (
+              {isN26ChampionLeaderPromotion && (
+                <p className="text-sm">
+                  Select a <strong>Leader</strong> fighter type. Subtypes{' '}
+                  <strong>Loner</strong>, <strong>Champion</strong>, <strong>Ganger</strong>, and{' '}
+                  <strong>Prospect</strong> are removed; <strong>Leader</strong> is added.
+                  Grants skill: <strong>{N26_CHAMPION_PROMOTION_SKILL_NAME}</strong> if not already known.
+                  Rating is unchanged.
+                </p>
+              )}
+              {showXpPromotionHint && !isN26ChampionLeaderPromotion && (
                 <div className="mb-4">
                   <p className="text-sm mb-2 text-amber-500">
                     To promote a fighter using XP, use the Add Advancement button on the Fighter page.
@@ -273,7 +451,7 @@ export function FighterPromotionModal({
                   <p className="text-sm text-muted-foreground">
                     {includeAllGangFighterTypes
                       ? 'No Fighter Types available for this gang.'
-                      : `No eligible ${targetClass || 'promotion'} Fighter Types available.`}
+                      : `No eligible ${targetSubtype || 'promotion'} Fighter Types available.`}
                   </p>
                 ) : (
                   <Combobox
@@ -331,7 +509,7 @@ export function FighterPromotionModal({
           {/* Special Rules (editable) */}
           <div>
             <label className="block text-sm font-medium mb-1">
-              {isExoticBeast ? 'Special Rules' : 'Special Rules to be Added'}
+              {isSimplifiedPath ? 'Special Rules' : 'Special Rules to be Added'}
             </label>
             <div className="flex space-x-2 mb-2">
               <Input

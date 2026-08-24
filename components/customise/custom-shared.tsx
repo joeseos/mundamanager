@@ -1,23 +1,26 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { CustomFighterType } from '@/types/fighter';
 import { CustomEquipment } from '@/types/equipment';
 import { toast } from 'sonner';
 import Modal from '@/components/ui/modal';
 import { Checkbox } from '@/components/ui/checkbox';
-import { shareCustomFighter, shareCustomEquipment, shareCustomGangType, shareCustomTradingPost, shareCollection } from '@/app/actions/customise/custom-share';
+import { shareCustomFighter, shareCustomEquipment, shareCustomGangType, shareCustomSkill, shareCustomTradingPost, shareCollection } from '@/app/actions/customise/custom-share';
+import type { CustomSkill } from '@/app/lib/customise/custom-skills';
 import { CustomGangType } from '@/app/actions/customise/custom-gang-types';
 import { CustomTradingPost } from '@/app/actions/customise/custom-trading-posts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/utils/supabase/client';
 import type { UserCampaign } from '@/types/campaign';
+import { editionsConflict } from '@/types/edition';
 
 // custom_shared columns that hold a shareable item id.
 type ShareColumn =
   | 'custom_fighter_type_id'
   | 'custom_equipment_id'
   | 'custom_gang_type_id'
+  | 'custom_skill_id'
   | 'custom_trading_post_id'
   | 'custom_collection_id';
 
@@ -36,14 +39,17 @@ interface ShareToCampaignsModalProps {
   invalidateKeys?: string[][];
   share: (campaignIds: string[]) => Promise<{ success: boolean; error?: string }>;
   userCampaigns: UserCampaign[];
+  itemEditionSlug: string | null;
   onClose: () => void;
   onSuccess?: () => void;
 }
 
 /**
- * Shared "apply to campaigns" modal used by every custom asset (fighter, equipment,
+ * Shared "apply to campaigns" modal used by every custom asset (fighter, equipment, skill,
  * gang type, trading post, collection). Loads the campaigns the item is currently shared to,
- * lets the arbitrator toggle the set, and persists via the supplied `share` action.
+ * lets the arbitrator toggle the set, and persists via the supplied `share` action. Only
+ * campaigns of the item's own edition are offered — cross-edition sharing is rejected by the
+ * share actions and by the custom_shared trigger.
  */
 function ShareToCampaignsModal({
   itemId,
@@ -60,12 +66,20 @@ function ShareToCampaignsModal({
   invalidateKeys = [],
   share,
   userCampaigns,
+  itemEditionSlug,
   onClose,
   onSuccess,
 }: ShareToCampaignsModalProps) {
   const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
   const queryClient = useQueryClient();
   const sharedQueryKey = ['customSharedCampaigns', queryKind, itemId];
+
+  // editionsConflict, not sameEditionForDisplay: this gates an action, and edition_id is still
+  // nullable on the shareable tables, so an unresolved edition must not turn anyone away.
+  const eligibleCampaigns = useMemo(
+    () => userCampaigns.filter(c => !editionsConflict(c.edition_slug, itemEditionSlug)),
+    [userCampaigns, itemEditionSlug]
+  );
 
   const { data: sharedCampaignIds = [], isLoading, isSuccess, error: fetchError } = useQuery({
     queryKey: sharedQueryKey,
@@ -83,10 +97,13 @@ function ShareToCampaignsModal({
   });
 
   const [prevSharedKey, setPrevSharedKey] = useState('');
-  const sharedKey = `${isSuccess}:${JSON.stringify(sharedCampaignIds)}`;
+  const sharedKey = `${isSuccess}:${JSON.stringify(sharedCampaignIds)}:${JSON.stringify(eligibleCampaigns.map(c => c.id))}`;
   if (sharedKey !== prevSharedKey) {
     setPrevSharedKey(sharedKey);
-    if (isSuccess) setSelectedCampaigns(sharedCampaignIds);
+    if (isSuccess) {
+      const eligibleIds = new Set(eligibleCampaigns.map(c => c.id));
+      setSelectedCampaigns(sharedCampaignIds.filter(id => eligibleIds.has(id)));
+    }
   }
 
   useEffect(() => {
@@ -132,17 +149,26 @@ function ShareToCampaignsModal({
       <div className="space-y-4">
         {isLoading ? (
           <div className="text-center py-8 text-muted-foreground">Loading...</div>
-        ) : userCampaigns.length === 0 ? (
+        ) : eligibleCampaigns.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
-            <p>You&apos;re not part of any campaigns yet.</p>
-            <p className="text-sm mt-2">{emptyHint}</p>
+            {userCampaigns.length === 0 ? (
+              <>
+                <p>You&apos;re not part of any campaigns yet.</p>
+                <p className="text-sm mt-2">{emptyHint}</p>
+              </>
+            ) : (
+              <>
+                <p>None of your campaigns are {itemEditionSlug?.toUpperCase()} campaigns.</p>
+                <p className="text-sm mt-2">A custom asset can only be shared to a campaign of its own edition.</p>
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground mb-4">
               {applyVerb} <strong>{itemName}</strong> to campaigns:
             </p>
-            {userCampaigns.map((campaign) => (
+            {eligibleCampaigns.map((campaign) => (
               <div
                 key={campaign.id}
                 className="flex items-start space-x-3 p-3 border rounded-md hover:bg-muted/50 transition-colors"
@@ -192,6 +218,7 @@ export function ShareCustomFighterModal({ fighter, userCampaigns, onClose, onSuc
       invalidateKeys={[['customFighters']]}
       share={(ids) => shareCustomFighter(fighter.id, ids)}
       userCampaigns={userCampaigns}
+      itemEditionSlug={fighter.edition_slug ?? null}
       onClose={onClose}
       onSuccess={onSuccess}
     />
@@ -221,6 +248,7 @@ export function ShareCustomEquipmentModal({ equipment, userCampaigns, onClose, o
       invalidateKeys={[['customEquipment']]}
       share={(ids) => shareCustomEquipment(equipment.id, ids)}
       userCampaigns={userCampaigns}
+      itemEditionSlug={equipment.edition_slug ?? null}
       onClose={onClose}
       onSuccess={onSuccess}
     />
@@ -250,6 +278,7 @@ export function ShareCustomGangTypeModal({ gangType, userCampaigns, onClose, onS
       invalidateKeys={[['customGangTypes']]}
       share={(ids) => shareCustomGangType(gangType.id, ids)}
       userCampaigns={userCampaigns}
+      itemEditionSlug={gangType.edition_slug ?? null}
       onClose={onClose}
       onSuccess={onSuccess}
     />
@@ -279,6 +308,36 @@ export function ShareCustomTradingPostModal({ tradingPost, userCampaigns, onClos
       invalidateKeys={[['customTradingPosts']]}
       share={(ids) => shareCustomTradingPost(tradingPost.id, ids)}
       userCampaigns={userCampaigns}
+      itemEditionSlug={tradingPost.edition_slug ?? null}
+      onClose={onClose}
+      onSuccess={onSuccess}
+    />
+  );
+}
+
+interface ShareCustomSkillModalProps {
+  skill: CustomSkill;
+  userCampaigns: UserCampaign[];
+  onClose: () => void;
+  onSuccess?: () => void;
+}
+
+export function ShareCustomSkillModal({ skill, userCampaigns, onClose, onSuccess }: ShareCustomSkillModalProps) {
+  return (
+    <ShareToCampaignsModal
+      itemId={skill.id}
+      itemName={skill.skill_name}
+      column="custom_skill_id"
+      queryKind="skill"
+      noun="Custom skill"
+      title="Share Custom Skill"
+      helper="Select campaigns to share this custom skill with"
+      confirmLabel="Share Skill"
+      emptyHint="You need to be an arbitrator of a campaign to share custom skills to it."
+      idPrefix="skill-campaign"
+      share={(ids) => shareCustomSkill(skill.id, ids)}
+      userCampaigns={userCampaigns}
+      itemEditionSlug={skill.edition_slug ?? null}
       onClose={onClose}
       onSuccess={onSuccess}
     />
@@ -286,7 +345,7 @@ export function ShareCustomTradingPostModal({ tradingPost, userCampaigns, onClos
 }
 
 interface ShareCustomCollectionModalProps {
-  collection: { id: string; name: string };
+  collection: { id: string; name: string; edition_slug?: string | null };
   userCampaigns: UserCampaign[];
   onClose: () => void;
   onSuccess?: () => void;
@@ -309,6 +368,7 @@ export function ShareCustomCollectionModal({ collection, userCampaigns, onClose,
       invalidateKeys={[['customCollections']]}
       share={(ids) => shareCollection(collection.id, ids)}
       userCampaigns={userCampaigns}
+      itemEditionSlug={collection.edition_slug ?? null}
       onClose={onClose}
       onSuccess={onSuccess}
     />

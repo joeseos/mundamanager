@@ -12,6 +12,7 @@ import { revalidateTag } from 'next/cache';
 import type { GangLogActionResult } from './logs/gang-logs';
 import { countsTowardRating, hasKilledStatusFlag } from '@/utils/fighter-status';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
+import { gangEditionSlug } from '@/types/edition';
 
 export interface AddFighterInjuryParams {
   fighter_id: string;
@@ -21,8 +22,13 @@ export interface AddFighterInjuryParams {
   set_captured?: boolean;
   captured_by_gang_id?: string | null;
   target_equipment_id?: string;
-  /** Enemy gang for {@link import('@/utils/bitterEnmityDisplay').BITTER_ENMITY_EFFECT_NAME}; validated against shared campaign (RPC enforces). */
-  bitter_enmity_target_gang_id?: string | null;
+  /**
+   * Hatred (X) target for the Enmity lasting injuries — a gang, gang type or
+   * fighter id. Which kind is expected comes from the effect type's declared
+   * `hatred_target`; the RPC validates the id against it. Always optional:
+   * skirmish play has no opponent to name.
+   */
+  hatred_target_id?: string | null;
 }
 
 export interface VerifyAndLogRolledFighterInjuryParams {
@@ -171,7 +177,7 @@ export async function addFighterInjury(
       shouldSetKilled = hasKilledStatusFlag(injuryType.type_specific_data || {});
     }
 
-    const bitterGangId = params.bitter_enmity_target_gang_id?.trim() || null;
+    const hatredTargetId = params.hatred_target_id?.trim() || null;
 
     let preInjuryCost = 0;
     if (shouldSetKilled && !fighter.killed && countsTowardRating(fighter)) {
@@ -189,7 +195,7 @@ export async function addFighterInjury(
         in_injury_type_id: params.injury_type_id,
         in_user_id: user.id,
         in_target_equipment_id: params.target_equipment_id || null,
-        in_bitter_enmity_target_gang_id: bitterGangId
+        in_hatred_target_id: hatredTargetId
       });
 
     if (error) {
@@ -575,7 +581,11 @@ export async function clearRigGlitchesDowntime(params: {
 
     const { data: gang, error: gangError } = await supabase
       .from('gangs')
-      .select('credits')
+      .select(`
+        credits,
+        gang_types ( editions:edition_id ( slug ) ),
+        custom_gang_types ( editions:edition_id ( slug ) )
+      `)
       .eq('id', fighter.gang_id)
       .single();
 
@@ -607,6 +617,7 @@ export async function clearRigGlitchesDowntime(params: {
       fighter_name: fighter.fighter_name,
       action_type: 'rig_glitches_cleared_downtime',
       old_value: deletedCount,
+      edition_slug: gangEditionSlug(gang),
       oldCredits: financialResult.oldValues?.credits,
       oldRating:  financialResult.oldValues?.rating,
       oldWealth:  financialResult.oldValues?.wealth,

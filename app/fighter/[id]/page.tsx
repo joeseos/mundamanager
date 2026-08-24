@@ -76,11 +76,21 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       loadouts,
       capturedByGangName,
       fighterTypeData,
-      fighterSubTypeData
+      fighterSpecialisationData
     } = assembleFighterView(bundle, id);
 
     // Campaign data already processed and includes trading post names (from getGangCampaigns)
     const campaigns = gangCampaigns;
+
+    // Custom fighter type gang info is embedded in fighterBasic via the FK join
+    const customFighterTypeInfo = fighterBasic.custom_fighter_type ?? null;
+    const isCustomFighterType = Boolean(fighterBasic.custom_fighter_type_id);
+    const isVehicle = isCustomFighterType
+      ? Boolean(customFighterTypeInfo?.is_vehicle)
+      : Boolean(fighterTypeData?.is_vehicle);
+    const fighterEditionSlug = isCustomFighterType
+      ? customFighterTypeInfo?.editions?.slug ?? (isVehicle ? gangBasic.edition_slug : null)
+      : fighterTypeData?.editions?.slug ?? null;
 
     // Process beast ownership data
     const ownedBeasts: any[] = [];
@@ -94,7 +104,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
             id: beast.id,
             fighter_name: beast.fighter_name,
             fighter_type: beast.fighter_type,
-            fighter_class: beast.fighter_class,
+            fighter_subtypes: beast.fighter_subtypes,
             credits: beast.credits,
             equipment_source: 'Granted by equipment',
             equipment_name: equipment?.equipment_name || 'Unknown Equipment',
@@ -148,9 +158,11 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
                   (fighterBasic.cost_adjustment || 0) + beastCosts.total;
     }
 
-    // Enrich exotic beast equipment with beast's purchased equipment costs and advancements costs
+    // Enrich beast-granting equipment with the beast's purchased equipment costs and
+    // advancements costs. The category is 'Status Items: Exotic Beasts' in N23, 'Pets' in N26.
     equipment.forEach((eq: any) => {
-      if (eq.equipment_category?.toLowerCase() === 'status items: exotic beasts') {
+      const equipmentCategory = eq.equipment_category?.toLowerCase();
+      if (equipmentCategory === 'status items: exotic beasts' || equipmentCategory === 'pets') {
         const breakdown = beastCosts.byEquipmentId[eq.fighter_equipment_id];
         if (breakdown) {
           eq.beast_equipment_cost = breakdown.equipment;
@@ -198,9 +210,14 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         credits: totalCost,
         alliance_crew_name: fighterTypeData?.alliance_crew_name,
         is_spyrer: fighterTypeData?.is_spyrer || false,
+        is_vehicle: isVehicle,
+        edition_slug: fighterEditionSlug,
         fighter_type: {
           fighter_type_id: fighterTypeData?.id || fighterBasic.custom_fighter_type_id || '',
           fighter_type: fighterBasic.fighter_type || fighterTypeData?.fighter_type || 'Unknown',
+          fighter_subtypes: Array.isArray(fighterTypeData?.fighter_subtypes)
+            ? fighterTypeData.fighter_subtypes
+            : [],
           alliance_crew_name: fighterTypeData?.alliance_crew_name,
           // Prefer the fighter type's own gang association; fall back to the owning gang's type
           // so the promotion dropdown is never silently empty (e.g. when a custom gang type was deleted).
@@ -212,11 +229,12 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
             || gangBasic.custom_gang_type_id
             || null,
         },
-        fighter_sub_type: fighterSubTypeData ? {
-          id: fighterSubTypeData.fighter_sub_type_id,
-          sub_type_name: fighterSubTypeData.fighter_sub_type,
-          fighter_sub_type: fighterSubTypeData.fighter_sub_type
+        fighter_specialisation: fighterSpecialisationData ? {
+          id: fighterSpecialisationData.fighter_specialisation_id,
+          specialisation_name: fighterSpecialisationData.fighter_specialisation,
+          fighter_specialisation: fighterSpecialisationData.fighter_specialisation
         } : undefined,
+        fighter_variant: fighterBasic.fighter_variant ?? null,
         skills,
         effects,
         vehicles,
@@ -230,6 +248,8 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         id: gangBasic.id,
         credits: gangBasic.credits,
         reputation: gangBasic.reputation,
+        trade_points: gangBasic.trade_points,
+        edition_slug: gangBasic.edition_slug ?? null,
         gang_type_id: gangBasic.gang_type_id,
         custom_gang_type_id: gangBasic.custom_gang_type_id,
         gang_affiliation_id: gangBasic.gang_affiliation_id,

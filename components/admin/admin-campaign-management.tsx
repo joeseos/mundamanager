@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { HiX } from "react-icons/hi";
 import Modal from '@/components/ui/modal';
 import type { CampaignType, CampaignTypeResource } from '@/types/campaign';
+import { EditionSelect } from '@/components/edition-select';
 
 enum OperationType {
   POST = 'POST',
@@ -23,6 +24,7 @@ interface Territory {
   territory_name: string;
   campaign_type_id?: string | null;
   playing_card?: string | null;
+  edition_id?: string | null;
 }
 
 interface CampaignTriumph {
@@ -117,6 +119,7 @@ export function AdminCampaignManagementModal({
   const [selectedCampaignTypeId, setSelectedCampaignTypeId] = useState('');
   const [campaignTypeName, setCampaignTypeName] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [campaignTypeEditionId, setCampaignTypeEditionId] = useState('');
   const [isCreateModeCampaignType, setIsCreateModeCampaignType] = useState(false);
   
   // Relationship management for campaign types
@@ -137,6 +140,7 @@ export function AdminCampaignManagementModal({
   const [territoryName, setTerritoryName] = useState('');
   const [territoryCampaignTypeId, setTerritoryCampaignTypeId] = useState('');
   const [territoryCardValue, setTerritoryCardValue] = useState('');
+  const [territoryEditionId, setTerritoryEditionId] = useState('');
   const [isCreateModeTerritory, setIsCreateModeTerritory] = useState(false);
   
   // Triumphs form state
@@ -185,6 +189,48 @@ export function AdminCampaignManagementModal({
     }
   }
 
+  // Edition is the top-level filter per section: only rows of the chosen
+  // edition are offered for editing, and created/saved rows keep that edition
+  const filteredCampaignTypes = campaignTypeEditionId
+    ? campaignTypes.filter(ct => ct.edition_id === campaignTypeEditionId)
+    : campaignTypes;
+
+  const filteredTerritories = territoryEditionId
+    ? territories.filter(t => t.edition_id === territoryEditionId)
+    : territories;
+
+  const handleCampaignTypeEditionChange = (newEditionId: string) => {
+    setCampaignTypeEditionId(newEditionId);
+    if (newEditionId && selectedCampaignTypeId) {
+      const selected = campaignTypes.find(ct => ct.id === selectedCampaignTypeId);
+      if (selected && selected.edition_id !== newEditionId) {
+        setSelectedCampaignTypeId('');
+        setCampaignTypeName('');
+        setImageUrl('');
+        setIsCreateModeCampaignType(false);
+        setRelatedTerritories([]);
+        setRelatedTriumphs([]);
+        setRelatedTradingPostIds([]);
+        setCampaignTypeResources([]);
+        setNewResourceName('');
+      }
+    }
+  };
+
+  const handleTerritoryEditionChange = (newEditionId: string) => {
+    setTerritoryEditionId(newEditionId);
+    if (newEditionId && selectedTerritoryId) {
+      const selected = territories.find(t => t.id === selectedTerritoryId);
+      if (selected && selected.edition_id !== newEditionId) {
+        setSelectedTerritoryId('');
+        setTerritoryName('');
+        setTerritoryCampaignTypeId('');
+        setTerritoryCardValue('');
+        setIsCreateModeTerritory(false);
+      }
+    }
+  };
+
   const invalidateAllData = () => Promise.all([
     queryClient.invalidateQueries({ queryKey: ['admin-campaign-types'] }),
     queryClient.invalidateQueries({ queryKey: ['admin-territories'] }),
@@ -199,6 +245,7 @@ export function AdminCampaignManagementModal({
     if (selected) {
       setCampaignTypeName(selected.campaign_type_name);
       setImageUrl(selected.image_url || '');
+      setCampaignTypeEditionId(selected.edition_id ?? '');
       setRelatedTradingPostIds(selected.trading_posts || []);
       setCampaignTypeResources(selected.campaign_type_resources ?? []);
       setNewResourceName('');
@@ -247,6 +294,7 @@ export function AdminCampaignManagementModal({
             campaign_type_name: campaignTypeName.trim(),
             image_url: imageUrl.trim() || null,
             trading_posts: relatedTradingPostIds.length > 0 ? relatedTradingPostIds : null,
+            edition_id: campaignTypeEditionId || null,
             resources: campaignTypeResources.map(r => r.resource_name)
           });
           break;
@@ -257,6 +305,7 @@ export function AdminCampaignManagementModal({
             campaign_type_name: campaignTypeName.trim(),
             image_url: imageUrl.trim() || null,
             trading_posts: relatedTradingPostIds.length > 0 ? relatedTradingPostIds : null,
+            edition_id: campaignTypeEditionId || null,
             resources: campaignTypeResources.map(r => r.resource_name)
           });
           break;
@@ -386,6 +435,7 @@ export function AdminCampaignManagementModal({
       setTerritoryName(selected.territory_name);
       setTerritoryCampaignTypeId(selected.campaign_type_id || '');
       setTerritoryCardValue(selected.playing_card || '');
+      setTerritoryEditionId(selected.edition_id ?? '');
     }
   };
 
@@ -415,7 +465,8 @@ export function AdminCampaignManagementModal({
           body = JSON.stringify({
             territory_name: territoryName.trim(),
             campaign_type_id: territoryCampaignTypeId || null,
-            playing_card: territoryCardValue.trim() || null
+            playing_card: territoryCardValue.trim() || null,
+            edition_id: territoryEditionId || null
           });
           break;
         case OperationType.UPDATE:
@@ -424,7 +475,8 @@ export function AdminCampaignManagementModal({
             id: selectedTerritoryId,
             territory_name: territoryName.trim(),
             campaign_type_id: territoryCampaignTypeId || null,
-            playing_card: territoryCardValue.trim() || null
+            playing_card: territoryCardValue.trim() || null,
+            edition_id: territoryEditionId || null
           });
           break;
         default:
@@ -626,7 +678,7 @@ export function AdminCampaignManagementModal({
   };
 
   const activeForm = getActiveFormState();
-  const territorySelectOptions = territories.map((territory) => {
+  const territorySelectOptions = filteredTerritories.map((territory) => {
     const playingCardValue = territory.playing_card?.trim();
     const hasPlayingCardValue = Boolean(playingCardValue);
     const campaignTypeName = campaignTypes.find(
@@ -703,6 +755,12 @@ export function AdminCampaignManagementModal({
             {/* Campaign Types Section */}
             {selectedCategory === 'campaign-types' && (
               <>
+                <EditionSelect
+                  value={campaignTypeEditionId}
+                  onChange={handleCampaignTypeEditionChange}
+                  defaultToCurrent
+                />
+
                 <div>
                   <div className="flex justify-between items-center mb-1">
                     <label className="block text-sm font-medium text-muted-foreground">
@@ -723,7 +781,7 @@ export function AdminCampaignManagementModal({
                     disabled={isLoading}
                   >
                     <option value="">Select a campaign type to edit</option>
-                    {campaignTypes.map((type) => (
+                    {filteredCampaignTypes.map((type) => (
                       <option key={type.id} value={type.id}>
                         {type.campaign_type_name}
                       </option>
@@ -932,6 +990,12 @@ export function AdminCampaignManagementModal({
             {/* Territories Section */}
             {selectedCategory === 'territories' && (
               <>
+                <EditionSelect
+                  value={territoryEditionId}
+                  onChange={handleTerritoryEditionChange}
+                  defaultToCurrent
+                />
+
                 <div>
                   <div className="flex justify-between items-center mb-1">
                     <label className="block text-sm font-medium text-muted-foreground">
@@ -1004,6 +1068,7 @@ export function AdminCampaignManagementModal({
                     disabled={!isCreateModeTerritory && !selectedTerritoryId}
                   />
                 </div>
+
               </>
             )}
 
