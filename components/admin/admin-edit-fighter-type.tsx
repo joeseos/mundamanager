@@ -2364,95 +2364,65 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 )}
 
                 {showAdjustedCostDialog && (
-                  <div
-                    className="fixed inset-0 bg-black/50 dark:bg-neutral-700/50 flex items-center justify-center z-50"
-                    onClick={(e) => {
-                      if (e.target === e.currentTarget) {
-                        setShowAdjustedCostDialog(false);
-                        setSelectedAdjustedCostEquipment("");
-                        setAdjustedCostAmount("");
-                      }
+                  <Modal
+                    title="Equipment Adjusted Cost Menu"
+                    helper="Select equipment and enter an adjusted cost"
+                    width="sm"
+                    onClose={() => {
+                      setShowAdjustedCostDialog(false);
+                      setSelectedAdjustedCostEquipment("");
+                      setAdjustedCostAmount("");
                     }}
+                    onConfirm={() => {
+                      setEquipmentDiscounts(prev => [
+                        ...prev,
+                        {
+                          equipment_id: selectedAdjustedCostEquipment,
+                          adjusted_cost: parseInt(adjustedCostAmount),
+                        },
+                      ]);
+                    }}
+                    confirmText="Save Adjusted Cost"
+                    confirmDisabled={!selectedAdjustedCostEquipment || !adjustedCostAmount || parseInt(adjustedCostAmount) < 0}
                   >
-                    <div className="bg-card p-6 rounded-lg shadow-lg w-[400px]">
-                      <h3 className="text-xl font-bold mb-4">Equipment Adjusted Cost Menu</h3>
-                      <p className="text-sm text-muted-foreground mb-4">Select equipment and enter an adjusted cost</p>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Equipment</label>
+                        <select
+                          value={selectedAdjustedCostEquipment}
+                          onChange={(e) => setSelectedAdjustedCostEquipment(e.target.value)}
+                          className="w-full p-2 border rounded-md"
+                        >
+                          <option value="">Select equipment</option>
+                          {filteredEquipment
+                            .filter(item => !equipmentDiscounts.some(
+                              adjusted_cost => adjusted_cost.equipment_id === item.id
+                            ))
+                            .map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.equipment_name}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
 
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Equipment</label>
-                          <select
-                            value={selectedAdjustedCostEquipment}
-                            onChange={(e) => setSelectedAdjustedCostEquipment(e.target.value)}
-                            className="w-full p-2 border rounded-md"
-                          >
-                            <option value="">Select equipment</option>
-                            {filteredEquipment
-                              .filter(item => !equipmentDiscounts.some(
-                                adjusted_cost => adjusted_cost.equipment_id === item.id
-                              ))
-                              .map((item) => (
-                                <option key={item.id} value={item.id}>
-                                  {item.equipment_name}
-                                </option>
-                              ))}
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Adjusted Cost (credits)</label>
-                          <Input
-                            type="number"
-                            value={adjustedCostAmount}
-                            onChange={(e) => setAdjustedCostAmount(e.target.value)}
-                            placeholder="Enter adjusted cost in credits"
-                            min="0"
-                            onKeyDown={(e) => {
-                              if (e.key === '-') {
-                                e.preventDefault();
-                              }
-                            }}
-                          />
-                        </div>
-
-                        <div className="flex gap-2 justify-end mt-6">
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setShowAdjustedCostDialog(false);
-                              setSelectedAdjustedCostEquipment("");
-                              setAdjustedCostAmount("");
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            onClick={() => {
-                              if (selectedAdjustedCostEquipment && adjustedCostAmount) {
-                                const adjusted_cost = parseInt(adjustedCostAmount);
-                                if (adjusted_cost >= 0) {
-                                  setEquipmentDiscounts(prev => [
-                                    ...prev,
-                                    {
-                                      equipment_id: selectedAdjustedCostEquipment,
-                                      adjusted_cost
-                                    }
-                                  ]);
-                                  setShowAdjustedCostDialog(false);
-                                  setSelectedAdjustedCostEquipment("");
-                                  setAdjustedCostAmount("");
-                                }
-                              }
-                            }}
-                            disabled={!selectedAdjustedCostEquipment || !adjustedCostAmount || parseInt(adjustedCostAmount) < 0}
-                            className="bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
-                          >
-                            Save Adjusted Cost
-                          </Button>
-                        </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Adjusted Cost (credits)</label>
+                        <Input
+                          type="number"
+                          value={adjustedCostAmount}
+                          onChange={(e) => setAdjustedCostAmount(e.target.value)}
+                          placeholder="Enter adjusted cost in credits"
+                          min="0"
+                          onKeyDown={(e) => {
+                            if (e.key === '-') {
+                              e.preventDefault();
+                            }
+                          }}
+                        />
                       </div>
                     </div>
-                  </div>
+                  </Modal>
                 )}
               </div>
 
