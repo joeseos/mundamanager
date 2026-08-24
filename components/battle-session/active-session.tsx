@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
 import type { BattleSessionFull } from '@/types/battle-session';
 import type { Scenario } from '@/types/campaign';
+import { sameEditionForDisplay } from '@/types/edition';
 import type { GangFighter } from '@/app/lib/shared/gang-data';
 
 interface ActiveSessionProps {
@@ -57,6 +58,11 @@ export default function ActiveSession({
     refetchOnWindowFocus: false,
   });
   const { broadcast, suppressRefetch } = useBattleSessionRealtime(session.id);
+
+  const editionScenarios = useMemo(
+    () => scenarios.filter((s) => sameEditionForDisplay(s.edition_slug, session.edition_slug)),
+    [scenarios, session.edition_slug]
+  );
 
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
@@ -221,13 +227,13 @@ export default function ActiveSession({
               Scenario
             </label>
             <Combobox
-              options={scenarios.map((s) => ({
+              options={editionScenarios.map((s) => ({
                 value: s.id,
                 label: s.scenario_number ? `${s.scenario_number}. ${s.scenario_name}` : s.scenario_name,
               }))}
-              value={scenarios.find((s) => s.scenario_name === session.scenario)?.id ?? ''}
+              value={editionScenarios.find((s) => s.scenario_name === session.scenario)?.id ?? ''}
               onValueChange={(id) => {
-                const name = scenarios.find((s) => s.id === id)?.scenario_name ?? id;
+                const name = editionScenarios.find((s) => s.id === id)?.scenario_name ?? id;
                 scenarioMutation.mutate(name);
               }}
               placeholder="Select scenario..."

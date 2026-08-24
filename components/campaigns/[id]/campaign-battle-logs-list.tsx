@@ -31,6 +31,7 @@ type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 
 interface CampaignBattleLogsListProps {
   campaignId: string;
+  editionSlug?: string | null;
   battles: Battle[];
   isAdmin: boolean;
   onBattleAdd: () => void;
@@ -69,6 +70,7 @@ const formatDate = (dateString: string | null) => {
 const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBattleLogsListProps>((props, ref) => {
   const {
     campaignId,
+    editionSlug,
     battles,
     isAdmin,
     onBattleAdd,
@@ -1286,6 +1288,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       {/* Battle Log Modal for Add/Edit */}
       <CampaignBattleLogModal
         campaignId={campaignId}
+        editionSlug={editionSlug}
         availableGangs={availableGangs}
         territories={territories.map(t => ({
           id: t.id,

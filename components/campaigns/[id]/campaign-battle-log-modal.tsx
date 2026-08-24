@@ -15,6 +15,7 @@ import { useMutation } from '@tanstack/react-query';
 import { Battle, BattleParticipant, CampaignGang, Territory as BaseTerritory, Scenario } from '@/types/campaign';
 import { getClaimerGangId, getWinnerIds } from '@/utils/battle-winners';
 import { useWinnerSelection } from '@/hooks/use-winner-selection';
+import { sameEditionForDisplay } from '@/types/edition';
 
 interface BattleLogTerritory extends BaseTerritory {
   default_gang_territory?: boolean;
@@ -22,6 +23,7 @@ interface BattleLogTerritory extends BaseTerritory {
 
 interface CampaignBattleLogModalProps {
   campaignId: string;
+  editionSlug?: string | null;
   availableGangs: CampaignGang[];
   territories?: BattleLogTerritory[];
   isOpen: boolean;
@@ -45,6 +47,7 @@ type GangEntry = {
 
 const CampaignBattleLogModal = ({
   campaignId,
+  editionSlug,
   availableGangs,
   territories = [],
   isOpen,
@@ -326,8 +329,11 @@ const CampaignBattleLogModal = ({
 
           if (isMounted) {
             const data = await response.json();
+            const editionScenarios = (data.scenarios as Scenario[]).filter((s) =>
+              sameEditionForDisplay(s.edition_slug, editionSlug)
+            );
             // Sort scenarios by scenario_number
-            const sortedScenarios = [...data.scenarios].sort((a, b) => {
+            const sortedScenarios = [...editionScenarios].sort((a, b) => {
               if (a.scenario_number === null) return 1;
               if (b.scenario_number === null) return -1;
               return a.scenario_number - b.scenario_number;
@@ -352,7 +358,7 @@ const CampaignBattleLogModal = ({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, campaignId]);
+  }, [isOpen, campaignId, editionSlug]);
 
   // Populate form when modal opens with edit data and scenarios are loaded
   const [populatedForBattle, setPopulatedForBattle] = useState<string | null>(null);

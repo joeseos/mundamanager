@@ -10,7 +10,9 @@ import { createBattleSession, addParticipant } from '@/app/actions/battle-sessio
 import Modal from '@/components/ui/modal';
 import { Combobox } from '@/components/ui/combobox';
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
-import { editionsConflict } from '@/types/edition';
+import { editionsConflict, hasScenarioD6Roll, sameEditionForDisplay } from '@/types/edition';
+import DiceRoller from '@/components/dice-roller';
+import { rollNd6Outcome } from '@/utils/dice';
 import { Button } from '@/components/ui/button';
 import UserSearchBar, { type UserSearchResult } from '@/components/shared/user-search-bar';
 import type { Scenario } from '@/types/campaign';
@@ -129,7 +131,11 @@ export default function CreateBattleModal({
     staleTime: 0,
   });
 
-  const scenarios = battleData?.scenarios ?? [];
+  // Scenario rows are all edition-backfilled, so this filters on display rather
+  // than guarding an action the way the opponent picker below does.
+  const scenarios = (battleData?.scenarios ?? []).filter((s) =>
+    sameEditionForDisplay(s.edition_slug, editionSlug)
+  );
   const sortedScenarios = [...scenarios].sort((a, b) => {
     if (a.scenario_number === null) return 1;
     if (b.scenario_number === null) return -1;
@@ -438,6 +444,30 @@ export default function CreateBattleModal({
         {/* Scenario picker (create mode only) */}
         {!isAddMode && (
           <div>
+            {hasScenarioD6Roll(editionSlug) && (
+              <div className="mb-2">
+                <DiceRoller<Scenario>
+                  items={sortedScenarios}
+                  // scenario_number is numeric in Postgres, so it arrives as a string.
+                  getRange={(s) =>
+                    s.scenario_number != null
+                      ? { min: Number(s.scenario_number), max: Number(s.scenario_number) }
+                      : null
+                  }
+                  getName={(s) => s.scenario_name}
+                  inline
+                  rollFn={() => rollNd6Outcome(1)}
+                  buttonText="Roll D6"
+                  disabled={isLoadingBattleData || sortedScenarios.length === 0}
+                  onRolled={(rolled) => {
+                    const result = rolled[0];
+                    if (!result) return;
+                    setSelectedScenario(result.item.id);
+                    setCustomScenario('');
+                  }}
+                />
+              </div>
+            )}
             <label className="mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
               Scenario
             </label>

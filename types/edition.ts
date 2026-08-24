@@ -192,6 +192,8 @@ const EDITION_CAPABILITIES = {
    * standard promote-to-Leader type picker with catalog subtypes.
    */
   championLeaderTypePromotion: { n23: false, n26: true },
+  /** The battle's scenario is rolled for on a D6 against the edition's numbered scenarios. */
+  scenarioD6Roll: { n23: false, n26: true },
 } as const satisfies Record<string, Record<EditionSlug, unknown>>;
 
 type EditionCapability = keyof typeof EDITION_CAPABILITIES;
@@ -326,6 +328,9 @@ export const hasGangerChampionKeepTypePromotion = (
 export const hasChampionLeaderTypePromotion = (
   editionSlug?: string | null
 ): boolean => can('championLeaderTypePromotion', editionSlug);
+
+export const hasScenarioD6Roll = (editionSlug?: string | null): boolean =>
+  can('scenarioD6Roll', editionSlug);
 
 export interface Edition {
   id: string;

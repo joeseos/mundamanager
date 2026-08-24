@@ -105,6 +105,7 @@ export interface Scenario {
   id: string;
   scenario_name: string;
   scenario_number: number | null;
+  edition_slug?: string | null;
 }
 
 /**
