@@ -142,6 +142,8 @@ export default function CreateBattleModal({
     return a.scenario_number - b.scenario_number;
   });
 
+  const showScenarioRoll = hasScenarioD6Roll(editionSlug);
+
   const opponentCampaignGangs = (campaignGangs ?? []).filter(
     (g) =>
       g.id !== effectiveGangId &&
@@ -443,74 +445,74 @@ export default function CreateBattleModal({
 
         {/* Scenario picker (create mode only) */}
         {!isAddMode && (
-          <div>
-            <label className="mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
-              Scenario
-            </label>
-            {hasScenarioD6Roll(editionSlug) && (
-              <div className="mb-2">
-                <DiceRoller<Scenario>
-                  items={sortedScenarios}
-                  // scenario_number is numeric in Postgres, so it arrives as a string.
-                  getRange={(s) =>
-                    s.scenario_number != null
-                      ? { min: Number(s.scenario_number), max: Number(s.scenario_number) }
-                      : null
-                  }
-                  getName={(s) => s.scenario_name}
-                  inline
-                  rollFn={() => rollNd6Outcome(1)}
-                  buttonText="Roll D6"
-                  disabled={isLoadingBattleData || sortedScenarios.length === 0}
-                  onRolled={(rolled) => {
-                    const result = rolled[0];
-                    if (!result) return;
-                    setSelectedScenario(result.item.id);
-                    setCustomScenario('');
-                  }}
-                />
-              </div>
-            )}
-            <Combobox
-              options={[
-                { value: 'custom', label: 'Custom' },
-                ...sortedScenarios.map((s) => ({
-                  value: s.id,
-                  label: s.scenario_number ? `${s.scenario_number}. ${s.scenario_name}` : s.scenario_name,
-                })),
-              ]}
-              value={selectedScenario === 'custom' ? 'custom' : selectedScenario}
-              onValueChange={(value) => {
-                if (value === 'custom') {
-                  setSelectedScenario('custom');
-                  setCustomScenario('');
-                } else {
-                  const isCustomValue = !sortedScenarios.some((s) => s.id === value);
-                  if (isCustomValue) {
-                    setSelectedScenario('custom');
-                    setCustomScenario(value);
-                  } else {
-                    setSelectedScenario(value);
-                    setCustomScenario('');
-                  }
+          <div className="space-y-4">
+            {showScenarioRoll && (
+              <DiceRoller<Scenario>
+                items={sortedScenarios}
+                // scenario_number is numeric in Postgres, so it arrives as a string.
+                getRange={(s) =>
+                  s.scenario_number != null
+                    ? { min: Number(s.scenario_number), max: Number(s.scenario_number) }
+                    : null
                 }
-              }}
-              placeholder="Select or search for a Scenario..."
-              disabled={isLoadingBattleData}
-              dropdownPlacement="down"
-              allowCustom={true}
-            />
-            {selectedScenario === 'custom' && (
-              <div className="mt-2">
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 rounded-md border border-border bg-muted"
-                  placeholder="Enter custom Scenario name"
-                  value={customScenario}
-                  onChange={(e) => setCustomScenario(e.target.value)}
-                />
-              </div>
+                getName={(s) => s.scenario_name}
+                inline
+                rollFn={() => rollNd6Outcome(1)}
+                buttonText="Roll D6"
+                disabled={isLoadingBattleData || sortedScenarios.length === 0}
+                onRolled={(rolled) => {
+                  const result = rolled[0];
+                  if (!result) return;
+                  setSelectedScenario(result.item.id);
+                  setCustomScenario('');
+                }}
+              />
             )}
+            <div className={showScenarioRoll ? 'border-t pt-3' : undefined}>
+              <label className="mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                Scenario
+              </label>
+              <Combobox
+                options={[
+                  { value: 'custom', label: 'Custom' },
+                  ...sortedScenarios.map((s) => ({
+                    value: s.id,
+                    label: s.scenario_number ? `${s.scenario_number}. ${s.scenario_name}` : s.scenario_name,
+                  })),
+                ]}
+                value={selectedScenario === 'custom' ? 'custom' : selectedScenario}
+                onValueChange={(value) => {
+                  if (value === 'custom') {
+                    setSelectedScenario('custom');
+                    setCustomScenario('');
+                  } else {
+                    const isCustomValue = !sortedScenarios.some((s) => s.id === value);
+                    if (isCustomValue) {
+                      setSelectedScenario('custom');
+                      setCustomScenario(value);
+                    } else {
+                      setSelectedScenario(value);
+                      setCustomScenario('');
+                    }
+                  }
+                }}
+                placeholder="Select or search for a Scenario..."
+                disabled={isLoadingBattleData}
+                dropdownPlacement="down"
+                allowCustom={true}
+              />
+              {selectedScenario === 'custom' && (
+                <div className="mt-2">
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 rounded-md border border-border bg-muted"
+                    placeholder="Enter custom Scenario name"
+                    value={customScenario}
+                    onChange={(e) => setCustomScenario(e.target.value)}
+                  />
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
