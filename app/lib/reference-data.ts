@@ -2,6 +2,7 @@ import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
 import { createClient } from '@/utils/supabase/server';
 import { withEditionSlug } from '@/types/edition';
+import type { Scenario } from '@/types/campaign';
 
 /**
  * Cached global reference data (admin-owned tables, not scoped to any
@@ -9,24 +10,20 @@ import { withEditionSlug } from '@/types/edition';
  * tables (plus a time-based fallback where noted).
  */
 
-export interface Scenario {
-  id: string;
-  scenario_name: string;
-  scenario_number: number | null;
-}
+export type { Scenario };
 
 export const getScenariosCached = async (supabase: any): Promise<Scenario[]> => {
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
         .from('scenarios')
-        .select('id, scenario_name, scenario_number')
+        .select('id, scenario_name, scenario_number, editions:edition_id (slug)')
         .order('scenario_number');
 
       if (error) throw error;
-      return data || [];
+      return (data || []).map(withEditionSlug);
     },
-    ['global-scenarios'],
+    ['global-scenarios-with-edition'],
     {
       tags: [TAGS.globalScenarios()],
       revalidate: 3600

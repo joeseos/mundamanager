@@ -972,6 +972,7 @@ export default function CampaignPageContent({
                   campaignId={campaignData.id}
                   userId={userId}
                   canAdd={safePermissions.canAddBattleLogs}
+                  editionSlug={campaignData.edition_slug ?? null}
                   campaignGangs={campaignData.members.flatMap((m: Member) =>
                     m.gangs
                       .filter((g) => g.status === 'ACCEPTED')
@@ -1003,6 +1004,7 @@ export default function CampaignPageContent({
                   <CampaignBattleLogsList
                     ref={battleLogsRef}
                     campaignId={campaignData.id}
+                    editionSlug={campaignData.edition_slug ?? null}
                     battles={campaignData.battles || []}
                     isAdmin={!!safePermissions.canEditBattleLogs}
                     onBattleAdd={refreshData}

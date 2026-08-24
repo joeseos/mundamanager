@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { normaliseParticipants, territoryClaimerFor } from "@/utils/battle-participants";
+import { withEditionSlug } from "@/types/edition";
 
 export async function GET(
   request: Request
@@ -9,11 +10,13 @@ export async function GET(
   const campaignId = request.headers.get('X-Campaign-Id');
 
   try {
-    const { data: scenarios, error: scenariosError } = await supabase
+    const { data: scenarioRows, error: scenariosError } = await supabase
       .from('scenarios')
-      .select('id, scenario_name, scenario_number');
+      .select('id, scenario_name, scenario_number, editions:edition_id (slug)');
 
     if (scenariosError) throw scenariosError;
+
+    const scenarios = (scenarioRows || []).map(withEditionSlug);
 
     if (!campaignId) {
       return NextResponse.json({ scenarios });

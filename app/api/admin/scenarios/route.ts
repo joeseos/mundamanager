@@ -66,16 +66,20 @@ async function _POST(request: Request) {
       );
     }
 
-    // Check for duplicate scenario number
-    const { data: existing } = await supabase
+    // Scenario numbers restart per edition, so the check is scoped to one.
+    let duplicateQuery = supabase
       .from('scenarios')
       .select('id')
-      .eq('scenario_number', numericScenarioNumber)
-      .single();
+      .eq('scenario_number', numericScenarioNumber);
+    duplicateQuery = edition_id
+      ? duplicateQuery.eq('edition_id', edition_id)
+      : duplicateQuery.is('edition_id', null);
+
+    const { data: existing } = await duplicateQuery.maybeSingle();
 
     if (existing) {
       return NextResponse.json(
-        { error: 'A scenario with this number already exists' },
+        { error: 'A scenario with this number already exists for this edition' },
         { status: 409 }
       );
     }
@@ -140,17 +144,21 @@ async function _PATCH(request: Request) {
       );
     }
 
-    // Check for duplicate scenario number (excluding current scenario)
-    const { data: existing } = await supabase
+    // Duplicate check, excluding the current scenario.
+    let duplicateQuery = supabase
       .from('scenarios')
       .select('id')
       .eq('scenario_number', numericScenarioNumber)
-      .neq('id', id)
-      .single();
+      .neq('id', id);
+    duplicateQuery = edition_id
+      ? duplicateQuery.eq('edition_id', edition_id)
+      : duplicateQuery.is('edition_id', null);
+
+    const { data: existing } = await duplicateQuery.maybeSingle();
 
     if (existing) {
       return NextResponse.json(
-        { error: 'A scenario with this number already exists' },
+        { error: 'A scenario with this number already exists for this edition' },
         { status: 409 }
       );
     }
