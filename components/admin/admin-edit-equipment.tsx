@@ -945,7 +945,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       )}
 
                       {grantsEquipment.options.map((option, index) => (
-                        <div key={index} className="flex items-center gap-2 p-2 bg-card rounded-sm border">
+                        <div key={index} className="flex flex-col sm:flex-row sm:items-center gap-2 p-2 bg-card rounded-sm border">
                           <select
                             value={option.equipment_id}
                             onChange={(e) => {
@@ -953,7 +953,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                               newOptions[index] = { ...newOptions[index], equipment_id: e.target.value };
                               setGrantsEquipment({ ...grantsEquipment, options: newOptions });
                             }}
-                            className="flex-1 p-2 border rounded-md"
+                            className="flex-1 min-w-0 p-2 border rounded-md"
                             disabled={!selectedEquipmentId}
                           >
                             <option value="">Select equipment...</option>
@@ -966,35 +966,37 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                 </option>
                               ))}
                           </select>
-                          <div className="flex items-center gap-1">
-                            <span className="text-sm text-muted-foreground">Cost:</span>
-                            <Input
-                              type="number"
-                              value={option.additional_cost}
-                              onChange={(e) => {
-                                const newOptions = [...grantsEquipment.options];
-                                newOptions[index] = {
-                                  ...newOptions[index],
-                                  additional_cost: parseInt(e.target.value) || 0
-                                };
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1">
+                              <span className="text-sm text-muted-foreground">Cost:</span>
+                              <Input
+                                type="number"
+                                value={option.additional_cost}
+                                onChange={(e) => {
+                                  const newOptions = [...grantsEquipment.options];
+                                  newOptions[index] = {
+                                    ...newOptions[index],
+                                    additional_cost: parseInt(e.target.value) || 0
+                                  };
+                                  setGrantsEquipment({ ...grantsEquipment, options: newOptions });
+                                }}
+                                className="w-24"
+                                placeholder="E.g. 130"
+                                disabled={!selectedEquipmentId}
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newOptions = grantsEquipment.options.filter((_, i) => i !== index);
                                 setGrantsEquipment({ ...grantsEquipment, options: newOptions });
                               }}
-                              className="w-24"
-                              placeholder="E.g. 130"
+                              className="hover:text-red-500 focus:outline-hidden p-1"
                               disabled={!selectedEquipmentId}
-                            />
+                            >
+                              <HiX className="h-4 w-4" />
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newOptions = grantsEquipment.options.filter((_, i) => i !== index);
-                              setGrantsEquipment({ ...grantsEquipment, options: newOptions });
-                            }}
-                            className="hover:text-red-500 focus:outline-hidden p-1"
-                            disabled={!selectedEquipmentId}
-                          >
-                            <HiX className="h-4 w-4" />
-                          </button>
                         </div>
                       ))}
                     </div>
