@@ -4222,7 +4222,11 @@ CREATE TABLE public.campaign_battles (
     scenario text,
     territory_id uuid,
     cycle integer,
-    campaign_territory_id uuid
+    campaign_territory_id uuid,
+    status text DEFAULT 'played'::text NOT NULL,
+    challenger_gang_id uuid,
+    challenged_gang_id uuid,
+    CONSTRAINT campaign_battles_status_check CHECK ((status = ANY (ARRAY['challenge_issued'::text, 'challenge_accepted'::text, 'challenge_declined'::text, 'played'::text])))
 );
 
 
@@ -4245,6 +4249,13 @@ COMMENT ON COLUMN public.campaign_battles.defender_id IS 'gang_id';
 --
 
 COMMENT ON COLUMN public.campaign_battles.winner_id IS 'gang_id';
+
+
+--
+-- Name: COLUMN campaign_battles.status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_battles.status IS 'Lifecycle of the battle log. Challenges start at challenge_issued and become played once the report is filed. Battles logged directly are born played.';
 
 
 --
@@ -4507,7 +4518,8 @@ CREATE TABLE public.campaigns (
     discord_channel_type integer DEFAULT 0 NOT NULL,
     created_by uuid DEFAULT auth.uid(),
     custom_trading_posts jsonb,
-    allow_join_requests boolean DEFAULT false NOT NULL
+    allow_join_requests boolean DEFAULT false NOT NULL,
+    current_cycle integer
 );
 
 
@@ -7039,6 +7051,13 @@ CREATE INDEX battle_sessions_edition_id_idx ON public.battle_sessions USING btre
 
 
 --
+-- Name: battle_sessions_round_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX battle_sessions_round_idx ON public.battle_sessions USING btree (round);
+
+
+--
 -- Name: battle_sessions_status_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7060,6 +7079,13 @@ CREATE INDEX battle_sessions_winner_gang_id_idx ON public.battle_sessions USING 
 
 
 --
+-- Name: campaign_battles_attacker_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_battles_attacker_id_idx ON public.campaign_battles USING btree (attacker_id);
+
+
+--
 -- Name: campaign_battles_campaign_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7067,10 +7093,59 @@ CREATE INDEX campaign_battles_campaign_id_idx ON public.campaign_battles USING b
 
 
 --
+-- Name: campaign_battles_campaign_id_status_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_battles_campaign_id_status_idx ON public.campaign_battles USING btree (campaign_id, status);
+
+
+--
 -- Name: campaign_battles_campaign_territory_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX campaign_battles_campaign_territory_id_idx ON public.campaign_battles USING btree (campaign_territory_id);
+
+
+--
+-- Name: campaign_battles_challenged_gang_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_battles_challenged_gang_id_idx ON public.campaign_battles USING btree (challenged_gang_id);
+
+
+--
+-- Name: campaign_battles_challenger_gang_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_battles_challenger_gang_id_idx ON public.campaign_battles USING btree (challenger_gang_id);
+
+
+--
+-- Name: campaign_battles_cycle_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_battles_cycle_idx ON public.campaign_battles USING btree (cycle);
+
+
+--
+-- Name: campaign_battles_defender_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_battles_defender_id_idx ON public.campaign_battles USING btree (defender_id);
+
+
+--
+-- Name: campaign_battles_winner_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_battles_winner_id_idx ON public.campaign_battles USING btree (winner_id);
+
+
+--
+-- Name: campaign_gangs_campaign_member_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_gangs_campaign_member_id_idx ON public.campaign_gangs USING btree (campaign_member_id);
 
 
 --
@@ -7092,6 +7167,20 @@ CREATE INDEX campaign_map_objects_campaign_map_id_idx ON public.campaign_map_obj
 --
 
 CREATE INDEX campaign_members_campaign_id_idx ON public.campaign_members USING btree (campaign_id);
+
+
+--
+-- Name: campaign_members_invited_by_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_members_invited_by_idx ON public.campaign_members USING btree (invited_by);
+
+
+--
+-- Name: campaign_members_is_favourite_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_members_is_favourite_idx ON public.campaign_members USING btree (is_favourite);
 
 
 --
@@ -7886,6 +7975,13 @@ CREATE INDEX idx_campaign_gangs_gang_id ON public.campaign_gangs USING btree (ga
 
 
 --
+-- Name: idx_campaign_gangs_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_campaign_gangs_user_id ON public.campaign_gangs USING btree (user_id);
+
+
+--
 -- Name: idx_campaign_join_requests_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7897,6 +7993,13 @@ CREATE INDEX idx_campaign_join_requests_user_id ON public.campaign_join_requests
 --
 
 CREATE INDEX idx_campaign_members_campaign_user_role ON public.campaign_members USING btree (campaign_id, user_id, role);
+
+
+--
+-- Name: idx_campaign_members_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_campaign_members_user_id ON public.campaign_members USING btree (user_id);
 
 
 --
@@ -7984,6 +8087,13 @@ CREATE INDEX idx_custom_collections_user_id ON public.custom_collections USING b
 
 
 --
+-- Name: idx_custom_fighter_types_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_custom_fighter_types_user_id ON public.custom_fighter_types USING btree (user_id);
+
+
+--
 -- Name: idx_custom_gang_types_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8012,10 +8122,24 @@ CREATE INDEX idx_custom_shared_custom_trading_post_id ON public.custom_shared US
 
 
 --
+-- Name: idx_custom_skills_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_custom_skills_user_id ON public.custom_skills USING btree (user_id);
+
+
+--
 -- Name: idx_custom_trading_posts_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_custom_trading_posts_user_id ON public.custom_trading_posts USING btree (user_id);
+
+
+--
+-- Name: idx_custom_weapon_profiles_equipment; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_custom_weapon_profiles_equipment ON public.custom_weapon_profiles USING btree (custom_equipment_id);
 
 
 --
@@ -8110,6 +8234,13 @@ CREATE INDEX idx_fighter_equipment_granted_by_equipment_id ON public.fighter_equ
 
 
 --
+-- Name: idx_fighter_exotic_beasts_owner; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fighter_exotic_beasts_owner ON public.fighter_exotic_beasts USING btree (fighter_owner_id);
+
+
+--
 -- Name: idx_fighter_loadouts_fighter; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8145,6 +8276,13 @@ CREATE INDEX idx_fighter_type_id ON public.fighter_type_skill_access USING btree
 
 
 --
+-- Name: idx_fighters_captured_by_gang; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fighters_captured_by_gang ON public.fighters USING btree (captured_by_gang_id) WHERE (captured = true);
+
+
+--
 -- Name: idx_fighters_gang_id_full; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8163,6 +8301,13 @@ CREATE INDEX idx_fighters_gang_status_composite ON public.fighters USING btree (
 --
 
 CREATE INDEX idx_fighters_user_id ON public.fighters USING btree (user_id);
+
+
+--
+-- Name: idx_friends_addressee; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_friends_addressee ON public.friends USING btree (addressee_id);
 
 
 --
@@ -8563,6 +8708,22 @@ ALTER TABLE ONLY public.campaign_allegiances
 
 
 --
+-- Name: campaign_battles campaign_battles_attacker_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_battles
+    ADD CONSTRAINT campaign_battles_attacker_id_fkey FOREIGN KEY (attacker_id) REFERENCES public.gangs(id) ON DELETE SET NULL;
+
+
+--
+-- Name: campaign_battles campaign_battles_campaign_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_battles
+    ADD CONSTRAINT campaign_battles_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.campaigns(id) ON DELETE CASCADE;
+
+
+--
 -- Name: campaign_battles campaign_battles_campaign_territory_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8571,11 +8732,43 @@ ALTER TABLE ONLY public.campaign_battles
 
 
 --
+-- Name: campaign_battles campaign_battles_challenged_gang_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_battles
+    ADD CONSTRAINT campaign_battles_challenged_gang_id_fkey FOREIGN KEY (challenged_gang_id) REFERENCES public.gangs(id) ON DELETE SET NULL;
+
+
+--
+-- Name: campaign_battles campaign_battles_challenger_gang_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_battles
+    ADD CONSTRAINT campaign_battles_challenger_gang_id_fkey FOREIGN KEY (challenger_gang_id) REFERENCES public.gangs(id) ON DELETE SET NULL;
+
+
+--
+-- Name: campaign_battles campaign_battles_defender_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_battles
+    ADD CONSTRAINT campaign_battles_defender_id_fkey FOREIGN KEY (defender_id) REFERENCES public.gangs(id) ON DELETE SET NULL;
+
+
+--
 -- Name: campaign_battles campaign_battles_territory_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.campaign_battles
     ADD CONSTRAINT campaign_battles_territory_id_fkey FOREIGN KEY (territory_id) REFERENCES public.territories(id) ON DELETE SET NULL;
+
+
+--
+-- Name: campaign_battles campaign_battles_winner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_battles
+    ADD CONSTRAINT campaign_battles_winner_id_fkey FOREIGN KEY (winner_id) REFERENCES public.gangs(id) ON DELETE SET NULL;
 
 
 --
@@ -8623,7 +8816,7 @@ ALTER TABLE ONLY public.campaign_gangs
 --
 
 ALTER TABLE ONLY public.campaign_gangs
-    ADD CONSTRAINT campaign_gangs_campaign_member_id_fkey FOREIGN KEY (campaign_member_id) REFERENCES public.campaign_members(id);
+    ADD CONSTRAINT campaign_gangs_campaign_member_id_fkey FOREIGN KEY (campaign_member_id) REFERENCES public.campaign_members(id) ON DELETE CASCADE;
 
 
 --
@@ -8640,6 +8833,22 @@ ALTER TABLE ONLY public.campaign_gangs
 
 ALTER TABLE ONLY public.campaign_gangs
     ADD CONSTRAINT campaign_gangs_gang_id_fkey FOREIGN KEY (gang_id) REFERENCES public.gangs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: campaign_gangs campaign_gangs_invited_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_gangs
+    ADD CONSTRAINT campaign_gangs_invited_by_fkey FOREIGN KEY (invited_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: campaign_gangs campaign_gangs_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_gangs
+    ADD CONSTRAINT campaign_gangs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
 
 
 --
@@ -8675,6 +8884,30 @@ ALTER TABLE ONLY public.campaign_maps
 
 
 --
+-- Name: campaign_members campaign_members_campaign_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_members
+    ADD CONSTRAINT campaign_members_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.campaigns(id) ON DELETE CASCADE;
+
+
+--
+-- Name: campaign_members campaign_members_invited_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_members
+    ADD CONSTRAINT campaign_members_invited_by_fkey FOREIGN KEY (invited_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: campaign_members campaign_members_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_members
+    ADD CONSTRAINT campaign_members_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
 -- Name: campaign_resources campaign_resources_campaign_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8688,6 +8921,14 @@ ALTER TABLE ONLY public.campaign_resources
 
 ALTER TABLE ONLY public.campaign_territories
     ADD CONSTRAINT campaign_territories_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.campaigns(id) ON DELETE CASCADE;
+
+
+--
+-- Name: campaign_territories campaign_territories_gang_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_territories
+    ADD CONSTRAINT campaign_territories_gang_id_fkey FOREIGN KEY (gang_id) REFERENCES public.gangs(id) ON DELETE SET NULL;
 
 
 --
@@ -9507,6 +9748,14 @@ ALTER TABLE ONLY public.fighter_ooa_records
 
 
 --
+-- Name: fighter_ooa_records fighter_ooa_records_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_ooa_records
+    ADD CONSTRAINT fighter_ooa_records_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
 -- Name: fighter_skill_access_override fighter_skill_access_override_fighter_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9699,6 +9948,14 @@ ALTER TABLE ONLY public.fighter_type_skill_access
 
 
 --
+-- Name: fighter_types fighter_types_alliance_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_types
+    ADD CONSTRAINT fighter_types_alliance_id_fkey FOREIGN KEY (alliance_id) REFERENCES public.alliances(id) ON DELETE SET NULL;
+
+
+--
 -- Name: fighter_types fighter_types_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9792,6 +10049,14 @@ ALTER TABLE ONLY public.fighters
 
 ALTER TABLE ONLY public.fighters
     ADD CONSTRAINT fighters_selected_archetype_id_fkey FOREIGN KEY (selected_archetype_id) REFERENCES public.skill_access_archetypes(id) ON DELETE SET NULL;
+
+
+--
+-- Name: fighters fighters_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighters
+    ADD CONSTRAINT fighters_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
 
 
 --
@@ -9936,6 +10201,14 @@ ALTER TABLE ONLY public.gang_types
 
 ALTER TABLE ONLY public.gang_variant_types
     ADD CONSTRAINT gang_variant_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: gangs gangs_alliance_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gangs
+    ADD CONSTRAINT gangs_alliance_id_fkey FOREIGN KEY (alliance_id) REFERENCES public.alliances(id) ON DELETE SET NULL;
 
 
 --
