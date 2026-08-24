@@ -1,6 +1,6 @@
 'use server'
 
-import { invalidateGang, invalidateGangStash, invalidateGangFinancials } from '@/utils/cache-tags';
+import { invalidateGang, invalidateGangStash, invalidateGangFinancials, invalidateUserCustoms } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 
 import { getAuthenticatedUser } from '@/utils/auth';
@@ -145,10 +145,14 @@ export async function createChemAlchemy({
     
     // Invalidate gang credits since we deducted credits
     invalidateGangFinancials(gangId);
-    
+
     // Invalidate gang stash to show the new item
     invalidateGangStash(gangId);
     invalidateGang(gangId);
+
+    // The elixir is a custom_equipment row owned by the user — without this the
+    // customise page's cached equipment list won't show it
+    invalidateUserCustoms(user.id);
     
     return { 
       success: true, 
