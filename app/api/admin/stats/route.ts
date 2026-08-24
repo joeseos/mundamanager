@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
 import { getUserCount } from '@/app/lib/get-stats-user';
-import { getGangCount } from '@/app/lib/get-stats-gang';
-import { getCampaignCount } from '@/app/lib/get-stats-campaign';
+import { getCampaignCountsByEdition, getGangCountsByEdition } from '@/app/lib/get-stats-by-edition';
 import { getGangActivityStats } from '@/app/lib/get-stats-gang-activity';
 import { getCampaignActivityStats } from '@/app/lib/get-stats-campaign-activity';
 
@@ -21,8 +20,8 @@ export async function GET() {
     const [userCount, gangCount, campaignCount, gangActivity, campaignActivity] =
       await Promise.all([
         getUserCount(),
-        getGangCount(),
-        getCampaignCount(),
+        getGangCountsByEdition(),
+        getCampaignCountsByEdition(),
         getGangActivityStats(),
         getCampaignActivityStats(),
       ]);
@@ -42,4 +41,3 @@ export async function GET() {
     );
   }
 }
-
