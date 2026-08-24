@@ -2,14 +2,14 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { LuChartColumn } from "react-icons/lu";
-import type { ActivityStats } from '@/types/stats';
+import type { ActivityStatsWithEdition, EditionCounts, StatWithEdition } from '@/types/stats';
 
 interface Stats {
   userCount: number;
-  gangCount: number | null;
-  campaignCount: number | null;
-  gangActivity: ActivityStats | null;
-  campaignActivity: ActivityStats | null;
+  gangCount: StatWithEdition | null;
+  campaignCount: StatWithEdition | null;
+  gangActivity: ActivityStatsWithEdition | null;
+  campaignActivity: ActivityStatsWithEdition | null;
 }
 
 interface AdminStatsModalProps {
@@ -21,12 +21,21 @@ function formatStatValue(value: number | null | undefined): string {
   return value !== null && value !== undefined ? value.toLocaleString() : 'N/A';
 }
 
+function EditionBreakdown({ edition }: { edition: EditionCounts | null | undefined }) {
+  return (
+    <div className="mt-1 space-y-0.5 text-right text-xs text-muted-foreground">
+      <p>{formatStatValue(edition?.n23)} (N23)</p>
+      <p>{formatStatValue(edition?.n26)} (N26)</p>
+    </div>
+  );
+}
+
 function ActivitySection({
   title,
   activity,
 }: {
   title: string;
-  activity: ActivityStats | null;
+  activity: ActivityStatsWithEdition | null;
 }) {
   const periods = [
     { label: 'Last 2 weeks', value: activity?.last2Weeks },
@@ -42,7 +51,8 @@ function ActivitySection({
         {periods.map(({ label, value }) => (
           <div key={label} className="p-2 bg-muted/50 rounded-lg border">
             <p className="text-center text-xs text-muted-foreground mb-2">{label}</p>
-            <p className="text-center text-lg md:text-xl font-bold">{formatStatValue(value)}</p>
+            <p className="text-center text-lg md:text-xl font-bold">{formatStatValue(value?.total)}</p>
+            <EditionBreakdown edition={value} />
           </div>
         ))}
       </div>
@@ -99,14 +109,16 @@ export function AdminStatsModal({ onClose, onSubmit }: AdminStatsModalProps) {
                   <div className="p-2 bg-muted/50 rounded-lg border">
                     <p className="text-center text-sm text-muted-foreground mb-2">Gangs</p>
                     <p className="text-center text-lg md:text-xl font-bold">
-                      {formatStatValue(stats.gangCount)}
+                      {formatStatValue(stats.gangCount?.total)}
                     </p>
+                    <EditionBreakdown edition={stats.gangCount} />
                   </div>
                   <div className="p-2 bg-muted/50 rounded-lg border">
                     <p className="text-center text-sm text-muted-foreground mb-2">Campaigns</p>
                     <p className="text-center text-lg md:text-xl font-bold">
-                      {formatStatValue(stats.campaignCount)}
+                      {formatStatValue(stats.campaignCount?.total)}
                     </p>
+                    <EditionBreakdown edition={stats.campaignCount} />
                   </div>
                 </div>
               </div>
