@@ -1120,10 +1120,11 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                     {(() => {
                       const winnerIds = getWinnerIds(battle);
                       if (winnerIds.length === 0) {
-                        // A draw is a result. An unplayed challenge has none yet.
+                        // A draw is a result. An unplayed challenge has none yet,
+                        // so it gets the same plain placeholder as the other columns.
                         return isPlayedBattle(battle)
                           ? <span className="ml-2 text-xs">Draw</span>
-                          : <span className="ml-2 text-xs">-</span>;
+                          : '-';
                       }
                       // Resolve names from the enriched winners array first,
                       // fall back to the legacy single-winner enrichment for
