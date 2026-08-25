@@ -49,6 +49,13 @@ interface ComboboxProps {
   dropdownPlacement?: 'auto' | 'down' | 'up'
   /** Text shown when the filtered options list is empty. Defaults to "No results found". */
   noResultsText?: string
+  /**
+   * When the selected option's label is a ReactNode, render that label in the
+   * closed input instead of displayValue. Default keeps displayValue so option
+   * decorations (e.g. "Already assigned") stay out of the closed summary.
+   * Opt in only for surfaces that need closed-state decorations (fighter switcher).
+   */
+  showLabelWhenClosed?: boolean
 }
 
 function getVisualViewportRect() {
@@ -81,7 +88,8 @@ export function Combobox({
   clearable = false,
   onFocus,
   dropdownPlacement = 'auto',
-  noResultsText = 'No results found'
+  noResultsText = 'No results found',
+  showLabelWhenClosed = false,
 }: ComboboxProps) {
   type DropdownDirection = 'up' | 'down'
   type DropdownPosition = {
@@ -358,7 +366,9 @@ export function Combobox({
             )}
           >
             <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-              {selectedOption.label}
+              {showLabelWhenClosed
+                ? selectedOption.label
+                : (selectedOption.displayValue || selectedOption.label)}
             </span>
           </div>
         )}

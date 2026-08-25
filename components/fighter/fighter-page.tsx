@@ -691,6 +691,7 @@ export default function FighterPage({
               onValueChange={(value) => router.push(`/fighter/${value}`)}
               placeholder="Select a fighter..."
               className="w-full"
+              showLabelWhenClosed
             />
           </div>
 
