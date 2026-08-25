@@ -22,6 +22,19 @@ Deno.serve(async (req) => {
     const payload = await req.json();
     const battle = payload.record;
 
+    // Post only on a transition into played. Rows predating the status column have none.
+    const statusOf = (row: any) => row?.status ?? "played";
+    const becamePlayed =
+      payload.type === "INSERT"
+        ? statusOf(battle) === "played"
+        : payload.type === "UPDATE"
+          ? statusOf(battle) === "played" && statusOf(payload.old_record) !== "played"
+          : false;
+
+    if (!becamePlayed) {
+      return new Response("Not a newly completed battle", { status: 200 });
+    }
+
     const { data: campaign } = await supabase
       .from("campaigns")
       .select("campaign_name, discord_channel_id, discord_channel_type")
