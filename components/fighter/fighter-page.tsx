@@ -32,7 +32,7 @@ import { GiHandcuffs } from "react-icons/gi";
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { sortFightersByPositioning } from '@/utils/fighter-positioning';
 import { hasCumulativeXp } from '@/types/edition';
-import { openAdvancementsFor } from '@/utils/advancementRanks';
+import { nextTierStartFor, openAdvancementsFor } from '@/utils/advancementRanks';
 
 interface FighterPageProps {
   initialFighterData: any;
@@ -634,19 +634,24 @@ export default function FighterPage({
       if (f.captured) statusIcons.push(<GiHandcuffs className="text-red-600 w-4 h-4" key="captured" />);
 
       const baseText = `${f.fighter_name} - ${f.fighter_type}`;
+      const currentXp = f.xp ?? 0;
       const openAdvancements = isCumulativeXp
         ? openAdvancementsFor(
             editionSlug,
             f.starting_xp ?? null,
-            f.xp ?? 0,
+            currentXp,
             f.advancements_taken ?? 0,
           )
         : 0;
       const showAdvancementIcon = isCumulativeXp && openAdvancements > 0;
-      const xpSuffix =
-        !isCumulativeXp && f.xp !== undefined && f.xp !== null
-          ? ` (${f.xp} XP)`
-          : '';
+      const xpSuffix = (() => {
+        if (f.xp === undefined || f.xp === null) return '';
+        if (isCumulativeXp) {
+          const nextTierStart = nextTierStartFor(editionSlug, currentXp);
+          return ` (${currentXp}/${nextTierStart ?? '–'} XP)`;
+        }
+        return ` (${currentXp} XP)`;
+      })();
       const displayText = `${baseText}${xpSuffix}`;
 
       return {
@@ -656,11 +661,13 @@ export default function FighterPage({
           <span className="flex items-center gap-1 min-w-0">
             <span className="truncate">
               {baseText}
-              {xpSuffix}
+              {xpSuffix && (
+                <span className="text-neutral-500">{xpSuffix}</span>
+              )}
             </span>
             {showAdvancementIcon && (
               <TbArrowBigUpFilled
-                className="h-4 w-4 shrink-0"
+                className="h-4 w-4 shrink-0 text-neutral-500"
                 aria-label="Advancement available"
               />
             )}
