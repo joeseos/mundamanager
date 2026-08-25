@@ -463,8 +463,6 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
     // Legacy winner_id is still added for back-compat (single-winner rows
     // where no participant carries the is_winner flag).
     if (b.winner_id) gangIdSet.add(b.winner_id);
-    if (b.challenger_gang_id) gangIdSet.add(b.challenger_gang_id);
-    if (b.challenged_gang_id) gangIdSet.add(b.challenged_gang_id);
     if (b.participants) {
       try {
         const parsed = typeof b.participants === 'string' ? JSON.parse(b.participants) : b.participants;
@@ -545,14 +543,6 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
       status: battle.status ?? 'played',
       challenger_gang_id: battle.challenger_gang_id,
       challenged_gang_id: battle.challenged_gang_id,
-      challenger: battle.challenger_gang_id ? {
-        id: battle.challenger_gang_id,
-        name: gangMap.get(battle.challenger_gang_id)?.name || 'Unknown'
-      } : null,
-      challenged: battle.challenged_gang_id ? {
-        id: battle.challenged_gang_id,
-        name: gangMap.get(battle.challenged_gang_id)?.name || 'Unknown'
-      } : null,
       attacker: attackerId ? {
         id: attackerId,
         name: gangMap.get(attackerId)?.name || 'Unknown'

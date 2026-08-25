@@ -79,12 +79,10 @@ export interface Battle {
   territory_name?: string;
   cycle?: number | null;
   status?: BattleStatus;
-  challenger_gang_id?: string | null;
-  challenged_gang_id?: string | null;
   /** Gang that issued the challenge. Not the attacker: that is a scenario role. */
-  challenger?: GangReference | null;
+  challenger_gang_id?: string | null;
   /** Gang the challenge was issued to. Null on a slot with no opponent yet. */
-  challenged?: GangReference | null;
+  challenged_gang_id?: string | null;
   attacker?: GangReference;
   defender?: GangReference;
   winner?: GangReference;

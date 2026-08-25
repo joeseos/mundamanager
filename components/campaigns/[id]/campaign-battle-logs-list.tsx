@@ -1105,7 +1105,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                   </td>
 
                   <td className="p-1 md:p-2 align-top max-w-[8rem]">
-                    {battle.scenario || battle.scenario_name || 'N/A'}
+                    {battle.scenario || battle.scenario_name || '-'}
                   </td>
 
                   <td className="p-1 md:p-2 align-top">
@@ -1123,7 +1123,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                         // A draw is a result. An unplayed challenge has none yet.
                         return isPlayedBattle(battle)
                           ? <span className="ml-2 text-xs">Draw</span>
-                          : <span className="ml-2 text-xs text-muted-foreground">—</span>;
+                          : <span className="ml-2 text-xs">-</span>;
                       }
                       // Resolve names from the enriched winners array first,
                       // fall back to the legacy single-winner enrichment for
