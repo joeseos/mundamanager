@@ -241,7 +241,7 @@ export function StatsTable({ data, isCrew, viewMode, editionSlug, hasAvailableAd
                     {formatStatValue(key, value, editionSlug)}
                     {hasAvailableAdvancements && (
                       <TbArrowBigUpFilled
-                        className={`${isFullSizeView ? 'h-4 w-4' : 'h-2.5 w-2.5'} cursor-help`}
+                        className={`${isFullSizeView ? 'h-3 w-3' : 'h-2.5 w-2.5'} cursor-help`}
                         aria-label="Advancement available"
                         data-tooltip-id={advancementTooltipId}
                         data-tooltip-content="Advancement available"

@@ -9,7 +9,7 @@ import { TypeSpecificData } from '@/types/fighter-effect';
 import { createClient } from '@/utils/supabase/client';
 import { getSkillSetRank } from "@/utils/skillSetRank";
 import { characteristicRank } from "@/utils/characteristicRank";
-import { openAdvancementsFor } from "@/utils/advancementRanks";
+import { countAdvancementsTaken, openAdvancementsFor } from "@/utils/advancementRanks";
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -3374,9 +3374,9 @@ export function AdvancementsList({
       });
   }, [advancements, advancementSkills]);
 
-  const advancementCount = advancements.length + advancementSkills.length;
+  // Taken count: characteristic effects plus is_advance skills (shared with gang cards).
+  const advancementCount = countAdvancementsTaken({ advancements }, skills);
 
-  // advancementCount is the taken count: effects plus is_advance skills.
   const openAdvancements = openAdvancementsFor(
     editionSlug,
     fighterStartingXp,

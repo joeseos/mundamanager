@@ -26,11 +26,13 @@ import { Combobox } from "@/components/ui/combobox";
 import { IoSkull } from "react-icons/io5";
 import { MdChair } from "react-icons/md";
 import { GiCrossedChains } from "react-icons/gi";
-import { TbMeatOff } from "react-icons/tb";
+import { TbMeatOff, TbArrowBigUpFilled } from "react-icons/tb";
 import { FaMedkit } from "react-icons/fa";
 import { GiHandcuffs } from "react-icons/gi";
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { sortFightersByPositioning } from '@/utils/fighter-positioning';
+import { hasCumulativeXp } from '@/types/edition';
+import { openAdvancementsFor } from '@/utils/advancementRanks';
 
 interface FighterPageProps {
   initialFighterData: any;
@@ -39,6 +41,8 @@ interface FighterPageProps {
     fighter_name: string;
     fighter_type: string;
     xp: number | null;
+    starting_xp?: number | null;
+    advancements_taken?: number;
     killed?: boolean;
     retired?: boolean;
     enslaved?: boolean;
@@ -162,6 +166,8 @@ interface FighterPageState {
     fighter_name: string;
     fighter_type: string;
     xp: number | null;
+    starting_xp?: number | null;
+    advancements_taken?: number;
     killed?: boolean;
     retired?: boolean;
     enslaved?: boolean;
@@ -613,6 +619,7 @@ export default function FighterPage({
       : null;
 
   // Prepare options for Combobox
+  const isCumulativeXp = hasCumulativeXp(editionSlug);
   const fighterOptions = sortFightersByPositioning(
     fighterData.gangFighters,
     fighterData.gang?.positioning
@@ -626,15 +633,38 @@ export default function FighterPage({
       if (f.recovery) statusIcons.push(<FaMedkit className="text-blue-500 w-4 h-4" key="recovery" />);
       if (f.captured) statusIcons.push(<GiHandcuffs className="text-red-600 w-4 h-4" key="captured" />);
 
-      const displayText = `${f.fighter_name} - ${f.fighter_type}${f.xp !== undefined ? ` (${f.xp} XP)` : ''}`;
+      const baseText = `${f.fighter_name} - ${f.fighter_type}`;
+      const openAdvancements = isCumulativeXp
+        ? openAdvancementsFor(
+            editionSlug,
+            f.starting_xp ?? null,
+            f.xp ?? 0,
+            f.advancements_taken ?? 0,
+          )
+        : 0;
+      const showAdvancementIcon = isCumulativeXp && openAdvancements > 0;
+      const xpSuffix =
+        !isCumulativeXp && f.xp !== undefined && f.xp !== null
+          ? ` (${f.xp} XP)`
+          : '';
+      const displayText = `${baseText}${xpSuffix}`;
 
       return {
         value: f.id,
         displayValue: displayText,
         label: (
-          <span className="flex items-center gap-1">
-            <span>{displayText}</span>
-            {statusIcons.length > 0 && <span className="flex items-center gap-0.5">{statusIcons}</span>}
+          <span className="flex items-center gap-1 min-w-0">
+            <span className="truncate">
+              {baseText}
+              {xpSuffix}
+            </span>
+            {showAdvancementIcon && (
+              <TbArrowBigUpFilled
+                className="h-4 w-4 shrink-0"
+                aria-label="Advancement available"
+              />
+            )}
+            {statusIcons.length > 0 && <span className="flex items-center gap-0.5 shrink-0">{statusIcons}</span>}
           </span>
         )
       };
