@@ -12,7 +12,8 @@ import { Combobox } from "@/components/ui/combobox";
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { createBattleLog, updateBattleLog, BattleLogParams } from "@/app/actions/campaigns/[id]/battle-logs";
 import { useMutation } from '@tanstack/react-query';
-import { Battle, BattleParticipant, CampaignGang, Territory as BaseTerritory, Scenario } from '@/types/campaign';
+import { Battle, BattleParticipant, BattleStatus, CampaignGang, Territory as BaseTerritory, Scenario } from '@/types/campaign';
+import { battleStatusOf } from '@/types/campaign';
 import { getClaimerGangId, getWinnerIds } from '@/utils/battle-winners';
 import { useWinnerSelection } from '@/hooks/use-winner-selection';
 import { sameEditionForDisplay } from '@/types/edition';
@@ -439,7 +440,12 @@ const CampaignBattleLogModal = ({
     loadExistingWinners({
       winnerIds,
       claimerId: getClaimerGangId(battleToEdit),
-      isDraw: battleToEdit.winner_id === null && winnerIds.length === 0,
+      // A challenge has no result yet, so it is not a draw — only a played
+      // battle with nobody flagged as a winner is.
+      isDraw:
+        battleStatusOf(battleToEdit) === 'played' &&
+        battleToEdit.winner_id === null &&
+        winnerIds.length === 0,
     });
 
     setNotes(battleToEdit.note || "");
@@ -621,6 +627,20 @@ const CampaignBattleLogModal = ({
       }
     }
 
+    // How far a challenge moves depends on what was filled in. Entering a
+    // result — a winner, or an explicit draw — files the report and makes it a
+    // played battle. Naming an opponent without a result issues the challenge.
+    // Anything already played keeps its status.
+    const existingStatus = battleToEdit ? battleStatusOf(battleToEdit) : 'played';
+    let nextStatus: BattleStatus | undefined;
+    if (isEditMode && existingStatus !== 'played') {
+      if (isDraw || activeWinners.length > 0) {
+        nextStatus = 'played';
+      } else if (existingStatus === 'challenge_pending' && selectedGangs.length >= 2) {
+        nextStatus = 'challenge_issued';
+      }
+    }
+
     // Prepare battle data for API.
     // The server derives `winner_id` from participants[].is_winner /
     // claimed_territory so we don't need to send it. `null` means "draw".
@@ -637,11 +657,7 @@ const CampaignBattleLogModal = ({
       territory_claimed_by_gang_id: claimerForPayload,
       created_at: new Date(battleDate + 'T00:00:00').toISOString(),
       cycle: cycleValue,
-      // Filing the report on a challenge converts that same row into a played
-      // battle. Editing an already-played one leaves the status alone.
-      ...(battleToEdit && battleToEdit.status && battleToEdit.status !== 'played'
-        ? { status: 'played' as const }
-        : {}),
+      ...(nextStatus ? { status: nextStatus } : {}),
     };
 
     // Close modal immediately for instant UX

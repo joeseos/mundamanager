@@ -328,7 +328,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     // caches when the winner list changes on an edit.
     const { data: existingBattle, error: checkError } = await supabase
       .from('campaign_battles')
-      .select('id, campaign_territory_id, winner_id, participants, status')
+      .select('id, campaign_territory_id, winner_id, participants, status, challenger_gang_id')
       .eq('id', battleId)
       .eq('campaign_id', campaignId)
       .single();
@@ -412,6 +412,13 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     };
     if (params.status) {
       updatePayload.status = params.status;
+    }
+    // A challenge names its opponent through the same edit form, so keep the
+    // dedicated column in step with the participants. It backs the accept and
+    // decline permission checks, which want an indexed lookup.
+    if (existingBattle.challenger_gang_id) {
+      updatePayload.challenged_gang_id =
+        participants.find((p) => p.gang_id !== existingBattle.challenger_gang_id)?.gang_id ?? null;
     }
     if (created_at) {
       updatePayload.created_at = created_at;
@@ -641,7 +648,7 @@ export interface ChallengeRoundResult {
 /**
  * Open a challenge round: one slot per accepted gang, for the given cycle.
  * Each slot is a battle log in `challenge_pending` with no opponent yet; the
- * gang's owner picks one via `issueChallenge`.
+ * gang's owner names an opponent by editing it, which issues the challenge.
  *
  * Deliberately not idempotent — a campaign may run several rounds per cycle,
  * so a second call opens another round.
@@ -699,81 +706,6 @@ export async function generateChallengeRound(
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to open challenge round',
-    };
-  }
-}
-
-export interface IssueChallengeParams {
-  challenged_gang_id: string;
-  /** The territory being staked. Recorded, not claimed. */
-  campaign_territory_id: string | null;
-  scenario?: string | null;
-  note?: string | null;
-}
-
-/**
- * Fill in a pending slot: pick the opponent and the territory at stake.
- * Runs none of the completion side effects — no territory claim, no logging.
- */
-export async function issueChallenge(
-  campaignId: string,
-  battleId: string,
-  params: IssueChallengeParams
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    const supabase = await createClient();
-    const user = await getAuthenticatedUser(supabase);
-
-    const { data: battle, error: fetchError } = await supabase
-      .from('campaign_battles')
-      .select('id, status, challenger_gang_id')
-      .eq('id', battleId)
-      .eq('campaign_id', campaignId)
-      .single();
-
-    if (fetchError || !battle) return { success: false, error: 'Challenge not found' };
-    if (battle.status !== 'challenge_pending') {
-      return { success: false, error: 'This challenge has already been issued' };
-    }
-    if (battle.challenger_gang_id === params.challenged_gang_id) {
-      return { success: false, error: 'A gang cannot challenge itself' };
-    }
-    if (!(await ownsGangOrArbitrates(supabase, user.id, campaignId, battle.challenger_gang_id))) {
-      return { success: false, error: 'Only the challenging gang can issue this challenge' };
-    }
-
-    const { participants } = normaliseParticipants(
-      [
-        { role: 'attacker', gang_id: battle.challenger_gang_id as string },
-        { role: 'defender', gang_id: params.challenged_gang_id },
-      ],
-      null,
-      null
-    );
-
-    const { error: updateError } = await supabase
-      .from('campaign_battles')
-      .update({
-        status: 'challenge_issued',
-        challenged_gang_id: params.challenged_gang_id,
-        campaign_territory_id: params.campaign_territory_id,
-        scenario: params.scenario ?? null,
-        note: params.note ?? null,
-        participants: JSON.stringify(participants),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', battleId)
-      .eq('status', 'challenge_pending');
-
-    if (updateError) throw updateError;
-
-    invalidateCampaign(campaignId);
-    return { success: true };
-  } catch (error) {
-    console.error('Error issuing challenge:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to issue challenge',
     };
   }
 }

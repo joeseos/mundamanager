@@ -18,7 +18,6 @@ import { LuTrash2, LuSquarePen } from "react-icons/lu";
 import { useMutation } from '@tanstack/react-query';
 import { Battle, BattleParticipant, CampaignGang, Territory, Member } from '@/types/campaign';
 import { battleStatusColors, battleStatusLabels, battleStatusOf, isPlayedBattle } from '@/types/campaign';
-import CampaignChallengeModal from '@/components/campaigns/[id]/campaign-challenge-modal';
 import CampaignChallengeRoundModal from '@/components/campaigns/[id]/campaign-challenge-round-modal';
 import { respondToChallenge } from '@/app/actions/campaigns/[id]/battle-logs';
 import { getWinnerIds } from '@/utils/battle-winners';
@@ -91,7 +90,6 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   } = props;
   
   const [showBattleModal, setShowBattleModal] = useState(false);
-  const [challengeToIssue, setChallengeToIssue] = useState<Battle | null>(null);
   const [showChallengeRoundModal, setShowChallengeRoundModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [availableGangs, setAvailableGangs] = useState<CampaignGang[]>([]);
@@ -186,7 +184,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       // Winning gangs (multi-winner aware via helper)
       const winnerIds = getWinnerIds(battle);
       if (winnerIds.length === 0) {
-        hasDraws = true;
+        if (isPlayedBattle(battle)) hasDraws = true;
       } else {
         winnerIds.forEach((id) => winningGangIds.add(id));
       }
@@ -240,7 +238,9 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     }
 
     if (filterDraws) {
-      filtered = filtered.filter(battle => getWinnerIds(battle).length === 0);
+      filtered = filtered.filter(
+        battle => isPlayedBattle(battle) && getWinnerIds(battle).length === 0
+      );
     }
 
     // Sort based on selected field and direction
@@ -1120,7 +1120,10 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                     {(() => {
                       const winnerIds = getWinnerIds(battle);
                       if (winnerIds.length === 0) {
-                        return <span className="ml-2 text-xs">Draw</span>;
+                        // A draw is a result. An unplayed challenge has none yet.
+                        return isPlayedBattle(battle)
+                          ? <span className="ml-2 text-xs">Draw</span>
+                          : <span className="ml-2 text-xs text-muted-foreground">—</span>;
                       }
                       // Resolve names from the enriched winners array first,
                       // fall back to the legacy single-winner enrichment for
@@ -1174,16 +1177,6 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                   {canUserEditBattle(battle) && (
                     <td className="p-1 md:p-2 align-top text-right">
                       <div className="flex flex-wrap justify-end gap-2">
-                        {battleStatusOf(battle) === 'challenge_pending' && ownsGang(battle.challenger_gang_id) && (
-                          <Button
-                            onClick={() => setChallengeToIssue(battle)}
-                            variant="outline"
-                            size="sm"
-                            className="h-8"
-                          >
-                            Issue
-                          </Button>
-                        )}
                         {battleStatusOf(battle) === 'challenge_issued' && ownsGang(battle.challenged_gang_id) && (
                           <>
                             <Button
@@ -1203,16 +1196,6 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                               Decline
                             </Button>
                           </>
-                        )}
-                        {battleStatusOf(battle) === 'challenge_accepted' && (
-                          <Button
-                            onClick={() => handleEditBattle(battle)}
-                            variant="outline"
-                            size="sm"
-                            className="h-8"
-                          >
-                            File report
-                          </Button>
                         )}
                         <Button
                           onClick={() => handleEditBattle(battle)}
@@ -1366,17 +1349,6 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       </div>
 
       {/* Battle Log Modal for Add/Edit */}
-      {challengeToIssue && (
-        <CampaignChallengeModal
-          campaignId={campaignId}
-          challenge={challengeToIssue}
-          availableGangs={availableGangs}
-          territories={territories}
-          onClose={() => setChallengeToIssue(null)}
-          onSuccess={onBattleAdd}
-        />
-      )}
-
       {showChallengeRoundModal && (
         <CampaignChallengeRoundModal
           campaignId={campaignId}
