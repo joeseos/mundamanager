@@ -29,7 +29,8 @@ async function _getCampaignBasic(campaignId: string, supabase: SupabaseClient) {
       image_url,
       discord_guild_id,
       discord_channel_id,
-      allow_join_requests
+      allow_join_requests,
+      current_cycle
     `)
     .eq('id', campaignId)
     .single();
@@ -431,7 +432,10 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
       participants,
       scenario_id,
       campaign_territory_id,
-      cycle
+      cycle,
+      status,
+      challenger_gang_id,
+      challenged_gang_id
     `)
     .eq('campaign_id', campaignId)
     .order('created_at', { ascending: false })
@@ -459,6 +463,8 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
     // Legacy winner_id is still added for back-compat (single-winner rows
     // where no participant carries the is_winner flag).
     if (b.winner_id) gangIdSet.add(b.winner_id);
+    if (b.challenger_gang_id) gangIdSet.add(b.challenger_gang_id);
+    if (b.challenged_gang_id) gangIdSet.add(b.challenged_gang_id);
     if (b.participants) {
       try {
         const parsed = typeof b.participants === 'string' ? JSON.parse(b.participants) : b.participants;
@@ -536,6 +542,17 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
       campaign_territory_id: battle.campaign_territory_id,
       territory_name: territoryName,
       cycle: battle.cycle,
+      status: battle.status ?? 'played',
+      challenger_gang_id: battle.challenger_gang_id,
+      challenged_gang_id: battle.challenged_gang_id,
+      challenger: battle.challenger_gang_id ? {
+        id: battle.challenger_gang_id,
+        name: gangMap.get(battle.challenger_gang_id)?.name || 'Unknown'
+      } : null,
+      challenged: battle.challenged_gang_id ? {
+        id: battle.challenged_gang_id,
+        name: gangMap.get(battle.challenged_gang_id)?.name || 'Unknown'
+      } : null,
       attacker: attackerId ? {
         id: attackerId,
         name: gangMap.get(attackerId)?.name || 'Unknown'
@@ -589,7 +606,7 @@ export const getCampaignBasic = async (campaignId: string, supabaseClient?: Supa
     async () => {
       return _getCampaignBasic(campaignId, supabase);
     },
-    [`campaign-basic-v3-${campaignId}`],
+    [`campaign-basic-v4-${campaignId}`],
     {
       tags: [TAGS.campaign(campaignId)],
       revalidate: false
@@ -663,7 +680,7 @@ export const getCampaignBattles = async (campaignId: string, limit = 100, supaba
     async () => {
       return _getCampaignBattles(campaignId, supabase, limit);
     },
-    [`campaign-battles-v2-${campaignId}-${limit}`],
+    [`campaign-battles-v3-${campaignId}-${limit}`],
     {
       tags: [TAGS.campaign(campaignId)],
       revalidate: false

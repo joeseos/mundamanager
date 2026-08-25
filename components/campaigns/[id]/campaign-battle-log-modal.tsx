@@ -636,7 +636,12 @@ const CampaignBattleLogModal = ({
         : [],
       territory_claimed_by_gang_id: claimerForPayload,
       created_at: new Date(battleDate + 'T00:00:00').toISOString(),
-      cycle: cycleValue
+      cycle: cycleValue,
+      // Filing the report on a challenge converts that same row into a played
+      // battle. Editing an already-played one leaves the status alone.
+      ...(battleToEdit && battleToEdit.status && battleToEdit.status !== 'played'
+        ? { status: 'played' as const }
+        : {}),
     };
 
     // Close modal immediately for instant UX
