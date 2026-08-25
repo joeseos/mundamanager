@@ -1324,17 +1324,22 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     }
   };
 
-  const _handleAddAdjustedCost = () => {
-    if (!selectedAdjustedCostEquipment || !adjustedCostAmount) return;
-    
-    const newAdjustedCost = {
-      equipment_id: selectedAdjustedCostEquipment,
-      adjusted_cost: parseInt(adjustedCostAmount)
-    };
+  const handleAddAdjustedCost = () => {
+    if (!selectedAdjustedCostEquipment || !adjustedCostAmount) {
+      toast.error('Please select equipment and enter an adjusted cost');
+      return false;
+    }
 
-    setEquipmentDiscounts([...equipmentDiscounts, newAdjustedCost]);
-    setSelectedAdjustedCostEquipment('');
-    setAdjustedCostAmount('');
+    const cost = parseInt(adjustedCostAmount);
+    if (isNaN(cost) || cost < 0) {
+      toast.error('Please enter a valid cost (must be 0 or greater)');
+      return false;
+    }
+
+    setEquipmentDiscounts(prev => [
+      ...prev,
+      { equipment_id: selectedAdjustedCostEquipment, adjusted_cost: cost },
+    ]);
   };
 
   const _handleRemoveAdjustedCost = (equipmentId: string) => {
@@ -2373,15 +2378,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                       setSelectedAdjustedCostEquipment("");
                       setAdjustedCostAmount("");
                     }}
-                    onConfirm={() => {
-                      setEquipmentDiscounts(prev => [
-                        ...prev,
-                        {
-                          equipment_id: selectedAdjustedCostEquipment,
-                          adjusted_cost: parseInt(adjustedCostAmount),
-                        },
-                      ]);
-                    }}
+                    onConfirm={handleAddAdjustedCost}
                     confirmText="Save Adjusted Cost"
                     confirmDisabled={!selectedAdjustedCostEquipment || !adjustedCostAmount || parseInt(adjustedCostAmount) < 0}
                   >
