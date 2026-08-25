@@ -460,11 +460,14 @@ const FighterCard = memo(function FighterCard({
 
   // Advancements earned but not yet taken. Zero in editions that do not rank by
   // XP, so the icon is N26-only without an explicit edition check here.
-  const openAdvancements = openAdvancementsFor(
-    edition_slug,
-    starting_xp,
-    xp,
-    countAdvancementsTaken(effects, skills)
+  const openAdvancements = useMemo(
+    () => openAdvancementsFor(
+      edition_slug,
+      starting_xp,
+      xp,
+      countAdvancementsTaken(effects, skills)
+    ),
+    [edition_slug, starting_xp, xp, effects, skills]
   );
 
   // Determine a unique and valid id for the fighter card based on its status.

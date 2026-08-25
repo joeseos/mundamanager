@@ -358,7 +358,7 @@ export function Combobox({
             )}
           >
             <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-              {selectedOption.displayValue || selectedOption.label}
+              {selectedOption.label}
             </span>
           </div>
         )}
