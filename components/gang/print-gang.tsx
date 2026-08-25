@@ -15,6 +15,7 @@ import { MdCheckBoxOutlineBlank } from "react-icons/md";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import FighterCard from "./fighter-card";
+import { FancyPrintTopBarArt } from "./fancy-print-top-bar-art";
 import { PRINT_GANG_VIEW_MODE } from "./ViewModeDropdown";
 import { Badge } from "@/components/ui/badge";
 import { GiAncientRuins } from "react-icons/gi";
@@ -22,22 +23,6 @@ import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { decodeHtmlEntities, isHtmlEffectivelyEmpty } from "@/utils/htmlCleanUp";
 
 const ROSTER_FIGHTER_NOTE_MAX_CHARS = 110;
-
-const FANCY_TOP_BAR_STROKE_SRC =
-  "https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/top-bar-stroke-v3_s97f2k.png";
-
-function FancyPrintTopBarArt() {
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={FANCY_TOP_BAR_STROKE_SRC}
-      alt=""
-      aria-hidden
-      className="fancy-print-top-bar-art pointer-events-none absolute inset-0 size-full"
-      style={{ objectFit: "fill" }}
-    />
-  );
-}
 
 function getRosterFighterNotePreview(note: string | undefined): string | null {
   if (!note || isHtmlEffectivelyEmpty(note)) return null;
@@ -1027,7 +1012,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
               ["--ring" as any]: "var(--light-ring)",
             }} // Enforce light theme colors for Cards View
           >
-            <div className={`print-gang-cards justify-center print:justify-start flex flex-wrap content-start gap-[6px] ${scaleCardsToContent ? 'items-stretch [&_.fighter-card-bg]:h-auto! [&_.fighter-card-bg]:flex! [&_.fighter-card-bg]:flex-col!' : 'items-start [&_.fighter-card-bg]:h-[435px]!'} [&_.fighter-card-bg]:w-[630px]! [&_.fighter-card-bg]:shadow-none! [&_.fighter-card-bg]:border-[3px]! [&_.fighter-card-bg]:break-inside-avoid [&_.fighter-card-bg]:rounded-lg [&_.fighter-card-bg]:text-base! [&_.fighter-card-bg]:bg-[#faf9f7]! [&_.fighter-card-bg]:text-black! [&_.fighter-card-bg:hover]:scale-100! [&_.fighter-card-bg:hover]:shadow-none! [&_.fighter-card-bg]:transition-none! [&_.fighter-card-bg_.grid]:gap-y-0! [&_.fighter-card-bg_.grid]:mt-1! [&_.fighter-card-bg_.inline-flex.rounded-sm]:border-2! [&_.fighter-card-bg_.inline-flex.rounded-sm]:border-black! [&_.fighter-card-bg_.bg-secondary]:shadow-none! [&_.fighter-card-bg]:bg-[url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/fighter-card-background-5-light_web_ynpbac.webp')]! ${printStyle === 'eco' ? '[&_.fighter-card-bg]:bg-none! [&_.fighter-card-bg]:bg-transparent! [&_.fancy-print-top-bar]:bg-none! [&_.fancy-print-top-bar-art]:hidden! [&_.fancy-print-keep-color-heading]:text-inherit! [&_.fancy-print-keep-color-subtitle]:text-inherit!' : '[&_.fancy-print-keep-color-heading]:text-white! [&_.fancy-print-keep-color-subtitle]:text-gray-300!'}`}>
+            <div className={`print-gang-cards justify-center print:justify-start flex flex-wrap content-start gap-[6px] ${scaleCardsToContent ? 'items-stretch [&_.fighter-card-bg]:h-auto! [&_.fighter-card-bg]:flex! [&_.fighter-card-bg]:flex-col!' : 'items-start [&_.fighter-card-bg]:h-[435px]!'} [&_.fighter-card-bg]:w-[630px]! [&_.fighter-card-bg]:shadow-none! [&_.fighter-card-bg]:border-[3px]! [&_.fighter-card-bg]:break-inside-avoid [&_.fighter-card-bg]:rounded-lg [&_.fighter-card-bg]:text-base! [&_.fighter-card-bg]:bg-[#faf9f7]! [&_.fighter-card-bg]:text-black! [&_.fighter-card-bg:hover]:scale-100! [&_.fighter-card-bg:hover]:shadow-none! [&_.fighter-card-bg]:transition-none! [&_.fighter-card-bg_.grid]:gap-y-0! [&_.fighter-card-bg_.grid]:mt-1! [&_.fighter-card-bg_.inline-flex.rounded-sm]:border-2! [&_.fighter-card-bg_.inline-flex.rounded-sm]:border-black! [&_.fighter-card-bg_.bg-secondary]:shadow-none! [&_.fighter-card-bg]:bg-[url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/fighter-card-background-5-light_web_ynpbac.webp')]! ${printStyle === 'eco' ? '[&_.fighter-card-bg]:bg-none! [&_.fighter-card-bg]:bg-transparent! [&_.fancy-print-top-bar-art]:hidden! [&_.fancy-print-keep-color-heading]:text-inherit! [&_.fancy-print-keep-color-subtitle]:text-inherit!' : '[&_.fancy-print-keep-color-heading]:text-white! [&_.fancy-print-keep-color-subtitle]:text-gray-300!'}`}>
               {cardsGangCardsPosition === "before" && (
                 <>
                   {/* Gang Card */}

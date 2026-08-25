@@ -241,8 +241,6 @@ Enforcing `cursor: pointer` has the default value. */
 
   body.fancy-print .fancy-print-top-bar-art {
     display: block !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
   }
 
   body.fancy-print .fancy-print-keep-color-heading {

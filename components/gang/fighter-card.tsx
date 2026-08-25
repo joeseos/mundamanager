@@ -15,6 +15,7 @@ import { MdChair } from "react-icons/md";
 import { FaMedkit } from "react-icons/fa";
 import { Weapon } from '@/types/equipment';
 import { FighterCardActionMenu } from './fighter-card-action-menu';
+import { FancyPrintTopBarArt } from './fancy-print-top-bar-art';
 import { useViewportWidth } from '@/hooks/use-viewport-width';
 import { GangViewMode, isCompactGangViewMode } from './ViewModeDropdown';
 import { CgMoreVerticalO } from "react-icons/cg";
@@ -604,14 +605,7 @@ const FighterCard = memo(function FighterCard({
               height: '65px',
               zIndex: 0,
             }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/top-bar-stroke-v3_s97f2k.png"
-              alt=""
-              aria-hidden
-              className="fancy-print-top-bar-art pointer-events-none absolute inset-0 size-full"
-              style={{ objectFit: 'fill' }}
-            />
+            <FancyPrintTopBarArt />
             <div className={`absolute z-10 left-0 ${image_url ? 'right-[156px] md:right-[206px]' : 'right-[84px] md:right-[112px]'} pl-4 sm:pl-8 flex items-center gap-2 overflow-hidden whitespace-nowrap`} style={{ height: '62px', marginTop: '0px' }}>
               {label && (
                 <div className="inline-flex items-center rounded-sm bg-card px-1 text-sm font-bold font-mono text-foreground uppercase print:border-2 print:border-black">
