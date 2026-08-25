@@ -142,13 +142,15 @@ export default function CreateBattleModal({
     return a.scenario_number - b.scenario_number;
   });
 
-  const opponentCampaignGangs = (campaignGangs ?? []).filter(
-    (g) =>
-      g.id !== effectiveGangId &&
-      !myGangs.some((mg) => mg.id === g.id) &&
-      !selectedCampaignGangIds.includes(g.id) &&
-      !existingGangIds.includes(g.id)
-  );
+  // Own gangs stay selectable — a user can own both sides of a battle.
+  const opponentCampaignGangs = (campaignGangs ?? [])
+    .filter(
+      (g) =>
+        g.id !== effectiveGangId &&
+        !selectedCampaignGangIds.includes(g.id) &&
+        !existingGangIds.includes(g.id)
+    )
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const handleSelectUser = (user: UserSearchResult) => {
     setSelectedUser(user);
@@ -238,13 +240,15 @@ export default function CreateBattleModal({
       const scenarioName = selectedScenario === 'custom'
         ? customScenario.trim()
         : sortedScenarios.find((s) => s.id === selectedScenario)?.scenario_name;
-      const allGangIds = effectiveGangId ? [effectiveGangId] : [];
+      const pickedGangIds = effectiveGangId ? [effectiveGangId] : [];
 
       if (campaignId) {
-        allGangIds.push(...selectedCampaignGangIds);
+        pickedGangIds.push(...selectedCampaignGangIds);
       } else {
-        allGangIds.push(...opponents.map((o) => o.gangId));
+        pickedGangIds.push(...opponents.map((o) => o.gangId));
       }
+
+      const allGangIds = Array.from(new Set(pickedGangIds));
 
       if (allGangIds.length === 0) {
         return { success: false, error: 'At least one gang is required' };
@@ -321,7 +325,13 @@ export default function CreateBattleModal({
               Your Gang
             </label>
             <Combobox
-              options={myGangs.map(g => buildGangComboboxOption(g))}
+              options={myGangs
+                .filter(
+                  (g) =>
+                    !selectedCampaignGangIds.includes(g.id) &&
+                    !existingGangIds.includes(g.id)
+                )
+                .map(g => buildGangComboboxOption(g))}
               value={selectedMyGangId}
               onValueChange={setSelectedMyGangId}
               placeholder="Select your gang..."
