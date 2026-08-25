@@ -4226,7 +4226,7 @@ CREATE TABLE public.campaign_battles (
     status text DEFAULT 'played'::text NOT NULL,
     challenger_gang_id uuid,
     challenged_gang_id uuid,
-    CONSTRAINT campaign_battles_status_check CHECK ((status = ANY (ARRAY['challenge_issued'::text, 'challenge_accepted'::text, 'challenge_declined'::text, 'played'::text])))
+    CONSTRAINT campaign_battles_status_check CHECK ((status = ANY (ARRAY['challenge_pending'::text, 'challenge_issued'::text, 'challenge_accepted'::text, 'challenge_declined'::text, 'played'::text])))
 );
 
 
@@ -8543,6 +8543,12 @@ CREATE INDEX weapon_profiles_weapon_id_idx ON public.weapon_profiles USING btree
 
 --
 -- Name: campaign_battles campaign_battles; Type: TRIGGER; Schema: public; Owner: -
+--
+
+
+
+--
+-- Name: campaign_battles campaign_battles_completed; Type: TRIGGER; Schema: public; Owner: -
 --
 
 
