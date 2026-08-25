@@ -316,6 +316,24 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
     setSpecialRules(prev => prev.filter(rule => rule !== ruleToRemove));
   };
 
+  const handleAddAdjustedCost = () => {
+    if (!selectedAdjustedCostEquipment || !adjustedCostAmount) {
+      toast.error('Please select equipment and enter an adjusted cost');
+      return false;
+    }
+
+    const cost = parseInt(adjustedCostAmount);
+    if (isNaN(cost) || cost < 0) {
+      toast.error('Please enter a valid cost (must be 0 or greater)');
+      return false;
+    }
+
+    setEquipmentDiscounts(prev => [
+      ...prev,
+      { equipment_id: selectedAdjustedCostEquipment, adjusted_cost: cost },
+    ]);
+  };
+
   const handleSubmit = async () => {
     // Check if selected fighter subtype is Crew
     const isCrew = selectedFighterSubtypes.includes('Crew');
@@ -1155,15 +1173,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                     setSelectedAdjustedCostEquipment("");
                     setAdjustedCostAmount("");
                   }}
-                  onConfirm={() => {
-                    setEquipmentDiscounts(prev => [
-                      ...prev,
-                      {
-                        equipment_id: selectedAdjustedCostEquipment,
-                        adjusted_cost: parseInt(adjustedCostAmount),
-                      },
-                    ]);
-                  }}
+                  onConfirm={handleAddAdjustedCost}
                   confirmText="Save Adjusted Cost"
                   confirmDisabled={!selectedAdjustedCostEquipment || !adjustedCostAmount || parseInt(adjustedCostAmount) < 0}
                 >
