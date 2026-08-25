@@ -2,14 +2,15 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { LuChartColumn } from "react-icons/lu";
-import type { ActivityStatsWithEdition, EditionCounts, StatWithEdition } from '@/types/stats';
+import { EDITION_N23, EDITION_N26 } from '@/types/edition';
+import type { ActivityStats, EditionCounts } from '@/types/stats';
 
 interface Stats {
   userCount: number;
-  gangCount: StatWithEdition | null;
-  campaignCount: StatWithEdition | null;
-  gangActivity: ActivityStatsWithEdition | null;
-  campaignActivity: ActivityStatsWithEdition | null;
+  gangCount: EditionCounts | null;
+  campaignCount: EditionCounts | null;
+  gangActivity: ActivityStats | null;
+  campaignActivity: ActivityStats | null;
 }
 
 interface AdminStatsModalProps {
@@ -21,11 +22,19 @@ function formatStatValue(value: number | null | undefined): string {
   return value !== null && value !== undefined ? value.toLocaleString() : 'N/A';
 }
 
-function EditionBreakdown({ edition }: { edition: EditionCounts | null | undefined }) {
+function EditionBreakdown({ counts }: { counts: EditionCounts | null | undefined }) {
+  const byEdition = counts?.byEdition;
+  if (
+    byEdition == null ||
+    (byEdition[EDITION_N23] == null && byEdition[EDITION_N26] == null)
+  ) {
+    return null;
+  }
+
   return (
     <div className="mt-1 space-y-0.5 text-right text-xs text-muted-foreground">
-      <p>{formatStatValue(edition?.n23)} (N23)</p>
-      <p>{formatStatValue(edition?.n26)} (N26)</p>
+      <p>{formatStatValue(byEdition[EDITION_N23])} (N23)</p>
+      <p>{formatStatValue(byEdition[EDITION_N26])} (N26)</p>
     </div>
   );
 }
@@ -35,7 +44,7 @@ function ActivitySection({
   activity,
 }: {
   title: string;
-  activity: ActivityStatsWithEdition | null;
+  activity: ActivityStats | null;
 }) {
   const periods = [
     { label: 'Last 2 weeks', value: activity?.last2Weeks },
@@ -52,7 +61,7 @@ function ActivitySection({
           <div key={label} className="p-2 bg-muted/50 rounded-lg border">
             <p className="text-center text-xs text-muted-foreground mb-2">{label}</p>
             <p className="text-center text-lg md:text-xl font-bold">{formatStatValue(value?.total)}</p>
-            <EditionBreakdown edition={value} />
+            <EditionBreakdown counts={value} />
           </div>
         ))}
       </div>
@@ -111,14 +120,14 @@ export function AdminStatsModal({ onClose, onSubmit }: AdminStatsModalProps) {
                     <p className="text-center text-lg md:text-xl font-bold">
                       {formatStatValue(stats.gangCount?.total)}
                     </p>
-                    <EditionBreakdown edition={stats.gangCount} />
+                    <EditionBreakdown counts={stats.gangCount} />
                   </div>
                   <div className="p-2 bg-muted/50 rounded-lg border">
                     <p className="text-center text-sm text-muted-foreground mb-2">Campaigns</p>
                     <p className="text-center text-lg md:text-xl font-bold">
                       {formatStatValue(stats.campaignCount?.total)}
                     </p>
-                    <EditionBreakdown edition={stats.campaignCount} />
+                    <EditionBreakdown counts={stats.campaignCount} />
                   </div>
                 </div>
               </div>

@@ -1,22 +1,13 @@
-export interface ActivityStats {
-  last2Weeks: number | null;
-  last1Month: number | null;
-  last3Months: number | null;
-  last6Months: number | null;
-}
+import type { EditionSlug } from '@/types/edition';
 
 export interface EditionCounts {
-  n23: number | null;
-  n26: number | null;
-}
-
-export interface StatWithEdition extends EditionCounts {
   total: number | null;
+  byEdition: Partial<Record<EditionSlug, number>> | null;
 }
 
-export interface ActivityStatsWithEdition {
-  last2Weeks: StatWithEdition | null;
-  last1Month: StatWithEdition | null;
-  last3Months: StatWithEdition | null;
-  last6Months: StatWithEdition | null;
+export interface ActivityStats {
+  last2Weeks: EditionCounts | null;
+  last1Month: EditionCounts | null;
+  last3Months: EditionCounts | null;
+  last6Months: EditionCounts | null;
 }

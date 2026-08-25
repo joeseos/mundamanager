@@ -1,53 +1,46 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
 
+import { getEditionIdBySlug } from '@/app/lib/editions';
 import { createServiceRoleClient } from '@/utils/supabase/server';
-import { EDITION_N26 } from '@/types/edition';
-import type { StatWithEdition } from '@/types/stats';
+import { EDITION_N23, EDITION_N26, type EditionSlug } from '@/types/edition';
+import type { EditionCounts } from '@/types/stats';
 
 type ServiceRoleClient = ReturnType<typeof createServiceRoleClient>;
 
-async function getN26EditionId(
-  supabase: ServiceRoleClient
-): Promise<string | null> {
-  const { data, error } = await supabase
-    .from('editions')
-    .select('id')
-    .eq('slug', EDITION_N26)
-    .maybeSingle();
-
-  if (error) {
-    console.error('Error fetching n26 edition id:', error);
-    return null;
-  }
-
-  return data?.id ?? null;
-}
-
-function splitEditionCounts(
+function buildEditionCounts(
   total: number | null,
-  n26: number | null
-): StatWithEdition {
-  if (total === null || n26 === null) {
-    return { total, n23: null, n26: null };
+  byEdition: Partial<Record<EditionSlug, number>> | null
+): EditionCounts {
+  if (total === null || byEdition === null) {
+    return { total, byEdition: null };
   }
 
-  return {
-    total,
-    n23: Math.max(0, total - n26),
-    n26,
-  };
+  const counted = Object.values(byEdition).reduce(
+    (sum, value) => sum + (value ?? 0),
+    0
+  );
+
+  if (counted > total) {
+    console.error(
+      'Edition breakdown exceeds total count; suppressing split',
+      { total, byEdition }
+    );
+    return { total, byEdition: null };
+  }
+
+  return { total, byEdition };
 }
 
-async function countN26Gangs(
+async function countGangsForEdition(
   supabase: ServiceRoleClient,
-  n26EditionId: string,
+  editionId: string,
   since?: string
 ): Promise<number | null> {
   let officialQuery = supabase
     .from('gangs')
     .select('id, gang_types!inner(edition_id)', { count: 'exact', head: true })
-    .eq('gang_types.edition_id', n26EditionId);
+    .eq('gang_types.edition_id', editionId);
 
   let customQuery = supabase
     .from('gangs')
@@ -55,7 +48,7 @@ async function countN26Gangs(
       count: 'exact',
       head: true,
     })
-    .eq('custom_gang_types.edition_id', n26EditionId);
+    .eq('custom_gang_types.edition_id', editionId);
 
   if (since) {
     officialQuery = officialQuery.gte('last_updated', since);
@@ -65,20 +58,20 @@ async function countN26Gangs(
   const [official, custom] = await Promise.all([officialQuery, customQuery]);
 
   if (official.error) {
-    console.error('Error fetching n26 official gang count:', official.error);
+    console.error('Error fetching edition official gang count:', official.error);
     return null;
   }
   if (custom.error) {
-    console.error('Error fetching n26 custom gang count:', custom.error);
+    console.error('Error fetching edition custom gang count:', custom.error);
     return null;
   }
 
   return (official.count ?? 0) + (custom.count ?? 0);
 }
 
-async function countN26Campaigns(
+async function countCampaignsForEdition(
   supabase: ServiceRoleClient,
-  n26EditionId: string,
+  editionId: string,
   since?: string
 ): Promise<number | null> {
   let query = supabase
@@ -87,7 +80,7 @@ async function countN26Campaigns(
       count: 'exact',
       head: true,
     })
-    .eq('campaign_types.edition_id', n26EditionId);
+    .eq('campaign_types.edition_id', editionId);
 
   if (since) {
     query = query.gte('updated_at', since);
@@ -96,25 +89,53 @@ async function countN26Campaigns(
   const { count, error } = await query;
 
   if (error) {
-    console.error('Error fetching n26 campaign count:', error);
+    console.error('Error fetching edition campaign count:', error);
     return null;
   }
 
   return count ?? 0;
 }
 
+async function resolveEditionId(slug: EditionSlug): Promise<string | null> {
+  try {
+    return await getEditionIdBySlug(slug);
+  } catch (error) {
+    console.error(`Error resolving ${slug} edition id:`, error);
+    return null;
+  }
+}
+
+async function countByKnownEditions(
+  countForEdition: (editionId: string) => Promise<number | null>
+): Promise<Partial<Record<EditionSlug, number>> | null> {
+  const [n23EditionId, n26EditionId] = await Promise.all([
+    resolveEditionId(EDITION_N23),
+    resolveEditionId(EDITION_N26),
+  ]);
+
+  const [n23, n26] = await Promise.all([
+    n23EditionId ? countForEdition(n23EditionId) : Promise.resolve(null),
+    n26EditionId ? countForEdition(n26EditionId) : Promise.resolve(null),
+  ]);
+
+  if (n23 === null && n26 === null) {
+    return null;
+  }
+
+  const byEdition: Partial<Record<EditionSlug, number>> = {};
+  if (n23 !== null) byEdition[EDITION_N23] = n23;
+  if (n26 !== null) byEdition[EDITION_N26] = n26;
+  return byEdition;
+}
+
 async function fetchGangCountsByEdition(
   since?: string
-): Promise<StatWithEdition | null> {
+): Promise<EditionCounts | null> {
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return null;
   }
 
   const supabase = createServiceRoleClient();
-  const n26EditionId = await getN26EditionId(supabase);
-  if (!n26EditionId) {
-    return null;
-  }
 
   let totalQuery = supabase
     .from('gangs')
@@ -124,9 +145,11 @@ async function fetchGangCountsByEdition(
     totalQuery = totalQuery.gte('last_updated', since);
   }
 
-  const [{ count, error }, n26] = await Promise.all([
+  const [{ count, error }, byEdition] = await Promise.all([
     totalQuery,
-    countN26Gangs(supabase, n26EditionId, since),
+    countByKnownEditions((editionId) =>
+      countGangsForEdition(supabase, editionId, since)
+    ),
   ]);
 
   if (error) {
@@ -134,21 +157,17 @@ async function fetchGangCountsByEdition(
     return null;
   }
 
-  return splitEditionCounts(count ?? 0, n26);
+  return buildEditionCounts(count ?? 0, byEdition);
 }
 
 async function fetchCampaignCountsByEdition(
   since?: string
-): Promise<StatWithEdition | null> {
+): Promise<EditionCounts | null> {
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return null;
   }
 
   const supabase = createServiceRoleClient();
-  const n26EditionId = await getN26EditionId(supabase);
-  if (!n26EditionId) {
-    return null;
-  }
 
   let totalQuery = supabase
     .from('campaigns')
@@ -158,9 +177,11 @@ async function fetchCampaignCountsByEdition(
     totalQuery = totalQuery.gte('updated_at', since);
   }
 
-  const [{ count, error }, n26] = await Promise.all([
+  const [{ count, error }, byEdition] = await Promise.all([
     totalQuery,
-    countN26Campaigns(supabase, n26EditionId, since),
+    countByKnownEditions((editionId) =>
+      countCampaignsForEdition(supabase, editionId, since)
+    ),
   ]);
 
   if (error) {
@@ -168,7 +189,7 @@ async function fetchCampaignCountsByEdition(
     return null;
   }
 
-  return splitEditionCounts(count ?? 0, n26);
+  return buildEditionCounts(count ?? 0, byEdition);
 }
 
 const getCachedGangCountsByEdition = unstable_cache(
@@ -195,7 +216,7 @@ const getCachedCampaignCountsByEdition = unstable_cache(
  */
 export async function getGangCountsByEdition(
   since?: string
-): Promise<StatWithEdition | null> {
+): Promise<EditionCounts | null> {
   if (since) {
     return fetchGangCountsByEdition(since);
   }
@@ -208,7 +229,7 @@ export async function getGangCountsByEdition(
  */
 export async function getCampaignCountsByEdition(
   since?: string
-): Promise<StatWithEdition | null> {
+): Promise<EditionCounts | null> {
   if (since) {
     return fetchCampaignCountsByEdition(since);
   }
