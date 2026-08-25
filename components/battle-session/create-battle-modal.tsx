@@ -142,13 +142,20 @@ export default function CreateBattleModal({
     return a.scenario_number - b.scenario_number;
   });
 
-  const opponentCampaignGangs = (campaignGangs ?? []).filter(
-    (g) =>
-      g.id !== effectiveGangId &&
-      !myGangs.some((mg) => mg.id === g.id) &&
-      !selectedCampaignGangIds.includes(g.id) &&
-      !existingGangIds.includes(g.id)
-  );
+  // Gangs the user owns themselves stay in the list: owning both sides of a
+  // battle is a normal thing to do in a campaign. Only the gang already picked
+  // as "Your Gang" is excluded, so no gang can end up fighting itself.
+  const opponentCampaignGangs = (campaignGangs ?? [])
+    .filter(
+      (g) =>
+        g.id !== effectiveGangId &&
+        !selectedCampaignGangIds.includes(g.id) &&
+        !existingGangIds.includes(g.id)
+    )
+    // Sorted here rather than at the source: the gang page's list arrives
+    // sorted from /api/campaigns/campaign-gangs, while the campaign page's
+    // comes straight off the loaded campaign members in row order.
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const handleSelectUser = (user: UserSearchResult) => {
     setSelectedUser(user);
@@ -238,13 +245,17 @@ export default function CreateBattleModal({
       const scenarioName = selectedScenario === 'custom'
         ? customScenario.trim()
         : sortedScenarios.find((s) => s.id === selectedScenario)?.scenario_name;
-      const allGangIds = effectiveGangId ? [effectiveGangId] : [];
+      const pickedGangIds = effectiveGangId ? [effectiveGangId] : [];
 
       if (campaignId) {
-        allGangIds.push(...selectedCampaignGangIds);
+        pickedGangIds.push(...selectedCampaignGangIds);
       } else {
-        allGangIds.push(...opponents.map((o) => o.gangId));
+        pickedGangIds.push(...opponents.map((o) => o.gangId));
       }
+
+      // The pickers already keep a gang off both sides; deduping here means a
+      // stale selection can never ask the server for a gang fighting itself.
+      const allGangIds = Array.from(new Set(pickedGangIds));
 
       if (allGangIds.length === 0) {
         return { success: false, error: 'At least one gang is required' };
@@ -321,7 +332,13 @@ export default function CreateBattleModal({
               Your Gang
             </label>
             <Combobox
-              options={myGangs.map(g => buildGangComboboxOption(g))}
+              options={myGangs
+                .filter(
+                  (g) =>
+                    !selectedCampaignGangIds.includes(g.id) &&
+                    !existingGangIds.includes(g.id)
+                )
+                .map(g => buildGangComboboxOption(g))}
               value={selectedMyGangId}
               onValueChange={setSelectedMyGangId}
               placeholder="Select your gang..."
