@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { FighterProps, Vehicle, FighterEffect } from "@/types/fighter";
 import { Equipment } from "@/types/equipment";
@@ -15,6 +15,7 @@ import { MdCheckBoxOutlineBlank } from "react-icons/md";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import FighterCard from "./fighter-card";
+import { FancyPrintTopBarArt } from "./fancy-print-top-bar-art";
 import { PRINT_GANG_VIEW_MODE } from "./ViewModeDropdown";
 import { Badge } from "@/components/ui/badge";
 import { GiAncientRuins } from "react-icons/gi";
@@ -193,18 +194,19 @@ export default function PrintGang({ gang }: PrintGangProps) {
   const [cardsGangCardsPosition, setCardsGangCardsPosition] = useState<"before" | "after">("before");
   const [scaleCardsToContent, setScaleCardsToContent] = useState(true);
 
-  // Handle print with style
-  const handlePrint = () => {
-    if (printStyle === 'fancy') {
-      document.body.classList.add('fancy-print');
-    } else {
-      document.body.classList.remove('fancy-print');
-    }
+  // Keep fancy-print on the body while Fancy is selected. iOS Safari's window.print()
+  // is non-blocking, so adding/removing the class around the print call drops it
+  // before the snapshot. Safari share-sheet print also never hits handlePrint.
+  useEffect(() => {
+    const enable = viewMode === "cards" && printStyle === "fancy";
+    document.body.classList.toggle("fancy-print", enable);
+    return () => {
+      document.body.classList.remove("fancy-print");
+    };
+  }, [viewMode, printStyle]);
 
-    setTimeout(() => {
-      window.print();
-      document.body.classList.remove('fancy-print');
-    }, 100);
+  const handlePrint = () => {
+    window.print();
   };
 
   // Use pre-filtered list when "Inactive Fighters Loadouts" is off (server-side filter is reliable)
@@ -1010,7 +1012,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
               ["--ring" as any]: "var(--light-ring)",
             }} // Enforce light theme colors for Cards View
           >
-            <div className={`print-gang-cards justify-center print:justify-start flex flex-wrap content-start gap-[6px] ${scaleCardsToContent ? 'items-stretch [&_.fighter-card-bg]:h-auto! [&_.fighter-card-bg]:flex! [&_.fighter-card-bg]:flex-col!' : 'items-start [&_.fighter-card-bg]:h-[435px]!'} [&_.fighter-card-bg]:w-[630px]! [&_.fighter-card-bg]:shadow-none! [&_.fighter-card-bg]:border-[3px]! [&_.fighter-card-bg]:break-inside-avoid [&_.fighter-card-bg]:rounded-lg [&_.fighter-card-bg]:text-base! [&_.fighter-card-bg]:bg-[#faf9f7]! [&_.fighter-card-bg]:text-black! [&_.fighter-card-bg:hover]:scale-100! [&_.fighter-card-bg:hover]:shadow-none! [&_.fighter-card-bg]:transition-none! [&_.fighter-card-bg_.grid]:gap-y-0! [&_.fighter-card-bg_.grid]:mt-1! [&_.fighter-card-bg_.inline-flex.rounded-sm]:border-2! [&_.fighter-card-bg_.inline-flex.rounded-sm]:border-black! [&_.fighter-card-bg_.bg-secondary]:shadow-none! [&_.fighter-card-bg]:bg-[url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/fighter-card-background-5-light_web_ynpbac.webp')]! ${printStyle === 'eco' ? '[&_.fighter-card-bg]:bg-none! [&_.fighter-card-bg]:bg-transparent! [&_.fancy-print-top-bar]:bg-none! [&_.fancy-print-keep-color-heading]:text-inherit! [&_.fancy-print-keep-color-subtitle]:text-inherit!' : '[&_.fancy-print-keep-color-heading]:text-white! [&_.fancy-print-keep-color-subtitle]:text-gray-300!'}`}>
+            <div className={`print-gang-cards justify-center print:justify-start flex flex-wrap content-start gap-[6px] ${scaleCardsToContent ? 'items-stretch [&_.fighter-card-bg]:h-auto! [&_.fighter-card-bg]:flex! [&_.fighter-card-bg]:flex-col!' : 'items-start [&_.fighter-card-bg]:h-[435px]!'} [&_.fighter-card-bg]:w-[630px]! [&_.fighter-card-bg]:shadow-none! [&_.fighter-card-bg]:border-[3px]! [&_.fighter-card-bg]:break-inside-avoid [&_.fighter-card-bg]:rounded-lg [&_.fighter-card-bg]:text-base! [&_.fighter-card-bg]:bg-[#faf9f7]! [&_.fighter-card-bg]:text-black! [&_.fighter-card-bg:hover]:scale-100! [&_.fighter-card-bg:hover]:shadow-none! [&_.fighter-card-bg]:transition-none! [&_.fighter-card-bg_.grid]:gap-y-0! [&_.fighter-card-bg_.grid]:mt-1! [&_.fighter-card-bg_.inline-flex.rounded-sm]:border-2! [&_.fighter-card-bg_.inline-flex.rounded-sm]:border-black! [&_.fighter-card-bg_.bg-secondary]:shadow-none! [&_.fighter-card-bg]:bg-[url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/fighter-card-background-5-light_web_ynpbac.webp')]! ${printStyle === 'eco' ? '[&_.fighter-card-bg]:bg-none! [&_.fighter-card-bg]:bg-transparent! [&_.fancy-print-top-bar-art]:hidden! [&_.fancy-print-keep-color-heading]:text-inherit! [&_.fancy-print-keep-color-subtitle]:text-inherit!' : '[&_.fancy-print-keep-color-heading]:text-white! [&_.fancy-print-keep-color-subtitle]:text-gray-300!'}`}>
               {cardsGangCardsPosition === "before" && (
                 <>
                   {/* Gang Card */}
@@ -1020,15 +1022,13 @@ export default function PrintGang({ gang }: PrintGangProps) {
                     <div className="flex mb-[50px]">
                       <div className="flex w-full">
                         <div
-                          className="absolute inset-0 bg-no-repeat bg-cover fancy-print-top-bar mt-2"
+                          className="absolute inset-0 fancy-print-top-bar mt-2"
                           style={{
-                            backgroundImage: "url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/top-bar-stroke-v3_s97f2k.png')",
                             width: '100%',
                             height: '65px',
                             zIndex: 0,
-                            backgroundPosition: 'center',
-                            backgroundSize: '100% 100%'
                           }}>
+                          <FancyPrintTopBarArt />
                           <div className="absolute z-10 pl-4 flex items-center gap-2 w-[80%] overflow-hidden whitespace-nowrap" style={{ height: '62px', marginTop: '0px' }}>
                             <div className="flex flex-col items-baseline w-full">
                               <div className="text-2xl font-semibold text-white ml-4 print:text-foreground fancy-print-keep-color-heading">{name}</div>
@@ -1222,15 +1222,13 @@ export default function PrintGang({ gang }: PrintGangProps) {
                       <div className="flex mb-[50px]">
                         <div className="flex w-full">
                           <div
-                            className="absolute inset-0 bg-no-repeat bg-cover fancy-print-top-bar mt-2"
+                            className="absolute inset-0 fancy-print-top-bar mt-2"
                             style={{
-                              backgroundImage: "url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/top-bar-stroke-v3_s97f2k.png')",
                               width: '100%',
                               height: '65px',
                               zIndex: 0,
-                              backgroundPosition: 'center',
-                              backgroundSize: '100% 100%'
                             }}>
+                            <FancyPrintTopBarArt />
                             <div className="absolute z-10 pl-4 flex items-center gap-2 w-[80%] overflow-hidden whitespace-nowrap" style={{ height: '62px', marginTop: '0px' }}>
                               <div className="flex flex-col items-baseline w-full">
                                 <div className="text-xl font-semibold text-white ml-4 print:text-foreground fancy-print-keep-color-heading">Additional Details</div>
@@ -1479,15 +1477,13 @@ export default function PrintGang({ gang }: PrintGangProps) {
                 <div className="flex mb-[50px]">
                   <div className="flex w-full">
                     <div
-                      className="absolute inset-0 bg-no-repeat bg-cover fancy-print-top-bar mt-2"
+                      className="absolute inset-0 fancy-print-top-bar mt-2"
                       style={{
-                        backgroundImage: "url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/top-bar-stroke-v3_s97f2k.png')",
                         width: '100%',
                         height: '65px',
                         zIndex: 0,
-                        backgroundPosition: 'center',
-                        backgroundSize: '100% 100%'
                       }}>
+                      <FancyPrintTopBarArt />
                       <div className="absolute z-10 pl-4 flex items-center gap-2 w-[80%] overflow-hidden whitespace-nowrap" style={{ height: '62px', marginTop: '0px' }}>
                         <div className="flex flex-col items-baseline w-full">
                           <div className="text-2xl font-semibold text-white ml-4 print:text-foreground fancy-print-keep-color-heading">{name}</div>
@@ -1681,15 +1677,13 @@ export default function PrintGang({ gang }: PrintGangProps) {
                   <div className="flex mb-[50px]">
                     <div className="flex w-full">
                       <div
-                        className="absolute inset-0 bg-no-repeat bg-cover fancy-print-top-bar mt-2"
+                        className="absolute inset-0 fancy-print-top-bar mt-2"
                         style={{
-                          backgroundImage: "url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/top-bar-stroke-v3_s97f2k.png')",
                           width: '100%',
                           height: '65px',
                           zIndex: 0,
-                          backgroundPosition: 'center',
-                          backgroundSize: '100% 100%'
                         }}>
+                        <FancyPrintTopBarArt />
                         <div className="absolute z-10 pl-4 flex items-center gap-2 w-[80%] overflow-hidden whitespace-nowrap" style={{ height: '62px', marginTop: '0px' }}>
                           <div className="flex flex-col items-baseline w-full">
                             <div className="text-2xl font-semibold text-white ml-4 print:text-foreground fancy-print-keep-color-heading">Additional Details</div>
