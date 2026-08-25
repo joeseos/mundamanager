@@ -187,6 +187,12 @@ export default function CreateBattleModal({
     setSelectedCampaignGangIds((prev) => prev.filter((id) => id !== campaignGangId));
   };
 
+  const selectMyGang = (campaignGangId: string) => {
+    setSelectedMyGangId(campaignGangId);
+    // A gang can't fight itself: claiming it as yours drops it as an opponent.
+    removeCampaignGang(campaignGangId);
+  };
+
   // Filter out gangs already added as opponents, already in the session, or from
   // another edition. Skirmish opponents are searched across all users, so unlike
   // campaign gangs nothing upstream has constrained them to one ruleset.
@@ -240,15 +246,13 @@ export default function CreateBattleModal({
       const scenarioName = selectedScenario === 'custom'
         ? customScenario.trim()
         : sortedScenarios.find((s) => s.id === selectedScenario)?.scenario_name;
-      const pickedGangIds = effectiveGangId ? [effectiveGangId] : [];
+      const allGangIds = effectiveGangId ? [effectiveGangId] : [];
 
       if (campaignId) {
-        pickedGangIds.push(...selectedCampaignGangIds);
+        allGangIds.push(...selectedCampaignGangIds);
       } else {
-        pickedGangIds.push(...opponents.map((o) => o.gangId));
+        allGangIds.push(...opponents.map((o) => o.gangId));
       }
-
-      const allGangIds = Array.from(new Set(pickedGangIds));
 
       if (allGangIds.length === 0) {
         return { success: false, error: 'At least one gang is required' };
@@ -325,15 +329,9 @@ export default function CreateBattleModal({
               Your Gang
             </label>
             <Combobox
-              options={myGangs
-                .filter(
-                  (g) =>
-                    !selectedCampaignGangIds.includes(g.id) &&
-                    !existingGangIds.includes(g.id)
-                )
-                .map(g => buildGangComboboxOption(g))}
+              options={myGangs.map(g => buildGangComboboxOption(g))}
               value={selectedMyGangId}
-              onValueChange={setSelectedMyGangId}
+              onValueChange={selectMyGang}
               placeholder="Select your gang..."
             />
           </div>
