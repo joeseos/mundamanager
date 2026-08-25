@@ -149,6 +149,23 @@ export function nextTierStartFor(
 }
 
 /**
+ * How many Advancements a model has already taken.
+ *
+ * A characteristic lands as a fighter_effect in the 'advancements' category, a
+ * skill as a fighter_skill flagged is_advance. Starting and free skills are not
+ * Advancements and carry is_advance false.
+ */
+export function countAdvancementsTaken(
+  effects: { advancements?: unknown[] } | null | undefined,
+  skills: Record<string, { is_advance?: boolean }> | null | undefined,
+): number {
+  const characteristics = effects?.advancements?.length ?? 0;
+  const skillAdvances = Object.values(skills ?? {}).filter((skill) => skill?.is_advance).length;
+
+  return characteristics + skillAdvances;
+}
+
+/**
  * Advancements earned but not yet taken. Derived on read so it cannot drift.
  *
  * Floored at zero: taking one is not gated on having earned one, so a fighter

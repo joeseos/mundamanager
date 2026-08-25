@@ -1,4 +1,8 @@
+'use client';
+
 import React from 'react';
+import { Tooltip } from 'react-tooltip';
+import { TbArrowBigUpFilled } from 'react-icons/tb';
 import { GangViewMode, isFullSizeGangViewMode } from '@/components/gang/ViewModeDropdown';
 import { initiativeAndMentalCharacteristicSuffix } from '@/types/edition';
 
@@ -69,6 +73,8 @@ interface StatsTableProps {
   isCrew?: boolean;
   viewMode?: GangViewMode;
   editionSlug?: string | null;
+  /** N26: show a level-up icon beside XP when the fighter has unspent rank advancements. */
+  hasAvailableAdvancements?: boolean;
 }
 
 // Add a type for valid stat keys
@@ -92,7 +98,9 @@ const formatStatValue = (
   return `${value.slice(0, -1)}${initiativeAndMentalCharacteristicSuffix(editionSlug)}`;
 };
 
-export function StatsTable({ data, isCrew, viewMode, editionSlug }: StatsTableProps) {
+export function StatsTable({ data, isCrew, viewMode, editionSlug, hasAvailableAdvancements }: StatsTableProps) {
+  const advancementTooltipId = `advancement-available-${React.useId()}`;
+
   if (!data || Object.keys(data).length === 0) {
     return <p>No characteristics available</p>;
   }
@@ -228,12 +236,38 @@ export function StatsTable({ data, isCrew, viewMode, editionSlug }: StatsTablePr
                   ${getColumnBorderClass(key)}`}
                 style={{ width: columnWidth }}
               >
-                {formatStatValue(key, value, editionSlug)}
+                {key === 'XP' ? (
+                  <span className="inline-flex items-center justify-center gap-0.5 whitespace-nowrap">
+                    {formatStatValue(key, value, editionSlug)}
+                    {hasAvailableAdvancements && (
+                      <TbArrowBigUpFilled
+                        className={`${isFullSizeView ? 'h-4 w-4' : 'h-2.5 w-2.5'} cursor-help`}
+                        aria-label="Advancement available"
+                        data-tooltip-id={advancementTooltipId}
+                        data-tooltip-content="Advancement available"
+                      />
+                    )}
+                  </span>
+                ) : (
+                  formatStatValue(key, value, editionSlug)
+                )}
               </td>
             ))}
           </tr>
         </tbody>
       </table>
+      {hasAvailableAdvancements && (
+        <Tooltip
+          id={advancementTooltipId}
+          place="top"
+          className="bg-neutral-900! text-white! text-xs! z-[2000]! print:hidden!"
+          delayHide={100}
+          style={{
+            padding: '6px',
+            maxWidth: '20rem',
+          }}
+        />
+      )}
     </div>
   );
 }
