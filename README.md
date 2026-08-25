@@ -66,13 +66,18 @@ For questions about contributing, feel free to ask in our [Discord server](https
    ```
 
 4. **Mobile device testing**
-   On your desktop, make sure you have the NODE_ENV variable setup with the value 'development'. Then run the following:
-   ```bash
-   npm run dev --host
+
+   `npm run dev` already listens on the LAN. The startup log prints a **Network** URL (for example `http://192.168.1.115:3000`). Open that URL on a phone on the same Wi-Fi.
+
+   Next.js still blocks HMR and other `/_next` assets from that origin until you allow it in `next.config.js`:
+
+   ```js
+   allowedDevOrigins: ['192.168.1.115'],
    ```
-   
-   On your mobile device, when connected to your wifi, access the website using the IP of your desktop on your local network (e.g. 192.168.1.5):
-   http://192.168.1.5:3000
+
+   Use the same IP as the Network URL, then restart the dev server. If you skip this, the page may load but you will see `Blocked cross-origin request to Next.js dev resource` in the terminal.
+
+   Do not commit this `next.config.js` change when you push. `allowedDevOrigins` is your local IP and should stay off the repo.
 
 5. **Access to the DB Schema**
    The Supabase DB schema can be accessed through https://supabase-schema.vercel.app/

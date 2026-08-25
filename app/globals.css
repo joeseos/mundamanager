@@ -215,6 +215,13 @@ Enforcing `cursor: pointer` has the default value. */
     background-image: none !important;
   }
 
+  /* CSS backgrounds on this bar are stripped above; iOS Safari also often skips
+     printing nested background-images. The stroke is an <img> (.fancy-print-top-bar-art)
+     and is shown only for Fancy print (body.fancy-print). */
+  .fancy-print-top-bar-art {
+    display: none !important;
+  }
+
   .print-fighters {
     zoom: 0.55;
   }
@@ -232,8 +239,10 @@ Enforcing `cursor: pointer` has the default value. */
     background-color: #faf9f7 !important;
   }
 
-  body.fancy-print .fancy-print-top-bar {
-    background-image: url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/top-bar-stroke-v3_s97f2k.png') !important;
+  body.fancy-print .fancy-print-top-bar-art {
+    display: block !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   body.fancy-print .fancy-print-keep-color-heading {
