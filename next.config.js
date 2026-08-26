@@ -1,5 +1,17 @@
+import { fileURLToPath } from 'node:url'
+
+// Coolify sets USE_REDIS_CACHE at build time; Vercel never does, so it keeps the
+// built-in Data Cache with no config keys set at all.
+const useRedisCache = process.env.USE_REDIS_CACHE === 'true'
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  ...(useRedisCache
+    ? {
+        cacheHandler: fileURLToPath(new URL('./cache-handler.js', import.meta.url)),
+        cacheMaxMemorySize: 0,
+      }
+    : {}),
   reactStrictMode: true,
   poweredByHeader: false,
   // SEO optimizations

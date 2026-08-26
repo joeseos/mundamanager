@@ -54,6 +54,7 @@
     "react-leaflet": "^5.0.0",
     "react-switch": "^7.1.0",
     "react-tooltip": "^6.0.8",
+    "redis": "^5.12.1",
     "sonner": "^2.0.7"
   },
   "devDependencies": {

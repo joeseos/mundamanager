@@ -627,3 +627,42 @@ interface FighterProps {
 ```
 
 
+
+## Self-Hosted Caching (Coolify)
+
+On Vercel the app uses Next's built-in Data Cache and nothing here applies. When
+self-hosting, `cache-handler.js` can back the Next.js `cacheHandler` with Redis so
+cached data is shared between instances and survives a redeploy.
+
+It is off unless `USE_REDIS_CACHE=true` is set **at build time** — `next.config.js`
+reads it to decide whether to register the handler at all. `REDIS_URL` is a runtime
+secret and is deliberately not needed during `next build`; without it the handler
+falls back to an in-process cache, which is what makes the build work.
+
+| Variable | Required | Notes |
+|---|---|---|
+| `USE_REDIS_CACHE` | build | `true` enables the handler |
+| `REDIS_URL` | runtime | Secret. Absent ⇒ in-memory fallback |
+| `REDIS_CACHE_PREFIX` | no | Default `munda-manager:next-cache` |
+| `REDIS_CACHE_TIMEOUT_MS` | no | Default `1000` |
+| `NEXT_PRIVATE_DEBUG_CACHE` | no | `1` logs HIT/MISS/SET and invalidations |
+
+`unstable_cache` entries are stored under `…:v1:fetch:` and persist across deploys;
+rendered pages are stored per build id so a new build never serves the previous
+build's payloads. Tags from `utils/cache-tags.ts` are indexed as Redis sets, so
+`revalidateTag` deletes exactly the affected keys rather than scanning the keyspace.
+
+To confirm Redis is receiving entries:
+
+```bash
+redis-cli -u "$REDIS_URL" DBSIZE
+redis-cli -u "$REDIS_URL" --scan --pattern 'munda-manager:next-cache:*' | head -50
+redis-cli -u "$REDIS_URL" SMEMBERS 'munda-manager:next-cache:v1:tag:gang-<GANG_ID>'
+redis-cli -u "$REDIS_URL" MONITOR   # watch live traffic while browsing
+
+# flush the app's cache (e.g. after changing the shape of a cached value)
+redis-cli -u "$REDIS_URL" --scan --pattern 'munda-manager:next-cache:*' \
+  | xargs -r -n 500 redis-cli -u "$REDIS_URL" DEL
+```
+
+To roll back to stock Next.js caching, unset `USE_REDIS_CACHE` and rebuild.
