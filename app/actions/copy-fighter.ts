@@ -80,6 +80,48 @@ function calculateTotalCopyCost(
   return dbBaseCost + costAdjustment + copiedEquipmentCost + copiedEffectsCost + copiedVehicleCost;
 }
 
+/**
+ * Skills that come with the fighter type itself, as add-fighter.ts grants them on
+ * recruitment. A base copy keeps these; advancements and bought skills it does not.
+ */
+async function getDefaultSkillIds(supabase: any, fighter: any): Promise<Set<string>> {
+  const typeColumn = fighter.custom_fighter_type_id ? 'custom_fighter_type_id' : 'fighter_type_id';
+  const typeId = fighter.custom_fighter_type_id || fighter.fighter_type_id;
+  if (!typeId) return new Set();
+
+  const { data, error } = await supabase
+    .from('fighter_defaults')
+    .select('skill_id')
+    .eq(typeColumn, typeId)
+    .not('skill_id', 'is', null);
+
+  if (error) {
+    console.warn('Failed to read default skills, copying none:', error.message);
+    return new Set();
+  }
+
+  return new Set((data || []).map((row: any) => row.skill_id));
+}
+
+/**
+ * Skill rows to copy: everything when experienced, only the fighter type's defaults
+ * otherwise. Defaults are inserted free — the type's base cost already covers them.
+ */
+async function selectSkillsToCopy(
+  supabase: any,
+  sourceFighter: any,
+  copyAsExperienced: boolean | undefined
+): Promise<any[]> {
+  const sourceSkills = sourceFighter.fighter_skills || [];
+  if (sourceSkills.length === 0) return [];
+  if (copyAsExperienced) return sourceSkills;
+
+  const defaultSkillIds = await getDefaultSkillIds(supabase, sourceFighter);
+  if (defaultSkillIds.size === 0) return [];
+
+  return sourceSkills.filter((skill: any) => skill.skill_id && defaultSkillIds.has(skill.skill_id));
+}
+
 export async function copyFighter(params: CopyFighterParams): Promise<CopyFighterResult> {
   try {
     const supabase = await createClient();
@@ -459,15 +501,16 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       }
     }
 
-    // Copy skills (only when copying as experienced)
-    if (params.copy_as_experienced && sourceFighter.fighter_skills && sourceFighter.fighter_skills.length > 0) {
-      const skillsToCopy = sourceFighter.fighter_skills.map((skill: any) => ({
+    // Copy skills (all when experienced, otherwise the fighter type's defaults)
+    const sourceSkillsToCopy = await selectSkillsToCopy(supabase, sourceFighter, params.copy_as_experienced);
+    if (sourceSkillsToCopy.length > 0) {
+      const skillsToCopy = sourceSkillsToCopy.map((skill: any) => ({
         fighter_id: newFighterId,
         skill_id: skill.skill_id,
-        custom_skill_id: skill.custom_skill_id ?? null,
-        credits_increase: skill.credits_increase ?? 0,
-        xp_cost: skill.xp_cost ?? 0,
-        is_advance: skill.is_advance ?? false,
+        custom_skill_id: params.copy_as_experienced ? (skill.custom_skill_id ?? null) : null,
+        credits_increase: params.copy_as_experienced ? (skill.credits_increase ?? 0) : 0,
+        xp_cost: params.copy_as_experienced ? (skill.xp_cost ?? 0) : 0,
+        is_advance: params.copy_as_experienced ? (skill.is_advance ?? false) : false,
         user_id: gang.user_id
       }));
 
@@ -480,7 +523,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
         return await rollbackFighter(`Failed to copy skills: ${skillsError.message}`);
       }
 
-      sourceFighter.fighter_skills.forEach((skill: any, i: number) => {
+      sourceSkillsToCopy.forEach((skill: any, i: number) => {
         if (insertedSkills?.[i]?.id) skillIdMap.set(skill.id, insertedSkills[i].id);
       });
     }
@@ -765,16 +808,17 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           }
         }
 
-        // Copy beast skills (only when copying as experienced)
+        // Copy beast skills (all when experienced, otherwise the beast type's defaults)
         const beastSkillIdMap = new Map<string, string>();
-        if (params.copy_as_experienced && beastFighter.fighter_skills && beastFighter.fighter_skills.length > 0) {
-          const beastSkillsToCopy = beastFighter.fighter_skills.map((skill: any) => ({
+        const sourceBeastSkillsToCopy = await selectSkillsToCopy(supabase, beastFighter, params.copy_as_experienced);
+        if (sourceBeastSkillsToCopy.length > 0) {
+          const beastSkillsToCopy = sourceBeastSkillsToCopy.map((skill: any) => ({
             fighter_id: newBeastFighter.id,
             skill_id: skill.skill_id,
-            custom_skill_id: skill.custom_skill_id ?? null,
-            credits_increase: skill.credits_increase ?? 0,
-            xp_cost: skill.xp_cost ?? 0,
-            is_advance: skill.is_advance ?? false,
+            custom_skill_id: params.copy_as_experienced ? (skill.custom_skill_id ?? null) : null,
+            credits_increase: params.copy_as_experienced ? (skill.credits_increase ?? 0) : 0,
+            xp_cost: params.copy_as_experienced ? (skill.xp_cost ?? 0) : 0,
+            is_advance: params.copy_as_experienced ? (skill.is_advance ?? false) : false,
             user_id: gang.user_id
           }));
 
@@ -787,7 +831,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
             return await rollbackFighter(`Failed to copy beast skills: ${beastSkillsError.message}`);
           }
 
-          beastFighter.fighter_skills.forEach((skill: any, i: number) => {
+          sourceBeastSkillsToCopy.forEach((skill: any, i: number) => {
             if (insertedBeastSkills?.[i]?.id) beastSkillIdMap.set(skill.id, insertedBeastSkills[i].id);
           });
         }
