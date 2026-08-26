@@ -10,7 +10,7 @@ import { HiX } from "react-icons/hi";
 import { toast } from 'sonner';
 import { applySpecialRulesModifiers, subtypeGrantsFromEffects } from '@/utils/effect-modifiers';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
-import { allowsMultipleSubtypes } from '@/types/edition';
+import { allowsMultipleSubtypes, hasFighterSpecialisations } from '@/types/edition';
 import {
   getArchetypeCatalogSubtype,
   isArchetypeEligible,
@@ -722,6 +722,14 @@ export function EditFighterModal({
     option => fighterTypes.find(ft => ft.id === option.value)?.fighter_variant
   ) ? 'Variant' : 'Specialisation';
 
+  // A variant names itself; a specialisation only exists in editions that have them.
+  const currentSpecialisationLabel =
+    fighter.fighter_variant ||
+    (hasFighterSpecialisations(fighter.edition_slug)
+      ? fighter.fighter_specialisation?.fighter_specialisation
+      : null) ||
+    'Default';
+
   // Add handler for specialisation change
   const handleSpecialisationChange = (specialisationId: string) => {
     setSelectedSpecialisationId(specialisationId);
@@ -1084,7 +1092,7 @@ export function EditFighterModal({
                   dropdownPlacement="down"
                 />
                 <div className="mt-1 text-sm text-muted-foreground">
-                  Current: {fighter.fighter_variant || 'Default'}
+                  Current: {currentSpecialisationLabel}
                 </div>
               </div>
             )}
