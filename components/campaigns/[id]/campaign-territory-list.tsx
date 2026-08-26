@@ -49,6 +49,8 @@ interface Territory {
   id: string;
   territory_id: string | null;
   territory_name: string;
+  /** Catalog/template name when linked via territory_id; null for custom territories */
+  original_territory_name?: string | null;
   playing_card?: string | null;
   description?: string | null;
   gang_id: string | null;
@@ -82,6 +84,7 @@ interface TerritoryUpdate {
     default_gang_territory?: boolean;
     playing_card?: string | null;
     description?: string | null;
+    territory_name?: string;
   };
 }
 
@@ -311,7 +314,8 @@ export default function CampaignTerritoryList({
       default_gang_territory: boolean;
       playing_card: string | null;
       description: string | null;
-      territoryName: string;
+      territory_name?: string;
+      displayName: string;
     }) => {
       const result = await updateTerritoryStatus({
         campaignId,
@@ -319,7 +323,10 @@ export default function CampaignTerritoryList({
         ruined: variables.ruined,
         default_gang_territory: variables.default_gang_territory,
         playing_card: variables.playing_card,
-        description: variables.description
+        description: variables.description,
+        ...(variables.territory_name !== undefined
+          ? { territory_name: variables.territory_name }
+          : {})
       });
       if (!result.success) {
         throw new Error(result.error || 'Failed to update territory');
@@ -338,11 +345,17 @@ export default function CampaignTerritoryList({
           ruined: variables.ruined,
           default_gang_territory: variables.default_gang_territory,
           playing_card: variables.playing_card,
-          description: variables.description
+          description: variables.description,
+          ...(variables.territory_name !== undefined
+            ? { territory_name: variables.territory_name }
+            : {})
         }
       });
       
-      return { previousTerritories, territoryName: variables.territoryName };
+      return {
+        previousTerritories,
+        territoryName: variables.displayName
+      };
     },
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
@@ -376,8 +389,12 @@ export default function CampaignTerritoryList({
     default_gang_territory: boolean;
     playing_card: string | null;
     description: string | null;
+    territory_name?: string;
   }) => {
     if (!territoryToEdit) return false;
+
+    const displayName =
+      updates.territory_name ?? territoryToEdit.territory_name;
 
     updateTerritoryMutation.mutate({
       territoryId: territoryToEdit.id,
@@ -385,7 +402,10 @@ export default function CampaignTerritoryList({
       default_gang_territory: updates.default_gang_territory,
       playing_card: updates.playing_card,
       description: updates.description,
-      territoryName: territoryToEdit.territory_name
+      ...(updates.territory_name !== undefined
+        ? { territory_name: updates.territory_name }
+        : {}),
+      displayName
     });
     
     return true;
@@ -768,20 +788,20 @@ export default function CampaignTerritoryList({
           }}
           onConfirm={handleTerritoryUpdate}
           territoryName={territoryToEdit.territory_name}
+          originalTerritoryName={territoryToEdit.original_territory_name}
           currentRuined={territoryToEdit.ruined || false}
           currentDefaultGangTerritory={territoryToEdit.default_gang_territory || false}
           currentPlayingCard={territoryToEdit.playing_card ?? null}
           currentDescription={territoryToEdit.description ?? null}
-          {...({
-            groupedTerritories: editGroupTerritories,
-            selectedTerritoryId: territoryToEdit.id,
-            onSelectTerritory: (territoryId: string) => {
-              const selected = editGroupTerritories.find((territory) => territory.id === territoryId);
-              if (selected) {
-                setTerritoryToEdit(selected);
-              }
+          canRename={permissions.canManageTerritories}
+          groupedTerritories={editGroupTerritories}
+          selectedTerritoryId={territoryToEdit.id}
+          onSelectTerritory={(territoryId: string) => {
+            const selected = editGroupTerritories.find((territory) => territory.id === territoryId);
+            if (selected) {
+              setTerritoryToEdit(selected);
             }
-          } as any)}
+          }}
           isUpdating={updateTerritoryMutation.isPending}
         />
       )}
