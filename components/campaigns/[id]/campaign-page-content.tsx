@@ -76,6 +76,8 @@ interface Territory {
   id: string;
   territory_id: string | null;
   territory_name: string;
+  /** Catalog/template name when linked via territory_id; null for custom territories */
+  original_territory_name?: string | null;
   playing_card?: string | null;
   gang_id: string | null;
   created_at: string;
@@ -258,6 +260,8 @@ export default function CampaignPageContent({
       ruined?: boolean;
       default_gang_territory?: boolean;
       playing_card?: string | null;
+      description?: string | null;
+      territory_name?: string;
     };
   }
 
