@@ -6,7 +6,8 @@ import { logTerritoryLost, logTerritoryClaimed } from "../../logs/gang-campaign-
 import { getAuthenticatedUser } from '@/utils/auth';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
 import { editionsConflict, editionSlugFromJoin } from '@/types/edition';
-import { TERRITORY_NAME_CHAR_LIMIT } from '@/utils/campaigns/territory-name';
+import { normaliseTerritoryName, validateTerritoryName } from '@/utils/campaigns/territory-name';
+
 
 export interface AssignGangToTerritoryParams {
   campaignId: string;
@@ -334,15 +335,10 @@ export async function createCustomCampaignTerritory(params: CreateCustomCampaign
     const supabase = await createClient();
     const { campaignId, territoryName } = params;
 
-    const trimmedName = territoryName.trim();
-    if (!trimmedName) {
-      return { success: false, error: 'Territory name is required' };
-    }
-    if (trimmedName.length > TERRITORY_NAME_CHAR_LIMIT) {
-      return {
-        success: false,
-        error: `Territory name must be ${TERRITORY_NAME_CHAR_LIMIT} characters or less`
-      };
+    const trimmedName = normaliseTerritoryName(territoryName);
+    const nameError = validateTerritoryName(trimmedName);
+    if (nameError) {
+      return { success: false, error: nameError };
     }
 
     const user = await getAuthenticatedUser(supabase);
@@ -493,22 +489,12 @@ export async function updateTerritoryStatus(params: UpdateTerritoryStatusParams)
       description: description
     };
 
-    // Only validate/authorize rename when a new name is provided and it differs
+    // Only authorize/validate rename when a new name is provided and it differs
     if (territory_name !== undefined) {
-      const normalisedName = territory_name.trim();
-      const currentName = (territoryData.territory_name ?? '').trim();
+      const normalisedName = normaliseTerritoryName(territory_name);
+      const currentName = normaliseTerritoryName(territoryData.territory_name);
 
       if (normalisedName !== currentName) {
-        if (!normalisedName) {
-          return { success: false, error: 'Territory name is required' };
-        }
-        if (normalisedName.length > TERRITORY_NAME_CHAR_LIMIT) {
-          return {
-            success: false,
-            error: `Territory name must be ${TERRITORY_NAME_CHAR_LIMIT} characters or less`
-          };
-        }
-
         const user = await getAuthenticatedUser(supabase);
         const hasPermission = await checkCampaignArbitrator(user.id, campaignId);
         if (!hasPermission) {
@@ -517,6 +503,12 @@ export async function updateTerritoryStatus(params: UpdateTerritoryStatusParams)
             error: 'Only campaign owners and arbitrators can rename territories'
           };
         }
+
+        const nameError = validateTerritoryName(normalisedName);
+        if (nameError) {
+          return { success: false, error: nameError };
+        }
+
         updatePayload.territory_name = normalisedName;
       }
     }
