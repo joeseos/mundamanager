@@ -174,6 +174,11 @@ const EDITION_CAPABILITIES = {
    */
   downtimePhase:            { n23: 'Downtime', n26: 'Post-Cycle' },
   /**
+   * Fighters carry one of the eight houseless specialisations alongside any
+   * variant. When false the edition splits fighter types by variant only.
+   */
+  fighterSpecialisations:   { n23: false, n26: true  },
+  /**
    * Prospect promotion keeps fighter type, swaps Prospect for Ganger+Specialist,
    * requires a specialisation pick, and grants the mapped skill (+15 rating).
    * When false, Prospect uses the standard promote-to-Champion type picker.
@@ -316,6 +321,9 @@ const UNRESOLVED_EDITION_DOWNTIME_PHASE = 'Downtime';
 
 export const downtimePhaseName = (editionSlug?: string | null): string =>
   answerFor('downtimePhase', editionSlug) ?? UNRESOLVED_EDITION_DOWNTIME_PHASE;
+
+export const hasFighterSpecialisations = (editionSlug?: string | null): boolean =>
+  can('fighterSpecialisations', editionSlug);
 
 export const hasProspectSpecialisationPromotion = (
   editionSlug?: string | null
