@@ -335,17 +335,17 @@ export async function createCustomCampaignTerritory(params: CreateCustomCampaign
     const supabase = await createClient();
     const { campaignId, territoryName } = params;
 
-    const trimmedName = normaliseTerritoryName(territoryName);
-    const nameError = validateTerritoryName(trimmedName);
-    if (nameError) {
-      return { success: false, error: nameError };
-    }
-
     const user = await getAuthenticatedUser(supabase);
 
     const hasPermission = await checkCampaignArbitrator(user.id, campaignId);
     if (!hasPermission) {
       return { success: false, error: 'Only campaign owners and arbitrators can create custom territories' };
+    }
+
+    const trimmedName = normaliseTerritoryName(territoryName);
+    const nameError = validateTerritoryName(trimmedName);
+    if (nameError) {
+      return { success: false, error: nameError };
     }
 
     const { error } = await supabase
