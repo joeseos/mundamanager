@@ -362,7 +362,12 @@ export default function FighterAddModal({
 
   const handleSelectSpecialisation = (specialisationId: string) => {
     setSelectedSpecialisationId(specialisationId);
-    setSelectedLegacyId('');
+    // Siblings in a family share their legacies, so only a row that drops the
+    // chosen one clears it.
+    const nextType = fighterTypes.find(t => t.id === specialisationId);
+    if (!(nextType?.available_legacies ?? []).some(l => l.id === selectedLegacyId)) {
+      setSelectedLegacyId('');
+    }
     setSelectedArchetypeId('');
     setSelectedEquipmentIds([]);
     setSelectedEquipment([]);

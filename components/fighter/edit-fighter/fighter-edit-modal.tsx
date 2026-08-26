@@ -543,7 +543,12 @@ export function EditFighterModal({
           ? { fighter_specialisation: { fighter_specialisation: submit.fighter_specialisation, fighter_specialisation_id: submit.fighter_specialisation_id } as any }
           : {}),
         ...(submit.fighter_gang_legacy_id !== undefined
-          ? { fighter_gang_legacy_id: submit.fighter_gang_legacy_id as any }
+          ? {
+              fighter_gang_legacy_id: submit.fighter_gang_legacy_id as any,
+              // Consumers read the embedded row, not the id.
+              fighter_gang_legacy:
+                (availableLegacies.find(l => l.id === submit.fighter_gang_legacy_id) ?? null) as any,
+            }
           : {}),
         // Include optimistic effects overlay so UI updates instantly
         ...optimisticEffectsOverlay,
@@ -641,16 +646,21 @@ export function EditFighterModal({
     };
   }, [fighterTypes, fighter, hasExplicitlySelectedType]);
 
-  const [prevFighterTypeInitData, setPrevFighterTypeInitData] = useState(fighterTypeInitData);
-  if (fighterTypeInitData !== prevFighterTypeInitData) {
-    setPrevFighterTypeInitData(fighterTypeInitData);
-    if (fighterTypeInitData) {
-      setSelectedFighterTypeId(fighterTypeInitData.dropdownId);
-      setFormValues(prev => ({ ...prev, ...fighterTypeInitData.formUpdate }));
-      setAvailableLegacies(fighterTypeInitData.legacies);
-      setAvailableSpecialisations(fighterTypeInitData.specialisationOptions);
-      setSelectedSpecialisationId(fighterTypeInitData.resolvedSpecialisationId);
-    }
+  // Keyed on the fighter and the loaded catalog, not the memo's identity: seeding from
+  // the memo skipped this whenever the query answered from cache on the first render.
+  const [initializedFor, setInitializedFor] = useState<
+    { fighterId: string; types: typeof fighterTypes } | null
+  >(null);
+  if (
+    fighterTypeInitData &&
+    (initializedFor?.fighterId !== fighter.id || initializedFor.types !== fighterTypes)
+  ) {
+    setInitializedFor({ fighterId: fighter.id, types: fighterTypes });
+    setSelectedFighterTypeId(fighterTypeInitData.dropdownId);
+    setFormValues(prev => ({ ...prev, ...fighterTypeInitData.formUpdate }));
+    setAvailableLegacies(fighterTypeInitData.legacies);
+    setAvailableSpecialisations(fighterTypeInitData.specialisationOptions);
+    setSelectedSpecialisationId(fighterTypeInitData.resolvedSpecialisationId);
   }
 
   const handleChange = (field: string, value: any) => {
@@ -687,7 +697,11 @@ export function EditFighterModal({
       setSelectedArchetypeId('');
 
       // Update available legacies for the selected fighter type
-      setAvailableLegacies(selectedType.available_legacies || []);
+      const nextLegacies = selectedType.available_legacies || [];
+      setAvailableLegacies(nextLegacies);
+      if (!nextLegacies.some(l => l.id === selectedGangLegacyId)) {
+        setSelectedGangLegacyId('');
+      }
 
       // Get all variants of the selected fighter to check for specialisations
       const fighterTypeGroup = fighterTypes.filter(t => sameVariantFamily(t, selectedType));
@@ -885,9 +899,14 @@ export function EditFighterModal({
         kill_count: formValues.kill_count,
         costAdjustment: formValues.costAdjustment,
         special_rules: formValues.special_rules,
-        fighter_gang_legacy_id: selectedGangLegacyId || null,
         selected_archetype_id: effectiveArchetypeId || null
       };
+
+      // Sent unchanged, a save aimed at something else would clear the legacy.
+      const currentLegacyId = (fighter as any).fighter_gang_legacy_id || '';
+      if (selectedGangLegacyId !== currentLegacyId) {
+        submitData.fighter_gang_legacy_id = selectedGangLegacyId || null;
+      }
 
       // Only include fighter type fields if we're actually updating the fighter type
       if (shouldUpdateFighterType && fighterTypeToUse) {
