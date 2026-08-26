@@ -154,6 +154,30 @@ function fallbackSet(key, entry) {
 const tagKey = (tag) => `${PREFIX}:tag:${tag}`;
 const markerKey = (tag) => `${PREFIX}:rt:${tag}`;
 
+// Module-scoped, because Next builds a handler per request and serverDistDir is the
+// same for all of them. The promise itself is memoised rather than the value: caching
+// the value would need its guard set before the await below, so a second concurrent
+// caller would get the 'shared' placeholder while the first was still reading.
+let buildIdPromise;
+function getBuildId(serverDistDir) {
+  if (!buildIdPromise) {
+    buildIdPromise = (async () => {
+      const node = await loadNode();
+      if (node && serverDistDir) {
+        try {
+          return node
+            .readFileSync(node.join(serverDistDir, '..', 'BUILD_ID'), 'utf8')
+            .trim();
+        } catch {
+          // Falls back to a shared namespace.
+        }
+      }
+      return 'shared';
+    })();
+  }
+  return buildIdPromise;
+}
+
 function headerTags(data) {
   const header = data?.headers?.[TAGS_HEADER];
   return typeof header === 'string' && header ? header.split(',') : [];
@@ -167,7 +191,6 @@ export default class RedisCacheHandler {
   constructor(ctx = {}) {
     this.revalidatedTags = ctx.revalidatedTags || [];
     this.serverDistDir = ctx.serverDistDir;
-    this.buildId = undefined;
 
     // Next builds a handler per request; the client below is module-scoped.
     if (!announced) {
@@ -292,6 +315,9 @@ export default class RedisCacheHandler {
           for (const member of results[i] || []) keys.add(String(member));
         }
 
+        // Accepted race: a set() re-populating one of these keys between the two
+        // round trips has its fresh value deleted. Costs a miss, never staleness,
+        // since deletion is the safe direction. Making it atomic needs a Lua script.
         const write = redis.multi();
         for (const key of keys) write.del(key);
         for (const tag of list) write.del(tagKey(tag));
@@ -318,22 +344,7 @@ export default class RedisCacheHandler {
   // build would serve the previous build's RSC data.
   async #entryKey(key, kind) {
     if (kind === 'FETCH') return `${PREFIX}:fetch:${key}`;
-
-    if (this.buildId === undefined) {
-      this.buildId = 'shared';
-      const node = await loadNode();
-      if (node && this.serverDistDir) {
-        try {
-          this.buildId = node
-            .readFileSync(node.join(this.serverDistDir, '..', 'BUILD_ID'), 'utf8')
-            .trim();
-        } catch {
-          // Falls back to a shared namespace.
-        }
-      }
-    }
-
-    return `${PREFIX}:${this.buildId}:page:${key}`;
+    return `${PREFIX}:${await getBuildId(this.serverDistDir)}:page:${key}`;
   }
 
   async #decode(entryKey, payload) {

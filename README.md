@@ -647,6 +647,26 @@ falls back to an in-process cache, which is what makes the build work.
 | `REDIS_CACHE_TIMEOUT_MS` | no | Default `1000` |
 | `NEXT_PRIVATE_DEBUG_CACHE` | no | `1` logs HIT/MISS/SET and invalidations |
 
+### Redis instance requirements
+
+**Configure the instance as a cache, not a store:**
+
+```
+maxmemory 256mb                 # size to taste
+maxmemory-policy allkeys-lru
+```
+
+Cache entries carry no TTL on purpose, so that tag invalidation stays the only thing
+that expires them. On Redis's actual default policy (`noeviction`) the keyspace
+therefore grows unbounded until writes fail with OOM — at which point the cache stops
+working and invalidations start being dropped. Under `allkeys-lru` it just evicts, which
+is the failure mode the handler is designed around.
+
+**Do not expose the instance.** Entries hold whatever `unstable_cache` wrapped — gang,
+fighter and campaign data, profiles, permission results — so treat it like any other
+datastore with real data in it: private network only, and require auth (and TLS) if it
+is ever reachable beyond the Coolify network.
+
 `unstable_cache` entries are stored under `…:v1:fetch:` and persist across deploys;
 rendered pages are stored per build id so a new build never serves the previous
 build's payloads. Tags from `utils/cache-tags.ts` are indexed as Redis sets, so
