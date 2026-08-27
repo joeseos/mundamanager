@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Input } from '../ui/input';
 import { Switch } from "@/components/ui/switch";
@@ -14,7 +14,9 @@ import { gangVariantRank } from "@/utils/gangVariantRank";
 import { useQuery } from '@tanstack/react-query';
 import { ResourceUpdate } from '@/types/gang';
 import { deleteGang } from '@/app/actions/delete-gang';
-import { hasAlignment, hasTradePoints, sameEditionForDisplay } from '@/types/edition';
+import { hasAlignment, hasTradePoints, hasVenatorSkillAccess, sameEditionForDisplay } from '@/types/edition';
+import { saveVenatorSkillRanks } from '@/app/actions/gang/save-venator-skill-ranks';
+import { createClient } from '@/utils/supabase/client';
 
 interface GangUpdates {
   name?: string;
@@ -79,6 +81,7 @@ interface GangEditModalProps {
   availableVariants: Array<{id: string, variant: string, edition_slug?: string | null}>;
   gangAffiliationId: string | null;
   gangAffiliationName: string;
+  gangType?: string | null;
   gangTypeHasAffiliation: boolean;
   gangOriginId: string | null;
   gangOriginName: string;
@@ -125,6 +128,7 @@ export default function GangEditModal({
   availableVariants,
   gangAffiliationId,
   gangAffiliationName,
+  gangType,
   gangTypeHasAffiliation,
   gangOriginId,
   gangOriginName,
@@ -145,6 +149,56 @@ export default function GangEditModal({
   const showAlignment = hasAlignment(editionSlug);
   // Mirror admin fighter-type forms: clear alignment when the edition lacks it
   const effectiveAlignment = showAlignment ? alignment : '';
+
+  // Venator skill access
+  const isVenatorGang = hasVenatorSkillAccess(editionSlug)
+    && (gangType ?? '').toLowerCase() === 'venators';
+
+  const { data: skillTypes = [] } = useQuery<Array<{ id: string; name: string }>>({
+    queryKey: ['skill-types', editionSlug],
+    enabled: isVenatorGang && !!editionSlug,
+    queryFn: async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('skill_types')
+        .select('id, name, editions:edition_id (slug)')
+        .order('name');
+      if (error) throw error;
+      return (data ?? [])
+        .filter((r: any) => (r.editions?.slug ?? null) === editionSlug)
+        .map((r: any) => ({ id: r.id, name: r.name }));
+    },
+  });
+
+  const { data: existingRanks = [], refetch: refetchRanks } = useQuery<
+    Array<{ rank: number; skill_type_id: string }>
+  >({
+    queryKey: ['gang-skill-set-ranks', gangId],
+    enabled: isVenatorGang,
+    queryFn: async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('gang_skill_set_ranks')
+        .select('rank, skill_type_id')
+        .eq('gang_id', gangId)
+        .order('rank');
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const [rank1, setRank1] = useState<string>('');
+  const [rank2, setRank2] = useState<string>('');
+  const [rank3, setRank3] = useState<string>('');
+  const [rank4, setRank4] = useState<string>('');
+
+  useEffect(() => {
+    const byRank = new Map(existingRanks.map((r) => [r.rank, r.skill_type_id]));
+    setRank1(byRank.get(1) ?? '');
+    setRank2(byRank.get(2) ?? '');
+    setRank3(byRank.get(3) ?? '');
+    setRank4(byRank.get(4) ?? '');
+  }, [existingRanks]);
 
   // Get campaign ID and current allegiance if gang is in a campaign
   const campaignId = campaigns?.[0]?.campaign_id;
@@ -515,6 +569,38 @@ export default function GangEditModal({
       updates.resourceUpdates = resourceUpdatesList;
     }
 
+    // Venator skill access save
+    if (isVenatorGang) {
+      const filled = [rank1, rank2, rank3, rank4].filter(Boolean);
+      const hadPreviousRanks = existingRanks.length > 0;
+      if (filled.length !== 0 && filled.length !== 4) {
+        toast.error('Please set all four Skill Sets, or leave them all blank.');
+        return;
+      }
+      if (filled.length === 4) {
+        if (hadPreviousRanks) {
+          const proceed = window.confirm(
+            "Changing your gang's ranked Skill Sets will reset any custom Skill Set Access you've configured on individual Venator fighters. Continue?",
+          );
+          if (!proceed) return;
+        }
+        const result = await saveVenatorSkillRanks({
+          gangId,
+          ranks: [
+            { rank: 1, skill_type_id: rank1 },
+            { rank: 2, skill_type_id: rank2 },
+            { rank: 3, skill_type_id: rank3 },
+            { rank: 4, skill_type_id: rank4 },
+          ],
+        });
+        if (!result.ok) {
+          toast.error(result.error);
+          return;
+        }
+        await refetchRanks();
+      }
+    }
+
     // Close modal immediately for instant UX (optimistic update will handle UI)
     onClose();
 
@@ -683,6 +769,38 @@ export default function GangEditModal({
           ))}
         </div>
       </div>
+
+      {/* Venator Skill Access Section */}
+      {isVenatorGang && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Skill Access</p>
+          <p className="text-sm text-muted-foreground">
+            Pick and rank the four Skill Sets your gang has access to. Rank 1 is
+            the Skill Set that most embodies your gang.
+          </p>
+          {[
+            { label: 1, value: rank1, set: setRank1 },
+            { label: 2, value: rank2, set: setRank2 },
+            { label: 3, value: rank3, set: setRank3 },
+            { label: 4, value: rank4, set: setRank4 },
+          ].map(({ label, value, set }) => {
+            const taken = new Set([rank1, rank2, rank3, rank4].filter((v) => v && v !== value));
+            const options = skillTypes.filter((s) => !taken.has(s.id));
+            return (
+              <div key={label} className="flex items-center gap-2">
+                <span className="w-6 text-sm text-muted-foreground">{label}</span>
+                <Combobox
+                  value={value || undefined}
+                  onValueChange={(v) => set(v ?? '')}
+                  options={options.map((o) => ({ value: o.id, label: o.name }))}
+                  placeholder="Select a Skill Set"
+                  clearable
+                />
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div className="space-y-2">
         <p className="text-sm font-medium">Gang Visibility</p>
