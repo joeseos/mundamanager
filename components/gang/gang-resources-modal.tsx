@@ -150,6 +150,7 @@ export default function GangResourcesModal({
     }
 
     if (Object.keys(updates).length === 0) {
+      toast.message('No changes to save');
       return false;
     }
 
