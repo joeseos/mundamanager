@@ -82,7 +82,7 @@ jobs:
             "https://coolify.mundamanager.com/api/v1/applications/$COOLIFY_TEST_APP_UUID"
 
           curl --fail-with-body --silent --show-error \
-            -X GET \
+            -X POST \
             -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
             "https://coolify.mundamanager.com/api/v1/deploy?uuid=$COOLIFY_TEST_APP_UUID"
 
