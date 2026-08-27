@@ -183,6 +183,27 @@ function headerTags(data) {
   return typeof header === 'string' && header ? header.split(',') : [];
 }
 
+// Atomic so a set() landing mid-invalidation cannot have its fresh value deleted.
+// Keys come from SMEMBERS inside the script, so they cannot be declared in KEYS[] —
+// single-instance only, as is the multi-key DEL this replaced.
+const REVALIDATE_TAG_SCRIPT = `
+local prefix, now, ttl = ARGV[1], ARGV[2], ARGV[3]
+local deleted = 0
+for i = 4, #ARGV do
+  local tag = ARGV[i]
+  redis.call('SET', prefix .. ':rt:' .. tag, now, 'EX', ttl)
+  local setKey = prefix .. ':tag:' .. tag
+  local members = redis.call('SMEMBERS', setKey)
+  for j = 1, #members, 500 do
+    local batch = {}
+    for k = j, math.min(j + 499, #members) do batch[#batch + 1] = members[k] end
+    deleted = deleted + redis.call('DEL', unpack(batch))
+  end
+  redis.call('DEL', setKey)
+end
+return deleted
+`;
+
 /** Mirrors Next's areTagsExpired: a tag invalidated at T kills entries older than T. */
 const isExpiredBy = (markers, lastModified) =>
   markers.some((marker) => marker != null && Number(marker) > lastModified);
@@ -300,31 +321,11 @@ export default class RedisCacheHandler {
     const now = String(Date.now());
     const deleted = await withRedis(
       'revalidateTag',
-      async (redis) => {
-        const read = redis.multi();
-        for (const tag of list) {
-          // The marker is what invalidates implicit `_N_T_/…` soft tags and any
-          // entry whose tag index was lost — neither of which the index can cover.
-          read.set(markerKey(tag), now, { EX: MARKER_TTL_SECONDS });
-          read.sMembers(tagKey(tag));
-        }
-        const results = await read.exec();
-
-        const keys = new Set();
-        for (let i = 1; i < results.length; i += 2) {
-          for (const member of results[i] || []) keys.add(String(member));
-        }
-
-        // Accepted race: a set() re-populating one of these keys between the two
-        // round trips has its fresh value deleted. Costs a miss, never staleness,
-        // since deletion is the safe direction. Making it atomic needs a Lua script.
-        const write = redis.multi();
-        for (const key of keys) write.del(key);
-        for (const tag of list) write.del(tagKey(tag));
-        await write.exec();
-
-        return keys.size;
-      },
+      (redis) =>
+        redis.eval(REVALIDATE_TAG_SCRIPT, {
+          keys: [],
+          arguments: [PREFIX, now, String(MARKER_TTL_SECONDS), ...list],
+        }),
       null
     );
 
