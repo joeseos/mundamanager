@@ -72,4 +72,5 @@ export interface ResourceUpdate {
   resource_name?: string;  // Optional - can be looked up
   is_custom: boolean;
   quantity_delta: number;
-} 
+  reason?: string;
+}
