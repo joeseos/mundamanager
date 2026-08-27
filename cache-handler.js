@@ -91,7 +91,10 @@ async function connect() {
 
   // Throwing from this listener stops node-redis reconnecting after a socket error.
   client.on('error', (error) => logError('client', error));
-  client.on('ready', () => debug('connected'));
+  client.on('ready', () => {
+    debug('connected');
+    purgeNamespace().catch(() => {});
+  });
 
   bufferClient = client.withTypeMapping({ [redis.RESP_TYPES.BLOB_STRING]: Buffer });
   connecting = client.connect().catch((error) => logError('connect', error));
@@ -122,6 +125,54 @@ async function withRedis(scope, fn, fallback) {
   } catch (error) {
     logError(scope, error);
     return fallback;
+  }
+}
+
+// An invalidation that could not reach Redis leaves entries no marker can expire
+// and no TTL will remove, so they would return as valid hits once Redis recovers.
+// Treat the namespace as untrustworthy until it has been dropped.
+let dirty = false;
+let purge = null;
+
+function markDirty(tags) {
+  dirty = true;
+  console.error(
+    `[redis-cache] invalidation lost (${tags.join(', ')}); cache dirty until purged`
+  );
+}
+
+async function purgeNamespace() {
+  if (!dirty) return;
+  if (purge) return purge;
+
+  purge = (async () => {
+    let cursor = '0';
+    do {
+      const batch = await withRedis(
+        'purge',
+        async (redis) => {
+          const scanned = await redis.scan(cursor, {
+            MATCH: `${PREFIX}:*`,
+            COUNT: 500,
+          });
+          if (scanned.keys.length) await redis.unlink(scanned.keys);
+          return scanned;
+        },
+        null
+      );
+      if (!batch) return;
+      cursor = String(batch.cursor);
+    } while (cursor !== '0');
+
+    fallbackStore.clear();
+    dirty = false;
+    console.error('[redis-cache] dirty cache purged; Redis trusted again');
+  })();
+
+  try {
+    await purge;
+  } finally {
+    purge = null;
   }
 }
 
@@ -232,6 +283,14 @@ export default class RedisCacheHandler {
       return null;
     }
 
+    if (dirty) {
+      await purgeNamespace();
+      if (dirty) {
+        debug('get DIRTY', key);
+        return null;
+      }
+    }
+
     const result = await withRedis(
       'get',
       async (redis, buffers) => {
@@ -250,7 +309,7 @@ export default class RedisCacheHandler {
         entry = await this.#decode(entryKey, result.payload);
         if (entry && isExpiredBy(result.markers, entry.lastModified)) {
           debug('get EXPIRED', key);
-          this.#drop(entryKey);
+          this.#drop(entryKey, entry.tags);
           return null;
         }
       }
@@ -274,7 +333,7 @@ export default class RedisCacheHandler {
       );
       if (isExpiredBy(markers, entry.lastModified)) {
         debug('get EXPIRED', key);
-        this.#drop(entryKey);
+        this.#drop(entryKey, entry.tags);
         return null;
       }
     }
@@ -310,9 +369,12 @@ export default class RedisCacheHandler {
     });
   }
 
-  async revalidateTag(tags) {
+  // durations is Next's `{ expire?: number }`. Any value is treated as immediate
+  // invalidation: stricter than stale-then-expire, never staler.
+  async revalidateTag(tags, durations) {
     const list = [tags].flat().filter(Boolean);
     if (!list.length) return;
+    if (durations?.expire) debug('revalidateTag expire treated as immediate');
 
     for (const [key, hit] of fallbackStore) {
       if (hit.entry.tags?.some((tag) => list.includes(tag))) fallbackStore.delete(key);
@@ -330,11 +392,7 @@ export default class RedisCacheHandler {
     );
 
     if (deleted === null) {
-      if (REDIS_ENABLED) {
-        console.error(
-          `[redis-cache] revalidateTag lost while Redis was unavailable: ${list.join(', ')}`
-        );
-      }
+      if (REDIS_ENABLED) markDirty(list);
       return;
     }
 
@@ -360,8 +418,12 @@ export default class RedisCacheHandler {
     }
   }
 
-  #drop(entryKey) {
+  #drop(entryKey, tags = []) {
     fallbackStore.delete(entryKey);
-    withRedis('drop', (redis) => redis.del(entryKey));
+    withRedis('drop', async (redis) => {
+      const multi = redis.multi().del(entryKey);
+      for (const tag of tags) multi.sRem(tagKey(tag), entryKey);
+      await multi.exec();
+    });
   }
 }

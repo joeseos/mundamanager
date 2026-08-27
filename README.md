@@ -662,6 +662,12 @@ therefore grows unbounded until writes fail with OOM — at which point the cach
 working and invalidations start being dropped. Under `allkeys-lru` it just evicts, which
 is the failure mode the handler is designed around.
 
+**Recovery after a Redis outage.** Cache entries have no TTL, so an invalidation that
+cannot reach Redis would otherwise leave stale data that nothing expires. If that
+happens the handler marks the cache dirty: it stops serving Redis hits, and once Redis
+is reachable again it drops the whole namespace before trusting it. Expect one cold
+cache — and a burst of Supabase reads — after an outage. Both transitions are logged.
+
 **Do not expose the instance.** Entries hold whatever `unstable_cache` wrapped — gang,
 fighter and campaign data, profiles, permission results — so treat it like any other
 datastore with real data in it: private network only, and require auth (and TLS) if it
