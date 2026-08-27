@@ -232,7 +232,7 @@ export function EditFighterModal({
   // Specialisation is the fighter's own, not the type row's: picking one writes only
   // fighters.fighter_specialisation{,_id}.
   const [selectedFighterSpecialisationId, setSelectedFighterSpecialisationId] = useState<string>(
-    (fighter.fighter_specialisation as any)?.id || ''
+    fighter.fighter_specialisation?.fighter_specialisation_id || ''
   );
 
   // Add state for gang legacy
@@ -563,9 +563,8 @@ export function EditFighterModal({
         ...(submit.fighter_specialisation && submit.fighter_specialisation_id
           ? {
               fighter_specialisation: {
-                id: submit.fighter_specialisation_id,
-                specialisation_name: submit.fighter_specialisation,
                 fighter_specialisation: submit.fighter_specialisation,
+                fighter_specialisation_id: submit.fighter_specialisation_id,
               } as any,
             }
           : {}),
@@ -623,7 +622,7 @@ export function EditFighterModal({
       (fighter.fighter_type as any)?.fighter_type_id || (fighter as any).fighter_type_id || '';
     setSelectedFighterTypeId(initialFighterTypeId);
     setSelectedVariantTypeId(initialFighterTypeId);
-    setSelectedFighterSpecialisationId((fighter.fighter_specialisation as any)?.id || '');
+    setSelectedFighterSpecialisationId(fighter.fighter_specialisation?.fighter_specialisation_id || '');
     setSelectedGangLegacyId((fighter as any).fighter_gang_legacy_id || '');
     setSelectedArchetypeId(fighter.selected_archetype_id || '');
     setHasExplicitlySelectedType(false);
@@ -952,7 +951,7 @@ export function EditFighterModal({
         !isVehicleFighter &&
         !submitData.custom_fighter_type_id
       ) {
-        const currentSpecialisationId = (fighter.fighter_specialisation as any)?.id || '';
+        const currentSpecialisationId = fighter.fighter_specialisation?.fighter_specialisation_id || '';
         if (selectedFighterSpecialisationId !== currentSpecialisationId || submitData.fighter_type_id) {
           const specialisation = N26_PROSPECT_SPECIALISATIONS.find(
             s => s.id === selectedFighterSpecialisationId
@@ -1139,7 +1138,7 @@ export function EditFighterModal({
                   dropdownPlacement="down"
                 />
                 <div className="mt-1 text-sm text-muted-foreground">
-                  Current: {(fighter.fighter_specialisation as any)?.fighter_specialisation || 'None'}
+                  Current: {fighter.fighter_specialisation?.fighter_specialisation || 'None'}
                 </div>
               </div>
             )}
