@@ -608,13 +608,24 @@ export default function Gang({
         }
       }
 
-      const resourceOnly =
-        Array.isArray(variables.resources) &&
-        variables.resources.length > 0 &&
-        !Object.keys(variables).some(
-          (key) => !['resources', 'campaign_gang_id'].includes(key) && !key.endsWith('_reason')
-        );
-      toast.success(resourceOnly ? 'Resources updated successfully' : 'Gang updated successfully');
+      const resourceUpdateKeys = new Set([
+        'resources',
+        'campaign_gang_id',
+        'credits',
+        'credits_operation',
+        'credits_reason',
+        'reputation',
+        'reputation_operation',
+        'reputation_reason',
+        'trade_points',
+        'trade_points_operation',
+        'trade_points_reason',
+      ]);
+      const variableKeys = Object.keys(variables);
+      const isResourceUpdate =
+        variableKeys.length > 0 &&
+        variableKeys.every((key) => resourceUpdateKeys.has(key));
+      toast.success(isResourceUpdate ? 'Resources updated successfully' : 'Gang updated successfully');
     }
   });
 
