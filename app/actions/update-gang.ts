@@ -7,6 +7,7 @@ import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { logGangResourceChanges } from './logs/gang-resource-logs';
 import { gangEditionSlug, hasTradePoints } from '@/types/edition';
+import { sanitizeResourceReason } from '@/utils/sanitize-resource-reason';
 
 interface UpdateGangParams {
   gang_id: string;
@@ -14,6 +15,7 @@ interface UpdateGangParams {
   name?: string;
   credits?: number;
   credits_operation?: 'add' | 'subtract';
+  credits_reason?: string;
   alignment?: string;
   gang_colour?: string;
   alliance_id?: string | null;
@@ -21,14 +23,17 @@ interface UpdateGangParams {
   gang_origin_id?: string | null;
   reputation?: number;
   reputation_operation?: 'add' | 'subtract';
+  reputation_reason?: string;
   trade_points?: number;
   trade_points_operation?: 'add' | 'subtract';
+  trade_points_reason?: string;
   // Dynamic resources - array of updates for campaign_gang_resources
   resources?: Array<{
     resource_id: string;
     resource_name: string;
     is_custom: boolean;
     quantity_delta: number;
+    reason?: string;
   }>;
   gang_variants?: string[];
   note?: string;
@@ -460,6 +465,28 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         newState['trade points'] = updates.trade_points ?? (gang.trade_points || 0);
       }
 
+      const reasons: Record<string, string> = {};
+      const creditsReason = sanitizeResourceReason(params.credits_reason);
+      if (creditsReason) {
+        reasons['credits'] = creditsReason;
+      }
+      const reputationReason = sanitizeResourceReason(params.reputation_reason);
+      if (reputationReason) {
+        reasons['reputation'] = reputationReason;
+      }
+      const tradePointsReason = sanitizeResourceReason(params.trade_points_reason);
+      if (tradePointsReason) {
+        reasons['trade points'] = tradePointsReason;
+      }
+      if (params.resources) {
+        for (const resource of params.resources) {
+          const reason = sanitizeResourceReason(resource.reason);
+          if (reason) {
+            reasons[resource.resource_name] = reason;
+          }
+        }
+      }
+
       // Only log if something changed
       if (Object.keys(oldResourceStates).length > 0 || creditsChanged || (params.reputation !== undefined && params.reputation_operation) || tradePointsChanged) {
         // Use gang owner's user_id so logs are attributed to the owner even
@@ -469,7 +496,8 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
           gang_id: params.gang_id,
           oldState,
           newState,
-          user_id: gang.user_id ?? undefined
+          user_id: gang.user_id ?? undefined,
+          ...(Object.keys(reasons).length > 0 ? { reasons } : {}),
         });
       }
     } catch (logError) {

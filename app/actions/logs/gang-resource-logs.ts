@@ -12,11 +12,46 @@ export interface LogGangResourceChangesParams {
   oldState: GangResourceState;
   newState: GangResourceState;
   user_id?: string;
+  /** Optional per-resource reasons keyed by the same names used in oldState/newState */
+  reasons?: Record<string, string>;
+}
+
+function capitalizeResourceName(resourceName: string): string {
+  return resourceName.charAt(0).toUpperCase() + resourceName.slice(1);
+}
+
+/** First line only: "Reputation increased by 5 (reason)" */
+function formatResourceDeltaSummary(
+  displayName: string,
+  oldValue: number,
+  newValue: number,
+  reason?: string
+): string {
+  const delta = Math.abs(newValue - oldValue);
+  const direction = newValue > oldValue ? 'increased' : 'decreased';
+  return reason
+    ? `${displayName} ${direction} by ${delta} (${reason})`
+    : `${displayName} ${direction} by ${delta}`;
+}
+
+/**
+ * Two-line resource change description, e.g.:
+ * Reputation increased by 5 (reason)
+ * Reputation: 10 → 15
+ */
+function formatResourceChangeDescription(
+  displayName: string,
+  oldValue: number,
+  newValue: number,
+  reason?: string
+): string {
+  const summary = formatResourceDeltaSummary(displayName, oldValue, newValue, reason);
+  return `${summary}\n${displayName}: ${oldValue} → ${newValue}`;
 }
 
 export async function logGangResourceChanges(params: LogGangResourceChangesParams): Promise<GangLogActionResult> {
   try {
-    const { gang_id, oldState, newState, user_id } = params;
+    const { gang_id, oldState, newState, user_id, reasons } = params;
     const logPromises: Promise<GangLogActionResult>[] = [];
 
     // Check if credits, rating, or wealth changed - use new format
@@ -35,7 +70,6 @@ export async function logGangResourceChanges(params: LogGangResourceChangesParam
         oldCredits !== undefined && newCredits !== undefined &&
         oldRating !== undefined && newRating !== undefined &&
         oldWealth !== undefined && newWealth !== undefined) {
-      // Create single log entry with formatted financial changes
       const financialChanges = formatFinancialChanges(
         oldCredits,
         newCredits,
@@ -53,10 +87,21 @@ export async function logGangResourceChanges(params: LogGangResourceChangesParam
         actionType = 'credits_spent';
       }
 
+      let description = financialChanges;
+      if (oldCredits !== newCredits) {
+        const summary = formatResourceDeltaSummary(
+          'Credits',
+          oldCredits,
+          newCredits,
+          reasons?.['credits']
+        );
+        description = `${summary}\n${financialChanges}`;
+      }
+
       logPromises.push(createGangLog({
         gang_id,
         action_type: actionType,
-        description: financialChanges,
+        description,
         user_id
       }));
     }
@@ -72,14 +117,18 @@ export async function logGangResourceChanges(params: LogGangResourceChangesParam
 
       if (oldValue !== newValue) {
         const increased = newValue > oldValue;
-        const capitalizedName = resourceName.charAt(0).toUpperCase() + resourceName.slice(1);
+        const capitalizedName = capitalizeResourceName(resourceName);
         const actionType = `${capitalizedName} ${increased ? 'gained' : 'spent'}`;
-        const description = `${capitalizedName} ${increased ? 'increased' : 'decreased'} from ${oldValue} to ${newValue}`;
 
         logPromises.push(createGangLog({
           gang_id,
           action_type: actionType,
-          description,
+          description: formatResourceChangeDescription(
+            capitalizedName,
+            oldValue,
+            newValue,
+            reasons?.[resourceName]
+          ),
           user_id
         }));
       }
