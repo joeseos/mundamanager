@@ -3,6 +3,7 @@
 import { invalidateGang, invalidateFighter, invalidateUser } from '@/utils/cache-tags';
 import {createClient} from "@/utils/supabase/server";
 import {checkAdmin, getAuthenticatedUser} from "@/utils/auth";
+import { syncFighter } from '@/utils/syncVenatorSkillOverrides';
 
 import {updateGangFinancials} from '@/utils/gang-rating-and-wealth';
 import {logFighterAction} from '@/app/actions/logs/fighter-logs';
@@ -391,6 +392,13 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
     }
 
     const newFighterId = newFighter.id;
+
+    // Sync Venator skill overrides for the copied fighter (no-op for non-Venator gangs)
+    try {
+      await syncFighter(newFighterId, supabase, user.id);
+    } catch (err) {
+      console.error('syncFighter failed after copy-fighter', err);
+    }
 
     // Vehicle ID mapping for equipment remapping
     const vehicleIdMap = new Map<string, string>();
@@ -787,6 +795,13 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
         }
 
         newBeastFighterIds.push(newBeastFighter.id);
+
+        // Sync Venator skill overrides for the copied beast fighter (no-op for non-Venator gangs)
+        try {
+          await syncFighter(newBeastFighter.id, supabase, user.id);
+        } catch (err) {
+          console.error('syncFighter failed after copy-fighter (beast)', err);
+        }
 
         // Copy beast equipment — build per-beast equipment ID map for effect FK remapping
         const beastEquipmentIdMap = new Map<string, string>();
