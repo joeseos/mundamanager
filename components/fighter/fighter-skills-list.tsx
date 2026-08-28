@@ -10,6 +10,7 @@ import { List } from "@/components/ui/list";
 import { Combobox } from '@/components/ui/combobox';
 import { UserPermissions } from '@/types/user-permissions';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { hasVenatorSkillAccess } from '@/types/edition';
 import { 
   addSkillAdvancement, 
   deleteAdvancement 
@@ -55,6 +56,7 @@ interface SkillsListProps {
   free_skill?: boolean;
   userPermissions: UserPermissions;
   gangCredits?: number;
+  gangType?: string | null;
   editionSlug?: string | null;
   /** Used to detect N26 Prospect / Ganger→Champion keep-type skill grants on delete. */
   fighterSpecialisationId?: string | null;
@@ -81,6 +83,7 @@ interface SkillModalProps {
   fighterId: string;
   userId: string;
   gangCredits?: number;
+  gangType?: string | null;
   editionSlug?: string | null;
   onClose: () => void;
   onSkillAdded: (skillId: string, skillName: string, creditsIncrease: number, isAdvance: boolean) => void;
@@ -118,7 +121,7 @@ interface SkillAccess {
 }
 
 // SkillModal Component
-export function SkillModal({ fighterId, userId, gangCredits, editionSlug, onClose, onSkillAdded, onSkillRollback, isSubmitting, onSelectSkill, onGangCreditsUpdate }: SkillModalProps) {
+export function SkillModal({ fighterId, userId, gangCredits, gangType, editionSlug, onClose, onSkillAdded, onSkillRollback, isSubmitting, onSelectSkill, onGangCreditsUpdate }: SkillModalProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [skillsData, setSkillsData] = useState<SkillResponse | null>(null);
@@ -423,8 +426,13 @@ export function SkillModal({ fighterId, userId, gangCredits, editionSlug, onClos
         />
         {selectedSkillSetLacksAccess && (
           <p className="text-sm text-amber-500">
-            This Skill Set is not accessible to this fighter. Change their Skill Set
-            access in: Edit Fighter &gt; Customise Skill Set Access.
+            {(() => {
+              const isVenatorGang = hasVenatorSkillAccess(editionSlug)
+                && (gangType ?? '').toLowerCase() === 'venators';
+              return isVenatorGang
+                ? "Your gang hasn't ranked its Skill Sets yet. Set them in Edit Gang → Skill Access."
+                : "This Skill Set is not accessible to this fighter. Change their Skill Set access in: Edit Fighter &gt; Customise Skill Set Access.";
+            })()}
           </p>
         )}
       </div>
@@ -492,6 +500,7 @@ export function SkillsList({
   free_skill,
   userPermissions,
   gangCredits,
+  gangType,
   editionSlug,
   fighterSpecialisationId = null,
   fighterSpecialisationName = null,
@@ -908,6 +917,7 @@ export function SkillsList({
           fighterId={fighterId}
           userId={userPermissions.userId}
           gangCredits={gangCredits}
+          gangType={gangType}
           editionSlug={editionSlug}
           onClose={() => setIsAddSkillModalOpen(false)}
           onSkillAdded={handleSkillAdded}

@@ -250,6 +250,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         reputation: gangBasic.reputation,
         trade_points: gangBasic.trade_points,
         edition_slug: gangBasic.edition_slug ?? null,
+        gang_type: gangBasic.gang_type,
         gang_type_id: gangBasic.gang_type_id,
         custom_gang_type_id: gangBasic.custom_gang_type_id,
         gang_affiliation_id: gangBasic.gang_affiliation_id,

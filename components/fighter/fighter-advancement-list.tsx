@@ -40,7 +40,7 @@ import {
   type TableEntry,
   type N26AdvancementEntry
 } from '@/utils/dice';
-import { hasCumulativeXp } from '@/types/edition';
+import { hasCumulativeXp, hasVenatorSkillAccess } from '@/types/edition';
 import {
   N26_CHAMPION_PROMOTION_SKILL_NAME,
   N26_PROSPECT_PROMOTION_CREDITS,
@@ -64,6 +64,7 @@ interface AdvancementModalProps {
   onCharacteristicUpdate?: (characteristicName: string, changeAmount: number) => void;
   userPermissions?: UserPermissions;
   gangId?: string;
+  gangType?: string | null;
   gangTypeId?: string;
   customGangTypeId?: string;
   fighterSpecialRules?: string[];
@@ -194,6 +195,7 @@ interface AdvancementsListProps {
   onXpCreditsUpdate?: (xpChange: number, creditsChange: number) => void;
   onCharacteristicUpdate?: (characteristicName: string, changeAmount: number) => void;
   gangId?: string;
+  gangType?: string | null;
   gangTypeId?: string;
   customGangTypeId?: string;
   fighterSpecialRules?: string[];
@@ -491,6 +493,7 @@ export function AdvancementModal({
   onCharacteristicUpdate,
   userPermissions,
   gangId = '',
+  gangType,
   gangTypeId = '',
   customGangTypeId = '',
   fighterSpecialRules = [],
@@ -2805,8 +2808,13 @@ export function AdvancementModal({
                   />
                   {selectedCategory && selectedSkillSetLacksAccess && (
                     <p className="text-sm text-amber-500">
-                      This Skill Set is not accessible to this fighter. Change their Skill Set
-                      access in: Edit Fighter &gt; Customise Skill Set Access.
+                      {(() => {
+                        const isVenatorGang = hasVenatorSkillAccess(editionSlug)
+                          && (gangType ?? '').toLowerCase() === 'venators';
+                        return isVenatorGang
+                          ? "Your gang hasn't ranked its Skill Sets yet. Set them in Edit Gang → Skill Access."
+                          : "This Skill Set is not accessible to this fighter. Change their Skill Set access in: Edit Fighter &gt; Customise Skill Set Access.";
+                      })()}
                     </p>
                   )}
                 </div>
@@ -2963,6 +2971,7 @@ export function AdvancementsList({
   onXpCreditsUpdate,
   onCharacteristicUpdate,
   gangId = '',
+  gangType,
   gangTypeId = '',
   customGangTypeId = '',
   fighterSpecialRules = [],
@@ -3507,6 +3516,7 @@ export function AdvancementsList({
           onCharacteristicUpdate={onCharacteristicUpdate}
           userPermissions={userPermissions}
           gangId={gangId}
+          gangType={gangType}
           gangTypeId={gangTypeId}
           customGangTypeId={customGangTypeId}
           fighterSpecialRules={fighterSpecialRules}
