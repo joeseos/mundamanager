@@ -4,6 +4,7 @@ import FighterPageComponent from "@/components/fighter/fighter-page";
 import { checkPermissionCached } from "@/utils/user-permissions";
 import { getGangFighters } from "@/app/lib/fighter-advancements";
 import { getAuthenticatedUser, signInPath } from "@/utils/auth";
+import { isVenatorGang } from "@/utils/venatorSkillAccess";
 
 interface FighterPageProps {
   params: Promise<{ id: string }>;
@@ -43,19 +44,23 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     // The fighter's data comes from the SAME cache entries the gang page uses
     // (core + fighters bundle + campaigns bundle) — usually warm after any
     // gang page visit.
-    const [gangBasic, gangPositioning, bundle, gangCampaigns, gangFighters, gangRanksProbe] = await Promise.all([
+    const [gangBasic, gangPositioning, bundle, gangCampaigns, gangFighters] = await Promise.all([
       getGangCore(fighterBasic.gang_id, supabase),
       getGangPositioning(fighterBasic.gang_id, supabase),
       getGangFightersBundle(fighterBasic.gang_id, supabase),
       getGangCampaigns(fighterBasic.gang_id, supabase),
       getGangFighters(fighterBasic.gang_id, supabase),
-      supabase
+    ]);
+
+    let hasGangRanks = false;
+    if (gangBasic && isVenatorGang(gangBasic.edition_slug, gangBasic.gang_type)) {
+      const { data } = await supabase
         .from('gang_skill_set_ranks')
         .select('rank')
         .eq('gang_id', fighterBasic.gang_id)
-        .limit(1),
-    ]);
-    const hasGangRanks = (gangRanksProbe.data ?? []).length > 0;
+        .limit(1);
+      hasGangRanks = (data ?? []).length > 0;
+    }
 
     // Check if gang exists (shouldn't happen but handle gracefully)
     if (!gangBasic) {

@@ -17,13 +17,13 @@ async function rewriteFighterOverrides(
   actingUserId: string,
   overrides: Array<{ skill_type_id: string; access_level: 'primary' | 'secondary' }>,
 ): Promise<void> {
-  if (overrides.length === 0) return;
-
   const { error: deleteErr } = await supabase
     .from('fighter_skill_access_override')
     .delete()
     .eq('fighter_id', fighterId);
   if (deleteErr) throw deleteErr;
+
+  if (overrides.length === 0) return;
 
   const rows = overrides.map((o) => ({
     fighter_id: fighterId,
@@ -55,7 +55,6 @@ export async function syncFighter(
 
   const subtypes: string[] = Array.isArray(fighter.fighter_subtypes) ? fighter.fighter_subtypes : [];
   const overrides = deriveOverrides(ranks, subtypes);
-  if (overrides.length === 0) return;
 
   await rewriteFighterOverrides(fighterId, supabase, actingUserId, overrides);
 }
@@ -74,12 +73,10 @@ export async function syncGang(
     .eq('gang_id', gangId);
   if (fightersErr) throw fightersErr;
 
-  const targets = (fighters ?? [])
-    .map((f) => {
-      const subs: string[] = Array.isArray(f.fighter_subtypes) ? f.fighter_subtypes : [];
-      return { id: f.id as string, overrides: deriveOverrides(ranks, subs) };
-    })
-    .filter((t) => t.overrides.length > 0);
+  const targets = (fighters ?? []).map((f) => {
+    const subs: string[] = Array.isArray(f.fighter_subtypes) ? f.fighter_subtypes : [];
+    return { id: f.id as string, overrides: deriveOverrides(ranks, subs) };
+  });
 
   if (targets.length === 0) return;
 
@@ -90,14 +87,18 @@ export async function syncGang(
     .in('fighter_id', targetIds);
   if (deleteErr) throw deleteErr;
 
-  const rows = targets.flatMap((t) =>
-    t.overrides.map((o) => ({
-      fighter_id: t.id,
-      skill_type_id: o.skill_type_id,
-      access_level: o.access_level,
-      user_id: actingUserId,
-    })),
-  );
+  const rows = targets
+    .filter((t) => t.overrides.length > 0)
+    .flatMap((t) =>
+      t.overrides.map((o) => ({
+        fighter_id: t.id,
+        skill_type_id: o.skill_type_id,
+        access_level: o.access_level,
+        user_id: actingUserId,
+      })),
+    );
+
+  if (rows.length === 0) return;
 
   const { error: insertErr } = await supabase
     .from('fighter_skill_access_override')
