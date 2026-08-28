@@ -488,6 +488,7 @@ export function EditFighterModal({
       special_rules?: string[];
       fighter_specialisation?: string | null;
       fighter_specialisation_id?: string | null;
+      fighter_variant?: string | null;
       fighter_gang_legacy_id?: string | null;
       selected_archetype_id?: string | null;
     }) => {
@@ -505,6 +506,7 @@ export function EditFighterModal({
         custom_fighter_type_id: submit.custom_fighter_type_id,
         fighter_specialisation: submit.fighter_specialisation,
         fighter_specialisation_id: submit.fighter_specialisation_id,
+        fighter_variant: submit.fighter_variant,
         fighter_gang_legacy_id: submit.fighter_gang_legacy_id,
         selected_archetype_id: submit.selected_archetype_id,
         stat_adjustments: Object.keys(pendingStatAdjustments).length > 0 ? pendingStatAdjustments : undefined
@@ -938,6 +940,7 @@ export function EditFighterModal({
         } else {
           submitData.fighter_type_id = fighterTypeToUse.id;
           submitData.custom_fighter_type_id = null;
+          submitData.fighter_variant = fighterTypeToUse.fighter_variant ?? null;
           // client-only: used by the optimistic fighter_type overlay, not forwarded to the server
           submitData.gang_type_id = fighterTypeToUse.gang_type_id ?? null;
           submitData.custom_gang_type_id = null;
