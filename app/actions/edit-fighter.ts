@@ -15,6 +15,7 @@ import { allowsMultipleSubtypes } from '@/types/edition';
 import { resolveFighterEditionSlug } from '@/utils/fighter-subtype-grants';
 import { assertArchetypeAssignable } from '@/utils/assertArchetypeAssignable';
 import { mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';
+import { syncFighter } from '@/utils/syncVenatorSkillOverrides';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -1736,6 +1737,15 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       }
     } catch (logError) {
       console.error('Failed to log fighter details changes:', logError);
+    }
+
+    // Sync Venator skill overrides when subtypes may have changed (no-op for non-Venator gangs)
+    if (params.fighter_subtypes !== undefined) {
+      try {
+        await syncFighter(params.fighter_id, supabase, user.id);
+      } catch (err) {
+        console.error('syncFighter failed after edit-fighter', err);
+      }
     }
 
     // Invalidate cache (already handles BASE_FIGHTER_BASIC and COMPOSITE_GANG_FIGHTERS_LIST)
