@@ -41,7 +41,7 @@ import {
   type N26AdvancementEntry
 } from '@/utils/dice';
 import { hasCumulativeXp } from '@/types/edition';
-import { isVenatorGang } from '@/utils/venatorSkillAccess';
+import { skillAccessDeniedMessage } from '@/utils/venatorSkillAccess';
 import {
   N26_CHAMPION_PROMOTION_SKILL_NAME,
   N26_PROSPECT_PROMOTION_CREDITS,
@@ -66,7 +66,7 @@ interface AdvancementModalProps {
   userPermissions?: UserPermissions;
   gangId?: string;
   gangType?: string | null;
-  hasGangRanks?: boolean;
+  venatorNoRanks?: boolean;
   gangTypeId?: string;
   customGangTypeId?: string;
   fighterSpecialRules?: string[];
@@ -198,7 +198,7 @@ interface AdvancementsListProps {
   onCharacteristicUpdate?: (characteristicName: string, changeAmount: number) => void;
   gangId?: string;
   gangType?: string | null;
-  hasGangRanks?: boolean;
+  venatorNoRanks?: boolean;
   gangTypeId?: string;
   customGangTypeId?: string;
   fighterSpecialRules?: string[];
@@ -497,7 +497,7 @@ export function AdvancementModal({
   userPermissions,
   gangId = '',
   gangType,
-  hasGangRanks,
+  venatorNoRanks,
   gangTypeId = '',
   customGangTypeId = '',
   fighterSpecialRules = [],
@@ -2812,12 +2812,7 @@ export function AdvancementModal({
                   />
                   {selectedCategory && selectedSkillSetLacksAccess && (
                     <p className="text-sm text-amber-500">
-                      {(() => {
-                        const isVenator = isVenatorGang(editionSlug, gangType);
-                        return isVenator && !hasGangRanks
-                          ? "Your gang hasn't ranked its Skill Sets yet. Set them in Edit Gang → Skill Access."
-                          : "This Skill Set is not accessible to this fighter. Change their Skill Set access in: Edit Fighter &gt; Customise Skill Set Access.";
-                      })()}
+                      {skillAccessDeniedMessage(!!venatorNoRanks)}
                     </p>
                   )}
                 </div>
@@ -2975,7 +2970,7 @@ export function AdvancementsList({
   onCharacteristicUpdate,
   gangId = '',
   gangType,
-  hasGangRanks,
+  venatorNoRanks,
   gangTypeId = '',
   customGangTypeId = '',
   fighterSpecialRules = [],
@@ -3521,7 +3516,7 @@ export function AdvancementsList({
           userPermissions={userPermissions}
           gangId={gangId}
           gangType={gangType}
-          hasGangRanks={hasGangRanks}
+          venatorNoRanks={venatorNoRanks}
           gangTypeId={gangTypeId}
           customGangTypeId={customGangTypeId}
           fighterSpecialRules={fighterSpecialRules}

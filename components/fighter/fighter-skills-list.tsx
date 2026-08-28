@@ -10,7 +10,7 @@ import { List } from "@/components/ui/list";
 import { Combobox } from '@/components/ui/combobox';
 import { UserPermissions } from '@/types/user-permissions';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { isVenatorGang } from '@/utils/venatorSkillAccess';
+import { skillAccessDeniedMessage } from '@/utils/venatorSkillAccess';
 import { 
   addSkillAdvancement, 
   deleteAdvancement 
@@ -56,8 +56,7 @@ interface SkillsListProps {
   free_skill?: boolean;
   userPermissions: UserPermissions;
   gangCredits?: number;
-  gangType?: string | null;
-  hasGangRanks?: boolean;
+  venatorNoRanks?: boolean;
   editionSlug?: string | null;
   /** Used to detect N26 Prospect / Ganger→Champion keep-type skill grants on delete. */
   fighterSpecialisationId?: string | null;
@@ -84,8 +83,7 @@ interface SkillModalProps {
   fighterId: string;
   userId: string;
   gangCredits?: number;
-  gangType?: string | null;
-  hasGangRanks?: boolean;
+  venatorNoRanks?: boolean;
   editionSlug?: string | null;
   onClose: () => void;
   onSkillAdded: (skillId: string, skillName: string, creditsIncrease: number, isAdvance: boolean) => void;
@@ -123,7 +121,7 @@ interface SkillAccess {
 }
 
 // SkillModal Component
-export function SkillModal({ fighterId, userId, gangCredits, gangType, hasGangRanks, editionSlug, onClose, onSkillAdded, onSkillRollback, isSubmitting, onSelectSkill, onGangCreditsUpdate }: SkillModalProps) {
+export function SkillModal({ fighterId, userId, gangCredits, venatorNoRanks, editionSlug, onClose, onSkillAdded, onSkillRollback, isSubmitting, onSelectSkill, onGangCreditsUpdate }: SkillModalProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [skillsData, setSkillsData] = useState<SkillResponse | null>(null);
@@ -428,12 +426,7 @@ export function SkillModal({ fighterId, userId, gangCredits, gangType, hasGangRa
         />
         {selectedSkillSetLacksAccess && (
           <p className="text-sm text-amber-500">
-            {(() => {
-              const isVenator = isVenatorGang(editionSlug, gangType);
-              return isVenator && !hasGangRanks
-                ? "Your gang hasn't ranked its Skill Sets yet. Set them in Edit Gang → Skill Access."
-                : "This Skill Set is not accessible to this fighter. Change their Skill Set access in: Edit Fighter &gt; Customise Skill Set Access.";
-            })()}
+            {skillAccessDeniedMessage(!!venatorNoRanks)}
           </p>
         )}
       </div>
@@ -501,8 +494,7 @@ export function SkillsList({
   free_skill,
   userPermissions,
   gangCredits,
-  gangType,
-  hasGangRanks,
+  venatorNoRanks,
   editionSlug,
   fighterSpecialisationId = null,
   fighterSpecialisationName = null,
@@ -919,8 +911,7 @@ export function SkillsList({
           fighterId={fighterId}
           userId={userPermissions.userId}
           gangCredits={gangCredits}
-          gangType={gangType}
-          hasGangRanks={hasGangRanks}
+          venatorNoRanks={venatorNoRanks}
           editionSlug={editionSlug}
           onClose={() => setIsAddSkillModalOpen(false)}
           onSkillAdded={handleSkillAdded}

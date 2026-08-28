@@ -52,14 +52,14 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       getGangFighters(fighterBasic.gang_id, supabase),
     ]);
 
-    let hasGangRanks = false;
+    let venatorNoRanks = false;
     if (gangBasic && isVenatorGang(gangBasic.edition_slug, gangBasic.gang_type)) {
       const { data } = await supabase
         .from('gang_skill_set_ranks')
         .select('rank')
         .eq('gang_id', fighterBasic.gang_id)
         .limit(1);
-      hasGangRanks = (data ?? []).length > 0;
+      venatorNoRanks = (data ?? []).length === 0;
     }
 
     // Check if gang exists (shouldn't happen but handle gracefully)
@@ -264,7 +264,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         gang_type: gangBasic.gang_type,
         gang_type_id: gangBasic.gang_type_id,
         custom_gang_type_id: gangBasic.custom_gang_type_id,
-        has_gang_ranks: hasGangRanks,
+        venator_no_ranks: venatorNoRanks,
         gang_affiliation_id: gangBasic.gang_affiliation_id,
         gang_affiliation_name: gangBasic.gang_affiliation?.name,
         positioning: gangPositioning,

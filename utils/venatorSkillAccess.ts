@@ -27,6 +27,12 @@ export function isVenatorGang(
     && (gangType ?? '').toLowerCase() === VENATOR_GANG_TYPE_NAME.toLowerCase();
 }
 
+export function skillAccessDeniedMessage(venatorNoRanks: boolean): string {
+  return venatorNoRanks
+    ? "Your gang hasn't ranked its Skill Sets yet. Set them in Edit Gang → Skill Access."
+    : "This Skill Set is not accessible to this fighter. Change their Skill Set access in: Edit Fighter > Customise Skill Set Access.";
+}
+
 export function deriveOverrides(
   ranks: readonly { rank: number; skill_type_id: string }[],
   subtypes: readonly string[],
