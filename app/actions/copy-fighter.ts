@@ -393,7 +393,6 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
 
     const newFighterId = newFighter.id;
 
-    // Sync Venator skill overrides for the copied fighter (no-op for non-Venator gangs)
     try {
       await syncFighter(newFighterId, supabase, user.id);
     } catch (err) {
@@ -796,7 +795,6 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
 
         newBeastFighterIds.push(newBeastFighter.id);
 
-        // Sync Venator skill overrides for the copied beast fighter (no-op for non-Venator gangs)
         try {
           await syncFighter(newBeastFighter.id, supabase, user.id);
         } catch (err) {

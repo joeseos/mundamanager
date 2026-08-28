@@ -1739,7 +1739,6 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       console.error('Failed to log fighter details changes:', logError);
     }
 
-    // Sync Venator skill overrides when subtypes may have changed (no-op for non-Venator gangs)
     if (params.fighter_subtypes !== undefined) {
       try {
         await syncFighter(params.fighter_id, supabase, user.id);

@@ -151,7 +151,6 @@ export default function GangEditModal({
   // Mirror admin fighter-type forms: clear alignment when the edition lacks it
   const effectiveAlignment = showAlignment ? alignment : '';
 
-  // Venator skill access
   const isVenator = isVenatorGang(editionSlug, gangType);
 
   const { data: skillTypes = [] } = useQuery<Array<{ id: string; name: string }>>({
@@ -569,7 +568,6 @@ export default function GangEditModal({
       updates.resourceUpdates = resourceUpdatesList;
     }
 
-    // Venator skill access save
     if (isVenator) {
       const filled = [rank1, rank2, rank3, rank4].filter(Boolean);
       const hadPreviousRanks = existingRanks.length > 0;
@@ -578,7 +576,6 @@ export default function GangEditModal({
         return;
       }
       if (filled.length === 4) {
-        // Skip confirm and save entirely if ranks are unchanged
         const byRank = new Map(existingRanks.map((r) => [r.rank, r.skill_type_id]));
         const ranksUnchanged =
           hadPreviousRanks &&
@@ -780,7 +777,6 @@ export default function GangEditModal({
         </div>
       </div>
 
-      {/* Venator Skill Access Section */}
       {isVenator && (
         <div className="space-y-2">
           <p className="text-sm font-medium">Skill Access</p>

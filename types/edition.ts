@@ -199,11 +199,6 @@ const EDITION_CAPABILITIES = {
   championLeaderTypePromotion: { n23: false, n26: true },
   /** The battle's scenario is rolled for on a D6 against the edition's numbered scenarios. */
   scenarioD6Roll: { n23: false, n26: true },
-  /**
-   * Venator gangs pick and rank four Skill Sets at the gang level. Leader,
-   * Champion, and Specialist subtype fighters get Primary / Secondary access
-   * derived from those ranks (see utils/venatorSkillAccess.ts).
-   */
   venatorSkillAccess:       { n23: false, n26: true  },
 } as const satisfies Record<string, Record<EditionSlug, unknown>>;
 

@@ -1210,13 +1210,10 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       console.error('Failed to log fighter addition:', logError);
     }
 
-    // Sync Venator skill overrides for the new fighter (no-op for non-Venator gangs)
     try {
       await syncFighter(fighterId, supabase, user.id);
     } catch (err) {
       console.error('syncFighter failed after add-fighter', err);
-      // Do not abort the fighter creation — overrides are recoverable via
-      // the Edit Gang -> Skill Access resave.
     }
 
     // Calculate base and modified stats

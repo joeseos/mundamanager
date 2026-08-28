@@ -1,7 +1,3 @@
--- Stores a Venator gang's four ranked Skill Sets. See rulebook: gang picks 4
--- Skill Sets, ranks them 1-4, and each Venator fighter subtype gets Primary /
--- Secondary access derived from those ranks (see utils/venatorSkillAccess.ts).
-
 CREATE TABLE public.gang_skill_set_ranks (
     gang_id       uuid        NOT NULL REFERENCES public.gangs(id)       ON DELETE CASCADE,
     rank          int         NOT NULL CHECK (rank BETWEEN 1 AND 4),
