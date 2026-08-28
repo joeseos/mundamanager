@@ -3,6 +3,7 @@
 import { invalidateFighter } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
+import { syncFighter } from '@/utils/syncVenatorSkillOverrides';
 
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
@@ -1207,6 +1208,15 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       });
     } catch (logError) {
       console.error('Failed to log fighter addition:', logError);
+    }
+
+    // Sync Venator skill overrides for the new fighter (no-op for non-Venator gangs)
+    try {
+      await syncFighter(fighterId, supabase, user.id);
+    } catch (err) {
+      console.error('syncFighter failed after add-fighter', err);
+      // Do not abort the fighter creation — overrides are recoverable via
+      // the Edit Gang -> Skill Access resave.
     }
 
     // Calculate base and modified stats
