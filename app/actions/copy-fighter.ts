@@ -7,6 +7,8 @@ import {checkAdmin, getAuthenticatedUser} from "@/utils/auth";
 import {updateGangFinancials} from '@/utils/gang-rating-and-wealth';
 import {logFighterAction} from '@/app/actions/logs/fighter-logs';
 import {revalidateTag} from 'next/cache';
+import { resolveFighterEditionSlug } from '@/utils/fighter-subtype-grants';
+import { shouldClearSpecialisationForSubtypes } from '@/utils/keepTypePromotionN26';
 
 interface CopyFighterParams {
   fighter_id: string;
@@ -242,6 +244,8 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       return { success: false, error: `Fighter not found: ${fetchError?.message || 'Unknown error'}` };
     }
 
+    const editionSlug = await resolveFighterEditionSlug(supabase, params.fighter_id);
+
     // Fetch vehicle equipment separately (linked via vehicle_id, not fighter_id)
     let vehicleEquipment: any[] = [];
     if (sourceFighter.vehicles?.length > 0) {
@@ -321,6 +325,15 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
 
     const nextPosition = (maxPositionData?.position ?? -1) + 1;
     const newFighterName = params.new_name || sourceFighter.fighter_name;
+    const copySpecialisation = shouldClearSpecialisationForSubtypes(
+      editionSlug,
+      sourceFighter.fighter_subtypes
+    )
+      ? { fighter_specialisation: null, fighter_specialisation_id: null }
+      : {
+          fighter_specialisation: sourceFighter.fighter_specialisation,
+          fighter_specialisation_id: sourceFighter.fighter_specialisation_id,
+        };
 
     const fighterData: any = {
       gang_id: params.target_gang_id,
@@ -328,8 +341,8 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       fighter_type: sourceFighter.fighter_type,
       fighter_type_id: sourceFighter.fighter_type_id,
       fighter_subtypes: sourceFighter.fighter_subtypes || [],
-      fighter_specialisation: sourceFighter.fighter_specialisation,
-      fighter_specialisation_id: sourceFighter.fighter_specialisation_id,
+      fighter_specialisation: copySpecialisation.fighter_specialisation,
+      fighter_specialisation_id: copySpecialisation.fighter_specialisation_id,
       fighter_variant: sourceFighter.fighter_variant,
       custom_fighter_type_id: sourceFighter.custom_fighter_type_id,
       fighter_gang_legacy_id: sourceFighter.fighter_gang_legacy_id,
@@ -732,6 +745,16 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
         }
 
         // Insert new beast fighter (fighter_pet_id set to null initially, linked after ownership record)
+        const beastSpecialisation = shouldClearSpecialisationForSubtypes(
+          editionSlug,
+          beastFighter.fighter_subtypes
+        )
+          ? { fighter_specialisation: null, fighter_specialisation_id: null }
+          : {
+              fighter_specialisation: beastFighter.fighter_specialisation,
+              fighter_specialisation_id: beastFighter.fighter_specialisation_id,
+            };
+
         const { data: newBeastFighter, error: beastInsertError } = await supabase
           .from('fighters')
           .insert({
@@ -740,8 +763,8 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
             fighter_type: beastFighter.fighter_type,
             fighter_type_id: beastFighter.fighter_type_id,
             fighter_subtypes: beastFighter.fighter_subtypes || [],
-            fighter_specialisation: beastFighter.fighter_specialisation,
-            fighter_specialisation_id: beastFighter.fighter_specialisation_id,
+            fighter_specialisation: beastSpecialisation.fighter_specialisation,
+            fighter_specialisation_id: beastSpecialisation.fighter_specialisation_id,
             fighter_variant: beastFighter.fighter_variant,
             custom_fighter_type_id: beastFighter.custom_fighter_type_id,
             fighter_gang_legacy_id: beastFighter.fighter_gang_legacy_id,

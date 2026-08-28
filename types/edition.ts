@@ -107,6 +107,18 @@ const EDITION_CAPABILITIES = {
   /** A fighter may hold several subtypes at once */
   multipleFighterSubtypes:  { n23: false, n26: true  },
   /**
+   * Named-type picker options omit the parenthetical subtype list. N26 lists
+   * subtypes on their own control, so "Ganger (Ganger, Specialist)" is redundant
+   * there. When false, each option is "Type (Subtypes)".
+   */
+  omitNamedTypeSubtypeSuffix: { n23: false, n26: true },
+  /**
+   * Picking a named type leaves fighter_subtypes in place. N26 treats named type
+   * and subtype as independent fields. When false, the catalog row's subtypes
+   * replace the fighter's.
+   */
+  namedTypeKeepsSubtypes: { n23: false, n26: true },
+  /**
    * Custom fighter authoring offers a curated shortlist of subtypes rather than
    * every row the edition defines. The N23 table mixes real subtypes with
    * placeholders ('*', 'Others', 'Special Terrain') and alliance-only entries, so
@@ -262,6 +274,12 @@ export const initiativeAndMentalCharacteristicSuffix = (
 
 export const allowsMultipleSubtypes = (editionSlug?: string | null): boolean =>
   can('multipleFighterSubtypes', editionSlug);
+
+export const omitsNamedTypeSubtypeSuffix = (editionSlug?: string | null): boolean =>
+  can('omitNamedTypeSubtypeSuffix', editionSlug);
+
+export const namedTypeKeepsSubtypes = (editionSlug?: string | null): boolean =>
+  can('namedTypeKeepsSubtypes', editionSlug);
 
 export const hasCuratedFighterSubtypes = (editionSlug?: string | null): boolean =>
   can('curatedFighterSubtypes', editionSlug);

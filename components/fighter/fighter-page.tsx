@@ -1448,7 +1448,9 @@ export default function FighterPage({
                     ...optimistic,
                     // Ensure type shape matches `Fighter` interface
                     fighter_type: optimistic?.fighter_type ? (optimistic.fighter_type as any) : prev.fighter.fighter_type,
-                    fighter_specialisation: optimistic?.fighter_specialisation ? (optimistic.fighter_specialisation as any) : prev.fighter.fighter_specialisation,
+                    fighter_specialisation: optimistic && 'fighter_specialisation' in optimistic
+                      ? (optimistic.fighter_specialisation as any)
+                      : prev.fighter.fighter_specialisation,
                     // Optimistically adjust credits if cost_adjustment changes
                     credits: (() => {
                       const newAdj = (optimistic as any)?.cost_adjustment;
