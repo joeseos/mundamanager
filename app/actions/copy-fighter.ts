@@ -795,12 +795,6 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
 
         newBeastFighterIds.push(newBeastFighter.id);
 
-        try {
-          await syncFighter(newBeastFighter.id, supabase, user.id);
-        } catch (err) {
-          console.error('syncFighter failed after copy-fighter (beast)', err);
-        }
-
         // Copy beast equipment — build per-beast equipment ID map for effect FK remapping
         const beastEquipmentIdMap = new Map<string, string>();
         if (beastFighter.fighter_equipment && beastFighter.fighter_equipment.length > 0) {

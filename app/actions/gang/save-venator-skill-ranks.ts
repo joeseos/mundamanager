@@ -3,8 +3,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { syncGang } from '@/utils/syncVenatorSkillOverrides';
-import { revalidateTag } from 'next/cache';
-import { TAGS } from '@/utils/cache-tags';
+import { invalidateGang } from '@/utils/cache-tags';
 
 interface SaveVenatorSkillRanksParams {
   gangId: string;
@@ -46,7 +45,7 @@ export async function saveVenatorSkillRanks(
     };
   }
 
-  revalidateTag(TAGS.gang(gangId), { expire: 0 });
+  invalidateGang(gangId);
 
   return { ok: true };
 }

@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { HexColorPicker } from "react-colorful";
 import { groupAlliancesByType } from "@/utils/allianceRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { deleteGang } from '@/app/actions/delete-gang';
 import { hasAlignment, sameEditionForDisplay } from '@/types/edition';
 import { isVenatorGang } from '@/utils/venatorSkillAccess';
@@ -133,19 +133,15 @@ export default function GangEditModal({
     queryKey: ['skill-types', editionSlug],
     enabled: isVenator && !!editionSlug,
     queryFn: async () => {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from('skill_types')
-        .select('id, name, editions:edition_id (slug)')
-        .order('name');
-      if (error) throw error;
-      return (data ?? [])
-        .filter((r: any) => (r.editions?.slug ?? null) === editionSlug)
-        .map((r: any) => ({ id: r.id, name: r.name }));
+      const response = await fetch(`/api/skill-types?edition_slug=${editionSlug}`);
+      if (!response.ok) throw new Error('Failed to load skill types');
+      const rows: Array<{ id: string; name: string; is_custom?: boolean }> = await response.json();
+      return rows.filter((r) => !r.is_custom).map((r) => ({ id: r.id, name: r.name }));
     },
   });
 
-  const { data: existingRanks = [], refetch: refetchRanks } = useQuery<
+  const queryClient = useQueryClient();
+  const { data: existingRanks = [] } = useQuery<
     Array<{ rank: number; skill_type_id: string }>
   >({
     queryKey: ['gang-skill-set-ranks', gangId],
@@ -162,17 +158,13 @@ export default function GangEditModal({
     },
   });
 
-  const [rank1, setRank1] = useState<string>('');
-  const [rank2, setRank2] = useState<string>('');
-  const [rank3, setRank3] = useState<string>('');
-  const [rank4, setRank4] = useState<string>('');
+  const [ranks, setRanks] = useState<string[]>(['', '', '', '']);
+  const setRank = (i: number, value: string) =>
+    setRanks((prev) => prev.map((v, idx) => (idx === i ? value : v)));
 
   useEffect(() => {
     const byRank = new Map(existingRanks.map((r) => [r.rank, r.skill_type_id]));
-    setRank1(byRank.get(1) ?? '');
-    setRank2(byRank.get(2) ?? '');
-    setRank3(byRank.get(3) ?? '');
-    setRank4(byRank.get(4) ?? '');
+    setRanks([1, 2, 3, 4].map((n) => byRank.get(n) ?? ''));
   }, [existingRanks]);
 
   // Get campaign ID and current allegiance if gang is in a campaign
@@ -486,7 +478,7 @@ export default function GangEditModal({
     }
 
     if (isVenator) {
-      const filled = [rank1, rank2, rank3, rank4].filter(Boolean);
+      const filled = ranks.filter(Boolean);
       const hadPreviousRanks = existingRanks.length > 0;
       if (filled.length !== 0 && filled.length !== 4) {
         toast.error('Please set all four Skill Sets, or leave them all blank.');
@@ -495,11 +487,7 @@ export default function GangEditModal({
       if (filled.length === 4) {
         const byRank = new Map(existingRanks.map((r) => [r.rank, r.skill_type_id]));
         const ranksUnchanged =
-          hadPreviousRanks &&
-          byRank.get(1) === rank1 &&
-          byRank.get(2) === rank2 &&
-          byRank.get(3) === rank3 &&
-          byRank.get(4) === rank4;
+          hadPreviousRanks && ranks.every((v, i) => byRank.get(i + 1) === v);
         if (!ranksUnchanged) {
           if (hadPreviousRanks) {
             const proceed = window.confirm(
@@ -509,18 +497,16 @@ export default function GangEditModal({
           }
           const result = await saveVenatorSkillRanks({
             gangId,
-            ranks: [
-              { rank: 1, skill_type_id: rank1 },
-              { rank: 2, skill_type_id: rank2 },
-              { rank: 3, skill_type_id: rank3 },
-              { rank: 4, skill_type_id: rank4 },
-            ],
+            ranks: ranks.map((skill_type_id, i) => ({ rank: i + 1, skill_type_id })),
           });
           if (!result.ok) {
             toast.error(result.error);
             return;
           }
-          await refetchRanks();
+          queryClient.setQueryData(
+            ['gang-skill-set-ranks', gangId],
+            ranks.map((skill_type_id, i) => ({ rank: i + 1, skill_type_id })),
+          );
         }
       }
     }
@@ -621,20 +607,15 @@ export default function GangEditModal({
             Pick and rank the four Skill Sets your gang has access to. Rank 1 is
             the Skill Set that most embodies your gang.
           </p>
-          {[
-            { label: 1, value: rank1, set: setRank1 },
-            { label: 2, value: rank2, set: setRank2 },
-            { label: 3, value: rank3, set: setRank3 },
-            { label: 4, value: rank4, set: setRank4 },
-          ].map(({ label, value, set }) => {
-            const taken = new Set([rank1, rank2, rank3, rank4].filter((v) => v && v !== value));
+          {ranks.map((value, i) => {
+            const taken = new Set(ranks.filter((v, idx) => v && idx !== i));
             const options = skillTypes.filter((s) => !taken.has(s.id));
             return (
-              <div key={label} className="flex items-center gap-2">
-                <span className="w-6 text-sm text-muted-foreground">{label}</span>
+              <div key={i} className="flex items-center gap-2">
+                <span className="w-6 text-sm text-muted-foreground">{i + 1}</span>
                 <Combobox
                   value={value || undefined}
-                  onValueChange={(v) => set(v ?? '')}
+                  onValueChange={(v) => setRank(i, v ?? '')}
                   options={options.map((o) => ({ value: o.id, label: o.name }))}
                   placeholder="Select a Skill Set"
                   clearable
