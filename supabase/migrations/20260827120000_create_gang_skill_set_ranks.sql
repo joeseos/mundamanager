@@ -8,9 +8,6 @@ CREATE TABLE public.gang_skill_set_ranks (
     UNIQUE (gang_id, skill_type_id)
 );
 
-CREATE INDEX gang_skill_set_ranks_skill_type_id_idx
-    ON public.gang_skill_set_ranks (skill_type_id);
-
 ALTER TABLE public.gang_skill_set_ranks ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allow authenticated users to view gang_skill_set_ranks"
@@ -18,33 +15,33 @@ CREATE POLICY "Allow authenticated users to view gang_skill_set_ranks"
     TO authenticated
     USING (true);
 
-CREATE POLICY "Only gang owner or admin can insert gang_skill_set_ranks"
+CREATE POLICY "gang_skill_set_ranks insert: owner, admin, or arbitrator"
     ON public.gang_skill_set_ranks FOR INSERT
     TO authenticated
     WITH CHECK (
         EXISTS (SELECT 1 FROM public.gangs g WHERE g.id = gang_id AND g.user_id = auth.uid())
         OR (SELECT private.is_admin())
+        OR EXISTS (
+            SELECT 1 FROM public.campaign_gangs cg
+            WHERE cg.gang_id = gang_skill_set_ranks.gang_id
+              AND cg.status = 'ACCEPTED'
+              AND private.is_arb(cg.campaign_id)
+        )
     );
 
-CREATE POLICY "Only gang owner or admin can update gang_skill_set_ranks"
-    ON public.gang_skill_set_ranks FOR UPDATE
-    TO authenticated
-    USING (
-        EXISTS (SELECT 1 FROM public.gangs g WHERE g.id = gang_id AND g.user_id = auth.uid())
-        OR (SELECT private.is_admin())
-    )
-    WITH CHECK (
-        EXISTS (SELECT 1 FROM public.gangs g WHERE g.id = gang_id AND g.user_id = auth.uid())
-        OR (SELECT private.is_admin())
-    );
-
-CREATE POLICY "Only gang owner or admin can delete gang_skill_set_ranks"
+CREATE POLICY "gang_skill_set_ranks delete: owner, admin, or arbitrator"
     ON public.gang_skill_set_ranks FOR DELETE
     TO authenticated
     USING (
         EXISTS (SELECT 1 FROM public.gangs g WHERE g.id = gang_id AND g.user_id = auth.uid())
         OR (SELECT private.is_admin())
+        OR EXISTS (
+            SELECT 1 FROM public.campaign_gangs cg
+            WHERE cg.gang_id = gang_skill_set_ranks.gang_id
+              AND cg.status = 'ACCEPTED'
+              AND private.is_arb(cg.campaign_id)
+        )
     );
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.gang_skill_set_ranks
+GRANT SELECT, INSERT, DELETE ON public.gang_skill_set_ranks
     TO authenticated, service_role;
