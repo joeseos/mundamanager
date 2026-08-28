@@ -54,9 +54,7 @@ function unsubscribeFromViewportResize() {
 
 function subscribe(listener: () => void) {
   // Refresh only when nothing is mounted, so a late mount can't rescale existing cards
-  if (listeners.size === 0 && typeof window !== 'undefined') {
-    viewportWidth = window.innerWidth;
-  }
+  if (listeners.size === 0) viewportWidth = window.innerWidth;
   listeners.add(listener);
   subscribeToViewportResize();
 
