@@ -83,7 +83,9 @@ export async function GET(request: NextRequest) {
     console.log('[Discord Callback] DB update success — guildId:', guildId, 'campaignId:', campaignId)
 
     // Invalidate campaign cache
-    invalidateCampaign(campaignId);invalidateCampaign(campaignId);// Return self-closing HTML that notifies the opener window via postMessage
+    invalidateCampaign(campaignId);
+
+    // Return self-closing HTML that notifies the opener window via postMessage
     const origin = new URL(request.url).origin
     const html = `<!DOCTYPE html>
 <html><head><title>Discord Connected</title></head>

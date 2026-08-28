@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 
 const DEFAULT_WIDTH = 800;
 
@@ -52,21 +52,22 @@ function unsubscribeFromViewportResize() {
   }
 }
 
+function subscribe(listener: () => void) {
+  // Refresh only when nothing is mounted, so a late mount can't rescale existing cards
+  if (listeners.size === 0) viewportWidth = window.innerWidth;
+  listeners.add(listener);
+  subscribeToViewportResize();
+
+  return () => {
+    listeners.delete(listener);
+    unsubscribeFromViewportResize();
+  };
+}
+
 export function useViewportWidth() {
-  const [width, setWidth] = useState(DEFAULT_WIDTH);
-
-  useEffect(() => {
-    setWidth(window.innerWidth);
-    subscribeToViewportResize();
-
-    const listener = () => setWidth(viewportWidth);
-    listeners.add(listener);
-
-    return () => {
-      listeners.delete(listener);
-      unsubscribeFromViewportResize();
-    };
-  }, []);
-
-  return width;
+  return useSyncExternalStore(
+    subscribe,
+    () => viewportWidth,
+    () => DEFAULT_WIDTH,
+  );
 }

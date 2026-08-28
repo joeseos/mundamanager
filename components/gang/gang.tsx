@@ -21,6 +21,7 @@ import { toJpeg } from 'html-to-image';
 import LogModal from '../log-modal';
 import { ViewModeDropdown, isGangPageViewMode, type GangPageViewMode } from './ViewModeDropdown';
 import GangEditModal from './gang-edit-modal';
+import GangResourcesModal from './gang-resources-modal';
 import { UserPermissions } from '@/types/user-permissions';
 import { updateGangPositioning } from '@/app/actions/update-gang-positioning';
 import { FaRegCopy } from 'react-icons/fa';
@@ -216,6 +217,7 @@ export default function Gang({
     });
   }, [campaigns, currentAllegiance, campaignResources]);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showResourcesModal, setShowResourcesModal] = useState(false);
   const [showAddFighterModal, setShowAddFighterModal] = useState(false);
   const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
   const [positions, setPositions] = useState<Record<number, string>>(positioning);
@@ -536,6 +538,22 @@ export default function Gang({
         setGangIsVariant(newVariants.length > 0);
       }
 
+      if (Array.isArray(updates.resources) && updates.resources.length > 0) {
+        const updatedResources = campaignResources.map(resource => {
+          const update = updates.resources.find(
+            (u: { resource_id: string; quantity_delta: number }) => u.resource_id === resource.resource_id
+          );
+          if (update) {
+            return {
+              ...resource,
+              quantity: resource.quantity + update.quantity_delta
+            };
+          }
+          return resource;
+        });
+        setCampaignResources(updatedResources);
+      }
+
       return { snapshot };
     },
     onError: (error, _variables, context) => {
@@ -578,68 +596,36 @@ export default function Gang({
           setGangVariants(result.data.gang_variants);
           setGangIsVariant(result.data.gang_variants.length > 0);
         }
-      }
-
-      // Show success toast
-      toast.success("Gang updated successfully");
-    }
-  });
-
-  // TanStack Query mutation for resource updates with optimistic updates
-  const updateResourceMutation = useMutation({
-    mutationFn: async (resourceUpdates: Array<{
-      campaign_gang_id: string;
-      resource_id: string;
-      resource_name: string;
-      is_custom: boolean;
-      quantity_delta: number;
-    }>) => {
-      const { updateGang } = await import('@/app/actions/update-gang');
-      if (resourceUpdates.length === 0) return { success: true };
-      
-      const campaignGangId = resourceUpdates[0].campaign_gang_id;
-      const resources = resourceUpdates.map(r => ({
-        resource_id: r.resource_id,
-        resource_name: r.resource_name,
-        is_custom: r.is_custom,
-        quantity_delta: r.quantity_delta
-      }));
-      
-      return updateGang({
-        gang_id: id,
-        campaign_gang_id: campaignGangId,
-        resources
-      });
-    },
-    onMutate: async (resourceUpdates) => {
-      // Snapshot previous resources for rollback
-      const snapshot = { campaignResources: [...campaignResources] };
-
-      // Apply optimistic updates
-      const updatedResources = campaignResources.map(resource => {
-        const update = resourceUpdates.find(u => u.resource_id === resource.resource_id);
-        if (update) {
-          return {
-            ...resource,
-            quantity: resource.quantity + update.quantity_delta
-          };
+        if (result.data.resources && result.data.resources.length > 0) {
+          setCampaignResources(prev => prev.map(resource => {
+            const updated = result.data!.resources!.find(
+              (r: { resource_id: string; quantity: number }) => r.resource_id === resource.resource_id
+            );
+            return updated
+              ? { ...resource, quantity: updated.quantity }
+              : resource;
+          }));
         }
-        return resource;
-      });
-      setCampaignResources(updatedResources);
-
-      return { snapshot };
-    },
-    onError: (error, _variables, context) => {
-      // Rollback on error
-      if (context?.snapshot) {
-        setCampaignResources(context.snapshot.campaignResources);
       }
-      console.error('Error updating resources:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to update resources');
-    },
-    onSuccess: () => {
-      toast.success("Resources updated successfully");
+
+      const resourceUpdateKeys = new Set([
+        'resources',
+        'campaign_gang_id',
+        'credits',
+        'credits_operation',
+        'credits_reason',
+        'reputation',
+        'reputation_operation',
+        'reputation_reason',
+        'trade_points',
+        'trade_points_operation',
+        'trade_points_reason',
+      ]);
+      const variableKeys = Object.keys(variables);
+      const isResourceUpdate =
+        variableKeys.length > 0 &&
+        variableKeys.every((key) => resourceUpdateKeys.has(key));
+      toast.success(isResourceUpdate ? 'Resources updated successfully' : 'Gang updated successfully');
     }
   });
 
@@ -706,28 +692,31 @@ export default function Gang({
         }
       }
       
-      // Handle resource updates if present
-      if (updates.resourceUpdates && updates.resourceUpdates.length > 0) {
+      // Fold campaign resource updates into the same updateGang call as credits/etc.
+      if (gangUpdates.resourceUpdates && gangUpdates.resourceUpdates.length > 0) {
         const campaignGangId = campaigns?.[0]?.campaign_gang_id;
-        if (campaignGangId) {
-          const resourceUpdatesWithCampaignGang = updates.resourceUpdates.map((r: ResourceUpdate) => {
-            // Look up resource_name from campaignResources
-            const resource = campaignResources.find(cr => cr.resource_id === r.resource_id);
-            return {
-              campaign_gang_id: campaignGangId,
-              resource_id: r.resource_id,
-              resource_name: resource?.resource_name || r.resource_name || 'Unknown Resource',
-              is_custom: r.is_custom,
-              quantity_delta: r.quantity_delta
-            };
+        if (!campaignGangId) {
+          delete gangUpdates.resourceUpdates;
+          toast.error('Cannot update campaign resources', {
+            description: 'This gang is not linked to a campaign.',
           });
-          await updateResourceMutation.mutateAsync(resourceUpdatesWithCampaignGang);
+          throw new Error('Missing campaign_gang_id for resource updates');
         }
-        // Remove resourceUpdates from gangUpdates since they're handled separately
+        gangUpdates.campaign_gang_id = campaignGangId;
+        gangUpdates.resources = gangUpdates.resourceUpdates.map((r: ResourceUpdate) => {
+          const resource = campaignResources.find(cr => cr.resource_id === r.resource_id);
+          return {
+            resource_id: r.resource_id,
+            resource_name: resource?.resource_name || r.resource_name || 'Unknown Resource',
+            is_custom: r.is_custom,
+            quantity_delta: r.quantity_delta,
+            ...(r.reason ? { reason: r.reason } : {}),
+          };
+        });
         delete gangUpdates.resourceUpdates;
       }
       
-      // Update gang fields (only if there are any non-allegiance updates)
+      // Update gang fields (+ optional resources) in one server call
       if (Object.keys(gangUpdates).length > 0) {
         await updateGangMutation.mutateAsync(gangUpdates);
       }
@@ -957,6 +946,13 @@ export default function Gang({
                 <div className="flex gap-2">
                   {additionalButtons}
                   <Button
+                    onClick={() => setShowResourcesModal(true)}
+                    disabled={!userPermissions?.canEdit}
+                    className="bg-neutral-900 text-white hover:bg-gray-800 print:hidden disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Resources
+                  </Button>
+                  <Button
                     onClick={handleEditModalOpen}
                     disabled={!userPermissions?.canEdit}
                     className="bg-neutral-900 text-white hover:bg-gray-800 print:hidden disabled:opacity-50 disabled:cursor-not-allowed"
@@ -978,6 +974,13 @@ export default function Gang({
               </div>
               <div className="flex gap-2">
                 {additionalButtons}
+                <Button
+                  onClick={() => setShowResourcesModal(true)}
+                  disabled={!userPermissions?.canEdit}
+                  className="bg-neutral-900 text-white hover:bg-gray-800 print:hidden disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Resources
+                </Button>
                 <Button
                   onClick={handleEditModalOpen}
                   disabled={!userPermissions?.canEdit}
@@ -1268,9 +1271,6 @@ export default function Gang({
             onClose={() => setShowEditModal(false)}
             gangId={id}
             gangName={name}
-            credits={credits}
-            reputation={reputation}
-            tradePoints={tradePoints}
             editionSlug={edition_slug}
             isGangOwner={userPermissions?.isOwner}
             isAdmin={userPermissions?.isAdmin}
@@ -1289,6 +1289,17 @@ export default function Gang({
             gangOriginCategoryName={gangOriginCategoryName}
             gangTypeHasOrigin={gang_type_has_origin || false}
             hidden={hidden}
+            campaigns={campaignsWithOptimisticData}
+            onSave={handleGangUpdate}
+          />
+
+          <GangResourcesModal
+            isOpen={showResourcesModal}
+            onClose={() => setShowResourcesModal(false)}
+            credits={credits}
+            reputation={reputation}
+            tradePoints={tradePoints}
+            editionSlug={edition_slug}
             campaigns={campaignsWithOptimisticData}
             onSave={handleGangUpdate}
           />

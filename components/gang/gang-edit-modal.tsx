@@ -12,24 +12,17 @@ import { HexColorPicker } from "react-colorful";
 import { groupAlliancesByType } from "@/utils/allianceRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
 import { useQuery } from '@tanstack/react-query';
-import { ResourceUpdate } from '@/types/gang';
 import { deleteGang } from '@/app/actions/delete-gang';
-import { hasAlignment, hasTradePoints, sameEditionForDisplay } from '@/types/edition';
+import { hasAlignment, sameEditionForDisplay } from '@/types/edition';
 import { isVenatorGang } from '@/utils/venatorSkillAccess';
 import { saveVenatorSkillRanks } from '@/app/actions/gang/save-venator-skill-ranks';
 import { createClient } from '@/utils/supabase/client';
 
 interface GangUpdates {
   name?: string;
-  credits?: number;
-  credits_operation?: 'add' | 'subtract';
   alignment?: string;
   alliance_id?: string | null;
   alliance_name?: string;
-  reputation?: number;
-  reputation_operation?: 'add' | 'subtract';
-  trade_points?: number;
-  trade_points_operation?: 'add' | 'subtract';
   gang_variants?: string[];
   gang_colour?: string;
   gang_affiliation_id?: string | null;
@@ -40,15 +33,6 @@ interface GangUpdates {
   campaign_allegiance_id?: string | null;
   campaign_allegiance_is_custom?: boolean;
   campaign_id?: string;
-  // New resource updates from normalised tables
-  resourceUpdates?: ResourceUpdate[];
-}
-
-interface CampaignResource {
-  resource_id: string;
-  resource_name: string;
-  quantity: number;
-  is_custom: boolean;
 }
 
 interface Campaign {
@@ -58,8 +42,6 @@ interface Campaign {
     id: string;
     name: string;
   } | null;
-  // Normalised resources
-  resources?: CampaignResource[];
 }
 
 interface GangEditModalProps {
@@ -70,9 +52,6 @@ interface GangEditModalProps {
   // Gang data
   gangId: string;
   gangName: string;
-  credits: number;
-  reputation: number;
-  tradePoints: number;
   editionSlug?: string | null;
   alignment: string;
   allianceId: string | null;
@@ -90,7 +69,7 @@ interface GangEditModalProps {
   gangTypeHasOrigin: boolean;
   hidden: boolean;
 
-  // Campaign features (includes dynamic resources)
+  // Campaign features
   campaigns?: Campaign[];
 
   // Permissions - controls Delete button visibility
@@ -106,20 +85,17 @@ interface GangEditModalProps {
  * 
  * Extracted from gang.tsx to improve component maintainability.
  * Handles all gang editing functionality including:
- * - Basic gang info (name, credits, reputation)
+ * - Basic gang info (name, visibility)
  * - Alignment and alliance management
  * - Gang variants selection
  * - Colour picker
- * - Campaign-specific resources (meat, scavenging rolls, exploration points)
+ * - Campaign allegiance
  */
 export default function GangEditModal({
   isOpen,
   onClose,
   gangId,
   gangName,
-  credits,
-  reputation,
-  tradePoints,
   editionSlug,
   alignment,
   allianceId,
@@ -220,9 +196,6 @@ export default function GangEditModal({
   // Single form state object instead of multiple individual states
   const [formState, setFormState] = useState({
     name: gangName,
-    credits: '',  // delta inputs start empty
-    reputation: '',
-    trade_points: '',
     alignment: effectiveAlignment,
     allianceId: allianceId || '',
     gangColour: gangColour,
@@ -234,10 +207,6 @@ export default function GangEditModal({
     campaignAllegianceId: effectiveCurrentAllegianceId
   });
   
-  // Dynamic resource deltas state - tracks changes for each normalised resource
-  // Key: resource_id, Value: delta string (for input field)
-  const [resourceDeltas, setResourceDeltas] = useState<Record<string, string>>({});
-
   // Alliance management state
   const [allianceList, setAllianceList] = useState<Array<{
     id: string;
@@ -305,9 +274,6 @@ export default function GangEditModal({
       setFormState(prev => ({
         ...prev,
         name: gangName,
-        credits: '',
-        reputation: '',
-        trade_points: '',
         alignment: effectiveAlignment,
         allianceId: allianceId || '',
         gangColour: gangColour,
@@ -318,8 +284,6 @@ export default function GangEditModal({
         hidden: hidden,
         campaignAllegianceId: effectiveCurrentAllegianceId
       }));
-
-      setResourceDeltas({});
     }
   }
 
@@ -521,53 +485,6 @@ export default function GangEditModal({
       updates.gang_variants = formState.gangVariants.map(v => v.id);
     }
 
-    // Handle resource deltas - only include if non-empty and non-zero
-    const creditsDifference = parseInt(formState.credits) || 0;
-    if (credits + creditsDifference < 0) {
-      toast.error('Insufficient credits', {
-        description: `Cannot subtract ${Math.abs(creditsDifference)} credits. Current balance: ${credits}`
-      });
-      return;
-    }
-    if (creditsDifference !== 0) {
-      updates.credits = Math.abs(creditsDifference);
-      updates.credits_operation = creditsDifference >= 0 ? 'add' : 'subtract';
-    }
-
-    const reputationDifference = parseInt(formState.reputation) || 0;
-    if (reputationDifference !== 0) {
-      updates.reputation = Math.abs(reputationDifference);
-      updates.reputation_operation = reputationDifference >= 0 ? 'add' : 'subtract';
-    }
-
-    if (hasTradePoints(editionSlug)) {
-      const tradePointsDifference = parseInt(formState.trade_points) || 0;
-      if (tradePointsDifference !== 0) {
-        updates.trade_points = Math.abs(tradePointsDifference);
-        updates.trade_points_operation = tradePointsDifference >= 0 ? 'add' : 'subtract';
-      }
-    }
-
-    // Handle dynamic resource deltas from normalised tables
-    const resourceUpdatesList: ResourceUpdate[] = [];
-    const campaignResources = campaigns?.[0]?.resources || [];
-    
-    for (const resource of campaignResources) {
-      const deltaStr = resourceDeltas[resource.resource_id];
-      const delta = parseInt(deltaStr) || 0;
-      if (delta !== 0) {
-        resourceUpdatesList.push({
-          resource_id: resource.resource_id,
-          is_custom: resource.is_custom,
-          quantity_delta: delta
-        });
-      }
-    }
-    
-    if (resourceUpdatesList.length > 0) {
-      updates.resourceUpdates = resourceUpdatesList;
-    }
-
     if (isVenator) {
       const filled = [rank1, rank2, rank3, rank4].filter(Boolean);
       const hadPreviousRanks = existingRanks.length > 0;
@@ -696,86 +613,6 @@ export default function GangEditModal({
           />
         </div>
       )}
-
-      {/* Resources Section */}
-      <div className="space-y-4">
-        <div>
-          <p className="text-base font-medium">Resources</p>
-          <p className="text-xs text-muted-foreground mt-1">Add or remove (e.g. 5 or -5)</p>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <p className="text-xs font-medium">Credits
-              <span className="text-xs text-muted-foreground"> (Current: {credits})</span>
-            </p>
-            <Input
-              type="tel"
-              inputMode="url"
-              pattern="-?[0-9]+"
-              value={formState.credits}
-              onChange={(e) => setFormState(prev => ({ ...prev, credits: e.target.value }))}
-              className="flex-1"
-              placeholder="0"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <p className="text-xs font-medium">
-              Reputation
-              <span className="text-xs text-muted-foreground"> (Current: {reputation})</span>
-            </p>
-            <Input
-              type="tel"
-              inputMode="url"
-              pattern="-?[0-9]+"
-              value={formState.reputation}
-              onChange={(e) => setFormState(prev => ({ ...prev, reputation: e.target.value }))}
-              className="flex-1"
-              placeholder="0"
-            />
-          </div>
-
-          {hasTradePoints(editionSlug) && (
-            <div className="space-y-2">
-              <p className="text-xs font-medium">
-                Trade Points
-                <span className="text-xs text-muted-foreground"> (Current: {tradePoints})</span>
-              </p>
-              <Input
-                type="tel"
-                inputMode="url"
-                pattern="-?[0-9]+"
-                value={formState.trade_points}
-                onChange={(e) => setFormState(prev => ({ ...prev, trade_points: e.target.value }))}
-                className="flex-1"
-                placeholder="0"
-              />
-            </div>
-          )}
-
-          {/* Dynamic Campaign Resources */}
-          {campaigns?.[0]?.resources?.map((resource) => (
-            <div key={resource.resource_id} className="space-y-2">
-              <p className="text-xs font-medium">
-                {resource.resource_name}
-                <span className="text-xs text-muted-foreground"> (Current: {resource.quantity})</span>
-              </p>
-              <Input
-                type="tel"
-                inputMode="url"
-                pattern="-?[0-9]+"
-                value={resourceDeltas[resource.resource_id] || ''}
-                onChange={(e) => setResourceDeltas(prev => ({
-                  ...prev,
-                  [resource.resource_id]: e.target.value
-                }))}
-                className="flex-1"
-                placeholder="0"
-              />
-            </div>
-          ))}
-        </div>
-      </div>
 
       {isVenator && (
         <div className="space-y-2">

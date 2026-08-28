@@ -3,7 +3,7 @@
 import { invalidateFighter, invalidateUserCustoms } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from '@/utils/auth';
-import { getEditionIdBySlug } from '@/app/lib/editions';
+import { getEditionIdBySlug } from '@/utils/editions';
 import { withEditionSlug } from '@/types/edition';
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
 import { removeItemFromAllCollections } from './custom-collections';

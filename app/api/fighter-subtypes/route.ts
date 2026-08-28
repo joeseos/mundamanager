@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { getUserIdFromClaims } from "@/utils/auth";
-import { getEditionIdBySlug } from '@/app/lib/editions';
+import { getEditionIdBySlug } from '@/utils/editions';
 
 /**
  * Lists fighter subtypes.
