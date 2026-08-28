@@ -166,25 +166,11 @@ export const invalidateBattleSessions = (gangId: string) => {
 
 /**
  * Global campaign catalog lists (campaign types + territory templates).
- * Call after admin edits, or to drop every unstable_cache entry that shares
- * these tags (including older key names after a key rename).
+ * Call after admin edits.
  */
 export function invalidateCampaignCatalogLists() {
   bust(TAGS.campaignTypes());
   bust(TAGS.globalTerritories());
-}
-
-let didPurgePreEditionCampaignCatalogCaches = false;
-
-/**
- * One-shot per process: expire pre-rename catalog cache keys that still share
- * the campaign-types / territories tags (e.g. `campaign-types` entries from
- * before the move to `campaign-types-with-edition`).
- */
-export function purgePreEditionCampaignCatalogCachesOnce() {
-  if (didPurgePreEditionCampaignCatalogCaches) return;
-  didPurgePreEditionCampaignCatalogCaches = true;
-  invalidateCampaignCatalogLists();
 }
 
 // Global reference data

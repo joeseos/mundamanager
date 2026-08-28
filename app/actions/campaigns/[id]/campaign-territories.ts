@@ -1,6 +1,6 @@
 'use server';
 
-import { invalidateCampaign, invalidateGangCampaignMembership, purgePreEditionCampaignCatalogCachesOnce } from '@/utils/cache-tags';
+import { invalidateCampaign, invalidateGangCampaignMembership } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { logTerritoryLost, logTerritoryClaimed } from "../../logs/gang-campaign-logs";
 import { getAuthenticatedUser } from '@/utils/auth';
@@ -314,7 +314,6 @@ export async function addTerritoryToCampaign(params: AddTerritoryParams) {
     if (error) throw error;
 
     invalidateCampaign(campaignId);
-    purgePreEditionCampaignCatalogCachesOnce();
 
     return { success: true };
   } catch (error) {

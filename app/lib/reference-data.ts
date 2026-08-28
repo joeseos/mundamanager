@@ -23,7 +23,7 @@ export const getScenariosCached = async (supabase: any): Promise<Scenario[]> => 
       if (error) throw error;
       return (data || []).map(withEditionSlug);
     },
-    ['global-scenarios-with-edition'],
+    ['global-scenarios'],
     {
       tags: [TAGS.globalScenarios()],
       revalidate: 3600
@@ -48,7 +48,7 @@ export const getTradingPostTypesCached = async (supabase: any): Promise<TradingP
       if (error) throw error;
       return (data || []).map(withEditionSlug);
     },
-    ['global-trading-post-types-with-edition'],
+    ['global-trading-post-types'],
     {
       tags: [TAGS.globalTradingPostTypes()],
       revalidate: 3600
@@ -71,7 +71,7 @@ export const getCampaignTypes = async () => {
       if (error) throw error;
       return (data || []).map(withEditionSlug);
     },
-    ['campaign-types-with-edition'],
+    ['campaign-types'],
     {
       tags: [TAGS.campaignTypes()],
       revalidate: false
@@ -101,7 +101,7 @@ export const getAllTerritories = async () => {
         };
       });
     },
-    ['territories-list-with-edition'],
+    ['territories-list'],
     {
       tags: [TAGS.globalTerritories()],
       revalidate: false
