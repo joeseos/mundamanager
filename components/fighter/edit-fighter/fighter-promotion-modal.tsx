@@ -52,6 +52,10 @@ function promotionSourceSubtype(subtypes: string[], fallback: string): string {
 
 type PromotionFighterType = FighterPromotionModalProps['fighterTypes'][number];
 
+/** What splits a family into sibling rows. No row carries both. */
+const variantOrSpecialisation = (ft: PromotionFighterType): string =>
+  ft.fighter_variant || ft.specialisation?.specialisation_name || '';
+
 function sortPromotionFighterTypes(
   types: PromotionFighterType[],
   editionSlug?: string | null
@@ -64,13 +68,16 @@ function sortPromotionFighterTypes(
     const typeCompare = a.fighter_type.localeCompare(b.fighter_type);
     if (typeCompare !== 0) return typeCompare;
 
-    return (a.specialisation?.specialisation_name || '').localeCompare(b.specialisation?.specialisation_name || '');
+    return variantOrSpecialisation(a).localeCompare(variantOrSpecialisation(b));
   });
 }
 
 function formatPromotionFighterTypeLabel(ft: PromotionFighterType): string {
-  const base = `${ft.fighter_type} (${ft.fighter_subtypes.join(', ')})`;
-  return ft.specialisation?.specialisation_name ? `${base}, ${ft.specialisation.specialisation_name}` : base;
+  return [
+    `${ft.fighter_type} (${ft.fighter_subtypes.join(', ')})`,
+    ft.fighter_variant,
+    ft.specialisation?.specialisation_name,
+  ].filter(Boolean).join(', ');
 }
 
 export type FighterPromotionResult = {
@@ -108,6 +115,7 @@ interface FighterPromotionModalProps {
     fighter_subtypes: string[];
     total_cost: number;
     specialisation?: { id: string; specialisation_name: string } | null;
+    fighter_variant?: string | null;
   }>;
   editionSlug?: string | null;
   isOpen: boolean;
