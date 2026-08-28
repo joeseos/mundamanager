@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from 'next/server';
-import { getEditionIdBySlug } from '@/app/lib/editions';
+import { getEditionIdBySlug } from '@/utils/editions';
 
 /**
  * Lists the vehicle lasting damage catalog. effect_name is reused across editions

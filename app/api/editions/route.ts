@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { getUserIdFromClaims } from "@/utils/auth";
-import { getEditions } from "@/app/lib/editions";
+import { getEditions } from "@/utils/editions";
 
 /**
  * The editions list, for admin screens that need to *choose* an edition.

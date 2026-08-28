@@ -1,7 +1,7 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
 
-import { getEditionIdBySlug } from '@/app/lib/editions';
+import { getEditionIdBySlug } from '@/utils/editions';
 import { createServiceRoleClient } from '@/utils/supabase/server';
 import { EDITION_N23, EDITION_N26, type EditionSlug } from '@/types/edition';
 import type { EditionCounts } from '@/types/stats';
