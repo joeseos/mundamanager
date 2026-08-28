@@ -578,26 +578,36 @@ export default function GangEditModal({
         return;
       }
       if (filled.length === 4) {
-        if (hadPreviousRanks) {
-          const proceed = window.confirm(
-            "Changing your gang's ranked Skill Sets will reset any custom Skill Set Access you've configured on individual Venator fighters. Continue?",
-          );
-          if (!proceed) return;
+        // Skip confirm and save entirely if ranks are unchanged
+        const byRank = new Map(existingRanks.map((r) => [r.rank, r.skill_type_id]));
+        const ranksUnchanged =
+          hadPreviousRanks &&
+          byRank.get(1) === rank1 &&
+          byRank.get(2) === rank2 &&
+          byRank.get(3) === rank3 &&
+          byRank.get(4) === rank4;
+        if (!ranksUnchanged) {
+          if (hadPreviousRanks) {
+            const proceed = window.confirm(
+              "Changing your gang's ranked Skill Sets will reset any custom Skill Set Access you've configured on individual Venator fighters. Continue?",
+            );
+            if (!proceed) return;
+          }
+          const result = await saveVenatorSkillRanks({
+            gangId,
+            ranks: [
+              { rank: 1, skill_type_id: rank1 },
+              { rank: 2, skill_type_id: rank2 },
+              { rank: 3, skill_type_id: rank3 },
+              { rank: 4, skill_type_id: rank4 },
+            ],
+          });
+          if (!result.ok) {
+            toast.error(result.error);
+            return;
+          }
+          await refetchRanks();
         }
-        const result = await saveVenatorSkillRanks({
-          gangId,
-          ranks: [
-            { rank: 1, skill_type_id: rank1 },
-            { rank: 2, skill_type_id: rank2 },
-            { rank: 3, skill_type_id: rank3 },
-            { rank: 4, skill_type_id: rank4 },
-          ],
-        });
-        if (!result.ok) {
-          toast.error(result.error);
-          return;
-        }
-        await refetchRanks();
       }
     }
 
