@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 
 const DEFAULT_WIDTH = 800;
 
@@ -52,21 +52,22 @@ function unsubscribeFromViewportResize() {
   }
 }
 
+function subscribe(listener: () => void) {
+  // Refresh the cached width on mount; existing subscribers get the update too
+  publishWidth();
+  listeners.add(listener);
+  subscribeToViewportResize();
+
+  return () => {
+    listeners.delete(listener);
+    unsubscribeFromViewportResize();
+  };
+}
+
 export function useViewportWidth() {
-  const [width, setWidth] = useState(DEFAULT_WIDTH);
-
-  useEffect(() => {
-    setWidth(window.innerWidth);
-    subscribeToViewportResize();
-
-    const listener = () => setWidth(viewportWidth);
-    listeners.add(listener);
-
-    return () => {
-      listeners.delete(listener);
-      unsubscribeFromViewportResize();
-    };
-  }, []);
-
-  return width;
+  return useSyncExternalStore(
+    subscribe,
+    () => viewportWidth,
+    () => DEFAULT_WIDTH,
+  );
 }
