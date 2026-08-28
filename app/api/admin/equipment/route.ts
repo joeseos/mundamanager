@@ -317,6 +317,7 @@ export async function GET(request: Request) {
       // Fetch all fighter types and which ones have this equipment
       let allFighterTypes: any[] = [];
       let fighterTypesWithEquipment: any[] = [];
+      let specialisationEquipment: any[] = [];
       
       try {
         // Fetch all fighter types
@@ -344,16 +345,43 @@ export async function GET(request: Request) {
           console.warn('Error fetching fighter types:', fighterTypesError);
         }
 
-        // Fetch fighter types that have this equipment
+        // Every row for this equipment, split by scope. The plain fighter-type grants are what
+        // the multi-select owns; specialisation-scoped rows are managed separately and must not
+        // be swept up by it.
         const { data: equipmentFighterTypes, error: equipmentFighterTypesError } = await supabase
           .from('fighter_type_equipment')
-          .select('fighter_type_id')
+          .select('id, fighter_type_id, vehicle_type_id, custom_fighter_type_id, gang_type_id, gang_origin_id, gang_variant_id, fighter_subtype, fighter_specialisation_id')
           .eq('equipment_id', id);
 
         if (equipmentFighterTypesError) {
           console.warn('Error fetching fighter types with equipment:', equipmentFighterTypesError);
         } else {
-          fighterTypesWithEquipment = equipmentFighterTypes || [];
+          const rows = equipmentFighterTypes || [];
+
+          fighterTypesWithEquipment = rows
+            .filter((r: any) => r.fighter_type_id && !r.gang_type_id && !r.gang_origin_id
+              && !r.gang_variant_id && !r.fighter_subtype && !r.fighter_specialisation_id)
+            .map((r: any) => ({ fighter_type_id: r.fighter_type_id }));
+
+          const scopedRows = rows.filter((r: any) => r.fighter_specialisation_id);
+          if (scopedRows.length > 0) {
+            const [{ data: gangTypeNames }, { data: specialisationNames }] = await Promise.all([
+              supabase.from('gang_types').select('gang_type_id, gang_type')
+                .in('gang_type_id', [...new Set(scopedRows.map((r: any) => r.gang_type_id).filter(Boolean))]),
+              supabase.from('fighter_specialisations').select('id, specialisation_name')
+                .in('id', [...new Set(scopedRows.map((r: any) => r.fighter_specialisation_id))]),
+            ]);
+            const gangTypeById = new Map((gangTypeNames || []).map((g: any) => [g.gang_type_id, g.gang_type]));
+            const specById = new Map((specialisationNames || []).map((sp: any) => [sp.id, sp.specialisation_name]));
+
+            specialisationEquipment = scopedRows.map((r: any) => ({
+              id: r.id,
+              gang_type_id: r.gang_type_id,
+              gang_type_name: gangTypeById.get(r.gang_type_id) ?? null,
+              fighter_specialisation_id: r.fighter_specialisation_id,
+              specialisation_name: specById.get(r.fighter_specialisation_id) ?? null,
+            }));
+          }
         }
       } catch (error) {
         console.warn('Error in fighter types fetch:', error);
@@ -388,6 +416,7 @@ export async function GET(request: Request) {
         weapon_profiles: weaponProfiles,
         all_fighter_types: allFighterTypes,
         fighter_types_with_equipment: fighterTypesWithEquipment,
+        fighter_specialisation_equipment: specialisationEquipment,
         all_equipment: allEquipment || [],
       });
 
@@ -618,6 +647,7 @@ export async function PATCH(request: Request) {
       is_consumable,
       weapon_profiles,
       fighter_types,
+      fighter_specialisation_equipment,
       gang_adjusted_costs,
       gang_origin_adjusted_costs,
       equipment_availabilities,
@@ -693,51 +723,64 @@ export async function PATCH(request: Request) {
       }
     }
 
-    // More robust fighter type association handling
+    // Plain fighter-type grants only. The delete MUST stay narrowed to the rows this modal owns --
+    // unqualified by scope it also destroys vehicle rows and specialisation-scoped ones.
     if (fighter_types !== undefined) {
-      
-      // First, get current associations to ensure we don't lose data
-      const { data: currentAssociations, error: fetchError } = await supabase
+      const { error: deleteError } = await supabase
         .from('fighter_type_equipment')
-        .select('fighter_type_id')
-        .eq('equipment_id', id);
-      
-      if (fetchError) {
-        console.error('Error fetching current fighter type associations:', fetchError);
-        // Continue with the operation even if this check fails
+        .delete()
+        .eq('equipment_id', id)
+        .not('fighter_type_id', 'is', null)
+        .is('vehicle_type_id', null)
+        .is('custom_fighter_type_id', null)
+        .is('gang_type_id', null)
+        .is('gang_origin_id', null)
+        .is('gang_variant_id', null)
+        .is('fighter_subtype', null)
+        .is('fighter_specialisation_id', null);
+
+      if (deleteError) throw deleteError;
+
+      if (fighter_types.length > 0) {
+        const { error: insertError } = await supabase
+          .from('fighter_type_equipment')
+          .insert(
+            fighter_types.map((fighter_type_id: string) => ({
+              fighter_type_id,
+              equipment_id: id,
+              updated_at: new Date().toISOString()
+            }))
+          );
+
+        if (insertError) throw insertError;
       }
-      
-      // Only proceed with deleting & updating if:
-      // 1. We successfully fetched the current associations
-      // 2. The new list is different from the current list
-      if (currentAssociations) {
-        const currentIds = currentAssociations.map(a => a.fighter_type_id);
-        const hasChanges = JSON.stringify(currentIds.sort()) !== JSON.stringify([...fighter_types].sort());
-        
-        if (hasChanges) {
-          // Delete existing associations
-          const { error: deleteError } = await supabase
-            .from('fighter_type_equipment')
-            .delete()
-            .eq('equipment_id', id);
-          
-          if (deleteError) throw deleteError;
-          
-          // Insert new associations if there are any
-          if (fighter_types.length > 0) {
-            const { error: insertError } = await supabase
-              .from('fighter_type_equipment')
-              .insert(
-                fighter_types.map((fighter_type_id: string) => ({
-                  fighter_type_id,
-                  equipment_id: id,
-                  updated_at: new Date().toISOString()
-                }))
-              );
-            
-            if (insertError) throw insertError;
-          }
-        }
+    }
+
+    // Specialisation-scoped grants carry no fighter type, so they follow the fighter through a
+    // promotion that changes it.
+    if (fighter_specialisation_equipment !== undefined) {
+      const { error: deleteError } = await supabase
+        .from('fighter_type_equipment')
+        .delete()
+        .eq('equipment_id', id)
+        .not('fighter_specialisation_id', 'is', null);
+
+      if (deleteError) throw deleteError;
+
+      if (fighter_specialisation_equipment.length > 0) {
+        const { error: insertError } = await supabase
+          .from('fighter_type_equipment')
+          .insert(
+            fighter_specialisation_equipment.map((row: { gang_type_id: string; fighter_specialisation_id: string }) => ({
+              equipment_id: id,
+              fighter_type_id: null,
+              gang_type_id: row.gang_type_id,
+              fighter_specialisation_id: row.fighter_specialisation_id,
+              updated_at: new Date().toISOString()
+            }))
+          );
+
+        if (insertError) throw insertError;
       }
     }
 
