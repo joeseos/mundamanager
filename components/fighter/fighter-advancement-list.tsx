@@ -66,6 +66,7 @@ interface AdvancementModalProps {
   userPermissions?: UserPermissions;
   gangId?: string;
   gangType?: string | null;
+  hasGangRanks?: boolean;
   gangTypeId?: string;
   customGangTypeId?: string;
   fighterSpecialRules?: string[];
@@ -197,6 +198,7 @@ interface AdvancementsListProps {
   onCharacteristicUpdate?: (characteristicName: string, changeAmount: number) => void;
   gangId?: string;
   gangType?: string | null;
+  hasGangRanks?: boolean;
   gangTypeId?: string;
   customGangTypeId?: string;
   fighterSpecialRules?: string[];
@@ -495,6 +497,7 @@ export function AdvancementModal({
   userPermissions,
   gangId = '',
   gangType,
+  hasGangRanks,
   gangTypeId = '',
   customGangTypeId = '',
   fighterSpecialRules = [],
@@ -2811,7 +2814,7 @@ export function AdvancementModal({
                     <p className="text-sm text-amber-500">
                       {(() => {
                         const isVenator = isVenatorGang(editionSlug, gangType);
-                        return isVenator
+                        return isVenator && !hasGangRanks
                           ? "Your gang hasn't ranked its Skill Sets yet. Set them in Edit Gang → Skill Access."
                           : "This Skill Set is not accessible to this fighter. Change their Skill Set access in: Edit Fighter &gt; Customise Skill Set Access.";
                       })()}
@@ -2972,6 +2975,7 @@ export function AdvancementsList({
   onCharacteristicUpdate,
   gangId = '',
   gangType,
+  hasGangRanks,
   gangTypeId = '',
   customGangTypeId = '',
   fighterSpecialRules = [],
@@ -3517,6 +3521,7 @@ export function AdvancementsList({
           userPermissions={userPermissions}
           gangId={gangId}
           gangType={gangType}
+          hasGangRanks={hasGangRanks}
           gangTypeId={gangTypeId}
           customGangTypeId={customGangTypeId}
           fighterSpecialRules={fighterSpecialRules}

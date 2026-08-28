@@ -57,6 +57,7 @@ interface SkillsListProps {
   userPermissions: UserPermissions;
   gangCredits?: number;
   gangType?: string | null;
+  hasGangRanks?: boolean;
   editionSlug?: string | null;
   /** Used to detect N26 Prospect / Ganger→Champion keep-type skill grants on delete. */
   fighterSpecialisationId?: string | null;
@@ -84,6 +85,7 @@ interface SkillModalProps {
   userId: string;
   gangCredits?: number;
   gangType?: string | null;
+  hasGangRanks?: boolean;
   editionSlug?: string | null;
   onClose: () => void;
   onSkillAdded: (skillId: string, skillName: string, creditsIncrease: number, isAdvance: boolean) => void;
@@ -121,7 +123,7 @@ interface SkillAccess {
 }
 
 // SkillModal Component
-export function SkillModal({ fighterId, userId, gangCredits, gangType, editionSlug, onClose, onSkillAdded, onSkillRollback, isSubmitting, onSelectSkill, onGangCreditsUpdate }: SkillModalProps) {
+export function SkillModal({ fighterId, userId, gangCredits, gangType, hasGangRanks, editionSlug, onClose, onSkillAdded, onSkillRollback, isSubmitting, onSelectSkill, onGangCreditsUpdate }: SkillModalProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [skillsData, setSkillsData] = useState<SkillResponse | null>(null);
@@ -428,7 +430,7 @@ export function SkillModal({ fighterId, userId, gangCredits, gangType, editionSl
           <p className="text-sm text-amber-500">
             {(() => {
               const isVenator = isVenatorGang(editionSlug, gangType);
-              return isVenator
+              return isVenator && !hasGangRanks
                 ? "Your gang hasn't ranked its Skill Sets yet. Set them in Edit Gang → Skill Access."
                 : "This Skill Set is not accessible to this fighter. Change their Skill Set access in: Edit Fighter &gt; Customise Skill Set Access.";
             })()}
@@ -500,6 +502,7 @@ export function SkillsList({
   userPermissions,
   gangCredits,
   gangType,
+  hasGangRanks,
   editionSlug,
   fighterSpecialisationId = null,
   fighterSpecialisationName = null,
@@ -917,6 +920,7 @@ export function SkillsList({
           userId={userPermissions.userId}
           gangCredits={gangCredits}
           gangType={gangType}
+          hasGangRanks={hasGangRanks}
           editionSlug={editionSlug}
           onClose={() => setIsAddSkillModalOpen(false)}
           onSkillAdded={handleSkillAdded}

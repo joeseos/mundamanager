@@ -151,6 +151,7 @@ interface Gang {
   gang_type?: string | null;
   gang_type_id?: string | null;
   custom_gang_type_id?: string | null;
+  has_gang_ranks?: boolean;
   gang_affiliation_id?: string | null;
   gang_affiliation_name?: string;
   rating?: number;
@@ -368,6 +369,7 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
       gang_type: fighterData.gang.gang_type,
       gang_type_id: fighterData.gang.gang_type_id,
       custom_gang_type_id: fighterData.gang.custom_gang_type_id,
+      has_gang_ranks: fighterData.gang.has_gang_ranks,
       gang_affiliation_id: fighterData.gang.gang_affiliation_id,
       gang_affiliation_name: fighterData.gang.gang_affiliation_name,
       positioning: fighterData.gang.positioning
@@ -868,6 +870,7 @@ export default function FighterPage({
             userPermissions={userPermissions}
             gangCredits={fighterData.gang?.credits}
             gangType={fighterData.gang?.gang_type}
+            hasGangRanks={fighterData.gang?.has_gang_ranks}
             editionSlug={editionSlug}
             fighterSpecialisationId={fighterData.fighter?.fighter_specialisation?.fighter_specialisation_id || null}
             fighterSpecialisationName={fighterData.fighter?.fighter_specialisation?.fighter_specialisation || null}
@@ -946,6 +949,7 @@ export default function FighterPage({
             userPermissions={userPermissions}
             gangId={fighterData.gang?.id || ''}
             gangType={fighterData.gang?.gang_type}
+            hasGangRanks={fighterData.gang?.has_gang_ranks}
             gangTypeId={fighterData.fighter?.fighter_type?.gang_type_id || ''}
             customGangTypeId={fighterData.fighter?.fighter_type?.custom_gang_type_id || ''}
             fighterSpecialRules={fighterData.fighter?.special_rules || []}

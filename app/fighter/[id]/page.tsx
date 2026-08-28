@@ -43,13 +43,19 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     // The fighter's data comes from the SAME cache entries the gang page uses
     // (core + fighters bundle + campaigns bundle) — usually warm after any
     // gang page visit.
-    const [gangBasic, gangPositioning, bundle, gangCampaigns, gangFighters] = await Promise.all([
+    const [gangBasic, gangPositioning, bundle, gangCampaigns, gangFighters, gangRanksProbe] = await Promise.all([
       getGangCore(fighterBasic.gang_id, supabase),
       getGangPositioning(fighterBasic.gang_id, supabase),
       getGangFightersBundle(fighterBasic.gang_id, supabase),
       getGangCampaigns(fighterBasic.gang_id, supabase),
-      getGangFighters(fighterBasic.gang_id, supabase)
+      getGangFighters(fighterBasic.gang_id, supabase),
+      supabase
+        .from('gang_skill_set_ranks')
+        .select('rank')
+        .eq('gang_id', fighterBasic.gang_id)
+        .limit(1),
     ]);
+    const hasGangRanks = (gangRanksProbe.data ?? []).length > 0;
 
     // Check if gang exists (shouldn't happen but handle gracefully)
     if (!gangBasic) {
@@ -253,6 +259,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         gang_type: gangBasic.gang_type,
         gang_type_id: gangBasic.gang_type_id,
         custom_gang_type_id: gangBasic.custom_gang_type_id,
+        has_gang_ranks: hasGangRanks,
         gang_affiliation_id: gangBasic.gang_affiliation_id,
         gang_affiliation_name: gangBasic.gang_affiliation?.name,
         positioning: gangPositioning,
