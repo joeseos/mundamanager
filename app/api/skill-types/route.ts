@@ -1,7 +1,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { getUserIdFromClaims } from "@/utils/auth";
-import { getEditionIdBySlug } from '@/app/lib/editions';
+import { getEditionIdBySlug } from '@/utils/editions';
 import { EDITION_N23, gangEditionSlug } from '@/types/edition';
 
 export async function GET(request: Request) {
