@@ -10,8 +10,8 @@ import { HiX } from "react-icons/hi";
 import { toast } from 'sonner';
 import { applySpecialRulesModifiers, subtypeGrantsFromEffects } from '@/utils/effect-modifiers';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
-import { N26_PROSPECT_SPECIALISATIONS } from '@/utils/keepTypePromotionN26';
-import { allowsMultipleSubtypes, hasFighterSpecialisations } from '@/types/edition';
+import { N26_PROSPECT_SPECIALISATIONS, hasN26SpecialistSubtype } from '@/utils/keepTypePromotionN26';
+import { allowsMultipleSubtypes, hasFighterSpecialisations, namedTypeKeepsSubtypes, omitsNamedTypeSubtypeSuffix } from '@/types/edition';
 import {
   getArchetypeCatalogSubtype,
   isArchetypeEligible,
@@ -307,6 +307,12 @@ export function EditFighterModal({
     return new Set(add.map(id => nameFor.get(id)).filter((name): name is string => !!name));
   }, [fighter.effects, allFighterSubtypes]);
 
+  const hasSpecialistSubtype = hasN26SpecialistSubtype(selectedFighterSubtypes, allFighterSubtypes);
+  const canHaveSpecialisation =
+    hasFighterSpecialisations(fighter.edition_slug) &&
+    !isVehicleFighter &&
+    hasSpecialistSubtype;
+
   // Subtypes not yet selected — for the N26 add Combobox
   const availableSubtypeComboboxOptions = useMemo(() => {
     const selected = new Set(selectedFighterSubtypes);
@@ -427,7 +433,9 @@ export function EditFighterModal({
         return a.cost - b.cost;
       })
       .map(({ fighter: ft }) => {
-        const displayName = `${ft.fighter_type} (${ft.fighter_subtypes.join(', ')})`;
+        const displayName = omitsNamedTypeSubtypeSuffix(fighter.edition_slug)
+          ? ft.fighter_type
+          : `${ft.fighter_type} (${ft.fighter_subtypes.join(', ')})`;
         const gangVariantSuffix = (ft as any).is_gang_variant ? ` - ${(ft as any).gang_variant_name}` : '';
         return {
           value: ft.id,
@@ -562,12 +570,14 @@ export function EditFighterModal({
                 fighterTypes.find(ft => ft.id === submit.fighter_type_id)?.fighter_variant ?? null,
             }
           : {}),
-        ...(submit.fighter_specialisation && submit.fighter_specialisation_id
+        ...(submit.fighter_specialisation_id !== undefined
           ? {
-              fighter_specialisation: {
-                fighter_specialisation: submit.fighter_specialisation,
-                fighter_specialisation_id: submit.fighter_specialisation_id,
-              } as any,
+              fighter_specialisation: submit.fighter_specialisation_id
+                ? {
+                    fighter_specialisation: submit.fighter_specialisation ?? '',
+                    fighter_specialisation_id: submit.fighter_specialisation_id,
+                  }
+                : null,
             }
           : {}),
         ...(submit.fighter_gang_legacy_id !== undefined
@@ -624,7 +634,9 @@ export function EditFighterModal({
       (fighter.fighter_type as any)?.fighter_type_id || (fighter as any).fighter_type_id || '';
     setSelectedFighterTypeId(initialFighterTypeId);
     setSelectedVariantTypeId(initialFighterTypeId);
-    setSelectedFighterSpecialisationId(fighter.fighter_specialisation?.fighter_specialisation_id || '');
+    setSelectedFighterSpecialisationId(
+      fighter.fighter_specialisation?.fighter_specialisation_id || ''
+    );
     setSelectedGangLegacyId((fighter as any).fighter_gang_legacy_id || '');
     setSelectedArchetypeId(fighter.selected_archetype_id || '');
     setHasExplicitlySelectedType(false);
@@ -710,18 +722,22 @@ export function EditFighterModal({
     const selectedType = fighterTypes.find((ft: any) => ft.id === fighterTypeId);
 
     if (selectedType) {
+      const keepSubtypes = namedTypeKeepsSubtypes(fighter.edition_slug);
+
       // Update form values with selected type
       setFormValues(prev => ({
         ...prev,
         fighter_type: selectedType.fighter_type,
-        fighter_subtypes: selectedType.fighter_subtypes
+        ...(keepSubtypes ? {} : { fighter_subtypes: selectedType.fighter_subtypes }),
       }));
-      const typeSubtypes = selectedType.fighter_subtypes ?? [];
-      setSelectedFighterSubtypes(
-        allowMultipleSubtypes ? typeSubtypes : typeSubtypes.slice(0, 1)
-      );
+      if (!keepSubtypes) {
+        const typeSubtypes = selectedType.fighter_subtypes ?? [];
+        setSelectedFighterSubtypes(
+          allowMultipleSubtypes ? typeSubtypes : typeSubtypes.slice(0, 1)
+        );
+        setSelectedArchetypeId('');
+      }
       setPendingSubtypeToAdd('');
-      setSelectedArchetypeId('');
 
       // Update available legacies for the selected fighter type
       const nextLegacies = selectedType.available_legacies || [];
@@ -744,8 +760,11 @@ export function EditFighterModal({
     setSelectedSpecialRuleOption('');
     setCustomSpecialRule('');
 
-    // A variant can carry subtypes the base row does not, so the selection follows the
-    // chosen row. Subtypes no row in the family owns were granted or hand-added; keep them.
+    // N26 keeps subtypes independent of named type and variant. N23 still follows
+    // the chosen row: a variant can carry subtypes the base row does not, while
+    // subtypes no row in the family owns were granted or hand-added and are kept.
+    if (namedTypeKeepsSubtypes(fighter.edition_slug)) return;
+
     const variantType = fighterTypes.find(ft => ft.id === specialisationId);
     if (!variantType) return;
 
@@ -926,7 +945,9 @@ export function EditFighterModal({
 
       // Only include fighter type fields if we're actually updating the fighter type
       if (shouldUpdateFighterType && fighterTypeToUse) {
-        submitData.fighter_subtypes = fighterTypeToUse.fighter_subtypes;
+        if (!namedTypeKeepsSubtypes(fighter.edition_slug)) {
+          submitData.fighter_subtypes = fighterTypeToUse.fighter_subtypes;
+        }
         submitData.fighter_type = fighterTypeToUse.fighter_type;
         if (fighterTypeToUse.is_custom_fighter) {
           // Custom type IDs live in custom_fighter_types, not fighter_types — must not write to fighter_type_id
@@ -949,17 +970,19 @@ export function EditFighterModal({
 
       // The server derives the specialisation from any submitted type row, so send the
       // fighter's own whenever the type moves as well — a retype must not rewrite it.
+      // Without Specialist, specialisation is not valid and must be cleared.
       if (
         hasFighterSpecialisations(fighter.edition_slug) &&
         !isVehicleFighter &&
         !submitData.custom_fighter_type_id
       ) {
         const currentSpecialisationId = fighter.fighter_specialisation?.fighter_specialisation_id || '';
-        if (selectedFighterSpecialisationId !== currentSpecialisationId || submitData.fighter_type_id) {
+        const nextSpecialisationId = canHaveSpecialisation ? selectedFighterSpecialisationId : '';
+        if (nextSpecialisationId !== currentSpecialisationId || submitData.fighter_type_id) {
           const specialisation = N26_PROSPECT_SPECIALISATIONS.find(
-            s => s.id === selectedFighterSpecialisationId
+            s => s.id === nextSpecialisationId
           );
-          submitData.fighter_specialisation_id = selectedFighterSpecialisationId || null;
+          submitData.fighter_specialisation_id = nextSpecialisationId || null;
           submitData.fighter_specialisation = specialisation?.name ?? null;
         }
       }
@@ -1004,13 +1027,13 @@ export function EditFighterModal({
   return (
     <>
       <Modal
-        title="Edit Fighter"
+        title={isVehicleFighter ? "Edit Vehicle" : "Edit Fighter"}
         content={
           <div className="space-y-4">
             {/* Fighter Name */}
             <div>
               <label htmlFor="name" className="block text-sm font-medium mb-1">
-                Fighter Name
+                Name
               </label>
               <Input
                 id="name"
@@ -1081,7 +1104,7 @@ export function EditFighterModal({
             {/* Fighter Type Dropdown */}
             <div>
               <label htmlFor="fighter_type_id" className="block text-sm font-medium mb-1">
-                Change Fighter Type
+                Named Type
               </label>
               <Combobox
                 id="fighter_type_id"
@@ -1096,8 +1119,12 @@ export function EditFighterModal({
                   Current: {typeof (fighter as any).fighter_type === 'object' 
                     ? (fighter as any).fighter_type.fighter_type 
                     : fighter.fighter_type}
-                  {` `}
-                  {`(${fighter.fighter_subtypes?.join(', ') || 'Unknown Subtype'})`}
+                  {!omitsNamedTypeSubtypeSuffix(fighter.edition_slug) && (
+                    <>
+                      {` `}
+                      {`(${fighter.fighter_subtypes?.join(', ') || 'Unknown Subtype'})`}
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -1122,34 +1149,10 @@ export function EditFighterModal({
               </div>
             )}
 
-            {/* Specialisation - the fighter's own, never its type's */}
-            {hasFighterSpecialisations(fighter.edition_slug) && !isVehicleFighter && (
-              <div>
-                <label htmlFor="fighter_specialisation_id" className="block text-sm font-medium mb-1">
-                  Fighter Specialisation
-                </label>
-                <Combobox
-                  id="fighter_specialisation_id"
-                  value={selectedFighterSpecialisationId}
-                  onValueChange={setSelectedFighterSpecialisationId}
-                  placeholder="None"
-                  clearable
-                  options={[
-                    { value: '', label: 'None' },
-                    ...N26_PROSPECT_SPECIALISATIONS.map(s => ({ value: s.id, label: s.name })),
-                  ]}
-                  dropdownPlacement="down"
-                />
-                <div className="mt-1 text-sm text-muted-foreground">
-                  Current: {fighter.fighter_specialisation?.fighter_specialisation || 'None'}
-                </div>
-              </div>
-            )}
-
             {/* Fighter Subtype — multi add/chips on N26, single Combobox on N23 */}
             <div>
               <label className="block text-sm font-medium mb-1">
-                Fighter Subtype
+                Subtypes
               </label>
               {allowMultipleSubtypes ? (
                 <>
@@ -1159,7 +1162,7 @@ export function EditFighterModal({
                         options={availableSubtypeComboboxOptions}
                         value={pendingSubtypeToAdd}
                         onValueChange={setPendingSubtypeToAdd}
-                        placeholder="Add a Fighter Subtype"
+                        placeholder="Add a Subtype"
                         dropdownPlacement="down"
                       />
                     </div>
@@ -1215,6 +1218,30 @@ export function EditFighterModal({
                 Current: {fighter.fighter_subtypes?.join(', ') || 'Unknown'}
               </div>
             </div>
+
+            {/* Specialisation - the fighter's own, never its type's */}
+            {canHaveSpecialisation && (
+              <div>
+                <label htmlFor="fighter_specialisation_id" className="block text-sm font-medium mb-1">
+                  Fighter Specialisation
+                </label>
+                <Combobox
+                  id="fighter_specialisation_id"
+                  value={selectedFighterSpecialisationId}
+                  onValueChange={setSelectedFighterSpecialisationId}
+                  placeholder="None"
+                  clearable
+                  options={[
+                    { value: '', label: 'None' },
+                    ...N26_PROSPECT_SPECIALISATIONS.map(s => ({ value: s.id, label: s.name })),
+                  ]}
+                  dropdownPlacement="down"
+                />
+                <div className="mt-1 text-sm text-muted-foreground">
+                  Current: {fighter.fighter_specialisation?.fighter_specialisation || 'None'}
+                </div>
+              </div>
+            )}
 
             {/* Gang Legacy Dropdown */}
             {availableLegacies.length > 0 && (
