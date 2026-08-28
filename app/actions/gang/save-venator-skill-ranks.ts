@@ -31,21 +31,11 @@ export async function saveVenatorSkillRanks(
   const supabase = await createClient();
   const user = await getAuthenticatedUser(supabase);
 
-  const { error: deleteErr } = await supabase
-    .from('gang_skill_set_ranks')
-    .delete()
-    .eq('gang_id', gangId);
-  if (deleteErr) return { ok: false, error: deleteErr.message };
-
-  const rows = ranks.map((r) => ({
-    gang_id: gangId,
-    rank: r.rank,
-    skill_type_id: r.skill_type_id,
-  }));
-  const { error: insertErr } = await supabase
-    .from('gang_skill_set_ranks')
-    .insert(rows);
-  if (insertErr) return { ok: false, error: insertErr.message };
+  const { error: rpcErr } = await supabase.rpc('save_gang_skill_set_ranks', {
+    p_gang_id: gangId,
+    p_ranks: ranks,
+  });
+  if (rpcErr) return { ok: false, error: rpcErr.message };
 
   try {
     await syncGang(gangId, supabase, user.id);
@@ -56,8 +46,6 @@ export async function saveVenatorSkillRanks(
     };
   }
 
-  // Invalidate every affected fighter's skill-access cache tag by revalidating
-  // the gang-level tag; individual fighter tags will refetch on next render.
   revalidateTag(TAGS.gang(gangId), { expire: 0 });
 
   return { ok: true };
