@@ -122,6 +122,7 @@ export interface UpdateFighterDetailsParams {
   custom_fighter_type_id?: string | null;
   fighter_specialisation?: string | null;
   fighter_specialisation_id?: string | null;
+  fighter_variant?: string | null;
   note?: string;
   note_backstory?: string;
   fighter_gang_legacy_id?: string | null;
@@ -1452,7 +1453,12 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
             .maybeSingle()
         : { data: null };
 
-      updateData.fighter_variant = typeRow?.fighter_variant ?? null;
+      // Adopt the new row's variant, but never clear one just because the type changed.
+      if (params.fighter_variant !== undefined) {
+        updateData.fighter_variant = params.fighter_variant;
+      } else if (typeRow?.fighter_variant) {
+        updateData.fighter_variant = typeRow.fighter_variant;
+      }
       if (params.fighter_specialisation_id === undefined) {
         updateData.fighter_specialisation_id = typeRow?.fighter_specialisation_id ?? null;
       }
