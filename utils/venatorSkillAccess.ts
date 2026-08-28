@@ -14,6 +14,31 @@
  * already uses.
  */
 
+import { hasVenatorSkillAccess } from '@/types/edition';
+
+/**
+ * Canonical `gang_type` string for Venator gangs as stored in prod.
+ * Centralised here so a single change fixes every check if prod diverges.
+ */
+export const VENATOR_GANG_TYPE_NAME = 'Venators';
+
+/**
+ * Returns true when both conditions hold:
+ *   1. The edition has Venator skill-access rules (`hasVenatorSkillAccess`).
+ *   2. The gang's `gang_type` string matches {@link VENATOR_GANG_TYPE_NAME}
+ *      (case-insensitive).
+ *
+ * Use this instead of inlining the `.toLowerCase() === 'venators'` check so
+ * that a prod string deviation only needs fixing in one place.
+ */
+export function isVenatorGang(
+  editionSlug: string | null | undefined,
+  gangType: string | null | undefined,
+): boolean {
+  return hasVenatorSkillAccess(editionSlug)
+    && (gangType ?? '').toLowerCase() === VENATOR_GANG_TYPE_NAME.toLowerCase();
+}
+
 export type VenatorSubtype = 'Leader' | 'Champion' | 'Specialist';
 
 export const VENATOR_RANK_ACCESS: Readonly<

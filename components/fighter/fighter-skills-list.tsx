@@ -10,7 +10,7 @@ import { List } from "@/components/ui/list";
 import { Combobox } from '@/components/ui/combobox';
 import { UserPermissions } from '@/types/user-permissions';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { hasVenatorSkillAccess } from '@/types/edition';
+import { isVenatorGang } from '@/utils/venatorSkillAccess';
 import { 
   addSkillAdvancement, 
   deleteAdvancement 
@@ -427,9 +427,8 @@ export function SkillModal({ fighterId, userId, gangCredits, gangType, editionSl
         {selectedSkillSetLacksAccess && (
           <p className="text-sm text-amber-500">
             {(() => {
-              const isVenatorGang = hasVenatorSkillAccess(editionSlug)
-                && (gangType ?? '').toLowerCase() === 'venators';
-              return isVenatorGang
+              const isVenator = isVenatorGang(editionSlug, gangType);
+              return isVenator
                 ? "Your gang hasn't ranked its Skill Sets yet. Set them in Edit Gang → Skill Access."
                 : "This Skill Set is not accessible to this fighter. Change their Skill Set access in: Edit Fighter &gt; Customise Skill Set Access.";
             })()}

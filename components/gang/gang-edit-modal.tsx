@@ -14,7 +14,8 @@ import { gangVariantRank } from "@/utils/gangVariantRank";
 import { useQuery } from '@tanstack/react-query';
 import { ResourceUpdate } from '@/types/gang';
 import { deleteGang } from '@/app/actions/delete-gang';
-import { hasAlignment, hasTradePoints, hasVenatorSkillAccess, sameEditionForDisplay } from '@/types/edition';
+import { hasAlignment, hasTradePoints, sameEditionForDisplay } from '@/types/edition';
+import { isVenatorGang } from '@/utils/venatorSkillAccess';
 import { saveVenatorSkillRanks } from '@/app/actions/gang/save-venator-skill-ranks';
 import { createClient } from '@/utils/supabase/client';
 
@@ -151,12 +152,11 @@ export default function GangEditModal({
   const effectiveAlignment = showAlignment ? alignment : '';
 
   // Venator skill access
-  const isVenatorGang = hasVenatorSkillAccess(editionSlug)
-    && (gangType ?? '').toLowerCase() === 'venators';
+  const isVenator = isVenatorGang(editionSlug, gangType);
 
   const { data: skillTypes = [] } = useQuery<Array<{ id: string; name: string }>>({
     queryKey: ['skill-types', editionSlug],
-    enabled: isVenatorGang && !!editionSlug,
+    enabled: isVenator && !!editionSlug,
     queryFn: async () => {
       const supabase = createClient();
       const { data, error } = await supabase
@@ -174,7 +174,7 @@ export default function GangEditModal({
     Array<{ rank: number; skill_type_id: string }>
   >({
     queryKey: ['gang-skill-set-ranks', gangId],
-    enabled: isVenatorGang,
+    enabled: isVenator,
     queryFn: async () => {
       const supabase = createClient();
       const { data, error } = await supabase
@@ -570,7 +570,7 @@ export default function GangEditModal({
     }
 
     // Venator skill access save
-    if (isVenatorGang) {
+    if (isVenator) {
       const filled = [rank1, rank2, rank3, rank4].filter(Boolean);
       const hadPreviousRanks = existingRanks.length > 0;
       if (filled.length !== 0 && filled.length !== 4) {
@@ -781,7 +781,7 @@ export default function GangEditModal({
       </div>
 
       {/* Venator Skill Access Section */}
-      {isVenatorGang && (
+      {isVenator && (
         <div className="space-y-2">
           <p className="text-sm font-medium">Skill Access</p>
           <p className="text-sm text-muted-foreground">
