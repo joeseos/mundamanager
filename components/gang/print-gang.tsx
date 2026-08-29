@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { GiAncientRuins } from "react-icons/gi";
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { decodeHtmlEntities, isHtmlEffectivelyEmpty } from "@/utils/htmlCleanUp";
-import { resolveGangImageUrl, type DefaultImageEntry } from "@/types/gang";
+import { resolveGangImageUrl, UNKNOWN_GANG_IMAGE_URL, type DefaultImageEntry } from "@/types/gang";
 
 const ROSTER_FIGHTER_NOTE_MAX_CHARS = 110;
 
@@ -43,6 +43,10 @@ function PrintGangPortrait({
             src={src}
             alt={name}
             className="object-cover w-full h-full rounded-full"
+            onError={(e) => {
+              console.error("Failed to load image:", e.currentTarget.src);
+              e.currentTarget.src = UNKNOWN_GANG_IMAGE_URL;
+            }}
           />
         ) : (
           <span className="bg-secondary text-foreground w-full h-full flex items-center justify-center text-xl font-semibold">
