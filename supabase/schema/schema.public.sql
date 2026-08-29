@@ -7406,6 +7406,13 @@ CREATE INDEX equipment_categories_edition_id_idx ON public.equipment_categories 
 
 
 --
+-- Name: equipment_discounts_fighter_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX equipment_discounts_fighter_type_id_idx ON public.equipment_discounts USING btree (fighter_type_id);
+
+
+--
 -- Name: equipment_discounts_gang_origin_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7459,6 +7466,13 @@ CREATE INDEX exotic_beasts_fighter_type_id_idx ON public.exotic_beasts USING btr
 --
 
 CREATE INDEX fighter_defaults_fighter_type_id_idx ON public.fighter_defaults USING btree (fighter_type_id);
+
+
+--
+-- Name: fighter_defaults_skill_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_defaults_skill_id_idx ON public.fighter_defaults USING btree (skill_id);
 
 
 --
@@ -7686,6 +7700,20 @@ CREATE UNIQUE INDEX fighter_type_equipment_fighter_scope_uidx ON public.fighter_
 
 
 --
+-- Name: fighter_type_equipment_fighter_subtype_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_type_equipment_fighter_subtype_idx ON public.fighter_type_equipment USING btree (fighter_subtype);
+
+
+--
+-- Name: fighter_type_equipment_gang_variant_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_type_equipment_gang_variant_id_idx ON public.fighter_type_equipment USING btree (gang_variant_id);
+
+
+--
 -- Name: fighter_types_cool_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7746,6 +7774,13 @@ CREATE INDEX fighter_types_intelligence_idx ON public.fighter_types USING btree 
 --
 
 CREATE INDEX fighter_types_is_spyrer_idx ON public.fighter_types USING btree (is_spyrer);
+
+
+--
+-- Name: fighter_types_is_vehicle_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_types_is_vehicle_idx ON public.fighter_types USING btree (is_vehicle);
 
 
 --
