@@ -30,11 +30,22 @@ export async function saveVenatorSkillRanks(
   const supabase = await createClient();
   const user = await getAuthenticatedUser(supabase);
 
-  const { error: rpcErr } = await supabase.rpc('save_gang_skill_set_ranks', {
-    p_gang_id: gangId,
-    p_ranks: ranks,
-  });
-  if (rpcErr) return { ok: false, error: rpcErr.message };
+  const { error: deleteErr } = await supabase
+    .from('gang_skill_set_ranks')
+    .delete()
+    .eq('gang_id', gangId);
+  if (deleteErr) return { ok: false, error: deleteErr.message };
+
+  const { error: insertErr } = await supabase
+    .from('gang_skill_set_ranks')
+    .insert(
+      ranks.map((r) => ({
+        gang_id: gangId,
+        rank: r.rank,
+        skill_type_id: r.skill_type_id,
+      })),
+    );
+  if (insertErr) return { ok: false, error: insertErr.message };
 
   try {
     await syncGang(gangId, supabase, user.id);

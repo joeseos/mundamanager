@@ -10,36 +10,47 @@ CREATE TABLE public.gang_skill_set_ranks (
 
 ALTER TABLE public.gang_skill_set_ranks ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Allow authenticated users to view gang_skill_set_ranks"
-    ON public.gang_skill_set_ranks FOR SELECT
+CREATE POLICY "Allow authenticated users to view gang skill set ranks"
+    ON public.gang_skill_set_ranks
+    FOR SELECT
     TO authenticated
     USING (true);
 
-CREATE POLICY "gang_skill_set_ranks insert: owner, admin, or arbitrator"
-    ON public.gang_skill_set_ranks FOR INSERT
+CREATE POLICY "Users can create skill set ranks for their gang"
+    ON public.gang_skill_set_ranks
+    FOR INSERT
     TO authenticated
     WITH CHECK (
-        EXISTS (SELECT 1 FROM public.gangs g WHERE g.id = gang_id AND g.user_id = auth.uid())
-        OR (SELECT private.is_admin())
-        OR EXISTS (
-            SELECT 1 FROM public.campaign_gangs cg
-            WHERE cg.gang_id = gang_skill_set_ranks.gang_id
-              AND cg.status = 'ACCEPTED'
-              AND private.is_arb(cg.campaign_id)
+        (SELECT private.is_admin())
+        OR gang_id IN (
+            SELECT g.id
+            FROM public.gangs g
+            WHERE g.user_id = (SELECT auth.uid())
+        )
+        OR gang_id IN (
+            SELECT cg.gang_id
+            FROM public.campaign_gangs cg
+            WHERE cg.status = 'ACCEPTED'
+              AND (SELECT private.is_arb(cg.campaign_id))
         )
     );
 
-CREATE POLICY "gang_skill_set_ranks delete: owner, admin, or arbitrator"
-    ON public.gang_skill_set_ranks FOR DELETE
+CREATE POLICY "Users can delete skill set ranks from their gang"
+    ON public.gang_skill_set_ranks
+    FOR DELETE
     TO authenticated
     USING (
-        EXISTS (SELECT 1 FROM public.gangs g WHERE g.id = gang_id AND g.user_id = auth.uid())
-        OR (SELECT private.is_admin())
-        OR EXISTS (
-            SELECT 1 FROM public.campaign_gangs cg
-            WHERE cg.gang_id = gang_skill_set_ranks.gang_id
-              AND cg.status = 'ACCEPTED'
-              AND private.is_arb(cg.campaign_id)
+        (SELECT private.is_admin())
+        OR gang_id IN (
+            SELECT g.id
+            FROM public.gangs g
+            WHERE g.user_id = (SELECT auth.uid())
+        )
+        OR gang_id IN (
+            SELECT cg.gang_id
+            FROM public.campaign_gangs cg
+            WHERE cg.status = 'ACCEPTED'
+              AND (SELECT private.is_arb(cg.campaign_id))
         )
     );
 
