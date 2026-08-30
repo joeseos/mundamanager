@@ -59,33 +59,14 @@ jobs:
             -m githubOrg="$GIT_ORG" \
             -m githubRepo="$GIT_REPO")
           echo "url=$url" >> "$GITHUB_OUTPUT"
-
-      # Keep the existing preview-test workflow, but serve the selected PR from
-      # the fixed Coolify test application instead of moving a Vercel alias.
-      # Every push to the labeled PR re-deploys its branch to test.mundamanager.com.
-      - name: Deploy preview-test branch to Coolify
+      # Point test.mundamanager.com at this deployment, but only for the one PR
+      # labeled `preview-test`. Every push to that PR re-points the domain, so it
+      # always serves the PR's latest changes; move the label to switch PRs.
+      - name: Point test domain at this deployment
         if: contains(github.event.pull_request.labels.*.name, 'preview-test')
-        env:
-          COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
-          COOLIFY_TEST_APP_UUID: ${{ secrets.COOLIFY_TEST_APP_UUID }}
-          GIT_REF: ${{ github.event.pull_request.head.ref }}
         run: |
-          set -euo pipefail
-
-          payload=$(jq -nc --arg branch "$GIT_REF" '{git_branch:$branch}')
-
-          curl --fail-with-body --silent --show-error \
-            -X PATCH \
-            -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "$payload" \
-            "https://coolify.mundamanager.com/api/v1/applications/$COOLIFY_TEST_APP_UUID"
-
-          curl --fail-with-body --silent --show-error \
-            -X POST \
-            -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
-            "https://coolify.mundamanager.com/api/v1/deploy?uuid=$COOLIFY_TEST_APP_UUID"
-
+          vercel alias set "${{ steps.deploy.outputs.url }}" test.mundamanager.com \
+            --token=${{ secrets.VERCEL_TOKEN }} --scope="$VERCEL_ORG_ID"
       - name: Comment preview URL on PR
         uses: actions/github-script@v7
         with:

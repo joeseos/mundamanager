@@ -12,7 +12,37 @@
  * (fighter_specialisations / fighter_defaults) if these ever drift.
  */
 
+import { hasFighterSpecialisations } from '@/types/edition';
+
 export const N26_PROSPECT_PROMOTION_CREDITS = 15;
+
+/** N26 fighter_subtypes row. Specialisation is only valid with this subtype. */
+export const N26_SPECIALIST_SUBTYPE_ID = '12d6cc2c-21ed-4b5a-b552-6c72d2e96042';
+export const N26_SPECIALIST_SUBTYPE_NAME = 'Specialist';
+
+export type N26SpecialistSubtypeCatalog = Array<{ id: string; subtype_name: string }>;
+
+function n26SpecialistSubtypeName(
+  catalog?: N26SpecialistSubtypeCatalog | null
+): string {
+  return catalog?.find(row => row.id === N26_SPECIALIST_SUBTYPE_ID)?.subtype_name
+    ?? N26_SPECIALIST_SUBTYPE_NAME;
+}
+
+export function hasN26SpecialistSubtype(
+  subtypes?: string[] | null,
+  catalog?: N26SpecialistSubtypeCatalog | null
+): boolean {
+  return (subtypes ?? []).includes(n26SpecialistSubtypeName(catalog));
+}
+
+/** True when this edition uses specialisations but the fighter is not a Specialist. */
+export function shouldClearSpecialisationForSubtypes(
+  editionSlug?: string | null,
+  subtypes?: string[] | null
+): boolean {
+  return hasFighterSpecialisations(editionSlug) && !hasN26SpecialistSubtype(subtypes);
+}
 
 /** Catalog ids for the eight houseless specialisations offered on Prospect promotion. */
 export const N26_PROSPECT_SPECIALISATIONS = [

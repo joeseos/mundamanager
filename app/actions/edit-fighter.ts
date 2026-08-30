@@ -11,8 +11,9 @@ import { logFighterAction } from './logs/fighter-logs';
 import { countsTowardRating, hasKilledStatusFlag } from '@/utils/fighter-status';
 import { updateGangFinancials, updateGangRatingSimple, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 import { insertFighterOoaRecords } from './fighter-ooa-records';
-import { allowsMultipleSubtypes } from '@/types/edition';
+import { allowsMultipleSubtypes, namedTypeKeepsSubtypes } from '@/types/edition';
 import { resolveFighterEditionSlug } from '@/utils/fighter-subtype-grants';
+import { shouldClearSpecialisationForSubtypes } from '@/utils/keepTypePromotionN26';
 import { assertArchetypeAssignable } from '@/utils/assertArchetypeAssignable';
 import { mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';
 import { syncFighter } from '@/utils/syncVenatorSkillOverrides';
@@ -123,6 +124,7 @@ export interface UpdateFighterDetailsParams {
   custom_fighter_type_id?: string | null;
   fighter_specialisation?: string | null;
   fighter_specialisation_id?: string | null;
+  fighter_variant?: string | null;
   note?: string;
   note_backstory?: string;
   fighter_gang_legacy_id?: string | null;
@@ -1444,7 +1446,12 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (params.fighter_specialisation_id !== undefined) updateData.fighter_specialisation_id = params.fighter_specialisation_id;
 
     // An explicit specialisation from the caller wins over the type row's.
+    // N26 named type does not own specialisation, so a retype must not copy it.
     if (params.fighter_type_id !== undefined || params.custom_fighter_type_id !== undefined) {
+      if (resolvedEditionSlug === undefined) {
+        resolvedEditionSlug = await resolveFighterEditionSlug(supabase, params.fighter_id);
+      }
+
       const { data: typeRow } = params.fighter_type_id
         ? await supabase
             .from('fighter_types')
@@ -1453,9 +1460,40 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
             .maybeSingle()
         : { data: null };
 
-      updateData.fighter_variant = typeRow?.fighter_variant ?? null;
-      if (params.fighter_specialisation_id === undefined) {
+      // Adopt the new row's variant, but never clear one just because the type changed.
+      if (params.fighter_variant !== undefined) {
+        updateData.fighter_variant = params.fighter_variant;
+      } else if (typeRow?.fighter_variant) {
+        updateData.fighter_variant = typeRow.fighter_variant;
+      }
+      if (
+        params.fighter_specialisation_id === undefined &&
+        !namedTypeKeepsSubtypes(resolvedEditionSlug)
+      ) {
         updateData.fighter_specialisation_id = typeRow?.fighter_specialisation_id ?? null;
+      }
+    }
+
+    // Specialisation is only valid with the Specialist subtype. Skip rename-only
+    // (and other unrelated) saves so we do not resolve edition or rewrite nulls
+    // unless this payload actually touches type, subtypes, or specialisation.
+    const touchesSpecialisationScope =
+      params.fighter_subtypes !== undefined ||
+      params.fighter_type !== undefined ||
+      params.fighter_type_id !== undefined ||
+      params.custom_fighter_type_id !== undefined ||
+      params.fighter_specialisation !== undefined ||
+      params.fighter_specialisation_id !== undefined;
+
+    if (touchesSpecialisationScope) {
+      if (resolvedEditionSlug === undefined) {
+        resolvedEditionSlug = await resolveFighterEditionSlug(supabase, params.fighter_id);
+      }
+      const effectiveSubtypes: string[] =
+        updateData.fighter_subtypes ?? fighter.fighter_subtypes ?? [];
+      if (shouldClearSpecialisationForSubtypes(resolvedEditionSlug, effectiveSubtypes)) {
+        updateData.fighter_specialisation = null;
+        updateData.fighter_specialisation_id = null;
       }
     }
     if (params.note !== undefined) updateData.note = params.note;
