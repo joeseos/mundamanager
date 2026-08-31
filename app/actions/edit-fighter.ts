@@ -1758,11 +1758,20 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       const syncGangJoin = fighter.gangs as { gang_type?: string | null } | null;
       const gangEditionForSync = gangEditionSlug(syncGangJoin);
       if (isVenatorGang(gangEditionForSync, syncGangJoin?.gang_type)) {
+        const effectiveSubtypes: string[] = Array.isArray(updateData.fighter_subtypes)
+          ? updateData.fighter_subtypes
+          : Array.isArray(fighter.fighter_subtypes)
+            ? fighter.fighter_subtypes
+            : [];
         try {
           await syncFighter(
-            params.fighter_id,
-            syncGangJoin?.gang_type,
-            gangEditionForSync,
+            {
+              fighterId: params.fighter_id,
+              gangId: fighter.gang_id,
+              gangType: syncGangJoin?.gang_type,
+              editionSlug: gangEditionForSync,
+              subtypes: effectiveSubtypes,
+            },
             supabase,
             user.id,
           );

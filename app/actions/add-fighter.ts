@@ -1214,7 +1214,19 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     const gangEditionForSync = gangEditionSlug(gangData);
     if (isVenatorGang(gangEditionForSync, gangData.gang_type)) {
       try {
-        await syncFighter(fighterId, gangData.gang_type, gangEditionForSync, supabase, user.id);
+        await syncFighter(
+          {
+            fighterId,
+            gangId: params.gang_id,
+            gangType: gangData.gang_type,
+            editionSlug: gangEditionForSync,
+            subtypes: Array.isArray(insertedFighter.fighter_subtypes)
+              ? insertedFighter.fighter_subtypes
+              : [],
+          },
+          supabase,
+          user.id,
+        );
       } catch (err) {
         console.error('syncFighter failed after add-fighter', err);
       }

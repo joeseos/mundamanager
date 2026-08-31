@@ -402,7 +402,19 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
     const gangEditionForSync = gangEditionSlug(gang);
     if (isVenatorGang(gangEditionForSync, gang.gang_type)) {
       try {
-        await syncFighter(newFighterId, gang.gang_type, gangEditionForSync, supabase, user.id);
+        await syncFighter(
+          {
+            fighterId: newFighterId,
+            gangId: params.target_gang_id,
+            gangType: gang.gang_type,
+            editionSlug: gangEditionForSync,
+            subtypes: Array.isArray(fighterData.fighter_subtypes)
+              ? fighterData.fighter_subtypes
+              : [],
+          },
+          supabase,
+          user.id,
+        );
       } catch (err) {
         console.error('syncFighter failed after copy-fighter', err);
       }

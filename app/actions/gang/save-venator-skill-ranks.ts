@@ -48,18 +48,26 @@ export async function saveVenatorSkillRanks(
     return { ok: false, error: 'This gang cannot rank Skill Sets.' };
   }
 
+  const FAILED_TO_SAVE = "Failed to save your gang's Skill Set ranks. Please try again.";
+
   const { data: previousRanks, error: previousRanksErr } = await supabase
     .from('gang_skill_set_ranks')
     .select('skill_type_id')
     .eq('gang_id', gangId);
-  if (previousRanksErr) return { ok: false, error: previousRanksErr.message };
+  if (previousRanksErr) {
+    console.error('saveVenatorSkillRanks: previous-ranks read failed', previousRanksErr);
+    return { ok: false, error: FAILED_TO_SAVE };
+  }
   const previouslyOwnedSkillTypeIds = (previousRanks ?? []).map((r) => r.skill_type_id as string);
 
   const { error: deleteErr } = await supabase
     .from('gang_skill_set_ranks')
     .delete()
     .eq('gang_id', gangId);
-  if (deleteErr) return { ok: false, error: deleteErr.message };
+  if (deleteErr) {
+    console.error('saveVenatorSkillRanks: rank delete failed', deleteErr);
+    return { ok: false, error: FAILED_TO_SAVE };
+  }
 
   if (ranks.length > 0) {
     const { error: insertErr } = await supabase
@@ -71,7 +79,10 @@ export async function saveVenatorSkillRanks(
           skill_type_id: r.skill_type_id,
         })),
       );
-    if (insertErr) return { ok: false, error: insertErr.message };
+    if (insertErr) {
+      console.error('saveVenatorSkillRanks: rank insert failed', insertErr);
+      return { ok: false, error: FAILED_TO_SAVE };
+    }
   }
 
   try {
@@ -84,10 +95,8 @@ export async function saveVenatorSkillRanks(
       previouslyOwnedSkillTypeIds,
     );
   } catch (err) {
-    return {
-      ok: false,
-      error: err instanceof Error ? err.message : 'Failed to sync fighter overrides.',
-    };
+    console.error('saveVenatorSkillRanks: syncGang failed', err);
+    return { ok: false, error: FAILED_TO_SAVE };
   }
 
   invalidateGang(gangId);

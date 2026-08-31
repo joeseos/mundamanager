@@ -42,30 +42,28 @@ async function rewriteFighterOverrides(
   if (insertErr) throw insertErr;
 }
 
+export interface SyncFighterInput {
+  fighterId: string;
+  gangId: string;
+  gangType: string | null | undefined;
+  editionSlug: string | null | undefined;
+  subtypes: readonly string[];
+}
+
 export async function syncFighter(
-  fighterId: string,
-  gangType: string | null | undefined,
-  editionSlug: string | null | undefined,
+  input: SyncFighterInput,
   supabase: SupabaseClient,
   actingUserId: string,
 ): Promise<void> {
-  if (!isVenatorGang(editionSlug, gangType)) return;
+  if (!isVenatorGang(input.editionSlug, input.gangType)) return;
 
-  const { data: fighter, error: fighterErr } = await supabase
-    .from('fighters')
-    .select('gang_id, fighter_subtypes')
-    .eq('id', fighterId)
-    .single();
-  if (fighterErr) throw fighterErr;
-
-  const ranks = await readGangRanks(fighter.gang_id, supabase);
+  const ranks = await readGangRanks(input.gangId, supabase);
   if (ranks.length === 0) return;
 
-  const subtypes: string[] = Array.isArray(fighter.fighter_subtypes) ? fighter.fighter_subtypes : [];
-  const overrides = deriveOverrides(ranks, subtypes);
+  const overrides = deriveOverrides(ranks, input.subtypes);
   const ownedSkillTypeIds = ranks.map((r) => r.skill_type_id);
 
-  await rewriteFighterOverrides(fighterId, supabase, actingUserId, ownedSkillTypeIds, overrides);
+  await rewriteFighterOverrides(input.fighterId, supabase, actingUserId, ownedSkillTypeIds, overrides);
 }
 
 export async function syncGang(
