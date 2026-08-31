@@ -148,8 +148,10 @@ interface Gang {
   trade_points?: number;
   edition_slug?: string | null;
   positioning?: Record<number, string>;
+  gang_type?: string | null;
   gang_type_id?: string | null;
   custom_gang_type_id?: string | null;
+  venator_no_ranks?: boolean;
   gang_affiliation_id?: string | null;
   gang_affiliation_name?: string;
   rating?: number;
@@ -364,8 +366,10 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
       reputation: fighterData.gang.reputation,
       trade_points: fighterData.gang.trade_points,
       edition_slug: fighterData.gang.edition_slug,
+      gang_type: fighterData.gang.gang_type,
       gang_type_id: fighterData.gang.gang_type_id,
       custom_gang_type_id: fighterData.gang.custom_gang_type_id,
+      venator_no_ranks: fighterData.gang.venator_no_ranks,
       gang_affiliation_id: fighterData.gang.gang_affiliation_id,
       gang_affiliation_name: fighterData.gang.gang_affiliation_name,
       positioning: fighterData.gang.positioning
@@ -865,6 +869,7 @@ export default function FighterPage({
             free_skill={fighterData.fighter?.free_skill}
             userPermissions={userPermissions}
             gangCredits={fighterData.gang?.credits}
+            venatorNoRanks={fighterData.gang?.venator_no_ranks}
             editionSlug={editionSlug}
             fighterSpecialisationId={fighterData.fighter?.fighter_specialisation?.fighter_specialisation_id || null}
             fighterSpecialisationName={fighterData.fighter?.fighter_specialisation?.fighter_specialisation || null}
@@ -942,6 +947,7 @@ export default function FighterPage({
             skills={fighterData.fighter?.skills || {}}
             userPermissions={userPermissions}
             gangId={fighterData.gang?.id || ''}
+            venatorNoRanks={fighterData.gang?.venator_no_ranks}
             gangTypeId={fighterData.fighter?.fighter_type?.gang_type_id || ''}
             customGangTypeId={fighterData.fighter?.fighter_type?.custom_gang_type_id || ''}
             fighterSpecialRules={fighterData.fighter?.special_rules || []}

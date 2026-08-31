@@ -211,6 +211,7 @@ const EDITION_CAPABILITIES = {
   championLeaderTypePromotion: { n23: false, n26: true },
   /** The battle's scenario is rolled for on a D6 against the edition's numbered scenarios. */
   scenarioD6Roll: { n23: false, n26: true },
+  venatorSkillAccess:       { n23: false, n26: true  },
 } as const satisfies Record<string, Record<EditionSlug, unknown>>;
 
 type EditionCapability = keyof typeof EDITION_CAPABILITIES;
@@ -357,6 +358,9 @@ export const hasChampionLeaderTypePromotion = (
 
 export const hasScenarioD6Roll = (editionSlug?: string | null): boolean =>
   can('scenarioD6Roll', editionSlug);
+
+export const hasVenatorSkillAccess = (editionSlug: string | null | undefined): boolean =>
+  can('venatorSkillAccess', editionSlug);
 
 export interface Edition {
   id: string;

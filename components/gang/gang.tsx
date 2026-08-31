@@ -1270,6 +1270,8 @@ export default function Gang({
             availableVariants={availableVariants}
             gangAffiliationId={gangAffiliationId}
             gangAffiliationName={gangAffiliationName}
+            gangType={gang_type}
+            customGangTypeId={custom_gang_type_id}
             gangTypeHasAffiliation={gang_type_has_affiliation}
             gangOriginId={gangOriginId}
             gangOriginName={gangOriginName}

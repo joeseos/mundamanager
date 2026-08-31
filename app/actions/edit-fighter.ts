@@ -16,6 +16,9 @@ import { resolveFighterEditionSlug } from '@/utils/fighter-subtype-grants';
 import { shouldClearSpecialisationForSubtypes } from '@/utils/keepTypePromotionN26';
 import { assertArchetypeAssignable } from '@/utils/assertArchetypeAssignable';
 import { mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';
+import { syncFighter } from '@/utils/syncVenatorSkillOverrides';
+import { isVenatorGang } from '@/utils/venatorSkillAccess';
+import { gangEditionSlug } from '@/types/edition';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -1774,6 +1777,48 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       }
     } catch (logError) {
       console.error('Failed to log fighter details changes:', logError);
+    }
+
+    const archetypeTouchedOverrides = clearedArchetype || Boolean(archetypeIdForOverrides);
+    if (params.fighter_subtypes !== undefined || archetypeTouchedOverrides) {
+      const { data: syncGangRow } = await supabase
+        .from('gangs')
+        .select(`
+          gang_type,
+          custom_gang_type_id,
+          gang_types!gang_type_id ( editions:edition_id ( slug ) ),
+          custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
+        `)
+        .eq('id', fighter.gang_id)
+        .single();
+      const gangEditionForSync = gangEditionSlug(syncGangRow);
+      if (syncGangRow && isVenatorGang(
+        gangEditionForSync,
+        syncGangRow.gang_type,
+        Boolean(syncGangRow.custom_gang_type_id),
+      )) {
+        const effectiveSubtypes: string[] = Array.isArray(updateData.fighter_subtypes)
+          ? updateData.fighter_subtypes
+          : Array.isArray(fighter.fighter_subtypes)
+            ? fighter.fighter_subtypes
+            : [];
+        try {
+          await syncFighter(
+            {
+              fighterId: params.fighter_id,
+              gangId: fighter.gang_id,
+              gangType: syncGangRow.gang_type,
+              editionSlug: gangEditionForSync,
+              isCustomGangType: Boolean(syncGangRow.custom_gang_type_id),
+              subtypes: effectiveSubtypes,
+            },
+            supabase,
+            user.id,
+          );
+        } catch (err) {
+          console.error('syncFighter failed after edit-fighter', err);
+        }
+      }
     }
 
     // Invalidate cache (already handles BASE_FIGHTER_BASIC and COMPOSITE_GANG_FIGHTERS_LIST)

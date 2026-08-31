@@ -41,6 +41,7 @@ import {
   type N26AdvancementEntry
 } from '@/utils/dice';
 import { hasCumulativeXp } from '@/types/edition';
+import { skillAccessDeniedMessage } from '@/utils/venatorSkillAccess';
 import {
   N26_CHAMPION_PROMOTION_SKILL_NAME,
   N26_PROSPECT_PROMOTION_CREDITS,
@@ -64,6 +65,7 @@ interface AdvancementModalProps {
   onCharacteristicUpdate?: (characteristicName: string, changeAmount: number) => void;
   userPermissions?: UserPermissions;
   gangId?: string;
+  venatorNoRanks?: boolean;
   gangTypeId?: string;
   customGangTypeId?: string;
   fighterSpecialRules?: string[];
@@ -194,6 +196,7 @@ interface AdvancementsListProps {
   onXpCreditsUpdate?: (xpChange: number, creditsChange: number) => void;
   onCharacteristicUpdate?: (characteristicName: string, changeAmount: number) => void;
   gangId?: string;
+  venatorNoRanks?: boolean;
   gangTypeId?: string;
   customGangTypeId?: string;
   fighterSpecialRules?: string[];
@@ -491,6 +494,7 @@ export function AdvancementModal({
   onCharacteristicUpdate,
   userPermissions,
   gangId = '',
+  venatorNoRanks,
   gangTypeId = '',
   customGangTypeId = '',
   fighterSpecialRules = [],
@@ -2805,8 +2809,7 @@ export function AdvancementModal({
                   />
                   {selectedCategory && selectedSkillSetLacksAccess && (
                     <p className="text-sm text-amber-500">
-                      This Skill Set is not accessible to this fighter. Change their Skill Set
-                      access in: Edit Fighter &gt; Customise Skill Set Access.
+                      {skillAccessDeniedMessage(!!venatorNoRanks)}
                     </p>
                   )}
                 </div>
@@ -2963,6 +2966,7 @@ export function AdvancementsList({
   onXpCreditsUpdate,
   onCharacteristicUpdate,
   gangId = '',
+  venatorNoRanks,
   gangTypeId = '',
   customGangTypeId = '',
   fighterSpecialRules = [],
@@ -3507,6 +3511,7 @@ export function AdvancementsList({
           onCharacteristicUpdate={onCharacteristicUpdate}
           userPermissions={userPermissions}
           gangId={gangId}
+          venatorNoRanks={venatorNoRanks}
           gangTypeId={gangTypeId}
           customGangTypeId={customGangTypeId}
           fighterSpecialRules={fighterSpecialRules}

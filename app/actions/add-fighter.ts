@@ -3,6 +3,7 @@
 import { invalidateFighter } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
+import { syncFighter } from '@/utils/syncVenatorSkillOverrides';
 
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
@@ -12,6 +13,7 @@ import { logFighterAction } from '@/app/actions/logs/fighter-logs';
 import { mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';
 import { assertArchetypeAssignable } from '@/utils/assertArchetypeAssignable';
 import { editionSlugFromJoin, gangEditionSlug, type EditionJoin } from '@/types/edition';
+import { isVenatorGang } from '@/utils/venatorSkillAccess';
 import { shouldClearSpecialisationForSubtypes } from '@/utils/keepTypePromotionN26';
 
 interface SelectedEquipment {
@@ -389,7 +391,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       supabase
         .from('gangs')
         .select(`
-          id, credits, user_id, gang_type_id,
+          id, credits, user_id, gang_type, gang_type_id, custom_gang_type_id,
           gang_types!gang_type_id ( editions:edition_id ( slug ) ),
           custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
         `)
@@ -1212,6 +1214,28 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       });
     } catch (logError) {
       console.error('Failed to log fighter addition:', logError);
+    }
+
+    const gangEditionForSync = gangEditionSlug(gangData);
+    if (isVenatorGang(gangEditionForSync, gangData.gang_type, Boolean(gangData.custom_gang_type_id))) {
+      try {
+        await syncFighter(
+          {
+            fighterId,
+            gangId: params.gang_id,
+            gangType: gangData.gang_type,
+            editionSlug: gangEditionForSync,
+            isCustomGangType: Boolean(gangData.custom_gang_type_id),
+            subtypes: Array.isArray(insertedFighter.fighter_subtypes)
+              ? insertedFighter.fighter_subtypes
+              : [],
+          },
+          supabase,
+          user.id,
+        );
+      } catch (err) {
+        console.error('syncFighter failed after add-fighter', err);
+      }
     }
 
     // Calculate base and modified stats

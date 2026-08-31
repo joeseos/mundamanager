@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Input } from '../ui/input';
 import { Switch } from "@/components/ui/switch";
@@ -11,9 +11,12 @@ import { toast } from 'sonner';
 import { HexColorPicker } from "react-colorful";
 import { groupAlliancesByType } from "@/utils/allianceRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { deleteGang } from '@/app/actions/delete-gang';
 import { hasAlignment, sameEditionForDisplay } from '@/types/edition';
+import { isVenatorGang } from '@/utils/venatorSkillAccess';
+import { saveVenatorSkillRanks } from '@/app/actions/gang/save-venator-skill-ranks';
+import { createClient } from '@/utils/supabase/client';
 
 interface GangUpdates {
   name?: string;
@@ -58,6 +61,8 @@ interface GangEditModalProps {
   availableVariants: Array<{id: string, variant: string, edition_slug?: string | null}>;
   gangAffiliationId: string | null;
   gangAffiliationName: string;
+  gangType?: string | null;
+  customGangTypeId?: string | null;
   gangTypeHasAffiliation: boolean;
   gangOriginId: string | null;
   gangOriginName: string;
@@ -101,6 +106,8 @@ export default function GangEditModal({
   availableVariants,
   gangAffiliationId,
   gangAffiliationName,
+  gangType,
+  customGangTypeId,
   gangTypeHasAffiliation,
   gangOriginId,
   gangOriginName,
@@ -121,6 +128,54 @@ export default function GangEditModal({
   const showAlignment = hasAlignment(editionSlug);
   // Mirror admin fighter-type forms: clear alignment when the edition lacks it
   const effectiveAlignment = showAlignment ? alignment : '';
+
+  const isVenator = isVenatorGang(editionSlug, gangType, Boolean(customGangTypeId));
+
+  const { data: skillTypes = [], isSuccess: skillTypesLoaded } = useQuery<Array<{ id: string; name: string }>>({
+    queryKey: ['skill-types', editionSlug, 'strict'],
+    enabled: isVenator && !!editionSlug,
+    queryFn: async () => {
+      const response = await fetch(`/api/skill-types?edition_slug=${editionSlug}&strict_edition=1`);
+      if (!response.ok) throw new Error('Failed to load skill types');
+      const rows: Array<{ id: string; name: string; is_custom?: boolean }> = await response.json();
+      return rows.filter((r) => !r.is_custom).map((r) => ({ id: r.id, name: r.name }));
+    },
+  });
+
+  const queryClient = useQueryClient();
+  const { data: existingRanks = [], isSuccess: existingRanksLoaded } = useQuery<
+    Array<{ rank: number; skill_type_id: string }>
+  >({
+    queryKey: ['gang-skill-set-ranks', gangId],
+    enabled: isVenator,
+    queryFn: async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('gang_skill_set_ranks')
+        .select('rank, skill_type_id')
+        .eq('gang_id', gangId)
+        .order('rank');
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const [ranks, setRanks] = useState<string[]>(['', '', '', '']);
+  const setRank = (i: number, value: string) =>
+    setRanks((prev) => prev.map((v, idx) => (idx === i ? value : v)));
+
+  const ranksInitializedRef = useRef(false);
+  useEffect(() => {
+    if (!isOpen) {
+      ranksInitializedRef.current = false;
+      return;
+    }
+    if (ranksInitializedRef.current) return;
+    if (!existingRanksLoaded) return;
+    const byRank = new Map(existingRanks.map((r) => [r.rank, r.skill_type_id]));
+    setRanks([1, 2, 3, 4].map((n) => byRank.get(n) ?? ''));
+    ranksInitializedRef.current = true;
+  }, [isOpen, existingRanks, existingRanksLoaded]);
 
   // Get campaign ID and current allegiance if gang is in a campaign
   const campaignId = campaigns?.[0]?.campaign_id;
@@ -432,6 +487,53 @@ export default function GangEditModal({
       updates.gang_variants = formState.gangVariants.map(v => v.id);
     }
 
+    if (isVenator) {
+      const filled = ranks.filter(Boolean);
+      const hadPreviousRanks = existingRanks.length > 0;
+      if (filled.length !== 0 && filled.length !== 4) {
+        toast.error('Please set all four Skill Sets, or leave them all blank.');
+        return;
+      }
+      if (filled.length === 4) {
+        const byRank = new Map(existingRanks.map((r) => [r.rank, r.skill_type_id]));
+        const ranksUnchanged =
+          hadPreviousRanks && ranks.every((v, i) => byRank.get(i + 1) === v);
+        if (!ranksUnchanged) {
+          if (hadPreviousRanks) {
+            const proceed = window.confirm(
+              "Changing your gang's ranked Skill Sets will reset any custom Skill Set Access you've configured on individual Venator fighters. Continue?",
+            );
+            if (!proceed) return;
+          }
+          const result = await saveVenatorSkillRanks({
+            gangId,
+            ranks: ranks.map((skill_type_id, i) => ({ rank: i + 1, skill_type_id })),
+          });
+          if (!result.ok) {
+            toast.error(result.error);
+            return;
+          }
+          queryClient.setQueryData(
+            ['gang-skill-set-ranks', gangId],
+            ranks.map((skill_type_id, i) => ({ rank: i + 1, skill_type_id })),
+          );
+          queryClient.invalidateQueries({ queryKey: ['fighter-skill-access'] });
+        }
+      } else if (hadPreviousRanks) {
+        const proceed = window.confirm(
+          "Clear your gang's ranked Skill Sets? Any Venator fighter's rank-derived skill access will be removed.",
+        );
+        if (!proceed) return;
+        const result = await saveVenatorSkillRanks({ gangId, ranks: [] });
+        if (!result.ok) {
+          toast.error(result.error);
+          return;
+        }
+        queryClient.setQueryData(['gang-skill-set-ranks', gangId], []);
+        queryClient.invalidateQueries({ queryKey: ['fighter-skill-access'] });
+      }
+    }
+
     // Close modal immediately for instant UX (optimistic update will handle UI)
     onClose();
 
@@ -518,6 +620,38 @@ export default function GangEditModal({
             }}
             placeholder="Select Allegiance..."
           />
+        </div>
+      )}
+
+      {isVenator && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Skill Access</p>
+          <p className="text-sm text-muted-foreground">
+            Pick and rank the four Skill Sets your gang has access to. Rank 1 is
+            the Skill Set that most embodies your gang.
+          </p>
+          {skillTypesLoaded && skillTypes.length === 0 ? (
+            <p className="text-sm text-destructive">
+              No Skill Sets are available for this edition yet. Please contact an admin.
+            </p>
+          ) : (
+            ranks.map((value, i) => {
+              const taken = new Set(ranks.filter((v, idx) => v && idx !== i));
+              const options = skillTypes.filter((s) => !taken.has(s.id));
+              return (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="w-6 text-sm text-muted-foreground">{i + 1}</span>
+                  <Combobox
+                    value={value || undefined}
+                    onValueChange={(v) => setRank(i, v ?? '')}
+                    options={options.map((o) => ({ value: o.id, label: o.name }))}
+                    placeholder="Select a Skill Set"
+                    clearable
+                  />
+                </div>
+              );
+            })
+          )}
         </div>
       )}
 

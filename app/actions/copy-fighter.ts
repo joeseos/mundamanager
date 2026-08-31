@@ -3,6 +3,9 @@
 import { invalidateGang, invalidateFighter, invalidateUser } from '@/utils/cache-tags';
 import {createClient} from "@/utils/supabase/server";
 import {checkAdmin, getAuthenticatedUser} from "@/utils/auth";
+import { syncFighter } from '@/utils/syncVenatorSkillOverrides';
+import { isVenatorGang } from '@/utils/venatorSkillAccess';
+import { gangEditionSlug } from '@/types/edition';
 
 import {updateGangFinancials} from '@/utils/gang-rating-and-wealth';
 import {logFighterAction} from '@/app/actions/logs/fighter-logs';
@@ -286,7 +289,11 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
 
     const { data: gang, error: gangError } = await supabase
       .from('gangs')
-      .select('id, user_id, rating, credits')
+      .select(`
+        id, user_id, rating, credits, gang_type, custom_gang_type_id,
+        gang_types!gang_type_id ( editions:edition_id ( slug ) ),
+        custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
+      `)
       .eq('id', sourceFighter.gang_id)
       .single();
 
@@ -404,6 +411,28 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
     }
 
     const newFighterId = newFighter.id;
+
+    const gangEditionForSync = gangEditionSlug(gang);
+    if (isVenatorGang(gangEditionForSync, gang.gang_type, Boolean(gang.custom_gang_type_id))) {
+      try {
+        await syncFighter(
+          {
+            fighterId: newFighterId,
+            gangId: params.target_gang_id,
+            gangType: gang.gang_type,
+            editionSlug: gangEditionForSync,
+            isCustomGangType: Boolean(gang.custom_gang_type_id),
+            subtypes: Array.isArray(fighterData.fighter_subtypes)
+              ? fighterData.fighter_subtypes
+              : [],
+          },
+          supabase,
+          user.id,
+        );
+      } catch (err) {
+        console.error('syncFighter failed after copy-fighter', err);
+      }
+    }
 
     // Vehicle ID mapping for equipment remapping
     const vehicleIdMap = new Map<string, string>();
