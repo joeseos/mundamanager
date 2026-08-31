@@ -9,7 +9,7 @@ import {
   saveFighterSkillAccessOverrides,
   type SkillAccessOverride
 } from '@/app/actions/fighter-skill-access';
-import { getSkillSetRank } from "@/utils/skillSetRank";
+import { getSkillSetGroupLabel, getSkillSetRank } from "@/utils/skillSetRank";
 
 interface SkillAccessModalProps {
   fighterId: string;
@@ -84,16 +84,7 @@ export function SkillAccessModal({
   }, [skillTypesError, skillAccessError]);
 
   // Helper to get the group label for a skill set based on its rank
-  const getGroupLabel = (rank: number): string => {
-    if (rank <= 19) return 'Universal Skill Sets';
-    if (rank <= 39) return 'Gang-specific Skill Sets';
-    if (rank <= 59) return 'Wyrd Powers';
-    if (rank <= 69) return 'Cult Wyrd Powers';
-    if (rank <= 79) return 'Psychoteric Whispers';
-    if (rank <= 89) return 'Legendary Names';
-    if (rank <= 99) return 'Ironhead Squat Mining Clans';
-    return 'Misc.';
-  };
+  const getGroupLabel = getSkillSetGroupLabel;
 
   // Reset initialization state when modal closes
   const [prevIsOpen, setPrevIsOpen] = useState(isOpen);

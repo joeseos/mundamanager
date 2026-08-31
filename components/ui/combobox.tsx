@@ -335,8 +335,8 @@ export function Combobox({
               : "placeholder:text-muted-foreground",
             "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2",
             "disabled:cursor-not-allowed disabled:opacity-50",
-            // Reserve space for chevron (~48px) and optional clear (~48px) so text does not sit under icons
-            clearable && value ? "pr-[5.5rem]" : "pr-12",
+            // Always reserve chevron space; when clearable, also reserve the X so empty/filled sizes match
+            clearable ? "pr-[5.5rem]" : "pr-12",
             selectedOption && !open && inputValue === "" && "truncate",
             selectedOption && typeof selectedOption.label !== 'string' && !open && "text-transparent placeholder:text-transparent"
           )}
@@ -362,7 +362,7 @@ export function Combobox({
           <div
             className={cn(
               "absolute inset-y-0 left-3 flex items-center pointer-events-none overflow-hidden",
-              clearable && value ? "right-[5.5rem]" : "right-12"
+              clearable ? "right-[5.5rem]" : "right-12"
             )}
           >
             <span className="min-w-0 flex-1 truncate text-sm text-foreground">
