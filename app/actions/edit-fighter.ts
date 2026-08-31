@@ -1750,7 +1750,11 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       console.error('Failed to log fighter details changes:', logError);
     }
 
-    if (params.fighter_subtypes !== undefined) {
+    // Also fire when the archetype block ran, since it wipes overrides for the
+    // fighter and only reinserts archetype rows — venator overrides need to be
+    // re-derived to survive an archetype change.
+    const archetypeTouchedOverrides = clearedArchetype || Boolean(archetypeIdForOverrides);
+    if (params.fighter_subtypes !== undefined || archetypeTouchedOverrides) {
       const syncGangJoin = fighter.gangs as { gang_type?: string | null } | null;
       const gangEditionForSync = gangEditionSlug(syncGangJoin);
       if (isVenatorGang(gangEditionForSync, syncGangJoin?.gang_type)) {
