@@ -8,6 +8,7 @@ import Modal from "@/components/ui/modal";
 import { useShare } from '@/hooks/use-share';
 import { toJpeg } from 'html-to-image';
 import Image from 'next/image';
+import { UNKNOWN_GANG_IMAGE_URL } from '@/types/gang';
 import { CampaignImageEditModal } from '@/components/campaigns/[id]/campaign-image-edit-modal';
 import MemberSearchBar from "@/components/campaigns/[id]/campaign-member-search-bar"
 import MembersTable from "@/components/campaigns/[id]/campaign-members-table"
@@ -468,7 +469,7 @@ export default function CampaignPageContent({
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     console.error('Failed to load image:', e.currentTarget.src);
-    e.currentTarget.src = "https://res.cloudinary.com/dle0tkpbl/image/upload/v1732965431/default-gang_image.jpg";
+    e.currentTarget.src = UNKNOWN_GANG_IMAGE_URL;
   };
 
   const canEditImage = !!(safePermissions.isOwner || safePermissions.isArbitrator || safePermissions.isAdmin);

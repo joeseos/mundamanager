@@ -6,7 +6,7 @@ import { FighterProps } from '@/types/fighter';
 import { toast } from 'sonner';
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { StashItem, ResourceUpdate, DefaultImageEntry } from '@/types/gang';
+import { StashItem, ResourceUpdate, DefaultImageEntry, resolveGangImageUrl, UNKNOWN_GANG_IMAGE_URL } from '@/types/gang';
 import { VehicleProps } from '@/types/vehicle';
 import Image from 'next/image';
 import { DraggableFighters } from './draggable-fighters';
@@ -402,27 +402,15 @@ export default function Gang({
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     console.error('Failed to load image:', e.currentTarget.src);
-    e.currentTarget.src = "https://res.cloudinary.com/dle0tkpbl/image/upload/v1732965431/default-gang_image.jpg";
+    e.currentTarget.src = UNKNOWN_GANG_IMAGE_URL;
   };
 
-  // Helper function to get the default image URL
   const getDefaultImageUrl = useCallback((): string | null => {
-    // If custom image exists, use it
-    if (currentGangImageUrl) {
-      return currentGangImageUrl;
-    }
-    
-    // If currentDefaultGangImage is set and gang_type_default_image_urls exists and index is valid
-    if (currentDefaultGangImage !== null && currentDefaultGangImage !== undefined && 
-        gang_type_default_image_urls && 
-        Array.isArray(gang_type_default_image_urls) &&
-        currentDefaultGangImage >= 0 && 
-        currentDefaultGangImage < gang_type_default_image_urls.length) {
-      return gang_type_default_image_urls[currentDefaultGangImage].url;
-    }
-    
-    // No valid image found
-    return null;
+    return resolveGangImageUrl({
+      imageUrl: currentGangImageUrl,
+      defaultGangImage: currentDefaultGangImage,
+      defaultImageUrls: gang_type_default_image_urls,
+    }) ?? null;
   }, [currentGangImageUrl, currentDefaultGangImage, gang_type_default_image_urls]);
 
   const formatDate = useCallback((date: string | Date | null) => {

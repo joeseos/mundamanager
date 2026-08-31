@@ -14,6 +14,7 @@ import { mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility
 import { assertArchetypeAssignable } from '@/utils/assertArchetypeAssignable';
 import { editionSlugFromJoin, gangEditionSlug, type EditionJoin } from '@/types/edition';
 import { isVenatorGang } from '@/utils/venatorSkillAccess';
+import { shouldClearSpecialisationForSubtypes } from '@/utils/keepTypePromotionN26';
 
 interface SelectedEquipment {
   equipment_id: string;
@@ -417,6 +418,10 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       throw new Error('Gang not found');
     }
 
+    const fighterSource = effectiveFighterData as FighterTypeSource;
+    const editionSlug =
+      editionSlugFromJoin(fighterSource.editions) ?? gangEditionSlug(gangData);
+
     // Note: Authorization is enforced by RLS policies on fighters table
 
     // Check for adjusted cost based on gang type (only for regular fighters)
@@ -457,14 +462,9 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     // Server-side archetype eligibility (UI check is not sufficient)
     let archetypeIdToPersist: string | null = null;
     if (params.selected_archetype_id) {
-      const fighterSource = effectiveFighterData as FighterTypeSource;
       const fighterSubtypes = fighterSource.fighter_subtypes?.length
         ? fighterSource.fighter_subtypes
         : ['Custom'];
-
-      // Prefer fighter-type edition; fall back to gang edition for legacy custom types with null edition_id
-      const editionSlug =
-        editionSlugFromJoin(fighterSource.editions) ?? gangEditionSlug(gangData);
 
       const assignable = await assertArchetypeAssignable(supabase, {
         gangTypeId: gangData.gang_type_id,
@@ -528,6 +528,11 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       fighterInsertData.fighter_type_id = params.fighter_type_id;
       fighterInsertData.fighter_specialisation_id = fighterTypeData.fighter_specialisation_id;
       fighterInsertData.custom_fighter_type_id = null;
+    }
+
+    if (shouldClearSpecialisationForSubtypes(editionSlug, fighterInsertData.fighter_subtypes)) {
+      fighterInsertData.fighter_specialisation = null;
+      fighterInsertData.fighter_specialisation_id = null;
     }
 
     // Insert fighter

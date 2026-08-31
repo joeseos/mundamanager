@@ -67,6 +67,36 @@ export function normaliseDefaultImageUrls(
   });
 }
 
+/** Shown when a gang portrait URL fails to load. */
+export const UNKNOWN_GANG_IMAGE_URL =
+  'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_gang_cropped_web.webp';
+
+/**
+ * Custom upload, then the selected type default. Empty or missing `.url`
+ * entries fall through so the caller can show a letter placeholder.
+ */
+export function resolveGangImageUrl(options: {
+  imageUrl?: string | null;
+  defaultGangImage?: number | null;
+  defaultImageUrls?: DefaultImageEntry[] | null;
+}): string | undefined {
+  const { imageUrl, defaultGangImage, defaultImageUrls } = options;
+  if (imageUrl) return imageUrl;
+
+  if (
+    defaultGangImage !== null &&
+    defaultGangImage !== undefined &&
+    Array.isArray(defaultImageUrls) &&
+    defaultGangImage >= 0 &&
+    defaultGangImage < defaultImageUrls.length
+  ) {
+    const url = defaultImageUrls[defaultGangImage]?.url;
+    if (url) return url;
+  }
+
+  return undefined;
+}
+
 export interface ResourceUpdate {
   resource_id: string;
   resource_name?: string;  // Optional - can be looked up
