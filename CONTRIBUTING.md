@@ -16,7 +16,9 @@ Before opening a PR, run `npm run lint` and make sure your changes work locally.
 
 ### Optional: AI pre-PR review
 
-Before opening a PR, you can paste the following into Cursor (or another coding assistant) to get a review of your local changes:
+This is a local step before you open a PR; it is separate from any automated review that may run after the PR is opened.
+
+Paste the following into a coding assistant to get a review of your local changes:
 
 ```
 You are a senior engineer reviewing a future pull request against the full codebase.
@@ -47,7 +49,7 @@ You are a senior engineer reviewing a future pull request against the full codeb
    ```bash
    cp .env.example .env.local
    ```
-   Configure the following variables:
+   Configure the following variables (see `.env.example` for the full list):
    ```
    NEXT_PUBLIC_SUPABASE_URL=mundamanager-project-url
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
