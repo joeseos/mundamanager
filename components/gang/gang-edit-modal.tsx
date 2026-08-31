@@ -132,10 +132,10 @@ export default function GangEditModal({
   const isVenator = isVenatorGang(editionSlug, gangType, Boolean(customGangTypeId));
 
   const { data: skillTypes = [] } = useQuery<Array<{ id: string; name: string }>>({
-    queryKey: ['skill-types', editionSlug],
+    queryKey: ['skill-types', editionSlug, 'strict'],
     enabled: isVenator && !!editionSlug,
     queryFn: async () => {
-      const response = await fetch(`/api/skill-types?edition_slug=${editionSlug}`);
+      const response = await fetch(`/api/skill-types?edition_slug=${editionSlug}&strict_edition=1`);
       if (!response.ok) throw new Error('Failed to load skill types');
       const rows: Array<{ id: string; name: string; is_custom?: boolean }> = await response.json();
       return rows.filter((r) => !r.is_custom).map((r) => ({ id: r.id, name: r.name }));
@@ -164,10 +164,6 @@ export default function GangEditModal({
   const setRank = (i: number, value: string) =>
     setRanks((prev) => prev.map((v, idx) => (idx === i ? value : v)));
 
-  // Initialise the rank picker once per modal open. Guarding on a ref stops a
-  // background refetch of ['gang-skill-set-ranks'] from clobbering the user's
-  // in-progress edits — otherwise a window-focus refetch would reset the four
-  // dropdowns to whatever the server last returned.
   const ranksInitializedRef = useRef(false);
   useEffect(() => {
     if (!isOpen) {

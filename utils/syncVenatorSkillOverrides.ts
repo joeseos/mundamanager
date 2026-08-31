@@ -51,17 +51,6 @@ export interface SyncFighterInput {
   subtypes: readonly string[];
 }
 
-/**
- * Rewrite a Venator fighter's rank-derived skill-access overrides.
- *
- * Callers must pass the fighter's *effective* subtypes at the moment of
- * sync — this helper does NOT re-read them from the DB. add-fighter uses
- * insertedFighter.fighter_subtypes; if a future subtype-granting piece of
- * equipment ever adds a Venator subtype (Leader/Champion/Specialist),
- * syncFighter would need to run after syncSubtypeGrants and take its
- * updated value instead. Today's Venator subtypes come from the fighter
- * type, so pre-equipment subtypes match post-equipment subtypes.
- */
 export async function syncFighter(
   input: SyncFighterInput,
   supabase: SupabaseClient,

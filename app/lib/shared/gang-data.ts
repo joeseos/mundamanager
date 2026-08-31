@@ -70,11 +70,6 @@ export interface GangBasic {
   image_url?: string;
   default_gang_image?: number | null;
   hidden: boolean;
-  /**
-   * True for Venator gangs whose gang_skill_set_ranks table is empty.
-   * Undefined for gangs that can't rank Skill Sets (non-Venator or wrong edition).
-   * Cached alongside the gang; rank saves invalidate the gang tag so this stays fresh.
-   */
   venator_no_ranks?: boolean;
 }
 

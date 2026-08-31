@@ -1,10 +1,3 @@
--- fighter_skill_access_override: DELETE and UPDATE previously required
--- override.user_id = auth.uid() (i.e. row-level authorship), so a gang owner
--- could not remove rows an arbitrator had written on their behalf via
--- syncGang. Extend both policies to also allow the fighter's user_id (the
--- gang owner in practice) and the campaign arbitrator, matching the shape
--- of the INSERT policy.
-
 DROP POLICY IF EXISTS "Only override owner or admin can delete"
     ON public.fighter_skill_access_override;
 
