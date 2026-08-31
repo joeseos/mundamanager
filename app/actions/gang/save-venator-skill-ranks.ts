@@ -17,16 +17,17 @@ export async function saveVenatorSkillRanks(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { gangId, ranks } = params;
 
-  if (ranks.length !== 0 && ranks.length !== 4) {
-    return { ok: false, error: 'All four ranks must be set, or none.' };
+  if (ranks.length > 4) {
+    return { ok: false, error: 'At most four Skill Sets can be ranked.' };
   }
-  if (ranks.length === 4) {
+  if (ranks.length > 0) {
     const rankValues = ranks.map((r) => r.rank).sort((a, b) => a - b);
-    if (rankValues.join(',') !== '1,2,3,4') {
-      return { ok: false, error: 'Ranks must be exactly 1, 2, 3, 4.' };
+    const expected = Array.from({ length: ranks.length }, (_, i) => i + 1).join(',');
+    if (rankValues.join(',') !== expected) {
+      return { ok: false, error: 'Ranks must be consecutive starting from 1.' };
     }
     const skillIds = ranks.map((r) => r.skill_type_id);
-    if (new Set(skillIds).size !== 4) {
+    if (skillIds.some((id) => !id) || new Set(skillIds).size !== ranks.length) {
       return { ok: false, error: 'The same Skill Set cannot occupy two ranks.' };
     }
   }

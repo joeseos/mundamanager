@@ -27,3 +27,15 @@ export function getSkillSetRank(
   if (!editionSlug) return {};
   return SKILL_SET_RANK_BY_EDITION[editionSlug as EditionSlug] ?? {};
 }
+
+/** Band label used when grouping Skill Sets in comboboxes and skill-access UIs. */
+export function getSkillSetGroupLabel(rank: number): string {
+  if (rank <= 19) return 'Universal Skill Sets';
+  if (rank <= 39) return 'Gang-specific Skill Sets';
+  if (rank <= 59) return 'Wyrd Powers';
+  if (rank <= 69) return 'Cult Wyrd Powers';
+  if (rank <= 79) return 'Psychoteric Whispers';
+  if (rank <= 89) return 'Legendary Names';
+  if (rank <= 99) return 'Ironhead Squat Mining Clans';
+  return 'Misc.';
+}
