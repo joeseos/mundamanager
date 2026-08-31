@@ -18,7 +18,16 @@ interface SaveFighterSkillAccessResult {
 }
 
 /**
- * Save skill access overrides for a fighter
+ * Save skill access overrides for a fighter.
+ *
+ * Wipes every row in fighter_skill_access_override for this fighter and
+ * reinserts the caller-supplied set. The client (SkillAccessModal) must
+ * therefore submit ALL overrides it wants preserved, not just its diff —
+ * including any written by other systems such as syncVenatorSkillOverrides
+ * or archetype-eligibility. The modal's initial state pulls current
+ * overrides from /api/fighters/skill-access, so an untouched Save round-trips
+ * them without loss; any code that adds a new override source needs to feed
+ * this endpoint the same way.
  */
 export async function saveFighterSkillAccessOverrides(params: {
   fighter_id: string;
