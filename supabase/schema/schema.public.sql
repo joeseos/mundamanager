@@ -5665,6 +5665,20 @@ CREATE TABLE public.gang_origins (
 
 
 --
+-- Name: gang_skill_set_ranks; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.gang_skill_set_ranks (
+    gang_id uuid NOT NULL,
+    rank integer NOT NULL,
+    skill_type_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    CONSTRAINT gang_skill_set_ranks_rank_check CHECK (((rank >= 1) AND (rank <= 4)))
+);
+
+
+--
 -- Name: gang_stash; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6732,6 +6746,22 @@ ALTER TABLE ONLY public.gang_origin_categories
 
 ALTER TABLE ONLY public.gang_origins
     ADD CONSTRAINT gang_origins_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: gang_skill_set_ranks gang_skill_set_ranks_gang_id_skill_type_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_skill_set_ranks
+    ADD CONSTRAINT gang_skill_set_ranks_gang_id_skill_type_id_key UNIQUE (gang_id, skill_type_id);
+
+
+--
+-- Name: gang_skill_set_ranks gang_skill_set_ranks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_skill_set_ranks
+    ADD CONSTRAINT gang_skill_set_ranks_pkey PRIMARY KEY (gang_id, rank);
 
 
 --
@@ -10171,6 +10201,22 @@ ALTER TABLE ONLY public.gang_origins
 
 
 --
+-- Name: gang_skill_set_ranks gang_skill_set_ranks_gang_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_skill_set_ranks
+    ADD CONSTRAINT gang_skill_set_ranks_gang_id_fkey FOREIGN KEY (gang_id) REFERENCES public.gangs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: gang_skill_set_ranks gang_skill_set_ranks_skill_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_skill_set_ranks
+    ADD CONSTRAINT gang_skill_set_ranks_skill_type_id_fkey FOREIGN KEY (skill_type_id) REFERENCES public.skill_types(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: gang_stash gang_stash_custom_equipment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10959,6 +11005,13 @@ CREATE POLICY "Allow authenticated users to view fighter_types" ON public.fighte
 --
 
 CREATE POLICY "Allow authenticated users to view fighters" ON public.fighters FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: gang_skill_set_ranks Allow authenticated users to view gang skill set ranks; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view gang skill set ranks" ON public.gang_skill_set_ranks FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -12419,6 +12472,17 @@ CREATE POLICY "Users can create skill access overrides for their own fighters" O
 
 
 --
+-- Name: gang_skill_set_ranks Users can create skill set ranks for their gang; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can create skill set ranks for their gang" ON public.gang_skill_set_ranks FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
+   FROM public.gangs g
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
+   FROM public.campaign_gangs cg
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+
+
+--
 -- Name: fighter_skills Users can create skills for their own fighters; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -12479,6 +12543,17 @@ CREATE POLICY "Users can delete loadout equipment for their fighters" ON public.
 CREATE POLICY "Users can delete loadouts for their gang fighters" ON public.fighter_loadouts FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+
+
+--
+-- Name: gang_skill_set_ranks Users can delete skill set ranks from their gang; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can delete skill set ranks from their gang" ON public.gang_skill_set_ranks FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
+   FROM public.gangs g
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
+   FROM public.campaign_gangs cg
   WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
@@ -13517,6 +13592,12 @@ ALTER TABLE public.gang_origin_categories ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.gang_origins ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: gang_skill_set_ranks; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.gang_skill_set_ranks ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: gang_stash; Type: ROW SECURITY; Schema: public; Owner: -
