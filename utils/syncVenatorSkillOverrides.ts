@@ -1,6 +1,6 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { deriveOverrides } from '@/utils/venatorSkillAccess';
+import { deriveOverrides, isVenatorGang } from '@/utils/venatorSkillAccess';
 
 async function readGangRanks(gangId: string, supabase: SupabaseClient) {
   const { data, error } = await supabase
@@ -15,13 +15,17 @@ async function rewriteFighterOverrides(
   fighterId: string,
   supabase: SupabaseClient,
   actingUserId: string,
+  ownedSkillTypeIds: readonly string[],
   overrides: Array<{ skill_type_id: string; access_level: 'primary' | 'secondary' }>,
 ): Promise<void> {
-  const { error: deleteErr } = await supabase
-    .from('fighter_skill_access_override')
-    .delete()
-    .eq('fighter_id', fighterId);
-  if (deleteErr) throw deleteErr;
+  if (ownedSkillTypeIds.length > 0) {
+    const { error: deleteErr } = await supabase
+      .from('fighter_skill_access_override')
+      .delete()
+      .eq('fighter_id', fighterId)
+      .in('skill_type_id', ownedSkillTypeIds as string[]);
+    if (deleteErr) throw deleteErr;
+  }
 
   if (overrides.length === 0) return;
 
@@ -40,9 +44,13 @@ async function rewriteFighterOverrides(
 
 export async function syncFighter(
   fighterId: string,
+  gangType: string | null | undefined,
+  editionSlug: string | null | undefined,
   supabase: SupabaseClient,
   actingUserId: string,
 ): Promise<void> {
+  if (!isVenatorGang(editionSlug, gangType)) return;
+
   const { data: fighter, error: fighterErr } = await supabase
     .from('fighters')
     .select('gang_id, fighter_subtypes')
@@ -55,17 +63,22 @@ export async function syncFighter(
 
   const subtypes: string[] = Array.isArray(fighter.fighter_subtypes) ? fighter.fighter_subtypes : [];
   const overrides = deriveOverrides(ranks, subtypes);
+  const ownedSkillTypeIds = ranks.map((r) => r.skill_type_id);
 
-  await rewriteFighterOverrides(fighterId, supabase, actingUserId, overrides);
+  await rewriteFighterOverrides(fighterId, supabase, actingUserId, ownedSkillTypeIds, overrides);
 }
 
 export async function syncGang(
   gangId: string,
   supabase: SupabaseClient,
   actingUserId: string,
+  previouslyOwnedSkillTypeIds: readonly string[] = [],
 ): Promise<void> {
   const ranks = await readGangRanks(gangId, supabase);
-  if (ranks.length === 0) return;
+  const currentSkillTypeIds = ranks.map((r) => r.skill_type_id);
+  const ownedSkillTypeIds = Array.from(
+    new Set<string>([...previouslyOwnedSkillTypeIds, ...currentSkillTypeIds]),
+  );
 
   const { data: fighters, error: fightersErr } = await supabase
     .from('fighters')
@@ -73,30 +86,28 @@ export async function syncGang(
     .eq('gang_id', gangId);
   if (fightersErr) throw fightersErr;
 
-  const targets = (fighters ?? []).map((f) => {
-    const subs: string[] = Array.isArray(f.fighter_subtypes) ? f.fighter_subtypes : [];
-    return { id: f.id as string, overrides: deriveOverrides(ranks, subs) };
-  });
+  const targetIds = (fighters ?? []).map((f) => f.id as string);
+  if (targetIds.length === 0 || ownedSkillTypeIds.length === 0) return;
 
-  if (targets.length === 0) return;
-
-  const targetIds = targets.map((t) => t.id);
   const { error: deleteErr } = await supabase
     .from('fighter_skill_access_override')
     .delete()
-    .in('fighter_id', targetIds);
+    .in('fighter_id', targetIds)
+    .in('skill_type_id', ownedSkillTypeIds);
   if (deleteErr) throw deleteErr;
 
-  const rows = targets
-    .filter((t) => t.overrides.length > 0)
-    .flatMap((t) =>
-      t.overrides.map((o) => ({
-        fighter_id: t.id,
+  if (ranks.length === 0) return;
+
+  const rows = (fighters ?? [])
+    .flatMap((f) => {
+      const subs: string[] = Array.isArray(f.fighter_subtypes) ? f.fighter_subtypes : [];
+      return deriveOverrides(ranks, subs).map((o) => ({
+        fighter_id: f.id as string,
         skill_type_id: o.skill_type_id,
         access_level: o.access_level,
         user_id: actingUserId,
-      })),
-    );
+      }));
+    });
 
   if (rows.length === 0) return;
 

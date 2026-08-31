@@ -13,6 +13,7 @@ import { logFighterAction } from '@/app/actions/logs/fighter-logs';
 import { mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';
 import { assertArchetypeAssignable } from '@/utils/assertArchetypeAssignable';
 import { editionSlugFromJoin, gangEditionSlug, type EditionJoin } from '@/types/edition';
+import { isVenatorGang } from '@/utils/venatorSkillAccess';
 
 interface SelectedEquipment {
   equipment_id: string;
@@ -389,7 +390,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       supabase
         .from('gangs')
         .select(`
-          id, credits, user_id, gang_type_id,
+          id, credits, user_id, gang_type, gang_type_id,
           gang_types!gang_type_id ( editions:edition_id ( slug ) ),
           custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
         `)
@@ -1210,10 +1211,13 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       console.error('Failed to log fighter addition:', logError);
     }
 
-    try {
-      await syncFighter(fighterId, supabase, user.id);
-    } catch (err) {
-      console.error('syncFighter failed after add-fighter', err);
+    const gangEditionForSync = gangEditionSlug(gangData);
+    if (isVenatorGang(gangEditionForSync, gangData.gang_type)) {
+      try {
+        await syncFighter(fighterId, gangData.gang_type, gangEditionForSync, supabase, user.id);
+      } catch (err) {
+        console.error('syncFighter failed after add-fighter', err);
+      }
     }
 
     // Calculate base and modified stats

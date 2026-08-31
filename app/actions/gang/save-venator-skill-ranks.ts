@@ -4,6 +4,8 @@ import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { syncGang } from '@/utils/syncVenatorSkillOverrides';
 import { invalidateGang } from '@/utils/cache-tags';
+import { isVenatorGang } from '@/utils/venatorSkillAccess';
+import { gangEditionSlug } from '@/types/edition';
 
 interface SaveVenatorSkillRanksParams {
   gangId: string;
@@ -30,6 +32,27 @@ export async function saveVenatorSkillRanks(
   const supabase = await createClient();
   const user = await getAuthenticatedUser(supabase);
 
+  const { data: gang, error: gangErr } = await supabase
+    .from('gangs')
+    .select(`
+      gang_type,
+      gang_types!gang_type_id ( editions:edition_id ( slug ) ),
+      custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
+    `)
+    .eq('id', gangId)
+    .single();
+  if (gangErr || !gang) return { ok: false, error: 'Gang not found.' };
+  if (!isVenatorGang(gangEditionSlug(gang), gang.gang_type)) {
+    return { ok: false, error: 'This gang cannot rank Skill Sets.' };
+  }
+
+  const { data: previousRanks, error: previousRanksErr } = await supabase
+    .from('gang_skill_set_ranks')
+    .select('skill_type_id')
+    .eq('gang_id', gangId);
+  if (previousRanksErr) return { ok: false, error: previousRanksErr.message };
+  const previouslyOwnedSkillTypeIds = (previousRanks ?? []).map((r) => r.skill_type_id as string);
+
   const { error: deleteErr } = await supabase
     .from('gang_skill_set_ranks')
     .delete()
@@ -48,7 +71,7 @@ export async function saveVenatorSkillRanks(
   if (insertErr) return { ok: false, error: insertErr.message };
 
   try {
-    await syncGang(gangId, supabase, user.id);
+    await syncGang(gangId, supabase, user.id, previouslyOwnedSkillTypeIds);
   } catch (err) {
     return {
       ok: false,

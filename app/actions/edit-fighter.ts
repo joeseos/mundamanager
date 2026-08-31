@@ -16,6 +16,8 @@ import { resolveFighterEditionSlug } from '@/utils/fighter-subtype-grants';
 import { assertArchetypeAssignable } from '@/utils/assertArchetypeAssignable';
 import { mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';
 import { syncFighter } from '@/utils/syncVenatorSkillOverrides';
+import { isVenatorGang } from '@/utils/venatorSkillAccess';
+import { gangEditionSlug } from '@/types/edition';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -1396,7 +1398,16 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     // Get fighter data (RLS will handle permissions)
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, user_id, cost_adjustment, kills, kill_count, killed, retired, enslaved, captured, fighter_name, fighter_subtypes, selected_archetype_id')
+      .select(`
+        id, gang_id, user_id, cost_adjustment, kills, kill_count,
+        killed, retired, enslaved, captured, fighter_name, fighter_subtypes,
+        selected_archetype_id,
+        gangs:gang_id (
+          gang_type,
+          gang_types:gang_type_id ( editions:edition_id ( slug ) ),
+          custom_gang_types:custom_gang_type_id ( editions:edition_id ( slug ) )
+        )
+      `)
       .eq('id', params.fighter_id)
       .single();
 
@@ -1740,10 +1751,20 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     }
 
     if (params.fighter_subtypes !== undefined) {
-      try {
-        await syncFighter(params.fighter_id, supabase, user.id);
-      } catch (err) {
-        console.error('syncFighter failed after edit-fighter', err);
+      const syncGangJoin = fighter.gangs as { gang_type?: string | null } | null;
+      const gangEditionForSync = gangEditionSlug(syncGangJoin);
+      if (isVenatorGang(gangEditionForSync, syncGangJoin?.gang_type)) {
+        try {
+          await syncFighter(
+            params.fighter_id,
+            syncGangJoin?.gang_type,
+            gangEditionForSync,
+            supabase,
+            user.id,
+          );
+        } catch (err) {
+          console.error('syncFighter failed after edit-fighter', err);
+        }
       }
     }
 

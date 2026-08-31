@@ -4,6 +4,8 @@ import { invalidateGang, invalidateFighter, invalidateUser } from '@/utils/cache
 import {createClient} from "@/utils/supabase/server";
 import {checkAdmin, getAuthenticatedUser} from "@/utils/auth";
 import { syncFighter } from '@/utils/syncVenatorSkillOverrides';
+import { isVenatorGang } from '@/utils/venatorSkillAccess';
+import { gangEditionSlug } from '@/types/edition';
 
 import {updateGangFinancials} from '@/utils/gang-rating-and-wealth';
 import {logFighterAction} from '@/app/actions/logs/fighter-logs';
@@ -283,7 +285,11 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
 
     const { data: gang, error: gangError } = await supabase
       .from('gangs')
-      .select('id, user_id, rating, credits')
+      .select(`
+        id, user_id, rating, credits, gang_type,
+        gang_types!gang_type_id ( editions:edition_id ( slug ) ),
+        custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
+      `)
       .eq('id', sourceFighter.gang_id)
       .single();
 
@@ -393,10 +399,13 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
 
     const newFighterId = newFighter.id;
 
-    try {
-      await syncFighter(newFighterId, supabase, user.id);
-    } catch (err) {
-      console.error('syncFighter failed after copy-fighter', err);
+    const gangEditionForSync = gangEditionSlug(gang);
+    if (isVenatorGang(gangEditionForSync, gang.gang_type)) {
+      try {
+        await syncFighter(newFighterId, gang.gang_type, gangEditionForSync, supabase, user.id);
+      } catch (err) {
+        console.error('syncFighter failed after copy-fighter', err);
+      }
     }
 
     // Vehicle ID mapping for equipment remapping
