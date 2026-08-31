@@ -11,6 +11,8 @@ import { revalidateTag } from 'next/cache';
  * Read side                                  | Busted by
  * -------------------------------------------|------------------------------
  * gang-{id}        gang core + fighters      | any gang/fighter mutation
+ *                  (incl. venator_no_ranks   |
+ *                   probe folded into core)  |
  * gang-overview-{id} name/rating/wealth/     | updateGangFinancials (choke
  *                  credits copies on other   | point) + gang name/reputation
  *                  pages (campaign, home)    | edits — NOT xp/image/loadouts

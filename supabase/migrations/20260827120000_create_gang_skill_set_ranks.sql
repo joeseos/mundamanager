@@ -3,7 +3,6 @@ CREATE TABLE public.gang_skill_set_ranks (
     rank          int         NOT NULL CHECK (rank BETWEEN 1 AND 4),
     skill_type_id uuid        NOT NULL REFERENCES public.skill_types(id) ON DELETE RESTRICT,
     created_at    timestamptz NOT NULL DEFAULT now(),
-    updated_at    timestamptz,
     PRIMARY KEY (gang_id, rank),
     UNIQUE (gang_id, skill_type_id)
 );

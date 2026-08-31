@@ -947,7 +947,6 @@ export default function FighterPage({
             skills={fighterData.fighter?.skills || {}}
             userPermissions={userPermissions}
             gangId={fighterData.gang?.id || ''}
-            gangType={fighterData.gang?.gang_type}
             venatorNoRanks={fighterData.gang?.venator_no_ranks}
             gangTypeId={fighterData.fighter?.fighter_type?.gang_type_id || ''}
             customGangTypeId={fighterData.fighter?.fighter_type?.custom_gang_type_id || ''}

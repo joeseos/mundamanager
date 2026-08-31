@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Input } from '../ui/input';
 import { Switch } from "@/components/ui/switch";
@@ -143,7 +143,7 @@ export default function GangEditModal({
   });
 
   const queryClient = useQueryClient();
-  const { data: existingRanks = [] } = useQuery<
+  const { data: existingRanks = [], isSuccess: existingRanksLoaded } = useQuery<
     Array<{ rank: number; skill_type_id: string }>
   >({
     queryKey: ['gang-skill-set-ranks', gangId],
@@ -164,10 +164,22 @@ export default function GangEditModal({
   const setRank = (i: number, value: string) =>
     setRanks((prev) => prev.map((v, idx) => (idx === i ? value : v)));
 
+  // Initialise the rank picker once per modal open. Guarding on a ref stops a
+  // background refetch of ['gang-skill-set-ranks'] from clobbering the user's
+  // in-progress edits — otherwise a window-focus refetch would reset the four
+  // dropdowns to whatever the server last returned.
+  const ranksInitializedRef = useRef(false);
   useEffect(() => {
+    if (!isOpen) {
+      ranksInitializedRef.current = false;
+      return;
+    }
+    if (ranksInitializedRef.current) return;
+    if (!existingRanksLoaded) return;
     const byRank = new Map(existingRanks.map((r) => [r.rank, r.skill_type_id]));
     setRanks([1, 2, 3, 4].map((n) => byRank.get(n) ?? ''));
-  }, [existingRanks]);
+    ranksInitializedRef.current = true;
+  }, [isOpen, existingRanks, existingRanksLoaded]);
 
   // Get campaign ID and current allegiance if gang is in a campaign
   const campaignId = campaigns?.[0]?.campaign_id;

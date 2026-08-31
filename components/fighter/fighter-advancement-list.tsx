@@ -65,7 +65,6 @@ interface AdvancementModalProps {
   onCharacteristicUpdate?: (characteristicName: string, changeAmount: number) => void;
   userPermissions?: UserPermissions;
   gangId?: string;
-  gangType?: string | null;
   venatorNoRanks?: boolean;
   gangTypeId?: string;
   customGangTypeId?: string;
@@ -197,7 +196,6 @@ interface AdvancementsListProps {
   onXpCreditsUpdate?: (xpChange: number, creditsChange: number) => void;
   onCharacteristicUpdate?: (characteristicName: string, changeAmount: number) => void;
   gangId?: string;
-  gangType?: string | null;
   venatorNoRanks?: boolean;
   gangTypeId?: string;
   customGangTypeId?: string;
@@ -496,7 +494,6 @@ export function AdvancementModal({
   onCharacteristicUpdate,
   userPermissions,
   gangId = '',
-  gangType,
   venatorNoRanks,
   gangTypeId = '',
   customGangTypeId = '',
@@ -2969,7 +2966,6 @@ export function AdvancementsList({
   onXpCreditsUpdate,
   onCharacteristicUpdate,
   gangId = '',
-  gangType,
   venatorNoRanks,
   gangTypeId = '',
   customGangTypeId = '',
@@ -3515,7 +3511,6 @@ export function AdvancementsList({
           onCharacteristicUpdate={onCharacteristicUpdate}
           userPermissions={userPermissions}
           gangId={gangId}
-          gangType={gangType}
           venatorNoRanks={venatorNoRanks}
           gangTypeId={gangTypeId}
           customGangTypeId={customGangTypeId}
