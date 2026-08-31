@@ -4,7 +4,6 @@ import FighterPageComponent from "@/components/fighter/fighter-page";
 import { checkPermissionCached } from "@/utils/user-permissions";
 import { getGangFighters } from "@/app/lib/fighter-advancements";
 import { getAuthenticatedUser, signInPath } from "@/utils/auth";
-import { isVenatorGang } from "@/utils/venatorSkillAccess";
 
 interface FighterPageProps {
   params: Promise<{ id: string }>;
@@ -51,16 +50,6 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       getGangCampaigns(fighterBasic.gang_id, supabase),
       getGangFighters(fighterBasic.gang_id, supabase),
     ]);
-
-    let venatorNoRanks = false;
-    if (gangBasic && isVenatorGang(gangBasic.edition_slug, gangBasic.gang_type)) {
-      const { data } = await supabase
-        .from('gang_skill_set_ranks')
-        .select('rank')
-        .eq('gang_id', fighterBasic.gang_id)
-        .limit(1);
-      venatorNoRanks = (data ?? []).length === 0;
-    }
 
     // Check if gang exists (shouldn't happen but handle gracefully)
     if (!gangBasic) {
@@ -264,7 +253,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         gang_type: gangBasic.gang_type,
         gang_type_id: gangBasic.gang_type_id,
         custom_gang_type_id: gangBasic.custom_gang_type_id,
-        venator_no_ranks: venatorNoRanks,
+        venator_no_ranks: gangBasic.venator_no_ranks ?? false,
         gang_affiliation_id: gangBasic.gang_affiliation_id,
         gang_affiliation_name: gangBasic.gang_affiliation?.name,
         positioning: gangPositioning,
