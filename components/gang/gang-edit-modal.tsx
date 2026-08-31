@@ -507,6 +507,7 @@ export default function GangEditModal({
             ['gang-skill-set-ranks', gangId],
             ranks.map((skill_type_id, i) => ({ rank: i + 1, skill_type_id })),
           );
+          queryClient.invalidateQueries({ queryKey: ['fighter-skill-access'] });
         }
       } else if (hadPreviousRanks) {
         const proceed = window.confirm(
@@ -519,6 +520,7 @@ export default function GangEditModal({
           return;
         }
         queryClient.setQueryData(['gang-skill-set-ranks', gangId], []);
+        queryClient.invalidateQueries({ queryKey: ['fighter-skill-access'] });
       }
     }
 
