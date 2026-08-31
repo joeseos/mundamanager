@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { getUserIdFromClaims } from './utils/auth'
+import { isQueryCountEnabled, makeCountingFetch } from './utils/supabase/query-counter'
 
 function createSupabaseProxyClient(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -9,6 +10,9 @@ function createSupabaseProxyClient(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      // Labelled separately from the page client so work done twice in one
+      // navigation is visible as two lines rather than a single total.
+      ...(isQueryCountEnabled() ? { global: { fetch: makeCountingFetch('proxy') } } : {}),
       cookies: {
         getAll() {
           return request.cookies.getAll();

@@ -12,7 +12,7 @@ export async function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      ...(isQueryCountEnabled() ? { global: { fetch: makeCountingFetch() } } : {}),
+      ...(isQueryCountEnabled() ? { global: { fetch: makeCountingFetch('page') } } : {}),
       cookies: {
         getAll() {
           return cookieStore.getAll()
