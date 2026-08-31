@@ -70,10 +70,14 @@ export async function syncFighter(
 
 export async function syncGang(
   gangId: string,
+  gangType: string | null | undefined,
+  editionSlug: string | null | undefined,
   supabase: SupabaseClient,
   actingUserId: string,
   previouslyOwnedSkillTypeIds: readonly string[] = [],
 ): Promise<void> {
+  if (!isVenatorGang(editionSlug, gangType)) return;
+
   const ranks = await readGangRanks(gangId, supabase);
   const currentSkillTypeIds = ranks.map((r) => r.skill_type_id);
   const ownedSkillTypeIds = Array.from(

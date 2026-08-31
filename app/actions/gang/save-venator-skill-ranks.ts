@@ -71,7 +71,14 @@ export async function saveVenatorSkillRanks(
   if (insertErr) return { ok: false, error: insertErr.message };
 
   try {
-    await syncGang(gangId, supabase, user.id, previouslyOwnedSkillTypeIds);
+    await syncGang(
+      gangId,
+      gang.gang_type,
+      gangEditionSlug(gang),
+      supabase,
+      user.id,
+      previouslyOwnedSkillTypeIds,
+    );
   } catch (err) {
     return {
       ok: false,
