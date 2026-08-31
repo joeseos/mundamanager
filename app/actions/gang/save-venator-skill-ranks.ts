@@ -17,16 +17,18 @@ export async function saveVenatorSkillRanks(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { gangId, ranks } = params;
 
-  if (ranks.length !== 4) {
-    return { ok: false, error: 'All four ranks must be set.' };
+  if (ranks.length !== 0 && ranks.length !== 4) {
+    return { ok: false, error: 'All four ranks must be set, or none.' };
   }
-  const rankValues = ranks.map((r) => r.rank).sort();
-  if (rankValues.join(',') !== '1,2,3,4') {
-    return { ok: false, error: 'Ranks must be exactly 1, 2, 3, 4.' };
-  }
-  const skillIds = ranks.map((r) => r.skill_type_id);
-  if (new Set(skillIds).size !== 4) {
-    return { ok: false, error: 'The same Skill Set cannot occupy two ranks.' };
+  if (ranks.length === 4) {
+    const rankValues = ranks.map((r) => r.rank).sort((a, b) => a - b);
+    if (rankValues.join(',') !== '1,2,3,4') {
+      return { ok: false, error: 'Ranks must be exactly 1, 2, 3, 4.' };
+    }
+    const skillIds = ranks.map((r) => r.skill_type_id);
+    if (new Set(skillIds).size !== 4) {
+      return { ok: false, error: 'The same Skill Set cannot occupy two ranks.' };
+    }
   }
 
   const supabase = await createClient();
@@ -59,16 +61,18 @@ export async function saveVenatorSkillRanks(
     .eq('gang_id', gangId);
   if (deleteErr) return { ok: false, error: deleteErr.message };
 
-  const { error: insertErr } = await supabase
-    .from('gang_skill_set_ranks')
-    .insert(
-      ranks.map((r) => ({
-        gang_id: gangId,
-        rank: r.rank,
-        skill_type_id: r.skill_type_id,
-      })),
-    );
-  if (insertErr) return { ok: false, error: insertErr.message };
+  if (ranks.length > 0) {
+    const { error: insertErr } = await supabase
+      .from('gang_skill_set_ranks')
+      .insert(
+        ranks.map((r) => ({
+          gang_id: gangId,
+          rank: r.rank,
+          skill_type_id: r.skill_type_id,
+        })),
+      );
+    if (insertErr) return { ok: false, error: insertErr.message };
+  }
 
   try {
     await syncGang(

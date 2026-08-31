@@ -508,6 +508,17 @@ export default function GangEditModal({
             ranks.map((skill_type_id, i) => ({ rank: i + 1, skill_type_id })),
           );
         }
+      } else if (hadPreviousRanks) {
+        const proceed = window.confirm(
+          "Clear your gang's ranked Skill Sets? Any Venator fighter's rank-derived skill access will be removed.",
+        );
+        if (!proceed) return;
+        const result = await saveVenatorSkillRanks({ gangId, ranks: [] });
+        if (!result.ok) {
+          toast.error(result.error);
+          return;
+        }
+        queryClient.setQueryData(['gang-skill-set-ranks', gangId], []);
       }
     }
 
