@@ -47,6 +47,7 @@ export interface SyncFighterInput {
   gangId: string;
   gangType: string | null | undefined;
   editionSlug: string | null | undefined;
+  isCustomGangType: boolean;
   subtypes: readonly string[];
 }
 
@@ -55,7 +56,7 @@ export async function syncFighter(
   supabase: SupabaseClient,
   actingUserId: string,
 ): Promise<void> {
-  if (!isVenatorGang(input.editionSlug, input.gangType)) return;
+  if (!isVenatorGang(input.editionSlug, input.gangType, input.isCustomGangType)) return;
 
   const ranks = await readGangRanks(input.gangId, supabase);
   if (ranks.length === 0) return;
@@ -70,11 +71,12 @@ export async function syncGang(
   gangId: string,
   gangType: string | null | undefined,
   editionSlug: string | null | undefined,
+  isCustomGangType: boolean,
   supabase: SupabaseClient,
   actingUserId: string,
   previouslyOwnedSkillTypeIds: readonly string[] = [],
 ): Promise<void> {
-  if (!isVenatorGang(editionSlug, gangType)) return;
+  if (!isVenatorGang(editionSlug, gangType, isCustomGangType)) return;
 
   const ranks = await readGangRanks(gangId, supabase);
   const currentSkillTypeIds = ranks.map((r) => r.skill_type_id);

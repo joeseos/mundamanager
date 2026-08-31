@@ -288,7 +288,7 @@ export const getGangCore = async (gangId: string, supabase: any): Promise<GangCo
       if (!data) return null;
       const editionSlug = gangEditionSlug(data);
       let venatorNoRanks: boolean | undefined;
-      if (isVenatorGang(editionSlug, data.gang_type)) {
+      if (isVenatorGang(editionSlug, data.gang_type, Boolean(data.custom_gang_type_id))) {
         const { data: ranksProbe } = await supabase
           .from('gang_skill_set_ranks')
           .select('rank')

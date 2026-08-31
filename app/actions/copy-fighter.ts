@@ -286,7 +286,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
     const { data: gang, error: gangError } = await supabase
       .from('gangs')
       .select(`
-        id, user_id, rating, credits, gang_type,
+        id, user_id, rating, credits, gang_type, custom_gang_type_id,
         gang_types!gang_type_id ( editions:edition_id ( slug ) ),
         custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
       `)
@@ -400,7 +400,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
     const newFighterId = newFighter.id;
 
     const gangEditionForSync = gangEditionSlug(gang);
-    if (isVenatorGang(gangEditionForSync, gang.gang_type)) {
+    if (isVenatorGang(gangEditionForSync, gang.gang_type, Boolean(gang.custom_gang_type_id))) {
       try {
         await syncFighter(
           {
@@ -408,6 +408,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
             gangId: params.target_gang_id,
             gangType: gang.gang_type,
             editionSlug: gangEditionForSync,
+            isCustomGangType: Boolean(gang.custom_gang_type_id),
             subtypes: Array.isArray(fighterData.fighter_subtypes)
               ? fighterData.fighter_subtypes
               : [],

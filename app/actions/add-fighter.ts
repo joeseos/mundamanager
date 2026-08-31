@@ -390,7 +390,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       supabase
         .from('gangs')
         .select(`
-          id, credits, user_id, gang_type, gang_type_id,
+          id, credits, user_id, gang_type, gang_type_id, custom_gang_type_id,
           gang_types!gang_type_id ( editions:edition_id ( slug ) ),
           custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
         `)
@@ -1212,7 +1212,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     }
 
     const gangEditionForSync = gangEditionSlug(gangData);
-    if (isVenatorGang(gangEditionForSync, gangData.gang_type)) {
+    if (isVenatorGang(gangEditionForSync, gangData.gang_type, Boolean(gangData.custom_gang_type_id))) {
       try {
         await syncFighter(
           {
@@ -1220,6 +1220,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
             gangId: params.gang_id,
             gangType: gangData.gang_type,
             editionSlug: gangEditionForSync,
+            isCustomGangType: Boolean(gangData.custom_gang_type_id),
             subtypes: Array.isArray(insertedFighter.fighter_subtypes)
               ? insertedFighter.fighter_subtypes
               : [],

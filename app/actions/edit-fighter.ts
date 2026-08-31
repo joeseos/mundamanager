@@ -1404,6 +1404,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
         selected_archetype_id,
         gangs:gang_id (
           gang_type,
+          custom_gang_type_id,
           gang_types:gang_type_id ( editions:edition_id ( slug ) ),
           custom_gang_types:custom_gang_type_id ( editions:edition_id ( slug ) )
         )
@@ -1755,9 +1756,16 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     // re-derived to survive an archetype change.
     const archetypeTouchedOverrides = clearedArchetype || Boolean(archetypeIdForOverrides);
     if (params.fighter_subtypes !== undefined || archetypeTouchedOverrides) {
-      const syncGangJoin = fighter.gangs as { gang_type?: string | null } | null;
+      const syncGangJoin = fighter.gangs as {
+        gang_type?: string | null;
+        custom_gang_type_id?: string | null;
+      } | null;
       const gangEditionForSync = gangEditionSlug(syncGangJoin);
-      if (isVenatorGang(gangEditionForSync, syncGangJoin?.gang_type)) {
+      if (isVenatorGang(
+        gangEditionForSync,
+        syncGangJoin?.gang_type,
+        Boolean(syncGangJoin?.custom_gang_type_id),
+      )) {
         const effectiveSubtypes: string[] = Array.isArray(updateData.fighter_subtypes)
           ? updateData.fighter_subtypes
           : Array.isArray(fighter.fighter_subtypes)
@@ -1770,6 +1778,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
               gangId: fighter.gang_id,
               gangType: syncGangJoin?.gang_type,
               editionSlug: gangEditionForSync,
+              isCustomGangType: Boolean(syncGangJoin?.custom_gang_type_id),
               subtypes: effectiveSubtypes,
             },
             supabase,

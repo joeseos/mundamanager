@@ -38,13 +38,14 @@ export async function saveVenatorSkillRanks(
     .from('gangs')
     .select(`
       gang_type,
+      custom_gang_type_id,
       gang_types!gang_type_id ( editions:edition_id ( slug ) ),
       custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
     `)
     .eq('id', gangId)
     .single();
   if (gangErr || !gang) return { ok: false, error: 'Gang not found.' };
-  if (!isVenatorGang(gangEditionSlug(gang), gang.gang_type)) {
+  if (!isVenatorGang(gangEditionSlug(gang), gang.gang_type, Boolean(gang.custom_gang_type_id))) {
     return { ok: false, error: 'This gang cannot rank Skill Sets.' };
   }
 
@@ -90,6 +91,7 @@ export async function saveVenatorSkillRanks(
       gangId,
       gang.gang_type,
       gangEditionSlug(gang),
+      Boolean(gang.custom_gang_type_id),
       supabase,
       user.id,
       previouslyOwnedSkillTypeIds,

@@ -62,6 +62,7 @@ interface GangEditModalProps {
   gangAffiliationId: string | null;
   gangAffiliationName: string;
   gangType?: string | null;
+  customGangTypeId?: string | null;
   gangTypeHasAffiliation: boolean;
   gangOriginId: string | null;
   gangOriginName: string;
@@ -106,6 +107,7 @@ export default function GangEditModal({
   gangAffiliationId,
   gangAffiliationName,
   gangType,
+  customGangTypeId,
   gangTypeHasAffiliation,
   gangOriginId,
   gangOriginName,
@@ -127,7 +129,7 @@ export default function GangEditModal({
   // Mirror admin fighter-type forms: clear alignment when the edition lacks it
   const effectiveAlignment = showAlignment ? alignment : '';
 
-  const isVenator = isVenatorGang(editionSlug, gangType);
+  const isVenator = isVenatorGang(editionSlug, gangType, Boolean(customGangTypeId));
 
   const { data: skillTypes = [] } = useQuery<Array<{ id: string; name: string }>>({
     queryKey: ['skill-types', editionSlug],

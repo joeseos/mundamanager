@@ -19,10 +19,18 @@ const ACCESS_PRIORITY: Record<'primary' | 'secondary', number> = {
   secondary: 1,
 };
 
+/**
+ * True only for a stock Venator gang: correct edition, `gang_type` matching
+ * the canonical name, and NOT a user-authored custom gang type (a user could
+ * name their custom type "Venators", but its fighters don't carry the built-in
+ * Leader/Champion/Specialist subtypes the rank policy applies to).
+ */
 export function isVenatorGang(
   editionSlug: string | null | undefined,
   gangType: string | null | undefined,
+  isCustomGangType: boolean,
 ): boolean {
+  if (isCustomGangType) return false;
   return hasVenatorSkillAccess(editionSlug)
     && (gangType ?? '').toLowerCase() === VENATOR_GANG_TYPE_NAME.toLowerCase();
 }
