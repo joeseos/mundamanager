@@ -131,7 +131,7 @@ export default function GangEditModal({
 
   const isVenator = isVenatorGang(editionSlug, gangType, Boolean(customGangTypeId));
 
-  const { data: skillTypes = [] } = useQuery<Array<{ id: string; name: string }>>({
+  const { data: skillTypes = [], isSuccess: skillTypesLoaded } = useQuery<Array<{ id: string; name: string }>>({
     queryKey: ['skill-types', editionSlug, 'strict'],
     enabled: isVenator && !!editionSlug,
     queryFn: async () => {
@@ -630,22 +630,28 @@ export default function GangEditModal({
             Pick and rank the four Skill Sets your gang has access to. Rank 1 is
             the Skill Set that most embodies your gang.
           </p>
-          {ranks.map((value, i) => {
-            const taken = new Set(ranks.filter((v, idx) => v && idx !== i));
-            const options = skillTypes.filter((s) => !taken.has(s.id));
-            return (
-              <div key={i} className="flex items-center gap-2">
-                <span className="w-6 text-sm text-muted-foreground">{i + 1}</span>
-                <Combobox
-                  value={value || undefined}
-                  onValueChange={(v) => setRank(i, v ?? '')}
-                  options={options.map((o) => ({ value: o.id, label: o.name }))}
-                  placeholder="Select a Skill Set"
-                  clearable
-                />
-              </div>
-            );
-          })}
+          {skillTypesLoaded && skillTypes.length === 0 ? (
+            <p className="text-sm text-destructive">
+              No Skill Sets are available for this edition yet. Please contact an admin.
+            </p>
+          ) : (
+            ranks.map((value, i) => {
+              const taken = new Set(ranks.filter((v, idx) => v && idx !== i));
+              const options = skillTypes.filter((s) => !taken.has(s.id));
+              return (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="w-6 text-sm text-muted-foreground">{i + 1}</span>
+                  <Combobox
+                    value={value || undefined}
+                    onValueChange={(v) => setRank(i, v ?? '')}
+                    options={options.map((o) => ({ value: o.id, label: o.name }))}
+                    placeholder="Select a Skill Set"
+                    clearable
+                  />
+                </div>
+              );
+            })
+          )}
         </div>
       )}
 
