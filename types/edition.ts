@@ -214,7 +214,7 @@ const EDITION_CAPABILITIES = {
   /** Fighters can catch fire — the Blaze condition token in a battle session. */
   blazeCondition:           { n23: true,  n26: false },
   /** Damage short of a lost wound leaves a Flesh Wound, counted per fighter. */
-  fleshWounds:              { n23: true,  n26: false },
+  fleshWoundCondition:      { n23: true,  n26: false },
   venatorSkillAccess:       { n23: false, n26: true  },
 } as const satisfies Record<string, Record<EditionSlug, unknown>>;
 
@@ -366,8 +366,8 @@ export const hasScenarioD6Roll = (editionSlug?: string | null): boolean =>
 export const hasBlazeCondition = (editionSlug?: string | null): boolean =>
   can('blazeCondition', editionSlug);
 
-export const hasFleshWounds = (editionSlug?: string | null): boolean =>
-  can('fleshWounds', editionSlug);
+export const hasFleshWoundCondition = (editionSlug?: string | null): boolean =>
+  can('fleshWoundCondition', editionSlug);
 
 export const hasVenatorSkillAccess = (editionSlug: string | null | undefined): boolean =>
   can('venatorSkillAccess', editionSlug);
