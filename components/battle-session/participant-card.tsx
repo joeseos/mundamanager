@@ -52,7 +52,7 @@ import { createGangLog } from '@/app/actions/logs/gang-logs';
 import { updateFighterXp } from '@/app/actions/edit-fighter';
 import FighterCard from '@/components/gang/fighter-card';
 import type { BattleSessionFull, BattleSessionParticipant, BattleSessionFighter, SessionCondition, SessionInjuryRecord } from '@/types/battle-session';
-import { beastSubtypeName } from '@/types/edition';
+import { beastSubtypeName, hasBlazeCondition, hasFleshWounds } from '@/types/edition';
 
 interface ConditionDefinition {
   key: string;
@@ -187,6 +187,17 @@ function FighterActionModal({
     fighter.session_record?.conditions ?? []
   );
 
+  // Conditions the edition doesn't use aren't offered. CONDITION_BY_KEY keeps every
+  // definition, so a value another edition already recorded still renders its badge.
+  const sessionConditions = useMemo(
+    () => SESSION_CONDITIONS.filter((c) => c.key !== 'blaze' || hasBlazeCondition(editionSlug)),
+    [editionSlug]
+  );
+  const numericConditions = useMemo(
+    () => NUMERIC_CONDITIONS.filter((c) => c.key !== 'flesh_wound' || hasFleshWounds(editionSlug)),
+    [editionSlug]
+  );
+
   const openXpModal = async () => {
     setLoadingXp(true);
     try {
@@ -271,9 +282,11 @@ function FighterActionModal({
             </Button>
           </div>
           <div className="space-y-2 border-t pt-3 text-left">
-            <h4 className="text-sm font-medium text-neutral-500">Wounds & Flesh Wounds</h4>
+            <h4 className="text-sm font-medium text-neutral-500">
+              {hasFleshWounds(editionSlug) ? 'Wounds & Flesh Wounds' : 'Wounds'}
+            </h4>
             <div className="flex flex-col gap-2">
-              {NUMERIC_CONDITIONS.map((nc) => {
+              {numericConditions.map((nc) => {
                 const current = draftConditions.find((c) => c.key === nc.key)?.value ?? 0;
                 return (
                   <div key={nc.key} className="flex items-center justify-between">
@@ -309,7 +322,7 @@ function FighterActionModal({
           <div className="space-y-2 border-t pt-3 text-left">
             <h4 className="text-sm font-medium text-neutral-500">Conditions</h4>
             <div className="flex flex-wrap gap-2">
-              {SESSION_CONDITIONS.map((condition) => {
+              {sessionConditions.map((condition) => {
                 const isActive = draftConditions.some((c) => c.key === condition.key);
                 return (
                   <Button
