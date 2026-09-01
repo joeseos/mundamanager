@@ -1,0 +1,142 @@
+name: Claude PR Review
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, labeled]
+
+# one review per PR; a newer trigger supersedes an in-flight one
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    # Forks get no secrets and a read-only token, so a fork PR would fail on auth
+    # rather than on merit. Skip it; a maintainer applies the claude-review label
+    # after checking the diff. See CONTRIBUTING.md.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.draft == false &&
+      (github.event.action != 'labeled' || github.event.label.name == 'claude-review')
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          # Subscription auth: shares the hourly/weekly budget with interactive use,
+          # so the review can still be skipped when that budget is spent. The point
+          # of this workflow is that it now fails visibly when that happens.
+          # Swap this one line to `anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}`
+          # to decouple the reviewer from subscription rate limits entirely.
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          track_progress: true # posts a live "in progress" comment
+          use_sticky_comment: true # re-runs update one comment instead of piling up
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            You are a senior engineer reviewing a pull request against the full codebase.
+            The PR branch is already checked out in the working directory.
+
+            1. Examine the PR diff, title, and description.
+            2. Check against these criteria:
+               - Correctness: bugs, logic errors, regressions
+               - Edge cases and null/undefined handling
+               - Security issues (auth, injection, data leaks). This app uses Supabase
+                 with row level security, so flag any query not scoped to the calling user.
+               - Performance concerns (N+1 queries, unnecessary re-renders, large allocations)
+               - Readability and maintainability
+               - Adherence to project conventions in CONTRIBUTING.md and README.md.
+                 In particular: schema changes belong in supabase/migrations/,
+                 supabase/schema/schema.public.sql is generated and must never be
+                 hand-edited, and an RPC or SQL change must update both the migration
+                 and the matching supabase/functions/*.sql file.
+               - DRY and YAGNI: duplicated logic, unnecessary parameters, prop threading bloat
+            3. Focus on high-signal issues. Do not nitpick style unless it impacts clarity.
+            4. Report each finding with file + line, the issue, a suggested fix, and a
+               severity (high/medium/low).
+            5. End with a verdict: approve, or changes requested (with a summary of blockers).
+
+            Post specific findings with `mcp__github_inline_comment__create_inline_comment`
+            (with `confirmed: true`). Post the summary and verdict with `gh pr comment`,
+            tagging the PR author.
+            Only post via GitHub - do not return the review as a chat message.
+            You are a reviewer: do not modify any files.
+          claude_args: |
+            --model claude-sonnet-5
+            --effort high
+            --max-turns 40
+            --allowedTools "Read,Glob,Grep,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+
+      # The point of this workflow. Runs whether the step above succeeded, failed,
+      # or died mid-run, so a review that does not happen is never silent.
+      - name: Report review status on the PR
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          CONCLUSION: ${{ steps.claude.outputs.conclusion }}
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        with:
+          script: |
+            const fs = require('fs');
+            const MARKER = '<!-- claude-review-status -->';
+            const ok = process.env.CONCLUSION === 'success';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}`
+              + `/actions/runs/${context.runId}`;
+
+            // Best-effort: name the cause so nobody has to read the log to know
+            // whether this was a rate limit or a real error.
+            let reason = 'The review job failed. See the run log for details.';
+            const file = process.env.EXECUTION_FILE;
+            if (!ok && file && fs.existsSync(file)) {
+              const log = fs.readFileSync(file, 'utf8').toLowerCase();
+              if (/rate.?limit|usage limit|quota|\b429\b/.test(log)) {
+                reason = 'The Claude subscription usage limit (hourly or weekly cap) was '
+                  + 'reached, so no review was produced. **This is not a problem with your '
+                  + 'PR.** Reviews resume once the limit resets.';
+              } else if (/authentication|unauthorized|invalid.*token|expired|\b401\b/.test(log)) {
+                reason = 'Claude authentication failed. The `CLAUDE_CODE_OAUTH_TOKEN` '
+                  + 'repository secret is likely expired or invalid, and a maintainer needs '
+                  + 'to regenerate it with `claude setup-token`.';
+              }
+            }
+
+            const body = ok
+              ? `${MARKER}\n✅ Automated Claude review completed. [Run log](${runUrl})`
+              : `${MARKER}\n### ⚠️ Automated Claude review did not complete\n\n`
+                + `${reason}\n\n`
+                + `**This PR has not been machine-reviewed, so treat human review as `
+                + `required.**\n\n`
+                + `To retry: remove and re-add the \`claude-review\` label, or re-run the `
+                + `failed job from the [run page](${runUrl}).`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              ...context.repo,
+              issue_number: context.payload.pull_request.number,
+              per_page: 100,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(MARKER));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                ...context.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else if (!ok) {
+              // Only create a comment on failure; on success the green check is signal enough.
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: context.payload.pull_request.number,
+                body,
+              });
+            }
