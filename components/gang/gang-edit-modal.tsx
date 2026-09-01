@@ -551,18 +551,6 @@ export default function GangEditModal({
     }
   };
 
-  const getVenatorRankSaveState = () => {
-    const filled = ranks.filter(Boolean);
-    const hadPreviousRanks = existingRanks.length > 0;
-    const previousOrdered = [...existingRanks]
-      .sort((a, b) => a.rank - b.rank)
-      .map((r) => r.skill_type_id);
-    const ranksUnchanged =
-      filled.length === previousOrdered.length &&
-      filled.every((id, i) => id === previousOrdered[i]);
-    return { filled, hadPreviousRanks, ranksUnchanged };
-  };
-
   const handleSave = async (options?: { skipRankConfirm?: boolean }) => {
     const updates: GangUpdates = {};
     const initial = initialValues;
@@ -636,7 +624,14 @@ export default function GangEditModal({
     }
 
     if (isVenator) {
-      const { filled, hadPreviousRanks, ranksUnchanged } = getVenatorRankSaveState();
+      const filled = ranks.filter(Boolean);
+      const hadPreviousRanks = existingRanks.length > 0;
+      const previousOrdered = [...existingRanks]
+        .sort((a, b) => a.rank - b.rank)
+        .map((r) => r.skill_type_id);
+      const ranksUnchanged =
+        filled.length === previousOrdered.length &&
+        filled.every((id, i) => id === previousOrdered[i]);
 
       if (!ranksUnchanged) {
         if (hadPreviousRanks && !options?.skipRankConfirm) {

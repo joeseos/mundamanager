@@ -1231,7 +1231,6 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
               : [],
           },
           supabase,
-          user.id,
         );
       } catch (err) {
         console.error('syncFighter failed after add-fighter', err);

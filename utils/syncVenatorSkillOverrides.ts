@@ -23,7 +23,6 @@ export interface SyncFighterInput {
 export async function syncFighter(
   input: SyncFighterInput,
   supabase: SupabaseClient,
-  _actingUserId: string,
 ): Promise<void> {
   if (!isVenatorGang(input.editionSlug, input.gangType, input.isCustomGangType)) return;
 
@@ -51,7 +50,6 @@ export async function replaceGangRanks(
   editionSlug: string | null | undefined,
   isCustomGangType: boolean,
   supabase: SupabaseClient,
-  _actingUserId: string,
 ): Promise<void> {
   if (!isVenatorGang(editionSlug, gangType, isCustomGangType)) return;
 

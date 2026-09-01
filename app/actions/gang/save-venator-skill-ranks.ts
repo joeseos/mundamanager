@@ -33,7 +33,7 @@ export async function saveVenatorSkillRanks(
   }
 
   const supabase = await createClient();
-  const user = await getAuthenticatedUser(supabase);
+  await getAuthenticatedUser(supabase);
 
   const { data: gang, error: gangErr } = await supabase
     .from('gangs')
@@ -60,7 +60,6 @@ export async function saveVenatorSkillRanks(
       gangEditionSlug(gang),
       Boolean(gang.custom_gang_type_id),
       supabase,
-      user.id,
     );
   } catch (err) {
     console.error('saveVenatorSkillRanks: replaceGangRanks failed', err);

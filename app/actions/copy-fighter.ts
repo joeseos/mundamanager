@@ -427,7 +427,6 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
               : [],
           },
           supabase,
-          user.id,
         );
       } catch (err) {
         console.error('syncFighter failed after copy-fighter', err);

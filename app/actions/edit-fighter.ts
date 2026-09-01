@@ -1813,7 +1813,6 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
               subtypes: effectiveSubtypes,
             },
             supabase,
-            user.id,
           );
         } catch (err) {
           console.error('syncFighter failed after edit-fighter', err);
