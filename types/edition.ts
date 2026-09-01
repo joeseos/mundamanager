@@ -213,6 +213,8 @@ const EDITION_CAPABILITIES = {
   scenarioD6Roll: { n23: false, n26: true },
   /** Fighters can catch fire — the Blaze condition token in a battle session. */
   blazeCondition:           { n23: true,  n26: false },
+  /** Fighters can be intoxicated — the Intoxicated condition token in a battle session. */
+  intoxicatedCondition:     { n23: true,  n26: false },
   /** Damage short of a lost wound leaves a Flesh Wound, counted per fighter. */
   fleshWoundCondition:      { n23: true,  n26: false },
   venatorSkillAccess:       { n23: false, n26: true  },
@@ -365,6 +367,9 @@ export const hasScenarioD6Roll = (editionSlug?: string | null): boolean =>
 
 export const hasBlazeCondition = (editionSlug?: string | null): boolean =>
   can('blazeCondition', editionSlug);
+
+export const hasIntoxicatedCondition = (editionSlug?: string | null): boolean =>
+  can('intoxicatedCondition', editionSlug);
 
 export const hasFleshWoundCondition = (editionSlug?: string | null): boolean =>
   can('fleshWoundCondition', editionSlug);

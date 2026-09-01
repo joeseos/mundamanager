@@ -52,7 +52,7 @@ import { createGangLog } from '@/app/actions/logs/gang-logs';
 import { updateFighterXp } from '@/app/actions/edit-fighter';
 import FighterCard from '@/components/gang/fighter-card';
 import type { BattleSessionFull, BattleSessionParticipant, BattleSessionFighter, SessionCondition, SessionInjuryRecord } from '@/types/battle-session';
-import { beastSubtypeName, hasBlazeCondition, hasFleshWoundCondition } from '@/types/edition';
+import { beastSubtypeName, hasBlazeCondition, hasFleshWoundCondition, hasIntoxicatedCondition } from '@/types/edition';
 
 interface ConditionDefinition {
   key: string;
@@ -189,10 +189,14 @@ function FighterActionModal({
 
   // Conditions the edition doesn't use aren't offered. CONDITION_BY_KEY keeps every
   // definition, so a value another edition already recorded still renders its badge.
-  const showBlaze = hasBlazeCondition(editionSlug);
   const showFleshWounds = hasFleshWoundCondition(editionSlug);
-  const sessionConditions = SESSION_CONDITIONS.filter((c) => showBlaze || c.key !== 'blaze');
-  const numericConditions = NUMERIC_CONDITIONS.filter((c) => showFleshWounds || c.key !== 'flesh_wound');
+  const hiddenConditionKeys = new Set<string>();
+  if (!hasBlazeCondition(editionSlug)) hiddenConditionKeys.add('blaze');
+  if (!hasIntoxicatedCondition(editionSlug)) hiddenConditionKeys.add('intoxicated');
+  if (!showFleshWounds) hiddenConditionKeys.add('flesh_wound');
+
+  const sessionConditions = SESSION_CONDITIONS.filter((c) => !hiddenConditionKeys.has(c.key));
+  const numericConditions = NUMERIC_CONDITIONS.filter((c) => !hiddenConditionKeys.has(c.key));
 
   const openXpModal = async () => {
     setLoadingXp(true);
