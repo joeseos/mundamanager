@@ -431,6 +431,18 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
         );
       } catch (err) {
         console.error('syncFighter failed after copy-fighter', err);
+        const { error: deleteErr } = await supabase.from('fighters').delete().eq('id', newFighterId);
+        if (deleteErr) {
+          console.error('Failed to roll back copied fighter after syncFighter failure', deleteErr);
+          return {
+            success: false,
+            error: 'Failed to copy fighter skill access, and the incomplete copy could not be removed. Please delete it and try again.',
+          };
+        }
+        return {
+          success: false,
+          error: 'Failed to copy fighter skill access. Please try again.',
+        };
       }
     }
 

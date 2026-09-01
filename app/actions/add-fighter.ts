@@ -1235,6 +1235,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         );
       } catch (err) {
         console.error('syncFighter failed after add-fighter', err);
+        archetypeSkillAccessWarning =
+          'Fighter added but skill access save failed. Please try again via Customise Skill Set Access.';
       }
     }
 

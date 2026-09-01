@@ -1817,6 +1817,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
           );
         } catch (err) {
           console.error('syncFighter failed after edit-fighter', err);
+          archetypeSkillAccessWarning = ARCHETYPE_SKILL_ACCESS_WARNING;
         }
       }
     }

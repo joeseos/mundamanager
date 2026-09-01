@@ -2,7 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { syncGang } from '@/utils/syncVenatorSkillOverrides';
+import { replaceGangRanks } from '@/utils/syncVenatorSkillOverrides';
 import { invalidateGang } from '@/utils/cache-tags';
 import { isVenatorGang } from '@/utils/venatorSkillAccess';
 import { gangEditionSlug } from '@/types/edition';
@@ -52,53 +52,18 @@ export async function saveVenatorSkillRanks(
 
   const FAILED_TO_SAVE = "Failed to save your gang's Skill Set ranks. Please try again.";
 
-  const { data: previousRanks, error: previousRanksErr } = await supabase
-    .from('gang_skill_set_ranks')
-    .select('skill_type_id')
-    .eq('gang_id', gangId);
-  if (previousRanksErr) {
-    console.error('saveVenatorSkillRanks: previous-ranks read failed', previousRanksErr);
-    return { ok: false, error: FAILED_TO_SAVE };
-  }
-  const previouslyOwnedSkillTypeIds = (previousRanks ?? []).map((r) => r.skill_type_id as string);
-
-  const { error: deleteErr } = await supabase
-    .from('gang_skill_set_ranks')
-    .delete()
-    .eq('gang_id', gangId);
-  if (deleteErr) {
-    console.error('saveVenatorSkillRanks: rank delete failed', deleteErr);
-    return { ok: false, error: FAILED_TO_SAVE };
-  }
-
-  if (ranks.length > 0) {
-    const { error: insertErr } = await supabase
-      .from('gang_skill_set_ranks')
-      .insert(
-        ranks.map((r) => ({
-          gang_id: gangId,
-          rank: r.rank,
-          skill_type_id: r.skill_type_id,
-        })),
-      );
-    if (insertErr) {
-      console.error('saveVenatorSkillRanks: rank insert failed', insertErr);
-      return { ok: false, error: FAILED_TO_SAVE };
-    }
-  }
-
   try {
-    await syncGang(
+    await replaceGangRanks(
       gangId,
+      ranks,
       gang.gang_type,
       gangEditionSlug(gang),
       Boolean(gang.custom_gang_type_id),
       supabase,
       user.id,
-      previouslyOwnedSkillTypeIds,
     );
   } catch (err) {
-    console.error('saveVenatorSkillRanks: syncGang failed', err);
+    console.error('saveVenatorSkillRanks: replaceGangRanks failed', err);
     return { ok: false, error: FAILED_TO_SAVE };
   }
 

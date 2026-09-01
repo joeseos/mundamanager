@@ -235,6 +235,7 @@ export default function GangEditModal({
   });
 
   const [ranks, setRanks] = useState<string[]>([]);
+  const [showRankChangeConfirm, setShowRankChangeConfirm] = useState(false);
   const rankSensors = useDndSensorsConfig('distance');
   const rankListRef = useRef<HTMLDivElement | null>(null);
   const lockedScrollParentRef = useRef<{
@@ -298,6 +299,7 @@ export default function GangEditModal({
   useEffect(() => {
     if (!isOpen) {
       ranksInitializedRef.current = false;
+      setShowRankChangeConfirm(false);
       unlockRankModalScroll();
       return;
     }
@@ -549,7 +551,19 @@ export default function GangEditModal({
     }
   };
 
-  const handleSave = async () => {
+  const getVenatorRankSaveState = () => {
+    const filled = ranks.filter(Boolean);
+    const hadPreviousRanks = existingRanks.length > 0;
+    const previousOrdered = [...existingRanks]
+      .sort((a, b) => a.rank - b.rank)
+      .map((r) => r.skill_type_id);
+    const ranksUnchanged =
+      filled.length === previousOrdered.length &&
+      filled.every((id, i) => id === previousOrdered[i]);
+    return { filled, hadPreviousRanks, ranksUnchanged };
+  };
+
+  const handleSave = async (options?: { skipRankConfirm?: boolean }) => {
     const updates: GangUpdates = {};
     const initial = initialValues;
 
@@ -622,16 +636,13 @@ export default function GangEditModal({
     }
 
     if (isVenator) {
-      const filled = ranks.filter(Boolean);
-      const hadPreviousRanks = existingRanks.length > 0;
-      const previousOrdered = [...existingRanks]
-        .sort((a, b) => a.rank - b.rank)
-        .map((r) => r.skill_type_id);
-      const ranksUnchanged =
-        filled.length === previousOrdered.length &&
-        filled.every((id, i) => id === previousOrdered[i]);
+      const { filled, hadPreviousRanks, ranksUnchanged } = getVenatorRankSaveState();
 
       if (!ranksUnchanged) {
+        if (hadPreviousRanks && !options?.skipRankConfirm) {
+          setShowRankChangeConfirm(true);
+          return false;
+        }
         if (filled.length > 0) {
           const payload = filled.map((skill_type_id, i) => ({
             rank: i + 1,
@@ -643,7 +654,7 @@ export default function GangEditModal({
           });
           if (!result.ok) {
             toast.error(result.error);
-            return;
+            return false;
           }
           queryClient.setQueryData(['gang-skill-set-ranks', gangId], payload);
           queryClient.invalidateQueries({ queryKey: ['fighter-skill-access'] });
@@ -651,7 +662,7 @@ export default function GangEditModal({
           const result = await saveVenatorSkillRanks({ gangId, ranks: [] });
           if (!result.ok) {
             toast.error(result.error);
-            return;
+            return false;
           }
           queryClient.setQueryData(['gang-skill-set-ranks', gangId], []);
           queryClient.invalidateQueries({ queryKey: ['fighter-skill-access'] });
@@ -1117,6 +1128,29 @@ export default function GangEditModal({
               </div>
             </div>
           }
+        />
+      )}
+
+      {showRankChangeConfirm && (
+        <Modal
+          title={ranks.length === 0
+            ? 'Clear Skill Set ranks?'
+            : 'Update Skill Set ranks?'}
+          content={
+            <p>
+              {ranks.length === 0
+                ? 'This will remove rank-derived skill access from Venator fighters and reset any custom Skill Set Access on those Skill Sets.'
+                : 'This will reset any custom Skill Set Access on individual Venator fighters to match the new ranking.'}
+            </p>
+          }
+          onClose={() => setShowRankChangeConfirm(false)}
+          onConfirm={async () => {
+            const saved = await handleSave({ skipRankConfirm: true });
+            if (saved === false) return false;
+            setShowRankChangeConfirm(false);
+            return true;
+          }}
+          confirmText="Continue"
         />
       )}
 
