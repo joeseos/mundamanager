@@ -38,10 +38,30 @@ You are a senior engineer reviewing a future pull request against the full codeb
 6. Post the review as a comment in the chat
 ```
 
+### Automated review on the PR
+
+After a PR is opened (or marked ready for review), a **`claude-review`** check runs the same
+review automatically and posts its findings as inline comments plus a summary.
+
+- **Green check** - the review ran. Read the comments.
+- **Red check** - the review did **not** run, and a comment on the PR says why. The most common
+  cause is the maintainer's Claude usage limit being reached; that is not a problem with your PR.
+  When this happens, human review is required before merge.
+
+The check never blocks a merge. To re-run it after pushing fixes, remove and re-add the
+`claude-review` label, or re-run the failed job from the Actions run page.
+
+Mention `@claude` in a PR or issue comment to ask a follow-up question about a finding, or to
+ask for a fix.
+
+**Pull requests from forks are not reviewed automatically.** GitHub does not give fork PRs access
+to the repository secrets the workflow needs. A maintainer applies the `claude-review` label once
+they have looked over the diff.
+
 ## How to set up your environment
 
 1. **Prerequisites**
-   - Node.js 18+
+   - Node.js 20.20.2 or newer (see `.nvmrc`)
    - Supabase project URL and key
    - Cloudflare Turnstile keys
 
