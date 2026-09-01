@@ -1813,10 +1813,10 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
               subtypes: effectiveSubtypes,
             },
             supabase,
-            user.id,
           );
         } catch (err) {
           console.error('syncFighter failed after edit-fighter', err);
+          archetypeSkillAccessWarning = ARCHETYPE_SKILL_ACCESS_WARNING;
         }
       }
     }
