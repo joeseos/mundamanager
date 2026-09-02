@@ -679,10 +679,11 @@ export async function generateChallengeRound(
     }
 
     const rows = gangIds.map((gangId) => {
-      // Seed participants with the challenger so the existing RLS UPDATE policy
-      // ("any gang owner in participants") lets them fill the slot in.
+      // Seeding the challenger is what lets the existing RLS UPDATE policy
+      // ("any gang owner in participants") cover them filling the slot in.
+      // Role stays 'none' — attacker/defender is settled when it is played.
       const { participants } = normaliseParticipants(
-        [{ role: 'attacker', gang_id: gangId }],
+        [{ role: 'none', gang_id: gangId }],
         null,
         null
       );

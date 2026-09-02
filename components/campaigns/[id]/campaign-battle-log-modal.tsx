@@ -7,6 +7,7 @@ import Modal from "@/components/ui/modal";
 import { toast } from 'sonner';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Combobox } from "@/components/ui/combobox";
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
@@ -105,6 +106,12 @@ const CampaignBattleLogModal = ({
 
   // Check if we're in edit mode
   const isEditMode = !!battleToEdit;
+
+  // A challenge has no result yet, so the result fields stay hidden and
+  // unvalidated until the user says it has been played.
+  const isUnplayedChallenge = !!battleToEdit && battleStatusOf(battleToEdit) !== 'played';
+  const [battlePlayed, setBattlePlayed] = useState(false);
+  const showResultFields = !isUnplayedChallenge || battlePlayed;
 
   // Helper to get gang name by ID - extracted to avoid duplication
   const getGangName = (gangId: string | null | undefined) => {
@@ -368,6 +375,7 @@ const CampaignBattleLogModal = ({
   }
   if (isOpen && battleToEdit && scenarios.length > 0 && battleToEdit.id !== populatedForBattle) {
     setPopulatedForBattle(battleToEdit.id);
+    setBattlePlayed(battleStatusOf(battleToEdit) === 'played');
 
     const matchingScenario = scenarios.find(s =>
       s.scenario_name === battleToEdit.scenario_name ||
@@ -627,14 +635,12 @@ const CampaignBattleLogModal = ({
       }
     }
 
-    // How far a challenge moves depends on what was filled in. Entering a
-    // result — a winner, or an explicit draw — files the report and makes it a
-    // played battle. Naming an opponent without a result issues the challenge.
-    // Anything already played keeps its status.
+    // Ticking "battle played" files the report; short of that, naming an
+    // opponent issues the challenge.
     const existingStatus = battleToEdit ? battleStatusOf(battleToEdit) : 'played';
     let nextStatus: BattleStatus | undefined;
-    if (isEditMode && existingStatus !== 'played') {
-      if (isDraw || activeWinners.length > 0) {
+    if (isUnplayedChallenge) {
+      if (battlePlayed) {
         nextStatus = 'played';
       } else if (existingStatus === 'challenge_pending' && selectedGangs.length >= 2) {
         nextStatus = 'challenge_issued';
@@ -655,8 +661,11 @@ const CampaignBattleLogModal = ({
           }]
         : [],
       territory_claimed_by_gang_id: claimerForPayload,
-      created_at: new Date(battleDate + 'T00:00:00').toISOString(),
       cycle: cycleValue,
+      // Sending this for a challenge would reset the row's own date.
+      ...(showResultFields
+        ? { created_at: new Date(battleDate + 'T00:00:00').toISOString() }
+        : {}),
       ...(nextStatus ? { status: nextStatus } : {}),
     };
 
@@ -697,8 +706,8 @@ const CampaignBattleLogModal = ({
 
   // Check if form is valid using useMemo to avoid unnecessary recalculations
   const formValid = useMemo(() => {
-    // Check if a scenario is selected
-    const scenarioValid = selectedScenario !== '';
+    // A challenge may not have rolled its scenario yet.
+    const scenarioValid = showResultFields ? selectedScenario !== '' : true;
 
     // Check if custom scenario has text (when custom is selected)
     const customScenarioValid = selectedScenario !== 'custom' ||
@@ -718,7 +727,7 @@ const CampaignBattleLogModal = ({
 
     // Check the winner state: either Draw, or at least one valid winner.
     // Multi-winner battles with a claimed territory must also pick a claimer.
-    const winnerValid = isDraw || activeWinners.length > 0;
+    const winnerValid = showResultFields ? (isDraw || activeWinners.length > 0) : true;
     const claimerRequired = !isDraw && activeWinners.length > 1 && !!selectedTerritory;
     const claimerValid =
       !claimerRequired || (!!claimedByGangId && activeWinners.includes(claimedByGangId));
@@ -736,28 +745,55 @@ const CampaignBattleLogModal = ({
     selectedTerritory,
     claimedByGangId,
     cycle,
+    showResultFields,
   ]);
 
   if (!isOpen) return null;
 
   return (
     <Modal
-      title={isEditMode ? "Edit Battle Report" : "Add Battle Report"}
+      title={
+        isUnplayedChallenge
+          ? (battlePlayed ? "File Battle Report" : "Challenge")
+          : (isEditMode ? "Edit Battle Report" : "Add Battle Report")
+      }
       helper="Fields marked with * are required."
       content={
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-muted-foreground mb-1">
-              Date *
-            </label>
-            <input
-              type="date"
-              className="w-full px-3 py-2 rounded-md border border-border bg-muted"
-              value={battleDate}
-              onChange={(e) => setBattleDate(e.target.value)}
-              disabled={isLoadingBattleData}
-            />
-          </div>
+          {isUnplayedChallenge && (
+            <div className="flex items-start gap-2 rounded-md border border-border bg-muted p-3">
+              <Checkbox
+                id="battle-played"
+                checked={battlePlayed}
+                onCheckedChange={(checked) => setBattlePlayed(checked === true)}
+                disabled={isLoadingBattleData}
+              />
+              <div>
+                <Label htmlFor="battle-played" className="text-sm font-medium">
+                  Battle played
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Tick this once the battle has been fought to record the result and
+                  file the report. Leave it unticked to save the challenge.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {showResultFields && (
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
+                Date *
+              </label>
+              <input
+                type="date"
+                className="w-full px-3 py-2 rounded-md border border-border bg-muted"
+                value={battleDate}
+                onChange={(e) => setBattleDate(e.target.value)}
+                disabled={isLoadingBattleData}
+              />
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-muted-foreground mb-1">
@@ -793,7 +829,7 @@ const CampaignBattleLogModal = ({
 
           <div>
             <label className="block text-sm font-medium text-muted-foreground mb-1">
-              Scenario *
+              Scenario{showResultFields ? ' *' : ''}
             </label>
             <Combobox
               options={[
@@ -941,6 +977,7 @@ const CampaignBattleLogModal = ({
             </Button>
           </div>
 
+          {showResultFields && (
           <div>
             <label className="block text-sm font-medium text-muted-foreground mb-1">
               Winner *
@@ -1017,6 +1054,7 @@ const CampaignBattleLogModal = ({
               )}
             </div>
           </div>
+          )}
 
           {hasAnyWinnerSelected && availableTerritories.length > 0 && (
             <div>
@@ -1109,7 +1147,11 @@ const CampaignBattleLogModal = ({
       }
       onClose={handleClose}
       onConfirm={handleSaveBattle}
-      confirmText={isEditMode ? "Update" : "Add Battle Report"}
+      confirmText={
+        isUnplayedChallenge
+          ? (battlePlayed ? "File Battle Report" : "Save Challenge")
+          : (isEditMode ? "Update" : "Add Battle Report")
+      }
       confirmDisabled={isLoadingBattleData || !formValid || isReportOverLimit}
     />
   );
