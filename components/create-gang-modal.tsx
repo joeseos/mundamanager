@@ -17,7 +17,7 @@ import { useRouter } from "next/navigation"
 import { useSearchParams } from "next/navigation"
 import Image from 'next/image'
 import { LuChevronLeft, LuChevronRight } from "react-icons/lu"
-import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang'
+import { DefaultImageEntry, normaliseDefaultImageUrls, UNKNOWN_GANG_IMAGE_URL } from '@/types/gang'
 import { EditionToggle } from '@/components/home/edition-toggle'
 import { useHomeEdition } from '@/hooks/use-home-edition'
 import { sameEditionForDisplay } from '@/types/edition'
@@ -447,7 +447,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     console.error('Failed to load image:', e.currentTarget.src);
-    e.currentTarget.src = "https://res.cloudinary.com/dle0tkpbl/image/upload/v1732965431/default-gang_image.jpg";
+    e.currentTarget.src = UNKNOWN_GANG_IMAGE_URL;
   };
 
   return (

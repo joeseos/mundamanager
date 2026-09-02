@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react'
 import { toast } from 'sonner'
 import Modal from "@/components/ui/modal"
+import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Combobox } from "@/components/ui/combobox"
@@ -14,6 +15,12 @@ import {
   territoryPlayingCardEditOptions,
   parseStandardPlayingCard
 } from "@/utils/campaigns/territory-playing-card-options"
+import {
+  TERRITORY_NAME_CHAR_LIMIT,
+  normaliseTerritoryName
+} from "@/utils/campaigns/territory-name"
+
+const TERRITORY_DESCRIPTION_CHAR_LIMIT = 1500;
 
 interface TerritoryEditModalProps {
   isOpen: boolean;
@@ -23,12 +30,18 @@ interface TerritoryEditModalProps {
     default_gang_territory: boolean;
     playing_card: string | null;
     description: string | null;
+    /** Only included when the user may rename and the name actually changed */
+    territory_name?: string;
   }) => void;
   territoryName: string;
+  /** Catalog/template name; Reset restores this when the instance was renamed */
+  originalTerritoryName?: string | null;
   currentRuined: boolean;
   currentDefaultGangTerritory: boolean;
   currentPlayingCard?: string | null;
   currentDescription?: string | null;
+  /** Owners/arbitrators may rename; members see the name as read-only */
+  canRename?: boolean;
   groupedTerritories?: Array<{
     id: string;
     territory_name: string;
@@ -64,23 +77,24 @@ function normaliseDescription(value: string | null | undefined): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-const TERRITORY_DESCRIPTION_CHAR_LIMIT = 1500;
-
 export default function TerritoryEditModal({
   isOpen,
   onClose,
   onConfirm,
   territoryName,
+  originalTerritoryName,
   currentRuined,
   currentDefaultGangTerritory,
   currentPlayingCard,
   currentDescription,
+  canRename = false,
   groupedTerritories = [],
   selectedTerritoryId,
   onSelectTerritory,
   isUpdating = false
 }: TerritoryEditModalProps) {
   const initialPlayingCard = deriveInitialPlayingCardSelection(currentPlayingCard);
+  const [name, setName] = useState(territoryName);
   const [ruined, setRuined] = useState(currentRuined);
   const [defaultGangTerritory, setDefaultGangTerritory] = useState(currentDefaultGangTerritory);
   const [selectedRef, setSelectedRef] = useState(initialPlayingCard.selectedRef);
@@ -100,11 +114,12 @@ export default function TerritoryEditModal({
   }, [selectedRef, customPlayingCard]);
 
   const [prevResetKey, setPrevResetKey] = useState('');
-  const resetKey = `${isOpen}:${currentRuined}:${currentDefaultGangTerritory}:${currentPlayingCard}:${currentDescription}`;
+  const resetKey = `${isOpen}:${selectedTerritoryId ?? ''}:${territoryName}:${currentRuined}:${currentDefaultGangTerritory}:${currentPlayingCard}:${currentDescription}`;
   if (resetKey !== prevResetKey) {
     setPrevResetKey(resetKey);
     if (isOpen) {
       const next = deriveInitialPlayingCardSelection(currentPlayingCard);
+      setName(territoryName);
       setRuined(currentRuined);
       setDefaultGangTerritory(currentDefaultGangTerritory);
       setSelectedRef(next.selectedRef);
@@ -113,7 +128,18 @@ export default function TerritoryEditModal({
     }
   }
 
+  const nameChanged =
+    canRename &&
+    normaliseTerritoryName(name) !== normaliseTerritoryName(territoryName);
+
+  const originalName = normaliseTerritoryName(originalTerritoryName);
+  const canResetToOriginal =
+    canRename &&
+    !!originalName &&
+    normaliseTerritoryName(name) !== originalName;
+
   const hasChanged =
+    nameChanged ||
     ruined !== currentRuined ||
     defaultGangTerritory !== currentDefaultGangTerritory ||
     normalisePlayingCard(effectivePlayingCard ?? undefined) !== normalisePlayingCard(currentPlayingCard) ||
@@ -124,8 +150,17 @@ export default function TerritoryEditModal({
       ? TERRITORY_PLAYING_CARD_CUSTOM
       : selectedRef || TERRITORY_PLAYING_CARD_NONE;
   const isDescriptionOverLimit = getCharCount(description) > TERRITORY_DESCRIPTION_CHAR_LIMIT;
+  const isNameMissing = canRename && !normaliseTerritoryName(name);
+  const helperName = canRename
+    ? (normaliseTerritoryName(name) || territoryName)
+    : territoryName;
 
   const handleConfirm = () => {
+    if (isNameMissing) {
+      toast.error('Please enter a territory name');
+      return false;
+    }
+
     if (selectedRef === TERRITORY_PLAYING_CARD_CUSTOM && !customPlayingCard.trim()) {
       toast.error('Please enter a custom playing card value');
       return false;
@@ -141,7 +176,8 @@ export default function TerritoryEditModal({
       ruined,
       default_gang_territory: defaultGangTerritory,
       playing_card: effectivePlayingCard,
-      description: normaliseDescription(description)
+      description: normaliseDescription(description),
+      ...(nameChanged ? { territory_name: normaliseTerritoryName(name) } : {})
     });
     return true;
   };
@@ -167,6 +203,43 @@ export default function TerritoryEditModal({
             }))}
             placeholder="Select a territory to edit"
           />
+        </div>
+      )}
+
+      {canRename ? (
+        <div>
+          <label className="block text-sm font-medium text-muted-foreground mb-1">
+            Name *
+          </label>
+          <div className="flex items-center gap-2">
+            <Input
+              type="text"
+              className="w-full"
+              placeholder={`Territory name (max ${TERRITORY_NAME_CHAR_LIMIT} characters)`}
+              value={name}
+              maxLength={TERRITORY_NAME_CHAR_LIMIT}
+              required
+              aria-required="true"
+              onChange={(e) => setName(e.target.value)}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              disabled={!canResetToOriginal}
+              onClick={() => setName(originalName)}
+            >
+              Reset
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <label className="block text-sm font-medium text-muted-foreground mb-1">
+            Name
+          </label>
+          <p className="text-sm text-foreground py-2">{territoryName}</p>
         </div>
       )}
 
@@ -214,7 +287,7 @@ export default function TerritoryEditModal({
           htmlFor="ruined-checkbox" 
           className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
         >
-          Mark as Ruined
+          Ruined
         </label>
       </div>
       
@@ -263,12 +336,12 @@ export default function TerritoryEditModal({
     <>
       <Modal
         title="Edit Territory"
-        helper={`Modify settings for ${territoryName}`}
+        helper={`Modify settings for ${helperName}`}
         content={modalContent}
         onClose={onClose}
         onConfirm={handleConfirm}
         confirmText="Update Territory"
-        confirmDisabled={!hasChanged || isUpdating || isDescriptionOverLimit}
+        confirmDisabled={!hasChanged || isUpdating || isDescriptionOverLimit || isNameMissing}
         width="2xl"
       />
       <Tooltip

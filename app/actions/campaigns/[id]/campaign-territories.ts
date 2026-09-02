@@ -1,11 +1,13 @@
 'use server';
 
-import { invalidateCampaign, invalidateGangCampaignMembership, purgePreEditionCampaignCatalogCachesOnce } from '@/utils/cache-tags';
+import { invalidateCampaign, invalidateGangCampaignMembership } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { logTerritoryLost, logTerritoryClaimed } from "../../logs/gang-campaign-logs";
 import { getAuthenticatedUser } from '@/utils/auth';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
 import { editionsConflict, editionSlugFromJoin } from '@/types/edition';
+import { normaliseTerritoryName, validateTerritoryName } from '@/utils/campaigns/territory-name';
+
 
 export interface AssignGangToTerritoryParams {
   campaignId: string;
@@ -42,6 +44,8 @@ export interface UpdateTerritoryStatusParams {
   playing_card: string | null;
   /** Stored on `campaign_territories.description`; null clears the value */
   description: string | null;
+  /** When provided, renames the campaign territory instance (owners/arbitrators only) */
+  territory_name?: string;
 }
 
 /**
@@ -310,7 +314,6 @@ export async function addTerritoryToCampaign(params: AddTerritoryParams) {
     if (error) throw error;
 
     invalidateCampaign(campaignId);
-    purgePreEditionCampaignCatalogCachesOnce();
 
     return { success: true };
   } catch (error) {
@@ -331,16 +334,17 @@ export async function createCustomCampaignTerritory(params: CreateCustomCampaign
     const supabase = await createClient();
     const { campaignId, territoryName } = params;
 
-    const trimmedName = territoryName.trim();
-    if (!trimmedName) {
-      return { success: false, error: 'Territory name is required' };
-    }
-
     const user = await getAuthenticatedUser(supabase);
 
     const hasPermission = await checkCampaignArbitrator(user.id, campaignId);
     if (!hasPermission) {
       return { success: false, error: 'Only campaign owners and arbitrators can create custom territories' };
+    }
+
+    const trimmedName = normaliseTerritoryName(territoryName);
+    const nameError = validateTerritoryName(trimmedName);
+    if (nameError) {
+      return { success: false, error: nameError };
     }
 
     const { error } = await supabase
@@ -454,24 +458,63 @@ export async function removeTerritoryFromCampaign(params: RemoveTerritoryParams)
 export async function updateTerritoryStatus(params: UpdateTerritoryStatusParams) {
   try {
     const supabase = await createClient();
-    const { campaignId, territoryId, ruined, default_gang_territory, playing_card, description } = params;
+    const {
+      campaignId,
+      territoryId,
+      ruined,
+      default_gang_territory,
+      playing_card,
+      description,
+      territory_name
+    } = params;
 
-    // Get the gang holding this territory so we can invalidate their cache
-    const { data: territoryData } = await supabase
+    // Get current territory so we can invalidate gang cache and detect renames
+    const { data: territoryData, error: selectError } = await supabase
       .from('campaign_territories')
-      .select('gang_id')
+      .select('gang_id, territory_name')
       .eq('id', territoryId)
       .eq('campaign_id', campaignId)
       .single();
 
+    if (selectError || !territoryData) {
+      console.error('Error fetching territory for status update:', selectError);
+      return { success: false, error: 'Territory not found' };
+    }
+
+    const updatePayload: Record<string, unknown> = {
+      ruined: ruined,
+      default_gang_territory: default_gang_territory,
+      playing_card: playing_card,
+      description: description
+    };
+
+    // Only authorize/validate rename when a new name is provided and it differs
+    if (territory_name !== undefined) {
+      const normalisedName = normaliseTerritoryName(territory_name);
+      const currentName = normaliseTerritoryName(territoryData.territory_name);
+
+      if (normalisedName !== currentName) {
+        const user = await getAuthenticatedUser(supabase);
+        const hasPermission = await checkCampaignArbitrator(user.id, campaignId);
+        if (!hasPermission) {
+          return {
+            success: false,
+            error: 'Only campaign owners and arbitrators can rename territories'
+          };
+        }
+
+        const nameError = validateTerritoryName(normalisedName);
+        if (nameError) {
+          return { success: false, error: nameError };
+        }
+
+        updatePayload.territory_name = normalisedName;
+      }
+    }
+
     const { error } = await supabase
       .from('campaign_territories')
-      .update({ 
-        ruined: ruined,
-        default_gang_territory: default_gang_territory,
-        playing_card: playing_card,
-        description: description
-      })
+      .update(updatePayload)
       .eq('id', territoryId)
       .eq('campaign_id', campaignId);
 
@@ -480,7 +523,7 @@ export async function updateTerritoryStatus(params: UpdateTerritoryStatusParams)
     invalidateCampaign(campaignId);
 
     // Invalidate gang cache to update territory display on gang page
-    if (territoryData?.gang_id) {
+    if (territoryData.gang_id) {
       invalidateGangCampaignMembership(territoryData.gang_id);
     }
 

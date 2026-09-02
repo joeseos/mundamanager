@@ -8,6 +8,7 @@ import Modal from "@/components/ui/modal";
 import { useShare } from '@/hooks/use-share';
 import { toJpeg } from 'html-to-image';
 import Image from 'next/image';
+import { UNKNOWN_GANG_IMAGE_URL } from '@/types/gang';
 import { CampaignImageEditModal } from '@/components/campaigns/[id]/campaign-image-edit-modal';
 import MemberSearchBar from "@/components/campaigns/[id]/campaign-member-search-bar"
 import MembersTable from "@/components/campaigns/[id]/campaign-members-table"
@@ -76,6 +77,8 @@ interface Territory {
   id: string;
   territory_id: string | null;
   territory_name: string;
+  /** Catalog/template name when linked via territory_id; null for custom territories */
+  original_territory_name?: string | null;
   playing_card?: string | null;
   gang_id: string | null;
   created_at: string;
@@ -259,6 +262,8 @@ export default function CampaignPageContent({
       ruined?: boolean;
       default_gang_territory?: boolean;
       playing_card?: string | null;
+      description?: string | null;
+      territory_name?: string;
     };
   }
 
@@ -465,7 +470,7 @@ export default function CampaignPageContent({
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     console.error('Failed to load image:', e.currentTarget.src);
-    e.currentTarget.src = "https://res.cloudinary.com/dle0tkpbl/image/upload/v1732965431/default-gang_image.jpg";
+    e.currentTarget.src = UNKNOWN_GANG_IMAGE_URL;
   };
 
   const canEditImage = !!(safePermissions.isOwner || safePermissions.isArbitrator || safePermissions.isAdmin);

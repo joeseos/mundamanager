@@ -1,7 +1,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { getUserIdFromClaims } from "@/utils/auth";
-import { getEditionIdBySlug } from '@/app/lib/editions';
+import { getEditionIdBySlug } from '@/utils/editions';
 import { EDITION_N23, gangEditionSlug } from '@/types/edition';
 
 export async function GET(request: Request) {
@@ -10,6 +10,7 @@ export async function GET(request: Request) {
     const fighterId = searchParams.get('fighterId');
     const editionSlugParam = searchParams.get('edition_slug');
     const editionIdParam = searchParams.get('edition_id');
+    const strictEdition = searchParams.get('strict_edition') === '1';
 
     const supabase = await createClient();
 
@@ -75,7 +76,7 @@ export async function GET(request: Request) {
     let { data, error } = await fetchSkillTypes(catalogEditionId);
     if (error) throw error;
 
-    if (catalogEditionId && (data?.length ?? 0) === 0) {
+    if (!strictEdition && catalogEditionId && (data?.length ?? 0) === 0) {
       const n23EditionId = await getEditionIdBySlug(EDITION_N23);
       if (n23EditionId && n23EditionId !== catalogEditionId) {
         if (process.env.NODE_ENV !== 'production') {

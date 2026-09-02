@@ -1,4 +1,4 @@
-import { getEditionIdBySlug } from '@/app/lib/editions';
+import { getEditionIdBySlug } from '@/utils/editions';
 import {
   getArchetypeCatalogSubtype,
   isArchetypeEligible,

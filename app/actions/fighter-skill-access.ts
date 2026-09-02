@@ -17,9 +17,6 @@ interface SaveFighterSkillAccessResult {
   error?: string;
 }
 
-/**
- * Save skill access overrides for a fighter
- */
 export async function saveFighterSkillAccessOverrides(params: {
   fighter_id: string;
   overrides: SkillAccessOverride[];

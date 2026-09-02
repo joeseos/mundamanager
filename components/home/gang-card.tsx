@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import type { Gang } from '@/app/lib/get-user-gangs'
+import { resolveGangImageUrl, UNKNOWN_GANG_IMAGE_URL } from '@/types/gang'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { FiStar } from 'react-icons/fi'
@@ -22,20 +23,11 @@ export interface GangCardProps {
 export function GangCardContent({ gang, onToggleFavourite, dragListeners, dragAttributes, isDragging, disableLink = false }: GangCardProps) {
   const isDraggable = Boolean(dragListeners);
 
-  let imageUrl: string | null = null;
-
-  if (gang.image_url) {
-    imageUrl = gang.image_url;
-  } else if (
-    gang.default_gang_image !== null &&
-    gang.default_gang_image !== undefined &&
-    gang.gang_type_default_image_urls &&
-    Array.isArray(gang.gang_type_default_image_urls) &&
-    gang.default_gang_image >= 0 &&
-    gang.default_gang_image < gang.gang_type_default_image_urls.length
-  ) {
-    imageUrl = gang.gang_type_default_image_urls[gang.default_gang_image].url;
-  }
+  const imageUrl = resolveGangImageUrl({
+    imageUrl: gang.image_url,
+    defaultGangImage: gang.default_gang_image,
+    defaultImageUrls: gang.gang_type_default_image_urls,
+  }) ?? null;
 
   const innerContent = (
     <>
@@ -50,7 +42,7 @@ export function GangCardContent({ gang, onToggleFavourite, dragListeners, dragAt
             priority={false}
             onError={(e) => {
               console.error('Failed to load image:', e.currentTarget.src);
-              e.currentTarget.src = "https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_gang_cropped_web.webp";
+              e.currentTarget.src = UNKNOWN_GANG_IMAGE_URL;
             }}
           />
         ) : (

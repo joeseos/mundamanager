@@ -393,12 +393,38 @@ async function _getCampaignTerritories(campaignId: string, supabase: SupabaseCli
     }
   }
 
+  // Catalog/template names for Reset-to-original in the edit modal
+  const templateTerritoryIds = [
+    ...new Set(
+      (territories ?? [])
+        .map((t) => t.territory_id)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0)
+    ),
+  ];
+  let templateNameById: Record<string, string> = {};
+  if (templateTerritoryIds.length > 0) {
+    const { data: templates, error: templatesError } = await supabase
+      .from('territories')
+      .select('id, territory_name')
+      .in('id', templateTerritoryIds);
+
+    if (!templatesError && templates) {
+      templateNameById = Object.fromEntries(
+        templates.map((t) => [t.id, t.territory_name])
+      );
+    }
+  }
+
   return territories?.map(territory => {
     const gangDetails = territoryGangsData.find(g => g.id === territory.gang_id);
+    const originalTerritoryName = territory.territory_id
+      ? (templateNameById[territory.territory_id] ?? null)
+      : null;
     return {
       id: territory.id,
       territory_id: territory.territory_id,
       territory_name: territory.territory_name,
+      original_territory_name: originalTerritoryName,
       gang_id: territory.gang_id,
       created_at: territory.created_at,
       ruined: territory.ruined || false,

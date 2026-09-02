@@ -4,13 +4,23 @@ import { useCallback, type MouseEvent as ReactMouseEvent } from 'react'
 import { MouseSensor, TouchSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 
-export function useDndSensorsConfig() {
+/**
+ * Default `delay` touch activation suits pages where a long-press must not steal
+ * scroll or link taps (fighter cards, home favourites). Use `distance` for compact
+ * reorder lists (e.g. modal rank lists) where waiting feels like lag.
+ */
+export function useDndSensorsConfig(
+  touchActivation: 'delay' | 'distance' = 'delay',
+) {
   return useSensors(
     useSensor(MouseSensor, {
       activationConstraint: { distance: 8 },
     }),
     useSensor(TouchSensor, {
-      activationConstraint: { delay: 600, tolerance: 10 },
+      activationConstraint:
+        touchActivation === 'distance'
+          ? { distance: 8 }
+          : { delay: 600, tolerance: 10 },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,

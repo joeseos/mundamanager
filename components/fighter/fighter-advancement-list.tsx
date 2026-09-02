@@ -7,7 +7,7 @@ import Modal from "@/components/ui/modal";
 import { Skill, FighterSkills, FighterEffect as FighterEffectType } from '@/types/fighter';
 import { TypeSpecificData } from '@/types/fighter-effect';
 import { createClient } from '@/utils/supabase/client';
-import { getSkillSetRank } from "@/utils/skillSetRank";
+import { buildGroupedSkillSetComboboxOptions } from '@/utils/skillSetComboboxOptions';
 import { characteristicRank } from "@/utils/characteristicRank";
 import { countAdvancementsTaken, openAdvancementsFor } from "@/utils/advancementRanks";
 import { List } from "@/components/ui/list";
@@ -41,6 +41,7 @@ import {
   type N26AdvancementEntry
 } from '@/utils/dice';
 import { hasCumulativeXp } from '@/types/edition';
+import { VENATOR_RANKS_INCOMPLETE_MESSAGE } from '@/utils/venatorSkillAccess';
 import {
   N26_CHAMPION_PROMOTION_SKILL_NAME,
   N26_PROSPECT_PROMOTION_CREDITS,
@@ -64,6 +65,7 @@ interface AdvancementModalProps {
   onCharacteristicUpdate?: (characteristicName: string, changeAmount: number) => void;
   userPermissions?: UserPermissions;
   gangId?: string;
+  venatorRanksIncomplete?: boolean;
   gangTypeId?: string;
   customGangTypeId?: string;
   fighterSpecialRules?: string[];
@@ -194,6 +196,7 @@ interface AdvancementsListProps {
   onXpCreditsUpdate?: (xpChange: number, creditsChange: number) => void;
   onCharacteristicUpdate?: (characteristicName: string, changeAmount: number) => void;
   gangId?: string;
+  venatorRanksIncomplete?: boolean;
   gangTypeId?: string;
   customGangTypeId?: string;
   fighterSpecialRules?: string[];
@@ -305,13 +308,6 @@ function getAllowedAcquisitionTypeIds(
   return getAcquisitionTypeIdsForAccess(accessLevel);
 }
 
-type SkillSetComboboxOption = {
-  value: string;
-  label: React.ReactNode;
-  displayValue: string;
-  disabled?: boolean;
-};
-
 /**
  * Builds grouped Skill Set combobox options with access annotations.
  * When `highlightPrimaryOnly` is true, only Primary sets use normal styling; all others are grey/italic.
@@ -321,97 +317,33 @@ function buildSkillSetComboboxOptions(
   skillAccess: SkillAccess[],
   highlightPrimaryOnly: boolean,
   editionSlug?: string | null
-): SkillSetComboboxOption[] {
-  const skillSetRank = getSkillSetRank(editionSlug);
+) {
   const skillAccessMap = new Map<string, SkillAccess>();
   skillAccess.forEach((a) => skillAccessMap.set(a.skill_type_id, a));
 
-  const customCategories = categories.filter((c) => c.is_custom);
-  const standardCategories = categories.filter((c) => !c.is_custom);
-
-  const groupByLabel: Record<string, SkillType[]> = {};
-  standardCategories.forEach((category) => {
-    const rank = skillSetRank[category.name.toLowerCase()] ?? Infinity;
-    let groupLabel = 'Misc.';
-    if (rank <= 19) groupLabel = 'Universal Skill Sets';
-    else if (rank <= 39) groupLabel = 'Gang-specific Skill Sets';
-    else if (rank <= 59) groupLabel = 'Wyrd Powers';
-    else if (rank <= 69) groupLabel = 'Cult Wyrd Powers';
-    else if (rank <= 79) groupLabel = 'Psychoteric Whispers';
-    else if (rank <= 89) groupLabel = 'Legendary Names';
-    else if (rank <= 99) groupLabel = 'Ironhead Squat Mining Clans';
-    if (!groupByLabel[groupLabel]) groupByLabel[groupLabel] = [];
-    groupByLabel[groupLabel].push(category);
+  return buildGroupedSkillSetComboboxOptions(categories, editionSlug, {
+    formatItem: (category) => {
+      const access = skillAccessMap.get(category.id);
+      const effectiveLevel = access ? effectiveSkillAccess(access) : null;
+      let accessLabel = '';
+      if (effectiveLevel === 'primary') accessLabel = '(Primary)';
+      else if (effectiveLevel === 'secondary') accessLabel = '(Secondary)';
+      else if (effectiveLevel === 'allowed') accessLabel = '(Allowed)';
+      const labelText = accessLabel ? `${category.name} ${accessLabel}` : category.name;
+      const useNormalLabelStyle = highlightPrimaryOnly
+        ? effectiveLevel === 'primary'
+        : !!effectiveLevel;
+      return {
+        label: useNormalLabelStyle ? (
+          <span className="pl-4">{labelText}</span>
+        ) : (
+          <span className="pl-4 italic text-neutral-400">{labelText}</span>
+        ),
+        displayValue: labelText,
+        ...(highlightPrimaryOnly && effectiveLevel !== 'primary' ? { disabled: true } : {}),
+      };
+    },
   });
-
-  const sortedGroupLabels = Object.keys(groupByLabel).sort((a, b) => {
-    const aRank = Math.min(
-      ...groupByLabel[a].map((cat) => skillSetRank[cat.name.toLowerCase()] ?? Infinity)
-    );
-    const bRank = Math.min(
-      ...groupByLabel[b].map((cat) => skillSetRank[cat.name.toLowerCase()] ?? Infinity)
-    );
-    return aRank - bRank;
-  });
-
-  const options: SkillSetComboboxOption[] = [];
-
-  const pushCategory = (category: SkillType) => {
-    const access = skillAccessMap.get(category.id);
-    const effectiveLevel = access ? effectiveSkillAccess(access) : null;
-    let accessLabel = '';
-    if (effectiveLevel === 'primary') accessLabel = '(Primary)';
-    else if (effectiveLevel === 'secondary') accessLabel = '(Secondary)';
-    else if (effectiveLevel === 'allowed') accessLabel = '(Allowed)';
-    const labelText = accessLabel ? `${category.name} ${accessLabel}` : category.name;
-    const useNormalLabelStyle = highlightPrimaryOnly
-      ? effectiveLevel === 'primary'
-      : !!effectiveLevel;
-    options.push({
-      value: category.id,
-      label: useNormalLabelStyle ? (
-        <span className="pl-4">{labelText}</span>
-      ) : (
-        <span className="pl-4 italic text-neutral-400">{labelText}</span>
-      ),
-      displayValue: labelText,
-      ...(highlightPrimaryOnly && effectiveLevel !== 'primary' ? { disabled: true } : {})
-    });
-  };
-
-  if (customCategories.length > 0) {
-    options.push({
-      value: '__group__custom',
-      label: (
-        <span className="text-xs font-bold uppercase tracking-wide">Custom Skill Sets</span>
-      ),
-      displayValue: 'Custom Skill Sets',
-      disabled: true
-    });
-    customCategories
-      .slice()
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .forEach(pushCategory);
-  }
-
-  sortedGroupLabels.forEach((groupLabel) => {
-    options.push({
-      value: `__group__${groupLabel}`,
-      label: (
-        <span className="text-xs font-bold uppercase tracking-wide">{groupLabel}</span>
-      ),
-      displayValue: groupLabel,
-      disabled: true
-    });
-    const groupCategories = groupByLabel[groupLabel].slice().sort((a, b) => {
-      const rankA = skillSetRank[a.name.toLowerCase()] ?? Infinity;
-      const rankB = skillSetRank[b.name.toLowerCase()] ?? Infinity;
-      return rankA - rankB;
-    });
-    groupCategories.forEach(pushCategory);
-  });
-
-  return options;
 }
 
 const GANGER_ADVANCEMENT_TABLE_LABEL = 'Ganger / Exotic Beast Advancement';
@@ -491,6 +423,7 @@ export function AdvancementModal({
   onCharacteristicUpdate,
   userPermissions,
   gangId = '',
+  venatorRanksIncomplete,
   gangTypeId = '',
   customGangTypeId = '',
   fighterSpecialRules = [],
@@ -2803,6 +2736,11 @@ export function AdvancementModal({
                     options={skillSetComboboxOptions}
                     dropdownPlacement="down"
                   />
+                  {venatorRanksIncomplete && (
+                    <p className="text-sm text-amber-500">
+                      {VENATOR_RANKS_INCOMPLETE_MESSAGE}
+                    </p>
+                  )}
                   {selectedCategory && selectedSkillSetLacksAccess && (
                     <p className="text-sm text-amber-500">
                       This Skill Set is not accessible to this fighter. Change their Skill Set
@@ -2963,6 +2901,7 @@ export function AdvancementsList({
   onXpCreditsUpdate,
   onCharacteristicUpdate,
   gangId = '',
+  venatorRanksIncomplete,
   gangTypeId = '',
   customGangTypeId = '',
   fighterSpecialRules = [],
@@ -3507,6 +3446,7 @@ export function AdvancementsList({
           onCharacteristicUpdate={onCharacteristicUpdate}
           userPermissions={userPermissions}
           gangId={gangId}
+          venatorRanksIncomplete={venatorRanksIncomplete}
           gangTypeId={gangTypeId}
           customGangTypeId={customGangTypeId}
           fighterSpecialRules={fighterSpecialRules}

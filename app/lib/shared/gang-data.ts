@@ -5,6 +5,7 @@ import { assembleGangFighters, assembleGangVehicles, groupBy, type GangFightersB
 import { WeaponProps, WargearItem } from '@/types/fighter';
 import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang';
 import { gangEditionSlug } from '@/types/edition';
+import { isVenatorGang } from '@/utils/venatorSkillAccess';
 import { GangTacticsCard, GANG_TACTICS_CARD_SELECT, toGangTacticsCard } from '@/types/tactics-card';
 
 // =============================================================================
@@ -69,6 +70,7 @@ export interface GangBasic {
   image_url?: string;
   default_gang_image?: number | null;
   hidden: boolean;
+  venator_ranks_incomplete?: boolean;
 }
 
 export interface GangType {
@@ -279,15 +281,25 @@ export const getGangCore = async (gangId: string, supabase: any): Promise<GangCo
         throw error;
       }
       if (!data) return null;
+      const editionSlug = gangEditionSlug(data);
+      let venatorRanksIncomplete: boolean | undefined;
+      if (isVenatorGang(editionSlug, data.gang_type, Boolean(data.custom_gang_type_id))) {
+        const { data: ranksProbe } = await supabase
+          .from('gang_skill_set_ranks')
+          .select('rank')
+          .eq('gang_id', gangId);
+        venatorRanksIncomplete = (ranksProbe ?? []).length < 4;
+      }
       return {
         ...data,
-        edition_slug: gangEditionSlug(data),
+        edition_slug: editionSlug,
         rating: (data.rating ?? 0) as number,
         wealth: (data.wealth ?? 0) as number,
         alliance: data.alliance ?? null,
+        venator_ranks_incomplete: venatorRanksIncomplete,
       };
     },
-    [`gang-core-v3-${gangId}`],
+    [`gang-core-v5-${gangId}`],
     {
       tags: [TAGS.gang(gangId)],
       revalidate: false

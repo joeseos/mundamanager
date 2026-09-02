@@ -142,13 +142,15 @@ export default function CreateBattleModal({
     return a.scenario_number - b.scenario_number;
   });
 
-  const opponentCampaignGangs = (campaignGangs ?? []).filter(
-    (g) =>
-      g.id !== effectiveGangId &&
-      !myGangs.some((mg) => mg.id === g.id) &&
-      !selectedCampaignGangIds.includes(g.id) &&
-      !existingGangIds.includes(g.id)
-  );
+  // Own gangs stay selectable — a user can own both sides of a battle.
+  const opponentCampaignGangs = (campaignGangs ?? [])
+    .filter(
+      (g) =>
+        g.id !== effectiveGangId &&
+        !selectedCampaignGangIds.includes(g.id) &&
+        !existingGangIds.includes(g.id)
+    )
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const handleSelectUser = (user: UserSearchResult) => {
     setSelectedUser(user);
@@ -183,6 +185,12 @@ export default function CreateBattleModal({
 
   const removeCampaignGang = (campaignGangId: string) => {
     setSelectedCampaignGangIds((prev) => prev.filter((id) => id !== campaignGangId));
+  };
+
+  const selectMyGang = (campaignGangId: string) => {
+    setSelectedMyGangId(campaignGangId);
+    // A gang can't fight itself: claiming it as yours drops it as an opponent.
+    removeCampaignGang(campaignGangId);
   };
 
   // Filter out gangs already added as opponents, already in the session, or from
@@ -323,7 +331,7 @@ export default function CreateBattleModal({
             <Combobox
               options={myGangs.map(g => buildGangComboboxOption(g))}
               value={selectedMyGangId}
-              onValueChange={setSelectedMyGangId}
+              onValueChange={selectMyGang}
               placeholder="Select your gang..."
             />
           </div>

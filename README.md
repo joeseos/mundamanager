@@ -29,98 +29,9 @@ If you enjoy using Munda Manager, consider:
 
 For questions about contributing, feel free to ask in our [Discord server](https://discord.gg/FrqEWShQd7).
 
-## How to Contribute as a Developper?
+## Contributing
 
-### Practical steps to create a pull request
-
-1. Clone the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Added some amazing feature'`)
-4. Push to the branch (`git push -u origin HEAD`)
-5. Open a Pull Request
-
-### How to Setup your Environment
-
-1. **Prerequisites**
-   - Node.js 18+
-   - Supabase project url and key
-   - Cloudflare Turnstile keys
-
-2. **Environment Setup**
-   ```bash
-   cp .env.example .env.local
-   ```
-   Configure the following variables:
-   ```
-   NEXT_PUBLIC_SUPABASE_URL=mundamanager-project-url
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-   NEXT_PUBLIC_TURNSTILE_SITE_KEY=mundamanager-turnstile-key
-   TURNSTILE_SECRET_KEY=mundamanager-turnstile-secret-key
-   NODE_ENV=development
-   ```
-
-3. **Running the environment**
-   ```bash
-   npm install
-   npm run dev
-   ```
-
-4. **Mobile device testing**
-   On your desktop, make sure you have the NODE_ENV variable setup with the value 'development'. Then run the following:
-   ```bash
-   npm run dev --host
-   ```
-   
-   On your mobile device, when connected to your wifi, access the website using the IP of your desktop on your local network (e.g. 192.168.1.5):
-   http://192.168.1.5:3000
-
-5. **Access to the DB Schema**
-   The Supabase DB schema can be accessed through https://supabase-schema.vercel.app/
-   Use the Supabase URL and the and the anon key to connect to it
-
-### Setting up a local Supabase database
-
-Run the whole stack locally with the Supabase CLI so you can experiment with
-schema/backend changes without touching the production database.
-
-> **Why are local migrations disabled in config.toml?**
-> The files in `supabase/migrations/` are *incremental* deltas for developers
-> who already have the full database — they assume base tables that were never
-> captured as a migration, so replaying them from empty crashes. Local migration
-> auto-run is therefore disabled in `supabase/config.toml`. Instead, `supabase start`
-> and `supabase db reset` natively build the fresh local database via `[db.seed].sql_paths`
-> in `supabase/config.toml`, loading the committed schema snapshot (`schema.public.sql`),
-> helper schemas, role grants, triggers, and game reference data (`seed.sql`) in the exact right order.
-
-**Prerequisites:** [Supabase CLI](https://supabase.com/docs/guides/cli), Docker
-(for the local stack), and a `psql` client.
-
-1. **Bootstrap the database** from the repo root:
-   ```bash
-   supabase start
-   ```
-   Or if the stack is already running and you want to clean/rebuild your local database from scratch:
-   ```bash
-   supabase db reset
-   ```
-   Supabase CLI natively resets the database and seeds the schema snapshot (`schema.public.sql`), helper schemas, role grants, triggers, and game reference data (`seed.sql`).
-
-2. **Point `.env.local` at the local stack.** Run `supabase status` to get the local API URL and anon key, then set:
-   ```
-   NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key from `supabase status`>
-   ```
-
-3. **Start the app** with `npm run dev` as usual.
-
-**Notes**
-- `supabase db reset` wipes the local database, rebuilds it cleanly from the daily production schema snapshot, and seeds reference game lookup data.
-- The email webhook is intentionally **not** part of local setup: it needs AWS
-  SES secrets and only matters for outbound notification email. See
-  `supabase/webhooks/README.md` if you need it.
-- To pull the latest production schema before bootstrapping, `git pull` first —
-  `schema.public.sql` is refreshed by CI daily.
-
+See [CONTRIBUTING.md](CONTRIBUTING.md) for environment setup, local Supabase, and how to open a pull request. Questions are welcome in our [Discord server](https://discord.gg/FrqEWShQd7).
 
 ## Component Architecture
 
@@ -622,3 +533,68 @@ interface FighterProps {
 ```
 
 
+
+## Self-Hosted Caching (Coolify)
+
+On Vercel the app uses Next's built-in Data Cache and nothing here applies. When
+self-hosting, `cache-handler.js` can back the Next.js `cacheHandler` with Redis so
+cached data is shared between instances and survives a redeploy.
+
+It is off unless `USE_REDIS_CACHE=true` is set **at build time** — `next.config.js`
+reads it to decide whether to register the handler at all. `REDIS_URL` is a runtime
+secret and is deliberately not needed during `next build`; without it the handler
+falls back to an in-process cache, which is what makes the build work.
+
+| Variable | Required | Notes |
+|---|---|---|
+| `USE_REDIS_CACHE` | build | `true` enables the handler |
+| `REDIS_URL` | runtime | Secret. Absent ⇒ in-memory fallback |
+| `REDIS_CACHE_PREFIX` | no | Default `munda-manager:next-cache` |
+| `REDIS_CACHE_TIMEOUT_MS` | no | Default `1000` |
+| `NEXT_PRIVATE_DEBUG_CACHE` | no | `1` logs HIT/MISS/SET and invalidations |
+
+### Redis instance requirements
+
+**Configure the instance as a cache, not a store:**
+
+```
+maxmemory 256mb                 # size to taste
+maxmemory-policy allkeys-lru
+```
+
+Cache entries carry no TTL on purpose, so that tag invalidation stays the only thing
+that expires them. On Redis's actual default policy (`noeviction`) the keyspace
+therefore grows unbounded until writes fail with OOM — at which point the cache stops
+working and invalidations start being dropped. Under `allkeys-lru` it just evicts, which
+is the failure mode the handler is designed around.
+
+**Recovery after a Redis outage.** Cache entries have no TTL, so an invalidation that
+cannot reach Redis would otherwise leave stale data that nothing expires. If that
+happens the handler marks the cache dirty: it stops serving Redis hits, and once Redis
+is reachable again it drops the whole namespace before trusting it. Expect one cold
+cache — and a burst of Supabase reads — after an outage. Both transitions are logged.
+
+**Do not expose the instance.** Entries hold whatever `unstable_cache` wrapped — gang,
+fighter and campaign data, profiles, permission results — so treat it like any other
+datastore with real data in it: private network only, and require auth (and TLS) if it
+is ever reachable beyond the Coolify network.
+
+`unstable_cache` entries are stored under `…:v1:fetch:` and persist across deploys;
+rendered pages are stored per build id so a new build never serves the previous
+build's payloads. Tags from `utils/cache-tags.ts` are indexed as Redis sets, so
+`revalidateTag` deletes exactly the affected keys rather than scanning the keyspace.
+
+To confirm Redis is receiving entries:
+
+```bash
+redis-cli -u "$REDIS_URL" DBSIZE
+redis-cli -u "$REDIS_URL" --scan --pattern 'munda-manager:next-cache:*' | head -50
+redis-cli -u "$REDIS_URL" SMEMBERS 'munda-manager:next-cache:v1:tag:gang-<GANG_ID>'
+redis-cli -u "$REDIS_URL" MONITOR   # watch live traffic while browsing
+
+# flush the app's cache (e.g. after changing the shape of a cached value)
+redis-cli -u "$REDIS_URL" --scan --pattern 'munda-manager:next-cache:*' \
+  | xargs -r -n 500 redis-cli -u "$REDIS_URL" DEL
+```
+
+To roll back to stock Next.js caching, unset `USE_REDIS_CACHE` and rebuild.

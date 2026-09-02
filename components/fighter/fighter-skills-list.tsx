@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Modal from "@/components/ui/modal";
 import { toast } from 'sonner';
-import { getSkillSetRank } from "@/utils/skillSetRank";
+import { buildGroupedSkillSetComboboxOptions } from '@/utils/skillSetComboboxOptions';
 import { FighterSkills } from '@/types/fighter';
 import { FighterLoadout } from '@/types/equipment';
 import { isEquipmentInActiveLoadout } from '@/components/fighter/fighter-equipment-list';
@@ -10,6 +10,7 @@ import { List } from "@/components/ui/list";
 import { Combobox } from '@/components/ui/combobox';
 import { UserPermissions } from '@/types/user-permissions';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { VENATOR_RANKS_INCOMPLETE_MESSAGE } from '@/utils/venatorSkillAccess';
 import { 
   addSkillAdvancement, 
   deleteAdvancement 
@@ -55,6 +56,7 @@ interface SkillsListProps {
   free_skill?: boolean;
   userPermissions: UserPermissions;
   gangCredits?: number;
+  venatorRanksIncomplete?: boolean;
   editionSlug?: string | null;
   /** Used to detect N26 Prospect / Ganger→Champion keep-type skill grants on delete. */
   fighterSpecialisationId?: string | null;
@@ -81,6 +83,7 @@ interface SkillModalProps {
   fighterId: string;
   userId: string;
   gangCredits?: number;
+  venatorRanksIncomplete?: boolean;
   editionSlug?: string | null;
   onClose: () => void;
   onSkillAdded: (skillId: string, skillName: string, creditsIncrease: number, isAdvance: boolean) => void;
@@ -118,7 +121,7 @@ interface SkillAccess {
 }
 
 // SkillModal Component
-export function SkillModal({ fighterId, userId, gangCredits, editionSlug, onClose, onSkillAdded, onSkillRollback, isSubmitting, onSelectSkill, onGangCreditsUpdate }: SkillModalProps) {
+export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncomplete, editionSlug, onClose, onSkillAdded, onSkillRollback, isSubmitting, onSelectSkill, onGangCreditsUpdate }: SkillModalProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [skillsData, setSkillsData] = useState<SkillResponse | null>(null);
@@ -251,103 +254,30 @@ export function SkillModal({ fighterId, userId, gangCredits, editionSlug, onClos
    * Group headers are rendered as disabled rows so the Combobox treats them as section headers.
    */
   const skillSetComboboxOptions = useMemo(() => {
-    const skillSetRank = getSkillSetRank(editionSlug);
     const skillAccessMap = new Map<string, SkillAccess>();
     skillAccess.forEach((a) => skillAccessMap.set(a.skill_type_id, a));
 
-    const customCategories = categories.filter((c) => c.is_custom);
-    const standardCategories = categories.filter((c) => !c.is_custom);
-
-    const groupByLabel: Record<string, Category[]> = {};
-    standardCategories.forEach((category) => {
-      const rank = skillSetRank[category.name.toLowerCase()] ?? Infinity;
-      let groupLabel = 'Misc.';
-      if (rank <= 19) groupLabel = 'Universal Skill Sets';
-      else if (rank <= 39) groupLabel = 'Gang-specific Skill Sets';
-      else if (rank <= 59) groupLabel = 'Wyrd Powers';
-      else if (rank <= 69) groupLabel = 'Cult Wyrd Powers';
-      else if (rank <= 79) groupLabel = 'Psychoteric Whispers';
-      else if (rank <= 89) groupLabel = 'Legendary Names';
-      else if (rank <= 99) groupLabel = 'Ironhead Squat Mining Clans';
-      if (!groupByLabel[groupLabel]) groupByLabel[groupLabel] = [];
-      groupByLabel[groupLabel].push(category);
+    return buildGroupedSkillSetComboboxOptions(categories, editionSlug, {
+      formatItem: (category) => {
+        const access = skillAccessMap.get(category.id);
+        const rawLevel = access?.override_access_level ?? access?.access_level;
+        // Treat 'denied' the same as no access for display purposes
+        const effectiveLevel = rawLevel && rawLevel !== 'denied' ? rawLevel : null;
+        let accessLabel = '';
+        if (effectiveLevel === 'primary') accessLabel = '(Primary)';
+        else if (effectiveLevel === 'secondary') accessLabel = '(Secondary)';
+        else if (effectiveLevel === 'allowed') accessLabel = '(Allowed)';
+        const labelText = accessLabel ? `${category.name} ${accessLabel}` : category.name;
+        return {
+          label: effectiveLevel ? (
+            <span className="pl-3">{labelText}</span>
+          ) : (
+            <span className="pl-3 italic text-neutral-400">{labelText}</span>
+          ),
+          displayValue: labelText,
+        };
+      },
     });
-
-    const sortedGroupLabels = Object.keys(groupByLabel).sort((a, b) => {
-      const aRank = Math.min(
-        ...groupByLabel[a].map((cat) => skillSetRank[cat.name.toLowerCase()] ?? Infinity)
-      );
-      const bRank = Math.min(
-        ...groupByLabel[b].map((cat) => skillSetRank[cat.name.toLowerCase()] ?? Infinity)
-      );
-      return aRank - bRank;
-    });
-
-    const options: Array<{
-      value: string;
-      label: React.ReactNode;
-      displayValue: string;
-      disabled?: boolean;
-    }> = [];
-
-    const pushCategory = (category: Category) => {
-      const access = skillAccessMap.get(category.id);
-      const rawLevel = access?.override_access_level ?? access?.access_level;
-      // Treat 'denied' the same as no access for display purposes
-      const effectiveLevel = rawLevel && rawLevel !== 'denied' ? rawLevel : null;
-      let accessLabel = '';
-      if (effectiveLevel === 'primary') accessLabel = '(Primary)';
-      else if (effectiveLevel === 'secondary') accessLabel = '(Secondary)';
-      else if (effectiveLevel === 'allowed') accessLabel = '(Allowed)';
-      const labelText = accessLabel ? `${category.name} ${accessLabel}` : category.name;
-      options.push({
-        value: category.id,
-        label: effectiveLevel ? (
-          <span className="pl-3">{labelText}</span>
-        ) : (
-          <span className="pl-3 italic text-neutral-400">{labelText}</span>
-        ),
-        displayValue: labelText
-      });
-    };
-
-    if (customCategories.length > 0) {
-      options.push({
-        value: '__group__custom',
-        label: (
-          <span className="text-xs font-bold uppercase tracking-wide">
-            Custom Skill Sets
-          </span>
-        ),
-        displayValue: 'Custom Skill Sets',
-        disabled: true
-      });
-      customCategories
-        .slice()
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .forEach(pushCategory);
-    }
-
-    sortedGroupLabels.forEach((groupLabel) => {
-      options.push({
-        value: `__group__${groupLabel}`,
-        label: (
-          <span className="text-xs font-bold uppercase tracking-wide">
-            {groupLabel}
-          </span>
-        ),
-        displayValue: groupLabel,
-        disabled: true
-      });
-      const groupCategories = groupByLabel[groupLabel].slice().sort((a, b) => {
-        const rankA = skillSetRank[a.name.toLowerCase()] ?? Infinity;
-        const rankB = skillSetRank[b.name.toLowerCase()] ?? Infinity;
-        return rankA - rankB;
-      });
-      groupCategories.forEach(pushCategory);
-    });
-
-    return options;
   }, [categories, skillAccess, editionSlug]);
 
   // Whether the fighter has no meaningful access to the currently selected skill set.
@@ -421,6 +351,11 @@ export function SkillModal({ fighterId, userId, gangCredits, editionSlug, onClos
           options={skillSetComboboxOptions}
           dropdownPlacement="down"
         />
+        {venatorRanksIncomplete && (
+          <p className="text-sm text-amber-500">
+            {VENATOR_RANKS_INCOMPLETE_MESSAGE}
+          </p>
+        )}
         {selectedSkillSetLacksAccess && (
           <p className="text-sm text-amber-500">
             This Skill Set is not accessible to this fighter. Change their Skill Set
@@ -475,6 +410,7 @@ export function SkillModal({ fighterId, userId, gangCredits, editionSlug, onClos
   return (
     <Modal
       title="Skills"
+      helper="Add a skill to your fighter that is not part of a Promotion or an Advancement."
       content={modalContent}
       onClose={onClose}
       onConfirm={handleSubmit}
@@ -492,6 +428,7 @@ export function SkillsList({
   free_skill,
   userPermissions,
   gangCredits,
+  venatorRanksIncomplete,
   editionSlug,
   fighterSpecialisationId = null,
   fighterSpecialisationName = null,
@@ -908,6 +845,7 @@ export function SkillsList({
           fighterId={fighterId}
           userId={userPermissions.userId}
           gangCredits={gangCredits}
+          venatorRanksIncomplete={venatorRanksIncomplete}
           editionSlug={editionSlug}
           onClose={() => setIsAddSkillModalOpen(false)}
           onSkillAdded={handleSkillAdded}

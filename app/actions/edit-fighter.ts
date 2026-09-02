@@ -11,10 +11,14 @@ import { logFighterAction } from './logs/fighter-logs';
 import { countsTowardRating, hasKilledStatusFlag } from '@/utils/fighter-status';
 import { updateGangFinancials, updateGangRatingSimple, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 import { insertFighterOoaRecords } from './fighter-ooa-records';
-import { allowsMultipleSubtypes } from '@/types/edition';
+import { allowsMultipleSubtypes, namedTypeKeepsSubtypes } from '@/types/edition';
 import { resolveFighterEditionSlug } from '@/utils/fighter-subtype-grants';
+import { shouldClearSpecialisationForSubtypes } from '@/utils/keepTypePromotionN26';
 import { assertArchetypeAssignable } from '@/utils/assertArchetypeAssignable';
 import { mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';
+import { syncFighter } from '@/utils/syncVenatorSkillOverrides';
+import { isVenatorGang } from '@/utils/venatorSkillAccess';
+import { gangEditionSlug } from '@/types/edition';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -122,6 +126,7 @@ export interface UpdateFighterDetailsParams {
   custom_fighter_type_id?: string | null;
   fighter_specialisation?: string | null;
   fighter_specialisation_id?: string | null;
+  fighter_variant?: string | null;
   note?: string;
   note_backstory?: string;
   fighter_gang_legacy_id?: string | null;
@@ -1443,7 +1448,12 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (params.fighter_specialisation_id !== undefined) updateData.fighter_specialisation_id = params.fighter_specialisation_id;
 
     // An explicit specialisation from the caller wins over the type row's.
+    // N26 named type does not own specialisation, so a retype must not copy it.
     if (params.fighter_type_id !== undefined || params.custom_fighter_type_id !== undefined) {
+      if (resolvedEditionSlug === undefined) {
+        resolvedEditionSlug = await resolveFighterEditionSlug(supabase, params.fighter_id);
+      }
+
       const { data: typeRow } = params.fighter_type_id
         ? await supabase
             .from('fighter_types')
@@ -1452,9 +1462,40 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
             .maybeSingle()
         : { data: null };
 
-      updateData.fighter_variant = typeRow?.fighter_variant ?? null;
-      if (params.fighter_specialisation_id === undefined) {
+      // Adopt the new row's variant, but never clear one just because the type changed.
+      if (params.fighter_variant !== undefined) {
+        updateData.fighter_variant = params.fighter_variant;
+      } else if (typeRow?.fighter_variant) {
+        updateData.fighter_variant = typeRow.fighter_variant;
+      }
+      if (
+        params.fighter_specialisation_id === undefined &&
+        !namedTypeKeepsSubtypes(resolvedEditionSlug)
+      ) {
         updateData.fighter_specialisation_id = typeRow?.fighter_specialisation_id ?? null;
+      }
+    }
+
+    // Specialisation is only valid with the Specialist subtype. Skip rename-only
+    // (and other unrelated) saves so we do not resolve edition or rewrite nulls
+    // unless this payload actually touches type, subtypes, or specialisation.
+    const touchesSpecialisationScope =
+      params.fighter_subtypes !== undefined ||
+      params.fighter_type !== undefined ||
+      params.fighter_type_id !== undefined ||
+      params.custom_fighter_type_id !== undefined ||
+      params.fighter_specialisation !== undefined ||
+      params.fighter_specialisation_id !== undefined;
+
+    if (touchesSpecialisationScope) {
+      if (resolvedEditionSlug === undefined) {
+        resolvedEditionSlug = await resolveFighterEditionSlug(supabase, params.fighter_id);
+      }
+      const effectiveSubtypes: string[] =
+        updateData.fighter_subtypes ?? fighter.fighter_subtypes ?? [];
+      if (shouldClearSpecialisationForSubtypes(resolvedEditionSlug, effectiveSubtypes)) {
+        updateData.fighter_specialisation = null;
+        updateData.fighter_specialisation_id = null;
       }
     }
     if (params.note !== undefined) updateData.note = params.note;
@@ -1736,6 +1777,48 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       }
     } catch (logError) {
       console.error('Failed to log fighter details changes:', logError);
+    }
+
+    const archetypeTouchedOverrides = clearedArchetype || Boolean(archetypeIdForOverrides);
+    if (params.fighter_subtypes !== undefined || archetypeTouchedOverrides) {
+      const { data: syncGangRow } = await supabase
+        .from('gangs')
+        .select(`
+          gang_type,
+          custom_gang_type_id,
+          gang_types!gang_type_id ( editions:edition_id ( slug ) ),
+          custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
+        `)
+        .eq('id', fighter.gang_id)
+        .single();
+      const gangEditionForSync = gangEditionSlug(syncGangRow);
+      if (syncGangRow && isVenatorGang(
+        gangEditionForSync,
+        syncGangRow.gang_type,
+        Boolean(syncGangRow.custom_gang_type_id),
+      )) {
+        const effectiveSubtypes: string[] = Array.isArray(updateData.fighter_subtypes)
+          ? updateData.fighter_subtypes
+          : Array.isArray(fighter.fighter_subtypes)
+            ? fighter.fighter_subtypes
+            : [];
+        try {
+          await syncFighter(
+            {
+              fighterId: params.fighter_id,
+              gangId: fighter.gang_id,
+              gangType: syncGangRow.gang_type,
+              editionSlug: gangEditionForSync,
+              isCustomGangType: Boolean(syncGangRow.custom_gang_type_id),
+              subtypes: effectiveSubtypes,
+            },
+            supabase,
+          );
+        } catch (err) {
+          console.error('syncFighter failed after edit-fighter', err);
+          archetypeSkillAccessWarning = ARCHETYPE_SKILL_ACCESS_WARNING;
+        }
+      }
     }
 
     // Invalidate cache (already handles BASE_FIGHTER_BASIC and COMPOSITE_GANG_FIGHTERS_LIST)

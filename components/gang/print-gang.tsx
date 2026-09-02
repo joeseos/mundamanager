@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { FighterProps, Vehicle, FighterEffect } from "@/types/fighter";
 import { Equipment } from "@/types/equipment";
@@ -15,13 +15,48 @@ import { MdCheckBoxOutlineBlank } from "react-icons/md";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import FighterCard from "./fighter-card";
+import { FancyPrintTopBarArt } from "./fancy-print-top-bar-art";
 import { PRINT_GANG_VIEW_MODE } from "./ViewModeDropdown";
 import { Badge } from "@/components/ui/badge";
 import { GiAncientRuins } from "react-icons/gi";
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { decodeHtmlEntities, isHtmlEffectivelyEmpty } from "@/utils/htmlCleanUp";
+import { resolveGangImageUrl, UNKNOWN_GANG_IMAGE_URL, type DefaultImageEntry } from "@/types/gang";
 
 const ROSTER_FIGHTER_NOTE_MAX_CHARS = 110;
+
+function PrintGangPortrait({
+  src,
+  name,
+  className,
+}: {
+  src?: string;
+  name: string;
+  className: string;
+}) {
+  return (
+    <div className={className}>
+      <div className="bg-black rounded-full shadow-md border-4 border-black md:size-[85px] size-[64px] relative z-10 print:bg-card print:shadow-none overflow-hidden shrink-0 flex items-center justify-center">
+        {src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={src}
+            alt={name}
+            className="object-cover w-full h-full rounded-full"
+            onError={(e) => {
+              console.error("Failed to load image:", e.currentTarget.src);
+              e.currentTarget.src = UNKNOWN_GANG_IMAGE_URL;
+            }}
+          />
+        ) : (
+          <span className="bg-secondary text-foreground w-full h-full flex items-center justify-center text-xl font-semibold">
+            {name.charAt(0)}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function getRosterFighterNotePreview(note: string | undefined): string | null {
   if (!note || isHtmlEffectivelyEmpty(note)) return null;
@@ -39,8 +74,9 @@ interface PrintGangProps {
     name: string;
     gang_type: string;
     gang_type_id: string;
-    gang_type_image_url: string;
     image_url?: string;
+    default_gang_image?: number | null;
+    gang_type_default_image_urls?: DefaultImageEntry[];
     gang_colour: string | null;
     credits: number | null;
     reputation: number | null;
@@ -132,8 +168,9 @@ export default function PrintGang({ gang }: PrintGangProps) {
   const {
     name,
     gang_type,
-    gang_type_image_url,
     image_url,
+    default_gang_image,
+    gang_type_default_image_urls,
     credits,
     rating,
     wealth,
@@ -159,6 +196,12 @@ export default function PrintGang({ gang }: PrintGangProps) {
     created_at,
     last_updated,
   } = gang;
+
+  const gangImageSrc = resolveGangImageUrl({
+    imageUrl: image_url,
+    defaultGangImage: default_gang_image,
+    defaultImageUrls: gang_type_default_image_urls,
+  });
 
   // View mode state: "roster" for table view, "cards" for card-based view
   const [viewMode, setViewMode] = useState<"roster" | "cards">("cards");
@@ -193,18 +236,19 @@ export default function PrintGang({ gang }: PrintGangProps) {
   const [cardsGangCardsPosition, setCardsGangCardsPosition] = useState<"before" | "after">("before");
   const [scaleCardsToContent, setScaleCardsToContent] = useState(true);
 
-  // Handle print with style
-  const handlePrint = () => {
-    if (printStyle === 'fancy') {
-      document.body.classList.add('fancy-print');
-    } else {
-      document.body.classList.remove('fancy-print');
-    }
+  // Keep fancy-print on the body while Fancy is selected. iOS Safari's window.print()
+  // is non-blocking, so adding/removing the class around the print call drops it
+  // before the snapshot. Safari share-sheet print also never hits handlePrint.
+  useEffect(() => {
+    const enable = viewMode === "cards" && printStyle === "fancy";
+    document.body.classList.toggle("fancy-print", enable);
+    return () => {
+      document.body.classList.remove("fancy-print");
+    };
+  }, [viewMode, printStyle]);
 
-    setTimeout(() => {
-      window.print();
-      document.body.classList.remove('fancy-print');
-    }, 100);
+  const handlePrint = () => {
+    window.print();
   };
 
   // Use pre-filtered list when "Inactive Fighters Loadouts" is off (server-side filter is reliable)
@@ -1010,7 +1054,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
               ["--ring" as any]: "var(--light-ring)",
             }} // Enforce light theme colors for Cards View
           >
-            <div className={`print-gang-cards justify-center print:justify-start flex flex-wrap content-start gap-[6px] ${scaleCardsToContent ? 'items-stretch [&_.fighter-card-bg]:h-auto! [&_.fighter-card-bg]:flex! [&_.fighter-card-bg]:flex-col!' : 'items-start [&_.fighter-card-bg]:h-[435px]!'} [&_.fighter-card-bg]:w-[630px]! [&_.fighter-card-bg]:shadow-none! [&_.fighter-card-bg]:border-[3px]! [&_.fighter-card-bg]:break-inside-avoid [&_.fighter-card-bg]:rounded-lg [&_.fighter-card-bg]:text-base! [&_.fighter-card-bg]:bg-[#faf9f7]! [&_.fighter-card-bg]:text-black! [&_.fighter-card-bg:hover]:scale-100! [&_.fighter-card-bg:hover]:shadow-none! [&_.fighter-card-bg]:transition-none! [&_.fighter-card-bg_.grid]:gap-y-0! [&_.fighter-card-bg_.grid]:mt-1! [&_.fighter-card-bg_.inline-flex.rounded-sm]:border-2! [&_.fighter-card-bg_.inline-flex.rounded-sm]:border-black! [&_.fighter-card-bg_.bg-secondary]:shadow-none! [&_.fighter-card-bg]:bg-[url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/fighter-card-background-5-light_web_ynpbac.webp')]! ${printStyle === 'eco' ? '[&_.fighter-card-bg]:bg-none! [&_.fighter-card-bg]:bg-transparent! [&_.fancy-print-top-bar]:bg-none! [&_.fancy-print-keep-color-heading]:text-inherit! [&_.fancy-print-keep-color-subtitle]:text-inherit!' : '[&_.fancy-print-keep-color-heading]:text-white! [&_.fancy-print-keep-color-subtitle]:text-gray-300!'}`}>
+            <div className={`print-gang-cards justify-center print:justify-start flex flex-wrap content-start gap-[6px] ${scaleCardsToContent ? 'items-stretch [&_.fighter-card-bg]:h-auto! [&_.fighter-card-bg]:flex! [&_.fighter-card-bg]:flex-col!' : 'items-start [&_.fighter-card-bg]:h-[435px]!'} [&_.fighter-card-bg]:w-[630px]! [&_.fighter-card-bg]:shadow-none! [&_.fighter-card-bg]:border-[3px]! [&_.fighter-card-bg]:break-inside-avoid [&_.fighter-card-bg]:rounded-lg [&_.fighter-card-bg]:text-base! [&_.fighter-card-bg]:bg-[#faf9f7]! [&_.fighter-card-bg]:text-black! [&_.fighter-card-bg:hover]:scale-100! [&_.fighter-card-bg:hover]:shadow-none! [&_.fighter-card-bg]:transition-none! [&_.fighter-card-bg_.grid]:gap-y-0! [&_.fighter-card-bg_.grid]:mt-1! [&_.fighter-card-bg_.inline-flex.rounded-sm]:border-2! [&_.fighter-card-bg_.inline-flex.rounded-sm]:border-black! [&_.fighter-card-bg_.bg-secondary]:shadow-none! [&_.fighter-card-bg]:bg-[url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/fighter-card-background-5-light_web_ynpbac.webp')]! ${printStyle === 'eco' ? '[&_.fighter-card-bg]:bg-none! [&_.fighter-card-bg]:bg-transparent! [&_.fancy-print-top-bar-art]:hidden! [&_.fancy-print-keep-color-heading]:text-inherit! [&_.fancy-print-keep-color-subtitle]:text-inherit!' : '[&_.fancy-print-keep-color-heading]:text-white! [&_.fancy-print-keep-color-subtitle]:text-gray-300!'}`}>
               {cardsGangCardsPosition === "before" && (
                 <>
                   {/* Gang Card */}
@@ -1020,15 +1064,13 @@ export default function PrintGang({ gang }: PrintGangProps) {
                     <div className="flex mb-[50px]">
                       <div className="flex w-full">
                         <div
-                          className="absolute inset-0 bg-no-repeat bg-cover fancy-print-top-bar mt-2"
+                          className="absolute inset-0 fancy-print-top-bar mt-2"
                           style={{
-                            backgroundImage: "url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/top-bar-stroke-v3_s97f2k.png')",
                             width: '100%',
                             height: '65px',
                             zIndex: 0,
-                            backgroundPosition: 'center',
-                            backgroundSize: '100% 100%'
                           }}>
+                          <FancyPrintTopBarArt />
                           <div className="absolute z-10 pl-4 flex items-center gap-2 w-[80%] overflow-hidden whitespace-nowrap" style={{ height: '62px', marginTop: '0px' }}>
                             <div className="flex flex-col items-baseline w-full">
                               <div className="text-2xl font-semibold text-white ml-4 print:text-foreground fancy-print-keep-color-heading">{name}</div>
@@ -1037,19 +1079,11 @@ export default function PrintGang({ gang }: PrintGangProps) {
                         </div>
                       </div>
                     </div>
-                    {/* Gang Image (match fighter card style) */}
-                    {(image_url || gang_type_image_url) && (
-                      <div className="absolute right-4 md:top-0 top-2 flex items-center z-20">
-                        <div className="bg-black rounded-full shadow-md border-4 border-black md:size-[85px] size-[64px] relative z-10 print:bg-card print:shadow-none overflow-hidden shrink-0">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={image_url || gang_type_image_url}
-                            alt={name}
-                            className="object-cover w-full h-full rounded-full"
-                          />
-                        </div>
-                      </div>
-                    )}
+                    <PrintGangPortrait
+                      src={gangImageSrc}
+                      name={name}
+                      className="absolute right-4 md:top-0 top-2 flex items-center z-20"
+                    />
 
                     <div className="relative grow w-full">
                       <div className="flex flex-col gap-2 mb-4">
@@ -1222,15 +1256,13 @@ export default function PrintGang({ gang }: PrintGangProps) {
                       <div className="flex mb-[50px]">
                         <div className="flex w-full">
                           <div
-                            className="absolute inset-0 bg-no-repeat bg-cover fancy-print-top-bar mt-2"
+                            className="absolute inset-0 fancy-print-top-bar mt-2"
                             style={{
-                              backgroundImage: "url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/top-bar-stroke-v3_s97f2k.png')",
                               width: '100%',
                               height: '65px',
                               zIndex: 0,
-                              backgroundPosition: 'center',
-                              backgroundSize: '100% 100%'
                             }}>
+                            <FancyPrintTopBarArt />
                             <div className="absolute z-10 pl-4 flex items-center gap-2 w-[80%] overflow-hidden whitespace-nowrap" style={{ height: '62px', marginTop: '0px' }}>
                               <div className="flex flex-col items-baseline w-full">
                                 <div className="text-xl font-semibold text-white ml-4 print:text-foreground fancy-print-keep-color-heading">Additional Details</div>
@@ -1304,24 +1336,6 @@ export default function PrintGang({ gang }: PrintGangProps) {
                     ? calculateVehicleStats(vehicle)
                     : null;
 
-                  // Create base_stats and current_stats for FighterCard
-                  const fighterBaseStats = fighter.base_stats || {
-                    movement: fighter.movement,
-                    weapon_skill: fighter.weapon_skill,
-                    ballistic_skill: fighter.ballistic_skill,
-                    strength: fighter.strength,
-                    toughness: fighter.toughness,
-                    wounds: fighter.wounds,
-                    initiative: fighter.initiative,
-                    attacks: fighter.attacks,
-                    leadership: fighter.leadership,
-                    cool: fighter.cool,
-                    willpower: fighter.willpower,
-                    intelligence: fighter.intelligence,
-                  };
-
-                  const fighterCurrentStats = fighter.current_stats || fighterBaseStats;
-
                   return (
                     // Cannot put h-[435px] on this slot: XP / W/FW footers sit outside the card.
                     // Auto-height: stretch this slot to the row, then grow the card to fill it.
@@ -1333,56 +1347,14 @@ export default function PrintGang({ gang }: PrintGangProps) {
                       className={`w-[630px] break-inside-avoid${scaleCardsToContent ? ' flex flex-col [&>*:first-child]:contents [&_.fighter-card-bg]:min-h-0 [&_.fighter-card-bg]:grow' : ''}`}
                     >
                       <FighterCard
-                        id={fighter.id}
+                        {...fighter}
                         name={fighter.fighter_name}
                         type={fighter.fighter_type}
-                        fighter_subtypes={fighter.fighter_subtypes}
-                        fighter_specialisation={fighter.fighter_specialisation}
-                        fighter_variant={fighter.fighter_variant}
-                        label={fighter.label}
-                        credits={fighter.credits}
-                        loadout_cost={fighter.loadout_cost}
-                        active_loadout_id={fighter.active_loadout_id}
-                        movement={fighter.movement}
-                        weapon_skill={fighter.weapon_skill}
-                        ballistic_skill={fighter.ballistic_skill}
-                        strength={fighter.strength}
-                        toughness={fighter.toughness}
-                        wounds={fighter.wounds}
-                        initiative={fighter.initiative}
-                        attacks={fighter.attacks}
-                        leadership={fighter.leadership}
-                        cool={fighter.cool}
-                        willpower={fighter.willpower}
-                        intelligence={fighter.intelligence}
-                        save={fighter.save}
-                        edition_slug={fighter.edition_slug}
-                        xp={fighter.xp}
-                        advancements={fighter.advancements}
-                        weapons={fighter.weapons}
-                        wargear={fighter.wargear}
-                        special_rules={fighter.special_rules}
-                        killed={fighter.killed}
-                        retired={fighter.retired}
-                        enslaved={fighter.enslaved}
-                        starved={fighter.starved}
-                        recovery={fighter.recovery}
-                        captured={fighter.captured}
-                        free_skill={fighter.free_skill}
-                        kills={fighter.kills ?? 0}
                         skills={fighter.skills}
-                        effects={fighter.effects}
-                        note={fighter.note}
                         vehicle={vehicle}
                         disableLink={true}
                         viewMode={PRINT_GANG_VIEW_MODE}
                         scaleToContent={scaleCardsToContent}
-                        image_url={fighter.image_url}
-                        base_stats={fighterBaseStats}
-                        current_stats={fighterCurrentStats}
-                        owner_name={fighter.owner_name}
-                        captured_by_gang_name={(fighter as { captured_by_gang_name?: string }).captured_by_gang_name}
-                        active_loadout_name={(fighter as any).active_loadout_name}
                       />
 
                       {(showWFWBoxes || showXPBoxes) && (
@@ -1479,15 +1451,13 @@ export default function PrintGang({ gang }: PrintGangProps) {
                 <div className="flex mb-[50px]">
                   <div className="flex w-full">
                     <div
-                      className="absolute inset-0 bg-no-repeat bg-cover fancy-print-top-bar mt-2"
+                      className="absolute inset-0 fancy-print-top-bar mt-2"
                       style={{
-                        backgroundImage: "url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/top-bar-stroke-v3_s97f2k.png')",
                         width: '100%',
                         height: '65px',
                         zIndex: 0,
-                        backgroundPosition: 'center',
-                        backgroundSize: '100% 100%'
                       }}>
+                      <FancyPrintTopBarArt />
                       <div className="absolute z-10 pl-4 flex items-center gap-2 w-[80%] overflow-hidden whitespace-nowrap" style={{ height: '62px', marginTop: '0px' }}>
                         <div className="flex flex-col items-baseline w-full">
                           <div className="text-2xl font-semibold text-white ml-4 print:text-foreground fancy-print-keep-color-heading">{name}</div>
@@ -1496,19 +1466,11 @@ export default function PrintGang({ gang }: PrintGangProps) {
                     </div>
                   </div>
                 </div>
-                {/* Gang Image (match fighter card style) */}
-                {(image_url || gang_type_image_url) && (
-                  <div className="absolute right-2 top-2 flex items-center z-20">
-                    <div className="bg-black rounded-full shadow-md border-4 border-black md:size-[85px] size-[64px] relative z-10 print:bg-card print:shadow-none overflow-hidden shrink-0">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={image_url || gang_type_image_url}
-                        alt={name}
-                        className="object-cover w-full h-full rounded-full"
-                      />
-                    </div>
-                  </div>
-                )}
+                <PrintGangPortrait
+                  src={gangImageSrc}
+                  name={name}
+                  className="absolute right-2 top-2 flex items-center z-20"
+                />
 
                 <div className="relative grow w-full">
                   <div className="flex flex-col gap-2 mb-4">
@@ -1681,15 +1643,13 @@ export default function PrintGang({ gang }: PrintGangProps) {
                   <div className="flex mb-[50px]">
                     <div className="flex w-full">
                       <div
-                        className="absolute inset-0 bg-no-repeat bg-cover fancy-print-top-bar mt-2"
+                        className="absolute inset-0 fancy-print-top-bar mt-2"
                         style={{
-                          backgroundImage: "url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/top-bar-stroke-v3_s97f2k.png')",
                           width: '100%',
                           height: '65px',
                           zIndex: 0,
-                          backgroundPosition: 'center',
-                          backgroundSize: '100% 100%'
                         }}>
+                        <FancyPrintTopBarArt />
                         <div className="absolute z-10 pl-4 flex items-center gap-2 w-[80%] overflow-hidden whitespace-nowrap" style={{ height: '62px', marginTop: '0px' }}>
                           <div className="flex flex-col items-baseline w-full">
                             <div className="text-2xl font-semibold text-white ml-4 print:text-foreground fancy-print-keep-color-heading">Additional Details</div>

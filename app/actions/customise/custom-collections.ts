@@ -3,7 +3,7 @@
 import { invalidateUserCustoms } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { getEditionIdBySlug } from '@/app/lib/editions';
+import { getEditionIdBySlug } from '@/utils/editions';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type CollectionItemType = 'equipment' | 'fighter_type' | 'gang_type' | 'skill' | 'trading_post';

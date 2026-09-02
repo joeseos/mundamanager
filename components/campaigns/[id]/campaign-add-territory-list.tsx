@@ -11,6 +11,7 @@ import { ImInfo } from "react-icons/im";
 import { Tooltip } from 'react-tooltip';
 import type { CampaignType } from '@/types/campaign';
 import { sameEditionForDisplay } from '@/types/edition';
+import { TERRITORY_NAME_CHAR_LIMIT } from '@/utils/campaigns/territory-name';
 
 interface Territory {
   id: string;
@@ -230,8 +231,8 @@ export default function TerritoryList({
               type="text"
               value={newTerritoryName}
               onChange={(e) => setNewTerritoryName(e.target.value)}
-              placeholder="Add a custom Territory (max 70 characters)"
-              maxLength={70}
+              placeholder={`Add a custom Territory (max ${TERRITORY_NAME_CHAR_LIMIT} characters)`}
+              maxLength={TERRITORY_NAME_CHAR_LIMIT}
               className="grow text-sm"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {

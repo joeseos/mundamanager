@@ -1,8 +1,6 @@
-import { TAGS } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { checkAdmin } from "@/utils/auth";
-import { revalidateTag } from "next/cache";
 import { invalidateCampaignCatalogLists } from "@/utils/cache-tags";
 
 export async function GET(request: Request) {
@@ -39,7 +37,7 @@ export async function GET(request: Request) {
   }
 }
 
-async function _POST(request: Request) {
+export async function POST(request: Request) {
   const supabase = await createClient();
   
   try {
@@ -89,7 +87,7 @@ async function _POST(request: Request) {
   }
 }
 
-async function _PATCH(request: Request) {
+export async function PATCH(request: Request) {
   const supabase = await createClient();
   
   try {
@@ -154,21 +152,3 @@ async function _PATCH(request: Request) {
     );
   }
 }
-
-// Admin edits change global reference data that is cached app-wide; fire the
-// matching tags once per successful mutation (previously nothing was fired,
-// so admin edits never showed up until caches expired).
-function withReferenceInvalidation(
-  handler: (...args: any[]) => Promise<Response>
-) {
-  return async (...args: any[]) => {
-    const response = await handler(...args);
-    if (response.ok) {
-      revalidateTag(TAGS.globalTerritories(), { expire: 0 });
-    }
-    return response;
-  };
-}
-
-export const POST = withReferenceInvalidation(_POST);
-export const PATCH = withReferenceInvalidation(_PATCH);

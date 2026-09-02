@@ -2,7 +2,7 @@
 
 ## Local development
 
-To spin up a fresh local database, run `supabase start` or `supabase db reset` from the repo root and follow the "Setting up a local Supabase database" section of the top-level README. Local migration auto-run is disabled in `config.toml` because the files in `migrations/` are incremental deltas that assume a pre-existing base schema. Instead, `supabase start` / `supabase db reset` automatically build the fresh database natively using `[db.seed].sql_paths` configured in `config.toml`.
+To spin up a fresh local database, run `supabase start` or `supabase db reset` from the repo root and follow the "Setting up a local Supabase database" section of [CONTRIBUTING.md](../CONTRIBUTING.md). Local migration auto-run is disabled in `config.toml` because the files in `migrations/` are incremental deltas that assume a pre-existing base schema. Instead, `supabase start` / `supabase db reset` automatically build the fresh database natively using `[db.seed].sql_paths` configured in `config.toml`.
 
 `schema/schema.public.sql` is a `pg_dump --schema=public` snapshot (regenerated daily by `.github/workflows/supabase_schema_snapshot.yml`). Because it is public-only, non-public bootstrap scripts and reference seed data are applied alongside it via `config.toml`:
 

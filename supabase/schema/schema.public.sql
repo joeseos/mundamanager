@@ -1903,10 +1903,8 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             OR ($4 IS NOT NULL AND COALESCE(ftl.is_ftl, false) = $4) -- fighter's list requested
             OR ($5 IS NOT NULL AND true = $5)                        -- trading post requested
         )
-        -- Unrestricted: only custom equipment from the gang's edition
         AND (
-            NOT ($4 IS NULL AND $5 IS NULL)
-            OR gd.edition_id IS NULL
+            gd.edition_id IS NULL
             OR ce.edition_id = gd.edition_id
         )
 $_$;
@@ -4091,6 +4089,103 @@ $$;
 
 
 --
+-- Name: replace_fighter_skill_access_overrides(uuid, uuid[], jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.replace_fighter_skill_access_overrides(p_fighter_id uuid, p_owned_skill_type_ids uuid[], p_overrides jsonb) RETURNS void
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_user uuid := auth.uid();
+BEGIN
+  IF v_user IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+  IF p_fighter_id IS NULL THEN
+    RAISE EXCEPTION 'fighter_id is required';
+  END IF;
+
+  IF p_owned_skill_type_ids IS NOT NULL AND cardinality(p_owned_skill_type_ids) > 0 THEN
+    DELETE FROM public.fighter_skill_access_override
+    WHERE fighter_id = p_fighter_id
+      AND skill_type_id = ANY (p_owned_skill_type_ids);
+  END IF;
+
+  INSERT INTO public.fighter_skill_access_override (
+    fighter_id, skill_type_id, access_level, user_id
+  )
+  SELECT p_fighter_id, o.skill_type_id, o.access_level, v_user
+  FROM jsonb_to_recordset(COALESCE(p_overrides, '[]'::jsonb))
+    AS o(skill_type_id uuid, access_level text)
+  WHERE o.skill_type_id IS NOT NULL
+    AND o.access_level IS NOT NULL;
+END;
+$$;
+
+
+--
+-- Name: FUNCTION replace_fighter_skill_access_overrides(p_fighter_id uuid, p_owned_skill_type_ids uuid[], p_overrides jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.replace_fighter_skill_access_overrides(p_fighter_id uuid, p_owned_skill_type_ids uuid[], p_overrides jsonb) IS 'Atomically rewrites fighter_skill_access_override rows for one fighter and the given skill types. SECURITY INVOKER: RLS of the caller still applies.';
+
+
+--
+-- Name: replace_gang_skill_set_ranks(uuid, jsonb, uuid[], jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.replace_gang_skill_set_ranks(p_gang_id uuid, p_ranks jsonb, p_owned_skill_type_ids uuid[], p_overrides jsonb) RETURNS void
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_user uuid := auth.uid();
+BEGIN
+  IF v_user IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+  IF p_gang_id IS NULL THEN
+    RAISE EXCEPTION 'gang_id is required';
+  END IF;
+
+  DELETE FROM public.gang_skill_set_ranks
+  WHERE gang_id = p_gang_id;
+
+  INSERT INTO public.gang_skill_set_ranks (gang_id, rank, skill_type_id)
+  SELECT p_gang_id, r.rank, r.skill_type_id
+  FROM jsonb_to_recordset(COALESCE(p_ranks, '[]'::jsonb))
+    AS r(rank int, skill_type_id uuid)
+  WHERE r.rank IS NOT NULL AND r.skill_type_id IS NOT NULL;
+
+  IF p_owned_skill_type_ids IS NOT NULL AND cardinality(p_owned_skill_type_ids) > 0 THEN
+    DELETE FROM public.fighter_skill_access_override
+    WHERE fighter_id IN (SELECT id FROM public.fighters WHERE gang_id = p_gang_id)
+      AND skill_type_id = ANY (p_owned_skill_type_ids);
+  END IF;
+
+  INSERT INTO public.fighter_skill_access_override (
+    fighter_id, skill_type_id, access_level, user_id
+  )
+  SELECT o.fighter_id, o.skill_type_id, o.access_level, v_user
+  FROM jsonb_to_recordset(COALESCE(p_overrides, '[]'::jsonb))
+    AS o(fighter_id uuid, skill_type_id uuid, access_level text, user_id uuid)
+  WHERE o.fighter_id IS NOT NULL
+    AND o.skill_type_id IS NOT NULL
+    AND o.access_level IS NOT NULL
+    AND o.fighter_id IN (SELECT id FROM public.fighters WHERE gang_id = p_gang_id);
+END;
+$$;
+
+
+--
+-- Name: FUNCTION replace_gang_skill_set_ranks(p_gang_id uuid, p_ranks jsonb, p_owned_skill_type_ids uuid[], p_overrides jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.replace_gang_skill_set_ranks(p_gang_id uuid, p_ranks jsonb, p_owned_skill_type_ids uuid[], p_overrides jsonb) IS 'Atomically replaces gang_skill_set_ranks for a gang and rewrites fighter_skill_access_override rows for the owned skill types. SECURITY INVOKER: RLS of the caller still applies.';
+
+
+--
 -- Name: alliances; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4226,7 +4321,7 @@ CREATE TABLE public.campaign_battles (
     status text DEFAULT 'played'::text NOT NULL,
     challenger_gang_id uuid,
     challenged_gang_id uuid,
-    CONSTRAINT campaign_battles_status_check CHECK ((status = ANY (ARRAY['challenge_issued'::text, 'challenge_accepted'::text, 'challenge_declined'::text, 'played'::text])))
+    CONSTRAINT campaign_battles_status_check CHECK ((status = ANY (ARRAY['challenge_pending'::text, 'challenge_issued'::text, 'challenge_accepted'::text, 'challenge_declined'::text, 'played'::text])))
 );
 
 
@@ -5667,6 +5762,20 @@ CREATE TABLE public.gang_origins (
 
 
 --
+-- Name: gang_skill_set_ranks; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.gang_skill_set_ranks (
+    gang_id uuid NOT NULL,
+    rank integer NOT NULL,
+    skill_type_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    CONSTRAINT gang_skill_set_ranks_rank_check CHECK (((rank >= 1) AND (rank <= 4)))
+);
+
+
+--
 -- Name: gang_stash; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6737,6 +6846,22 @@ ALTER TABLE ONLY public.gang_origins
 
 
 --
+-- Name: gang_skill_set_ranks gang_skill_set_ranks_gang_id_skill_type_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_skill_set_ranks
+    ADD CONSTRAINT gang_skill_set_ranks_gang_id_skill_type_id_key UNIQUE (gang_id, skill_type_id);
+
+
+--
+-- Name: gang_skill_set_ranks gang_skill_set_ranks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_skill_set_ranks
+    ADD CONSTRAINT gang_skill_set_ranks_pkey PRIMARY KEY (gang_id, rank);
+
+
+--
 -- Name: gang_stash gang_stash_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7408,6 +7533,13 @@ CREATE INDEX equipment_categories_edition_id_idx ON public.equipment_categories 
 
 
 --
+-- Name: equipment_discounts_fighter_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX equipment_discounts_fighter_type_id_idx ON public.equipment_discounts USING btree (fighter_type_id);
+
+
+--
 -- Name: equipment_discounts_gang_origin_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7461,6 +7593,13 @@ CREATE INDEX exotic_beasts_fighter_type_id_idx ON public.exotic_beasts USING btr
 --
 
 CREATE INDEX fighter_defaults_fighter_type_id_idx ON public.fighter_defaults USING btree (fighter_type_id);
+
+
+--
+-- Name: fighter_defaults_skill_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_defaults_skill_id_idx ON public.fighter_defaults USING btree (skill_id);
 
 
 --
@@ -7688,6 +7827,20 @@ CREATE UNIQUE INDEX fighter_type_equipment_fighter_scope_uidx ON public.fighter_
 
 
 --
+-- Name: fighter_type_equipment_fighter_subtype_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_type_equipment_fighter_subtype_idx ON public.fighter_type_equipment USING btree (fighter_subtype);
+
+
+--
+-- Name: fighter_type_equipment_gang_variant_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_type_equipment_gang_variant_id_idx ON public.fighter_type_equipment USING btree (gang_variant_id);
+
+
+--
 -- Name: fighter_types_cool_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7748,6 +7901,13 @@ CREATE INDEX fighter_types_intelligence_idx ON public.fighter_types USING btree 
 --
 
 CREATE INDEX fighter_types_is_spyrer_idx ON public.fighter_types USING btree (is_spyrer);
+
+
+--
+-- Name: fighter_types_is_vehicle_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_types_is_vehicle_idx ON public.fighter_types USING btree (is_vehicle);
 
 
 --
@@ -8543,6 +8703,12 @@ CREATE INDEX weapon_profiles_weapon_id_idx ON public.weapon_profiles USING btree
 
 --
 -- Name: campaign_battles campaign_battles; Type: TRIGGER; Schema: public; Owner: -
+--
+
+
+
+--
+-- Name: campaign_battles campaign_battles_completed; Type: TRIGGER; Schema: public; Owner: -
 --
 
 
@@ -10132,6 +10298,22 @@ ALTER TABLE ONLY public.gang_origins
 
 
 --
+-- Name: gang_skill_set_ranks gang_skill_set_ranks_gang_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_skill_set_ranks
+    ADD CONSTRAINT gang_skill_set_ranks_gang_id_fkey FOREIGN KEY (gang_id) REFERENCES public.gangs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: gang_skill_set_ranks gang_skill_set_ranks_skill_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_skill_set_ranks
+    ADD CONSTRAINT gang_skill_set_ranks_skill_type_id_fkey FOREIGN KEY (skill_type_id) REFERENCES public.skill_types(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: gang_stash gang_stash_custom_equipment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10920,6 +11102,13 @@ CREATE POLICY "Allow authenticated users to view fighter_types" ON public.fighte
 --
 
 CREATE POLICY "Allow authenticated users to view fighters" ON public.fighters FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: gang_skill_set_ranks Allow authenticated users to view gang skill set ranks; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view gang skill set ranks" ON public.gang_skill_set_ranks FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -12380,6 +12569,17 @@ CREATE POLICY "Users can create skill access overrides for their own fighters" O
 
 
 --
+-- Name: gang_skill_set_ranks Users can create skill set ranks for their gang; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can create skill set ranks for their gang" ON public.gang_skill_set_ranks FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
+   FROM public.gangs g
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
+   FROM public.campaign_gangs cg
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+
+
+--
 -- Name: fighter_skills Users can create skills for their own fighters; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -12440,6 +12640,17 @@ CREATE POLICY "Users can delete loadout equipment for their fighters" ON public.
 CREATE POLICY "Users can delete loadouts for their gang fighters" ON public.fighter_loadouts FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
+  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+
+
+--
+-- Name: gang_skill_set_ranks Users can delete skill set ranks from their gang; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can delete skill set ranks from their gang" ON public.gang_skill_set_ranks FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
+   FROM public.gangs g
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
+   FROM public.campaign_gangs cg
   WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
@@ -13478,6 +13689,12 @@ ALTER TABLE public.gang_origin_categories ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.gang_origins ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: gang_skill_set_ranks; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.gang_skill_set_ranks ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: gang_stash; Type: ROW SECURITY; Schema: public; Owner: -

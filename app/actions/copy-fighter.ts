@@ -3,10 +3,15 @@
 import { invalidateGang, invalidateFighter, invalidateUser } from '@/utils/cache-tags';
 import {createClient} from "@/utils/supabase/server";
 import {checkAdmin, getAuthenticatedUser} from "@/utils/auth";
+import { syncFighter } from '@/utils/syncVenatorSkillOverrides';
+import { isVenatorGang } from '@/utils/venatorSkillAccess';
+import { gangEditionSlug } from '@/types/edition';
 
 import {updateGangFinancials} from '@/utils/gang-rating-and-wealth';
 import {logFighterAction} from '@/app/actions/logs/fighter-logs';
 import {revalidateTag} from 'next/cache';
+import { resolveFighterEditionSlug } from '@/utils/fighter-subtype-grants';
+import { shouldClearSpecialisationForSubtypes } from '@/utils/keepTypePromotionN26';
 
 interface CopyFighterParams {
   fighter_id: string;
@@ -78,6 +83,77 @@ function calculateTotalCopyCost(
   }
 
   return dbBaseCost + costAdjustment + copiedEquipmentCost + copiedEffectsCost + copiedVehicleCost;
+}
+
+/**
+ * Skills the fighter type grants on recruitment, as add-fighter.ts reads them. Always
+ * stock skills: fighter_defaults has no custom_skill_id column, so if custom default
+ * skills are ever added this and the filter in copySkills have to match on that too.
+ */
+async function getDefaultSkillIds(supabase: any, fighter: any): Promise<Set<string>> {
+  const typeColumn = fighter.custom_fighter_type_id ? 'custom_fighter_type_id' : 'fighter_type_id';
+  const typeId = fighter.custom_fighter_type_id || fighter.fighter_type_id;
+  if (!typeId) return new Set();
+
+  const { data, error } = await supabase
+    .from('fighter_defaults')
+    .select('skill_id')
+    .eq(typeColumn, typeId)
+    .not('skill_id', 'is', null);
+
+  if (error) {
+    console.warn('Failed to read default skills, copying none:', error.message);
+    return new Set();
+  }
+
+  return new Set((data || []).map((row: any) => row.skill_id));
+}
+
+/**
+ * Copy skills onto a fighter just created from sourceFighter: all of them when
+ * experienced, otherwise only the type's defaults, inserted free since the type's base
+ * cost already covers them. Returns source skill id -> new skill id for effect FKs.
+ */
+async function copySkills(
+  supabase: any,
+  sourceFighter: any,
+  targetFighterId: string,
+  userId: string,
+  copyAsExperienced: boolean | undefined
+): Promise<{ skillIdMap: Map<string, string>; error?: string }> {
+  const skillIdMap = new Map<string, string>();
+  const sourceSkills = sourceFighter.fighter_skills || [];
+  if (sourceSkills.length === 0) return { skillIdMap };
+
+  let skillsToCopy = sourceSkills;
+  if (!copyAsExperienced) {
+    const defaultSkillIds = await getDefaultSkillIds(supabase, sourceFighter);
+    skillsToCopy = sourceSkills.filter((skill: any) => skill.skill_id && defaultSkillIds.has(skill.skill_id));
+  }
+  if (skillsToCopy.length === 0) return { skillIdMap };
+
+  const skillRows = skillsToCopy.map((skill: any) => ({
+    fighter_id: targetFighterId,
+    skill_id: skill.skill_id,
+    custom_skill_id: skill.custom_skill_id ?? null,
+    credits_increase: copyAsExperienced ? (skill.credits_increase ?? 0) : 0,
+    xp_cost: copyAsExperienced ? (skill.xp_cost ?? 0) : 0,
+    is_advance: copyAsExperienced ? (skill.is_advance ?? false) : false,
+    user_id: userId
+  }));
+
+  const { data: insertedSkills, error } = await supabase
+    .from('fighter_skills')
+    .insert(skillRows)
+    .select('id');
+
+  if (error) return { skillIdMap, error: error.message };
+
+  skillsToCopy.forEach((skill: any, i: number) => {
+    if (insertedSkills?.[i]?.id) skillIdMap.set(skill.id, insertedSkills[i].id);
+  });
+
+  return { skillIdMap };
 }
 
 export async function copyFighter(params: CopyFighterParams): Promise<CopyFighterResult> {
@@ -171,6 +247,8 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       return { success: false, error: `Fighter not found: ${fetchError?.message || 'Unknown error'}` };
     }
 
+    const editionSlug = await resolveFighterEditionSlug(supabase, params.fighter_id);
+
     // Fetch vehicle equipment separately (linked via vehicle_id, not fighter_id)
     let vehicleEquipment: any[] = [];
     if (sourceFighter.vehicles?.length > 0) {
@@ -211,7 +289,11 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
 
     const { data: gang, error: gangError } = await supabase
       .from('gangs')
-      .select('id, user_id, rating, credits')
+      .select(`
+        id, user_id, rating, credits, gang_type, custom_gang_type_id,
+        gang_types!gang_type_id ( editions:edition_id ( slug ) ),
+        custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
+      `)
       .eq('id', sourceFighter.gang_id)
       .single();
 
@@ -250,6 +332,15 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
 
     const nextPosition = (maxPositionData?.position ?? -1) + 1;
     const newFighterName = params.new_name || sourceFighter.fighter_name;
+    const copySpecialisation = shouldClearSpecialisationForSubtypes(
+      editionSlug,
+      sourceFighter.fighter_subtypes
+    )
+      ? { fighter_specialisation: null, fighter_specialisation_id: null }
+      : {
+          fighter_specialisation: sourceFighter.fighter_specialisation,
+          fighter_specialisation_id: sourceFighter.fighter_specialisation_id,
+        };
 
     const fighterData: any = {
       gang_id: params.target_gang_id,
@@ -257,8 +348,8 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       fighter_type: sourceFighter.fighter_type,
       fighter_type_id: sourceFighter.fighter_type_id,
       fighter_subtypes: sourceFighter.fighter_subtypes || [],
-      fighter_specialisation: sourceFighter.fighter_specialisation,
-      fighter_specialisation_id: sourceFighter.fighter_specialisation_id,
+      fighter_specialisation: copySpecialisation.fighter_specialisation,
+      fighter_specialisation_id: copySpecialisation.fighter_specialisation_id,
       fighter_variant: sourceFighter.fighter_variant,
       custom_fighter_type_id: sourceFighter.custom_fighter_type_id,
       fighter_gang_legacy_id: sourceFighter.fighter_gang_legacy_id,
@@ -320,6 +411,39 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
     }
 
     const newFighterId = newFighter.id;
+
+    const gangEditionForSync = gangEditionSlug(gang);
+    if (isVenatorGang(gangEditionForSync, gang.gang_type, Boolean(gang.custom_gang_type_id))) {
+      try {
+        await syncFighter(
+          {
+            fighterId: newFighterId,
+            gangId: params.target_gang_id,
+            gangType: gang.gang_type,
+            editionSlug: gangEditionForSync,
+            isCustomGangType: Boolean(gang.custom_gang_type_id),
+            subtypes: Array.isArray(fighterData.fighter_subtypes)
+              ? fighterData.fighter_subtypes
+              : [],
+          },
+          supabase,
+        );
+      } catch (err) {
+        console.error('syncFighter failed after copy-fighter', err);
+        const { error: deleteErr } = await supabase.from('fighters').delete().eq('id', newFighterId);
+        if (deleteErr) {
+          console.error('Failed to roll back copied fighter after syncFighter failure', deleteErr);
+          return {
+            success: false,
+            error: 'Failed to copy fighter skill access, and the incomplete copy could not be removed. Please delete it and try again.',
+          };
+        }
+        return {
+          success: false,
+          error: 'Failed to copy fighter skill access. Please try again.',
+        };
+      }
+    }
 
     // Vehicle ID mapping for equipment remapping
     const vehicleIdMap = new Map<string, string>();
@@ -393,8 +517,6 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
     // Copy equipment (fighter equipment only - no vehicle_id)
     // Build equipment ID map for effect FK remapping
     const equipmentIdMap = new Map<string, string>();
-    // Build skill ID map for effect FK remapping (fighter_skill_id)
-    const skillIdMap = new Map<string, string>();
 
     if (sourceFighter.fighter_equipment && sourceFighter.fighter_equipment.length > 0) {
       const sourceEquipNonVehicle = sourceFighter.fighter_equipment
@@ -459,30 +581,13 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       }
     }
 
-    // Copy skills (only when copying as experienced)
-    if (params.copy_as_experienced && sourceFighter.fighter_skills && sourceFighter.fighter_skills.length > 0) {
-      const skillsToCopy = sourceFighter.fighter_skills.map((skill: any) => ({
-        fighter_id: newFighterId,
-        skill_id: skill.skill_id,
-        custom_skill_id: skill.custom_skill_id ?? null,
-        credits_increase: skill.credits_increase ?? 0,
-        xp_cost: skill.xp_cost ?? 0,
-        is_advance: skill.is_advance ?? false,
-        user_id: gang.user_id
-      }));
+    // Copy skills — skill ID map feeds effect FK remapping (fighter_skill_id)
+    const { skillIdMap, error: skillsError } = await copySkills(
+      supabase, sourceFighter, newFighterId, gang.user_id, params.copy_as_experienced
+    );
 
-      const { data: insertedSkills, error: skillsError } = await supabase
-        .from('fighter_skills')
-        .insert(skillsToCopy)
-        .select('id');
-
-      if (skillsError) {
-        return await rollbackFighter(`Failed to copy skills: ${skillsError.message}`);
-      }
-
-      sourceFighter.fighter_skills.forEach((skill: any, i: number) => {
-        if (insertedSkills?.[i]?.id) skillIdMap.set(skill.id, insertedSkills[i].id);
-      });
+    if (skillsError) {
+      return await rollbackFighter(`Failed to copy skills: ${skillsError}`);
     }
 
     // Copy effects and modifiers (when experienced: all effects; when not: exclude injuries and advancements)
@@ -680,6 +785,16 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
         }
 
         // Insert new beast fighter (fighter_pet_id set to null initially, linked after ownership record)
+        const beastSpecialisation = shouldClearSpecialisationForSubtypes(
+          editionSlug,
+          beastFighter.fighter_subtypes
+        )
+          ? { fighter_specialisation: null, fighter_specialisation_id: null }
+          : {
+              fighter_specialisation: beastFighter.fighter_specialisation,
+              fighter_specialisation_id: beastFighter.fighter_specialisation_id,
+            };
+
         const { data: newBeastFighter, error: beastInsertError } = await supabase
           .from('fighters')
           .insert({
@@ -688,8 +803,8 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
             fighter_type: beastFighter.fighter_type,
             fighter_type_id: beastFighter.fighter_type_id,
             fighter_subtypes: beastFighter.fighter_subtypes || [],
-            fighter_specialisation: beastFighter.fighter_specialisation,
-            fighter_specialisation_id: beastFighter.fighter_specialisation_id,
+            fighter_specialisation: beastSpecialisation.fighter_specialisation,
+            fighter_specialisation_id: beastSpecialisation.fighter_specialisation_id,
             fighter_variant: beastFighter.fighter_variant,
             custom_fighter_type_id: beastFighter.custom_fighter_type_id,
             fighter_gang_legacy_id: beastFighter.fighter_gang_legacy_id,
@@ -765,31 +880,13 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           }
         }
 
-        // Copy beast skills (only when copying as experienced)
-        const beastSkillIdMap = new Map<string, string>();
-        if (params.copy_as_experienced && beastFighter.fighter_skills && beastFighter.fighter_skills.length > 0) {
-          const beastSkillsToCopy = beastFighter.fighter_skills.map((skill: any) => ({
-            fighter_id: newBeastFighter.id,
-            skill_id: skill.skill_id,
-            custom_skill_id: skill.custom_skill_id ?? null,
-            credits_increase: skill.credits_increase ?? 0,
-            xp_cost: skill.xp_cost ?? 0,
-            is_advance: skill.is_advance ?? false,
-            user_id: gang.user_id
-          }));
+        // Copy beast skills
+        const { skillIdMap: beastSkillIdMap, error: beastSkillsError } = await copySkills(
+          supabase, beastFighter, newBeastFighter.id, gang.user_id, params.copy_as_experienced
+        );
 
-          const { data: insertedBeastSkills, error: beastSkillsError } = await supabase
-            .from('fighter_skills')
-            .insert(beastSkillsToCopy)
-            .select('id');
-
-          if (beastSkillsError) {
-            return await rollbackFighter(`Failed to copy beast skills: ${beastSkillsError.message}`);
-          }
-
-          beastFighter.fighter_skills.forEach((skill: any, i: number) => {
-            if (insertedBeastSkills?.[i]?.id) beastSkillIdMap.set(skill.id, insertedBeastSkills[i].id);
-          });
+        if (beastSkillsError) {
+          return await rollbackFighter(`Failed to copy beast skills: ${beastSkillsError}`);
         }
 
         // Copy beast effects and modifiers

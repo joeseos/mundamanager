@@ -616,10 +616,8 @@ AS $$
             OR ($4 IS NOT NULL AND COALESCE(ftl.is_ftl, false) = $4) -- fighter's list requested
             OR ($5 IS NOT NULL AND true = $5)                        -- trading post requested
         )
-        -- Unrestricted: only custom equipment from the gang's edition
         AND (
-            NOT ($4 IS NULL AND $5 IS NULL)
-            OR gd.edition_id IS NULL
+            gd.edition_id IS NULL
             OR ce.edition_id = gd.edition_id
         )
 $$;

@@ -1,0 +1,429 @@
+// Next dynamic-imports this file from disk at runtime (next-server.ts →
+// formatDynamicImportPath), so it is never compiled: keep it plain ESM JS.
+//
+// Nothing Node-only may be imported at the top level. Next bundles this module
+// into the edge chunk for `runtime = 'edge'` routes, where a top-level `redis`
+// import fails to resolve node:crypto at module evaluation and breaks the build.
+// Both loaders below degrade to null so an edge context falls through to misses.
+
+let nodeDeps;
+async function loadNode() {
+  if (nodeDeps !== undefined) return nodeDeps;
+  try {
+    const [v8, fs, pathMod] = await Promise.all([
+      import('node:v8'),
+      import('node:fs'),
+      import('node:path'),
+    ]);
+    nodeDeps = {
+      serialize: v8.serialize,
+      deserialize: v8.deserialize,
+      readFileSync: fs.readFileSync,
+      join: pathMod.default.join,
+    };
+  } catch {
+    nodeDeps = null;
+  }
+  return nodeDeps;
+}
+
+let redisDeps;
+async function loadRedis() {
+  if (redisDeps !== undefined) return redisDeps;
+  try {
+    const redis = await import('redis');
+    redisDeps = { createClient: redis.createClient, RESP_TYPES: redis.RESP_TYPES };
+  } catch (error) {
+    logError('import', error);
+    redisDeps = null;
+  }
+  return redisDeps;
+}
+
+const PREFIX = `${process.env.REDIS_CACHE_PREFIX || 'munda-manager:next-cache'}:v1`;
+const TIMEOUT_MS = Number(process.env.REDIS_CACHE_TIMEOUT_MS) || 1000;
+const DEBUG = !!process.env.NEXT_PRIVATE_DEBUG_CACHE;
+const TAGS_HEADER = 'x-next-cache-tags';
+const MARKER_TTL_SECONDS = 30 * 24 * 60 * 60;
+
+const FALLBACK_MAX_ENTRIES = 1000;
+const FALLBACK_TTL_MS = 60_000;
+const ERROR_LOG_INTERVAL_MS = 10_000;
+
+// REDIS_URL is deliberately absent during `next build` on Coolify, and the build
+// must not reach for Redis even if it leaks in, so both signals disable it.
+const IS_BUILD = process.env.NEXT_PHASE === 'phase-production-build';
+const REDIS_ENABLED = !IS_BUILD && !!process.env.REDIS_URL;
+
+const debug = (...args) => {
+  if (DEBUG) console.log('[redis-cache]', ...args);
+};
+
+let lastErrorLoggedAt = 0;
+function logError(scope, error) {
+  const now = Date.now();
+  if (!DEBUG && now - lastErrorLoggedAt < ERROR_LOG_INTERVAL_MS) return;
+  lastErrorLoggedAt = now;
+  console.error(`[redis-cache] ${scope}:`, error?.message || error);
+}
+
+let client;
+let bufferClient;
+let connecting;
+let announced = false;
+
+async function connect() {
+  if (!REDIS_ENABLED) return null;
+  if (client) return client;
+
+  const redis = await loadRedis();
+  if (!redis) return null;
+  if (client) return client;
+
+  client = redis.createClient({
+    url: process.env.REDIS_URL,
+    pingInterval: 30_000,
+    socket: {
+      connectTimeout: 5_000,
+      reconnectStrategy: (retries) => Math.min(retries * 100, 3_000),
+    },
+  });
+
+  // Throwing from this listener stops node-redis reconnecting after a socket error.
+  client.on('error', (error) => logError('client', error));
+  client.on('ready', () => {
+    debug('connected');
+    purgeNamespace().catch(() => {});
+  });
+
+  bufferClient = client.withTypeMapping({ [redis.RESP_TYPES.BLOB_STRING]: Buffer });
+  connecting = client.connect().catch((error) => logError('connect', error));
+
+  return client;
+}
+
+function withTimeout(promise, scope) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${scope} timed out`)), TIMEOUT_MS);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+async function withRedis(scope, fn, fallback) {
+  if (!REDIS_ENABLED) return fallback;
+
+  try {
+    const redis = await connect();
+    if (!redis) return fallback;
+
+    if (!redis.isReady) {
+      await withTimeout(connecting, scope).catch(() => {});
+      if (!redis.isReady) return fallback;
+    }
+    return await withTimeout(fn(redis, bufferClient), scope);
+  } catch (error) {
+    logError(scope, error);
+    return fallback;
+  }
+}
+
+// An invalidation that could not reach Redis leaves entries no marker can expire
+// and no TTL will remove, so they would return as valid hits once Redis recovers.
+// Treat the namespace as untrustworthy until it has been dropped.
+let dirty = false;
+let purge = null;
+
+function markDirty(tags) {
+  dirty = true;
+  console.error(
+    `[redis-cache] invalidation lost (${tags.join(', ')}); cache dirty until purged`
+  );
+}
+
+async function purgeNamespace() {
+  if (!dirty) return;
+  if (purge) return purge;
+
+  purge = (async () => {
+    let cursor = '0';
+    do {
+      const batch = await withRedis(
+        'purge',
+        async (redis) => {
+          const scanned = await redis.scan(cursor, {
+            MATCH: `${PREFIX}:*`,
+            COUNT: 500,
+          });
+          if (scanned.keys.length) await redis.unlink(scanned.keys);
+          return scanned;
+        },
+        null
+      );
+      if (!batch) return;
+      cursor = String(batch.cursor);
+    } while (cursor !== '0');
+
+    fallbackStore.clear();
+    dirty = false;
+    console.error('[redis-cache] dirty cache purged; Redis trusted again');
+  })();
+
+  try {
+    await purge;
+  } finally {
+    purge = null;
+  }
+}
+
+const fallbackStore = new Map();
+
+function fallbackGet(key) {
+  const hit = fallbackStore.get(key);
+  if (!hit) return undefined;
+  if (hit.expiresAt && hit.expiresAt < Date.now()) {
+    fallbackStore.delete(key);
+    return undefined;
+  }
+  fallbackStore.delete(key);
+  fallbackStore.set(key, hit);
+  return hit.entry;
+}
+
+function fallbackSet(key, entry) {
+  fallbackStore.delete(key);
+  fallbackStore.set(key, {
+    entry,
+    // During the build this tier is the only store, so it must not expire.
+    expiresAt: REDIS_ENABLED ? Date.now() + FALLBACK_TTL_MS : 0,
+  });
+  while (fallbackStore.size > FALLBACK_MAX_ENTRIES) {
+    fallbackStore.delete(fallbackStore.keys().next().value);
+  }
+}
+
+const tagKey = (tag) => `${PREFIX}:tag:${tag}`;
+const markerKey = (tag) => `${PREFIX}:rt:${tag}`;
+
+// Module-scoped, because Next builds a handler per request and serverDistDir is the
+// same for all of them. The promise itself is memoised rather than the value: caching
+// the value would need its guard set before the await below, so a second concurrent
+// caller would get the 'shared' placeholder while the first was still reading.
+let buildIdPromise;
+function getBuildId(serverDistDir) {
+  if (!buildIdPromise) {
+    buildIdPromise = (async () => {
+      const node = await loadNode();
+      if (node && serverDistDir) {
+        try {
+          return node
+            .readFileSync(node.join(serverDistDir, '..', 'BUILD_ID'), 'utf8')
+            .trim();
+        } catch {
+          // Falls back to a shared namespace.
+        }
+      }
+      return 'shared';
+    })();
+  }
+  return buildIdPromise;
+}
+
+function headerTags(data) {
+  const header = data?.headers?.[TAGS_HEADER];
+  return typeof header === 'string' && header ? header.split(',') : [];
+}
+
+// Atomic so a set() landing mid-invalidation cannot have its fresh value deleted.
+// Keys come from SMEMBERS inside the script, so they cannot be declared in KEYS[] —
+// single-instance only, as is the multi-key DEL this replaced.
+const REVALIDATE_TAG_SCRIPT = `
+local prefix, now, ttl = ARGV[1], ARGV[2], ARGV[3]
+local deleted = 0
+for i = 4, #ARGV do
+  local tag = ARGV[i]
+  redis.call('SET', prefix .. ':rt:' .. tag, now, 'EX', ttl)
+  local setKey = prefix .. ':tag:' .. tag
+  local members = redis.call('SMEMBERS', setKey)
+  for j = 1, #members, 500 do
+    local batch = {}
+    for k = j, math.min(j + 499, #members) do batch[#batch + 1] = members[k] end
+    deleted = deleted + redis.call('DEL', unpack(batch))
+  end
+  redis.call('DEL', setKey)
+end
+return deleted
+`;
+
+/** Mirrors Next's areTagsExpired: a tag invalidated at T kills entries older than T. */
+const isExpiredBy = (markers, lastModified) =>
+  markers.some((marker) => marker != null && Number(marker) > lastModified);
+
+export default class RedisCacheHandler {
+  constructor(ctx = {}) {
+    this.revalidatedTags = ctx.revalidatedTags || [];
+    this.serverDistDir = ctx.serverDistDir;
+
+    // Next builds a handler per request; the client below is module-scoped.
+    if (!announced) {
+      announced = true;
+      debug('init', REDIS_ENABLED ? 'redis' : 'memory');
+    }
+  }
+
+  resetRequestCache() {}
+
+  async get(key, ctx = {}) {
+    const { kind } = ctx;
+    const entryKey = await this.#entryKey(key, kind);
+    const ctxTags = [...(ctx.tags || []), ...(ctx.softTags || [])];
+
+    if (ctxTags.some((tag) => this.revalidatedTags.includes(tag))) {
+      debug('get REVALIDATED', key);
+      return null;
+    }
+
+    if (dirty) {
+      await purgeNamespace();
+      if (dirty) {
+        debug('get DIRTY', key);
+        return null;
+      }
+    }
+
+    const result = await withRedis(
+      'get',
+      async (redis, buffers) => {
+        const [payload, markers] = await Promise.all([
+          buffers.get(entryKey),
+          ctxTags.length ? redis.mGet(ctxTags.map(markerKey)) : [],
+        ]);
+        return { payload, markers };
+      },
+      null
+    );
+
+    let entry;
+    if (result) {
+      if (result.payload) {
+        entry = await this.#decode(entryKey, result.payload);
+        if (entry && isExpiredBy(result.markers, entry.lastModified)) {
+          debug('get EXPIRED', key);
+          this.#drop(entryKey, entry.tags);
+          return null;
+        }
+      }
+    } else {
+      entry = fallbackGet(entryKey);
+    }
+
+    if (!entry) {
+      debug('get MISS', key, kind);
+      return null;
+    }
+
+    // Page entries carry their tags in the stored headers rather than in ctx, so
+    // anything the pipeline above could not know about needs a second lookup.
+    const extraTags = (entry.tags || []).filter((tag) => !ctxTags.includes(tag));
+    if (extraTags.length && result) {
+      const markers = await withRedis(
+        'get:tags',
+        (redis) => redis.mGet(extraTags.map(markerKey)),
+        []
+      );
+      if (isExpiredBy(markers, entry.lastModified)) {
+        debug('get EXPIRED', key);
+        this.#drop(entryKey, entry.tags);
+        return null;
+      }
+    }
+
+    debug('get HIT', key, kind);
+    return { value: entry.value, lastModified: entry.lastModified };
+  }
+
+  async set(key, data, ctx = {}) {
+    const kind = data?.kind || ctx.kind;
+    const entryKey = await this.#entryKey(key, kind);
+    const tags = [...new Set([...(ctx.tags || []), ...headerTags(data)])];
+    const entry = { value: data, lastModified: Date.now(), tags };
+
+    fallbackSet(entryKey, entry);
+    debug('set', key, kind, `tags=${tags.length}`);
+
+    await withRedis('set', async (redis) => {
+      const node = await loadNode();
+      if (!node) return;
+
+      let payload;
+      try {
+        payload = node.serialize(entry);
+      } catch (error) {
+        logError('serialize', error);
+        return;
+      }
+
+      const multi = redis.multi().set(entryKey, payload);
+      for (const tag of tags) multi.sAdd(tagKey(tag), entryKey);
+      await multi.exec();
+    });
+  }
+
+  // durations is Next's `{ expire?: number }`. Any value is treated as immediate
+  // invalidation: stricter than stale-then-expire, never staler.
+  async revalidateTag(tags, durations) {
+    const list = [tags].flat().filter(Boolean);
+    if (!list.length) return;
+    if (durations?.expire) debug('revalidateTag expire treated as immediate');
+
+    for (const [key, hit] of fallbackStore) {
+      if (hit.entry.tags?.some((tag) => list.includes(tag))) fallbackStore.delete(key);
+    }
+
+    const now = String(Date.now());
+    const deleted = await withRedis(
+      'revalidateTag',
+      (redis) =>
+        redis.eval(REVALIDATE_TAG_SCRIPT, {
+          keys: [],
+          arguments: [PREFIX, now, String(MARKER_TTL_SECONDS), ...list],
+        }),
+      null
+    );
+
+    if (deleted === null) {
+      if (REDIS_ENABLED) markDirty(list);
+      return;
+    }
+
+    debug('revalidateTag', list.join(','), `deleted=${deleted}`);
+  }
+
+  // Fetch entries outlive a deploy; compiled page payloads must not, or a new
+  // build would serve the previous build's RSC data.
+  async #entryKey(key, kind) {
+    if (kind === 'FETCH') return `${PREFIX}:fetch:${key}`;
+    return `${PREFIX}:${await getBuildId(this.serverDistDir)}:page:${key}`;
+  }
+
+  async #decode(entryKey, payload) {
+    const node = await loadNode();
+    if (!node) return undefined;
+    try {
+      return node.deserialize(payload);
+    } catch (error) {
+      logError('deserialize', error);
+      this.#drop(entryKey);
+      return undefined;
+    }
+  }
+
+  #drop(entryKey, tags = []) {
+    fallbackStore.delete(entryKey);
+    withRedis('drop', async (redis) => {
+      const multi = redis.multi().del(entryKey);
+      for (const tag of tags) multi.sRem(tagKey(tag), entryKey);
+      await multi.exec();
+    });
+  }
+}

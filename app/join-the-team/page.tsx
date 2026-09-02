@@ -171,7 +171,7 @@ export default function JoinTheTeamPage() {
                 <ol className="list-decimal pl-6 space-y-2 marker:text-red-800 mb-4">
                   <li className="text-muted-foreground">Fill out our <a href="https://forms.gle/rkkqyqLEdfV6ZTSc7" target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800">application form</a> to tell us what you&apos;re interested in helping with</li>
                   <li className="text-muted-foreground">Join our <a href="https://discord.gg/ZWXXqd5NUt" target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800">Discord server</a> and introduce yourself</li>
-                  <li className="text-muted-foreground">For developers, check out our <a href="https://github.com/joeseos/mundamanager" target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800">GitHub repository</a> and read the README</li>
+                  <li className="text-muted-foreground">For developers, check out our <a href="https://github.com/joeseos/mundamanager" target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800">GitHub repository</a> and read the <a href="https://github.com/joeseos/mundamanager/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800">contributing guide</a></li>
                 </ol>
               </section>
 

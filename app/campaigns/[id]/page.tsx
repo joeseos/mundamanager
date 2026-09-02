@@ -1,12 +1,10 @@
 import { createClient } from "@/utils/supabase/server";
 import { notFound } from "next/navigation";
-import { after } from "next/server";
 import CampaignPageContent from "@/components/campaigns/[id]/campaign-page-content";
 import { CampaignErrorBoundary } from "@/components/campaigns/campaign-error-boundary";
 import { checkCampaignPermissions } from "@/utils/user-permissions";
 import type { CampaignPermissions } from "@/types/user-permissions";
 import { getAuthenticatedUser } from "@/utils/auth";
-import { purgePreEditionCampaignCatalogCachesOnce } from "@/utils/cache-tags";
 import {
   getTradingPostTypesCached,
   getCampaignTriumphs,
@@ -31,11 +29,6 @@ import {
 export default async function CampaignPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const supabase = await createClient();
-
-  // Expire pre-rename catalog cache keys after the response (shared tags).
-  after(() => {
-    purgePreEditionCampaignCatalogCachesOnce();
-  });
 
   // Get the user data once at the page level via claims
   let userId: string | undefined = undefined;

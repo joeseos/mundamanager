@@ -107,6 +107,18 @@ const EDITION_CAPABILITIES = {
   /** A fighter may hold several subtypes at once */
   multipleFighterSubtypes:  { n23: false, n26: true  },
   /**
+   * Named-type picker options omit the parenthetical subtype list. N26 lists
+   * subtypes on their own control, so "Ganger (Ganger, Specialist)" is redundant
+   * there. When false, each option is "Type (Subtypes)".
+   */
+  omitNamedTypeSubtypeSuffix: { n23: false, n26: true },
+  /**
+   * Picking a named type leaves fighter_subtypes in place. N26 treats named type
+   * and subtype as independent fields. When false, the catalog row's subtypes
+   * replace the fighter's.
+   */
+  namedTypeKeepsSubtypes: { n23: false, n26: true },
+  /**
    * Custom fighter authoring offers a curated shortlist of subtypes rather than
    * every row the edition defines. The N23 table mixes real subtypes with
    * placeholders ('*', 'Others', 'Special Terrain') and alliance-only entries, so
@@ -174,6 +186,11 @@ const EDITION_CAPABILITIES = {
    */
   downtimePhase:            { n23: 'Downtime', n26: 'Post-Cycle' },
   /**
+   * Fighters carry one of the eight houseless specialisations alongside any
+   * variant. When false the edition splits fighter types by variant only.
+   */
+  fighterSpecialisations:   { n23: false, n26: true  },
+  /**
    * Prospect promotion keeps fighter type, swaps Prospect for Ganger+Specialist,
    * requires a specialisation pick, and grants the mapped skill (+15 rating).
    * When false, Prospect uses the standard promote-to-Champion type picker.
@@ -194,6 +211,13 @@ const EDITION_CAPABILITIES = {
   championLeaderTypePromotion: { n23: false, n26: true },
   /** The battle's scenario is rolled for on a D6 against the edition's numbered scenarios. */
   scenarioD6Roll: { n23: false, n26: true },
+  /** Fighters can catch fire — the Blaze condition token in a battle session. */
+  blazeCondition:           { n23: true,  n26: false },
+  /** Fighters can be intoxicated — the Intoxicated condition token in a battle session. */
+  intoxicatedCondition:     { n23: true,  n26: false },
+  /** Damage short of a lost wound leaves a Flesh Wound, counted per fighter. */
+  fleshWoundCondition:      { n23: true,  n26: false },
+  venatorSkillAccess:       { n23: false, n26: true  },
 } as const satisfies Record<string, Record<EditionSlug, unknown>>;
 
 type EditionCapability = keyof typeof EDITION_CAPABILITIES;
@@ -258,6 +282,12 @@ export const initiativeAndMentalCharacteristicSuffix = (
 export const allowsMultipleSubtypes = (editionSlug?: string | null): boolean =>
   can('multipleFighterSubtypes', editionSlug);
 
+export const omitsNamedTypeSubtypeSuffix = (editionSlug?: string | null): boolean =>
+  can('omitNamedTypeSubtypeSuffix', editionSlug);
+
+export const namedTypeKeepsSubtypes = (editionSlug?: string | null): boolean =>
+  can('namedTypeKeepsSubtypes', editionSlug);
+
 export const hasCuratedFighterSubtypes = (editionSlug?: string | null): boolean =>
   can('curatedFighterSubtypes', editionSlug);
 
@@ -317,6 +347,9 @@ const UNRESOLVED_EDITION_DOWNTIME_PHASE = 'Downtime';
 export const downtimePhaseName = (editionSlug?: string | null): string =>
   answerFor('downtimePhase', editionSlug) ?? UNRESOLVED_EDITION_DOWNTIME_PHASE;
 
+export const hasFighterSpecialisations = (editionSlug?: string | null): boolean =>
+  can('fighterSpecialisations', editionSlug);
+
 export const hasProspectSpecialisationPromotion = (
   editionSlug?: string | null
 ): boolean => can('prospectSpecialisationPromotion', editionSlug);
@@ -331,6 +364,18 @@ export const hasChampionLeaderTypePromotion = (
 
 export const hasScenarioD6Roll = (editionSlug?: string | null): boolean =>
   can('scenarioD6Roll', editionSlug);
+
+export const hasBlazeCondition = (editionSlug?: string | null): boolean =>
+  can('blazeCondition', editionSlug);
+
+export const hasIntoxicatedCondition = (editionSlug?: string | null): boolean =>
+  can('intoxicatedCondition', editionSlug);
+
+export const hasFleshWoundCondition = (editionSlug?: string | null): boolean =>
+  can('fleshWoundCondition', editionSlug);
+
+export const hasVenatorSkillAccess = (editionSlug: string | null | undefined): boolean =>
+  can('venatorSkillAccess', editionSlug);
 
 export interface Edition {
   id: string;

@@ -48,7 +48,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       getGangPositioning(fighterBasic.gang_id, supabase),
       getGangFightersBundle(fighterBasic.gang_id, supabase),
       getGangCampaigns(fighterBasic.gang_id, supabase),
-      getGangFighters(fighterBasic.gang_id, supabase)
+      getGangFighters(fighterBasic.gang_id, supabase),
     ]);
 
     // Check if gang exists (shouldn't happen but handle gracefully)
@@ -250,8 +250,10 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         reputation: gangBasic.reputation,
         trade_points: gangBasic.trade_points,
         edition_slug: gangBasic.edition_slug ?? null,
+        gang_type: gangBasic.gang_type,
         gang_type_id: gangBasic.gang_type_id,
         custom_gang_type_id: gangBasic.custom_gang_type_id,
+        venator_ranks_incomplete: gangBasic.venator_ranks_incomplete ?? false,
         gang_affiliation_id: gangBasic.gang_affiliation_id,
         gang_affiliation_name: gangBasic.gang_affiliation?.name,
         positioning: gangPositioning,

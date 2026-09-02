@@ -1,32 +1,36 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Input } from '../ui/input';
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
+import { Button } from "@/components/ui/button";
 import Modal from '@/components/ui/modal';
 import { toast } from 'sonner';
 import { HexColorPicker } from "react-colorful";
 import { groupAlliancesByType } from "@/utils/allianceRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
-import { useQuery } from '@tanstack/react-query';
-import { ResourceUpdate } from '@/types/gang';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { deleteGang } from '@/app/actions/delete-gang';
-import { hasAlignment, hasTradePoints, sameEditionForDisplay } from '@/types/edition';
+import { hasAlignment, sameEditionForDisplay } from '@/types/edition';
+import { isVenatorGang } from '@/utils/venatorSkillAccess';
+import { saveVenatorSkillRanks } from '@/app/actions/gang/save-venator-skill-ranks';
+import { createClient } from '@/utils/supabase/client';
+import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core';
+import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { restrictToParentElement, restrictToVerticalAxis } from '@dnd-kit/modifiers';
+import { CSS } from '@dnd-kit/utilities';
+import { useDndSensorsConfig, dragSurfaceProps } from '@/hooks/use-dnd-sensors';
+import { buildGroupedSkillSetComboboxOptions } from '@/utils/skillSetComboboxOptions';
+import { LuGripVertical, LuX } from 'react-icons/lu';
 
 interface GangUpdates {
   name?: string;
-  credits?: number;
-  credits_operation?: 'add' | 'subtract';
   alignment?: string;
   alliance_id?: string | null;
   alliance_name?: string;
-  reputation?: number;
-  reputation_operation?: 'add' | 'subtract';
-  trade_points?: number;
-  trade_points_operation?: 'add' | 'subtract';
   gang_variants?: string[];
   gang_colour?: string;
   gang_affiliation_id?: string | null;
@@ -37,15 +41,6 @@ interface GangUpdates {
   campaign_allegiance_id?: string | null;
   campaign_allegiance_is_custom?: boolean;
   campaign_id?: string;
-  // New resource updates from normalised tables
-  resourceUpdates?: ResourceUpdate[];
-}
-
-interface CampaignResource {
-  resource_id: string;
-  resource_name: string;
-  quantity: number;
-  is_custom: boolean;
 }
 
 interface Campaign {
@@ -55,8 +50,6 @@ interface Campaign {
     id: string;
     name: string;
   } | null;
-  // Normalised resources
-  resources?: CampaignResource[];
 }
 
 interface GangEditModalProps {
@@ -67,9 +60,6 @@ interface GangEditModalProps {
   // Gang data
   gangId: string;
   gangName: string;
-  credits: number;
-  reputation: number;
-  tradePoints: number;
   editionSlug?: string | null;
   alignment: string;
   allianceId: string | null;
@@ -79,6 +69,8 @@ interface GangEditModalProps {
   availableVariants: Array<{id: string, variant: string, edition_slug?: string | null}>;
   gangAffiliationId: string | null;
   gangAffiliationName: string;
+  gangType?: string | null;
+  customGangTypeId?: string | null;
   gangTypeHasAffiliation: boolean;
   gangOriginId: string | null;
   gangOriginName: string;
@@ -86,7 +78,7 @@ interface GangEditModalProps {
   gangTypeHasOrigin: boolean;
   hidden: boolean;
 
-  // Campaign features (includes dynamic resources)
+  // Campaign features
   campaigns?: Campaign[];
 
   // Permissions - controls Delete button visibility
@@ -97,25 +89,88 @@ interface GangEditModalProps {
   onSave: (updates: GangUpdates) => Promise<boolean>;
 }
 
+function SortableSkillSetRankRow({
+  id,
+  rank,
+  name,
+  onRemove,
+}: {
+  id: string;
+  rank: number;
+  name: string;
+  onRemove: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const surface = dragSurfaceProps(true);
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Translate.toString(transform),
+        transition,
+        zIndex: isDragging ? 50 : 'auto',
+        position: 'relative',
+        // Prefer none over dragSurfaceProps' "manipulation" so vertical drags
+        // reorder rows instead of scrolling the modal underneath.
+        WebkitUserSelect: 'none',
+        userSelect: 'none',
+        WebkitTouchCallout: 'none',
+        WebkitTapHighlightColor: 'transparent',
+        touchAction: 'none',
+      }}
+      className={`flex items-center gap-2 rounded-md border border-border bg-card px-2 py-1.5 cursor-grab ${
+        isDragging ? 'shadow-md border-rose-700 cursor-grabbing' : ''
+      }`}
+      aria-label={`Drag to reorder ${name}`}
+      onContextMenu={surface.onContextMenu}
+      {...attributes}
+      {...listeners}
+    >
+      <span className="inline-flex w-5 shrink-0 items-center justify-center text-sm text-muted-foreground">{rank}</span>
+      <span className="shrink-0 p-1 text-muted-foreground" aria-hidden="true">
+        <LuGripVertical className="h-4 w-4" />
+      </span>
+      <span className="min-w-0 flex-1 truncate text-sm">{name}</span>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-8 w-8 shrink-0 cursor-pointer touch-auto p-0"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={onRemove}
+        aria-label={`Remove ${name}`}
+      >
+        <LuX className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
+
 /**
  * Gang Edit Modal Component
  * 
  * Extracted from gang.tsx to improve component maintainability.
  * Handles all gang editing functionality including:
- * - Basic gang info (name, credits, reputation)
+ * - Basic gang info (name, visibility)
  * - Alignment and alliance management
  * - Gang variants selection
  * - Colour picker
- * - Campaign-specific resources (meat, scavenging rolls, exploration points)
+ * - Campaign allegiance
  */
 export default function GangEditModal({
   isOpen,
   onClose,
   gangId,
   gangName,
-  credits,
-  reputation,
-  tradePoints,
   editionSlug,
   alignment,
   allianceId,
@@ -125,6 +180,8 @@ export default function GangEditModal({
   availableVariants,
   gangAffiliationId,
   gangAffiliationName,
+  gangType,
+  customGangTypeId,
   gangTypeHasAffiliation,
   gangOriginId,
   gangOriginName,
@@ -145,6 +202,116 @@ export default function GangEditModal({
   const showAlignment = hasAlignment(editionSlug);
   // Mirror admin fighter-type forms: clear alignment when the edition lacks it
   const effectiveAlignment = showAlignment ? alignment : '';
+
+  const isVenator = isVenatorGang(editionSlug, gangType, Boolean(customGangTypeId));
+
+  const { data: skillTypes = [] } = useQuery<Array<{ id: string; name: string }>>({
+    queryKey: ['skill-types', editionSlug, 'strict'],
+    enabled: isVenator && !!editionSlug,
+    queryFn: async () => {
+      const response = await fetch(`/api/skill-types?edition_slug=${editionSlug}&strict_edition=1`);
+      if (!response.ok) throw new Error('Failed to load skill types');
+      const rows: Array<{ id: string; name: string; is_custom?: boolean }> = await response.json();
+      return rows.filter((r) => !r.is_custom).map((r) => ({ id: r.id, name: r.name }));
+    },
+  });
+
+  const queryClient = useQueryClient();
+  const { data: existingRanks = [], isSuccess: existingRanksLoaded } = useQuery<
+    Array<{ rank: number; skill_type_id: string }>
+  >({
+    queryKey: ['gang-skill-set-ranks', gangId],
+    enabled: isVenator,
+    queryFn: async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('gang_skill_set_ranks')
+        .select('rank, skill_type_id')
+        .eq('gang_id', gangId)
+        .order('rank');
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const [ranks, setRanks] = useState<string[]>([]);
+  const [showRankChangeConfirm, setShowRankChangeConfirm] = useState(false);
+  const rankSensors = useDndSensorsConfig('distance');
+  const rankListRef = useRef<HTMLDivElement | null>(null);
+  const lockedScrollParentRef = useRef<{
+    el: HTMLElement;
+    overflowY: string;
+    overscrollBehavior: string;
+  } | null>(null);
+
+  const unlockRankModalScroll = useCallback(() => {
+    const locked = lockedScrollParentRef.current;
+    if (!locked) return;
+    locked.el.style.overflowY = locked.overflowY;
+    locked.el.style.overscrollBehavior = locked.overscrollBehavior;
+    lockedScrollParentRef.current = null;
+  }, []);
+
+  const lockRankModalScroll = useCallback(() => {
+    unlockRankModalScroll();
+    let el = rankListRef.current?.parentElement ?? null;
+    while (el) {
+      const { overflowY } = window.getComputedStyle(el);
+      if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') {
+        lockedScrollParentRef.current = {
+          el,
+          overflowY: el.style.overflowY,
+          overscrollBehavior: el.style.overscrollBehavior,
+        };
+        el.style.overflowY = 'hidden';
+        el.style.overscrollBehavior = 'none';
+        break;
+      }
+      el = el.parentElement;
+    }
+  }, [unlockRankModalScroll]);
+
+  const addRank = useCallback((skillTypeId: string) => {
+    if (!skillTypeId) return;
+    setRanks((prev) => {
+      if (prev.length >= 4 || prev.includes(skillTypeId)) return prev;
+      return [...prev, skillTypeId];
+    });
+  }, []);
+
+  const removeRank = useCallback((skillTypeId: string) => {
+    setRanks((prev) => prev.filter((id) => id !== skillTypeId));
+  }, []);
+
+  const handleRankDragEnd = useCallback((event: DragEndEvent) => {
+    unlockRankModalScroll();
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setRanks((prev) => {
+      const oldIndex = prev.findIndex((id) => id === active.id);
+      const newIndex = prev.findIndex((id) => id === over.id);
+      if (oldIndex === -1 || newIndex === -1) return prev;
+      return arrayMove(prev, oldIndex, newIndex);
+    });
+  }, [unlockRankModalScroll]);
+
+  const ranksInitializedRef = useRef(false);
+  useEffect(() => {
+    if (!isOpen) {
+      ranksInitializedRef.current = false;
+      setShowRankChangeConfirm(false);
+      unlockRankModalScroll();
+      return;
+    }
+    if (ranksInitializedRef.current) return;
+    if (!existingRanksLoaded) return;
+    setRanks(
+      [...existingRanks]
+        .sort((a, b) => a.rank - b.rank)
+        .map((r) => r.skill_type_id),
+    );
+    ranksInitializedRef.current = true;
+  }, [isOpen, existingRanks, existingRanksLoaded, unlockRankModalScroll]);
 
   // Get campaign ID and current allegiance if gang is in a campaign
   const campaignId = campaigns?.[0]?.campaign_id;
@@ -167,9 +334,6 @@ export default function GangEditModal({
   // Single form state object instead of multiple individual states
   const [formState, setFormState] = useState({
     name: gangName,
-    credits: '',  // delta inputs start empty
-    reputation: '',
-    trade_points: '',
     alignment: effectiveAlignment,
     allianceId: allianceId || '',
     gangColour: gangColour,
@@ -181,10 +345,6 @@ export default function GangEditModal({
     campaignAllegianceId: effectiveCurrentAllegianceId
   });
   
-  // Dynamic resource deltas state - tracks changes for each normalised resource
-  // Key: resource_id, Value: delta string (for input field)
-  const [resourceDeltas, setResourceDeltas] = useState<Record<string, string>>({});
-
   // Alliance management state
   const [allianceList, setAllianceList] = useState<Array<{
     id: string;
@@ -252,9 +412,6 @@ export default function GangEditModal({
       setFormState(prev => ({
         ...prev,
         name: gangName,
-        credits: '',
-        reputation: '',
-        trade_points: '',
         alignment: effectiveAlignment,
         allianceId: allianceId || '',
         gangColour: gangColour,
@@ -265,8 +422,6 @@ export default function GangEditModal({
         hidden: hidden,
         campaignAllegianceId: effectiveCurrentAllegianceId
       }));
-
-      setResourceDeltas({});
     }
   }
 
@@ -396,7 +551,7 @@ export default function GangEditModal({
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (options?: { skipRankConfirm?: boolean }) => {
     const updates: GangUpdates = {};
     const initial = initialValues;
 
@@ -468,51 +623,46 @@ export default function GangEditModal({
       updates.gang_variants = formState.gangVariants.map(v => v.id);
     }
 
-    // Handle resource deltas - only include if non-empty and non-zero
-    const creditsDifference = parseInt(formState.credits) || 0;
-    if (credits + creditsDifference < 0) {
-      toast.error('Insufficient credits', {
-        description: `Cannot subtract ${Math.abs(creditsDifference)} credits. Current balance: ${credits}`
-      });
-      return;
-    }
-    if (creditsDifference !== 0) {
-      updates.credits = Math.abs(creditsDifference);
-      updates.credits_operation = creditsDifference >= 0 ? 'add' : 'subtract';
-    }
+    if (isVenator) {
+      const filled = ranks.filter(Boolean);
+      const hadPreviousRanks = existingRanks.length > 0;
+      const previousOrdered = [...existingRanks]
+        .sort((a, b) => a.rank - b.rank)
+        .map((r) => r.skill_type_id);
+      const ranksUnchanged =
+        filled.length === previousOrdered.length &&
+        filled.every((id, i) => id === previousOrdered[i]);
 
-    const reputationDifference = parseInt(formState.reputation) || 0;
-    if (reputationDifference !== 0) {
-      updates.reputation = Math.abs(reputationDifference);
-      updates.reputation_operation = reputationDifference >= 0 ? 'add' : 'subtract';
-    }
-
-    if (hasTradePoints(editionSlug)) {
-      const tradePointsDifference = parseInt(formState.trade_points) || 0;
-      if (tradePointsDifference !== 0) {
-        updates.trade_points = Math.abs(tradePointsDifference);
-        updates.trade_points_operation = tradePointsDifference >= 0 ? 'add' : 'subtract';
+      if (!ranksUnchanged) {
+        if (hadPreviousRanks && !options?.skipRankConfirm) {
+          setShowRankChangeConfirm(true);
+          return false;
+        }
+        if (filled.length > 0) {
+          const payload = filled.map((skill_type_id, i) => ({
+            rank: i + 1,
+            skill_type_id,
+          }));
+          const result = await saveVenatorSkillRanks({
+            gangId,
+            ranks: payload,
+          });
+          if (!result.ok) {
+            toast.error(result.error);
+            return false;
+          }
+          queryClient.setQueryData(['gang-skill-set-ranks', gangId], payload);
+          queryClient.invalidateQueries({ queryKey: ['fighter-skill-access'] });
+        } else if (hadPreviousRanks) {
+          const result = await saveVenatorSkillRanks({ gangId, ranks: [] });
+          if (!result.ok) {
+            toast.error(result.error);
+            return false;
+          }
+          queryClient.setQueryData(['gang-skill-set-ranks', gangId], []);
+          queryClient.invalidateQueries({ queryKey: ['fighter-skill-access'] });
+        }
       }
-    }
-
-    // Handle dynamic resource deltas from normalised tables
-    const resourceUpdatesList: ResourceUpdate[] = [];
-    const campaignResources = campaigns?.[0]?.resources || [];
-    
-    for (const resource of campaignResources) {
-      const deltaStr = resourceDeltas[resource.resource_id];
-      const delta = parseInt(deltaStr) || 0;
-      if (delta !== 0) {
-        resourceUpdatesList.push({
-          resource_id: resource.resource_id,
-          is_custom: resource.is_custom,
-          quantity_delta: delta
-        });
-      }
-    }
-    
-    if (resourceUpdatesList.length > 0) {
-      updates.resourceUpdates = resourceUpdatesList;
     }
 
     // Close modal immediately for instant UX (optimistic update will handle UI)
@@ -604,85 +754,58 @@ export default function GangEditModal({
         </div>
       )}
 
-      {/* Resources Section */}
-      <div className="space-y-4">
-        <div>
-          <p className="text-base font-medium">Resources</p>
-          <p className="text-xs text-muted-foreground mt-1">Add or remove (e.g. 5 or -5)</p>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <p className="text-xs font-medium">Credits
-              <span className="text-xs text-muted-foreground"> (Current: {credits})</span>
-            </p>
-            <Input
-              type="tel"
-              inputMode="url"
-              pattern="-?[0-9]+"
-              value={formState.credits}
-              onChange={(e) => setFormState(prev => ({ ...prev, credits: e.target.value }))}
-              className="flex-1"
-              placeholder="0"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <p className="text-xs font-medium">
-              Reputation
-              <span className="text-xs text-muted-foreground"> (Current: {reputation})</span>
-            </p>
-            <Input
-              type="tel"
-              inputMode="url"
-              pattern="-?[0-9]+"
-              value={formState.reputation}
-              onChange={(e) => setFormState(prev => ({ ...prev, reputation: e.target.value }))}
-              className="flex-1"
-              placeholder="0"
-            />
-          </div>
-
-          {hasTradePoints(editionSlug) && (
-            <div className="space-y-2">
-              <p className="text-xs font-medium">
-                Trade Points
-                <span className="text-xs text-muted-foreground"> (Current: {tradePoints})</span>
-              </p>
-              <Input
-                type="tel"
-                inputMode="url"
-                pattern="-?[0-9]+"
-                value={formState.trade_points}
-                onChange={(e) => setFormState(prev => ({ ...prev, trade_points: e.target.value }))}
-                className="flex-1"
-                placeholder="0"
-              />
-            </div>
+      {isVenator && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Venator Skill Access</p>
+          <p className="text-sm text-muted-foreground">
+            Add four Skill Sets, then drag to rank them. Rank order
+            determines skill access for each fighter.
+          </p>
+          {ranks.length > 0 && (
+            <DndContext
+              sensors={rankSensors}
+              collisionDetection={closestCenter}
+              modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+              onDragStart={lockRankModalScroll}
+              onDragEnd={handleRankDragEnd}
+              onDragCancel={unlockRankModalScroll}
+            >
+              <SortableContext items={ranks} strategy={verticalListSortingStrategy}>
+                <div ref={rankListRef} className="space-y-2" style={{ touchAction: 'none' }}>
+                  {ranks.map((skillTypeId, i) => {
+                    const skillType = skillTypes.find((s) => s.id === skillTypeId);
+                    return (
+                      <SortableSkillSetRankRow
+                        key={skillTypeId}
+                        id={skillTypeId}
+                        rank={i + 1}
+                        name={skillType?.name ?? 'Unknown Skill Set'}
+                        onRemove={() => removeRank(skillTypeId)}
+                      />
+                    );
+                  })}
+                </div>
+              </SortableContext>
+            </DndContext>
           )}
-
-          {/* Dynamic Campaign Resources */}
-          {campaigns?.[0]?.resources?.map((resource) => (
-            <div key={resource.resource_id} className="space-y-2">
-              <p className="text-xs font-medium">
-                {resource.resource_name}
-                <span className="text-xs text-muted-foreground"> (Current: {resource.quantity})</span>
-              </p>
-              <Input
-                type="tel"
-                inputMode="url"
-                pattern="-?[0-9]+"
-                value={resourceDeltas[resource.resource_id] || ''}
-                onChange={(e) => setResourceDeltas(prev => ({
-                  ...prev,
-                  [resource.resource_id]: e.target.value
-                }))}
-                className="flex-1"
-                placeholder="0"
-              />
-            </div>
-          ))}
+          {ranks.length < 4 && (
+            <Combobox
+              key={ranks.join(',')}
+              value={undefined}
+              onValueChange={(v) => {
+                if (v) addRank(v);
+              }}
+              options={buildGroupedSkillSetComboboxOptions(
+                skillTypes,
+                editionSlug,
+                { excludeIds: new Set(ranks) },
+              )}
+              placeholder="Add a Skill Set"
+              dropdownPlacement="down"
+            />
+          )}
         </div>
-      </div>
+      )}
 
       <div className="space-y-2">
         <p className="text-sm font-medium">Gang Visibility</p>
@@ -1000,6 +1123,29 @@ export default function GangEditModal({
               </div>
             </div>
           }
+        />
+      )}
+
+      {showRankChangeConfirm && (
+        <Modal
+          title={ranks.length === 0
+            ? 'Clear Skill Set ranks?'
+            : 'Update Skill Set ranks?'}
+          content={
+            <p>
+              {ranks.length === 0
+                ? 'This will remove rank-derived skill access from Venator fighters and reset any custom Skill Set Access on those Skill Sets.'
+                : 'This will reset any custom Skill Set Access on individual Venator fighters to match the new ranking.'}
+            </p>
+          }
+          onClose={() => setShowRankChangeConfirm(false)}
+          onConfirm={async () => {
+            const saved = await handleSave({ skipRankConfirm: true });
+            if (saved === false) return false;
+            setShowRankChangeConfirm(false);
+            return true;
+          }}
+          confirmText="Continue"
         />
       )}
 
