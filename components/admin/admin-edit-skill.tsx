@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from 'sonner';
-import { getSkillSetRank } from "@/utils/skillSetRank";
+import { getSkillSetGroupLabel, getSkillSetRank } from "@/utils/skillSetRank";
 import { gangOriginRank } from "@/utils/gangOriginRank";
 import { AdminFighterEffects } from './admin-fighter-effects';
 import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
@@ -462,15 +462,7 @@ const handleSubmitSkill = async (operation: OperationType) => {
                     })
                     .reduce((groups, type) => {
                       const rank = skillSetRank[type.skill_type.toLowerCase()] ?? Infinity;
-                      let groupLabel = "Misc."; // Default category for unlisted skill sets
-
-                      if (rank <= 19) groupLabel = "Universal Skills";
-                      else if (rank <= 39) groupLabel = "Gang-specific Skills";
-                      else if (rank <= 59) groupLabel = "Wyrd Powers";
-                      else if (rank <= 69) groupLabel = "Cult Wyrd Powers";
-                      else if (rank <= 79) groupLabel = "Psychoteric Whispers";
-                      else if (rank <= 89) groupLabel = "Legendary Names";
-                      else if (rank <= 99) groupLabel = "Ironhead Squat Mining Clans";
+                      const groupLabel = getSkillSetGroupLabel(rank);
 
                       if (!groups[groupLabel]) groups[groupLabel] = [];
                       groups[groupLabel].push(type);
