@@ -596,7 +596,7 @@ export const getCampaignBasic = async (campaignId: string, supabaseClient?: Supa
     async () => {
       return _getCampaignBasic(campaignId, supabase);
     },
-    [`campaign-basic-v4-${campaignId}`],
+    [`campaign-basic-v3-${campaignId}`],
     {
       tags: [TAGS.campaign(campaignId)],
       revalidate: false
@@ -670,7 +670,7 @@ export const getCampaignBattles = async (campaignId: string, limit = 100, supaba
     async () => {
       return _getCampaignBattles(campaignId, supabase, limit);
     },
-    [`campaign-battles-v3-${campaignId}-${limit}`],
+    [`campaign-battles-v2-${campaignId}-${limit}`],
     {
       tags: [TAGS.campaign(campaignId)],
       revalidate: false
