@@ -469,8 +469,12 @@ const CampaignBattleLogModal = ({
     if (territories.length === 0 || gangsInBattle.every(gang => !gang.gangId)) {
       return [] as BattleLogTerritory[];
     }
-    return hasAnyWinnerSelected ? territories : ([] as BattleLogTerritory[]);
-  }, [hasAnyWinnerSelected, gangsInBattle, territories]);
+    // A challenge stakes a territory before anyone has won it, so the picker is
+    // available there too — not only once a winner exists.
+    return hasAnyWinnerSelected || isUnplayedChallenge
+      ? territories
+      : ([] as BattleLogTerritory[]);
+  }, [hasAnyWinnerSelected, isUnplayedChallenge, gangsInBattle, territories]);
 
   // Clear selected territory when no territories are available (non-edit mode only)
   const [prevHasAvailable, setPrevHasAvailable] = useState(false);
@@ -1056,10 +1060,12 @@ const CampaignBattleLogModal = ({
           </div>
           )}
 
-          {hasAnyWinnerSelected && availableTerritories.length > 0 && (
+          {(hasAnyWinnerSelected || isUnplayedChallenge) && availableTerritories.length > 0 && (
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
-                {isDraw ? "Contested Territory" : "Claimed Territory"}
+                {!showResultFields
+                  ? "Territory at Stake"
+                  : isDraw ? "Contested Territory" : "Claimed Territory"}
               </label>
               <Combobox
                 value={selectedTerritory}
@@ -1067,7 +1073,7 @@ const CampaignBattleLogModal = ({
                 disabled={isLoadingBattleData}
                 placeholder="Select or search for a Territory..."
                 options={[
-                  { value: "", label: "No territory claimed" },
+                  { value: "", label: showResultFields ? "No territory claimed" : "No territory staked" },
                   ...availableTerritories
                     .filter((territory) => !territory.default_gang_territory)
                     .slice()

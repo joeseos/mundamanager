@@ -606,6 +606,17 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   }, [members, localBattles, standingsSortField, standingsSortDirection, gangParticipatedIn]);
 
   // Check if user can edit/delete this battle
+  // A challenge round is only opened for accepted gangs, so count those rather
+  // than availableGangs, which also carries pending ones.
+  const acceptedGangCount = useMemo(
+    () => members.reduce(
+      (total, member) =>
+        total + (member.gangs?.filter((g) => g.status === 'ACCEPTED').length ?? 0),
+      0
+    ),
+    [members]
+  );
+
   const ownsGang = useCallback((gangId: string | null | undefined): boolean => {
     if (!gangId) return false;
     return availableGangs.find(g => g.id === gangId)?.user_id === userId;
@@ -1353,7 +1364,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       {showChallengeRoundModal && (
         <CampaignChallengeRoundModal
           campaignId={campaignId}
-          gangCount={availableGangs.length}
+          gangCount={acceptedGangCount}
           defaultCycle={currentCycle}
           onClose={() => setShowChallengeRoundModal(false)}
           onSuccess={onBattleAdd}

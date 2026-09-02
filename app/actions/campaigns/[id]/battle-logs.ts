@@ -416,7 +416,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     // A challenge names its opponent through the same edit form, so keep the
     // dedicated column in step with the participants. It backs the accept and
     // decline permission checks, which want an indexed lookup.
-    if (existingBattle.challenger_gang_id) {
+    if (existingBattle.challenger_gang_id && existingBattle.status !== 'played') {
       updatePayload.challenged_gang_id =
         participants.find((p) => p.gang_id !== existingBattle.challenger_gang_id)?.gang_id ?? null;
     }
@@ -739,16 +739,22 @@ export async function respondToChallenge(
       return { success: false, error: 'Only the challenged gang can answer this challenge' };
     }
 
-    const { error: updateError } = await supabase
+    // Zero rows matched is not an error, so a lost race or an RLS denial would
+    // otherwise report success while the row stayed put.
+    const { data: answered, error: updateError } = await supabase
       .from('campaign_battles')
       .update({
         status: response === 'accepted' ? 'challenge_accepted' : 'challenge_declined',
         updated_at: new Date().toISOString(),
       })
       .eq('id', battleId)
-      .eq('status', 'challenge_issued');
+      .eq('status', 'challenge_issued')
+      .select('id');
 
     if (updateError) throw updateError;
+    if (!answered || answered.length === 0) {
+      return { success: false, error: 'This challenge has already been answered' };
+    }
 
     invalidateCampaign(campaignId);
     return { success: true };
