@@ -332,7 +332,9 @@ const fetchGangCore = async (gangId: string, supabase: any): Promise<GangCore | 
     },
     [`gang-core-v5-${gangId}`],
     {
-      tags: [TAGS.gang(gangId)],
+      // gangCore alongside gang: financial-only writes bust the narrow tag, while
+      // anything busting gang-{id} still reaches this entry.
+      tags: [TAGS.gang(gangId), TAGS.gangCore(gangId)],
       revalidate: false
     }
   )();

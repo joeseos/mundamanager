@@ -11,6 +11,8 @@ import { revalidateTag } from 'next/cache';
  * Read side                                  | Busted by
  * -------------------------------------------|------------------------------
  * gang-{id}        gang core + fighters      | any gang/fighter mutation
+ * gang-core-{id}   gang row only (credits/  | financial-only writes, which must
+ *                  rating/wealth/name)      | not drop the fighters bundle
  * global-equipment equipment + weapon_profile| admin equipment edits — the only
  *                  copies embedded in every  | tag that reaches those copies,
  *                  gang bundle and stash     | which are otherwise gang-scoped
@@ -29,6 +31,10 @@ import { revalidateTag } from 'next/cache';
  */
 export const TAGS = {
   gang: (id: string) => `gang-${id}`,
+  /** The gang row alone. Carried by the core entry ALONGSIDE gang-{id}, so that
+   *  financial-only writes can refresh credits/rating/wealth without dropping the
+   *  fighters bundle. Anything busting gang-{id} still reaches the core entry. */
+  gangCore: (id: string) => `gang-core-${id}`,
   gangOverview: (id: string) => `gang-overview-${id}`,
   gangCampaigns: (id: string) => `gang-campaigns-${id}`,
   gangPositioning: (id: string) => `gang-positioning-${id}`,
@@ -111,7 +117,18 @@ export const invalidateGangOverview = (gangId: string) => {
  * every financial write in the app.
  */
 export const invalidateGangFinancials = (gangId: string) => {
-  bust(TAGS.gang(gangId));
+  // Deliberately NOT TAGS.gang(): that also carries the fighters bundle, which a
+  // financial write has not changed. Busting it dropped ~61KB and 8 queries' worth
+  // of rows, and because bust() uses revalidateTag(tag, { expire: 0 }) the page
+  // re-renders in the same server-action response, so the rebuild landed on the
+  // user's critical path for the mutation.
+  //
+  // Safe because no action relies on this to invalidate fighter data: of the 18
+  // callers of updateGangFinancials, 17 write fighter-shaped rows and every one of
+  // them busts the bundle itself via invalidateGang/invalidateFighter. The 18th
+  // (update-gang.ts, the gang edit modal) writes only the gangs row, which is
+  // exactly the case this narrowing is for.
+  bust(TAGS.gangCore(gangId));
   bust(TAGS.gangOverview(gangId));
 };
 
