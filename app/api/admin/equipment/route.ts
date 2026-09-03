@@ -9,7 +9,6 @@ import {
 } from "@/types/fighter-effect";
 import { isValidTradePoints } from "@/utils/campaigns/resources";
 import { fetchAllRows } from "@/utils/supabase/fetch-all-rows";
-import { invalidateEquipmentCatalog } from "@/utils/cache-tags";
 
 interface FighterTypeEquipment {
   fighter_type_id: string;
@@ -589,7 +588,7 @@ export async function POST(request: Request) {
   }
 }
 
-async function _PATCH(request: Request) {
+export async function PATCH(request: Request) {
   const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
@@ -1169,21 +1168,4 @@ async function _PATCH(request: Request) {
       { status: 500 }
     );
   }
-} 
-
-// Every gang's fighters bundle and stash holds a copy of the equipment columns and
-// weapon_profiles, so an edit has to invalidate them. POST is not wrapped: it only
-// inserts a new equipment row, which no fighter_equipment references yet.
-function withEquipmentInvalidation(
-  handler: (...args: any[]) => Promise<Response>
-) {
-  return async (...args: any[]) => {
-    const response = await handler(...args);
-    if (response.ok) {
-      invalidateEquipmentCatalog();
-    }
-    return response;
-  };
 }
-
-export const PATCH = withEquipmentInvalidation(_PATCH);

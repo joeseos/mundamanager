@@ -426,8 +426,7 @@ export const getGangStash = async (gangId: string, supabase: any): Promise<GangS
     },
     [`gang-stash-v2-${gangId}`],
     {
-      // globalEquipment: embeds equipment_name/type/category too.
-      tags: [TAGS.gangStash(gangId), TAGS.globalEquipment()],
+      tags: [TAGS.gangStash(gangId)],
       revalidate: false
     }
   )();
@@ -1239,9 +1238,7 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
     },
     [`gang-fighters-bundle-v4-${gangId}`],
     {
-      // globalEquipment: this entry embeds copies of the catalogue columns and
-      // weapon_profiles, so admin edits must be able to drop it.
-      tags: [TAGS.gang(gangId), TAGS.globalEquipment()],
+      tags: [TAGS.gang(gangId)],
       revalidate: false
     }
   )();

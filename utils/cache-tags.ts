@@ -13,9 +13,6 @@ import { revalidateTag } from 'next/cache';
  * gang-{id}        gang core + fighters      | any gang/fighter mutation
  * gang-core-{id}   gang row only (credits/  | financial-only writes, which must
  *                  rating/wealth/name)      | not drop the fighters bundle
- * global-equipment equipment + weapon_profile| admin equipment edits — the only
- *                  copies embedded in every  | tag that reaches those copies,
- *                  gang bundle and stash     | which are otherwise gang-scoped
  * gang-overview-{id} name/rating/wealth/     | updateGangFinancials (choke
  *                  credits copies on other   | point) + gang name/reputation
  *                  pages (campaign, home)    | edits — NOT xp/image/loadouts
@@ -53,7 +50,6 @@ export const TAGS = {
   gangBattleSessions: (gangId: string) => `gang-battle-sessions-${gangId}`,
 
   // Global reference data
-  globalEquipment: () => 'global-equipment',
   globalEditions: () => 'global-editions',
   globalGangTypes: () => 'global-gang-types',
   globalTerritories: () => 'global-territories-list',
@@ -74,15 +70,6 @@ const bust = (tag: string) => revalidateTag(tag, { expire: 0 });
 // =============================================================================
 // INVALIDATION API
 // =============================================================================
-
-/**
- * An admin edited the equipment catalogue. Those columns are embedded per
- * fighter_equipment row in every gang's bundle and stash, so this invalidates all
- * of them at once. Fine for a rare admin edit; do not call it from anything hot.
- */
-export const invalidateEquipmentCatalog = () => {
-  bust(TAGS.globalEquipment());
-};
 
 /** Any gang-shaped data changed (gang core row and/or its fighters). */
 export const invalidateGang = (gangId: string) => {
