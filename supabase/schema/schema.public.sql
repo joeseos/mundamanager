@@ -1088,6 +1088,39 @@ $$;
 
 
 --
+-- Name: gang_types_parent_must_be_root(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.gang_types_parent_must_be_root() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF NEW.parent_gang_type_id IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1
+      FROM public.gang_types
+      WHERE gang_type_id = NEW.parent_gang_type_id
+        AND parent_gang_type_id IS NOT NULL
+    ) THEN
+      RAISE EXCEPTION 'parent_gang_type_id must reference a root gang type';
+    END IF;
+
+    IF EXISTS (
+      SELECT 1
+      FROM public.gang_types
+      WHERE parent_gang_type_id = NEW.gang_type_id
+    ) THEN
+      RAISE EXCEPTION 'cannot set parent_gang_type_id on a gang type that is already a parent of other gang lists';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: get_available_skills(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -5820,7 +5853,10 @@ CREATE TABLE public.gang_types (
     affiliation boolean DEFAULT false,
     gang_origin_category_id uuid,
     default_image_urls jsonb,
-    edition_id uuid
+    edition_id uuid,
+    parent_gang_type_id uuid,
+    CONSTRAINT gang_types_parent_not_self_check CHECK ((parent_gang_type_id IS DISTINCT FROM gang_type_id)),
+    CONSTRAINT gang_types_parent_requires_edition_check CHECK (((parent_gang_type_id IS NULL) OR (edition_id IS NOT NULL)))
 );
 
 
@@ -5829,6 +5865,13 @@ CREATE TABLE public.gang_types (
 --
 
 COMMENT ON COLUMN public.gang_types.default_image_urls IS 'List of default image URLs';
+
+
+--
+-- Name: COLUMN gang_types.parent_gang_type_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gang_types.parent_gang_type_id IS 'House this gang list belongs to. House Escher: Wyld Hunt stores House Escher''s gang_type_id here; House Escher itself stores null. Each row keeps its own fighter types.';
 
 
 --
@@ -8030,6 +8073,13 @@ CREATE INDEX gang_types_gang_type_idx ON public.gang_types USING btree (gang_typ
 
 
 --
+-- Name: gang_types_parent_gang_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gang_types_parent_gang_type_id_idx ON public.gang_types USING btree (parent_gang_type_id);
+
+
+--
 -- Name: gang_types_trading_post_type_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8718,6 +8768,13 @@ CREATE INDEX weapon_profiles_weapon_id_idx ON public.weapon_profiles USING btree
 --
 
 CREATE TRIGGER custom_shared_set_edition BEFORE INSERT OR UPDATE ON public.custom_shared FOR EACH ROW EXECUTE FUNCTION public.custom_shared_set_edition();
+
+
+--
+-- Name: gang_types gang_types_parent_must_be_root; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER gang_types_parent_must_be_root BEFORE INSERT OR UPDATE OF parent_gang_type_id ON public.gang_types FOR EACH ROW EXECUTE FUNCTION public.gang_types_parent_must_be_root();
 
 
 --
@@ -10367,6 +10424,14 @@ ALTER TABLE ONLY public.gang_types
 
 ALTER TABLE ONLY public.gang_types
     ADD CONSTRAINT gang_types_gang_origin_category_id_fkey FOREIGN KEY (gang_origin_category_id) REFERENCES public.gang_origin_categories(id) ON DELETE SET NULL;
+
+
+--
+-- Name: gang_types gang_types_parent_gang_type_edition_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_types
+    ADD CONSTRAINT gang_types_parent_gang_type_edition_fkey FOREIGN KEY (parent_gang_type_id, edition_id) REFERENCES public.gang_types(gang_type_id, edition_id) ON UPDATE CASCADE ON DELETE RESTRICT;
 
 
 --
