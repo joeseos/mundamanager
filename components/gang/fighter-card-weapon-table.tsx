@@ -11,8 +11,8 @@ interface WeaponTableProps {
   editionSlug?: string | null;
 }
 
-// Module scope: these close over nothing, and a card list re-allocated one object
-// with five closures per fighter on every render.
+// Module scope: they close over nothing, and a card list re-allocated the whole
+// object per fighter per render.
 const formatters = {
   formatValue: (value: string | number | null | undefined) => {
     if (value === null || value === undefined) return '-';
@@ -53,16 +53,15 @@ const formatStrength = (strength: string | number | null | undefined) => {
 };
 
 const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode, editionSlug }) => {
-  // The whole grouping/sorting/trait pipeline lives in utils/weapon-variants.ts and
-  // depends only on these two props, so it runs once per weapon set rather than once
-  // per render. Must stay above the early return below to keep hook order stable.
+  // Depends only on these two props. Must stay above the early return to keep
+  // hook order stable.
   const variantBlocks = useMemo(
     () => buildWeaponVariantRows(weapons, entity),
     [weapons, entity]
   );
 
-  // Deliberately not `variantBlocks.length === 0`: a weapon set consisting only of
-  // orphan special profiles yields no blocks but still renders an empty table.
+  // Not `variantBlocks.length === 0`: a set of only orphan special profiles yields
+  // no blocks but still renders an empty table.
   if (!weapons || weapons.length === 0) {
     return <p>No weapons available.</p>;
   }

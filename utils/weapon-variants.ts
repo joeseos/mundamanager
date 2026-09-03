@@ -2,29 +2,15 @@ import { Weapon, WeaponProfile } from '@/types/equipment';
 import { FighterEffect, Vehicle } from '@/types/fighter';
 
 /**
- * Weapon table row derivation.
- *
- * Extracted verbatim from the body of components/gang/fighter-card-weapon-table.tsx
- * so the whole pipeline runs once per weapon set instead of once per render. It was
- * the hottest application code in a CPU profile of the gang page: at 76 fighters the
- * per-profile map key alone was ~9% of render time, and the three uncached
- * `localeCompare` calls dominated the rest.
- *
- * Behaviour is intentionally bit-identical to the previous inline version. The
- * comments below mark the places where an "obvious" simplification would silently
- * change rendered output.
+ * Weapon table row derivation, split out of fighter-card-weapon-table so it runs
+ * once per weapon set rather than once per render. Comments below mark the places
+ * where an obvious simplification would change rendered output.
  */
 
-/**
- * `sensitivity: 'base'` matches the previous `localeCompare(x, undefined, { sensitivity: 'base' })`.
- * Built once: that call form constructs a fresh Intl.Collator per comparison, which
- * measured 46x slower than a cached instance on a real roster.
- */
+// Two instances: names sort case/accent-insensitively, traits at default
+// sensitivity. Merging them would reorder traits. Cached because the inline
+// localeCompare(x, undefined, {...}) form builds a collator per comparison.
 const baseCollator = new Intl.Collator(undefined, { sensitivity: 'base' });
-/**
- * Separate instance on purpose. Traits used bare `localeCompare()`, i.e. default
- * sensitivity ('variant'); reusing the 'base' collator above would change their order.
- */
 const traitCollator = new Intl.Collator();
 
 const ARC_ORDER = ['Front', 'Left', 'Right', 'Rear'];
@@ -51,12 +37,9 @@ export interface WeaponVariantBlock {
 export const NO_WEAPONS: Weapon[] = [];
 
 /**
- * Shape a vehicle's mounted equipment into the Weapon rows the table renders,
- * folding in the hardpoint effect that targets each weapon.
- *
- * `unknownLocationLabel` exists only because the two former copies of this function
- * disagreed: the fighter card renders 'Loc. unknown' and the print roster 'Unknown'.
- * Both are preserved rather than silently unified.
+ * Vehicle equipment shaped into Weapon rows, folding in each weapon's hardpoint
+ * effect. `unknownLocationLabel` differs between callers -- 'Loc. unknown' on the
+ * fighter card, 'Unknown' on the print roster -- so it stays a parameter.
  */
 export function buildVehicleWeapons(
   vehicle: Vehicle | undefined,
@@ -106,7 +89,7 @@ export function buildVehicleWeapons(
     }) as unknown as Weapon[];
 }
 
-/** Signature of a profile's stats, used to keep weapons with identical statlines together. */
+/** Stat signature, used to group weapons with identical statlines. */
 function createProfileSignature(profile: WeaponProfile): string {
   return [
     profile.range_short,
@@ -176,12 +159,10 @@ export function buildWeaponVariantRows(
 ): WeaponVariantBlock[] {
   if (!weapons || weapons.length === 0) return [];
 
-  // Pass 1: master-crafted status per weapon INSTANCE.
-  // Keep this separate from the grouping pass below. Two entries can share a
-  // fighter_weapon_id (getVehicleWeapons falls back to equipment_id when a vehicle
-  // weapon has neither instance id), and this map is last-write-wins for such a
-  // collision. Fusing the two passes would make each weapon read its own status
-  // instead of the colliding one, changing which weapons render as "(MC)".
+  // Keep separate from the grouping pass: two entries can share a fighter_weapon_id
+  // (buildVehicleWeapons falls back to equipment_id), and this map is last-write-wins
+  // for that collision. Fusing the passes would make each weapon read its own status
+  // instead, changing which render as "(MC)".
   const weaponMasterCraftedStatus = new Map<string, boolean>();
   weapons.forEach((weapon) => {
     const isMasterCrafted = weapon.weapon_profiles?.some(p => p.is_master_crafted)
@@ -191,12 +172,10 @@ export function buildWeaponVariantRows(
     weaponMasterCraftedStatus.set(weapon.fighter_weapon_id, isMasterCrafted || false);
   });
 
-  // Pass 2: group profiles into variant blocks.
   const variantMap = new Map<string, VariantBlockDraft>();
-  // Everything but the group id is constant per weapon, so the varying part of the key
-  // is interned to a small integer rather than concatenated into every profile's key.
-  // Group ids are UUIDs and contain no "|", so `groupId + '|' + suffixId` partitions
-  // exactly as the old `groupId|mc|signature|effects|hardpoint` string did.
+  // Only the group id varies per profile, so the rest of the key is interned to an
+  // integer instead of being concatenated per profile. Group ids are UUIDs with no
+  // "|", so this partitions identically to the old full-string key.
   const suffixIds = new Map<string, number>();
 
   weapons.forEach((weapon) => {
@@ -242,19 +221,18 @@ export function buildWeaponVariantRows(
       }
 
       if (profile.profile_name?.startsWith('-')) {
-        // First special of a given name wins; a plain set() would keep the last
+        // First special of a name wins; a plain set() would keep the last
         if (!block.specials.has(profile.profile_name)) block.specials.set(profile.profile_name, profile);
       } else {
         block.baseProfiles.push({ profile, weaponId: weapon.fighter_weapon_id });
-        // The only path that names a block created by a special-first profile
+        // Only path that names a block created by a special-first profile
         if (!block.weaponName) block.weaponName = profile.profile_name || '';
       }
     });
   });
 
-  // Discard orphan specials, sort, then build rows.
-  // The filter has to stay a post-pass: a block can be created by a special profile and
-  // pick up base profiles from a later weapon in the same group.
+  // The orphan-specials filter has to stay a post-pass: a block can be created by a
+  // special profile and gain base profiles from a later weapon in the same group.
   return Array.from(variantMap.values())
     .filter((b) => b.baseProfiles.length)
     .sort((a, b) => {
@@ -262,9 +240,8 @@ export function buildWeaponVariantRows(
       return cmp !== 0 ? cmp : Number(a.isMasterCrafted) - Number(b.isMasterCrafted);
     })
     .map((block) => {
-      // Group by profile name, counting DISTINCT weapon ids so that two profiles from
-      // the same weapon instance are not reported as duplicates. Deliberately a plain
-      // object, not a Map: integer-like profile names would iterate in numeric order
+      // Counts DISTINCT weapon ids, so two profiles from one weapon are not duplicates.
+      // Plain object, not a Map: integer-like profile names iterate in numeric order
       // here, and switching container would reorder those rows.
       const baseGroups: Record<string, { profile: WeaponProfile; weaponIds: Set<string> }> = {};
       block.baseProfiles.forEach(({ profile, weaponId }) => {

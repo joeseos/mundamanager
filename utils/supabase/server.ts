@@ -35,20 +35,12 @@ export async function createClient() {
 }
 
 /**
- * The request's Supabase client, built once and shared.
+ * The request's Supabase client, built once and shared. Use this rather than
+ * createClient() in server components that call the cached accessors in
+ * app/lib/shared/gang-data.ts -- those memoise on their arguments, the client
+ * included, so a second instance silently misses the memo.
  *
- * Use this — not createClient() — in any server component that calls the cached
- * gang/fighter accessors in app/lib/shared/gang-data.ts. Those memoise per request
- * on their arguments, the client included, so a second createClient() in the same
- * request yields a different instance, misses the memo, and silently costs a
- * duplicate Redis round-trip plus a deserialize of the whole cache entry. The
- * parallel @breadcrumb slots are the case that bites: they render alongside the
- * page and used to build their own client.
- *
- * Safe to share: createClient closes over this request's cookies() store and reads
- * it lazily, so a shared client still observes cookie mutations. Outside a render
- * scope (route handlers) React's cache() falls through un-memoised, which just
- * restores the old per-call behaviour.
+ * Safe to share: createClient reads this request's cookies() store lazily.
  */
 export const getRequestClient = cache(createClient)
 

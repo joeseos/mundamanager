@@ -1171,15 +1171,9 @@ async function _PATCH(request: Request) {
   }
 } 
 
-// An equipment edit rewrites the equipment row and its weapon_profiles, and every
-// gang's fighters bundle and stash entry holds a copy of those columns. Nothing
-// fired a tag for that, so edits only reached a gang the next time that gang was
-// itself mutated -- and these entries are FETCH-kind, which the cache handler keys
-// without the build id, so they outlive deploys too.
-//
-// POST is deliberately not wrapped: it only ever inserts a NEW equipment row and
-// its profiles, which no fighter_equipment row references yet, so no cached bundle
-// or stash can contain it.
+// Every gang's fighters bundle and stash holds a copy of the equipment columns and
+// weapon_profiles, so an edit has to invalidate them. POST is not wrapped: it only
+// inserts a new equipment row, which no fighter_equipment references yet.
 function withEquipmentInvalidation(
   handler: (...args: any[]) => Promise<Response>
 ) {

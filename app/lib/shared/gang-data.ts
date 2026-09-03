@@ -202,34 +202,17 @@ export interface GangCore extends GangBasic {
   alliance: Alliance | null;
 }
 
-// =============================================================================
-// REQUEST-SCOPED MEMOISATION
-// =============================================================================
-
 /**
- * unstable_cache is the CROSS-request layer; this is the INTRA-request one.
+ * The fetch* functions below are wrapped in React cache() at the bottom of this
+ * file: unstable_cache is the cross-request layer, cache() the intra-request one.
+ * Without it a duplicate call costs another round-trip and a full deserialize.
  *
- * unstable_cache does not dedupe within a request — every call reaches
- * incrementalCache.get — and the Redis cacheHandler runs with cacheMaxMemorySize
- * set to 0, so there is no in-memory layer behind it either. Each duplicate call
- * therefore costs a Redis round-trip plus a v8.deserialize of the whole entry
- * (measured: 1.4ms for a p90 gang bundle, 8.2ms for the largest). The gang page
- * read the fighters bundle twice and the core row three times per render.
- *
- * cache() memoises on ALL arguments, the supabase client included, so CALLERS MUST
- * PASS getRequestClient() from utils/supabase/server. A caller that builds its own
- * client with createClient() gets a different instance, misses the memo, and
- * silently pays the duplicate cost — nothing errors and nothing renders
- * differently, so this is enforced by convention rather than by the type system.
- * The parallel @breadcrumb slots are the case that motivated it.
- *
- * cache() memoises the promise, so this also collapses CONCURRENT duplicates,
- * which is the common case — the pages fire these inside one Promise.all.
- *
- * SAFETY: this hands back a pre-mutation value to anything that writes and then
- * re-reads within the same request. No server action reads these accessors —
- * nothing under app/actions/** imports this module — so that hazard does not
- * exist today. Re-check this invariant before calling one of these from an action.
+ * Two things this relies on:
+ * - Callers must pass getRequestClient(), since cache() keys on every argument
+ *   including the client. Building your own gets a different instance and
+ *   silently misses the memo.
+ * - No server action may read these: it would see a pre-mutation value after its
+ *   own write. Nothing under app/actions/** imports this module today.
  */
 
 /**
@@ -332,8 +315,8 @@ const fetchGangCore = async (gangId: string, supabase: any): Promise<GangCore | 
     },
     [`gang-core-v5-${gangId}`],
     {
-      // gangCore alongside gang: financial-only writes bust the narrow tag, while
-      // anything busting gang-{id} still reaches this entry.
+      // Both: financial-only writes bust gangCore, anything busting gang-{id}
+      // still reaches this entry.
       tags: [TAGS.gang(gangId), TAGS.gangCore(gangId)],
       revalidate: false
     }
@@ -450,8 +433,7 @@ const fetchGangStash = async (gangId: string, supabase: any): Promise<GangStashI
     },
     [`gang-stash-v2-${gangId}`],
     {
-      // globalEquipment: embeds equipment_name/type/category, so an admin rename
-      // has to reach these rows too.
+      // globalEquipment: embeds equipment_name/type/category too.
       tags: [TAGS.gangStash(gangId), TAGS.globalEquipment()],
       revalidate: false
     }
@@ -1264,8 +1246,8 @@ const fetchGangFightersBundle = async (gangId: string, supabase: any): Promise<G
     },
     [`gang-fighters-bundle-v4-${gangId}`],
     {
-      // globalEquipment: this entry embeds a copy of each item's catalogue columns
-      // and weapon_profiles, so admin catalogue edits have to be able to drop it.
+      // globalEquipment: this entry embeds copies of the catalogue columns and
+      // weapon_profiles, so admin edits must be able to drop it.
       tags: [TAGS.gang(gangId), TAGS.globalEquipment()],
       revalidate: false
     }
@@ -1406,16 +1388,9 @@ const fetchGangFighterStats = async (
   )();
 };
 
-// =============================================================================
-// REQUEST-MEMOISED ACCESSORS
-// =============================================================================
-// Public surface is unchanged; each entry is read once per request, provided the
-// caller passes getRequestClient() (see the note above the fetch* definitions).
-// getGangType and getGangVariants are deliberately NOT wrapped: their first
-// argument is an object / array literal rather than an id, so there is no stable
-// key to memoise on, and both are called once per page anyway. getGangVehicles,
-// getGangResources and getGangFightersList are thin selectors that inherit the
-// win from the bundle and core entries below.
+// Request-memoised accessors; public surface unchanged. getGangType and
+// getGangVariants are not wrapped -- their first argument is an object/array
+// literal, so there is no stable key. The thin selectors inherit the win.
 
 export const getGangCore = cache(fetchGangCore);
 export const getGangTacticsCards = cache(fetchGangTacticsCards);

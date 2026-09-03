@@ -252,11 +252,9 @@ export default function PrintGang({ gang }: PrintGangProps) {
     window.print();
   };
 
-  // Vehicle weapons feed a memoised WeaponTable, so they have to keep a stable
-  // reference: this view re-renders on every display toggle, and rebuilding the
-  // array each time made the table redo its whole row derivation. Keyed on the
-  // fighter object rather than its id, because the roster holds the same fighter
-  // once per loadout.
+  // Vehicle weapons feed a memoised WeaponTable, so the array must keep a stable
+  // reference across the display toggles. Keyed on the fighter object, not its id:
+  // the roster holds the same fighter once per loadout.
   const vehicleWeaponsByFighter = useMemo(() => {
     const map = new Map<FighterProps, Weapon[]>();
     for (const list of [fighters, fightersActiveLoadoutOnly]) {

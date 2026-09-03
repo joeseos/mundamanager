@@ -1,18 +1,9 @@
 /**
- * The gang's positioning map, falling back to a default alphabetical order when
- * the gang has never been reordered.
- *
- * Derived, never persisted. This used to UPDATE gangs.positioning during the page
- * render, which was wrong three ways: the write is not allowed to invalidate its
- * own cache entry (revalidateTag throws during render, and doing it in after()
- * would evict the entry the render just read), so gang-positioning-{id} kept
- * serving the cached null and the write repeated on EVERY page load; the default
- * was therefore recomputed from the current roster each time anyway, so nothing
- * was gained by storing it; and for anyone but the owner the UPDATE matched zero
- * rows under the gangs RLS policy and the result was never checked.
- *
- * Only an explicit reorder persists a positioning map, and that path invalidates
- * the cache entry properly (app/actions/update-gang-positioning.ts).
+ * The gang's positioning map, or an alphabetical default when it has never been
+ * reordered. Derived, never persisted: only an explicit reorder writes a map, and
+ * that path invalidates the cache entry (app/actions/update-gang-positioning.ts).
+ * A write here could not -- revalidateTag throws during render -- so the cached
+ * null came back and the write repeated on every load.
  */
 export function resolvePositioning(
   positioning: Record<string, any> | null,
