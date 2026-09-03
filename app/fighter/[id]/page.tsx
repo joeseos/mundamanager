@@ -3,6 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import FighterPageComponent from "@/components/fighter/fighter-page";
 import { checkPermissionCached } from "@/utils/user-permissions";
 import { getGangFighters } from "@/app/lib/fighter-advancements";
+import { resolvePositioning } from "@/utils/fighter-positioning";
 import { getAuthenticatedUser, signInPath } from "@/utils/auth";
 
 interface FighterPageProps {
@@ -256,7 +257,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         venator_ranks_incomplete: gangBasic.venator_ranks_incomplete ?? false,
         gang_affiliation_id: gangBasic.gang_affiliation_id,
         gang_affiliation_name: gangBasic.gang_affiliation?.name,
-        positioning: gangPositioning,
+        positioning: resolvePositioning(gangPositioning, gangFighters),
         gang_variants: gangVariantsResolved.map((v: any) => ({
           id: v.id,
           variant: v.variant
