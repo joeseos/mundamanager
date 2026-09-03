@@ -11,6 +11,9 @@ import { revalidateTag } from 'next/cache';
  * Read side                                  | Busted by
  * -------------------------------------------|------------------------------
  * gang-{id}        gang core + fighters      | any gang/fighter mutation
+ * global-equipment equipment + weapon_profile| admin equipment edits — the only
+ *                  copies embedded in every  | tag that reaches those copies,
+ *                  gang bundle and stash     | which are otherwise gang-scoped
  * gang-overview-{id} name/rating/wealth/     | updateGangFinancials (choke
  *                  credits copies on other   | point) + gang name/reputation
  *                  pages (campaign, home)    | edits — NOT xp/image/loadouts
@@ -45,6 +48,7 @@ export const TAGS = {
   gangBattleSessions: (gangId: string) => `gang-battle-sessions-${gangId}`,
 
   // Global reference data
+  globalEquipment: () => 'global-equipment',
   globalEditions: () => 'global-editions',
   globalGangTypes: () => 'global-gang-types',
   globalTerritories: () => 'global-territories-list',
@@ -65,6 +69,20 @@ const bust = (tag: string) => revalidateTag(tag, { expire: 0 });
 // =============================================================================
 // INVALIDATION API
 // =============================================================================
+
+/**
+ * An admin edited the equipment catalogue (an equipment row and/or its weapon
+ * profiles). Those columns are embedded per fighter_equipment row inside every
+ * gang's fighters bundle and stash entry, so there is no gang to name here — the
+ * copies live everywhere, and this is the tag they all carry.
+ *
+ * Blast radius is therefore every gang bundle and stash at once, and the Redis
+ * handler's revalidate script walks the whole tag set to drop them. That is fine
+ * for an admin-only, rare edit; do not call this from anything hot.
+ */
+export const invalidateEquipmentCatalog = () => {
+  bust(TAGS.globalEquipment());
+};
 
 /** Any gang-shaped data changed (gang core row and/or its fighters). */
 export const invalidateGang = (gangId: string) => {

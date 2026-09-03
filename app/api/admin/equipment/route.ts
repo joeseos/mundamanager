@@ -9,6 +9,7 @@ import {
 } from "@/types/fighter-effect";
 import { isValidTradePoints } from "@/utils/campaigns/resources";
 import { fetchAllRows } from "@/utils/supabase/fetch-all-rows";
+import { invalidateEquipmentCatalog } from "@/utils/cache-tags";
 
 interface FighterTypeEquipment {
   fighter_type_id: string;
@@ -588,7 +589,7 @@ export async function POST(request: Request) {
   }
 }
 
-export async function PATCH(request: Request) {
+async function _PATCH(request: Request) {
   const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
@@ -1169,3 +1170,26 @@ export async function PATCH(request: Request) {
     );
   }
 } 
+
+// An equipment edit rewrites the equipment row and its weapon_profiles, and every
+// gang's fighters bundle and stash entry holds a copy of those columns. Nothing
+// fired a tag for that, so edits only reached a gang the next time that gang was
+// itself mutated -- and these entries are FETCH-kind, which the cache handler keys
+// without the build id, so they outlive deploys too.
+//
+// POST is deliberately not wrapped: it only ever inserts a NEW equipment row and
+// its profiles, which no fighter_equipment row references yet, so no cached bundle
+// or stash can contain it.
+function withEquipmentInvalidation(
+  handler: (...args: any[]) => Promise<Response>
+) {
+  return async (...args: any[]) => {
+    const response = await handler(...args);
+    if (response.ok) {
+      invalidateEquipmentCatalog();
+    }
+    return response;
+  };
+}
+
+export const PATCH = withEquipmentInvalidation(_PATCH);
