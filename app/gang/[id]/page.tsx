@@ -3,7 +3,7 @@ import { redirect, notFound, forbidden } from "next/navigation";
 import GangPageContent from "@/components/gang/gang-page-content";
 import { canViewHiddenGang, checkPermissionCached } from "@/utils/user-permissions";
 import { getAuthenticatedUser, signInPath } from "@/utils/auth";
-import { initializePositioningIfNeeded } from "@/utils/fighter-positioning";
+import { resolvePositioning } from "@/utils/fighter-positioning";
 import {
   getGangCore,
   getGangPositioning,
@@ -84,13 +84,8 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
         : Promise.resolve([])
     ]);
 
-    // Initialize positioning if needed (lazy initialization only)
-    const processedPositioning = await initializePositioningIfNeeded(
-      gangPositioning,
-      fighters,
-      params.id,
-      supabase
-    );
+    // Default order when the gang has never been reordered; derived, not persisted.
+    const processedPositioning = resolvePositioning(gangPositioning, fighters);
 
     // Assemble the gang data structure for client
     // NOTE: fighters are already fully processed from getGangFightersList with shared cache tags
