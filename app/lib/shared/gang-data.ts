@@ -216,17 +216,14 @@ export interface GangCore extends GangBasic {
  * (measured: 1.4ms for a p90 gang bundle, 8.2ms for the largest). The gang page
  * read the fighters bundle twice and the core row three times per render.
  *
- * The memo key is the id ALONE, deliberately. These accessors take a supabase
- * client, and React's cache() keys on argument identity — and the parallel
- * @breadcrumb slots call createClient() themselves, so they hold a different
- * client instance from the page they render beside. Keying on the client would
- * miss exactly the duplicates worth collapsing. Reusing whichever client filled
- * the slot first is consistent with what the cross-request layer already assumes:
- * these entries are keyed by gang id with no user scoping, so every viewer gets
- * the same bytes. It would stop being safe only if some caller passed a
- * service-role client; none does.
+ * cache() memoises on ALL arguments, the supabase client included, so CALLERS MUST
+ * PASS getRequestClient() from utils/supabase/server. A caller that builds its own
+ * client with createClient() gets a different instance, misses the memo, and
+ * silently pays the duplicate cost — nothing errors and nothing renders
+ * differently, so this is enforced by convention rather than by the type system.
+ * The parallel @breadcrumb slots are the case that motivated it.
  *
- * Storing the promise (not the value) also collapses CONCURRENT duplicates,
+ * cache() memoises the promise, so this also collapses CONCURRENT duplicates,
  * which is the common case — the pages fire these inside one Promise.all.
  *
  * SAFETY: this hands back a pre-mutation value to anything that writes and then
@@ -234,15 +231,6 @@ export interface GangCore extends GangBasic {
  * nothing under app/actions/** imports this module — so that hazard does not
  * exist today. Re-check this invariant before calling one of these from an action.
  */
-const requestSlot = cache((_key: string) => ({ promise: undefined as Promise<unknown> | undefined }));
-
-const oncePerRequest = <T>(
-  namespace: string,
-  fetcher: (id: string, supabase: any) => Promise<T>
-) => (id: string, supabase: any): Promise<T> => {
-  const slot = requestSlot(`${namespace}:${id}`);
-  return (slot.promise ??= fetcher(id, supabase)) as Promise<T>;
-};
 
 /**
  * Get the full gang row (basic info + credits + rating + wealth + alliance).
@@ -1419,18 +1407,19 @@ const fetchGangFighterStats = async (
 // =============================================================================
 // REQUEST-MEMOISED ACCESSORS
 // =============================================================================
-// Public surface is unchanged; each entry is now read once per request.
+// Public surface is unchanged; each entry is read once per request, provided the
+// caller passes getRequestClient() (see the note above the fetch* definitions).
 // getGangType and getGangVariants are deliberately NOT wrapped: their first
 // argument is an object / array literal rather than an id, so there is no stable
 // key to memoise on, and both are called once per page anyway. getGangVehicles,
 // getGangResources and getGangFightersList are thin selectors that inherit the
 // win from the bundle and core entries below.
 
-export const getGangCore = oncePerRequest('core', fetchGangCore);
-export const getGangTacticsCards = oncePerRequest('tactics', fetchGangTacticsCards);
-export const getGangPositioning = oncePerRequest('positioning', fetchGangPositioning);
-export const getGangStash = oncePerRequest('stash', fetchGangStash);
-export const getGangCampaigns = oncePerRequest('campaigns', fetchGangCampaigns);
-export const getGangFightersBundle = oncePerRequest('bundle', fetchGangFightersBundle);
-export const getUserProfile = oncePerRequest('userProfile', fetchUserProfile);
-export const getGangFighterStats = oncePerRequest('fighterStats', fetchGangFighterStats);
+export const getGangCore = cache(fetchGangCore);
+export const getGangTacticsCards = cache(fetchGangTacticsCards);
+export const getGangPositioning = cache(fetchGangPositioning);
+export const getGangStash = cache(fetchGangStash);
+export const getGangCampaigns = cache(fetchGangCampaigns);
+export const getGangFightersBundle = cache(fetchGangFightersBundle);
+export const getUserProfile = cache(fetchUserProfile);
+export const getGangFighterStats = cache(fetchGangFighterStats);

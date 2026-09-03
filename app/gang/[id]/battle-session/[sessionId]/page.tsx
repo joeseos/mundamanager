@@ -1,4 +1,4 @@
-import { createClient } from '@/utils/supabase/server';
+import { getRequestClient } from '@/utils/supabase/server';
 import { redirect, notFound } from 'next/navigation';
 import { getAuthenticatedUser, signInPath } from '@/utils/auth';
 import { getBattleSessionCached } from '@/app/lib/battle-sessions/get-battle-session-data';
@@ -11,7 +11,7 @@ import ActiveSession from '@/components/battle-session/active-session';
 import CompletedSession from '@/components/battle-session/completed-session';
 
 export async function renderBattleSessionPage(sessionId: string, currentPath: string) {
-  const supabase = await createClient();
+  const supabase = await getRequestClient();
 
   let user: { id: string };
   try {

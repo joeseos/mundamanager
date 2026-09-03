@@ -1,4 +1,4 @@
-import { createClient } from "@/utils/supabase/server";
+import { getRequestClient } from "@/utils/supabase/server";
 import { redirect, notFound, forbidden } from "next/navigation";
 import GangPageContent from "@/components/gang/gang-page-content";
 import { canViewHiddenGang, checkPermissionCached } from "@/utils/user-permissions";
@@ -22,7 +22,7 @@ import { hasGangTacticsCards } from '@/types/edition';
 
 export default async function GangPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const supabase = await createClient();
+  const supabase = await getRequestClient();
 
   // Get authenticated user via claims (no extra network call)
   let user: { id: string };

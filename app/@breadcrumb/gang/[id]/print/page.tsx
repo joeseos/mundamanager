@@ -1,5 +1,5 @@
 import { LuHouse } from "react-icons/lu";
-import { createClient } from "@/utils/supabase/server"
+import { getRequestClient } from "@/utils/supabase/server"
 import { getGangCore } from "@/app/lib/shared/gang-data"
 import {
   Breadcrumb,
@@ -17,7 +17,7 @@ export default async function GangPrintRosterBreadcrumb({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const supabase = await createClient()
+  const supabase = await getRequestClient()
 
   // Reads the gang page's cached core entry instead of an uncached query
   const gangData = await getGangCore(id, supabase).catch(() => null)

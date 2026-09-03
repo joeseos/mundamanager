@@ -1,5 +1,5 @@
 import { LuHouse } from "react-icons/lu";
-import { createClient } from "@/utils/supabase/server"
+import { getRequestClient } from "@/utils/supabase/server"
 import { getFighterBasic } from "@/app/lib/shared/fighter-data"
 import { getGangCore } from "@/app/lib/shared/gang-data"
 import {
@@ -18,7 +18,7 @@ export default async function FighterBreadcrumb({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const supabase = await createClient()
+  const supabase = await getRequestClient()
   
   // Reads the fighter/gang cached entries instead of an uncached query
   const fighterData = await getFighterBasic(id, supabase).catch(() => null)

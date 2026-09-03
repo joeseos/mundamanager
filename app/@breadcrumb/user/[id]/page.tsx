@@ -7,7 +7,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import { createClient } from '@/utils/supabase/server'
+import { getRequestClient } from '@/utils/supabase/server'
 import { getUserProfile } from "@/app/lib/shared/gang-data"
 
 interface UserBreadcrumbProps {
@@ -18,7 +18,7 @@ export default async function UserBreadcrumb({ params }: UserBreadcrumbProps) {
   const { id } = await params;
   
   // Reads the cached profile entry instead of an uncached query
-  const supabase = await createClient();
+  const supabase = await getRequestClient();
   const profile = await getUserProfile(id, supabase).catch(() => null);
 
   const username = profile?.username || 'Unknown User';

@@ -3,6 +3,7 @@ import 'server-only'
 import { createServerClient } from '@supabase/ssr'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { cache } from 'react'
 import { isQueryCountEnabled, makeCountingFetch } from './query-counter'
 
 export async function createClient() {
@@ -32,6 +33,24 @@ export async function createClient() {
     }
   )
 }
+
+/**
+ * The request's Supabase client, built once and shared.
+ *
+ * Use this — not createClient() — in any server component that calls the cached
+ * gang/fighter accessors in app/lib/shared/gang-data.ts. Those memoise per request
+ * on their arguments, the client included, so a second createClient() in the same
+ * request yields a different instance, misses the memo, and silently costs a
+ * duplicate Redis round-trip plus a deserialize of the whole cache entry. The
+ * parallel @breadcrumb slots are the case that bites: they render alongside the
+ * page and used to build their own client.
+ *
+ * Safe to share: createClient closes over this request's cookies() store and reads
+ * it lazily, so a shared client still observes cookie mutations. Outside a render
+ * scope (route handlers) React's cache() falls through un-memoised, which just
+ * restores the old per-call behaviour.
+ */
+export const getRequestClient = cache(createClient)
 
 export function createServiceRoleClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
