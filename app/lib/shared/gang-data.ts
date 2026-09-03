@@ -1,5 +1,6 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
+import { cache } from 'react';
 
 import { assembleGangFighters, assembleGangVehicles, groupBy, type GangFightersBundle } from './gang-assembly';
 import { WeaponProps, WargearItem } from '@/types/fighter';
@@ -201,6 +202,48 @@ export interface GangCore extends GangBasic {
   alliance: Alliance | null;
 }
 
+// =============================================================================
+// REQUEST-SCOPED MEMOISATION
+// =============================================================================
+
+/**
+ * unstable_cache is the CROSS-request layer; this is the INTRA-request one.
+ *
+ * unstable_cache does not dedupe within a request — every call reaches
+ * incrementalCache.get — and the Redis cacheHandler runs with cacheMaxMemorySize
+ * set to 0, so there is no in-memory layer behind it either. Each duplicate call
+ * therefore costs a Redis round-trip plus a v8.deserialize of the whole entry
+ * (measured: 1.4ms for a p90 gang bundle, 8.2ms for the largest). The gang page
+ * read the fighters bundle twice and the core row three times per render.
+ *
+ * The memo key is the id ALONE, deliberately. These accessors take a supabase
+ * client, and React's cache() keys on argument identity — and the parallel
+ * @breadcrumb slots call createClient() themselves, so they hold a different
+ * client instance from the page they render beside. Keying on the client would
+ * miss exactly the duplicates worth collapsing. Reusing whichever client filled
+ * the slot first is consistent with what the cross-request layer already assumes:
+ * these entries are keyed by gang id with no user scoping, so every viewer gets
+ * the same bytes. It would stop being safe only if some caller passed a
+ * service-role client; none does.
+ *
+ * Storing the promise (not the value) also collapses CONCURRENT duplicates,
+ * which is the common case — the pages fire these inside one Promise.all.
+ *
+ * SAFETY: this hands back a pre-mutation value to anything that writes and then
+ * re-reads within the same request. No server action reads these accessors —
+ * nothing under app/actions/** imports this module — so that hazard does not
+ * exist today. Re-check this invariant before calling one of these from an action.
+ */
+const requestSlot = cache((_key: string) => ({ promise: undefined as Promise<unknown> | undefined }));
+
+const oncePerRequest = <T>(
+  namespace: string,
+  fetcher: (id: string, supabase: any) => Promise<T>
+) => (id: string, supabase: any): Promise<T> => {
+  const slot = requestSlot(`${namespace}:${id}`);
+  return (slot.promise ??= fetcher(id, supabase)) as Promise<T>;
+};
+
 /**
  * Get the full gang row (basic info + credits + rating + wealth + alliance).
  * One cache entry and one query replace the previous four parallel gangs-row
@@ -208,7 +251,7 @@ export interface GangCore extends GangBasic {
  * is deliberately excluded — it changes on every drag and has its own entry.
  * Cache: gang-{id}
  */
-export const getGangCore = async (gangId: string, supabase: any): Promise<GangCore | null> => {
+const fetchGangCore = async (gangId: string, supabase: any): Promise<GangCore | null> => {
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
@@ -326,7 +369,7 @@ export const getGangResources = async (gangId: string, supabase: any): Promise<G
  * and D66 range. Callers gate on hasGangTacticsCards(), not this.
  * Cache: gang-tactics-cards-{id}
  */
-export const getGangTacticsCards = async (gangId: string, supabase: any): Promise<GangTacticsCard[]> => {
+const fetchGangTacticsCards = async (gangId: string, supabase: any): Promise<GangTacticsCard[]> => {
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
@@ -350,7 +393,7 @@ export const getGangTacticsCards = async (gangId: string, supabase: any): Promis
  * Get gang positioning data only
  * Cache: BASE_GANG_POSITIONING
  */
-export const getGangPositioning = async (gangId: string, supabase: any): Promise<Record<string, any> | null> => {
+const fetchGangPositioning = async (gangId: string, supabase: any): Promise<Record<string, any> | null> => {
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
@@ -374,7 +417,7 @@ export const getGangPositioning = async (gangId: string, supabase: any): Promise
  * Get gang stash equipment
  * Cache: BASE_GANG_STASH
  */
-export const getGangStash = async (gangId: string, supabase: any): Promise<GangStashItem[]> => {
+const fetchGangStash = async (gangId: string, supabase: any): Promise<GangStashItem[]> => {
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
@@ -417,7 +460,9 @@ export const getGangStash = async (gangId: string, supabase: any): Promise<GangS
     },
     [`gang-stash-v2-${gangId}`],
     {
-      tags: [TAGS.gangStash(gangId)],
+      // globalEquipment: embeds equipment_name/type/category, so an admin rename
+      // has to reach these rows too.
+      tags: [TAGS.gangStash(gangId), TAGS.globalEquipment()],
       revalidate: false
     }
   )();
@@ -537,7 +582,7 @@ const getGangCampaignIdsCached = async (gangId: string, supabase: any): Promise<
  * Deliberately NOT gang-{id}: nothing here is fighter-dependent, so fighter
  * edits never rebuild it.
  */
-export const getGangCampaigns = async (gangId: string, supabase: any): Promise<GangCampaign[]> => {
+const fetchGangCampaigns = async (gangId: string, supabase: any): Promise<GangCampaign[]> => {
   const campaignIdsForTags = await getGangCampaignIdsCached(gangId, supabase);
 
   return unstable_cache(
@@ -882,7 +927,7 @@ export interface GetGangFightersListOptions {
  *   skills, effects (fighter + vehicle scopes in one query), exotic beasts
  *   (both directions), loadouts (+assignments embedded), captured-by names
  */
-export const getGangFightersBundle = async (gangId: string, supabase: any): Promise<GangFightersBundle> => {
+const fetchGangFightersBundle = async (gangId: string, supabase: any): Promise<GangFightersBundle> => {
   return unstable_cache(
     async () => {
       // Stage 1: fighters and ALL gang vehicles in parallel
@@ -1229,7 +1274,9 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
     },
     [`gang-fighters-bundle-v4-${gangId}`],
     {
-      tags: [TAGS.gang(gangId)],
+      // globalEquipment: this entry embeds a copy of each item's catalogue columns
+      // and weapon_profiles, so admin catalogue edits have to be able to drop it.
+      tags: [TAGS.gang(gangId), TAGS.globalEquipment()],
       revalidate: false
     }
   )();
@@ -1269,7 +1316,7 @@ export const getGangVehicles = async (gangId: string, supabase: any): Promise<an
  * Get username and patreon tier from user_id
  * Cache: BASE_USER_PROFILE
  */
-export const getUserProfile = async (userId: string, supabase: any): Promise<{ 
+const fetchUserProfile = async (userId: string, supabase: any): Promise<{ 
   username: string;
   patreon_tier_id?: string;
   patreon_tier_title?: string;
@@ -1314,7 +1361,7 @@ export interface GangFighterStats {
   deaths_breakdown: DeathsBreakdownItem[];
 }
 
-export const getGangFighterStats = async (
+const fetchGangFighterStats = async (
   gangId: string,
   supabase: any
 ): Promise<GangFighterStats> => {
@@ -1368,3 +1415,22 @@ export const getGangFighterStats = async (
     }
   )();
 };
+
+// =============================================================================
+// REQUEST-MEMOISED ACCESSORS
+// =============================================================================
+// Public surface is unchanged; each entry is now read once per request.
+// getGangType and getGangVariants are deliberately NOT wrapped: their first
+// argument is an object / array literal rather than an id, so there is no stable
+// key to memoise on, and both are called once per page anyway. getGangVehicles,
+// getGangResources and getGangFightersList are thin selectors that inherit the
+// win from the bundle and core entries below.
+
+export const getGangCore = oncePerRequest('core', fetchGangCore);
+export const getGangTacticsCards = oncePerRequest('tactics', fetchGangTacticsCards);
+export const getGangPositioning = oncePerRequest('positioning', fetchGangPositioning);
+export const getGangStash = oncePerRequest('stash', fetchGangStash);
+export const getGangCampaigns = oncePerRequest('campaigns', fetchGangCampaigns);
+export const getGangFightersBundle = oncePerRequest('bundle', fetchGangFightersBundle);
+export const getUserProfile = oncePerRequest('userProfile', fetchUserProfile);
+export const getGangFighterStats = oncePerRequest('fighterStats', fetchGangFighterStats);
