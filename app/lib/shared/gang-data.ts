@@ -202,13 +202,6 @@ export interface GangCore extends GangBasic {
 }
 
 /**
- * No server action may read the accessors below. They are unstable_cache entries,
- * so an action that writes and then reads one before invalidating its tag gets the
- * pre-write value back. Enforced by eslint.config.mjs, which bans this module from
- * app/actions/**.
- */
-
-/**
  * Get the full gang row (basic info + credits + rating + wealth + alliance).
  * One cache entry and one query replace the previous four parallel gangs-row
  * reads (basic/credits/rating-wealth) plus the alliance lookup. Positioning
