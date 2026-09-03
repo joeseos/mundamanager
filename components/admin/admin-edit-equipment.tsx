@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,6 +64,14 @@ function sanitizeGrantsOptionsForEdition(
   };
 }
 
+interface SpecialisationEquipment {
+  id?: string;
+  gang_type_id: string;
+  gang_type_name: string | null;
+  fighter_specialisation_id: string;
+  specialisation_name: string | null;
+}
+
 interface Equipment {
   id: string;
   equipment_name: string;
@@ -103,6 +111,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [categoryFilter, setCategoryFilter] = useState('');
   const [fighterTypes, setFighterTypes] = useState<FighterType[]>([]);
   const [selectedFighterTypes, setSelectedFighterTypes] = useState<string[]>([]);
+  const [specialisationEquipment, setSpecialisationEquipment] = useState<SpecialisationEquipment[]>([]);
+  const [showSpecialisationEquipmentDialog, setShowSpecialisationEquipmentDialog] = useState(false);
+  const [specEquipGangType, setSpecEquipGangType] = useState("");
+  const [specEquipSpecialisation, setSpecEquipSpecialisation] = useState("");
   const [showAdjustedCostDialog, setShowAdjustedCostDialog] = useState(false);
   const [selectedGangType, setSelectedGangType] = useState("");
   const [adjustedCostValue, setAdjustedCostValue] = useState("");
@@ -157,15 +169,13 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
 
   // Edition is the top-level filter: only equipment/categories of the chosen
   // edition are offered for editing, and the saved row keeps that edition
-  const filteredCategories = useMemo(
-    () => editionId ? categories.filter(category => category.edition_id === editionId) : categories,
-    [categories, editionId]
-  );
+  const filteredCategories = editionId
+    ? categories.filter(category => category.edition_id === editionId)
+    : categories;
 
-  const filteredEquipmentList = useMemo(
-    () => editionId ? equipmentList.filter(item => item.edition_id === editionId) : equipmentList,
-    [equipmentList, editionId]
-  );
+  const filteredEquipmentList = editionId
+    ? equipmentList.filter(item => item.edition_id === editionId)
+    : equipmentList;
 
   const { data: editions = [] } = useEditions();
   const editionSlug = editionSlugOf(editions, editionId);
@@ -396,6 +406,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         setSelectedFighterTypes(equipmentDetails.fighter_types_with_equipment.map((ft: any) => ft.fighter_type_id));
       }
 
+      setSpecialisationEquipment(equipmentDetails.fighter_specialisation_equipment || []);
+
       if (equipmentDetails.weapon_profiles && equipmentDetails.weapon_profiles.length > 0) {
         // lethality is NULL on every pre-N26 profile; the inputs are controlled
         setWeaponProfiles(equipmentDetails.weapon_profiles.map((profile: WeaponProfileInput) => ({
@@ -424,15 +436,13 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     staleTime: 5 * 60 * 1000,
   });
 
-  const filteredWeapons = useMemo(
-    () => editionId ? weapons.filter(weapon => weapon.edition_id === editionId) : weapons,
-    [weapons, editionId]
-  );
+  const filteredWeapons = editionId
+    ? weapons.filter(weapon => weapon.edition_id === editionId)
+    : weapons;
 
-  const filteredAllEquipment = useMemo(
-    () => editionId ? allEquipment.filter(e => e.edition_id === editionId) : allEquipment,
-    [allEquipment, editionId]
-  );
+  const filteredAllEquipment = editionId
+    ? allEquipment.filter(e => e.edition_id === editionId)
+    : allEquipment;
 
   const { data: gangTypeOptions = [], isLoading: isGangTypesLoading } = useQuery<Array<{gang_type_id: string, gang_type: string, edition_id?: string | null}>>({
     queryKey: ['admin-gang-types'],
@@ -441,19 +451,28 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       if (!response.ok) throw new Error('Failed to fetch gang types');
       return response.json();
     },
-    enabled: showAdjustedCostDialog || showAvailabilityDialog,
+    enabled: showAdjustedCostDialog || showAvailabilityDialog || showSpecialisationEquipmentDialog,
     staleTime: 5 * 60 * 1000,
   });
 
-  const filteredGangTypes = useMemo(
-    () => editionId ? gangTypeOptions.filter(type => type.edition_id === editionId) : gangTypeOptions,
-    [gangTypeOptions, editionId]
-  );
+  const { data: specialisationOptions = [], isLoading: isSpecialisationsLoading } = useQuery<Array<{ id: string; specialisation_name: string }>>({
+    queryKey: ['admin-fighter-specialisations'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/fighter-specialisations');
+      if (!response.ok) throw new Error('Failed to fetch fighter specialisations');
+      return response.json();
+    },
+    enabled: showSpecialisationEquipmentDialog,
+    staleTime: 5 * 60 * 1000,
+  });
 
-  const filteredFighterTypes = useMemo(
-    () => editionId ? fighterTypes.filter(ft => ft.edition_id === editionId) : fighterTypes,
-    [fighterTypes, editionId]
-  );
+  const filteredGangTypes = editionId
+    ? gangTypeOptions.filter(type => type.edition_id === editionId)
+    : gangTypeOptions;
+
+  const filteredFighterTypes = editionId
+    ? fighterTypes.filter(ft => ft.edition_id === editionId)
+    : fighterTypes;
 
   const { data: gangOriginList = [] } = useQuery<Array<{id: string, origin_name: string, category_name: string}>>({
     queryKey: ['admin-gang-origins'],
@@ -518,8 +537,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         throw new Error('Invalid category selected');
       }
 
-      const hasEditedFighterTypes = selectedFighterTypes.length !== fighterTypes.filter(ft => selectedFighterTypes.includes(ft.id)).length;
-
       // Validate and normalize grants_equipment - treat empty options as no grants.
       // An option with no equipment picked is dropped: a blank equipment_id can never
       // be granted, and it is not a uuid, so anything casting it downstream breaks.
@@ -553,7 +570,11 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
             weapon_group_id: profile.weapon_group_id || selectedEquipmentId
           }))
         } : {}),
-        ...(hasEditedFighterTypes ? { fighter_types: selectedFighterTypes } : {}),
+        fighter_types: selectedFighterTypes,
+        fighter_specialisation_equipment: specialisationEquipment.map(r => ({
+          gang_type_id: r.gang_type_id,
+          fighter_specialisation_id: r.fighter_specialisation_id,
+        })),
         gang_adjusted_costs: gangAdjustedCosts.map(d => ({
           gang_type_id: d.gang_type_id,
           adjusted_cost: d.adjusted_cost
@@ -1726,6 +1747,123 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       );
                     })}
                   </div>
+                </div>
+              )}
+
+              {/* Scoped by gang + specialisation, with no fighter type, so the grant survives a promotion */}
+              {equipmentType !== 'vehicle_upgrade' && (
+                <div className="col-span-3">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    Specialisation Equipment
+                  </label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Granted to any fighter of the chosen gang carrying the chosen specialisation, whatever
+                    fighter type they have been promoted into. Not the same as the fighter type&rsquo;s own
+                    specialisation shown in the list above.
+                  </p>
+                  <Button
+                    onClick={() => setShowSpecialisationEquipmentDialog(true)}
+                    variant="outline"
+                    size="sm"
+                    className="mb-2"
+                    disabled={!selectedEquipmentId}
+                  >
+                    Add Specialisation
+                  </Button>
+
+                  {specialisationEquipment.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {specialisationEquipment.map((row, index) => (
+                        <div
+                          key={row.id ?? `${row.gang_type_id}-${row.fighter_specialisation_id}`}
+                          className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
+                        >
+                          <span>{`${row.gang_type_name ?? 'Unknown gang'} - ${row.specialisation_name ?? 'Unknown specialisation'}`}</span>
+                          <button
+                            type="button"
+                            onClick={() => setSpecialisationEquipment(prev => prev.filter((_, i) => i !== index))}
+                            className="hover:text-red-500 focus:outline-hidden"
+                            disabled={!selectedEquipmentId}
+                          >
+                            <HiX className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {showSpecialisationEquipmentDialog && (
+                    <Modal
+                      title="Specialisation Equipment"
+                      helper="Pick the gang and the specialisation this equipment follows"
+                      onClose={() => {
+                        setShowSpecialisationEquipmentDialog(false);
+                        setSpecEquipGangType("");
+                        setSpecEquipSpecialisation("");
+                      }}
+                      onConfirm={() => {
+                        const gang = gangTypeOptions.find(g => g.gang_type_id === specEquipGangType);
+                        const specialisation = specialisationOptions.find(sp => sp.id === specEquipSpecialisation);
+                        if (!gang || !specialisation) return;
+                        const exists = specialisationEquipment.some(
+                          r => r.gang_type_id === gang.gang_type_id
+                            && r.fighter_specialisation_id === specialisation.id
+                        );
+                        if (!exists) {
+                          setSpecialisationEquipment(prev => [...prev, {
+                            gang_type_id: gang.gang_type_id,
+                            gang_type_name: gang.gang_type,
+                            fighter_specialisation_id: specialisation.id,
+                            specialisation_name: specialisation.specialisation_name,
+                          }]);
+                        }
+                        setShowSpecialisationEquipmentDialog(false);
+                        setSpecEquipGangType("");
+                        setSpecEquipSpecialisation("");
+                      }}
+                      confirmText="Save"
+                      confirmDisabled={
+                        isGangTypesLoading || isSpecialisationsLoading
+                        || !specEquipGangType || !specEquipSpecialisation
+                      }
+                      width="sm"
+                    >
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Gang Type</label>
+                          <select
+                            value={specEquipGangType}
+                            onChange={(e) => setSpecEquipGangType(e.target.value)}
+                            className="w-full p-2 border rounded-md"
+                            disabled={isGangTypesLoading}
+                          >
+                            <option value="">Select a Gang Type</option>
+                            {filteredGangTypes.map((gang) => (
+                              <option key={gang.gang_type_id} value={gang.gang_type_id}>
+                                {gang.gang_type}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Specialisation</label>
+                          <select
+                            value={specEquipSpecialisation}
+                            onChange={(e) => setSpecEquipSpecialisation(e.target.value)}
+                            className="w-full p-2 border rounded-md"
+                            disabled={isSpecialisationsLoading}
+                          >
+                            <option value="">Select a Specialisation</option>
+                            {specialisationOptions.map((specialisation) => (
+                              <option key={specialisation.id} value={specialisation.id}>
+                                {specialisation.specialisation_name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </Modal>
+                  )}
                 </div>
               )}
 

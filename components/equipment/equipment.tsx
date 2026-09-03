@@ -313,12 +313,12 @@ const ItemModal: React.FC<ItemModalProps> = ({
         }
       }
 
-      // Include fighter_id so RPC can resolve legacy fighter type availability/discounts
-      // Pass fighter_id if: legacy toggle enabled OR gang has affiliation
+      // The RPC reads the fighter's own subtypes and specialisation to resolve scoped equipment
+      // rows, so the id goes every time; include_legacy now carries what omitting it used to.
       const useLegacy = includeLegacyOverride !== undefined ? includeLegacyOverride : includeLegacy;
-      const hasGangAffiliation = Boolean(gangAffiliationId);
-      if (!isVehicleEquipment && fighterId && (useLegacy || hasGangAffiliation)) {
+      if (!isVehicleEquipment && fighterId) {
         requestBody.fighter_id = fighterId;
+        requestBody.include_legacy = useLegacy;
       }
 
       const response = await fetch(
@@ -587,7 +587,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   }
 
   // Filter equipment based on cost and availability / trade points ranges
-  const filterEquipment = (items: Equipment[]) => {
+  const filterEquipment = useCallback((items: Equipment[]) => {
     return items.filter(item => {
       const cost = item.adjusted_cost ?? item.cost;
       // Parse availability - handle valid formats: "R12", "I9", "S7", "C", "E"
@@ -615,7 +615,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
       return costInRange && rarityInRange &&
         item.equipment_name.toLowerCase().includes(searchQuery);
     });
-  };
+  }, [costRange, rarityFilter, tradePointsRange, availabilityRange, searchQuery]);
 
   // Derive categories from available category names (no separate fetch needed)
   const categories: Category[] = availableCategories.map(name => ({
@@ -661,10 +661,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
     availableCategories,
     searchQuery,
     equipment,
-    costRange,
-    availabilityRange,
-    tradePointsRange,
-    rarityFilter,
+    filterEquipment,
     useN26CategoryFormation,
     editionSlug,
   ]);

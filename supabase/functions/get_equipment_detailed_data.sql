@@ -17,7 +17,8 @@ CREATE OR REPLACE FUNCTION get_equipment_detailed_data(
     only_equipment_id uuid DEFAULT NULL,      -- $7
     gang_id uuid DEFAULT NULL,               -- $8
     campaign_trading_post_type_ids uuid[] DEFAULT NULL, -- $9
-    campaign_custom_trading_post_ids uuid[] DEFAULT NULL -- $10
+    campaign_custom_trading_post_ids uuid[] DEFAULT NULL, -- $10
+    include_legacy boolean DEFAULT NULL       -- $11
 )
 RETURNS TABLE (
     id uuid,
@@ -59,6 +60,8 @@ AS $$
             g.alignment,
             g.custom_gang_type_id,
             cg.campaign_type_allegiance_id,
+            f.fighter_subtypes,
+            f.fighter_specialisation_id,
             fgl.fighter_type_id AS legacy_ft_id,
             ga.fighter_type_id  AS affiliation_ft_id,
             COALESCE(gt.edition_id, cgt.edition_id) AS edition_id
@@ -189,7 +192,7 @@ AS $$
                 AND (
                     ed.gang_origin_id = gd.gang_origin_id
                     OR ed.fighter_type_id = $3
-                    OR (gd.legacy_ft_id IS NOT NULL AND ed.fighter_type_id = gd.legacy_ft_id AND $4 = true)
+                    OR (gd.legacy_ft_id IS NOT NULL AND ed.fighter_type_id = gd.legacy_ft_id AND ($11 = true OR ($11 IS NULL AND $4 = true)))
                     OR (gd.affiliation_ft_id IS NOT NULL AND ed.fighter_type_id = gd.affiliation_ft_id)
                 )
             )
@@ -200,7 +203,7 @@ AS $$
                 AND (
                     (ed.gang_type_id = $1 AND ed.fighter_type_id IS NULL)
                     OR ed.fighter_type_id = $3
-                    OR (gd.legacy_ft_id IS NOT NULL AND ed.fighter_type_id = gd.legacy_ft_id AND $4 = true)
+                    OR (gd.legacy_ft_id IS NOT NULL AND ed.fighter_type_id = gd.legacy_ft_id AND ($11 = true OR ($11 IS NULL AND $4 = true)))
                     OR (gd.affiliation_ft_id IS NOT NULL AND ed.fighter_type_id = gd.affiliation_ft_id)
                 )
             )
@@ -403,18 +406,28 @@ AS $$
         AND ea_origin.gang_origin_id IS NOT NULL
         AND ea_origin.gang_origin_id = gd.gang_origin_id
 
-    -- Fighter type equipment (unchanged)
+    -- Fighter type equipment. A row either names a fighter/vehicle type, or names none and
+    -- relies on the scopes below -- which is how a grant follows the fighter through a promotion
+    -- that changes their type.
     LEFT JOIN fighter_type_equipment fte
         ON e.id = fte.equipment_id
         AND (fte.fighter_type_id = $3
              OR fte.vehicle_type_id = $3
              OR (gd.legacy_ft_id IS NOT NULL
                  AND (fte.fighter_type_id = gd.legacy_ft_id OR fte.vehicle_type_id = gd.legacy_ft_id)
-                 AND $4 = true)
+                 AND ($11 = true OR ($11 IS NULL AND $4 = true)))
              OR (gd.affiliation_ft_id IS NOT NULL
-                 AND (fte.fighter_type_id = gd.affiliation_ft_id OR fte.vehicle_type_id = gd.affiliation_ft_id)))
+                 AND (fte.fighter_type_id = gd.affiliation_ft_id OR fte.vehicle_type_id = gd.affiliation_ft_id))
+             OR (fte.fighter_type_id IS NULL
+                 AND fte.vehicle_type_id IS NULL
+                 AND fte.custom_fighter_type_id IS NULL))
         AND (fte.gang_origin_id IS NULL OR fte.gang_origin_id = gd.gang_origin_id)
         AND (fte.gang_type_id IS NULL OR fte.gang_type_id = $1)
+        AND (fte.gang_variant_id IS NULL OR gd.gang_variants ? fte.gang_variant_id::text)
+        AND (fte.fighter_subtype IS NULL OR gd.fighter_subtypes ? fte.fighter_subtype)
+        -- Plain =, so a specialisation-scoped row never matches a fighter that has none.
+        AND (fte.fighter_specialisation_id IS NULL
+             OR fte.fighter_specialisation_id = gd.fighter_specialisation_id)
 
     -- Is this system equipment on the current custom fighter type's equipment list?
     -- ($3 is a custom_fighter_types.id when the fighter is a custom fighter.)
@@ -431,8 +444,7 @@ AS $$
     -- so the predicate lives in exactly one place.
     LEFT JOIN LATERAL (
         SELECT (
-            fte.fighter_type_id IS NOT NULL
-            OR fte.vehicle_type_id IS NOT NULL
+            fte.id IS NOT NULL
             OR ea_var.id IS NOT NULL
             OR ea_origin.id IS NOT NULL
             OR cftl.is_ftl IS NOT NULL
@@ -453,7 +465,7 @@ AS $$
         -- Core equipment gating
         AND (
             COALESCE(e.core_equipment, false) = false
-            OR (e.core_equipment = true AND (fte.fighter_type_id IS NOT NULL OR cftl.is_ftl IS NOT NULL OR $3 IS NULL))
+            OR (e.core_equipment = true AND (fte.id IS NOT NULL OR cftl.is_ftl IS NOT NULL OR $3 IS NULL))
         )
         -- Fighter list / trading post filter logic
         AND (
