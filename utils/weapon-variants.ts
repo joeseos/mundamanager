@@ -35,6 +35,8 @@ export interface WeaponVariantBlock {
 
 /** Stable empty result, so callers with no vehicle keep a constant reference. */
 export const NO_WEAPONS: Weapon[] = [];
+// Shared by every caller, so a stray push/sort would corrupt all of them.
+Object.freeze(NO_WEAPONS);
 
 /**
  * Vehicle equipment shaped into Weapon rows, folding in each weapon's hardpoint
