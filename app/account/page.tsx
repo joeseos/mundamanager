@@ -1,4 +1,4 @@
-import { getRequestClient } from "@/utils/supabase/server";
+import { createClient } from "@/utils/supabase/server";
 import { getUserProfile } from "@/app/lib/shared/gang-data";
 import { redirect } from "next/navigation";
 import PasswordChange from "@/components/password-change";
@@ -15,7 +15,7 @@ import { signInPath } from "@/utils/auth";
 // Using full auth user on profile to display email and timestamps
 
 export default async function AccountPage() {
-  const supabase = await getRequestClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     redirect(signInPath("/account"));

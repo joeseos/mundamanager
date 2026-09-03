@@ -1,4 +1,4 @@
-import { getRequestClient } from "@/utils/supabase/server";
+import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { getGangFighterStats } from "@/app/lib/shared/gang-data";
 
@@ -12,7 +12,7 @@ export async function GET(
   props: { params: Promise<{ id: string }> }
 ) {
   const params = await props.params;
-  const supabase = await getRequestClient();
+  const supabase = await createClient();
   const { id: gangId } = params;
 
   if (!gangId) {

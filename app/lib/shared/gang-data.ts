@@ -1,6 +1,5 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
-import { cache } from 'react';
 
 import { assembleGangFighters, assembleGangVehicles, groupBy, type GangFightersBundle } from './gang-assembly';
 import { WeaponProps, WargearItem } from '@/types/fighter';
@@ -203,18 +202,10 @@ export interface GangCore extends GangBasic {
 }
 
 /**
- * The fetch* functions below are wrapped in React cache() at the bottom of this
- * file: unstable_cache is the cross-request layer, cache() the intra-request one.
- * unstable_cache has no request-level dedupe -- every call reaches
- * incrementalCache.get and JSON.parses the whole payload again -- so without
- * cache() a duplicate call re-parses the bundle.
- *
- * Two things this relies on:
- * - Callers must pass getRequestClient(), since cache() keys on every argument
- *   including the client. Building your own gets a different instance and
- *   silently misses the memo.
- * - No server action may read these: it would see a pre-mutation value after its
- *   own write. Nothing under app/actions/** imports this module today.
+ * No server action may read the accessors below. They are unstable_cache entries,
+ * so an action that writes and then reads one before invalidating its tag gets the
+ * pre-write value back. Enforced by eslint.config.mjs, which bans this module from
+ * app/actions/**.
  */
 
 /**
@@ -224,7 +215,7 @@ export interface GangCore extends GangBasic {
  * is deliberately excluded — it changes on every drag and has its own entry.
  * Cache: gang-{id}
  */
-const fetchGangCore = async (gangId: string, supabase: any): Promise<GangCore | null> => {
+export const getGangCore = async (gangId: string, supabase: any): Promise<GangCore | null> => {
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
@@ -344,7 +335,7 @@ export const getGangResources = async (gangId: string, supabase: any): Promise<G
  * and D66 range. Callers gate on hasGangTacticsCards(), not this.
  * Cache: gang-tactics-cards-{id}
  */
-const fetchGangTacticsCards = async (gangId: string, supabase: any): Promise<GangTacticsCard[]> => {
+export const getGangTacticsCards = async (gangId: string, supabase: any): Promise<GangTacticsCard[]> => {
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
@@ -368,7 +359,7 @@ const fetchGangTacticsCards = async (gangId: string, supabase: any): Promise<Gan
  * Get gang positioning data only
  * Cache: BASE_GANG_POSITIONING
  */
-const fetchGangPositioning = async (gangId: string, supabase: any): Promise<Record<string, any> | null> => {
+export const getGangPositioning = async (gangId: string, supabase: any): Promise<Record<string, any> | null> => {
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
@@ -392,7 +383,7 @@ const fetchGangPositioning = async (gangId: string, supabase: any): Promise<Reco
  * Get gang stash equipment
  * Cache: BASE_GANG_STASH
  */
-const fetchGangStash = async (gangId: string, supabase: any): Promise<GangStashItem[]> => {
+export const getGangStash = async (gangId: string, supabase: any): Promise<GangStashItem[]> => {
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
@@ -556,7 +547,7 @@ const getGangCampaignIdsCached = async (gangId: string, supabase: any): Promise<
  * Deliberately NOT gang-{id}: nothing here is fighter-dependent, so fighter
  * edits never rebuild it.
  */
-const fetchGangCampaigns = async (gangId: string, supabase: any): Promise<GangCampaign[]> => {
+export const getGangCampaigns = async (gangId: string, supabase: any): Promise<GangCampaign[]> => {
   const campaignIdsForTags = await getGangCampaignIdsCached(gangId, supabase);
 
   return unstable_cache(
@@ -901,7 +892,7 @@ export interface GetGangFightersListOptions {
  *   skills, effects (fighter + vehicle scopes in one query), exotic beasts
  *   (both directions), loadouts (+assignments embedded), captured-by names
  */
-const fetchGangFightersBundle = async (gangId: string, supabase: any): Promise<GangFightersBundle> => {
+export const getGangFightersBundle = async (gangId: string, supabase: any): Promise<GangFightersBundle> => {
   return unstable_cache(
     async () => {
       // Stage 1: fighters and ALL gang vehicles in parallel
@@ -1290,7 +1281,7 @@ export const getGangVehicles = async (gangId: string, supabase: any): Promise<an
  * Get username and patreon tier from user_id
  * Cache: BASE_USER_PROFILE
  */
-const fetchUserProfile = async (userId: string, supabase: any): Promise<{ 
+export const getUserProfile = async (userId: string, supabase: any): Promise<{ 
   username: string;
   patreon_tier_id?: string;
   patreon_tier_title?: string;
@@ -1335,7 +1326,7 @@ export interface GangFighterStats {
   deaths_breakdown: DeathsBreakdownItem[];
 }
 
-const fetchGangFighterStats = async (
+export const getGangFighterStats = async (
   gangId: string,
   supabase: any
 ): Promise<GangFighterStats> => {
@@ -1389,16 +1380,3 @@ const fetchGangFighterStats = async (
     }
   )();
 };
-
-// Request-memoised accessors; public surface unchanged. getGangType and
-// getGangVariants are not wrapped -- their first argument is an object/array
-// literal, so there is no stable key. The thin selectors inherit the win.
-
-export const getGangCore = cache(fetchGangCore);
-export const getGangTacticsCards = cache(fetchGangTacticsCards);
-export const getGangPositioning = cache(fetchGangPositioning);
-export const getGangStash = cache(fetchGangStash);
-export const getGangCampaigns = cache(fetchGangCampaigns);
-export const getGangFightersBundle = cache(fetchGangFightersBundle);
-export const getUserProfile = cache(fetchUserProfile);
-export const getGangFighterStats = cache(fetchGangFighterStats);

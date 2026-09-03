@@ -3,7 +3,6 @@ import 'server-only'
 import { createServerClient } from '@supabase/ssr'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
-import { cache } from 'react'
 import { isQueryCountEnabled, makeCountingFetch } from './query-counter'
 
 export async function createClient() {
@@ -33,16 +32,6 @@ export async function createClient() {
     }
   )
 }
-
-/**
- * The request's Supabase client, built once and shared. Use this rather than
- * createClient() in server components that call the cached accessors in
- * app/lib/shared/gang-data.ts -- those memoise on their arguments, the client
- * included, so a second instance silently misses the memo.
- *
- * Safe to share: createClient reads this request's cookies() store lazily.
- */
-export const getRequestClient = cache(createClient)
 
 export function createServiceRoleClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;

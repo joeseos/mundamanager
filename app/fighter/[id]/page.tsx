@@ -1,4 +1,4 @@
-import { getRequestClient } from "@/utils/supabase/server";
+import { createClient } from "@/utils/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import FighterPageComponent from "@/components/fighter/fighter-page";
 import { checkPermissionCached } from "@/utils/user-permissions";
@@ -12,7 +12,7 @@ interface FighterPageProps {
 
 export default async function FighterPageServer({ params }: FighterPageProps) {
   const { id } = await params;
-  const supabase = await getRequestClient();
+  const supabase = await createClient();
 
   // Get authenticated user via claims (no extra network call)
   let user: { id: string };

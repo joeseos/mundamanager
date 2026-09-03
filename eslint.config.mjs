@@ -17,7 +17,7 @@ const eslintConfig = [
         patterns: [{
           group: ['@/app/lib/shared/gang-data', '**/app/lib/shared/gang-data'],
           message:
-            'Server actions must not read the gang-data accessors: they are wrapped in React cache(), so a read after a write in the same request returns the pre-write value. Query Supabase directly instead.',
+            'Server actions must not read the gang-data accessors: they are unstable_cache entries, so a read after a write but before the tag is invalidated returns the pre-write value. Query Supabase directly instead.',
           allowTypeImports: true,
         }],
       }],

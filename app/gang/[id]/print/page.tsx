@@ -1,4 +1,4 @@
-import { getRequestClient } from "@/utils/supabase/server";
+import { createClient } from "@/utils/supabase/server";
 import { redirect, notFound, forbidden } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +12,7 @@ export default async function PrintGangPage(props: {
   params: Promise<{ id: string }>;
 }) {
   const params = await props.params;
-  const supabase = await getRequestClient();
+  const supabase = await createClient();
 
   // Get authenticated user via claims (no extra network call)
   let user: { id: string };
