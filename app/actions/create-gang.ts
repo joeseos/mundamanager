@@ -16,7 +16,7 @@ interface CreateGangParams {
   gangOriginId?: string | null;
   credits?: number;
   gangVariants?: string[];
-  defaultGangImage: number;
+  defaultGangImage: number | null;
 }
 
 export async function createGang({

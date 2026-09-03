@@ -43,6 +43,7 @@ interface UserData {
     id: string;
     name: string;
     gang_type: string;
+    parent_gang_type?: string | null;
     gang_colour: string;
     credits: number;
     reputation: number;
@@ -259,7 +260,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
                     <h3 className="font-semibold truncate">{gang.name}</h3>
                   </div>
                   <p className="text-sm text-muted-foreground mb-1">
-                    {gang.gang_type}
+                    {gang.parent_gang_type ? `${gang.parent_gang_type}: ${gang.gang_type}` : gang.gang_type}
                   </p>
                   {gang.rating !== null && gang.rating !== undefined && (
                     <div className="text-sm">

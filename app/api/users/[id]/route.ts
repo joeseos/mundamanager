@@ -41,7 +41,10 @@ export async function GET(
         reputation,
         rating,
         created_at,
-        gang_types!gang_type_id ( editions:edition_id ( slug ) ),
+        gang_types!gang_type_id (
+          parent_gang_type_id,
+          editions:edition_id ( slug )
+        ),
         custom_gang_type:custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
       `)
       .eq('user_id', userId)
@@ -318,6 +321,26 @@ export async function GET(
       collections: customCollections,
     }
 
+    const parentGangTypeIds = Array.from(new Set(
+      (gangs || [])
+        .map((g: any) => g.gang_types?.parent_gang_type_id)
+        .filter(Boolean)
+    ))
+    const parentNameById = new Map<string, string>()
+    if (parentGangTypeIds.length > 0) {
+      const { data: parents, error: parentsError } = await supabase
+        .from('gang_types')
+        .select('gang_type_id, gang_type')
+        .in('gang_type_id', parentGangTypeIds)
+      if (parentsError) {
+        console.error('Error fetching parent gang types:', parentsError)
+      } else {
+        (parents || []).forEach((p: { gang_type_id: string; gang_type: string }) => {
+          parentNameById.set(p.gang_type_id, p.gang_type)
+        })
+      }
+    }
+
     return Response.json({
       profile,
       // The battle-session opponent picker needs each gang's ruleset, and these
@@ -326,6 +349,7 @@ export async function GET(
       gangs: (gangs || []).map(({ gang_types, custom_gang_type, ...gang }: any) => ({
         ...gang,
         edition_slug: gangEditionSlug({ gang_types, custom_gang_type }),
+        parent_gang_type: parentNameById.get(gang_types?.parent_gang_type_id) ?? null,
       })),
       campaigns: dedupedCampaigns,
       customAssets,
