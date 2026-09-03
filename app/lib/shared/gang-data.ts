@@ -205,7 +205,9 @@ export interface GangCore extends GangBasic {
 /**
  * The fetch* functions below are wrapped in React cache() at the bottom of this
  * file: unstable_cache is the cross-request layer, cache() the intra-request one.
- * Without it a duplicate call costs another round-trip and a full deserialize.
+ * unstable_cache has no request-level dedupe -- every call reaches
+ * incrementalCache.get and JSON.parses the whole payload again -- so without
+ * cache() a duplicate call re-parses the bundle.
  *
  * Two things this relies on:
  * - Callers must pass getRequestClient(), since cache() keys on every argument
