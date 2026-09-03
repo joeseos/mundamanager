@@ -11,7 +11,7 @@ import { GangType, Equipment } from "@/types/gang";
 import { EditionSelect, useEditions } from '@/components/edition-select';
 import { hasAlignment, hasSaveCharacteristic, allowsMultipleSubtypes, hasStartingXp, hasVehicles } from '@/types/edition';
 import { toggleFighterSubtype } from '@/utils/fighter-subtype-picker';
-import { getSkillSetRank } from "@/utils/skillSetRank";
+import { getSkillSetGroupLabel, getSkillSetRank } from "@/utils/skillSetRank";
 import { compareEquipmentCategories } from "@/utils/getEquipmentCategoryRank";
 import Modal from '@/components/ui/modal';
 
@@ -196,15 +196,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         })
         .reduce((groups, type) => {
           const rank = skillSetRank[type.skill_type.toLowerCase()] ?? Infinity;
-          let groupLabel = "Misc."; // Default category for unranked skills
-
-          if (rank <= 19) groupLabel = "Universal Skills";
-          else if (rank <= 39) groupLabel = "Gang-specific Skills";
-          else if (rank <= 59) groupLabel = "Wyrd Powers";
-          else if (rank <= 69) groupLabel = "Cult Wyrd Powers";
-          else if (rank <= 79) groupLabel = "Psychoteric Whispers";
-          else if (rank <= 89) groupLabel = "Legendary Names";
-          else if (rank <= 99) groupLabel = "Ironhead Squat Mining Clans";
+          const groupLabel = getSkillSetGroupLabel(rank);
 
           if (!groups[groupLabel]) groups[groupLabel] = [];
           groups[groupLabel].push(type);
