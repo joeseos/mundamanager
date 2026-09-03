@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { FighterProps, Vehicle, FighterEffect } from "@/types/fighter";
-import { Equipment } from "@/types/equipment";
+import { Equipment, Weapon } from "@/types/equipment";
 import { VehicleEquipment } from "@/types/fighter";
 import { calculateAdjustedStats, applySpecialRulesModifiers } from "@/utils/effect-modifiers";
 import { sortFightersByPositioning } from "@/utils/fighter-positioning";
 import { injuryAggregationLabel } from "@/utils/injuryTarget";
 import WeaponTable from "./fighter-card-weapon-table";
+import { buildVehicleWeapons, NO_WEAPONS } from "@/utils/weapon-variants";
 import { StatsTable, StatsType } from "../ui/fighter-card-stats-table";
 import { hasAlignment, hasSaveCharacteristic, hasTradePoints } from "@/types/edition";
 import { MdCheckBoxOutlineBlank } from "react-icons/md";
@@ -250,6 +251,25 @@ export default function PrintGang({ gang }: PrintGangProps) {
   const handlePrint = () => {
     window.print();
   };
+
+  // Vehicle weapons feed a memoised WeaponTable, so they have to keep a stable
+  // reference: this view re-renders on every display toggle, and rebuilding the
+  // array each time made the table redo its whole row derivation. Keyed on the
+  // fighter object rather than its id, because the roster holds the same fighter
+  // once per loadout.
+  const vehicleWeaponsByFighter = useMemo(() => {
+    const map = new Map<FighterProps, Weapon[]>();
+    for (const list of [fighters, fightersActiveLoadoutOnly]) {
+      for (const fighter of list) {
+        if (map.has(fighter)) continue;
+        const vehicle = fighter.vehicles && fighter.vehicles.length > 0
+          ? (fighter.vehicles[0] as unknown as Vehicle)
+          : undefined;
+        map.set(fighter, vehicle ? buildVehicleWeapons(vehicle, 'Unknown') : NO_WEAPONS);
+      }
+    }
+    return map;
+  }, [fighters, fightersActiveLoadoutOnly]);
 
   // Use pre-filtered list when "Inactive Fighters Loadouts" is off (server-side filter is reliable)
   const sourceFighters =
@@ -826,53 +846,9 @@ export default function PrintGang({ gang }: PrintGangProps) {
                     </td>
                     <td className="border border-black px-1 py-1 align-top w-[300px]">
                       {(() => {
-                        // Get vehicle weapons for crew members (same logic as fighter-card.tsx)
-                        const getVehicleWeapons = (vehicle: Vehicle | undefined) => {
-                          if (!vehicle?.equipment) return [];
-
-                          const hardpoints = (vehicle.effects?.['hardpoint'] || []) as FighterEffect[];
-
-                          return vehicle.equipment
-                            .filter(item => item.equipment_type === 'weapon')
-                            .map(weapon => {
-                              const weaponFighterId = weapon.fighter_weapon_id || weapon.vehicle_weapon_id || weapon.equipment_id;
-                              const matchedHardpoint = hardpoints.find(hp => hp.fighter_equipment_id === weaponFighterId);
-                              const hpData = matchedHardpoint?.type_specific_data && typeof matchedHardpoint.type_specific_data !== 'string'
-                                ? matchedHardpoint.type_specific_data
-                                : undefined;
-
-                              return {
-                                fighter_weapon_id: weaponFighterId,
-                                weapon_id: weapon.equipment_id,
-                                weapon_name: weapon.is_master_crafted || weapon.master_crafted 
-                                  ? `${weapon.equipment_name} (Master-crafted)`
-                                  : weapon.equipment_name,
-                                weapon_profiles: weapon.weapon_profiles?.map(profile => ({
-                                  ...profile,
-                                  range_short: profile.range_short,
-                                  range_long: profile.range_long,
-                                  strength: profile.strength,
-                                  ap: profile.ap,
-                                  damage: profile.damage,
-                                  ammo: profile.ammo,
-                                  acc_short: profile.acc_short,
-                                  acc_long: profile.acc_long,
-                                  traits: profile.traits || '',
-                                  id: profile.id,
-                                  profile_name: profile.profile_name,
-                                  is_master_crafted: (profile as any).is_master_crafted || !!weapon.master_crafted || !!weapon.is_master_crafted
-                                })) || [],
-                                cost: weapon.cost,
-                                ...(hpData && {
-                                  hardpoint_location: (hpData.location && String(hpData.location).trim()) || 'Unknown',
-                                  hardpoint_arcs: Array.isArray(hpData.arcs) ? hpData.arcs as string[] : undefined,
-                                  hardpoint_operated_by: (hpData.operated_by === 'crew' || hpData.operated_by === 'passenger') ? hpData.operated_by : undefined,
-                                }),
-                              };
-                            }) as unknown as any[];
-                        };
-
-                        const vehicleWeapons = isCrew && vehicle ? getVehicleWeapons(vehicle) : [];
+                        const vehicleWeapons = isCrew && vehicle
+                          ? (vehicleWeaponsByFighter.get(fighter) ?? NO_WEAPONS)
+                          : NO_WEAPONS;
 
                         // Show fighter weapons (non-crew)
                         if (!isCrew && fighter.weapons && fighter.weapons.length > 0) {

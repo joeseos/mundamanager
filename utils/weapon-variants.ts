@@ -1,4 +1,5 @@
 import { Weapon, WeaponProfile } from '@/types/equipment';
+import { FighterEffect, Vehicle } from '@/types/fighter';
 
 /**
  * Weapon table row derivation.
@@ -44,6 +45,65 @@ export interface WeaponVariantBlock {
   /** True when the block holds more than one distinct base profile name, which suppresses "(xN)". */
   multipleBaseNames: boolean;
   rows: WeaponVariantRow[];
+}
+
+/** Stable empty result, so callers with no vehicle keep a constant reference. */
+export const NO_WEAPONS: Weapon[] = [];
+
+/**
+ * Shape a vehicle's mounted equipment into the Weapon rows the table renders,
+ * folding in the hardpoint effect that targets each weapon.
+ *
+ * `unknownLocationLabel` exists only because the two former copies of this function
+ * disagreed: the fighter card renders 'Loc. unknown' and the print roster 'Unknown'.
+ * Both are preserved rather than silently unified.
+ */
+export function buildVehicleWeapons(
+  vehicle: Vehicle | undefined,
+  unknownLocationLabel: string
+): Weapon[] {
+  if (!vehicle?.equipment) return NO_WEAPONS;
+
+  const hardpoints = (vehicle.effects?.['hardpoint'] || []) as FighterEffect[];
+
+  return vehicle.equipment
+    .filter(item => item.equipment_type === 'weapon')
+    .map(weapon => {
+      const weaponFighterId = weapon.fighter_weapon_id || weapon.vehicle_weapon_id || weapon.equipment_id;
+      const matchedHardpoint = hardpoints.find(hp => hp.fighter_equipment_id === weaponFighterId);
+      const hpData = matchedHardpoint?.type_specific_data && typeof matchedHardpoint.type_specific_data !== 'string'
+        ? matchedHardpoint.type_specific_data
+        : undefined;
+
+      return {
+        fighter_weapon_id: weaponFighterId,
+        weapon_id: weapon.equipment_id,
+        weapon_name: weapon.is_master_crafted || weapon.master_crafted
+          ? `${weapon.equipment_name} (Master-crafted)`
+          : weapon.equipment_name,
+        weapon_profiles: weapon.weapon_profiles?.map(profile => ({
+          ...profile,
+          range_short: profile.range_short,
+          range_long: profile.range_long,
+          strength: profile.strength,
+          ap: profile.ap,
+          damage: profile.damage,
+          ammo: profile.ammo,
+          acc_short: profile.acc_short,
+          acc_long: profile.acc_long,
+          traits: profile.traits || '',
+          id: profile.id,
+          profile_name: profile.profile_name,
+          is_master_crafted: (profile as any).is_master_crafted || !!weapon.master_crafted || !!weapon.is_master_crafted
+        })) || [],
+        cost: weapon.cost,
+        ...(hpData && {
+          hardpoint_location: (hpData.location && String(hpData.location).trim()) || unknownLocationLabel,
+          hardpoint_arcs: Array.isArray(hpData.arcs) ? hpData.arcs as string[] : undefined,
+          hardpoint_operated_by: (hpData.operated_by === 'crew' || hpData.operated_by === 'passenger') ? hpData.operated_by : undefined,
+        }),
+      };
+    }) as unknown as Weapon[];
 }
 
 /** Signature of a profile's stats, used to keep weapons with identical statlines together. */
