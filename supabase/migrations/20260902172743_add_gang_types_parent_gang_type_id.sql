@@ -112,12 +112,25 @@ CREATE TRIGGER gang_types_parent_must_be_root
   EXECUTE FUNCTION public.gang_types_parent_must_be_root();
 
 -- One-time name heuristic: "{parent}: {suffix}" whose parent exists as an exact
--- gang_type in the same edition. Does not match Variant: … (no type named Variant).
+-- gang_type in the same edition. starts_with, not LIKE, so %/_ in a name are
+-- literal. A scalar subquery raises if a child matches more than one root
+-- (UPDATE ... FROM would otherwise pick one at random). Does not match
+-- Variant: … (no type named Variant).
 UPDATE public.gang_types AS child
-SET parent_gang_type_id = parent.gang_type_id
-FROM public.gang_types AS parent
+SET parent_gang_type_id = (
+  SELECT parent.gang_type_id
+  FROM public.gang_types AS parent
+  WHERE parent.parent_gang_type_id IS NULL
+    AND child.gang_type_id IS DISTINCT FROM parent.gang_type_id
+    AND child.edition_id IS NOT DISTINCT FROM parent.edition_id
+    AND starts_with(child.gang_type, parent.gang_type || ': ')
+)
 WHERE child.parent_gang_type_id IS NULL
-  AND parent.parent_gang_type_id IS NULL
-  AND child.gang_type_id IS DISTINCT FROM parent.gang_type_id
-  AND child.edition_id IS NOT DISTINCT FROM parent.edition_id
-  AND child.gang_type LIKE (parent.gang_type || ': %');
+  AND EXISTS (
+    SELECT 1
+    FROM public.gang_types AS parent
+    WHERE parent.parent_gang_type_id IS NULL
+      AND child.gang_type_id IS DISTINCT FROM parent.gang_type_id
+      AND child.edition_id IS NOT DISTINCT FROM parent.edition_id
+      AND starts_with(child.gang_type, parent.gang_type || ': ')
+  );
