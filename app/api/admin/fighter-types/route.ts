@@ -188,11 +188,15 @@ export async function GET(request: Request) {
         throw skillsError;
       }
 
-      // Fetch equipment list
+      // Fetch equipment list. This screen only edits unscoped grants; origin- and
+      // variant-scoped ones are the equipment admin's and must not be listed here,
+      // or saving would rewrite them unscoped.
       const { data: equipmentList, error: equipmentListError } = await supabase
         .from('fighter_type_equipment')
         .select('equipment_id')
-        .eq('fighter_type_id', fighterType.id);
+        .eq('fighter_type_id', fighterType.id)
+        .is('gang_origin_id', null)
+        .is('gang_variant_id', null);
 
       if (equipmentListError) {
         console.error('Error fetching equipment list:', equipmentListError);
@@ -335,11 +339,13 @@ export async function GET(request: Request) {
               throw skillsError;
             }
 
-            // Fetch equipment list
+            // Fetch equipment list (unscoped grants only, as above)
             const { data: equipmentList, error: equipmentListError } = await supabase
               .from('fighter_type_equipment')
               .select('equipment_id')
-              .eq('fighter_type_id', fighter.id);
+              .eq('fighter_type_id', fighter.id)
+              .is('gang_origin_id', null)
+              .is('gang_variant_id', null);
 
             if (equipmentListError) {
               console.error('Error fetching equipment list:', equipmentListError);
@@ -598,11 +604,14 @@ export async function PATCH(request: Request) {
 
     // Handle equipment list
     if (data.equipment_list) {
-      // First delete existing equipment list entries
+      // First delete existing equipment list entries, matching the scope this
+      // screen reads so scoped grants survive the rewrite
       const { error: deleteError } = await supabase
         .from('fighter_type_equipment')
         .delete()
-        .eq('fighter_type_id', id);
+        .eq('fighter_type_id', id)
+        .is('gang_origin_id', null)
+        .is('gang_variant_id', null);
 
       if (deleteError) throw deleteError;
 

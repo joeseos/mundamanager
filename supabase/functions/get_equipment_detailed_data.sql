@@ -403,7 +403,7 @@ AS $$
         AND ea_origin.gang_origin_id IS NOT NULL
         AND ea_origin.gang_origin_id = gd.gang_origin_id
 
-    -- Fighter type equipment (unchanged)
+    -- Fighter type equipment
     LEFT JOIN fighter_type_equipment fte
         ON e.id = fte.equipment_id
         AND (fte.fighter_type_id = $3
@@ -414,6 +414,7 @@ AS $$
              OR (gd.affiliation_ft_id IS NOT NULL
                  AND (fte.fighter_type_id = gd.affiliation_ft_id OR fte.vehicle_type_id = gd.affiliation_ft_id)))
         AND (fte.gang_origin_id IS NULL OR fte.gang_origin_id = gd.gang_origin_id)
+        AND (fte.gang_variant_id IS NULL OR gd.gang_variants ? fte.gang_variant_id::text)
         AND (fte.gang_type_id IS NULL OR fte.gang_type_id = $1)
 
     -- Is this system equipment on the current custom fighter type's equipment list?

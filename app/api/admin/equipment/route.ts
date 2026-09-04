@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
-import { WeaponProfileInput, EquipmentAvailability, EquipmentOriginAvailability, EquipmentVariantAvailability, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
+import { WeaponProfileInput, EquipmentAvailability, EquipmentOriginAvailability, EquipmentVariantAvailability, FighterTypeEquipmentGrant, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
 import {
   FighterEffectType,
   FighterEffectTypeModifier,
@@ -344,11 +344,15 @@ export async function GET(request: Request) {
           console.warn('Error fetching fighter types:', fighterTypesError);
         }
 
-        // Fetch fighter types that have this equipment
+        // Fetch fighter types that have this equipment. Vehicle rows belong to the
+        // vehicle admin and carry a null fighter_type_id, so they are filtered out
+        // rather than surfacing here as blank entries.
         const { data: equipmentFighterTypes, error: equipmentFighterTypesError } = await supabase
           .from('fighter_type_equipment')
-          .select('fighter_type_id')
-          .eq('equipment_id', id);
+          .select('fighter_type_id, gang_origin_id, gang_variant_id')
+          .eq('equipment_id', id)
+          .is('vehicle_type_id', null)
+          .not('fighter_type_id', 'is', null);
 
         if (equipmentFighterTypesError) {
           console.warn('Error fetching fighter types with equipment:', equipmentFighterTypesError);
@@ -617,7 +621,7 @@ export async function PATCH(request: Request) {
       is_editable,
       is_consumable,
       weapon_profiles,
-      fighter_types,
+      fighter_type_grants,
       gang_adjusted_costs,
       gang_origin_adjusted_costs,
       equipment_availabilities,
@@ -693,51 +697,42 @@ export async function PATCH(request: Request) {
       }
     }
 
-    // More robust fighter type association handling
-    if (fighter_types !== undefined) {
-      
-      // First, get current associations to ensure we don't lose data
-      const { data: currentAssociations, error: fetchError } = await supabase
+    // Handle fighter type associations
+    if (fighter_type_grants !== undefined) {
+      // Only the rows this screen owns: vehicle rows belong to the vehicle admin.
+      const { error: deleteError } = await supabase
         .from('fighter_type_equipment')
-        .select('fighter_type_id')
-        .eq('equipment_id', id);
-      
-      if (fetchError) {
-        console.error('Error fetching current fighter type associations:', fetchError);
-        // Continue with the operation even if this check fails
-      }
-      
-      // Only proceed with deleting & updating if:
-      // 1. We successfully fetched the current associations
-      // 2. The new list is different from the current list
-      if (currentAssociations) {
-        const currentIds = currentAssociations.map(a => a.fighter_type_id);
-        const hasChanges = JSON.stringify(currentIds.sort()) !== JSON.stringify([...fighter_types].sort());
-        
-        if (hasChanges) {
-          // Delete existing associations
-          const { error: deleteError } = await supabase
-            .from('fighter_type_equipment')
-            .delete()
-            .eq('equipment_id', id);
-          
-          if (deleteError) throw deleteError;
-          
-          // Insert new associations if there are any
-          if (fighter_types.length > 0) {
-            const { error: insertError } = await supabase
-              .from('fighter_type_equipment')
-              .insert(
-                fighter_types.map((fighter_type_id: string) => ({
-                  fighter_type_id,
-                  equipment_id: id,
-                  updated_at: new Date().toISOString()
-                }))
-              );
-            
-            if (insertError) throw insertError;
-          }
-        }
+        .delete()
+        .eq('equipment_id', id)
+        .is('vehicle_type_id', null)
+        .not('fighter_type_id', 'is', null);
+
+      if (deleteError) throw deleteError;
+
+      if (Array.isArray(fighter_type_grants) && fighter_type_grants.length > 0) {
+        // fighter_type_equipment_fighter_scope_uidx is NULLS NOT DISTINCT, so a
+        // repeated scope is a unique violation rather than a no-op.
+        const seen = new Set<string>();
+        const grantRecords = (fighter_type_grants as FighterTypeEquipmentGrant[])
+          .map(grant => ({
+            fighter_type_id: grant.fighter_type_id,
+            equipment_id: id,
+            gang_origin_id: grant.gang_origin_id ?? null,
+            gang_variant_id: grant.gang_variant_id ?? null,
+            updated_at: new Date().toISOString()
+          }))
+          .filter(record => {
+            const key = `${record.fighter_type_id}|${record.gang_origin_id ?? ''}|${record.gang_variant_id ?? ''}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+
+        const { error: insertError } = await supabase
+          .from('fighter_type_equipment')
+          .insert(grantRecords);
+
+        if (insertError) throw insertError;
       }
     }
 
