@@ -17,6 +17,9 @@ import { HiUser } from "react-icons/hi2";
 import { LuTrash2, LuSquarePen } from "react-icons/lu";
 import { useMutation } from '@tanstack/react-query';
 import { Battle, BattleParticipant, CampaignGang, Territory, Member } from '@/types/campaign';
+import { battleStatusColors, battleStatusLabels, battleStatusOf, isPlayedBattle } from '@/types/campaign';
+import CampaignChallengeRoundModal from '@/components/campaigns/[id]/campaign-challenge-round-modal';
+import { respondToChallenge } from '@/app/actions/campaigns/[id]/battle-logs';
 import { getWinnerIds } from '@/utils/battle-winners';
 import { Combobox } from "@/components/ui/combobox";
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
@@ -42,10 +45,12 @@ interface CampaignBattleLogsListProps {
   userId: string;
   isCampaignOwner?: boolean;
   isCampaignAdmin?: boolean;
+  currentCycle?: number | null;
 }
 
 export interface CampaignBattleLogsListRef {
   openAddModal: () => void;
+  openChallengeRoundModal: () => void;
 }
 
 const formatRole = (role: MemberRole | undefined) => {
@@ -81,9 +86,11 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     userId,
     isCampaignOwner = false,
     isCampaignAdmin = false,
+    currentCycle = null,
   } = props;
   
   const [showBattleModal, setShowBattleModal] = useState(false);
+  const [showChallengeRoundModal, setShowChallengeRoundModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [availableGangs, setAvailableGangs] = useState<CampaignGang[]>([]);
   const [showNoteModal, setShowNoteModal] = useState(false);
@@ -177,7 +184,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       // Winning gangs (multi-winner aware via helper)
       const winnerIds = getWinnerIds(battle);
       if (winnerIds.length === 0) {
-        hasDraws = true;
+        if (isPlayedBattle(battle)) hasDraws = true;
       } else {
         winnerIds.forEach((id) => winningGangIds.add(id));
       }
@@ -231,7 +238,9 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     }
 
     if (filterDraws) {
-      filtered = filtered.filter(battle => getWinnerIds(battle).length === 0);
+      filtered = filtered.filter(
+        battle => isPlayedBattle(battle) && getWinnerIds(battle).length === 0
+      );
     }
 
     // Sort based on selected field and direction
@@ -287,6 +296,12 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           bValue = new Date(b.created_at).getTime();
       }
       
+      // Challenges outrank played battles regardless of the chosen sort:
+      // they are the outstanding work, the history sits below them.
+      const aPending = isPlayedBattle(a) ? 1 : 0;
+      const bPending = isPlayedBattle(b) ? 1 : 0;
+      if (aPending !== bPending) return aPending - bPending;
+
       // Handle string comparison
       if (typeof aValue === 'string' && typeof bValue === 'string') {
         const comparison = aValue.localeCompare(bValue);
@@ -371,6 +386,20 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   };
 
   // TanStack Query mutation for deleting battles
+  const respondMutation = useMutation({
+    mutationFn: async ({ battleId, response }: { battleId: string; response: 'accepted' | 'declined' }) =>
+      respondToChallenge(campaignId, battleId, response),
+    onSuccess: (result) => {
+      if (!result.success) {
+        toast.error(result.error || 'Failed to answer challenge');
+        return;
+      }
+      toast.success('Challenge answered');
+      onBattleAdd();
+    },
+    onError: () => toast.error('Failed to answer challenge'),
+  });
+
   const deleteBattleMutation = useMutation({
     mutationFn: async (battleId: string) => {
       await deleteBattleLog(campaignId, battleId);
@@ -410,7 +439,8 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     openAddModal: () => {
       setSelectedBattle(null);
       setShowBattleModal(true);
-    }
+    },
+    openChallengeRoundModal: () => setShowChallengeRoundModal(true)
   }));
 
   // Extract gangs from members
@@ -517,6 +547,8 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         let draws = 0;
 
         localBattles.forEach(battle => {
+          // Challenges are not results; counting them would distort every record.
+          if (!isPlayedBattle(battle)) return;
           if (!gangParticipatedIn(battle, gangId)) return;
           battles++;
           const winnerIds = getWinnerIds(battle);
@@ -574,6 +606,22 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   }, [members, localBattles, standingsSortField, standingsSortDirection, gangParticipatedIn]);
 
   // Check if user can edit/delete this battle
+  // A challenge round is only opened for accepted gangs, so count those rather
+  // than availableGangs, which also carries pending ones.
+  const acceptedGangCount = useMemo(
+    () => members.reduce(
+      (total, member) =>
+        total + (member.gangs?.filter((g) => g.status === 'ACCEPTED').length ?? 0),
+      0
+    ),
+    [members]
+  );
+
+  const ownsGang = useCallback((gangId: string | null | undefined): boolean => {
+    if (!gangId) return false;
+    return availableGangs.find(g => g.id === gangId)?.user_id === userId;
+  }, [availableGangs, userId]);
+
   const canUserEditBattle = useCallback((battle: Battle): boolean => {
     // Admins can edit any battle
     if (isAdmin) return true;
@@ -593,12 +641,8 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     }
 
     // Check if user owns any participating gang
-    return participants.some((p) => {
-      if (!p.gang_id) return false;
-      const gang = availableGangs.find(g => g.id === p.gang_id);
-      return gang?.user_id === userId;
-    });
-  }, [isAdmin, availableGangs, userId]);
+    return participants.some((p) => ownsGang(p.gang_id));
+  }, [isAdmin, ownsGang]);
 
   // Get all gangs with their roles for a battle
   const getGangsWithRoles = (battle: Battle): React.ReactNode => {
@@ -1046,6 +1090,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
               </th>
               <th className="px-7 py-2 text-left font-medium">Gangs</th>
               <th className="px-2 py-2 text-left font-medium">Winner(s)</th>
+              <th className="p-1 md:p-2 text-left font-medium">Status</th>
               <th className="p-1 md:p-2 text-left font-medium">Report</th>
               {(isAdmin || availableGangs.length > 0) && <th className="p-1 md:p-2 text-right font-medium">Actions</th>}
             </tr>
@@ -1053,7 +1098,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           <tbody>
             {sortedAndFilteredBattles.length === 0 ? (
               <tr>
-                <td colSpan={(isAdmin || availableGangs.length > 0) ? 8 : 7} className="text-muted-foreground italic text-center">
+                <td colSpan={(isAdmin || availableGangs.length > 0) ? 9 : 8} className="text-muted-foreground italic text-center">
                   {localBattles.length === 0 
                     ? "No battles recorded yet."
                     : "No battles match the selected filters."}
@@ -1071,7 +1116,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                   </td>
 
                   <td className="p-1 md:p-2 align-top max-w-[8rem]">
-                    {battle.scenario || battle.scenario_name || 'N/A'}
+                    {battle.scenario || battle.scenario_name || '-'}
                   </td>
 
                   <td className="p-1 md:p-2 align-top">
@@ -1086,7 +1131,11 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                     {(() => {
                       const winnerIds = getWinnerIds(battle);
                       if (winnerIds.length === 0) {
-                        return <span className="ml-2 text-xs">Draw</span>;
+                        // A draw is a result. An unplayed challenge has none yet,
+                        // so it gets the same plain placeholder as the other columns.
+                        return isPlayedBattle(battle)
+                          ? <span className="ml-2 text-xs">Draw</span>
+                          : '-';
                       }
                       // Resolve names from the enriched winners array first,
                       // fall back to the legacy single-winner enrichment for
@@ -1118,6 +1167,12 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                   </td>
 
                   <td className="p-1 md:p-2 align-top">
+                    <span className={`inline-block whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium ${battleStatusColors[battleStatusOf(battle)]}`}>
+                      {battleStatusLabels[battleStatusOf(battle)]}
+                    </span>
+                  </td>
+
+                  <td className="p-1 md:p-2 align-top">
                     {battle.note && (
                       <button
                         onClick={() => {
@@ -1133,7 +1188,27 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                   </td>
                   {canUserEditBattle(battle) && (
                     <td className="p-1 md:p-2 align-top text-right">
-                      <div className="flex justify-end space-x-2">
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {battleStatusOf(battle) === 'challenge_issued' && ownsGang(battle.challenged_gang_id) && (
+                          <>
+                            <Button
+                              onClick={() => respondMutation.mutate({ battleId: battle.id, response: 'accepted' })}
+                              variant="outline_accept"
+                              size="sm"
+                              className="h-8"
+                            >
+                              Accept
+                            </Button>
+                            <Button
+                              onClick={() => respondMutation.mutate({ battleId: battle.id, response: 'declined' })}
+                              variant="outline_remove"
+                              size="sm"
+                              className="h-8"
+                            >
+                              Decline
+                            </Button>
+                          </>
+                        )}
                         <Button
                           onClick={() => handleEditBattle(battle)}
                           variant="outline"
@@ -1286,6 +1361,16 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       </div>
 
       {/* Battle Log Modal for Add/Edit */}
+      {showChallengeRoundModal && (
+        <CampaignChallengeRoundModal
+          campaignId={campaignId}
+          gangCount={acceptedGangCount}
+          defaultCycle={currentCycle}
+          onClose={() => setShowChallengeRoundModal(false)}
+          onSuccess={onBattleAdd}
+        />
+      )}
+
       <CampaignBattleLogModal
         campaignId={campaignId}
         editionSlug={editionSlug}

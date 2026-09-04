@@ -157,6 +157,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       discord_channel_id: campaignBasic.discord_channel_id || null,
       allow_join_requests: campaignBasic.allow_join_requests ?? false,
       note: campaignBasic.note,
+      current_cycle: (campaignBasic as any).current_cycle ?? null,
       members: campaignMembers,
       territories: campaignTerritories,
       battles: campaignBattles,

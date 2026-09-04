@@ -117,6 +117,7 @@ interface CampaignPageContentProps {
     created_at: string;
     updated_at: string | null;
     note: string | null;
+    current_cycle?: number | null;
     members: any[];
     territories: Territory[];
     trading_posts: string[];
@@ -996,14 +997,24 @@ export default function CampaignPageContent({
               <div>
                 <div className="flex justify-between items-start mb-4">
                   <h2 className="text-xl md:text-2xl font-bold">Battles</h2>
-                  {safePermissions.canAddBattleLogs && (
-                    <Button
-                      className="bg-neutral-900 hover:bg-gray-800 text-white"
-                      onClick={handleAddBattleLog}
-                    >
-                      Add
-                    </Button>
-                  )}
+                  <div className="flex gap-2">
+                    {(safePermissions.isArbitrator || safePermissions.isAdmin) && (
+                      <Button
+                        variant="outline"
+                        onClick={() => battleLogsRef.current?.openChallengeRoundModal()}
+                      >
+                        Challenge Round
+                      </Button>
+                    )}
+                    {safePermissions.canAddBattleLogs && (
+                      <Button
+                        className="bg-neutral-900 hover:bg-gray-800 text-white"
+                        onClick={handleAddBattleLog}
+                      >
+                        Add
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <div id="campaign-battle-logs">
                   <CampaignBattleLogsList
@@ -1020,6 +1031,7 @@ export default function CampaignPageContent({
                     userId={userId || ''}
                     isCampaignOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}
                     isCampaignAdmin={!!safePermissions.isArbitrator || !!safePermissions.isAdmin}
+                    currentCycle={campaignData.current_cycle ?? null}
                   />
                 </div>
               </div>
