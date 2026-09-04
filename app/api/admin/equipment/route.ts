@@ -16,16 +16,19 @@ interface FighterTypeEquipment {
 }
 
 /**
- * The fighter_type_equipment rows this screen owns: plain fighter-type grants,
- * scoped at most by gang origin and variant. Vehicle rows belong to the vehicle
- * admin, and gang-type / subtype / deny rows to screens that can express them —
+ * The fighter_type_equipment rows this screen owns: grants scoped at most by
+ * gang origin, gang variant and fighter subtype. Vehicle rows belong to the
+ * vehicle admin, and gang-type / deny rows to screens that can express them —
  * none may be read here, because the save deletes everything it reads.
  * Applied to the read and the delete alike so the two cannot drift apart.
+ *
+ * Deliberately all-AND. A row identifying nothing (no fighter type and no
+ * subtype) grants nothing either way, and round-trips through here unchanged,
+ * so it is not worth an or() to exclude.
  */
 function scopeToFighterTypeGrants<T>(query: T): T {
-  return ['vehicle_type_id', 'custom_fighter_type_id', 'gang_type_id', 'fighter_subtype']
+  return ['vehicle_type_id', 'custom_fighter_type_id', 'gang_type_id']
     .reduce((q, column) => q.is(column, null), query as any)
-    .not('fighter_type_id', 'is', null)
     .eq('excluded', false) as T;
 }
 
@@ -364,7 +367,7 @@ export async function GET(request: Request) {
             scopeToFighterTypeGrants(
               supabase
                 .from('fighter_type_equipment')
-                .select('fighter_type_id, gang_origin_id, gang_variant_id')
+                .select('fighter_type_id, gang_origin_id, gang_variant_id, fighter_subtype')
                 .eq('equipment_id', id)
             )
               .order('fighter_type_id')
@@ -729,14 +732,15 @@ export async function PATCH(request: Request) {
         const seen = new Set<string>();
         const grantRecords = (fighter_type_grants as FighterTypeEquipmentGrant[])
           .map(grant => ({
-            fighter_type_id: grant.fighter_type_id,
+            fighter_type_id: grant.fighter_type_id ?? null,
             equipment_id: id,
             gang_origin_id: grant.gang_origin_id ?? null,
             gang_variant_id: grant.gang_variant_id ?? null,
+            fighter_subtype: grant.fighter_subtype ?? null,
             updated_at: new Date().toISOString()
           }))
           .filter(record => {
-            const key = `${record.fighter_type_id}|${record.gang_origin_id ?? ''}|${record.gang_variant_id ?? ''}`;
+            const key = `${record.fighter_type_id ?? ''}|${record.gang_origin_id ?? ''}|${record.gang_variant_id ?? ''}|${record.fighter_subtype ?? ''}`;
             if (seen.has(key)) return false;
             seen.add(key);
             return true;

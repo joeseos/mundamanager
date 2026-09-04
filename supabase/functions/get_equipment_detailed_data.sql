@@ -61,6 +61,9 @@ AS $$
             cg.campaign_type_allegiance_id,
             fgl.fighter_type_id AS legacy_ft_id,
             ga.fighter_type_id  AS affiliation_ft_id,
+            -- NULL when called without a fighter ($6); an empty array then
+            -- matches no subtype-scoped row rather than every one
+            COALESCE(f.fighter_subtypes, '[]'::jsonb) AS fighter_subtypes,
             COALESCE(gt.edition_id, cgt.edition_id) AS edition_id
         FROM (SELECT 1) AS _dummy
         LEFT JOIN gangs g ON g.id = $8
@@ -412,10 +415,18 @@ AS $$
                  AND (fte.fighter_type_id = gd.legacy_ft_id OR fte.vehicle_type_id = gd.legacy_ft_id)
                  AND $4 = true)
              OR (gd.affiliation_ft_id IS NOT NULL
-                 AND (fte.fighter_type_id = gd.affiliation_ft_id OR fte.vehicle_type_id = gd.affiliation_ft_id)))
+                 AND (fte.fighter_type_id = gd.affiliation_ft_id OR fte.vehicle_type_id = gd.affiliation_ft_id))
+             -- A subtype rule spanning every gang carries no fighter or vehicle
+             -- of its own. fighter_subtype must be set, or an all-NULL row would
+             -- match every fighter.
+             OR (fte.fighter_type_id IS NULL
+                 AND fte.vehicle_type_id IS NULL
+                 AND fte.custom_fighter_type_id IS NULL
+                 AND fte.fighter_subtype IS NOT NULL))
         AND (fte.gang_origin_id IS NULL OR fte.gang_origin_id = gd.gang_origin_id)
         AND (fte.gang_variant_id IS NULL OR gd.gang_variants ? fte.gang_variant_id::text)
         AND (fte.gang_type_id IS NULL OR fte.gang_type_id = $1)
+        AND (fte.fighter_subtype IS NULL OR gd.fighter_subtypes ? fte.fighter_subtype)
 
     -- Is this system equipment on the current custom fighter type's equipment list?
     -- ($3 is a custom_fighter_types.id when the fighter is a custom fighter.)
@@ -432,8 +443,9 @@ AS $$
     -- so the predicate lives in exactly one place.
     LEFT JOIN LATERAL (
         SELECT (
-            fte.fighter_type_id IS NOT NULL
-            OR fte.vehicle_type_id IS NOT NULL
+            -- Any matched fte row puts the item on the list, including a
+            -- gang-wide subtype rule, which carries neither id
+            fte.id IS NOT NULL
             OR ea_var.id IS NOT NULL
             OR ea_origin.id IS NOT NULL
             OR cftl.is_ftl IS NOT NULL

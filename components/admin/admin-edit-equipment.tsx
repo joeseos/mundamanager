@@ -50,7 +50,9 @@ const fighterTypeLabel = (ft: FighterType) => {
 };
 
 const grantKey = (grant: FighterTypeEquipmentGrant) =>
-  `${grant.fighter_type_id}|${grant.gang_origin_id ?? ''}|${grant.gang_variant_id ?? ''}`;
+  [grant.fighter_type_id, grant.gang_origin_id, grant.gang_variant_id, grant.fighter_subtype]
+    .map(part => part ?? '')
+    .join('|');
 
 /** Gang-origin <option>s grouped by the category gangOriginRank implies. */
 function GangOriginOptions({ origins }: { origins: GangOriginOption[] }) {
@@ -173,6 +175,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [scopedGrantFighterType, setScopedGrantFighterType] = useState('');
   const [scopedGrantOrigin, setScopedGrantOrigin] = useState('');
   const [scopedGrantVariant, setScopedGrantVariant] = useState('');
+  const [scopedGrantSubtype, setScopedGrantSubtype] = useState('');
   const [showAdjustedCostDialog, setShowAdjustedCostDialog] = useState(false);
   const [selectedGangType, setSelectedGangType] = useState("");
   const [adjustedCostValue, setAdjustedCostValue] = useState("");
@@ -465,9 +468,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
 
       if (equipmentDetails.fighter_types_with_equipment) {
         setFighterTypeGrants(equipmentDetails.fighter_types_with_equipment.map((ft: any) => ({
-          fighter_type_id: ft.fighter_type_id,
+          fighter_type_id: ft.fighter_type_id ?? null,
           gang_origin_id: ft.gang_origin_id ?? null,
-          gang_variant_id: ft.gang_variant_id ?? null
+          gang_variant_id: ft.gang_variant_id ?? null,
+          fighter_subtype: ft.fighter_subtype ?? null
         })));
       }
 
@@ -565,6 +569,27 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     enabled: !!selectedEquipmentId || showVariantAvailabilityDialog,
     staleTime: 5 * 60 * 1000,
   });
+
+  const { data: fighterSubtypeList = [] } = useQuery<Array<{id: string, subtype_name: string, edition_id?: string | null}>>({
+    queryKey: ['admin-fighter-subtypes'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/fighter-subtypes');
+      if (!response.ok) throw new Error('Failed to fetch fighter subtypes');
+      return response.json();
+    },
+    enabled: !!selectedEquipmentId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Subtypes are stored on the grant by name, but the names are per edition
+  const filteredFighterSubtypes = useMemo(
+    () => (editionId ? fighterSubtypeList.filter(s => s.edition_id === editionId) : [...fighterSubtypeList])
+      .sort((a, b) =>
+        getFighterSubtypeSortRank([a.subtype_name], editionSlug)
+        - getFighterSubtypeSortRank([b.subtype_name], editionSlug)
+      ),
+    [fighterSubtypeList, editionId, editionSlug]
+  );
 
   const isLoading = isEquipmentDetailsLoading || isWeaponsLoading || isSubmitting;
 
@@ -1705,7 +1730,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       if (value) {
                         setFighterTypeGrants([
                           ...fighterTypeGrants,
-                          { fighter_type_id: value, gang_origin_id: null, gang_variant_id: null }
+                          { fighter_type_id: value, gang_origin_id: null, gang_variant_id: null, fighter_subtype: null }
                         ]);
                       }
                       e.target.value = "";
@@ -1716,7 +1741,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                     <option value="">Select fighter type to add</option>
                     {filteredFighterTypes
                       .filter(ft => !fighterTypeGrants.some(
-                        g => g.fighter_type_id === ft.id && !g.gang_origin_id && !g.gang_variant_id
+                        g => g.fighter_type_id === ft.id
+                          && !g.gang_origin_id && !g.gang_variant_id && !g.fighter_subtype
                       ))
                       .map((ft) => (
                         <option key={ft.id} value={ft.id}>
@@ -1727,8 +1753,11 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
 
                   <div className="mt-2 flex flex-wrap gap-2">
                     {fighterTypeGrants.map((grant) => {
-                      const ft = fighterTypes.find(f => f.id === grant.fighter_type_id);
-                      if (!ft) return null;
+                      const ft = grant.fighter_type_id
+                        ? fighterTypes.find(f => f.id === grant.fighter_type_id)
+                        : null;
+                      // A grant naming a fighter type we can't resolve stays hidden
+                      if (grant.fighter_type_id && !ft) return null;
 
                       const scope = [
                         grant.gang_origin_id
@@ -1736,7 +1765,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           : null,
                         grant.gang_variant_id
                           ? `Variant: ${gangVariantList.find(v => v.id === grant.gang_variant_id)?.variant ?? '…'}`
-                          : null
+                          : null,
+                        grant.fighter_subtype ? `Subtype: ${grant.fighter_subtype}` : null
                       ].filter(Boolean).join(', ');
 
                       return (
@@ -1744,7 +1774,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           key={grantKey(grant)}
                           className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                         >
-                          <span>{fighterTypeLabel(ft)}{scope && ` — ${scope}`}</span>
+                          <span>{ft ? fighterTypeLabel(ft) : 'Any fighter type'}{scope && ` — ${scope}`}</span>
                           <button
                             type="button"
                             onClick={() => setFighterTypeGrants(
@@ -1763,21 +1793,23 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                   {showScopedGrantDialog && (
                     <Modal
                       title="Scoped Equipment List Entry"
-                      helper="Select a fighter type and narrow it to a gang origin and/or variant"
+                      helper="Narrow a grant to a gang origin, variant and/or fighter subtype. Leave Fighter Type as Any for a subtype rule spanning every gang."
                       onClose={() => {
                         setShowScopedGrantDialog(false);
                         setScopedGrantFighterType("");
                         setScopedGrantOrigin("");
                         setScopedGrantVariant("");
+                        setScopedGrantSubtype("");
                       }}
                       onConfirm={() => {
                         const grant: FighterTypeEquipmentGrant = {
-                          fighter_type_id: scopedGrantFighterType,
+                          fighter_type_id: scopedGrantFighterType || null,
                           gang_origin_id: scopedGrantOrigin || null,
-                          gang_variant_id: scopedGrantVariant || null
+                          gang_variant_id: scopedGrantVariant || null,
+                          fighter_subtype: scopedGrantSubtype || null
                         };
                         if (fighterTypeGrants.some(g => grantKey(g) === grantKey(grant))) {
-                          toast.error('This fighter type already has that scope');
+                          toast.error('That combination is already on the list');
                           return false;
                         }
                         setFighterTypeGrants([...fighterTypeGrants, grant]);
@@ -1785,10 +1817,14 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         setScopedGrantFighterType("");
                         setScopedGrantOrigin("");
                         setScopedGrantVariant("");
+                        setScopedGrantSubtype("");
                       }}
                       confirmText="Save"
                       confirmDisabled={
-                        !scopedGrantFighterType || (!scopedGrantOrigin && !scopedGrantVariant)
+                        // Needs something to identify the fighter, and a scope
+                        // narrower than the plain dropdown above already gives
+                        (!scopedGrantFighterType && !scopedGrantSubtype)
+                        || (!scopedGrantOrigin && !scopedGrantVariant && !scopedGrantSubtype)
                       }
                       width="sm"
                     >
@@ -1800,10 +1836,26 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             onChange={(e) => setScopedGrantFighterType(e.target.value)}
                             className="w-full p-2 border rounded-md"
                           >
-                            <option key="default" value="">Select a Fighter Type</option>
+                            <option key="default" value="">Any Fighter Type</option>
                             {filteredFighterTypes.map((ft) => (
                               <option key={ft.id} value={ft.id}>
                                 {fighterTypeLabel(ft)}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Fighter Subtype</label>
+                          <select
+                            value={scopedGrantSubtype}
+                            onChange={(e) => setScopedGrantSubtype(e.target.value)}
+                            className="w-full p-2 border rounded-md"
+                          >
+                            <option key="default" value="">Any Fighter Subtype</option>
+                            {filteredFighterSubtypes.map((subtype) => (
+                              <option key={subtype.id} value={subtype.subtype_name}>
+                                {subtype.subtype_name}
                               </option>
                             ))}
                           </select>

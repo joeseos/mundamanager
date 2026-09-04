@@ -253,13 +253,17 @@ export interface EquipmentVariantAvailability {
 
 /**
  * An entry on a fighter type's Equipment List, optionally narrowed to gangs of a
- * given origin or variant. Both scopes null means the grant applies to every gang
- * running that fighter type.
+ * given origin or variant and to fighters of a given subtype. All scopes null
+ * means the grant applies to every gang running that fighter type.
+ *
+ * fighter_type_id is null for a subtype rule spanning every gang ("all Leaders
+ * may buy this"); fighter_subtype is then required, or the row matches nothing.
  */
 export interface FighterTypeEquipmentGrant {
-  fighter_type_id: string;
+  fighter_type_id: string | null;
   gang_origin_id: string | null;
   gang_variant_id: string | null;
+  fighter_subtype: string | null;
 }
 
 /**
