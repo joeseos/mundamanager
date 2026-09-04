@@ -182,6 +182,7 @@ export async function updateVehicle(params: UpdateVehicleParams): Promise<Update
     // vehicle edits invalidated nothing). Gang id comes from the vehicle row,
     // not the caller. Stat-adjustment effects can carry credit costs, so the
     // cross-page financial copies refresh too.
+    invalidateGang(currentVehicle.gang_id);
     invalidateGangFinancials(currentVehicle.gang_id);
     if (params.assignedFighterId) {
       invalidateFighter(params.assignedFighterId, currentVehicle.gang_id);

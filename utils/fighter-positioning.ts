@@ -1,37 +1,22 @@
 /**
- * Initialize positioning if needed (lazy initialization)
- * - Only creates initial positions if none exist
- * - Never "fixes" existing positions on page load
- * - Position fixes should happen via explicit user actions (reordering)
+ * The gang's positioning map, or an alphabetical default when it has never been
+ * reordered. Derived, never persisted: only an explicit reorder writes a map, and
+ * that path invalidates the cache entry (app/actions/update-gang-positioning.ts).
+ * A write here could not -- revalidateTag throws during render -- so the cached
+ * null came back and the write repeated on every load.
  */
-export async function initializePositioningIfNeeded(
+export function resolvePositioning(
   positioning: Record<string, any> | null,
-  fighters: Array<{ id: string; fighter_name: string }>,
-  gangId: string,
-  supabase: any
-): Promise<Record<string, any>> {
-  // Only create initial positions if none exist
-  if (!positioning || Object.keys(positioning).length === 0) {
-    const sortedFighters = [...fighters].sort((a, b) =>
-      a.fighter_name.localeCompare(b.fighter_name)
-    );
+  fighters: Array<{ id: string; fighter_name: string }>
+): Record<string, any> {
+  if (positioning && Object.keys(positioning).length > 0) return positioning;
 
-    const pos = sortedFighters.reduce((acc, fighter, index) => ({
-      ...acc,
-      [index]: fighter.id
-    }), {});
-
-    // Save initial positions
-    await supabase
-      .from('gangs')
-      .update({ positioning: pos })
-      .eq('id', gangId);
-
-    return pos;
-  }
-
-  // Return existing positions as-is (don't fix on every load)
-  return positioning;
+  return [...fighters]
+    .sort((a, b) => a.fighter_name.localeCompare(b.fighter_name))
+    .reduce<Record<string, string>>((acc, fighter, index) => {
+      acc[index] = fighter.id;
+      return acc;
+    }, {});
 }
 
 /**

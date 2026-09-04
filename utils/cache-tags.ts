@@ -11,6 +11,8 @@ import { revalidateTag } from 'next/cache';
  * Read side                                  | Busted by
  * -------------------------------------------|------------------------------
  * gang-{id}        gang core + fighters      | any gang/fighter mutation
+ * gang-core-{id}   gang row only (credits/  | financial-only writes, which must
+ *                  rating/wealth/name)      | not drop the fighters bundle
  * gang-overview-{id} name/rating/wealth/     | updateGangFinancials (choke
  *                  credits copies on other   | point) + gang name/reputation
  *                  pages (campaign, home)    | edits — NOT xp/image/loadouts
@@ -26,6 +28,9 @@ import { revalidateTag } from 'next/cache';
  */
 export const TAGS = {
   gang: (id: string) => `gang-${id}`,
+  /** The gang row alone, carried alongside gang-{id} so financial-only writes can
+   *  refresh it without dropping the fighters bundle. */
+  gangCore: (id: string) => `gang-core-${id}`,
   gangOverview: (id: string) => `gang-overview-${id}`,
   gangCampaigns: (id: string) => `gang-campaigns-${id}`,
   gangPositioning: (id: string) => `gang-positioning-${id}`,
@@ -93,7 +98,10 @@ export const invalidateGangOverview = (gangId: string) => {
  * every financial write in the app.
  */
 export const invalidateGangFinancials = (gangId: string) => {
-  bust(TAGS.gang(gangId));
+  // Deliberately NOT TAGS.gang(): that also carries the fighters bundle, which a
+  // financial write has not touched. Every action that does write fighter rows
+  // busts the bundle itself via invalidateGang/invalidateFighter.
+  bust(TAGS.gangCore(gangId));
   bust(TAGS.gangOverview(gangId));
 };
 

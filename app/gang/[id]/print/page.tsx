@@ -4,7 +4,7 @@ import { redirect, notFound, forbidden } from "next/navigation";
 export const dynamic = "force-dynamic";
 import { canViewHiddenGang } from "@/utils/user-permissions";
 import { getAuthenticatedUser, signInPath } from "@/utils/auth";
-import { initializePositioningIfNeeded } from "@/utils/fighter-positioning";
+import { resolvePositioning } from "@/utils/fighter-positioning";
 import PrintGang from "@/components/gang/print-gang";
 import type { FighterProps } from "@/types/fighter";
 
@@ -78,13 +78,8 @@ export default async function PrintGangPage(props: {
       getUserProfile(gangBasic.user_id, supabase),
     ]);
 
-    // Initialize positioning if needed (lazy initialization only)
-    const processedPositioning = await initializePositioningIfNeeded(
-      gangPositioning,
-      fighters,
-      params.id,
-      supabase,
-    );
+    // Default order when the gang has never been reordered; derived, not persisted.
+    const processedPositioning = resolvePositioning(gangPositioning, fighters);
 
     // Pre-filter to active loadout only (computed on server - avoids client serialization issues)
     const fightersActiveLoadoutOnly = (fighters as { id: string; active_loadout_id?: string; isActiveLoadoutForPrint?: boolean }[])
