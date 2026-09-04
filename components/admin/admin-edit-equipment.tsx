@@ -484,8 +484,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     staleTime: 5 * 60 * 1000,
   });
 
-  // The same origin and variant names exist in more than one edition under
-  // different ids, so only the selected edition's rows may be newly picked
+  // Origin and variant names repeat across editions under different ids
   const filteredGangOrigins = useMemo(
     () => editionId ? gangOriginList.filter(origin => origin.edition_id === editionId) : gangOriginList,
     [gangOriginList, editionId]
@@ -544,8 +543,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     }
     // Gang types are edition-scoped; clear any in-progress Cost-per-Gang pick
     setSelectedGangType('');
-    // Origin, variant and subtype picks are edition-scoped too. An id left in a
-    // select whose options no longer contain it renders blank but still saves.
+    // Origin/variant/subtype picks are edition-scoped too; drop in-progress ones
     setSelectedAdjustedCostGangOrigin('');
     setSelectedAvailabilityGangOrigin('');
     setSelectedAvailabilityGangVariant('');
@@ -561,9 +559,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           return !tp || tp.edition_id === newEditionId;
         })
       );
-      // A grant is dropped if any part of its scope is confirmed foreign. Its
-      // fighter_subtype is deliberately not judged: subtypes are stored by name
-      // and the same name is legitimately defined in more than one edition.
+      // fighter_subtype is not judged: it is stored by name, and names repeat per edition
       setFighterTypeGrants(prev =>
         prev.filter(grant => {
           const ft = fighterTypes.find(f => f.id === grant.fighter_type_id);
@@ -582,8 +578,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           return !gt || gt.edition_id === newEditionId;
         })
       );
-      // Origin- and variant-scoped rows are edition-scoped as well. A scope the
-      // catalog doesn't list can't be confirmed foreign, so it stays.
+      // Origin- and variant-scoped rows are edition-scoped as well
       setGangOriginAdjustedCosts(prev =>
         prev.filter(cost => {
           const origin = gangOriginList.find(o => o.id === cost.gang_origin_id);
@@ -1432,10 +1427,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         variant="outline"
                         size="sm"
                         className="mb-2"
-                        // Unlike the Availability sections this one isn't edition-gated,
-                        // so an edition that defines no origins has nothing to add. Only
-                        // a loaded catalog can say that — an empty one is still fetching,
-                        // and this click is what enables the query.
+                        // Nothing to add once the catalog is loaded and has no origins here
                         disabled={gangOriginList.length > 0 && filteredGangOrigins.length === 0}
                       >
                         Add Origin

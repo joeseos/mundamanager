@@ -32,8 +32,7 @@ export async function GET(request: Request) {
         const modelData = data.map((variant: Variant) => ({
             id: variant.id,
             variant: variant.variant,
-            // Slug for the player-side callers, which reason in slugs; id for the
-            // admin catalog editor, which filters and stores an edition_id
+            // Slug for the player-side callers; id for the admin editor, which saves one
             edition_id: variant.edition_id ?? null,
             edition_slug: editionSlugFromJoin(variant.editions),
         }));
