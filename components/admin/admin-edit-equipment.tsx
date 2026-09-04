@@ -84,6 +84,24 @@ function GangOriginOptions({ origins }: { origins: GangOriginOption[] }) {
   );
 }
 
+/** Gang-variant <option>s ordered by gangVariantRank. */
+function GangVariantOptions({ variants }: { variants: Array<{ id: string; variant: string }> }) {
+  return (
+    <>
+      {[...variants]
+        .sort((a, b) =>
+          (gangVariantRank[a.variant.toLowerCase()] ?? Infinity)
+          - (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
+        )
+        .map((variant) => (
+          <option key={variant.id} value={variant.id}>
+            {variant.variant}
+          </option>
+        ))}
+    </>
+  );
+}
+
 /** Blank grant options only when the target is found with a confirmed different edition. */
 function sanitizeGrantsOptionsForEdition(
   grants: EquipmentGrants,
@@ -1644,17 +1662,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                 className="w-full p-2 border rounded-md"
                               >
                                 <option key="default" value="">Select a Gang Variant</option>
-                                {[...gangVariantList]
-                                  .sort((a, b) => {
-                                    const rankA = gangVariantRank[a.variant.toLowerCase()] ?? Infinity;
-                                    const rankB = gangVariantRank[b.variant.toLowerCase()] ?? Infinity;
-                                    return rankA - rankB;
-                                  })
-                                  .map((variant) => (
-                                    <option key={variant.id} value={variant.id}>
-                                      {variant.variant}
-                                    </option>
-                                  ))}
+                                <GangVariantOptions variants={gangVariantList} />
                               </select>
                             </div>
 
@@ -1678,23 +1686,18 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
               {/* Move Fighter Types with this Equipment to its own row */}
               {equipmentType !== 'vehicle_upgrade' && (
                 <div className="col-span-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-sm font-medium text-muted-foreground">
-                      Fighter Types with this Equipment
-                    </label>
-                    <Button
-                      onClick={() => setShowScopedGrantDialog(true)}
-                      variant="outline"
-                      size="sm"
-                      disabled={!selectedEquipmentId}
-                    >
-                      Add Scoped
-                    </Button>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-2">
-                    Puts this item on a fighter type&apos;s Equipment List. &quot;Add Scoped&quot; limits
-                    that to gangs of a given origin or variant.
-                  </p>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    Fighter Types with this Equipment
+                  </label>
+                  <Button
+                    onClick={() => setShowScopedGrantDialog(true)}
+                    variant="outline"
+                    size="sm"
+                    className="mb-2"
+                    disabled={!selectedEquipmentId}
+                  >
+                    Add Scoped
+                  </Button>
                   <select
                     value=""
                     onChange={(e) => {
@@ -1775,7 +1778,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         };
                         if (fighterTypeGrants.some(g => grantKey(g) === grantKey(grant))) {
                           toast.error('This fighter type already has that scope');
-                          return;
+                          return false;
                         }
                         setFighterTypeGrants([...fighterTypeGrants, grant]);
                         setShowScopedGrantDialog(false);
@@ -1797,7 +1800,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             onChange={(e) => setScopedGrantFighterType(e.target.value)}
                             className="w-full p-2 border rounded-md"
                           >
-                            <option value="">Select a Fighter Type</option>
+                            <option key="default" value="">Select a Fighter Type</option>
                             {filteredFighterTypes.map((ft) => (
                               <option key={ft.id} value={ft.id}>
                                 {fighterTypeLabel(ft)}
@@ -1813,7 +1816,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             onChange={(e) => setScopedGrantOrigin(e.target.value)}
                             className="w-full p-2 border rounded-md"
                           >
-                            <option value="">Any Gang Origin</option>
+                            <option key="default" value="">Any Gang Origin</option>
                             <GangOriginOptions origins={gangOriginList} />
                           </select>
                         </div>
@@ -1825,17 +1828,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             onChange={(e) => setScopedGrantVariant(e.target.value)}
                             className="w-full p-2 border rounded-md"
                           >
-                            <option value="">Any Gang Variant</option>
-                            {[...gangVariantList]
-                              .sort((a, b) =>
-                                (gangVariantRank[a.variant.toLowerCase()] ?? Infinity)
-                                - (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
-                              )
-                              .map((variant) => (
-                                <option key={variant.id} value={variant.id}>
-                                  {variant.variant}
-                                </option>
-                              ))}
+                            <option key="default" value="">Any Gang Variant</option>
+                            <GangVariantOptions variants={gangVariantList} />
                           </select>
                         </div>
                       </div>
