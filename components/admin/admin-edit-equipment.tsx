@@ -1621,7 +1621,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                               );
                               if (alreadyExists) {
                                 toast.error('This variant already has an availability set');
-                                return;
+                                return false;
                               }
 
                               const selectedVariant = gangVariantList.find(g => g.id === selectedAvailabilityGangVariant);
