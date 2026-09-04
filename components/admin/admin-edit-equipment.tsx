@@ -15,7 +15,7 @@ import { gangOriginRank } from "@/utils/gangOriginRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
 import { AdminFighterEffects } from "./admin-fighter-effects";
 import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
-import { hasLethalityStatline, hasTradePoints, sameEditionForDisplay } from '@/types/edition';
+import { hasLethalityStatline, hasTradePoints } from '@/types/edition';
 import { isValidTradePoints } from '@/utils/campaigns/resources';
 import { WeaponProfileFields } from '@/components/ui/weapon-profile-fields';
 import { AdminTradingPost } from "./admin-trading-post";
@@ -472,7 +472,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: gangVariantList = [] } = useQuery<Array<{id: string, variant: string, edition_slug?: string | null}>>({
+  const { data: gangVariantList = [] } = useQuery<Array<{id: string, variant: string, edition_id?: string | null}>>({
     queryKey: ['admin-gang-variants'],
     queryFn: async () => {
       const response = await fetch('/api/gang-variant-types');
@@ -491,13 +491,9 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     [gangOriginList, editionId]
   );
 
-  // Variants come from the shared route, which returns a slug rather than an id.
-  // An edition that hasn't resolved yet makes no claim, so it filters nothing.
   const filteredGangVariants = useMemo(
-    () => editionId && editionSlug
-      ? gangVariantList.filter(variant => sameEditionForDisplay(variant.edition_slug, editionSlug))
-      : gangVariantList,
-    [gangVariantList, editionId, editionSlug]
+    () => editionId ? gangVariantList.filter(variant => variant.edition_id === editionId) : gangVariantList,
+    [gangVariantList, editionId]
   );
 
   const { data: fighterSubtypeList = [] } = useQuery<Array<{id: string, subtype_name: string, edition_id?: string | null}>>({
@@ -575,7 +571,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           const origin = gangOriginList.find(o => o.id === grant.gang_origin_id);
           if (origin && origin.edition_id !== newEditionId) return false;
           const variant = gangVariantList.find(v => v.id === grant.gang_variant_id);
-          if (variant && newSlug && !sameEditionForDisplay(variant.edition_slug, newSlug)) return false;
+          if (variant && variant.edition_id !== newEditionId) return false;
           return true;
         })
       );
@@ -600,14 +596,12 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           return !origin || origin.edition_id === newEditionId;
         })
       );
-      if (newSlug) {
-        setEquipmentVariantAvailabilities(prev =>
-          prev.filter(avail => {
-            const variant = gangVariantList.find(v => v.id === avail.gang_variant_id);
-            return !variant || sameEditionForDisplay(variant.edition_slug, newSlug);
-          })
-        );
-      }
+      setEquipmentVariantAvailabilities(prev =>
+        prev.filter(avail => {
+          const variant = gangVariantList.find(v => v.id === avail.gang_variant_id);
+          return !variant || variant.edition_id === newEditionId;
+        })
+      );
     }
     // N26 uses Trade Points instead of Availability; drop stale N23 rows
     if (hasTradePoints(newSlug)) {
