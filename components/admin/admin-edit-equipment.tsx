@@ -15,7 +15,7 @@ import { gangOriginRank } from "@/utils/gangOriginRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
 import { AdminFighterEffects } from "./admin-fighter-effects";
 import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
-import { hasLethalityStatline, hasTradePoints } from '@/types/edition';
+import { hasLethalityStatline, hasTradePoints, sameEditionForDisplay } from '@/types/edition';
 import { isValidTradePoints } from '@/utils/campaigns/resources';
 import { WeaponProfileFields } from '@/components/ui/weapon-profile-fields';
 import { AdminTradingPost } from "./admin-trading-post";
@@ -248,90 +248,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   // Str, AP, D and Am. Only the stats the selected edition uses are offered.
   const usesLethality = hasLethalityStatline(editionSlug);
 
-  const handleEditionChange = (newEditionId: string) => {
-    setEditionId(newEditionId);
-    if (newEditionId && selectedEquipmentId) {
-      const selected = equipmentList.find(item => item.id === selectedEquipmentId);
-      if (selected && selected.edition_id !== newEditionId) {
-        setSelectedEquipmentId('');
-      }
-    }
-    if (categoryFilter && newEditionId) {
-      // categoryFilter is a name; the same name can exist per edition
-      const stillValid = categories.some(
-        category => category.category_name === categoryFilter && category.edition_id === newEditionId
-      );
-      if (!stillValid) {
-        setCategoryFilter('');
-        setSelectedEquipmentId('');
-      }
-    }
-    if (equipmentCategory) {
-      const selected = categories.find(category => category.id === equipmentCategory);
-      if (selected && newEditionId && selected.edition_id !== newEditionId) {
-        setEquipmentCategory('');
-      }
-    }
-    // Gang types are edition-scoped; clear any in-progress Cost-per-Gang pick
-    setSelectedGangType('');
-    // Drop trading posts / fighter types that belong to another edition
-    if (newEditionId) {
-      setSelectedTradingPosts(prev =>
-        prev.filter(id => {
-          const tp = tradingPostTypes.find(t => t.id === id);
-          return !tp || tp.edition_id === newEditionId;
-        })
-      );
-      setFighterTypeGrants(prev =>
-        prev.filter(grant => {
-          const ft = fighterTypes.find(f => f.id === grant.fighter_type_id);
-          return !ft || ft.edition_id === newEditionId;
-        })
-      );
-      // Cost per Gang is keyed on a gang type, which is edition-scoped too
-      setGangAdjustedCosts(prev =>
-        prev.filter(cost => {
-          const gt = gangTypeOptions.find(g => g.gang_type_id === cost.gang_type_id);
-          return !gt || gt.edition_id === newEditionId;
-        })
-      );
-    }
-    // N26 uses Trade Points instead of Availability; drop stale N23 rows
-    if (hasTradePoints(editionSlugOf(editions, newEditionId))) {
-      setShowAvailabilityDialog(false);
-      setSelectedAvailabilityGangType('');
-      setAvailValueLetter('');
-      setAvailValueNumber(6);
-      setAvailExclusive(false);
-      setEquipmentAvailabilities([]);
-      setShowOriginAvailabilityDialog(false);
-      setSelectedAvailabilityGangOrigin('');
-      setOriginAvailValueLetter('');
-      setOriginAvailValueNumber(6);
-      setEquipmentOriginAvailabilities([]);
-      setShowVariantAvailabilityDialog(false);
-      setSelectedAvailabilityGangVariant('');
-      setVariantAvailValueLetter('');
-      setVariantAvailValueNumber(6);
-      setEquipmentVariantAvailabilities([]);
-    }
-    // Weapon Group parents are edition-scoped; drop a cross-edition pick
-    if (newEditionId) {
-      setWeaponProfiles(profiles => profiles.map(profile => {
-        if (!profile.weapon_group_id) return profile;
-        const parent = weapons.find(w => w.id === profile.weapon_group_id);
-        if (parent && parent.edition_id !== newEditionId) {
-          return { ...profile, weapon_group_id: null };
-        }
-        return profile;
-      }));
-      // Grants options are edition-scoped; blank confirmed cross-edition picks
-      setGrantsEquipment(current =>
-        current ? sanitizeGrantsOptionsForEdition(current, allEquipment, newEditionId) : current
-      );
-    }
-  };
-
   const { data: equipmentDetails, isLoading: isEquipmentDetailsLoading } = useQuery<any>({
     queryKey: ['admin-equipment-details', selectedEquipmentId],
     queryFn: async () => {
@@ -544,7 +460,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     [fighterTypes, editionId, editions]
   );
 
-  const { data: gangOriginList = [] } = useQuery<Array<{id: string, origin_name: string, category_name: string}>>({
+  const { data: gangOriginList = [] } = useQuery<Array<{id: string, origin_name: string, category_name: string, edition_id?: string | null}>>({
     queryKey: ['admin-gang-origins'],
     queryFn: async () => {
       const response = await fetch('/api/admin/gang-origins');
@@ -556,7 +472,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: gangVariantList = [] } = useQuery<Array<{id: string, variant: string}>>({
+  const { data: gangVariantList = [] } = useQuery<Array<{id: string, variant: string, edition_slug?: string | null}>>({
     queryKey: ['admin-gang-variants'],
     queryFn: async () => {
       const response = await fetch('/api/gang-variant-types');
@@ -567,6 +483,22 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     enabled: !!selectedEquipmentId || showVariantAvailabilityDialog,
     staleTime: 5 * 60 * 1000,
   });
+
+  // The same origin and variant names exist in more than one edition under
+  // different ids, so only the selected edition's rows may be newly picked
+  const filteredGangOrigins = useMemo(
+    () => editionId ? gangOriginList.filter(origin => origin.edition_id === editionId) : gangOriginList,
+    [gangOriginList, editionId]
+  );
+
+  // Variants come from the shared route, which returns a slug rather than an id.
+  // An edition that hasn't resolved yet makes no claim, so it filters nothing.
+  const filteredGangVariants = useMemo(
+    () => editionId && editionSlug
+      ? gangVariantList.filter(variant => sameEditionForDisplay(variant.edition_slug, editionSlug))
+      : gangVariantList,
+    [gangVariantList, editionId, editionSlug]
+  );
 
   const { data: fighterSubtypeList = [] } = useQuery<Array<{id: string, subtype_name: string, edition_id?: string | null}>>({
     queryKey: ['admin-fighter-subtypes'],
@@ -588,6 +520,130 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       ),
     [fighterSubtypeList, editionId, editions]
   );
+
+  const handleEditionChange = (newEditionId: string) => {
+    setEditionId(newEditionId);
+    const newSlug = editionSlugOf(editions, newEditionId);
+    if (newEditionId && selectedEquipmentId) {
+      const selected = equipmentList.find(item => item.id === selectedEquipmentId);
+      if (selected && selected.edition_id !== newEditionId) {
+        setSelectedEquipmentId('');
+      }
+    }
+    if (categoryFilter && newEditionId) {
+      // categoryFilter is a name; the same name can exist per edition
+      const stillValid = categories.some(
+        category => category.category_name === categoryFilter && category.edition_id === newEditionId
+      );
+      if (!stillValid) {
+        setCategoryFilter('');
+        setSelectedEquipmentId('');
+      }
+    }
+    if (equipmentCategory) {
+      const selected = categories.find(category => category.id === equipmentCategory);
+      if (selected && newEditionId && selected.edition_id !== newEditionId) {
+        setEquipmentCategory('');
+      }
+    }
+    // Gang types are edition-scoped; clear any in-progress Cost-per-Gang pick
+    setSelectedGangType('');
+    // Origin, variant and subtype picks are edition-scoped too. An id left in a
+    // select whose options no longer contain it renders blank but still saves.
+    setSelectedAdjustedCostGangOrigin('');
+    setSelectedAvailabilityGangOrigin('');
+    setSelectedAvailabilityGangVariant('');
+    setScopedGrantFighterType('');
+    setScopedGrantSubtype('');
+    setScopedGrantOrigin('');
+    setScopedGrantVariant('');
+    // Drop trading posts / fighter types that belong to another edition
+    if (newEditionId) {
+      setSelectedTradingPosts(prev =>
+        prev.filter(id => {
+          const tp = tradingPostTypes.find(t => t.id === id);
+          return !tp || tp.edition_id === newEditionId;
+        })
+      );
+      // A grant is dropped if any part of its scope is confirmed foreign. Its
+      // fighter_subtype is deliberately not judged: subtypes are stored by name
+      // and the same name is legitimately defined in more than one edition.
+      setFighterTypeGrants(prev =>
+        prev.filter(grant => {
+          const ft = fighterTypes.find(f => f.id === grant.fighter_type_id);
+          if (ft && ft.edition_id !== newEditionId) return false;
+          const origin = gangOriginList.find(o => o.id === grant.gang_origin_id);
+          if (origin && origin.edition_id !== newEditionId) return false;
+          const variant = gangVariantList.find(v => v.id === grant.gang_variant_id);
+          if (variant && newSlug && !sameEditionForDisplay(variant.edition_slug, newSlug)) return false;
+          return true;
+        })
+      );
+      // Cost per Gang is keyed on a gang type, which is edition-scoped too
+      setGangAdjustedCosts(prev =>
+        prev.filter(cost => {
+          const gt = gangTypeOptions.find(g => g.gang_type_id === cost.gang_type_id);
+          return !gt || gt.edition_id === newEditionId;
+        })
+      );
+      // Origin- and variant-scoped rows are edition-scoped as well. A scope the
+      // catalog doesn't list can't be confirmed foreign, so it stays.
+      setGangOriginAdjustedCosts(prev =>
+        prev.filter(cost => {
+          const origin = gangOriginList.find(o => o.id === cost.gang_origin_id);
+          return !origin || origin.edition_id === newEditionId;
+        })
+      );
+      setEquipmentOriginAvailabilities(prev =>
+        prev.filter(avail => {
+          const origin = gangOriginList.find(o => o.id === avail.gang_origin_id);
+          return !origin || origin.edition_id === newEditionId;
+        })
+      );
+      if (newSlug) {
+        setEquipmentVariantAvailabilities(prev =>
+          prev.filter(avail => {
+            const variant = gangVariantList.find(v => v.id === avail.gang_variant_id);
+            return !variant || sameEditionForDisplay(variant.edition_slug, newSlug);
+          })
+        );
+      }
+    }
+    // N26 uses Trade Points instead of Availability; drop stale N23 rows
+    if (hasTradePoints(newSlug)) {
+      setShowAvailabilityDialog(false);
+      setSelectedAvailabilityGangType('');
+      setAvailValueLetter('');
+      setAvailValueNumber(6);
+      setAvailExclusive(false);
+      setEquipmentAvailabilities([]);
+      setShowOriginAvailabilityDialog(false);
+      setSelectedAvailabilityGangOrigin('');
+      setOriginAvailValueLetter('');
+      setOriginAvailValueNumber(6);
+      setEquipmentOriginAvailabilities([]);
+      setShowVariantAvailabilityDialog(false);
+      setSelectedAvailabilityGangVariant('');
+      setVariantAvailValueLetter('');
+      setVariantAvailValueNumber(6);
+      setEquipmentVariantAvailabilities([]);
+    }
+    // Weapon Group parents are edition-scoped; drop a cross-edition pick
+    if (newEditionId) {
+      setWeaponProfiles(profiles => profiles.map(profile => {
+        if (!profile.weapon_group_id) return profile;
+        const parent = weapons.find(w => w.id === profile.weapon_group_id);
+        if (parent && parent.edition_id !== newEditionId) {
+          return { ...profile, weapon_group_id: null };
+        }
+        return profile;
+      }));
+      // Grants options are edition-scoped; blank confirmed cross-edition picks
+      setGrantsEquipment(current =>
+        current ? sanitizeGrantsOptionsForEdition(current, allEquipment, newEditionId) : current
+      );
+    }
+  };
 
   const isLoading = isEquipmentDetailsLoading || isWeaponsLoading || isSubmitting;
 
@@ -1382,6 +1438,11 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         variant="outline"
                         size="sm"
                         className="mb-2"
+                        // Unlike the Availability sections this one isn't edition-gated,
+                        // so an edition that defines no origins has nothing to add. Only
+                        // a loaded catalog can say that — an empty one is still fetching,
+                        // and this click is what enables the query.
+                        disabled={gangOriginList.length > 0 && filteredGangOrigins.length === 0}
                       >
                         Add Origin
                       </Button>
@@ -1459,7 +1520,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                 className="w-full p-2 border rounded-md"
                               >
                                 <option key="default" value="">Select a Gang Origin</option>
-                                <GangOriginOptions origins={gangOriginList} />
+                                <GangOriginOptions origins={filteredGangOrigins} />
                               </select>
                             </div>
 
@@ -1571,7 +1632,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                 className="w-full p-2 border rounded-md"
                               >
                                 <option key="default" value="">Select a Gang Origin</option>
-                                <GangOriginOptions origins={gangOriginList} />
+                                <GangOriginOptions origins={filteredGangOrigins} />
                               </select>
                             </div>
 
@@ -1685,7 +1746,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                 className="w-full p-2 border rounded-md"
                               >
                                 <option key="default" value="">Select a Gang Variant</option>
-                                <GangVariantOptions variants={gangVariantList} />
+                                <GangVariantOptions variants={filteredGangVariants} />
                               </select>
                             </div>
 
@@ -1865,7 +1926,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             className="w-full p-2 border rounded-md"
                           >
                             <option key="default" value="">Any Gang Origin</option>
-                            <GangOriginOptions origins={gangOriginList} />
+                            <GangOriginOptions origins={filteredGangOrigins} />
                           </select>
                         </div>
 
@@ -1877,7 +1938,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             className="w-full p-2 border rounded-md"
                           >
                             <option key="default" value="">Any Gang Variant</option>
-                            <GangVariantOptions variants={gangVariantList} />
+                            <GangVariantOptions variants={filteredGangVariants} />
                           </select>
                         </div>
                       </div>
