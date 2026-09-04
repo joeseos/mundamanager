@@ -252,6 +252,19 @@ export interface EquipmentVariantAvailability {
 }
 
 /**
+ * An entry on a fighter type's Equipment List, optionally narrowed by gang
+ * origin, gang variant and fighter subtype. fighter_type_id is null for a
+ * subtype rule spanning every gang; fighter_subtype is then required, or the
+ * row matches nothing.
+ */
+export interface FighterTypeEquipmentGrant {
+  fighter_type_id: string | null;
+  gang_origin_id: string | null;
+  gang_variant_id: string | null;
+  fighter_subtype: string | null;
+}
+
+/**
  * Per-gang adjusted-cost entries used by the equipment admin editor.
  * The label fields (gang_type / origin_name) are for display only; the API
  * persists the id + adjusted_cost.
