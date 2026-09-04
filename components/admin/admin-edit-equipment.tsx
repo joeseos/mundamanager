@@ -176,6 +176,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [scopedGrantOrigin, setScopedGrantOrigin] = useState('');
   const [scopedGrantVariant, setScopedGrantVariant] = useState('');
   const [scopedGrantSubtype, setScopedGrantSubtype] = useState('');
+  const [scopedGrantExcluded, setScopedGrantExcluded] = useState(false);
   const [showAdjustedCostDialog, setShowAdjustedCostDialog] = useState(false);
   const [selectedGangType, setSelectedGangType] = useState("");
   const [adjustedCostValue, setAdjustedCostValue] = useState("");
@@ -471,7 +472,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           fighter_type_id: ft.fighter_type_id ?? null,
           gang_origin_id: ft.gang_origin_id ?? null,
           gang_variant_id: ft.gang_variant_id ?? null,
-          fighter_subtype: ft.fighter_subtype ?? null
+          fighter_subtype: ft.fighter_subtype ?? null,
+          excluded: ft.excluded ?? false
         })));
       }
 
@@ -588,6 +590,15 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       ),
     [fighterSubtypeList, editionId, editions]
   );
+
+  const resetScopedGrantDialog = () => {
+    setShowScopedGrantDialog(false);
+    setScopedGrantFighterType("");
+    setScopedGrantOrigin("");
+    setScopedGrantVariant("");
+    setScopedGrantSubtype("");
+    setScopedGrantExcluded(false);
+  };
 
   const isLoading = isEquipmentDetailsLoading || isWeaponsLoading || isSubmitting;
 
@@ -1728,7 +1739,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       if (value) {
                         setFighterTypeGrants([
                           ...fighterTypeGrants,
-                          { fighter_type_id: value, gang_origin_id: null, gang_variant_id: null, fighter_subtype: null }
+                          { fighter_type_id: value, gang_origin_id: null, gang_variant_id: null, fighter_subtype: null, excluded: false }
                         ]);
                       }
                       e.target.value = "";
@@ -1739,7 +1750,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                     <option value="">Select fighter type to add</option>
                     {filteredFighterTypes
                       .filter(ft => !fighterTypeGrants.some(
-                        g => g.fighter_type_id === ft.id
+                        g => g.fighter_type_id === ft.id && !g.excluded
                           && !g.gang_origin_id && !g.gang_variant_id && !g.fighter_subtype
                       ))
                       .map((ft) => (
@@ -1769,9 +1780,14 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       return (
                         <div
                           key={grantKey(grant)}
-                          className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
+                          className={`flex items-center gap-1 px-2 py-1 rounded-full text-sm ${
+                            grant.excluded ? 'bg-destructive/15 text-destructive' : 'bg-muted'
+                          }`}
                         >
-                          <span>{ft ? fighterTypeLabel(ft) : 'Any fighter type'}{scope && ` — ${scope}`}</span>
+                          <span>
+                            {grant.excluded && <strong>Denied: </strong>}
+                            {ft ? fighterTypeLabel(ft) : 'Any fighter type'}{scope && ` — ${scope}`}
+                          </span>
                           <button
                             type="button"
                             onClick={() => setFighterTypeGrants(
@@ -1790,37 +1806,32 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                   {showScopedGrantDialog && (
                     <Modal
                       title="Scoped Equipment List Entry"
-                      helper="Narrow a grant to a gang origin, variant and/or fighter subtype. Leave Fighter Type as Any for a subtype rule spanning every gang."
-                      onClose={() => {
-                        setShowScopedGrantDialog(false);
-                        setScopedGrantFighterType("");
-                        setScopedGrantOrigin("");
-                        setScopedGrantVariant("");
-                        setScopedGrantSubtype("");
-                      }}
+                      helper="Narrow a rule to a gang origin, variant and/or fighter subtype. Leave Fighter Type as Any for a subtype rule spanning every gang."
+                      onClose={resetScopedGrantDialog}
                       onConfirm={() => {
                         const grant: FighterTypeEquipmentGrant = {
                           fighter_type_id: scopedGrantFighterType || null,
                           gang_origin_id: scopedGrantOrigin || null,
                           gang_variant_id: scopedGrantVariant || null,
-                          fighter_subtype: scopedGrantSubtype || null
+                          fighter_subtype: scopedGrantSubtype || null,
+                          excluded: scopedGrantExcluded
                         };
+                        // The unique index leaves excluded out of the key, so one scope
+                        // cannot hold both a grant and a deny
                         if (fighterTypeGrants.some(g => grantKey(g) === grantKey(grant))) {
-                          toast.error('That combination is already on the list');
+                          toast.error('That scope already has a rule');
                           return false;
                         }
                         setFighterTypeGrants([...fighterTypeGrants, grant]);
-                        setShowScopedGrantDialog(false);
-                        setScopedGrantFighterType("");
-                        setScopedGrantOrigin("");
-                        setScopedGrantVariant("");
-                        setScopedGrantSubtype("");
+                        resetScopedGrantDialog();
                       }}
                       confirmText="Save"
                       confirmDisabled={
-                        // Needs an identity, and a scope the dropdown can't already give
+                        // Both need an identity; a grant also needs a scope, since a plain
+                        // grant is the dropdown's job. A plain deny is not expressible there.
                         (!scopedGrantFighterType && !scopedGrantSubtype)
-                        || (!scopedGrantOrigin && !scopedGrantVariant && !scopedGrantSubtype)
+                        || (!scopedGrantExcluded
+                            && !scopedGrantOrigin && !scopedGrantVariant && !scopedGrantSubtype)
                       }
                       width="sm"
                     >
@@ -1880,6 +1891,21 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             <GangVariantOptions variants={gangVariantList} />
                           </select>
                         </div>
+
+                        <label className="flex items-start space-x-2">
+                          <Checkbox
+                            checked={scopedGrantExcluded}
+                            onCheckedChange={(checked) => setScopedGrantExcluded(checked === true)}
+                            className="mt-1"
+                          />
+                          <div>
+                            <span className="text-sm font-medium text-muted-foreground">Deny instead of grant</span>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Removes this item from the Equipment List of fighters matching the
+                              scope, even when something else grants it. Does not affect the Trading Post.
+                            </p>
+                          </div>
+                        </label>
                       </div>
                     </Modal>
                   )}

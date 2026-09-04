@@ -426,6 +426,32 @@ AS $$
         AND (fte.gang_variant_id IS NULL OR gd.gang_variants ? fte.gang_variant_id::text)
         AND (fte.gang_type_id IS NULL OR fte.gang_type_id = $1)
         AND (fte.fighter_subtype IS NULL OR gd.fighter_subtypes ? fte.fighter_subtype)
+        AND fte.excluded = false
+
+    -- Deny rows: same match as the fte join above, opposite polarity. Kept apart
+    -- because a deny has to beat grants from any source, which a join cannot do.
+    LEFT JOIN LATERAL (
+        SELECT true AS is_denied
+        FROM fighter_type_equipment fx
+        WHERE fx.equipment_id = e.id
+          AND fx.excluded
+          AND (fx.fighter_type_id = $3
+               OR fx.vehicle_type_id = $3
+               OR (gd.legacy_ft_id IS NOT NULL
+                   AND (fx.fighter_type_id = gd.legacy_ft_id OR fx.vehicle_type_id = gd.legacy_ft_id)
+                   AND $4 = true)
+               OR (gd.affiliation_ft_id IS NOT NULL
+                   AND (fx.fighter_type_id = gd.affiliation_ft_id OR fx.vehicle_type_id = gd.affiliation_ft_id))
+               OR (fx.fighter_type_id IS NULL
+                   AND fx.vehicle_type_id IS NULL
+                   AND fx.custom_fighter_type_id IS NULL
+                   AND fx.fighter_subtype IS NOT NULL))
+          AND (fx.gang_origin_id IS NULL OR fx.gang_origin_id = gd.gang_origin_id)
+          AND (fx.gang_variant_id IS NULL OR gd.gang_variants ? fx.gang_variant_id::text)
+          AND (fx.gang_type_id IS NULL OR fx.gang_type_id = $1)
+          AND (fx.fighter_subtype IS NULL OR gd.fighter_subtypes ? fx.fighter_subtype)
+        LIMIT 1
+    ) deny ON true
 
     -- Is this system equipment on the current custom fighter type's equipment list?
     -- ($3 is a custom_fighter_types.id when the fighter is a custom fighter.)
@@ -444,10 +470,11 @@ AS $$
         SELECT (
             -- Any matched row counts, including a gang-wide subtype rule,
             -- which has neither id
-            fte.id IS NOT NULL
-            OR ea_var.id IS NOT NULL
-            OR ea_origin.id IS NOT NULL
-            OR cftl.is_ftl IS NOT NULL
+            (fte.id IS NOT NULL
+             OR ea_var.id IS NOT NULL
+             OR ea_origin.id IS NOT NULL
+             OR cftl.is_ftl IS NOT NULL)
+            AND deny.is_denied IS NULL
         ) AS is_fighter_list
     ) ftl_flag ON true
 

@@ -16,15 +16,14 @@ interface FighterTypeEquipment {
 }
 
 /**
- * The rows this screen owns: grants scoped at most by gang origin, variant and
- * fighter subtype. Vehicle and gang-type rows belong to other screens and must
- * not be read here, because the save deletes everything it reads — so this is
- * applied to the read and the delete alike.
+ * The rows this screen owns: grants and denies scoped at most by gang origin,
+ * variant and fighter subtype. Vehicle and gang-type rows belong to other
+ * screens and must not be read here, because the save deletes everything it
+ * reads — so this is applied to the read and the delete alike.
  */
 function scopeToFighterTypeGrants<T>(query: T): T {
   return ['vehicle_type_id', 'custom_fighter_type_id', 'gang_type_id']
-    .reduce((q, column) => q.is(column, null), query as any)
-    .eq('excluded', false) as T;
+    .reduce((q, column) => q.is(column, null), query as any) as T;
 }
 
 /** Normalize admin Trade Points input: "E" or non-negative integer digits. */
@@ -362,7 +361,7 @@ export async function GET(request: Request) {
             scopeToFighterTypeGrants(
               supabase
                 .from('fighter_type_equipment')
-                .select('fighter_type_id, gang_origin_id, gang_variant_id, fighter_subtype')
+                .select('fighter_type_id, gang_origin_id, gang_variant_id, fighter_subtype, excluded')
                 .eq('equipment_id', id)
             )
               .order('fighter_type_id')
@@ -732,6 +731,7 @@ export async function PATCH(request: Request) {
             gang_origin_id: grant.gang_origin_id ?? null,
             gang_variant_id: grant.gang_variant_id ?? null,
             fighter_subtype: grant.fighter_subtype ?? null,
+            excluded: grant.excluded ?? false,
             updated_at: new Date().toISOString()
           }))
           .filter(record => {

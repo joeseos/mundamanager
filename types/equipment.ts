@@ -255,13 +255,15 @@ export interface EquipmentVariantAvailability {
  * An entry on a fighter type's Equipment List, optionally narrowed by gang
  * origin, gang variant and fighter subtype. fighter_type_id is null for a
  * subtype rule spanning every gang; fighter_subtype is then required, or the
- * row matches nothing.
+ * row matches nothing. excluded inverts the row into a deny, which removes the
+ * item from the list whatever else granted it.
  */
 export interface FighterTypeEquipmentGrant {
   fighter_type_id: string | null;
   gang_origin_id: string | null;
   gang_variant_id: string | null;
   fighter_subtype: string | null;
+  excluded: boolean;
 }
 
 /**
