@@ -12,7 +12,7 @@
  * (fighter_specialisations / fighter_defaults) if these ever drift.
  */
 
-import { hasFighterSpecialisations } from '@/types/edition';
+import { hasFighterSpecialisations, hasProspectSpecialisationPromotion } from '@/types/edition';
 
 export const N26_PROSPECT_PROMOTION_CREDITS = 15;
 
@@ -42,6 +42,21 @@ export function shouldClearSpecialisationForSubtypes(
   subtypes?: string[] | null
 ): boolean {
   return hasFighterSpecialisations(editionSlug) && !hasN26SpecialistSubtype(subtypes);
+}
+
+/**
+ * True when the fighter's catalog fighter_type is a Prospect on an edition that
+ * uses Prospect keep-type promotion. Catalog rather than live subtypes because
+ * the promotion keeps the type row (Ganger+Specialist land on the fighter, not
+ * the type), so this stays true after promotion and correctly identifies both
+ * pre- and post-promotion Prospects.
+ */
+export function isN26ProspectByCatalog(
+  editionSlug?: string | null,
+  catalogSubtypes?: string[] | null
+): boolean {
+  return hasProspectSpecialisationPromotion(editionSlug)
+    && (catalogSubtypes ?? []).includes('Prospect');
 }
 
 /** Catalog ids for the eight houseless specialisations offered on Prospect promotion. */

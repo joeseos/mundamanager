@@ -9,7 +9,7 @@ import { TypeSpecificData } from '@/types/fighter-effect';
 import { createClient } from '@/utils/supabase/client';
 import { getSkillSetRank } from "@/utils/skillSetRank";
 import { characteristicRank } from "@/utils/characteristicRank";
-import { countAdvancementsTaken, openAdvancementsFor } from "@/utils/advancementRanks";
+import { countAdvancementsTaken, openAdvancementsFor, N26_PROSPECT_PROMOTION_TIER_XP } from "@/utils/advancementRanks";
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -40,12 +40,13 @@ import {
   type TableEntry,
   type N26AdvancementEntry
 } from '@/utils/dice';
-import { hasCumulativeXp } from '@/types/edition';
+import { hasCumulativeXp, hasProspectSpecialisationPromotion } from '@/types/edition';
 import { skillAccessDeniedMessage } from '@/utils/venatorSkillAccess';
 import {
   N26_CHAMPION_PROMOTION_SKILL_NAME,
   N26_PROSPECT_PROMOTION_CREDITS,
   getN26ProspectSpecialisation,
+  isN26ProspectByCatalog,
 } from '@/utils/keepTypePromotionN26';
 
 // AdvancementModal Interfaces
@@ -55,10 +56,26 @@ interface AdvancementModalProps {
   openAdvancements: number;
   editionSlug?: string | null;
   fighterSubtypes: string[];
+  /**
+   * Catalog subtypes on the fighter's fighter_type row. Distinct from live
+   * `fighterSubtypes` because N26 keep-type promotion leaves the catalog on
+   * Prospect while live subtypes flip to Ganger+Specialist — needed for the
+   * count exclusion to hold across pre- and post-promotion.
+   */
+  fighterCatalogSubtypes?: string[];
   advancements: Array<FighterEffectType>;
   skills: Record<string, any>;
   onClose: () => void;
   onAdvancementAdded: (advancement: FighterEffectType) => void;
+  /**
+   * Runs an N26 Prospect promotion (existing standalone flow), returning once
+   * the mutation settles. Provided by the parent so this modal reuses the
+   * outer mutation's optimistic updates, id reconciliation, and rollback
+   * instead of forking a second copy.
+   */
+  onProspectPromotion?: (data: FighterPromotionResult) => Promise<void>;
+  /** True while the parent's standalone promotion mutation is in flight. */
+  prospectPromotionPending?: boolean;
   onSkillUpdate?: (updatedSkills: Record<string, any>) => void;
   onXpCreditsUpdate?: (xpChange: number, creditsChange: number) => void;
   onAdvancementUpdate: (updatedAdvancements: FighterEffectType[]) => void;
@@ -188,6 +205,13 @@ interface AdvancementsListProps {
   fighterId: string;
   editionSlug?: string | null;
   fighterSubtypes: string[];
+  /**
+   * Catalog subtypes on the fighter's fighter_type row. Distinct from live
+   * `fighterSubtypes` because N26 keep-type promotion leaves the catalog on
+   * Prospect while live subtypes flip to Ganger+Specialist — needed for the
+   * count exclusion to hold across pre- and post-promotion.
+   */
+  fighterCatalogSubtypes?: string[];
   advancements: Array<FighterEffectType>;
   skills: FighterSkills;
   userPermissions: UserPermissions;
@@ -484,6 +508,7 @@ export function AdvancementModal({
   openAdvancements,
   editionSlug = null,
   fighterSubtypes,
+  fighterCatalogSubtypes = [],
   advancements,
   skills,
   onClose,
@@ -501,7 +526,9 @@ export function AdvancementModal({
   fighterTypeName = '',
   fighterTypeId = '',
   fighterSpecialisationId = '',
-  onFighterDetailsUpdate
+  onFighterDetailsUpdate,
+  onProspectPromotion,
+  prospectPromotionPending = false,
 }: AdvancementModalProps) {
   
   const [skillSetCategories, setSkillSetCategories] = useState<SkillType[]>([]);
@@ -593,6 +620,7 @@ export function AdvancementModal({
   const [championPreviewSkillAccess, setChampionPreviewSkillAccess] = useState<SkillAccess[]>([]);
   const [championPreviewSkillAccessLoading, setChampionPreviewSkillAccessLoading] = useState(false);
   const [championPurchaseBusy, setChampionPurchaseBusy] = useState(false);
+  const [prospectPromotionOpen, setProspectPromotionOpen] = useState(false);
   // isSubmitting unused; removed
   const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
   const [skillAccessLoading, setSkillAccessLoading] = useState(false);
@@ -2172,6 +2200,11 @@ export function AdvancementModal({
   const isGangerOrExoticBeastRestricted =
     fighterSubtypes.includes('Ganger') || fighterSubtypes.includes('Exotic Beast');
 
+  const isN26ProspectPromotionRequired =
+    hasProspectSpecialisationPromotion(editionSlug) &&
+    fighterSubtypes.includes('Prospect') &&
+    currentXp >= N26_PROSPECT_PROMOTION_TIER_XP;
+
   const handleAdvancementPurchase = async () => {
     if (gangerModalRollBuy) {
       setGangerPurchaseBusy(true);
@@ -2319,6 +2352,45 @@ export function AdvancementModal({
         </div>
 
         <div className="p-2 overflow-y-auto grow">
+        {isN26ProspectPromotionRequired ? (
+          <div className="space-y-4">
+            <p className="text-sm">
+              This Prospect has reached <strong>{N26_PROSPECT_PROMOTION_TIER_XP} XP</strong> and must be
+              promoted to <strong>Ganger + Specialist</strong> before earning any further Advancements.
+              Rating increases by <strong>{N26_PROSPECT_PROMOTION_CREDITS}</strong>, and the fighter
+              gains the skill associated with the specialisation you pick.
+            </p>
+            <div className="flex justify-center">
+              <Button
+                type="button"
+                variant="default"
+                className="w-full sm:w-auto"
+                onClick={() => setProspectPromotionOpen(true)}
+                disabled={!userPermissions?.canEdit || prospectPromotionPending}
+              >
+                Promote to Ganger + Specialist
+              </Button>
+            </div>
+            <FighterPromotionModal
+              currentSubtype={fighterSubtypes[0] || ''}
+              currentSubtypes={fighterSubtypes}
+              currentSpecialRules={fighterSpecialRules}
+              currentFighterType={fighterTypeName}
+              currentFighterTypeId={fighterTypeId}
+              currentFighterSpecialisationId={fighterSpecialisationId || undefined}
+              fighterTypes={preFetchedFighterTypes}
+              editionSlug={editionSlug}
+              isOpen={prospectPromotionOpen}
+              onClose={() => setProspectPromotionOpen(false)}
+              onPromoted={(data) => {
+                setProspectPromotionOpen(false);
+                if (!onProspectPromotion) return;
+                onProspectPromotion(data).then(onClose, () => undefined);
+              }}
+            />
+          </div>
+        ) : (
+          <>
           <div className="mb-4">
             <p className="text-sm text-muted-foreground mb-2">
               {isCumulativeXp
@@ -2944,6 +3016,8 @@ export function AdvancementModal({
               </Button>
             </div>
           </div>
+          </>
+        )}
         </div>
       </div>
     </div>
@@ -2958,6 +3032,7 @@ export function AdvancementsList({
   fighterId,
   editionSlug = null,
   fighterSubtypes,
+  fighterCatalogSubtypes = [],
   advancements = [],
   skills = {},
   userPermissions,
@@ -3381,11 +3456,14 @@ export function AdvancementsList({
   // Taken count: characteristic effects plus is_advance skills (shared with gang cards).
   const advancementCount = countAdvancementsTaken({ advancements }, skills);
 
+  const excludeProspectPromotionTier = isN26ProspectByCatalog(editionSlug, fighterCatalogSubtypes);
+
   const openAdvancements = openAdvancementsFor(
     editionSlug,
     fighterStartingXp,
     fighterXp,
     advancementCount,
+    { excludeProspectPromotionTier },
   );
 
   const title = (
@@ -3501,6 +3579,7 @@ export function AdvancementsList({
           openAdvancements={openAdvancements}
           editionSlug={editionSlug}
           fighterSubtypes={fighterSubtypes}
+          fighterCatalogSubtypes={fighterCatalogSubtypes}
           advancements={advancements}
           skills={skills}
           onClose={() => setIsAdvancementModalOpen(false)}
@@ -3519,6 +3598,8 @@ export function AdvancementsList({
           fighterTypeId={fighterTypeId}
           fighterSpecialisationId={fighterSpecialisationId}
           onFighterDetailsUpdate={onFighterDetailsUpdate}
+          onProspectPromotion={(data) => standalonePromotionMutation.mutateAsync(data).then(() => undefined)}
+          prospectPromotionPending={standalonePromotionMutation.isPending}
         />
       )}
 

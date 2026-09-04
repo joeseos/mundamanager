@@ -111,6 +111,24 @@ const tiersAtOrBelow = (tiers: readonly number[], xp: number): number =>
   tiers.filter((tierStart) => tierStart <= xp).length;
 
 /**
+ * Rank 4 (13 XP) is the mandatory Prospect→Ganger/Specialist promotion in N26,
+ * not a normal Advancement. Sourced from the ladder rather than a literal so
+ * a ladder rebalance stays in one place.
+ */
+export const N26_PROSPECT_PROMOTION_TIER_XP =
+  n26XpLadder.find((row) => row.rank === 4)!.xpMin;
+
+export type AdvancementCountOptions = {
+  /**
+   * When true, drop the 13-XP tier from the count. The Prospect→Ganger promotion
+   * consumes that tier by rule, so a fighter whose catalog type is a Prospect
+   * (pre- or post-promotion, since keep-type leaves the catalog on Prospect)
+   * would otherwise be credited one advancement they never earn.
+   */
+  excludeProspectPromotionTier?: boolean;
+};
+
+/**
  * How many Advancements a model has earned in total.
  *
  * N26 never spends XP, so `currentXp` is starting XP plus everything ever
@@ -128,8 +146,12 @@ export function advancementsEarnedFor(
   editionSlug: string | null | undefined,
   startingXp: number | null,
   currentXp: number,
+  options?: AdvancementCountOptions,
 ): number {
-  const tiers = tierStartsFor(editionSlug);
+  const allTiers = tierStartsFor(editionSlug);
+  const tiers = options?.excludeProspectPromotionTier
+    ? allTiers.filter((tierStart) => tierStart !== N26_PROSPECT_PROMOTION_TIER_XP)
+    : allTiers;
 
   // XP below the recruitment value is only reachable by editing a fighter after
   // the fact; it means no Advancement, never a negative one.
@@ -176,6 +198,10 @@ export function openAdvancementsFor(
   startingXp: number | null,
   currentXp: number,
   advancementsTaken: number,
+  options?: AdvancementCountOptions,
 ): number {
-  return Math.max(0, advancementsEarnedFor(editionSlug, startingXp, currentXp) - advancementsTaken);
+  return Math.max(
+    0,
+    advancementsEarnedFor(editionSlug, startingXp, currentXp, options) - advancementsTaken,
+  );
 }
