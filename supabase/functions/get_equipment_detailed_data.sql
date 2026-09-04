@@ -465,7 +465,14 @@ AS $$
         -- Core equipment gating
         AND (
             COALESCE(e.core_equipment, false) = false
-            OR (e.core_equipment = true AND (fte.fighter_type_id IS NOT NULL OR cftl.is_ftl IS NOT NULL OR $3 IS NULL))
+            OR (e.core_equipment = true AND (
+                fte.fighter_type_id IS NOT NULL
+                -- A matched gang-wide subtype rule carries no fighter id of its
+                -- own, so it needs the same allowance is_fighter_list gives it
+                OR (fte.id IS NOT NULL AND fte.fighter_type_id IS NULL AND fte.vehicle_type_id IS NULL)
+                OR cftl.is_ftl IS NOT NULL
+                OR $3 IS NULL
+            ))
         )
         -- Fighter list / trading post filter logic
         AND (

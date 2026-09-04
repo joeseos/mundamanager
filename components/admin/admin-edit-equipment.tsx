@@ -583,10 +583,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const filteredFighterSubtypes = useMemo(
     () => (editionId ? fighterSubtypeList.filter(s => s.edition_id === editionId) : [...fighterSubtypeList])
       .sort((a, b) =>
-        getFighterSubtypeSortRank([a.subtype_name], editionSlug)
-        - getFighterSubtypeSortRank([b.subtype_name], editionSlug)
+        getFighterSubtypeSortRank([a.subtype_name], editionSlugOf(editions, a.edition_id))
+        - getFighterSubtypeSortRank([b.subtype_name], editionSlugOf(editions, b.edition_id))
       ),
-    [fighterSubtypeList, editionId, editionSlug]
+    [fighterSubtypeList, editionId, editions]
   );
 
   const isLoading = isEquipmentDetailsLoading || isWeaponsLoading || isSubmitting;
