@@ -29,7 +29,8 @@ async function _getCampaignBasic(campaignId: string, supabase: SupabaseClient) {
       image_url,
       discord_guild_id,
       discord_channel_id,
-      allow_join_requests
+      allow_join_requests,
+      current_cycle
     `)
     .eq('id', campaignId)
     .single();
@@ -457,7 +458,10 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
       participants,
       scenario_id,
       campaign_territory_id,
-      cycle
+      cycle,
+      status,
+      challenger_gang_id,
+      challenged_gang_id
     `)
     .eq('campaign_id', campaignId)
     .order('created_at', { ascending: false })
@@ -562,6 +566,9 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
       campaign_territory_id: battle.campaign_territory_id,
       territory_name: territoryName,
       cycle: battle.cycle,
+      status: battle.status ?? 'played',
+      challenger_gang_id: battle.challenger_gang_id,
+      challenged_gang_id: battle.challenged_gang_id,
       attacker: attackerId ? {
         id: attackerId,
         name: gangMap.get(attackerId)?.name || 'Unknown'
