@@ -8,6 +8,19 @@ function isNonEmptyArray(value: unknown): boolean {
   return Array.isArray(value) && value.length > 0;
 }
 
+/**
+ * The fighter_type_equipment rows this screen owns: grants that apply to the
+ * fighter type unconditionally. Anything narrowed to a gang origin, variant,
+ * gang type or subtype — and any deny row — belongs to the equipment admin and
+ * must not be read here, because the save deletes everything it reads.
+ * Applied to the reads and the delete alike so the two cannot drift apart.
+ */
+function scopeToUnscopedGrants<T>(query: T): T {
+  return ['gang_origin_id', 'gang_variant_id', 'gang_type_id', 'fighter_subtype']
+    .reduce((q, column) => q.is(column, null), query as any)
+    .eq('excluded', false) as T;
+}
+
 // Get all fighter types
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -188,15 +201,13 @@ export async function GET(request: Request) {
         throw skillsError;
       }
 
-      // Fetch equipment list. This screen only edits unscoped grants; origin- and
-      // variant-scoped ones are the equipment admin's and must not be listed here,
-      // or saving would rewrite them unscoped.
-      const { data: equipmentList, error: equipmentListError } = await supabase
-        .from('fighter_type_equipment')
-        .select('equipment_id')
-        .eq('fighter_type_id', fighterType.id)
-        .is('gang_origin_id', null)
-        .is('gang_variant_id', null);
+      // Fetch equipment list
+      const { data: equipmentList, error: equipmentListError } = await scopeToUnscopedGrants(
+        supabase
+          .from('fighter_type_equipment')
+          .select('equipment_id')
+          .eq('fighter_type_id', fighterType.id)
+      );
 
       if (equipmentListError) {
         console.error('Error fetching equipment list:', equipmentListError);
@@ -339,13 +350,13 @@ export async function GET(request: Request) {
               throw skillsError;
             }
 
-            // Fetch equipment list (unscoped grants only, as above)
-            const { data: equipmentList, error: equipmentListError } = await supabase
-              .from('fighter_type_equipment')
-              .select('equipment_id')
-              .eq('fighter_type_id', fighter.id)
-              .is('gang_origin_id', null)
-              .is('gang_variant_id', null);
+            // Fetch equipment list
+            const { data: equipmentList, error: equipmentListError } = await scopeToUnscopedGrants(
+              supabase
+                .from('fighter_type_equipment')
+                .select('equipment_id')
+                .eq('fighter_type_id', fighter.id)
+            );
 
             if (equipmentListError) {
               console.error('Error fetching equipment list:', equipmentListError);
@@ -604,14 +615,13 @@ export async function PATCH(request: Request) {
 
     // Handle equipment list
     if (data.equipment_list) {
-      // First delete existing equipment list entries, matching the scope this
-      // screen reads so scoped grants survive the rewrite
-      const { error: deleteError } = await supabase
-        .from('fighter_type_equipment')
-        .delete()
-        .eq('fighter_type_id', id)
-        .is('gang_origin_id', null)
-        .is('gang_variant_id', null);
+      // First delete existing equipment list entries
+      const { error: deleteError } = await scopeToUnscopedGrants(
+        supabase
+          .from('fighter_type_equipment')
+          .delete()
+          .eq('fighter_type_id', id)
+      );
 
       if (deleteError) throw deleteError;
 

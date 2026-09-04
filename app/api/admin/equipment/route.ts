@@ -15,6 +15,20 @@ interface FighterTypeEquipment {
   equipment_id: string;
 }
 
+/**
+ * The fighter_type_equipment rows this screen owns: plain fighter-type grants,
+ * scoped at most by gang origin and variant. Vehicle rows belong to the vehicle
+ * admin, and gang-type / subtype / deny rows to screens that can express them —
+ * none may be read here, because the save deletes everything it reads.
+ * Applied to the read and the delete alike so the two cannot drift apart.
+ */
+function scopeToFighterTypeGrants<T>(query: T): T {
+  return ['vehicle_type_id', 'custom_fighter_type_id', 'gang_type_id', 'fighter_subtype']
+    .reduce((q, column) => q.is(column, null), query as any)
+    .not('fighter_type_id', 'is', null)
+    .eq('excluded', false) as T;
+}
+
 /** Normalize admin Trade Points input: "E" or non-negative integer digits. */
 function normalizeAdminTradePoints(value: unknown): { ok: true; value: string } | { ok: false; error: string } {
   if (value == null || value === '') {
@@ -344,20 +358,21 @@ export async function GET(request: Request) {
           console.warn('Error fetching fighter types:', fighterTypesError);
         }
 
-        // Fetch fighter types that have this equipment. Vehicle rows belong to the
-        // vehicle admin and carry a null fighter_type_id, so they are filtered out
-        // rather than surfacing here as blank entries.
-        const { data: equipmentFighterTypes, error: equipmentFighterTypesError } = await supabase
-          .from('fighter_type_equipment')
-          .select('fighter_type_id, gang_origin_id, gang_variant_id')
-          .eq('equipment_id', id)
-          .is('vehicle_type_id', null)
-          .not('fighter_type_id', 'is', null);
-
-        if (equipmentFighterTypesError) {
+        // Fetch fighter types that have this equipment
+        try {
+          fighterTypesWithEquipment = await fetchAllRows((from, to) =>
+            scopeToFighterTypeGrants(
+              supabase
+                .from('fighter_type_equipment')
+                .select('fighter_type_id, gang_origin_id, gang_variant_id')
+                .eq('equipment_id', id)
+            )
+              .order('fighter_type_id')
+              .order('id')
+              .range(from, to)
+          );
+        } catch (equipmentFighterTypesError) {
           console.warn('Error fetching fighter types with equipment:', equipmentFighterTypesError);
-        } else {
-          fighterTypesWithEquipment = equipmentFighterTypes || [];
         }
       } catch (error) {
         console.warn('Error in fighter types fetch:', error);
@@ -699,13 +714,12 @@ export async function PATCH(request: Request) {
 
     // Handle fighter type associations
     if (fighter_type_grants !== undefined) {
-      // Only the rows this screen owns: vehicle rows belong to the vehicle admin.
-      const { error: deleteError } = await supabase
-        .from('fighter_type_equipment')
-        .delete()
-        .eq('equipment_id', id)
-        .is('vehicle_type_id', null)
-        .not('fighter_type_id', 'is', null);
+      const { error: deleteError } = await scopeToFighterTypeGrants(
+        supabase
+          .from('fighter_type_equipment')
+          .delete()
+          .eq('equipment_id', id)
+      );
 
       if (deleteError) throw deleteError;
 
