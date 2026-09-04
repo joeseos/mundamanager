@@ -16,15 +16,10 @@ interface FighterTypeEquipment {
 }
 
 /**
- * The fighter_type_equipment rows this screen owns: grants scoped at most by
- * gang origin, gang variant and fighter subtype. Vehicle rows belong to the
- * vehicle admin, and gang-type / deny rows to screens that can express them —
- * none may be read here, because the save deletes everything it reads.
- * Applied to the read and the delete alike so the two cannot drift apart.
- *
- * Deliberately all-AND. A row identifying nothing (no fighter type and no
- * subtype) grants nothing either way, and round-trips through here unchanged,
- * so it is not worth an or() to exclude.
+ * The rows this screen owns: grants scoped at most by gang origin, variant and
+ * fighter subtype. Vehicle and gang-type rows belong to other screens and must
+ * not be read here, because the save deletes everything it reads — so this is
+ * applied to the read and the delete alike.
  */
 function scopeToFighterTypeGrants<T>(query: T): T {
   return ['vehicle_type_id', 'custom_fighter_type_id', 'gang_type_id']

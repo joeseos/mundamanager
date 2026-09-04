@@ -61,8 +61,8 @@ AS $$
             cg.campaign_type_allegiance_id,
             fgl.fighter_type_id AS legacy_ft_id,
             ga.fighter_type_id  AS affiliation_ft_id,
-            -- NULL when called without a fighter ($6); an empty array then
-            -- matches no subtype-scoped row rather than every one
+            -- Empty when called without a fighter ($6), so it matches no
+            -- subtype rule rather than every one
             COALESCE(f.fighter_subtypes, '[]'::jsonb) AS fighter_subtypes,
             COALESCE(gt.edition_id, cgt.edition_id) AS edition_id
         FROM (SELECT 1) AS _dummy
@@ -416,9 +416,8 @@ AS $$
                  AND $4 = true)
              OR (gd.affiliation_ft_id IS NOT NULL
                  AND (fte.fighter_type_id = gd.affiliation_ft_id OR fte.vehicle_type_id = gd.affiliation_ft_id))
-             -- A subtype rule spanning every gang carries no fighter or vehicle
-             -- of its own. fighter_subtype must be set, or an all-NULL row would
-             -- match every fighter.
+             -- A subtype rule spanning every gang names no fighter of its own.
+             -- fighter_subtype must be set, or an all-NULL row matches everything.
              OR (fte.fighter_type_id IS NULL
                  AND fte.vehicle_type_id IS NULL
                  AND fte.custom_fighter_type_id IS NULL
@@ -443,8 +442,8 @@ AS $$
     -- so the predicate lives in exactly one place.
     LEFT JOIN LATERAL (
         SELECT (
-            -- Any matched fte row puts the item on the list, including a
-            -- gang-wide subtype rule, which carries neither id
+            -- Any matched row counts, including a gang-wide subtype rule,
+            -- which has neither id
             fte.id IS NOT NULL
             OR ea_var.id IS NOT NULL
             OR ea_origin.id IS NOT NULL

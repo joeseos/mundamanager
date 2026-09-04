@@ -532,15 +532,13 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const filteredFighterTypes = useMemo(
     () => (editionId ? fighterTypes.filter(ft => ft.edition_id === editionId) : [...fighterTypes])
       .sort((a, b) => {
-        // First sort by gang type
         const gangCompare = a.gang_type.localeCompare(b.gang_type);
         if (gangCompare !== 0) return gangCompare;
-        // Then by fighter subtype priority (per fighter type's own edition)
+        // Subtype priority is per fighter type's own edition
         const subtypeCompare =
           getFighterSubtypeSortRank(a.fighter_subtypes, editionSlugOf(editions, a.edition_id))
           - getFighterSubtypeSortRank(b.fighter_subtypes, editionSlugOf(editions, b.edition_id));
         if (subtypeCompare !== 0) return subtypeCompare;
-        // Finally by fighter type name
         return a.fighter_type.localeCompare(b.fighter_type);
       }),
     [fighterTypes, editionId, editions]
@@ -553,7 +551,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       if (!response.ok) throw new Error('Failed to fetch gang origins');
       return response.json();
     },
-    // Also needed unopened, to label origin-scoped equipment grants
+    // Also needed unopened, to label scoped grants
     enabled: !!selectedEquipmentId || showOriginAvailabilityDialog || showOriginAdjustedCostDialog,
     staleTime: 5 * 60 * 1000,
   });
@@ -565,7 +563,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       if (!response.ok) throw new Error('Failed to fetch gang variants');
       return response.json();
     },
-    // Also needed unopened, to label variant-scoped equipment grants
+    // Also needed unopened, to label scoped grants
     enabled: !!selectedEquipmentId || showVariantAvailabilityDialog,
     staleTime: 5 * 60 * 1000,
   });
@@ -1756,7 +1754,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       const ft = grant.fighter_type_id
                         ? fighterTypes.find(f => f.id === grant.fighter_type_id)
                         : null;
-                      // A grant naming a fighter type we can't resolve stays hidden
                       if (grant.fighter_type_id && !ft) return null;
 
                       const scope = [
@@ -1821,8 +1818,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       }}
                       confirmText="Save"
                       confirmDisabled={
-                        // Needs something to identify the fighter, and a scope
-                        // narrower than the plain dropdown above already gives
+                        // Needs an identity, and a scope the dropdown can't already give
                         (!scopedGrantFighterType && !scopedGrantSubtype)
                         || (!scopedGrantOrigin && !scopedGrantVariant && !scopedGrantSubtype)
                       }
