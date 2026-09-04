@@ -16,6 +16,7 @@ export async function GET(request: Request) {
       .select(`
         id,
         origin_name,
+        edition_id,
         gang_origin_category_id,
         gang_origin_categories!gang_origin_category_id (
           id,
@@ -29,6 +30,7 @@ export async function GET(request: Request) {
     const transformedData = origins.map((origin: any) => ({
       id: origin.id,
       origin_name: origin.origin_name,
+      edition_id: origin.edition_id ?? null,
       category_id: origin.gang_origin_category_id,
       category_name: (origin.gang_origin_categories as any)?.category_name || 'Unknown'
     }));
