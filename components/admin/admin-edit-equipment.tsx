@@ -1427,7 +1427,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         variant="outline"
                         size="sm"
                         className="mb-2"
-                        // Nothing to add once the catalog is loaded and has no origins here
+                        // Unlike the Availability sections this one renders in every
+                        // edition, so it can be the one with no origins left to add
                         disabled={gangOriginList.length > 0 && filteredGangOrigins.length === 0}
                       >
                         Add Origin
