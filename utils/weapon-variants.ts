@@ -175,10 +175,6 @@ export function buildWeaponVariantRows(
   });
 
   const variantMap = new Map<string, VariantBlockDraft>();
-  // Only the group id varies per profile, so the rest of the key is interned to an
-  // integer instead of being concatenated per profile. Group ids are UUIDs with no
-  // "|", so this partitions identically to the old full-string key.
-  const suffixIds = new Map<string, number>();
 
   weapons.forEach((weapon) => {
     const baseProfilesForWeapon = weapon.weapon_profiles?.filter(p => !p.profile_name?.startsWith('-')) || [];
@@ -196,16 +192,9 @@ export function buildWeaponVariantRows(
     const isWeaponMasterCrafted = weaponMasterCraftedStatus.get(weapon.fighter_weapon_id) || false;
     const hardpointKey = weapon.hardpoint_location || 'no-hp';
 
-    const suffix = `${isWeaponMasterCrafted ? 'mc' : 'reg'}|${weaponProfileSignature}|${effectSignature}|${hardpointKey}`;
-    let suffixId = suffixIds.get(suffix);
-    if (suffixId === undefined) {
-      suffixId = suffixIds.size;
-      suffixIds.set(suffix, suffixId);
-    }
-
     weapon.weapon_profiles?.forEach((profile) => {
       const groupId = profile.weapon_group_id || weapon.fighter_weapon_id;
-      const key = `${groupId}|${suffixId}`;
+      const key = `${groupId}|${isWeaponMasterCrafted ? 'mc' : 'reg'}|${weaponProfileSignature}|${effectSignature}|${hardpointKey}`;
 
       let block = variantMap.get(key);
       if (!block) {
