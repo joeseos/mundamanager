@@ -7,11 +7,11 @@ import { FighterEffect, Vehicle } from '@/types/fighter';
  * where an obvious simplification would change rendered output.
  */
 
-// Two instances: names sort case/accent-insensitively, traits at default
-// sensitivity. Merging them would reorder traits. Cached because the inline
-// localeCompare(x, undefined, {...}) form builds a collator per comparison.
+// Names sort case/accent-insensitively. Cached because passing options defeats the
+// cached-collator fast path behind localeCompare, so the inline
+// localeCompare(x, undefined, {...}) form built one per comparison. The bare
+// localeCompare() used for traits already hits that fast path -- leave it alone.
 const baseCollator = new Intl.Collator(undefined, { sensitivity: 'base' });
-const traitCollator = new Intl.Collator();
 
 const ARC_ORDER = ['Front', 'Left', 'Right', 'Rear'];
 
@@ -145,7 +145,7 @@ function buildTraitsText(
     traitsList.push('Passenger Operated');
   }
 
-  traitsList.sort(traitCollator.compare);
+  traitsList.sort((a, b) => a.localeCompare(b));
   return traitsList.join(', ');
 }
 
