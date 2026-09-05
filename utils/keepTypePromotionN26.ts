@@ -45,9 +45,14 @@ export function shouldClearSpecialisationForSubtypes(
 }
 
 /**
- * True when the fighter went through the N26 Prospect keep-type promotion —
- * catalog fighter_type is still Prospect (keep-type preserves the catalog) but
- * live subtypes no longer include Prospect (they now include Ganger+Specialist).
+ * True when the fighter went through the N26 Prospect promotion — signalled by
+ * one of the eight Prospect specialisation ids being set on
+ * fighters.fighter_specialisation_id. Those ids are only ever written by the
+ * Prospect promotion action, are preserved across every downstream promotion
+ * (keep-type Ganger→Champion, type-change Champion→Leader — the Leader recipe
+ * keeps the Specialist subtype so the specialisation stays too), and are
+ * cleared by the promotion-undo flow. Catalog subtypes are not a reliable
+ * signal because Champion→Leader rewrites fighter_type_id.
  *
  * RAW, the 13-XP Advancement roll is what a Prospect trades in to become a
  * Ganger+Specialist; the roll itself remains a normal Advancement (a CGC
@@ -57,12 +62,11 @@ export function shouldClearSpecialisationForSubtypes(
  */
 export function hasN26ProspectPromotionOccurred(
   editionSlug?: string | null,
-  catalogSubtypes?: string[] | null,
-  currentSubtypes?: string[] | null
+  fighterSpecialisationId?: string | null
 ): boolean {
-  return hasProspectSpecialisationPromotion(editionSlug)
-    && (catalogSubtypes ?? []).includes('Prospect')
-    && !(currentSubtypes ?? []).includes('Prospect');
+  if (!hasProspectSpecialisationPromotion(editionSlug)) return false;
+  if (!fighterSpecialisationId) return false;
+  return N26_PROSPECT_SPECIALISATIONS.some((s) => s.id === fighterSpecialisationId);
 }
 
 /** Catalog ids for the eight houseless specialisations offered on Prospect promotion. */

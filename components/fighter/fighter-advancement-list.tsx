@@ -189,13 +189,6 @@ interface AdvancementsListProps {
   fighterId: string;
   editionSlug?: string | null;
   fighterSubtypes: string[];
-  /**
-   * Catalog subtypes on the fighter's fighter_type row. Distinct from live
-   * `fighterSubtypes` because N26 keep-type promotion leaves the catalog on
-   * Prospect while live subtypes flip to Ganger+Specialist — needed for the
-   * count exclusion to hold across pre- and post-promotion.
-   */
-  fighterCatalogSubtypes?: string[];
   advancements: Array<FighterEffectType>;
   skills: FighterSkills;
   userPermissions: UserPermissions;
@@ -2901,7 +2894,6 @@ export function AdvancementsList({
   fighterId,
   editionSlug = null,
   fighterSubtypes,
-  fighterCatalogSubtypes = [],
   advancements = [],
   skills = {},
   userPermissions,
@@ -3327,8 +3319,7 @@ export function AdvancementsList({
 
   const prospectPromotionConsumed = hasN26ProspectPromotionOccurred(
     editionSlug,
-    fighterCatalogSubtypes,
-    fighterSubtypes,
+    fighterSpecialisationId,
   );
 
   const openAdvancements = openAdvancementsFor(

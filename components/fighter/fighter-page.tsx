@@ -41,8 +41,7 @@ interface FighterPageProps {
     id: string;
     fighter_name: string;
     fighter_type: string;
-    fighter_subtypes?: string[];
-    fighter_type_subtypes?: string[];
+    fighter_specialisation_id?: string | null;
     xp: number | null;
     starting_xp?: number | null;
     advancements_taken?: number;
@@ -170,8 +169,7 @@ interface FighterPageState {
     id: string;
     fighter_name: string;
     fighter_type: string;
-    fighter_subtypes?: string[];
-    fighter_type_subtypes?: string[];
+    fighter_specialisation_id?: string | null;
     xp: number | null;
     starting_xp?: number | null;
     advancements_taken?: number;
@@ -653,8 +651,7 @@ export default function FighterPage({
             {
               prospectPromotionConsumed: hasN26ProspectPromotionOccurred(
                 editionSlug,
-                f.fighter_type_subtypes,
-                f.fighter_subtypes,
+                f.fighter_specialisation_id,
               ),
             },
           )
@@ -955,7 +952,6 @@ export default function FighterPage({
             fighterId={fighterData.fighter?.id || ''}
             editionSlug={fighterData.gang?.edition_slug ?? fighterData.fighter?.edition_slug ?? null}
             fighterSubtypes={fighterData.fighter?.fighter_subtypes || []}
-            fighterCatalogSubtypes={fighterData.fighter?.fighter_type?.fighter_subtypes || []}
             advancements={fighterData.fighter?.effects?.advancements || []}
             skills={fighterData.fighter?.skills || {}}
             userPermissions={userPermissions}
