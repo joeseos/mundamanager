@@ -739,7 +739,6 @@ export default function GangPageContent({
             <div className="bg-card shadow-md rounded-lg p-4">
               <GangTacticsCards
                 gangId={gangId}
-                editionSlug={gangData.processedData.edition_slug}
                 tacticsCards={gangData.processedData.tacticsCards || []}
                 onTacticsCardsUpdate={handleTacticsCardsUpdate}
                 userPermissions={userPermissions}
