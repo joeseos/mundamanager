@@ -56,13 +56,6 @@ interface AdvancementModalProps {
   openAdvancements: number;
   editionSlug?: string | null;
   fighterSubtypes: string[];
-  /**
-   * Catalog subtypes on the fighter's fighter_type row. Distinct from live
-   * `fighterSubtypes` because N26 keep-type promotion leaves the catalog on
-   * Prospect while live subtypes flip to Ganger+Specialist — needed for the
-   * count exclusion to hold across pre- and post-promotion.
-   */
-  fighterCatalogSubtypes?: string[];
   advancements: Array<FighterEffectType>;
   skills: Record<string, any>;
   onClose: () => void;
@@ -499,7 +492,6 @@ export function AdvancementModal({
   openAdvancements,
   editionSlug = null,
   fighterSubtypes,
-  fighterCatalogSubtypes = [],
   advancements,
   skills,
   onClose,
@@ -3525,7 +3517,6 @@ export function AdvancementsList({
           openAdvancements={openAdvancements}
           editionSlug={editionSlug}
           fighterSubtypes={fighterSubtypes}
-          fighterCatalogSubtypes={fighterCatalogSubtypes}
           advancements={advancements}
           skills={skills}
           onClose={() => setIsAdvancementModalOpen(false)}
