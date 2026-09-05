@@ -33,7 +33,7 @@ import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { sortFightersByPositioning } from '@/utils/fighter-positioning';
 import { hasCumulativeXp } from '@/types/edition';
 import { nextTierStartFor, openAdvancementsFor } from '@/utils/advancementRanks';
-import { isN26ProspectByCatalog } from '@/utils/keepTypePromotionN26';
+import { hasN26ProspectPromotionOccurred } from '@/utils/keepTypePromotionN26';
 
 interface FighterPageProps {
   initialFighterData: any;
@@ -41,6 +41,7 @@ interface FighterPageProps {
     id: string;
     fighter_name: string;
     fighter_type: string;
+    fighter_subtypes?: string[];
     fighter_type_subtypes?: string[];
     xp: number | null;
     starting_xp?: number | null;
@@ -169,6 +170,7 @@ interface FighterPageState {
     id: string;
     fighter_name: string;
     fighter_type: string;
+    fighter_subtypes?: string[];
     fighter_type_subtypes?: string[];
     xp: number | null;
     starting_xp?: number | null;
@@ -649,9 +651,10 @@ export default function FighterPage({
             currentXp,
             f.advancements_taken ?? 0,
             {
-              excludeProspectPromotionTier: isN26ProspectByCatalog(
+              prospectPromotionConsumed: hasN26ProspectPromotionOccurred(
                 editionSlug,
                 f.fighter_type_subtypes,
+                f.fighter_subtypes,
               ),
             },
           )

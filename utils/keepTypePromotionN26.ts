@@ -45,18 +45,24 @@ export function shouldClearSpecialisationForSubtypes(
 }
 
 /**
- * True when the fighter's catalog fighter_type is a Prospect on an edition that
- * uses Prospect keep-type promotion. Catalog rather than live subtypes because
- * the promotion keeps the type row (Ganger+Specialist land on the fighter, not
- * the type), so this stays true after promotion and correctly identifies both
- * pre- and post-promotion Prospects.
+ * True when the fighter went through the N26 Prospect keep-type promotion —
+ * catalog fighter_type is still Prospect (keep-type preserves the catalog) but
+ * live subtypes no longer include Prospect (they now include Ganger+Specialist).
+ *
+ * RAW, the 13-XP Advancement roll is what a Prospect trades in to become a
+ * Ganger+Specialist; the roll itself remains a normal Advancement (a CGC
+ * Initiate can spend it on a stat or skill instead). This helper is the signal
+ * to deduct one from the fighter's available Advancements once the trade has
+ * been made.
  */
-export function isN26ProspectByCatalog(
+export function hasN26ProspectPromotionOccurred(
   editionSlug?: string | null,
-  catalogSubtypes?: string[] | null
+  catalogSubtypes?: string[] | null,
+  currentSubtypes?: string[] | null
 ): boolean {
   return hasProspectSpecialisationPromotion(editionSlug)
-    && (catalogSubtypes ?? []).includes('Prospect');
+    && (catalogSubtypes ?? []).includes('Prospect')
+    && !(currentSubtypes ?? []).includes('Prospect');
 }
 
 /** Catalog ids for the eight houseless specialisations offered on Prospect promotion. */

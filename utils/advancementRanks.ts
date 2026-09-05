@@ -110,22 +110,14 @@ export function currentXpLadderRankFor(
 const tiersAtOrBelow = (tiers: readonly number[], xp: number): number =>
   tiers.filter((tierStart) => tierStart <= xp).length;
 
-/**
- * Rank 4 (13 XP) is the mandatory Prospect→Ganger/Specialist promotion in N26,
- * not a normal Advancement. Sourced from the ladder rather than a literal so
- * a ladder rebalance stays in one place.
- */
-export const N26_PROSPECT_PROMOTION_TIER_XP =
-  n26XpLadder.find((row) => row.rank === 4)!.xpMin;
-
 export type AdvancementCountOptions = {
   /**
-   * When true, drop the 13-XP tier from the count. The Prospect→Ganger promotion
-   * consumes that tier by rule, so a fighter whose catalog type is a Prospect
-   * (pre- or post-promotion, since keep-type leaves the catalog on Prospect)
-   * would otherwise be credited one advancement they never earn.
+   * True when the N26 Prospect→Ganger promotion has been applied to this
+   * fighter. The 13-XP tier remains a normal Advancement (a CGC Initiate can
+   * spend it on a stat/skill instead), but using the promotion trades that
+   * Advancement in — so once it has been used, the open count drops by one.
    */
-  excludeProspectPromotionTier?: boolean;
+  prospectPromotionConsumed?: boolean;
 };
 
 /**
@@ -146,12 +138,8 @@ export function advancementsEarnedFor(
   editionSlug: string | null | undefined,
   startingXp: number | null,
   currentXp: number,
-  options?: AdvancementCountOptions,
 ): number {
-  const allTiers = tierStartsFor(editionSlug);
-  const tiers = options?.excludeProspectPromotionTier
-    ? allTiers.filter((tierStart) => tierStart !== N26_PROSPECT_PROMOTION_TIER_XP)
-    : allTiers;
+  const tiers = tierStartsFor(editionSlug);
 
   // XP below the recruitment value is only reachable by editing a fighter after
   // the fact; it means no Advancement, never a negative one.
@@ -200,8 +188,9 @@ export function openAdvancementsFor(
   advancementsTaken: number,
   options?: AdvancementCountOptions,
 ): number {
+  const promotionCost = options?.prospectPromotionConsumed ? 1 : 0;
   return Math.max(
     0,
-    advancementsEarnedFor(editionSlug, startingXp, currentXp, options) - advancementsTaken,
+    advancementsEarnedFor(editionSlug, startingXp, currentXp) - advancementsTaken - promotionCost,
   );
 }

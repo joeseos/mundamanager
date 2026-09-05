@@ -40,6 +40,7 @@ export const getGangFighters = async (gangId: string, supabase: any) => {
     id: f.id,
     fighter_name: f.fighter_name,
     fighter_type: f.fighter_type,
+    fighter_subtypes: Array.isArray(f.fighter_subtypes) ? f.fighter_subtypes : [],
     fighter_type_subtypes: Array.isArray(f.fighter_types?.fighter_subtypes)
       ? f.fighter_types.fighter_subtypes
       : [],
