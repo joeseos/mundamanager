@@ -123,9 +123,9 @@ export const equipmentCategoryToSuperCategoryN26: { [key: string]: string } = Ob
  */
 export function getEquipmentCategoryDisplayNameN26(categoryName: string): string {
   return categoryName
+    .replace(/ \(Chem-alchemy\)$/, '')
     .replace(/ \(Close Combat Weapons\)$/, '')
-    .replace(/ \(Ranged Weapons\)$/, '')
-    .replace(/ \(Chem-alchemy\)$/, '');
+    .replace(/ \(Ranged Weapons\)$/, '');
 }
 
 export function getEquipmentSuperCategoryN26(categoryName: string): string | undefined {
