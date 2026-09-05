@@ -20,7 +20,8 @@ import {
   normaliseTacticsDescription,
   TACTICS_DESCRIPTION_CHAR_LIMIT,
   type GangTacticsCard,
-  type TacticsCard
+  type TacticsCard,
+  type TacticsCatalogueResponse
 } from '@/types/tactics-card';
 import {
   addGangTacticsCards,
@@ -32,6 +33,8 @@ import {
 interface GangTacticsCardsProps {
   gangId: string;
   editionSlug?: string | null;
+  /** null for a gang on a custom gang type: unrestricted packs only. */
+  gangTypeId?: string | null;
   tacticsCards: GangTacticsCard[];
   /** Tab bodies unmount on switch, so the list itself lives in the page. */
   onTacticsCardsUpdate: (cards: GangTacticsCard[]) => void;
@@ -43,11 +46,13 @@ const TOOLTIP_ID = 'gang-tactics-description-tooltip';
 export default function GangTacticsCards({
   gangId,
   editionSlug,
+  gangTypeId,
   tacticsCards,
   onTacticsCardsUpdate,
   userPermissions
 }: GangTacticsCardsProps) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
   const [editCard, setEditCard] = useState<GangTacticsCard | null>(null);
   const [editDescription, setEditDescription] = useState('');
@@ -62,11 +67,15 @@ export default function GangTacticsCards({
     [tacticsCards]
   );
 
-  // Only fetched once the Add modal is opened.
-  const { data: catalogue = [], isLoading: isLoadingCatalogue, error: catalogueError } = useQuery<TacticsCard[]>({
-    queryKey: ['tactics-cards', editionSlug],
+  // Only fetched once the Add modal is opened. The gang type is part of the key
+  // because it filters the packs: without it, two gangs of different types in
+  // one edition would share an entry and each see the other's packs.
+  const { data, isLoading: isLoadingCatalogue, error: catalogueError } = useQuery<TacticsCatalogueResponse>({
+    queryKey: ['tactics-cards', editionSlug, gangTypeId ?? 'custom'],
     queryFn: async () => {
-      const response = await fetch(`/api/tactics-cards?edition_slug=${editionSlug}`);
+      const params = new URLSearchParams({ edition_slug: editionSlug! });
+      if (gangTypeId) params.set('gang_type_id', gangTypeId);
+      const response = await fetch(`/api/tactics-cards?${params}`);
       if (!response.ok) throw new Error('Failed to fetch tactics cards');
       return response.json();
     },
@@ -74,18 +83,46 @@ export default function GangTacticsCards({
     enabled: isAddModalOpen && !!editionSlug
   });
 
+  const packs = useMemo(() => data?.packs ?? [], [data]);
+  const allCards = useMemo(() => data?.cards ?? [], [data]);
+
+  // Derived rather than synced in an effect: the packs aren't known until the
+  // query resolves, and falling back here avoids a second render pass. packs[0]
+  // is the edition's Core deck — the API orders unrestricted packs first, then
+  // oldest first, so this doesn't match on the name. The `some` check also
+  // re-defaults if the packs change under a mounted component.
+  const activePackId =
+    selectedPackId && packs.some(pack => pack.id === selectedPackId)
+      ? selectedPackId
+      : packs[0]?.id ?? null;
+
+  // Every deck has its own D66 table, so the roll and the list are both scoped
+  // to the selected one.
+  const catalogue = useMemo(
+    () => (activePackId ? allCards.filter(card => card.pack_id === activePackId) : []),
+    [allCards, activePackId]
+  );
+
   const hasRollableCard = catalogue.some(card => card.d66_min != null && !ownedCardIds.has(card.id));
 
+  const handleSelectPack = (packId: string) => {
+    if (packId === activePackId) return;
+    setSelectedPackId(packId);
+    // Ticks in a deck you can no longer see would still be submitted.
+    setSelectedCardIds(new Set());
+  };
+
   const logRollMutation = useMutation({
-    mutationFn: (outcome: RollOutcome) =>
-      verifyAndLogRolledTacticsCard({ gangId, total: outcome.total, dice: outcome.dice })
+    mutationFn: ({ outcome, packId }: { outcome: RollOutcome; packId: string }) =>
+      verifyAndLogRolledTacticsCard({ gangId, packId, total: outcome.total, dice: outcome.dice })
   });
 
   const logRollWithCooldown = (outcome: RollOutcome) => {
+    if (!activePackId) return;
     if (rollLogCooldown || logRollMutation.isPending) return;
     setRollLogCooldown(true);
     try {
-      logRollMutation.mutate(outcome);
+      logRollMutation.mutate({ outcome, packId: activePackId });
     } finally {
       setTimeout(() => setRollLogCooldown(false), 2000);
     }
@@ -109,6 +146,9 @@ export default function GangTacticsCards({
 
   const handleOpenAddModal = () => {
     setSelectedCardIds(new Set());
+    // Back to the Core deck on every open; activePackId falls back to packs[0]
+    // until something is picked.
+    setSelectedPackId(null);
     setIsAddModalOpen(true);
   };
 
@@ -279,6 +319,32 @@ export default function GangTacticsCards({
           helper="Pick the tactics cards this gang holds."
           content={
             <div>
+              {/* Single-select: each deck has its own D66 table, so only one can
+                  be in play at a time. Hidden when there is nothing to choose. */}
+              {packs.length > 1 && (
+                <div
+                  role="radiogroup"
+                  aria-label="Tactics pack"
+                  className="flex flex-wrap gap-x-4 gap-y-2 mb-3 pb-3 border-b border-border"
+                >
+                  {packs.map(pack => (
+                    <label
+                      key={pack.id}
+                      htmlFor={`tactics-pack-${pack.id}`}
+                      className="flex items-center gap-2 cursor-pointer"
+                    >
+                      <Checkbox
+                        id={`tactics-pack-${pack.id}`}
+                        role="radio"
+                        aria-checked={pack.id === activePackId}
+                        checked={pack.id === activePackId}
+                        onCheckedChange={() => handleSelectPack(pack.id)}
+                      />
+                      <span className="text-sm font-medium text-foreground">{pack.name}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
               <div className="mb-3">
                 <DiceRoller<TacticsCard>
                   items={catalogue}

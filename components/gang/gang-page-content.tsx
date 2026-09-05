@@ -740,6 +740,7 @@ export default function GangPageContent({
               <GangTacticsCards
                 gangId={gangId}
                 editionSlug={gangData.processedData.edition_slug}
+                gangTypeId={gangData.processedData.gang_type_id ?? null}
                 tacticsCards={gangData.processedData.tacticsCards || []}
                 onTacticsCardsUpdate={handleTacticsCardsUpdate}
                 userPermissions={userPermissions}
