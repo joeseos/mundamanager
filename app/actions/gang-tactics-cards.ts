@@ -11,7 +11,6 @@ import {
   logTacticsCardRemoved
 } from './logs/gang-tactics-logs';
 import { gangEditionJoin, gangEditionSlug, hasGangTacticsCards } from '@/types/edition';
-import { getTacticsPacksForGang } from '@/app/lib/shared/tactics-packs';
 import {
   GANG_TACTICS_CARD_SELECT,
   normaliseTacticsDescription,
@@ -32,8 +31,25 @@ interface AddGangTacticsCardsResult extends GangTacticsResult {
 
 interface GangTacticsContext {
   editionId: string;
-  /** null for a gang on a custom gang type: unrestricted packs only. */
-  gangTypeId: string | null;
+  /** The gang's own gang list and the house it belongs to. Empty for a custom gang type. */
+  gangTypeIds: string[];
+}
+
+/** The pack embed every availability check reads. */
+const CARD_PACK_SELECT = 'tactics_cards_packs!inner ( edition_id, gang_type_id )';
+
+/**
+ * Whether a card's pack is one this gang may draw from: unrestricted, its own
+ * gang list's, or its house's.
+ */
+function isPackAvailable(row: any, { editionId, gangTypeIds }: GangTacticsContext): boolean {
+  const pack = Array.isArray(row.tactics_cards_packs)
+    ? row.tactics_cards_packs[0]
+    : row.tactics_cards_packs;
+
+  if (!pack || pack.edition_id !== editionId) return false;
+
+  return pack.gang_type_id == null || gangTypeIds.includes(pack.gang_type_id);
 }
 
 /**
@@ -53,7 +69,7 @@ async function authoriseGangTactics(
       id,
       user_id,
       gang_type_id,
-      gang_types!gang_type_id ( editions:edition_id ( id, slug ) ),
+      gang_types!gang_type_id ( parent_gang_type_id, editions:edition_id ( id, slug ) ),
       custom_gang_types!custom_gang_type_id ( editions:edition_id ( id, slug ) )
     `)
     .eq('id', gangId)
@@ -72,18 +88,19 @@ async function authoriseGangTactics(
     return { error: 'Gang Tactics are not available for this edition' };
   }
 
-  // Slug and id come from the same editions embed, so a slug that passed the
-  // check above implies a resolved id. Bail rather than fall through with a
-  // null edition, which would drop the pack filter on every query below.
+  // Bail rather than fall through with a null edition, which would drop the
+  // pack filter from every query below.
   const editionId = gangEditionJoin(gang)?.id;
   if (!editionId) {
     return { error: 'Gang Tactics are not available for this edition' };
   }
 
+  const gangType = Array.isArray(gang.gang_types) ? gang.gang_types[0] : gang.gang_types;
+
   return {
     context: {
       editionId,
-      gangTypeId: gang.gang_type_id ?? null
+      gangTypeIds: [gang.gang_type_id, gangType?.parent_gang_type_id].filter(Boolean) as string[]
     }
   };
 }
@@ -104,26 +121,16 @@ export async function addGangTacticsCards(params: {
     }
 
     // The browser can post any uuid, so don't trust what the picker sent. Packs
-    // are edition-scoped, so checking the pack covers the edition too, and adds
-    // the gang-type restriction on top.
-    const packs = await getTacticsPacksForGang(supabase, {
-      editionId: auth.context.editionId,
-      gangTypeId: auth.context.gangTypeId
-    });
-    const allowedPackIds = new Set(packs.map(pack => pack.id));
-
+    // carry the edition, so checking the pack covers that too.
     const { data: catalogue, error: catalogueError } = await supabase
       .from('tactics_cards')
-      .select('id, pack_id')
+      .select(`id, ${CARD_PACK_SELECT}`)
       .in('id', tacticsCardIds);
 
     if (catalogueError) throw catalogueError;
 
-    const allAvailable =
-      (catalogue?.length ?? 0) === tacticsCardIds.length &&
-      (catalogue ?? []).every((card: { pack_id: string }) => allowedPackIds.has(card.pack_id));
-
-    if (!allAvailable) {
+    const available = (catalogue ?? []).filter(card => isPackAvailable(card, auth.context));
+    if (available.length !== tacticsCardIds.length) {
       return { success: false, error: 'One or more tactics cards are not available for this gang' };
     }
 
@@ -168,25 +175,14 @@ export async function verifyAndLogRolledTacticsCard(params: {
     const auth = await authoriseGangTactics(supabase, params.gangId);
     if ('error' in auth) return { success: false, error: auth.error };
 
-    // The pack id is posted by the browser, so re-derive the allowed set rather
-    // than trusting it.
-    const packs = await getTacticsPacksForGang(supabase, {
-      editionId: auth.context.editionId,
-      gangTypeId: auth.context.gangTypeId
-    });
-
-    if (!packs.some(pack => pack.id === params.packId)) {
-      return { success: false, error: 'That tactics pack is not available for this gang' };
-    }
-
-    // Scoped to the one pack, not the whole edition: every pack has its own D66
-    // table, so an edition-wide lookup matches one card per pack and returns
-    // several rows. Still resolved from the dice rather than a posted card id,
-    // so a roll can't be credited to a card it didn't produce — the client says
-    // which table it rolled on, never which card came up.
-    const { data: card, error } = await supabase
+    // Scoped to the posted pack, not the whole edition: each pack has its own
+    // D66 table, so an edition-wide lookup matches one card per pack. The card
+    // is still resolved from the dice rather than a posted id, so the client
+    // says which table it rolled on, never which card came up — and the pack
+    // restriction means a pack this gang can't use matches nothing.
+    const { data: rolled, error } = await supabase
       .from('tactics_cards')
-      .select('name')
+      .select(`name, ${CARD_PACK_SELECT}`)
       .eq('pack_id', params.packId)
       .lte('d66_min', params.total)
       .gte('d66_max', params.total)
@@ -195,6 +191,8 @@ export async function verifyAndLogRolledTacticsCard(params: {
       .maybeSingle();
 
     if (error) throw error;
+
+    const card = rolled && isPackAvailable(rolled, auth.context) ? rolled : null;
     if (!card) return { success: false, error: 'No tactics card matches that roll' };
 
     return await logRolledTacticsCard({

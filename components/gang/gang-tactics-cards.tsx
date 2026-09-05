@@ -67,9 +67,8 @@ export default function GangTacticsCards({
     [tacticsCards]
   );
 
-  // Only fetched once the Add modal is opened. The gang type is part of the key
-  // because it filters the packs: without it, two gangs of different types in
-  // one edition would share an entry and each see the other's packs.
+  // Only fetched once the Add modal is opened. The gang type is in the key
+  // because it filters the packs.
   const { data, isLoading: isLoadingCatalogue, error: catalogueError } = useQuery<TacticsCatalogueResponse>({
     queryKey: ['tactics-cards', editionSlug, gangTypeId ?? 'custom'],
     queryFn: async () => {
@@ -86,18 +85,14 @@ export default function GangTacticsCards({
   const packs = useMemo(() => data?.packs ?? [], [data]);
   const allCards = useMemo(() => data?.cards ?? [], [data]);
 
-  // Derived rather than synced in an effect: the packs aren't known until the
-  // query resolves, and falling back here avoids a second render pass. packs[0]
-  // is the edition's Core deck — the API orders unrestricted packs first, then
-  // oldest first, so this doesn't match on the name. The `some` check also
-  // re-defaults if the packs change under a mounted component.
+  // packs[0] is the edition's Core deck. Derived rather than synced in an
+  // effect, since the packs aren't known until the query resolves.
   const activePackId =
     selectedPackId && packs.some(pack => pack.id === selectedPackId)
       ? selectedPackId
       : packs[0]?.id ?? null;
 
-  // Every deck has its own D66 table, so the roll and the list are both scoped
-  // to the selected one.
+  // Each deck has its own D66 table, so the list and the roll follow it.
   const catalogue = useMemo(
     () => (activePackId ? allCards.filter(card => card.pack_id === activePackId) : []),
     [allCards, activePackId]
@@ -146,8 +141,6 @@ export default function GangTacticsCards({
 
   const handleOpenAddModal = () => {
     setSelectedCardIds(new Set());
-    // Back to the Core deck on every open; activePackId falls back to packs[0]
-    // until something is picked.
     setSelectedPackId(null);
     setIsAddModalOpen(true);
   };
@@ -319,8 +312,7 @@ export default function GangTacticsCards({
           helper="Pick the tactics cards this gang holds."
           content={
             <div>
-              {/* Single-select: each deck has its own D66 table, so only one can
-                  be in play at a time. Hidden when there is nothing to choose. */}
+              {/* Single-select: only one D66 table is in play at a time. */}
               {packs.length > 1 && (
                 <div
                   role="radiogroup"

@@ -1,14 +1,9 @@
 // `tactics_cards` is the global catalogue, grouped into packs (decks) by
-// `tactics_cards_packs`; the pack owns the edition, so a card derives its
-// edition through `pack_id`. `gang_tactics_cards` is the per-gang row carrying
-// the user's description. Kept dependency-free so client components can import
-// it.
+// `tactics_cards_packs`, which owns the edition. `gang_tactics_cards` is the
+// per-gang row carrying the user's description. Kept dependency-free so client
+// components can import it.
 
-/**
- * A deck of tactics cards within one edition, with its own D66 table.
- * Picker-only: nothing on a gang points at a pack, so a gang may hold cards
- * from several.
- */
+/** A deck within one edition, with its own D66 table. */
 export interface TacticsCardPack {
   id: string;
   name: string;
@@ -24,10 +19,7 @@ export interface TacticsCard {
   pack_id: string;
 }
 
-/**
- * GET /api/tactics-cards. Packs are ordered unrestricted-first then oldest
- * first, so `packs[0]` is the edition's Core deck without matching on its name.
- */
+/** GET /api/tactics-cards. `packs[0]` is the edition's Core deck. */
 export interface TacticsCatalogueResponse {
   packs: TacticsCardPack[];
   cards: TacticsCard[];
