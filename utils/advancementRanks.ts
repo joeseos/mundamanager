@@ -110,6 +110,16 @@ export function currentXpLadderRankFor(
 const tiersAtOrBelow = (tiers: readonly number[], xp: number): number =>
   tiers.filter((tierStart) => tierStart <= xp).length;
 
+export type AdvancementCountOptions = {
+  /**
+   * True when the N26 Prospect→Ganger promotion has been applied to this
+   * fighter. The 13-XP tier remains a normal Advancement (a CGC Initiate can
+   * spend it on a stat/skill instead), but using the promotion trades that
+   * Advancement in — so once it has been used, the open count drops by one.
+   */
+  prospectPromotionConsumed?: boolean;
+};
+
 /**
  * How many Advancements a model has earned in total.
  *
@@ -176,6 +186,11 @@ export function openAdvancementsFor(
   startingXp: number | null,
   currentXp: number,
   advancementsTaken: number,
+  options?: AdvancementCountOptions,
 ): number {
-  return Math.max(0, advancementsEarnedFor(editionSlug, startingXp, currentXp) - advancementsTaken);
+  const promotionCost = options?.prospectPromotionConsumed ? 1 : 0;
+  return Math.max(
+    0,
+    advancementsEarnedFor(editionSlug, startingXp, currentXp) - advancementsTaken - promotionCost,
+  );
 }

@@ -33,6 +33,7 @@ import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { sortFightersByPositioning } from '@/utils/fighter-positioning';
 import { hasCumulativeXp } from '@/types/edition';
 import { nextTierStartFor, openAdvancementsFor } from '@/utils/advancementRanks';
+import { hasN26ProspectPromotionOccurred } from '@/utils/keepTypePromotionN26';
 
 interface FighterPageProps {
   initialFighterData: any;
@@ -40,6 +41,8 @@ interface FighterPageProps {
     id: string;
     fighter_name: string;
     fighter_type: string;
+    fighter_subtypes?: string[];
+    fighter_type_subtypes?: string[];
     xp: number | null;
     starting_xp?: number | null;
     advancements_taken?: number;
@@ -167,6 +170,8 @@ interface FighterPageState {
     id: string;
     fighter_name: string;
     fighter_type: string;
+    fighter_subtypes?: string[];
+    fighter_type_subtypes?: string[];
     xp: number | null;
     starting_xp?: number | null;
     advancements_taken?: number;
@@ -645,6 +650,13 @@ export default function FighterPage({
             f.starting_xp ?? null,
             currentXp,
             f.advancements_taken ?? 0,
+            {
+              prospectPromotionConsumed: hasN26ProspectPromotionOccurred(
+                editionSlug,
+                f.fighter_type_subtypes,
+                f.fighter_subtypes,
+              ),
+            },
           )
         : 0;
       const showAdvancementIcon = isCumulativeXp && openAdvancements > 0;
@@ -943,6 +955,7 @@ export default function FighterPage({
             fighterId={fighterData.fighter?.id || ''}
             editionSlug={fighterData.gang?.edition_slug ?? fighterData.fighter?.edition_slug ?? null}
             fighterSubtypes={fighterData.fighter?.fighter_subtypes || []}
+            fighterCatalogSubtypes={fighterData.fighter?.fighter_type?.fighter_subtypes || []}
             advancements={fighterData.fighter?.effects?.advancements || []}
             skills={fighterData.fighter?.skills || {}}
             userPermissions={userPermissions}

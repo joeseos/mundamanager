@@ -7,6 +7,7 @@ import { FighterProps, FighterEffect, Vehicle, VehicleEquipment, FighterSkills }
 import { hasSaveCharacteristic } from '@/types/edition';
 import { calculateAdjustedStats, applySpecialRulesModifiers } from '@/utils/effect-modifiers';
 import { countAdvancementsTaken, openAdvancementsFor } from '@/utils/advancementRanks';
+import { hasN26ProspectPromotionOccurred } from '@/utils/keepTypePromotionN26';
 import { injuryAggregationLabel } from '@/utils/injuryTarget';
 import { TbMeatOff } from "react-icons/tb";
 import { GiHandcuffs, GiImprisoned } from "react-icons/gi";
@@ -136,6 +137,7 @@ const FighterCard = memo(function FighterCard({
   type,
   label,
   fighter_subtypes,
+  fighter_type_subtypes,
   fighter_specialisation,
   fighter_variant,
   alliance_crew_name,
@@ -466,9 +468,16 @@ const FighterCard = memo(function FighterCard({
       edition_slug,
       starting_xp,
       xp,
-      countAdvancementsTaken(effects, skills)
+      countAdvancementsTaken(effects, skills),
+      {
+        prospectPromotionConsumed: hasN26ProspectPromotionOccurred(
+          edition_slug,
+          fighter_type_subtypes,
+          fighter_subtypes,
+        ),
+      },
     ),
-    [edition_slug, starting_xp, xp, effects, skills]
+    [edition_slug, starting_xp, xp, effects, skills, fighter_type_subtypes, fighter_subtypes]
   );
 
   // Determine a unique and valid id for the fighter card based on its status.

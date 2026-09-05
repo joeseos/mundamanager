@@ -677,6 +677,9 @@ export function assembleGangFighters(
           label: fighter.label,
           fighter_type: fighter.fighter_type || fighterTypeInfo.fighter_type || 'Unknown',
           fighter_subtypes: fighter.fighter_subtypes || [],
+          fighter_type_subtypes: Array.isArray(fighterTypeInfo.fighter_subtypes)
+            ? fighterTypeInfo.fighter_subtypes
+            : [],
           fighter_specialisation: fighterSpecialisationInfo ? {
             fighter_specialisation: fighterSpecialisationInfo.specialisation_name,
             fighter_specialisation_id: fighterSpecialisationInfo.id

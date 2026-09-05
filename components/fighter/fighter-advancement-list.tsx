@@ -46,6 +46,7 @@ import {
   N26_CHAMPION_PROMOTION_SKILL_NAME,
   N26_PROSPECT_PROMOTION_CREDITS,
   getN26ProspectSpecialisation,
+  hasN26ProspectPromotionOccurred,
 } from '@/utils/keepTypePromotionN26';
 
 // AdvancementModal Interfaces
@@ -188,6 +189,13 @@ interface AdvancementsListProps {
   fighterId: string;
   editionSlug?: string | null;
   fighterSubtypes: string[];
+  /**
+   * Catalog subtypes on the fighter's fighter_type row. Distinct from live
+   * `fighterSubtypes` because N26 keep-type promotion leaves the catalog on
+   * Prospect while live subtypes flip to Ganger+Specialist — needed for the
+   * count exclusion to hold across pre- and post-promotion.
+   */
+  fighterCatalogSubtypes?: string[];
   advancements: Array<FighterEffectType>;
   skills: FighterSkills;
   userPermissions: UserPermissions;
@@ -430,7 +438,7 @@ export function AdvancementModal({
   fighterTypeName = '',
   fighterTypeId = '',
   fighterSpecialisationId = '',
-  onFighterDetailsUpdate
+  onFighterDetailsUpdate,
 }: AdvancementModalProps) {
   
   const [skillSetCategories, setSkillSetCategories] = useState<SkillType[]>([]);
@@ -2893,6 +2901,7 @@ export function AdvancementsList({
   fighterId,
   editionSlug = null,
   fighterSubtypes,
+  fighterCatalogSubtypes = [],
   advancements = [],
   skills = {},
   userPermissions,
@@ -3316,11 +3325,18 @@ export function AdvancementsList({
   // Taken count: characteristic effects plus is_advance skills (shared with gang cards).
   const advancementCount = countAdvancementsTaken({ advancements }, skills);
 
+  const prospectPromotionConsumed = hasN26ProspectPromotionOccurred(
+    editionSlug,
+    fighterCatalogSubtypes,
+    fighterSubtypes,
+  );
+
   const openAdvancements = openAdvancementsFor(
     editionSlug,
     fighterStartingXp,
     fighterXp,
     advancementCount,
+    { prospectPromotionConsumed },
   );
 
   const title = (

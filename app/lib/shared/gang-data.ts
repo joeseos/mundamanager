@@ -137,6 +137,12 @@ export interface GangFighter {
   label?: string;
   fighter_type: string;
   fighter_subtypes: string[];
+  /**
+   * Catalog subtypes on the fighter_type row. Kept-type promotion
+   * (Prospect→Ganger/Specialist) leaves this on the origin type while live
+   * `fighter_subtypes` flip; it is the stable signal for "was recruited as X".
+   */
+  fighter_type_subtypes?: string[];
   fighter_specialisation?: {
     fighter_specialisation: string;
     fighter_specialisation_id: string;
