@@ -40,7 +40,7 @@ export default function WhatIsMundaManager({ userCount, gangCount, campaignCount
     {
       icon: <FaCogs className="h-6 w-6" />,
       title: "Advanced Gang Mechanics",
-      description: "Use Chem-Alchemy, Gene-smithing, Archaeo-Cyberteknika for your gangs, or bring your gang to the Ash Wastes with our vehicle support."
+      description: "Use Chem-alchemy, Gene-smithing, Archaeo-Cyberteknika for your gangs, or bring your gang to the Ash Wastes with our vehicle support."
     }
   ];
 
@@ -99,7 +99,7 @@ export default function WhatIsMundaManager({ userCount, gangCount, campaignCount
           <div className="flex items-start space-x-3">
             <div className="w-2 h-2 bg-red-800 rounded-full mt-2 shrink-0"></div>
             <p className="text-muted-foreground">
-              <strong>Advanced Features:</strong> Vehicle rules, custom equipment creation, gang mechanics like Chem-Alchemy and Gene-smithing, plus comprehensive campaign management with battle logs and territory tracking.
+              <strong>Advanced Features:</strong> Vehicle rules, custom equipment creation, gang mechanics like Chem-alchemy and Gene-smithing, plus comprehensive campaign management with battle logs and territory tracking.
             </p>
           </div>
           <div className="flex items-start space-x-3">

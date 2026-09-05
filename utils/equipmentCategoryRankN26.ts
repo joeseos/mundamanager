@@ -13,6 +13,7 @@ export interface EquipmentCategoryN26Entry {
 }
 
 export const equipmentCategoriesN26: EquipmentCategoryN26Entry[] = [
+  /** Close Combat Weapons */
   { category_name: "Aranthian Weapons (Close Combat Weapons)", super_category_name: "Close Combat Weapons" },
   { category_name: "Augmetic Weapons (Close Combat Weapons)", super_category_name: "Close Combat Weapons" },
   { category_name: "Cawdor Polearms", super_category_name: "Close Combat Weapons" },
@@ -37,6 +38,8 @@ export const equipmentCategoriesN26: EquipmentCategoryN26Entry[] = [
   { category_name: "Toxin Weapons (Close Combat Weapons)", super_category_name: "Close Combat Weapons" },
   { category_name: "Vehicle Weapons", super_category_name: "Close Combat Weapons" },
   { category_name: "Web Weapons (Close Combat Weapons)", super_category_name: "Close Combat Weapons" },
+
+  /** Ranged Weapons */
   { category_name: "Ammunition", super_category_name: "Ranged Weapons" },
   { category_name: "Aranthian Weapons (Ranged Weapons)", super_category_name: "Ranged Weapons" },
   { category_name: "Augmetic Weapons (Ranged Weapons)", super_category_name: "Ranged Weapons" },
@@ -72,6 +75,8 @@ export const equipmentCategoriesN26: EquipmentCategoryN26Entry[] = [
   { category_name: "Orrus Close Combat Weapons", super_category_name: "Spyrer Weapons" },
   { category_name: "Orrus Ranged Weapons", super_category_name: "Spyrer Weapons" },
   { category_name: "Yeld Weapons", super_category_name: "Spyrer Weapons" },
+
+  /** Wargear */
   { category_name: "Armour & Field Armour", super_category_name: "Wargear" },
   { category_name: "Gang Equipment", super_category_name: "Wargear" },
   { category_name: "Mounts", super_category_name: "Wargear" },
@@ -79,6 +84,11 @@ export const equipmentCategoriesN26: EquipmentCategoryN26Entry[] = [
   { category_name: "Pets", super_category_name: "Wargear" },
   { category_name: "Ridgehauler Upgrades", super_category_name: "Wargear" },
   { category_name: "Weapon Accessories", super_category_name: "Wargear" },
+
+  /** Chem-alchemy */
+  { category_name: "Gaseous Ammo (Chem-alchemy)", super_category_name: "Chem-alchemy" },
+  { category_name: "Poisons (Chem-alchemy)", super_category_name: "Chem-alchemy" },
+  { category_name: "Stimms (Chem-alchemy)", super_category_name: "Chem-alchemy" },
 ];
 
 /** Category sort order keyed by lowercased category_name. */
@@ -108,13 +118,14 @@ export const equipmentCategoryToSuperCategoryN26: { [key: string]: string } = Ob
 );
 
 /**
- * Display-only: strip parenthetical weapon-type suffixes from N26 category names.
+ * Display-only: strip parenthetical super-category suffixes from N26 category names.
  * Does not change the underlying database category_name values.
  */
 export function getEquipmentCategoryDisplayNameN26(categoryName: string): string {
   return categoryName
     .replace(/ \(Close Combat Weapons\)$/, '')
-    .replace(/ \(Ranged Weapons\)$/, '');
+    .replace(/ \(Ranged Weapons\)$/, '')
+    .replace(/ \(Chem-alchemy\)$/, '');
 }
 
 export function getEquipmentSuperCategoryN26(categoryName: string): string | undefined {

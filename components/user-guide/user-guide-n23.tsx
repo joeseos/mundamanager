@@ -17,7 +17,7 @@ export function UserGuideN23() {
               <li><a href="#gang-card-presentation" className="underline hover:text-red-800">Gang Card Presentation</a></li>
               <li><a href="#reorder-fighter-cards" className="underline hover:text-red-800">Reorder Fighter Cards</a></li>
               <li><a href="#gang-notes" className="underline hover:text-red-800">Gang Notes</a></li>
-              <li><a href="#house-escher-chem-alchemy" className="underline hover:text-red-800">House Escher: Chem-Alchemy</a></li>
+              <li><a href="#house-escher-chem-alchemy" className="underline hover:text-red-800">House Escher: Chem-alchemy</a></li>
               <li><a href="#house-goliath-gene-smithing" className="underline hover:text-red-800">House Goliath: Gene-Smithing</a></li>
               <li><a href="#house-van-saar-archaeo-cyberteknika" className="underline hover:text-red-800">House Van Saar: Archaeo-Cyberteknika</a></li>
               <li><a href="#spyre-hunting-party-spyrer-equipment-augmentations" className="underline hover:text-red-800">Spyre Hunting Party: Spyrer Equipment Augmentations</a></li>
@@ -151,16 +151,16 @@ export function UserGuideN23() {
 
           <h3 id="house-escher-chem-alchemy" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
             <a href="#house-escher-chem-alchemy" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
-              House Escher: Chem-Alchemy
+              House Escher: Chem-alchemy
             </a>
           </h3>
             <p className="text-muted-foreground mb-2">
-              For Escher gangs, Munda Manager supports Chem-Alchemy. You can create custom chems in the Stash and click on the Chem-Alchemy button.
+              For Escher gangs, Munda Manager supports Chem-alchemy. You can create custom chems in the Stash and click on the Chem-alchemy button.
             </p>
             <div className="my-4 flex justify-center">
               <img
                 src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/chem-alchemy.webp"
-                alt="House Escher Chem-Alchemy feature in Munda Manager showing custom chem creation and management interface"
+                alt="House Escher Chem-alchemy feature in Munda Manager showing custom chem creation and management interface"
                 className="rounded-lg"
                 style={{ maxWidth: '100%', height: 'auto' }}
               />
