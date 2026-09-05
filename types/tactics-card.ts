@@ -1,13 +1,21 @@
-// `tactics_cards` is the global, edition-scoped catalogue; `gang_tactics_cards`
-// is the per-gang row carrying the user's description. Kept dependency-free so
-// client components can import it.
+// `tactics_cards` is the global catalogue, grouped into decks by
+// `tactics_cards_packs`; `gang_tactics_cards` is the per-gang row carrying the
+// user's description. Kept dependency-free so client components can import it.
 
 export interface TacticsCard {
   id: string;
   name: string;
   d66_min: number | null;
   d66_max: number | null;
-  edition_slug: string | null;
+}
+
+/** One deck, with the cards the picker lists when it is the active one. */
+export interface TacticsCardsPack {
+  id: string;
+  name: string;
+  /** The edition's default deck. Always offered, and shown without a checkbox. */
+  is_core: boolean;
+  cards: TacticsCard[];
 }
 
 export interface GangTacticsCard {
@@ -21,6 +29,20 @@ export interface GangTacticsCard {
 }
 
 export const TACTICS_DESCRIPTION_CHAR_LIMIT = 1500;
+
+/**
+ * The packs a gang may draw from: the edition's core deck, plus any naming its
+ * gang type or the parent house that type belongs to. Pass to `.or()` alongside
+ * an `.eq('edition_id', ...)`.
+ */
+export function tacticsCardsPackFilter(
+  gangTypeId?: string | null,
+  parentGangTypeId?: string | null
+): string {
+  const typeIds = [gangTypeId, parentGangTypeId].filter(Boolean);
+  const core = 'gang_type_id.is.null';
+  return typeIds.length ? `${core},gang_type_id.in.(${typeIds.join(',')})` : core;
+}
 
 /** The gang_tactics_cards select every fetcher of these rows uses. */
 export const GANG_TACTICS_CARD_SELECT = `
