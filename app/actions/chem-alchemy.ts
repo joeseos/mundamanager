@@ -57,7 +57,7 @@ export async function createChemAlchemy({
 
     const gangEdition = gangEditionJoin(gangData);
     if (!hasChemAlchemy(gangEdition?.slug)) {
-      throw new Error('Chem-Alchemy is not available for this gang edition');
+      throw new Error('Chem-alchemy is not available for this gang edition');
     }
 
     if (gangData.credits < totalCost) {

@@ -8,7 +8,7 @@ const defaultUrl = process.env.NODE_ENV === 'development'
 
 // SEO constants - edit these to update all metadata
 const PAGE_TITLE = 'User Guide - How to Use Munda Manager';
-const PAGE_DESCRIPTION = 'Complete user guide for Munda Manager. Learn how to create gangs, manage fighters, run campaigns, use custom assets, and explore advanced features like Chem-Alchemy and Gene-Smithing for Necromunda.';
+const PAGE_DESCRIPTION = 'Complete user guide for Munda Manager. Learn how to create gangs, manage fighters, run campaigns, use custom assets, and explore advanced features like Chem-alchemy and Gene-Smithing for Necromunda.';
 const PAGE_DESCRIPTION_SHORT = 'Complete user guide for Munda Manager. Learn how to create gangs, manage fighters, run campaigns, and explore advanced features.';
 const PAGE_KEYWORDS = 'Munda Manager user guide, Necromunda guide, gang management tutorial, campaign management guide, how to use Munda Manager, Necromunda gang builder guide';
 
