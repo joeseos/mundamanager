@@ -1,8 +1,8 @@
 /**
- * Alternate gang archetypes (Chymist Cult, Wyld Hunt, Furnace Brutes, …) are
+ * Alternate gang variants (Chymist Cult, Wyld Hunt, Furnace Brutes, …) are
  * their own gang_types rows linked by parent_gang_type_id. Roots have a null
- * parent; an archetype points at its parent gang type. Created gangs store the
- * archetype's own id.
+ * parent; a variant points at its parent gang type. Created gangs store the
+ * variant's own id.
  */
 
 export type GangTypeWithParent = {
@@ -16,8 +16,8 @@ export function hasParentGangType(type: GangTypeWithParent): boolean {
   return type.parent_gang_type_id != null;
 }
 
-/** Archetypes whose parent_gang_type_id is this root's gang_type_id. */
-export function gangArchetypesFor<T extends GangTypeWithParent>(
+/** Variants whose parent_gang_type_id is this root's gang_type_id. */
+export function gangVariantsFor<T extends GangTypeWithParent>(
   parent: T,
   types: T[]
 ): T[] {

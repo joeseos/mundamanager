@@ -12,7 +12,7 @@ import { SubmitButton } from "./submit-button"
 import { toast } from 'sonner';
 import { getGangListRank } from "@/utils/gangListRank"
 import { gangSubtypeRank } from "@/utils/gangSubtypeRank"
-import { gangArchetypesFor, hasParentGangType } from "@/utils/gangTypeArchetypes"
+import { gangVariantsFor, hasParentGangType } from "@/utils/gangTypeVariants"
 import { createGang } from "@/app/actions/create-gang"
 import { useRouter } from "next/navigation"
 import { useSearchParams } from "next/navigation"
@@ -107,8 +107,8 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const [gangTypes, setGangTypes] = useState<GangType[]>([]);
   const [gangName, setGangName] = useState("")
   const [gangType, setGangType] = useState("")
-  // Resolved catalog id used on create: null = Standard (root), string = archetype child id.
-  const [gangArchetypeId, setGangArchetypeId] = useState<string | null>(null)
+  // Resolved catalog id used on create: null = Standard (root), string = variant child id.
+  const [gangVariantId, setGangVariantId] = useState<string | null>(null)
   const [selectedAffiliation, setSelectedAffiliation] = useState("")
   const [selectedOrigin, setSelectedOrigin] = useState("")
   const [credits, setCredits] = useState("1000")
@@ -139,13 +139,13 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
     [editionGangTypes, gangType]
   );
 
-  const gangArchetypeOptions = useMemo(
-    () => (selectedRootGangType ? gangArchetypesFor(selectedRootGangType, editionGangTypes) : []),
+  const gangVariantOptions = useMemo(
+    () => (selectedRootGangType ? gangVariantsFor(selectedRootGangType, editionGangTypes) : []),
     [selectedRootGangType, editionGangTypes]
   );
 
-  // null gangArchetypeId means Standard: resolve to the root gang type id.
-  const resolvedGangTypeId = gangArchetypeId ?? gangType;
+  // null gangVariantId means Standard: resolve to the root gang type id.
+  const resolvedGangTypeId = gangVariantId ?? gangType;
 
   const resolvedGangType = useMemo(
     () => gangTypes.find(type => type.gang_type_id === resolvedGangTypeId),
@@ -239,7 +239,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
     setPrevEditionSlug(editionSlug);
     if (gangType && !editionGangTypes.some(type => type.gang_type_id === gangType)) {
       setGangType("");
-      setGangArchetypeId(null);
+      setGangVariantId(null);
       setSelectedAffiliation("");
       setSelectedOrigin("");
     }
@@ -332,13 +332,13 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
     fetchSubtypes();
   }, [availableSubtypes.length, isLoadingSubtypes]);
 
-  // Clear affiliation, origin, and gang archetype when gang type (root) changes
+  // Clear affiliation, origin, and gang variant when gang type (root) changes
   const [prevGangType, setPrevGangType] = useState(gangType);
   if (gangType !== prevGangType) {
     setPrevGangType(gangType);
     setSelectedAffiliation("");
     setSelectedOrigin("");
-    setGangArchetypeId(null);
+    setGangVariantId(null);
 
     if (gangType) {
       const imageUrls = gangTypeImageArrays[gangType] || [];
@@ -348,11 +348,11 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
     }
   }
 
-  // When gang archetype changes, clamp image index to that type's own gallery
-  const [prevGangArchetypeId, setPrevGangArchetypeId] = useState<string | null>(gangArchetypeId);
-  if (gangArchetypeId !== prevGangArchetypeId) {
-    setPrevGangArchetypeId(gangArchetypeId);
-    const galleryId = gangArchetypeId ?? gangType;
+  // When gang variant changes, clamp image index to that type's own gallery
+  const [prevGangVariantId, setPrevGangVariantId] = useState<string | null>(gangVariantId);
+  if (gangVariantId !== prevGangVariantId) {
+    setPrevGangVariantId(gangVariantId);
+    const galleryId = gangVariantId ?? gangType;
     if (galleryId) {
       const imageUrls = gangTypeImageArrays[galleryId] || [];
       if (imageUrls.length > 0 && currentImageIndex >= imageUrls.length) {
@@ -432,7 +432,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
         // Reset form and close modal first for better UX
         setGangName("")
         setGangType("")
-        setGangArchetypeId(null)
+        setGangVariantId(null)
         setSelectedAffiliation("")
         setSelectedOrigin("")
         setCredits("1000")
@@ -529,9 +529,8 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
             />
           </div>
 
-          {gangArchetypeOptions.length > 0 && (
+          {gangVariantOptions.length > 0 && (
             <div>
-              {/* TODO: UI label only for now (was "Gang archetype"). Concept is Gang Variant; additional variable renaming is left to do. */}
               <span className="block text-sm font-medium text-muted-foreground mb-1">
                 Gang Variant
               </span>
@@ -540,33 +539,33 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
                   <div className="flex items-center space-x-2">
                     <input
                       type="radio"
-                      id="gang-archetype-standard"
-                      name="gang-archetype"
-                      checked={gangArchetypeId === null}
-                      onChange={() => setGangArchetypeId(null)}
+                      id="gang-variant-standard"
+                      name="gang-variant"
+                      checked={gangVariantId === null}
+                      onChange={() => setGangVariantId(null)}
                       className="h-4 w-4 text-foreground focus:ring-black border-border"
                     />
-                    <label htmlFor="gang-archetype-standard" className="text-sm cursor-pointer">
+                    <label htmlFor="gang-variant-standard" className="text-sm cursor-pointer">
                       Standard
                     </label>
                   </div>
                 </div>
                 <div className="flex flex-col gap-2">
-                  {gangArchetypeOptions.map((archetype) => (
-                    <div key={archetype.gang_type_id} className="flex items-center space-x-2">
+                  {gangVariantOptions.map((variant) => (
+                    <div key={variant.gang_type_id} className="flex items-center space-x-2">
                       <input
                         type="radio"
-                        id={`gang-archetype-${archetype.gang_type_id}`}
-                        name="gang-archetype"
-                        checked={gangArchetypeId === archetype.gang_type_id}
-                        onChange={() => setGangArchetypeId(archetype.gang_type_id)}
+                        id={`gang-variant-${variant.gang_type_id}`}
+                        name="gang-variant"
+                        checked={gangVariantId === variant.gang_type_id}
+                        onChange={() => setGangVariantId(variant.gang_type_id)}
                         className="h-4 w-4 text-foreground focus:ring-black border-border"
                       />
                       <label
-                        htmlFor={`gang-archetype-${archetype.gang_type_id}`}
+                        htmlFor={`gang-variant-${variant.gang_type_id}`}
                         className="text-sm cursor-pointer"
                       >
-                        {archetype.gang_type}
+                        {variant.gang_type}
                       </label>
                     </div>
                   ))}
