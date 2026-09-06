@@ -175,9 +175,9 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       tradePointsChanged = true;
     }
 
-    // Handle gang subtypes - store as JSONB array (DB column: gang_variants)
+    // Handle gang subtypes - store as JSONB array
     if (params.gang_subtypes !== undefined) {
-      updates.gang_variants = params.gang_subtypes;
+      updates.gang_subtypes = params.gang_subtypes;
     }
 
     // Perform the gang update
@@ -345,14 +345,14 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     let gangSubtypes: Array<{id: string, subtype: string}> = [];
     if (params.gang_subtypes !== undefined && params.gang_subtypes.length > 0) {
       const { data: subtypesData, error: subtypesError } = await supabase
-        .from('gang_variant_types')
-        .select('id, variant')
+        .from('gang_subtype_types')
+        .select('id, subtype')
         .in('id', params.gang_subtypes);
 
       if (!subtypesError && subtypesData) {
-        gangSubtypes = subtypesData.map((row: { id: string; variant: string }) => ({
+        gangSubtypes = subtypesData.map((row: { id: string; subtype: string }) => ({
           id: row.id,
-          subtype: row.variant
+          subtype: row.subtype
         }));
       }
     }
@@ -414,7 +414,7 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       invalidateGangCampaignMembership(params.gang_id);
     }
     
-    // If gang subtypes were updated, invalidate basic gang data (stored in gang_variants column)
+    // If gang subtypes were updated, invalidate basic gang data
     if (params.gang_subtypes !== undefined) {
       invalidateGang(params.gang_id);
     }

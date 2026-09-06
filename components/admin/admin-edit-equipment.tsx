@@ -50,7 +50,7 @@ const fighterTypeLabel = (ft: FighterType) => {
 };
 
 const grantKey = (grant: FighterTypeEquipmentGrant) =>
-  [grant.fighter_type_id, grant.gang_origin_id, grant.gang_variant_id, grant.fighter_subtype]
+  [grant.fighter_type_id, grant.gang_origin_id, grant.gang_subtype_id, grant.fighter_subtype]
     .map(part => part ?? '')
     .join('|');
 
@@ -357,7 +357,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       if (equipmentDetails.equipment_subtype_availabilities) {
         setEquipmentSubtypeAvailabilities(equipmentDetails.equipment_subtype_availabilities.map((a: any) => ({
           subtype: a.subtype,
-          gang_variant_id: a.gang_variant_id,
+          gang_subtype_id: a.gang_subtype_id,
           availability: a.availability
         })));
       }
@@ -386,7 +386,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         setFighterTypeGrants(equipmentDetails.fighter_types_with_equipment.map((ft: any) => ({
           fighter_type_id: ft.fighter_type_id ?? null,
           gang_origin_id: ft.gang_origin_id ?? null,
-          gang_variant_id: ft.gang_variant_id ?? null,
+          gang_subtype_id: ft.gang_subtype_id ?? null,
           fighter_subtype: ft.fighter_subtype ?? null
         })));
       }
@@ -566,7 +566,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           if (ft && ft.edition_id !== newEditionId) return false;
           const origin = gangOriginList.find(o => o.id === grant.gang_origin_id);
           if (origin && origin.edition_id !== newEditionId) return false;
-          const subtype = gangSubtypeList.find(v => v.id === grant.gang_variant_id);
+          const subtype = gangSubtypeList.find(v => v.id === grant.gang_subtype_id);
           if (subtype && subtype.edition_id !== newEditionId) return false;
           return true;
         })
@@ -593,7 +593,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       );
       setEquipmentSubtypeAvailabilities(prev =>
         prev.filter(avail => {
-          const subtype = gangSubtypeList.find(v => v.id === avail.gang_variant_id);
+          const subtype = gangSubtypeList.find(v => v.id === avail.gang_subtype_id);
           return !subtype || subtype.edition_id === newEditionId;
         })
       );
@@ -732,7 +732,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           : [],
         equipment_subtype_availabilities: showAvailability
           ? equipmentSubtypeAvailabilities.map(a => ({
-              gang_variant_id: a.gang_variant_id,
+              gang_subtype_id: a.gang_subtype_id,
               availability: a.availability
             }))
           : [],
@@ -1688,7 +1688,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             const combined = combineAvailability(variantAvailValueLetter, variantAvailValueNumber);
                             if (selectedAvailabilityGangSubtype && combined) {
                               const alreadyExists = equipmentSubtypeAvailabilities.some(
-                                a => a.gang_variant_id === selectedAvailabilityGangSubtype
+                                a => a.gang_subtype_id === selectedAvailabilityGangSubtype
                               );
                               if (alreadyExists) {
                                 toast.error('This subtype already has an availability set');
@@ -1701,7 +1701,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                   ...prev,
                                   {
                                     subtype: selectedSubtype.subtype,
-                                    gang_variant_id: selectedSubtype.id,
+                                    gang_subtype_id: selectedSubtype.id,
                                     availability: combined
                                   }
                                 ]);
@@ -1776,7 +1776,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       if (value) {
                         setFighterTypeGrants([
                           ...fighterTypeGrants,
-                          { fighter_type_id: value, gang_origin_id: null, gang_variant_id: null, fighter_subtype: null }
+                          { fighter_type_id: value, gang_origin_id: null, gang_subtype_id: null, fighter_subtype: null }
                         ]);
                       }
                       e.target.value = "";
@@ -1788,7 +1788,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                     {filteredFighterTypes
                       .filter(ft => !fighterTypeGrants.some(
                         g => g.fighter_type_id === ft.id
-                          && !g.gang_origin_id && !g.gang_variant_id && !g.fighter_subtype
+                          && !g.gang_origin_id && !g.gang_subtype_id && !g.fighter_subtype
                       ))
                       .map((ft) => (
                         <option key={ft.id} value={ft.id}>
@@ -1808,8 +1808,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         grant.gang_origin_id
                           ? `Origin: ${gangOriginList.find(o => o.id === grant.gang_origin_id)?.origin_name ?? '…'}`
                           : null,
-                        grant.gang_variant_id
-                          ? `Gang subtype: ${gangSubtypeList.find(v => v.id === grant.gang_variant_id)?.subtype ?? '…'}`
+                        grant.gang_subtype_id
+                          ? `Gang subtype: ${gangSubtypeList.find(v => v.id === grant.gang_subtype_id)?.subtype ?? '…'}`
                           : null,
                         grant.fighter_subtype ? `Subtype: ${grant.fighter_subtype}` : null
                       ].filter(Boolean).join(', ');
@@ -1850,7 +1850,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         const grant: FighterTypeEquipmentGrant = {
                           fighter_type_id: scopedGrantFighterType || null,
                           gang_origin_id: scopedGrantOrigin || null,
-                          gang_variant_id: scopedGrantGangSubtype || null,
+                          gang_subtype_id: scopedGrantGangSubtype || null,
                           fighter_subtype: scopedGrantSubtype || null
                         };
                         if (fighterTypeGrants.some(g => grantKey(g) === grantKey(grant))) {

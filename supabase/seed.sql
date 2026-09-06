@@ -151,9 +151,9 @@ INSERT INTO public.campaign_type_resources (id, campaign_type_id, resource_name,
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
--- 11. GANG VARIANT TYPES
+-- 11. GANG SUBTYPE TYPES
 -- ============================================================================
-INSERT INTO public.gang_variant_types (id, variant, edition_id, created_at) VALUES
+INSERT INTO public.gang_subtype_types (id, subtype, edition_id, created_at) VALUES
 ('2c67ccbc-e103-433c-9535-bc6f9435fa38', 'Chaos Corrupted', '00000000-0000-0000-0000-000000000023', now()),
 ('d66feb66-7a3b-4306-9d0b-58725b72ee0d', 'Genestealer Infected', '00000000-0000-0000-0000-000000000023', now()),
 ('b86a0a06-4f47-4c78-8d04-fb7b7042c14e', 'Outlaw', '00000000-0000-0000-0000-000000000023', now()),

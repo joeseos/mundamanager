@@ -74,7 +74,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       getGangVehicles(params.id, supabase),
       getGangStash(params.id, supabase),
       getGangCampaigns(params.id, supabase),
-      getGangSubtypes(gangBasic.gang_variants || [], supabase),
+      getGangSubtypes(gangBasic.gang_subtypes || [], supabase),
       getUserProfile(gangBasic.user_id, supabase),
       checkPermissionCached(user.id, params.id, gangBasic.user_id),
       getGangBattleSessionsCached(params.id, supabase),

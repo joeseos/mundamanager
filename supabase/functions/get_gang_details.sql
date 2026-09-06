@@ -27,7 +27,7 @@ RETURNS TABLE(
     alliance_id uuid,
     alliance_name text,
     alliance_type text,
-    gang_variants json,
+    gang_subtypes json,
     edition_slug text
 )
 LANGUAGE plpgsql
@@ -708,22 +708,22 @@ BEGIN
        WHERE cg.gang_id = p_gang_id
        GROUP BY cg.gang_id
    ),
-   gang_variant_info AS (
+   gang_subtype_info AS (
        SELECT 
            COALESCE(
                json_agg(
                    json_build_object(
-                       'id', gvt.id,
-                       'variant', gvt.variant
+                       'id', gst.id,
+                       'subtype', gst.subtype
                    )
-                   ORDER BY gvt.variant
+                   ORDER BY gst.subtype
                ),
                '[]'::json
-           ) as variant_info
-       FROM gang_variant_types gvt
+           ) as subtype_info
+       FROM gang_subtype_types gst
        JOIN gangs g ON g.id = p_gang_id
-       WHERE gvt.id::text IN (
-           SELECT jsonb_array_elements_text(g.gang_variants)
+       WHERE gst.id::text IN (
+           SELECT jsonb_array_elements_text(g.gang_subtypes)
        )
    ),
    all_fighters_json AS (
@@ -828,7 +828,7 @@ BEGIN
        g.alliance_id,
        a.alliance_name,
        a.alliance_type,
-       (SELECT variant_info FROM gang_variant_info) as gang_variants,
+       (SELECT subtype_info FROM gang_subtype_info) as gang_subtypes,
        ed.slug AS edition_slug
    FROM gangs g
    LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id

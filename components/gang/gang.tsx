@@ -754,10 +754,10 @@ export default function Gang({
       if (!response.ok) throw new Error('Failed to fetch subtypes');
       const data = await response.json();
       setAvailableSubtypes(
-        (data as Array<{ id: string; subtype?: string; variant?: string; edition_slug?: string | null }>).map(
+        (data as Array<{ id: string; subtype?: string; edition_slug?: string | null }>).map(
           (item) => ({
             id: item.id,
-            subtype: item.subtype ?? item.variant ?? 'Unknown',
+            subtype: item.subtype ?? 'Unknown',
             edition_slug: item.edition_slug,
           })
         )

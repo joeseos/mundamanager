@@ -14,7 +14,7 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
   const supabase = await createClient();
 
   try {
-    // Get gang data (no join on gang_variants DB column)
+    // Get gang data (no join on gang_subtypes DB column)
     const { data: gangData, error: gangError } = await supabase
       .from('gangs')
       .select('*')
@@ -30,17 +30,17 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
       );
     }
 
-    // Fetch subtype details if gang_variants is present and is an array
+    // Fetch subtype details if gang_subtypes is present and is an array
     let subtypeDetails: Array<{ id: string; subtype: string }> = [];
-    if (gangData.gang_variants && Array.isArray(gangData.gang_variants)) {
+    if (gangData.gang_subtypes && Array.isArray(gangData.gang_subtypes)) {
       const { data: subtypes, error: subtypesError } = await supabase
-        .from('gang_variant_types')
-        .select('id, variant')
-        .in('id', gangData.gang_variants);
+        .from('gang_subtype_types')
+        .select('id, subtype')
+        .in('id', gangData.gang_subtypes);
       if (subtypesError) throw subtypesError;
-      subtypeDetails = (subtypes || []).map((row: { id: string; variant: string }) => ({
+      subtypeDetails = (subtypes || []).map((row: { id: string; subtype: string }) => ({
         id: row.id,
-        subtype: row.variant,
+        subtype: row.subtype,
       }));
     }
 
@@ -70,10 +70,10 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     }
 
     // Return gang with subtype details and campaigns (app field: gang_subtypes)
-    const { gang_variants: _gangVariantIds, ...gangWithoutVariants } = gangData;
+    const { gang_subtypes: _gangSubtypeIds, ...gangWithoutSubtypes } = gangData;
     return NextResponse.json({
       gang: {
-        ...gangWithoutVariants,
+        ...gangWithoutSubtypes,
         gang_subtypes: subtypeDetails,
         campaigns,
       }
@@ -236,7 +236,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     }
 
     if (gang_subtypes !== undefined) {
-      updates.gang_variants = gang_subtypes;
+      updates.gang_subtypes = gang_subtypes;
     }
 
     // Perform the update
