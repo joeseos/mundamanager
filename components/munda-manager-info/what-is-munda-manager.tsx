@@ -15,7 +15,7 @@ export default function WhatIsMundaManager({ userCount, gangCount, campaignCount
     {
       icon: <FaUsers className="h-6 w-6" />,
       title: "Gang Builder",
-      description: "Create and manage all gang types, including Crusading, Infested, Corrupted, and Wasteland variants, with their unique mechanics and rules."
+      description: "Create and manage all gang types, including Crusading, Infested, Corrupted, and Wasteland subtypes, with their unique mechanics and rules."
     },
     {
       icon: <LuSwords className="h-6 w-6" />,

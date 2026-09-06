@@ -1,4 +1,4 @@
-export const gangVariantRank: { [key: string]: number } = {
+export const gangSubtypeRank: { [key: string]: number } = {
   "aranthian-aligned": 1,
   "crusading": 2,
   "secundan incursion": 3,

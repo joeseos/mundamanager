@@ -100,7 +100,7 @@ interface GangProps {
   onGangCreditsUpdate?: (newCredits: number) => void;
   onGangWealthUpdate?: (newWealth: number) => void;
   positioning: Record<number, string>;
-  gang_variants: Array<{id: string, variant: string}> | null;
+  gang_subtypes: Array<{id: string, subtype: string}> | null;
   vehicles?: VehicleProps[];
   userPermissions?: UserPermissions;
   username?: string;
@@ -152,7 +152,7 @@ export default function Gang({
   onGangCreditsUpdate,
   onGangWealthUpdate,
   positioning,
-  gang_variants,
+  gang_subtypes,
   vehicles,
   userPermissions,
   username,
@@ -161,7 +161,7 @@ export default function Gang({
   user_id,
   hidden: initialHidden,
 }: GangProps) {
-  const safeGangVariant = gang_variants ?? [];
+  const safeGangSubtypes = gang_subtypes ?? [];
   
   
   const { shareUrl } = useShare();
@@ -222,9 +222,9 @@ export default function Gang({
   const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
   const [positions, setPositions] = useState<Record<number, string>>(positioning);
   const [showGangAdditionsModal, setShowGangAdditionsModal] = useState(false);
-  const [gangIsVariant, setGangIsVariant] = useState(safeGangVariant.length > 0);
-  const [gangVariants, setGangVariants] = useState<Array<{id: string, variant: string}>>(safeGangVariant);
-  const [availableVariants, setAvailableVariants] = useState<Array<{id: string, variant: string, edition_slug?: string | null}>>([]);
+  const [gangHasSubtypes, setGangHasSubtypes] = useState(safeGangSubtypes.length > 0);
+  const [gangSubtypes, setGangSubtypes] = useState<Array<{id: string, subtype: string}>>(safeGangSubtypes);
+  const [availableSubtypes, setAvailableSubtypes] = useState<Array<{id: string, subtype: string, edition_slug?: string | null}>>([]);
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
@@ -469,7 +469,7 @@ export default function Gang({
         name, credits, wealth, alignment, allianceId, allianceName,
         gangAffiliationId, gangAffiliationName, gangOriginId, gangOriginName,
         reputation, tradePoints,
-        gangVariants: [...gangVariants], gangIsVariant, gangColour, hidden,
+        gangSubtypes: [...gangSubtypes], gangHasSubtypes, gangColour, hidden,
         campaignResources: [...campaignResources]
       };
 
@@ -516,14 +516,16 @@ export default function Gang({
         setTradePoints(snapshot.tradePoints + (updates.trade_points_operation === 'add' ? updates.trade_points : -updates.trade_points));
       }
 
-      if (updates.gang_variants !== undefined) {
-        const newVariants = updates.gang_variants.map((variantId: string) =>
-          availableVariants.find(v => v.id === variantId) ||
-          gangVariants.find(v => v.id === variantId) ||
-          { id: variantId, variant: 'Unknown' }
-        );
-        setGangVariants(newVariants);
-        setGangIsVariant(newVariants.length > 0);
+      if (updates.gang_subtypes !== undefined) {
+        const newSubtypes = updates.gang_subtypes.map((subtypeId: string) => {
+          const fromAvailable = availableSubtypes.find(s => s.id === subtypeId);
+          const fromCurrent = gangSubtypes.find(s => s.id === subtypeId);
+          if (fromAvailable) return { id: fromAvailable.id, subtype: fromAvailable.subtype };
+          if (fromCurrent) return { id: fromCurrent.id, subtype: fromCurrent.subtype };
+          return { id: subtypeId, subtype: 'Unknown' };
+        });
+        setGangSubtypes(newSubtypes);
+        setGangHasSubtypes(newSubtypes.length > 0);
       }
 
       if (Array.isArray(updates.resources) && updates.resources.length > 0) {
@@ -561,8 +563,8 @@ export default function Gang({
         setGangOriginName(s.gangOriginName);
         setReputation(s.reputation);
         setTradePoints(s.tradePoints);
-        setGangVariants(s.gangVariants);
-        setGangIsVariant(s.gangIsVariant);
+        setGangSubtypes(s.gangSubtypes);
+        setGangHasSubtypes(s.gangHasSubtypes);
         setGangColour(s.gangColour);
         setHidden(s.hidden);
         setCampaignResources(s.campaignResources);
@@ -579,10 +581,16 @@ export default function Gang({
         setLastUpdated(result.data.last_updated);
         if (result.data.alliance_name) setAllianceName(result.data.alliance_name);
         if (result.data.gang_affiliation_name !== undefined) setGangAffiliationName(result.data.gang_affiliation_name);
-        // Only update variants if they were actually changed in the request
-        if (variables.gang_variants !== undefined && result.data.gang_variants) {
-          setGangVariants(result.data.gang_variants);
-          setGangIsVariant(result.data.gang_variants.length > 0);
+        // Only update subtypes if they were actually changed in the request.
+        if (variables.gang_subtypes !== undefined && result.data.gang_subtypes) {
+          const mappedSubtypes = result.data.gang_subtypes.map(
+            (item: { id: string; subtype: string }) => ({
+              id: item.id,
+              subtype: item.subtype,
+            })
+          );
+          setGangSubtypes(mappedSubtypes);
+          setGangHasSubtypes(mappedSubtypes.length > 0);
         }
         if (result.data.resources && result.data.resources.length > 0) {
           setCampaignResources(prev => prev.map(resource => {
@@ -740,18 +748,26 @@ export default function Gang({
 
 
   const handleEditModalOpen = async () => {
-    // Fetch variants BEFORE opening modal (like the original)
+    // Fetch subtypes BEFORE opening modal (like the original)
     try {
-      const response = await fetch('/api/gang-variant-types');
-      if (!response.ok) throw new Error('Failed to fetch variants');
+      const response = await fetch('/api/gang-subtype-types');
+      if (!response.ok) throw new Error('Failed to fetch subtypes');
       const data = await response.json();
-      setAvailableVariants(data);
+      setAvailableSubtypes(
+        (data as Array<{ id: string; subtype?: string; variant?: string; edition_slug?: string | null }>).map(
+          (item) => ({
+            id: item.id,
+            subtype: item.subtype ?? item.variant ?? 'Unknown',
+            edition_slug: item.edition_slug,
+          })
+        )
+      );
     } catch (error) {
-      console.error('Error fetching variants:', error);
-      toast.error('Failed to load variants');
+      console.error('Error fetching subtypes:', error);
+      toast.error('Failed to load subtypes');
     }
     
-    setShowEditModal(true); // Only open AFTER variants are ready
+    setShowEditModal(true); // Only open AFTER subtypes are ready
   };
 
 
@@ -1086,15 +1102,15 @@ export default function Gang({
                       {gangOriginCategoryName}: <Badge variant="secondary">{gangOriginName}</Badge>
                     </div>)}
                     
-                    {/* Gang Variants */}
-                    {gangVariants.length > 0 && gangIsVariant && !(gangVariants.length === 1 && gangVariants[0].variant === 'Outlaw') && (
+                    {/* Gang Subtypes */}
+                    {gangSubtypes.length > 0 && gangHasSubtypes && !(gangSubtypes.length === 1 && gangSubtypes[0].subtype === 'Outlaw') && (
                       <div className="flex items-center gap-1">
-                        Variants:
-                        {gangVariants
-                          .filter((variant) => variant.variant !== 'Outlaw')
-                          .map((variant) => (
-                            <Badge key={variant.id} variant="secondary">
-                              {variant.variant}
+                        Subtypes:
+                        {gangSubtypes
+                          .filter((subtype) => subtype.subtype !== 'Outlaw')
+                          .map((subtype) => (
+                            <Badge key={subtype.id} variant="secondary">
+                              {subtype.subtype}
                             </Badge>
                           ))}
                       </div>
@@ -1266,8 +1282,8 @@ export default function Gang({
             allianceId={allianceId}
             allianceName={allianceName}
             gangColour={gangColour}
-            gangVariants={gangVariants}
-            availableVariants={availableVariants}
+            gangSubtypes={gangSubtypes}
+            availableSubtypes={availableSubtypes}
             gangAffiliationId={gangAffiliationId}
             gangAffiliationName={gangAffiliationName}
             gangType={gang_type}
@@ -1306,7 +1322,7 @@ export default function Gang({
               onFighterAdded={handleFighterAdded}
               onFighterRollback={onFighterRollback}
               onFighterReconcile={onFighterReconcile}
-              gangVariants={gangVariants}
+              gangSubtypes={gangSubtypes}
               gangAffiliationId={gangAffiliationId}
             />
           )}
@@ -1326,7 +1342,7 @@ export default function Gang({
                 onFighterAdded={handleFighterAdded}
                 onFighterRollback={onFighterRollback}
                 onFighterReconcile={onFighterReconcile}
-                gangVariants={gangVariants}
+                gangSubtypes={gangSubtypes}
                 gangAffiliationId={gangAffiliationId}
               />
             ) : (

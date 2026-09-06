@@ -29,7 +29,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       getGangPositioning,
       getGangCampaigns,
       getGangFightersBundle,
-      getGangVariants
+      getGangSubtypes
     } = await import('@/app/lib/shared/gang-data');
     const { assembleFighterView } = await import('@/app/lib/shared/gang-assembly');
 
@@ -56,9 +56,9 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       notFound();
     }
 
-    const [userPermissions, gangVariantsResolved] = await Promise.all([
+    const [userPermissions, gangSubtypesResolved] = await Promise.all([
       checkPermissionCached(user.id, fighterBasic.gang_id, gangBasic.user_id),
-      getGangVariants(gangBasic.gang_variants || [], supabase)
+      getGangSubtypes(gangBasic.gang_variants || [], supabase)
     ]);
 
     // Permissions: All authenticated users can view fighters (canView is always true)
@@ -257,10 +257,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         gang_affiliation_id: gangBasic.gang_affiliation_id,
         gang_affiliation_name: gangBasic.gang_affiliation?.name,
         positioning: gangPositioning,
-        gang_variants: gangVariantsResolved.map((v: any) => ({
-          id: v.id,
-          variant: v.variant
-        }))
+        gang_subtypes: gangSubtypesResolved
       },
       equipment,
       loadouts,

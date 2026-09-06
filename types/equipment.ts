@@ -226,7 +226,7 @@ export interface ResourceCost {
 
 /**
  * Per-gang availability entries used by the equipment admin editor.
- * The label fields (gang_type / origin_name / variant) are for display only;
+ * The label fields (gang_type / origin_name / subtype) are for display only;
  * the API persists the id + availability (+ exclusive for gang-type rows).
  * `exclusive` marks the row as an "available only to this gang" allow-list entry.
  */
@@ -245,15 +245,15 @@ export interface EquipmentOriginAvailability {
   availability: string;
 }
 
-export interface EquipmentVariantAvailability {
-  variant: string;
+export interface EquipmentSubtypeAvailability {
+  subtype: string;
   gang_variant_id: string;
   availability: string;
 }
 
 /**
  * An entry on a fighter type's Equipment List, optionally narrowed by gang
- * origin, gang variant and fighter subtype. fighter_type_id is null for a
+ * origin, gang subtype and fighter subtype. fighter_type_id is null for a
  * subtype rule spanning every gang; fighter_subtype is then required, or the
  * row matches nothing.
  */

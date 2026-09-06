@@ -293,14 +293,14 @@ export function UserGuideN23() {
           </h3>
             <div className="my-4 flex justify-center">
               <img
-                src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/gang-variants.webp"
-                alt="Gang variants selection interface in Munda Manager showing options for Wasteland, Crusading, Corrupted, and Infested gang types"
+                src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/gang-subtypes.webp"
+                alt="Gang subtypes selection interface in Munda Manager showing options for Wasteland, Crusading, Corrupted, and Infested gang types"
                 className="rounded-lg"
                 style={{ maxWidth: '100%', height: 'auto' }}
               />
             </div>
             <p className="text-muted-foreground mb-2">
-              You can set the one or more gang variants of your gang by going into the <strong className="text-foreground">Edit Gang</strong> window if you forgot to do it on Gang Creation. At the bottom of it, you&apos;ll see the different variants available. Some Gang Variants unlock extra fighters in the Add Fighter menu. For example, Secundan Incursion adds Spyrers, while Corrupted and Infested gangs gain their own options.
+              You can set the one or more gang subtypes of your gang by going into the <strong className="text-foreground">Edit Gang</strong> window if you forgot to do it on Gang Creation. At the bottom of it, you&apos;ll see the different subtypes available. Some Gang Subtypes unlock extra fighters in the Add Fighter menu. For example, Secundan Incursion adds Spyrers, while Corrupted and Infested gangs gain their own options.
             </p>
             <p className="text-muted-foreground mb-2">
               This is also the spot where you can mark your gang as a Skirmish gang.

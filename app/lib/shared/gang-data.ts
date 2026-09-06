@@ -126,9 +126,9 @@ export interface GangCampaign {
   resources: GangCampaignResource[];
 }
 
-export interface GangVariant {
+export interface GangSubtype {
   id: string;
-  variant: string;
+  subtype: string;
 }
 
 export interface GangFighter {
@@ -490,26 +490,30 @@ export const getGangTypeConfig = (gangBasic: GangBasic) =>
   gangBasic.gang_types ?? gangBasic.custom_gang_types ?? null;
 
 /**
- * Get gang variants
- * Cache: GLOBAL_GANG_TYPES (shared since variants rarely change)
+ * Get gang subtypes
+ * Cache: GLOBAL_GANG_TYPES (shared since subtypes rarely change)
+ * DB table/column names remain gang_variant_types / variant; mapped to app subtype.
  */
-export const getGangVariants = async (gangVariantIds: string[], supabase: any): Promise<GangVariant[]> => {
-  if (!gangVariantIds || gangVariantIds.length === 0) return [];
+export const getGangSubtypes = async (gangSubtypeIds: string[], supabase: any): Promise<GangSubtype[]> => {
+  if (!gangSubtypeIds || gangSubtypeIds.length === 0) return [];
   
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
         .from('gang_variant_types')
         .select('id, variant')
-        .in('id', gangVariantIds);
+        .in('id', gangSubtypeIds);
 
       if (error) return [];
-      return data || [];
+      return (data || []).map((row: { id: string; variant: string }) => ({
+        id: row.id,
+        subtype: row.variant,
+      }));
     },
-    [`gang-variants-${gangVariantIds.join('-')}`],
+    [`gang-subtypes-${gangSubtypeIds.join('-')}`],
     {
       tags: [TAGS.globalGangTypes()],
-      revalidate: 3600 // 1 hour - variants rarely change
+      revalidate: 3600 // 1 hour - subtypes rarely change
     }
   )();
 };

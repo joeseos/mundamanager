@@ -65,8 +65,8 @@ export function GangCardContent({ gang, onToggleFavourite, dragListeners, dragAt
         <div className="text-sm md:text-base text-muted-foreground">
           <span className="truncate block">
             {gang.gang_type}
-            {gang.gang_variants && gang.gang_variants.length > 0
-              ? ` (${gang.gang_variants.map(v => v.variant).join(', ')})`
+            {gang.gang_subtypes && gang.gang_subtypes.length > 0
+              ? ` (${gang.gang_subtypes.map(v => v.subtype).join(', ')})`
               : ''}
           </span>
           <span>Rating: {gang.rating ?? 0}</span>

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
-import { WeaponProfileInput, EquipmentAvailability, EquipmentOriginAvailability, EquipmentVariantAvailability, FighterTypeEquipmentGrant, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
+import { WeaponProfileInput, EquipmentAvailability, EquipmentOriginAvailability, EquipmentSubtypeAvailability, FighterTypeEquipmentGrant, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
 import {
   FighterEffectType,
   FighterEffectTypeModifier,
@@ -16,7 +16,7 @@ interface FighterTypeEquipment {
 }
 
 /**
- * The rows this screen owns: grants scoped at most by gang origin, variant and
+ * The rows this screen owns: grants scoped at most by gang origin, gang subtype and
  * fighter subtype. Vehicle and gang-type rows belong to other screens and must
  * not be read here, because the save deletes everything it reads — so this is
  * applied to the read and the delete alike.
@@ -121,8 +121,8 @@ export async function GET(request: Request) {
         console.warn('Error fetching origin availabilities from equipment_availability:', originAvailabilitiesError);
       }
 
-      // Fetch equipment variant availabilities (gang variant-based)
-      const { data: variantAvailabilities, error: variantAvailabilitiesError } = await supabase
+      // Fetch equipment subtype availabilities (gang subtype-based; DB column gang_variant_id)
+      const { data: subtypeAvailabilities, error: subtypeAvailabilitiesError } = await supabase
         .from('equipment_availability')
         .select(`
           availability,
@@ -135,8 +135,8 @@ export async function GET(request: Request) {
         .not('gang_variant_id', 'is', null);
 
       // Don't throw error if the query fails or returns empty, just log it
-      if (variantAvailabilitiesError) {
-        console.warn('Error fetching variant availabilities from equipment_availability:', variantAvailabilitiesError);
+      if (subtypeAvailabilitiesError) {
+        console.warn('Error fetching subtype availabilities from equipment_availability:', subtypeAvailabilitiesError);
       }
 
       // Fetch trading post associations
@@ -224,17 +224,17 @@ export async function GET(request: Request) {
           availability: a.availability
         }));
 
-      // Format the variant availabilities
-      interface VariantAvailabilityData {
+      // Format the subtype availabilities (map DB variant column → app subtype)
+      interface SubtypeAvailabilityData {
         availability: string;
         gang_variant_id: string | null;
         gang_variant_types: { variant: string } | null;
       }
 
-      const formattedVariantAvailabilities = (variantAvailabilities || [])
+      const formattedSubtypeAvailabilities = (subtypeAvailabilities || [])
         .filter((a: any) => a && a.gang_variant_id !== null && a.gang_variant_types)
         .map((a: any) => ({
-          variant: a.gang_variant_types.variant,
+          subtype: a.gang_variant_types.variant,
           gang_variant_id: a.gang_variant_id,
           availability: a.availability
         }));
@@ -397,7 +397,7 @@ export async function GET(request: Request) {
         gang_origin_adjusted_costs: formattedOriginAdjustedCosts || [],
         equipment_availabilities: formattedAvailabilities || [],
         equipment_origin_availabilities: formattedOriginAvailabilities || [],
-        equipment_variant_availabilities: formattedVariantAvailabilities || [],
+        equipment_subtype_availabilities: formattedSubtypeAvailabilities || [],
         trading_post_associations: tradingPostIds,
         trading_post_types: tradingPostTypes || [],
         fighter_effects: fighterEffects,
@@ -639,7 +639,7 @@ export async function PATCH(request: Request) {
       gang_origin_adjusted_costs,
       equipment_availabilities,
       equipment_origin_availabilities,
-      equipment_variant_availabilities,
+      equipment_subtype_availabilities,
       fighter_effects,
       grants_equipment,
       edition_id
@@ -893,9 +893,9 @@ export async function PATCH(request: Request) {
       }
     }
 
-    // Handle equipment variant availabilities
-    if (equipment_variant_availabilities !== undefined) {
-      // First, delete all existing gang variant availabilities for this equipment
+    // Handle equipment subtype availabilities (DB column gang_variant_id)
+    if (equipment_subtype_availabilities !== undefined) {
+      // First, delete all existing gang subtype availabilities for this equipment
       const { error: deleteError } = await supabase
         .from('equipment_availability')
         .delete()
@@ -904,12 +904,12 @@ export async function PATCH(request: Request) {
 
       // Log but don't throw on delete error
       if (deleteError) {
-        console.warn('Error deleting gang variant availabilities from equipment_availability:', deleteError);
+        console.warn('Error deleting gang subtype availabilities from equipment_availability:', deleteError);
       }
 
-      // If there are new variant availabilities to add
-      if (Array.isArray(equipment_variant_availabilities) && equipment_variant_availabilities.length > 0) {
-        const variantAvailabilityRecords = equipment_variant_availabilities.map((avail: Pick<EquipmentVariantAvailability, 'gang_variant_id' | 'availability'>) => ({
+      // If there are new subtype availabilities to add
+      if (Array.isArray(equipment_subtype_availabilities) && equipment_subtype_availabilities.length > 0) {
+        const subtypeAvailabilityRecords = equipment_subtype_availabilities.map((avail: Pick<EquipmentSubtypeAvailability, 'gang_variant_id' | 'availability'>) => ({
           equipment_id: id,
           gang_variant_id: avail.gang_variant_id,
           availability: avail.availability.trimEnd(),
@@ -917,14 +917,14 @@ export async function PATCH(request: Request) {
           gang_origin_id: null
         }));
 
-        if (variantAvailabilityRecords.length > 0) {
+        if (subtypeAvailabilityRecords.length > 0) {
           const { error: insertError } = await supabase
             .from('equipment_availability')
-            .insert(variantAvailabilityRecords);
+            .insert(subtypeAvailabilityRecords);
 
           // Log but don't throw on insert error
           if (insertError) {
-            console.warn('Error inserting gang variant availabilities into equipment_availability:', insertError);
+            console.warn('Error inserting gang subtype availabilities into equipment_availability:', insertError);
           }
         }
       }

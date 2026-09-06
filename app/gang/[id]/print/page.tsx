@@ -32,7 +32,7 @@ export default async function PrintGangPage(props: {
       getGangTypeConfig,
       getGangFightersList,
       getGangCampaigns,
-      getGangVariants,
+      getGangSubtypes,
       getGangStash,
       getUserProfile,
     } = await import("@/app/lib/shared/gang-data");
@@ -65,7 +65,7 @@ export default async function PrintGangPage(props: {
       gangType,
       fighters,
       campaigns,
-      gangVariants,
+      gangSubtypes,
       stash,
       ownerProfile,
     ] = await Promise.all([
@@ -73,7 +73,7 @@ export default async function PrintGangPage(props: {
       getGangType(gangBasic, supabase),
       getGangFightersList(params.id, supabase, { expandLoadoutsForPrint: true }),
       getGangCampaigns(params.id, supabase),
-      getGangVariants(gangBasic.gang_variants || [], supabase),
+      getGangSubtypes(gangBasic.gang_variants || [], supabase),
       getGangStash(params.id, supabase),
       getUserProfile(gangBasic.user_id, supabase),
     ]);
@@ -121,7 +121,7 @@ export default async function PrintGangPage(props: {
       fightersActiveLoadoutOnly: fightersActiveLoadoutOnly as unknown as FighterProps[],
       stash,
       campaigns,
-      gang_variants: gangVariants,
+      gang_subtypes: gangSubtypes,
       username: ownerProfile?.username,
       patreon_tier_id: ownerProfile?.patreon_tier_id,
       patreon_tier_title: ownerProfile?.patreon_tier_title,

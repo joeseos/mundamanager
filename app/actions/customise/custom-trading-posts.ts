@@ -260,7 +260,7 @@ export interface CustomTPAvailabilityRule {
   availability: string | null;
   gang_type_name: string | null;
   gang_origin_name: string | null;
-  gang_variant_name: string | null;
+  gang_subtype_name: string | null;
   allegiance_name: string | null;
 }
 
@@ -498,7 +498,7 @@ export async function getAvailabilityRules(
         ? gangTypeNames[row.gang_type_id] || null
         : row.custom_gang_types?.gang_type || null,
       gang_origin_name: row.gang_origins?.origin_name || null,
-      gang_variant_name: row.gang_variant_types?.variant || null,
+      gang_subtype_name: row.gang_variant_types?.variant || null,
       allegiance_name: row.campaign_type_allegiances?.allegiance_name || null,
     }));
 
