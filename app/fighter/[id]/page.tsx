@@ -58,7 +58,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
 
     const [userPermissions, gangSubtypesResolved] = await Promise.all([
       checkPermissionCached(user.id, fighterBasic.gang_id, gangBasic.user_id),
-      getGangSubtypes(gangBasic.gang_variants || [], supabase)
+      getGangSubtypes(gangBasic.gang_subtypes || [], supabase)
     ]);
 
     // Permissions: All authenticated users can view fighters (canView is always true)

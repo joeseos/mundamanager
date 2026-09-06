@@ -55,7 +55,7 @@ AS $$
     WITH gang_data AS (
         SELECT
             g.gang_origin_id,
-            g.gang_variants,
+            g.gang_subtypes,
             g.alignment,
             g.custom_gang_type_id,
             cg.campaign_type_allegiance_id,
@@ -240,7 +240,7 @@ AS $$
             AND (a.gang_type_id IS NULL OR a.gang_type_id = $1)
             AND (a.custom_gang_type_id IS NULL OR a.custom_gang_type_id = gd.custom_gang_type_id)
             AND (a.gang_origin_id IS NULL OR a.gang_origin_id = gd.gang_origin_id)
-            AND (a.gang_variant_id IS NULL OR gd.gang_variants ? a.gang_variant_id::text)
+            AND (a.gang_subtype_id IS NULL OR gd.gang_subtypes ? a.gang_subtype_id::text)
             AND (a.campaign_type_allegiance_id IS NULL OR a.campaign_type_allegiance_id = gd.campaign_type_allegiance_id)
             AND (a.alignment IS NULL OR a.alignment = gd.alignment)
         WHERE ctpe.equipment_id IS NOT NULL
@@ -399,8 +399,8 @@ AS $$
         ON e.id = ea.equipment_id AND ea.gang_type_id = $1
     LEFT JOIN equipment_availability ea_var
         ON e.id = ea_var.equipment_id
-        AND ea_var.gang_variant_id IS NOT NULL
-        AND gd.gang_variants ? ea_var.gang_variant_id::text
+        AND ea_var.gang_subtype_id IS NOT NULL
+        AND gd.gang_subtypes ? ea_var.gang_subtype_id::text
     LEFT JOIN equipment_availability ea_origin
         ON e.id = ea_origin.equipment_id
         AND ea_origin.gang_origin_id IS NOT NULL
@@ -423,7 +423,7 @@ AS $$
                  AND fte.custom_fighter_type_id IS NULL
                  AND fte.fighter_subtype IS NOT NULL))
         AND (fte.gang_origin_id IS NULL OR fte.gang_origin_id = gd.gang_origin_id)
-        AND (fte.gang_variant_id IS NULL OR gd.gang_variants ? fte.gang_variant_id::text)
+        AND (fte.gang_subtype_id IS NULL OR gd.gang_subtypes ? fte.gang_subtype_id::text)
         AND (fte.gang_type_id IS NULL OR fte.gang_type_id = $1)
         AND (fte.fighter_subtype IS NULL OR gd.fighter_subtypes ? fte.fighter_subtype)
 
@@ -604,7 +604,7 @@ AS $$
             AND (a.gang_type_id IS NULL OR a.gang_type_id = $1)
             AND (a.custom_gang_type_id IS NULL OR a.custom_gang_type_id = gd.custom_gang_type_id)
             AND (a.gang_origin_id IS NULL OR a.gang_origin_id = gd.gang_origin_id)
-            AND (a.gang_variant_id IS NULL OR gd.gang_variants ? a.gang_variant_id::text)
+            AND (a.gang_subtype_id IS NULL OR gd.gang_subtypes ? a.gang_subtype_id::text)
             AND (a.campaign_type_allegiance_id IS NULL OR a.campaign_type_allegiance_id = gd.campaign_type_allegiance_id)
             AND (a.alignment IS NULL OR a.alignment = gd.alignment)
         WHERE ctpe.custom_equipment_id IS NOT NULL

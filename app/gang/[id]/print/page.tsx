@@ -73,7 +73,7 @@ export default async function PrintGangPage(props: {
       getGangType(gangBasic, supabase),
       getGangFightersList(params.id, supabase, { expandLoadoutsForPrint: true }),
       getGangCampaigns(params.id, supabase),
-      getGangSubtypes(gangBasic.gang_variants || [], supabase),
+      getGangSubtypes(gangBasic.gang_subtypes || [], supabase),
       getGangStash(params.id, supabase),
       getUserProfile(gangBasic.user_id, supabase),
     ]);

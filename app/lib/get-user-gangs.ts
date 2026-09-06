@@ -69,7 +69,7 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
             rating,
             created_at,
             last_updated,
-            gang_variants,
+            gang_subtypes,
             is_favourite,
             favourite_order,
             gang_types!gang_type_id(
@@ -98,14 +98,14 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
         // campaigns query PER GANG) into two .in() queries.
         const gangIds = data.map((g: any) => g.id);
         const allSubtypeIds = Array.from(new Set(
-          data.flatMap((g: any) => (Array.isArray(g.gang_variants) ? g.gang_variants : []))
+          data.flatMap((g: any) => (Array.isArray(g.gang_subtypes) ? g.gang_subtypes : []))
         ));
 
         const [subtypesRes, campaignGangsRes] = await Promise.all([
           allSubtypeIds.length > 0
             ? supabase
-                .from('gang_variant_types')
-                .select('id, variant')
+                .from('gang_subtype_types')
+                .select('id, subtype')
                 .in('id', allSubtypeIds)
             : Promise.resolve({ data: [] }),
           supabase
@@ -119,8 +119,8 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
         ]);
 
         const subtypeById = new Map<string, { id: string; subtype: string }>();
-        (subtypesRes.data || []).forEach((row: { id: string; variant: string }) => {
-          subtypeById.set(row.id, { id: row.id, subtype: row.variant });
+        (subtypesRes.data || []).forEach((row: { id: string; subtype: string }) => {
+          subtypeById.set(row.id, { id: row.id, subtype: row.subtype });
         });
 
         const campaignsByGang = new Map<string, Array<{ campaign_id: string; campaign_name: string }>>();
@@ -146,7 +146,7 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
           rating: gang.rating || 0,
           created_at: gang.created_at,
           last_updated: gang.last_updated,
-          gang_subtypes: (Array.isArray(gang.gang_variants) ? gang.gang_variants : [])
+          gang_subtypes: (Array.isArray(gang.gang_subtypes) ? gang.gang_subtypes : [])
             .map((id: string) => subtypeById.get(id))
             .filter(Boolean) as Array<{ id: string; subtype: string }>,
           campaigns: campaignsByGang.get(gang.id) || [],

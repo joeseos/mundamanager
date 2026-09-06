@@ -247,7 +247,7 @@ export interface EquipmentOriginAvailability {
 
 export interface EquipmentSubtypeAvailability {
   subtype: string;
-  gang_variant_id: string;
+  gang_subtype_id: string;
   availability: string;
 }
 
@@ -260,7 +260,7 @@ export interface EquipmentSubtypeAvailability {
 export interface FighterTypeEquipmentGrant {
   fighter_type_id: string | null;
   gang_origin_id: string | null;
-  gang_variant_id: string | null;
+  gang_subtype_id: string | null;
   fighter_subtype: string | null;
 }
 

@@ -381,7 +381,7 @@ export function CustomiseTradingPosts({
                     gang_type_id: r.gang_type_id,
                     custom_gang_type_id: r.custom_gang_type_id,
                     gang_origin_id: r.gang_origin_id,
-                    gang_variant_id: r.gang_variant_id,
+                    gang_subtype_id: r.gang_subtype_id,
                     campaign_type_allegiance_id: r.campaign_type_allegiance_id,
                     alignment: r.alignment,
                     availability: r.availability,
@@ -467,7 +467,7 @@ export function CustomiseTradingPosts({
                   gang_type_id: r.gang_type_id,
                   custom_gang_type_id: r.custom_gang_type_id,
                   gang_origin_id: r.gang_origin_id,
-                  gang_variant_id: r.gang_variant_id,
+                  gang_subtype_id: r.gang_subtype_id,
                   campaign_type_allegiance_id: r.campaign_type_allegiance_id,
                   alignment: r.alignment,
                   availability: r.availability,
@@ -1690,7 +1690,7 @@ function AddAvailabilityRuleModal({
   const [gangOriginId, setGangOriginId] = useState(initialRule?.gang_origin_id || '');
   const [gangTypeName, setGangTypeName] = useState<string | null>(initialRule?.gang_type_name ?? null);
   const [gangOriginName, setGangOriginName] = useState<string | null>(initialRule?.gang_origin_name ?? null);
-  const [gangSubtypeId, setGangSubtypeId] = useState(initialRule?.gang_variant_id || '');
+  const [gangSubtypeId, setGangSubtypeId] = useState(initialRule?.gang_subtype_id || '');
   const [allegiance, setAllegiance] = useState(initialRule?.campaign_type_allegiance_id || '');
   const [alignment, setAlignment] = useState(initialRule?.alignment || '');
   const [availLetter, setAvailLetter] = useState(parsedAvail.letter);
@@ -1728,7 +1728,7 @@ function AddAvailabilityRuleModal({
       gang_type_id: !isCustomGangType && gangTypeId ? gangTypeId : null,
       custom_gang_type_id: isCustomGangType && gangTypeId ? gangTypeId : null,
       gang_origin_id: gangOriginId || null,
-      gang_variant_id: gangSubtypeId || null,
+      gang_subtype_id: gangSubtypeId || null,
       campaign_type_allegiance_id: allegiance || null,
       alignment: alignment || null,
       availability: combineAvailability(availLetter, availNumber),

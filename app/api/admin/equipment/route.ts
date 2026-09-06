@@ -121,18 +121,18 @@ export async function GET(request: Request) {
         console.warn('Error fetching origin availabilities from equipment_availability:', originAvailabilitiesError);
       }
 
-      // Fetch equipment subtype availabilities (gang subtype-based; DB column gang_variant_id)
+      // Fetch equipment subtype availabilities (gang subtype-based)
       const { data: subtypeAvailabilities, error: subtypeAvailabilitiesError } = await supabase
         .from('equipment_availability')
         .select(`
           availability,
-          gang_variant_id,
-          gang_variant_types!gang_variant_id (
-            variant
+          gang_subtype_id,
+          gang_subtype_types!gang_subtype_id (
+            subtype
           )
         `)
         .eq('equipment_id', id)
-        .not('gang_variant_id', 'is', null);
+        .not('gang_subtype_id', 'is', null);
 
       // Don't throw error if the query fails or returns empty, just log it
       if (subtypeAvailabilitiesError) {
@@ -224,18 +224,18 @@ export async function GET(request: Request) {
           availability: a.availability
         }));
 
-      // Format the subtype availabilities (map DB variant column → app subtype)
+      // Format the subtype availabilities
       interface SubtypeAvailabilityData {
         availability: string;
-        gang_variant_id: string | null;
-        gang_variant_types: { variant: string } | null;
+        gang_subtype_id: string | null;
+        gang_subtype_types: { subtype: string } | null;
       }
 
       const formattedSubtypeAvailabilities = (subtypeAvailabilities || [])
-        .filter((a: any) => a && a.gang_variant_id !== null && a.gang_variant_types)
+        .filter((a: any) => a && a.gang_subtype_id !== null && a.gang_subtype_types)
         .map((a: any) => ({
-          subtype: a.gang_variant_types.variant,
-          gang_variant_id: a.gang_variant_id,
+          subtype: a.gang_subtype_types.subtype,
+          gang_subtype_id: a.gang_subtype_id,
           availability: a.availability
         }));
 
@@ -362,7 +362,7 @@ export async function GET(request: Request) {
             scopeToFighterTypeGrants(
               supabase
                 .from('fighter_type_equipment')
-                .select('fighter_type_id, gang_origin_id, gang_variant_id, fighter_subtype')
+                .select('fighter_type_id, gang_origin_id, gang_subtype_id, fighter_subtype')
                 .eq('equipment_id', id)
             )
               .order('fighter_type_id')
@@ -730,12 +730,12 @@ export async function PATCH(request: Request) {
             fighter_type_id: grant.fighter_type_id ?? null,
             equipment_id: id,
             gang_origin_id: grant.gang_origin_id ?? null,
-            gang_variant_id: grant.gang_variant_id ?? null,
+            gang_subtype_id: grant.gang_subtype_id ?? null,
             fighter_subtype: grant.fighter_subtype ?? null,
             updated_at: new Date().toISOString()
           }))
           .filter(record => {
-            const key = `${record.fighter_type_id ?? ''}|${record.gang_origin_id ?? ''}|${record.gang_variant_id ?? ''}|${record.fighter_subtype ?? ''}`;
+            const key = `${record.fighter_type_id ?? ''}|${record.gang_origin_id ?? ''}|${record.gang_subtype_id ?? ''}|${record.fighter_subtype ?? ''}`;
             if (seen.has(key)) return false;
             seen.add(key);
             return true;
@@ -893,14 +893,14 @@ export async function PATCH(request: Request) {
       }
     }
 
-    // Handle equipment subtype availabilities (DB column gang_variant_id)
+    // Handle equipment subtype availabilities
     if (equipment_subtype_availabilities !== undefined) {
       // First, delete all existing gang subtype availabilities for this equipment
       const { error: deleteError } = await supabase
         .from('equipment_availability')
         .delete()
         .eq('equipment_id', id)
-        .not('gang_variant_id', 'is', null);
+        .not('gang_subtype_id', 'is', null);
 
       // Log but don't throw on delete error
       if (deleteError) {
@@ -909,9 +909,9 @@ export async function PATCH(request: Request) {
 
       // If there are new subtype availabilities to add
       if (Array.isArray(equipment_subtype_availabilities) && equipment_subtype_availabilities.length > 0) {
-        const subtypeAvailabilityRecords = equipment_subtype_availabilities.map((avail: Pick<EquipmentSubtypeAvailability, 'gang_variant_id' | 'availability'>) => ({
+        const subtypeAvailabilityRecords = equipment_subtype_availabilities.map((avail: Pick<EquipmentSubtypeAvailability, 'gang_subtype_id' | 'availability'>) => ({
           equipment_id: id,
-          gang_variant_id: avail.gang_variant_id,
+          gang_subtype_id: avail.gang_subtype_id,
           availability: avail.availability.trimEnd(),
           gang_type_id: null,
           gang_origin_id: null

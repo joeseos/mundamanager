@@ -6,10 +6,10 @@ import { withEditionSlug } from '@/types/edition';
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
-const variantGangTypeName = (variant: string) => `Variant: ${variant}`;
+const subtypeGangTypeName = (name: string) => `Subtype: ${name}`;
 
-// Keyed by name so a later edition's re-issue of the variant inherits the rule.
-const variantsWithoutLeaders = new Set(['secundan incursion']);
+// Keyed by name so a later edition's re-issue of the subtype inherits the rule.
+const subtypesWithoutLeaders = new Set(['secundan incursion']);
 
 // Fetch the user's own custom fighters plus any shared with them through campaigns,
 // de-duplicated by id.
@@ -364,10 +364,10 @@ export async function GET(request: Request) {
     let gangSubtypes: Array<{id: string, subtype: string, edition_id: string | null}> = [];
     if (!isGangAddition) {
       try {
-        // Get gang data including gang_variants
+        // Get gang data including gang_subtypes
         const { data: gangData, error: gangError } = await supabase
           .from('gangs')
-          .select('gang_variants')
+          .select('gang_subtypes')
           .eq('id', gangId)
           .single();
 
@@ -377,20 +377,20 @@ export async function GET(request: Request) {
         }
 
         // If gang has subtypes, fetch the subtype details
-        if (gangData.gang_variants && Array.isArray(gangData.gang_variants) && gangData.gang_variants.length > 0) {
+        if (gangData.gang_subtypes && Array.isArray(gangData.gang_subtypes) && gangData.gang_subtypes.length > 0) {
           const { data: subtypeDetails, error: subtypeError } = await supabase
-            .from('gang_variant_types')
-            .select('id, variant, edition_id')
-            .in('id', gangData.gang_variants);
+            .from('gang_subtype_types')
+            .select('id, subtype, edition_id')
+            .in('id', gangData.gang_subtypes);
 
           if (subtypeError) {
             console.error('Error fetching subtype details:', subtypeError);
             throw subtypeError;
           }
 
-          gangSubtypes = (subtypeDetails || []).map((row: { id: string; variant: string; edition_id: string | null }) => ({
+          gangSubtypes = (subtypeDetails || []).map((row: { id: string; subtype: string; edition_id: string | null }) => ({
             id: row.id,
-            subtype: row.variant,
+            subtype: row.subtype,
             edition_id: row.edition_id,
           }));
         }
@@ -401,31 +401,31 @@ export async function GET(request: Request) {
 
       if (gangSubtypes.length > 0) {
         // Match on edition too — "Malstrain Corrupted" exists in both N23 and N26.
-        const { data: variantGangTypes, error: variantGangTypesError } = await supabase
+        const { data: subtypeGangTypes, error: subtypeGangTypesError } = await supabase
           .from('gang_types')
           .select('gang_type_id, gang_type, edition_id')
-          .in('gang_type', gangSubtypes.map(v => variantGangTypeName(v.subtype)));
+          .in('gang_type', gangSubtypes.map(v => subtypeGangTypeName(v.subtype)));
 
         // Falling through to "no subtype fighters" is a fine degradation, but a failure here
         // looks identical to a subtype having no pool, so say so rather than vanish silently.
-        if (variantGangTypesError) {
-          console.error('Error fetching variant gang types:', variantGangTypesError);
+        if (subtypeGangTypesError) {
+          console.error('Error fetching subtype gang types:', subtypeGangTypesError);
         }
 
         for (const subtype of gangSubtypes) {
-          if (variantsWithoutLeaders.has(subtype.subtype.toLowerCase())) {
+          if (subtypesWithoutLeaders.has(subtype.subtype.toLowerCase())) {
             data = data.filter((type: any) => !(type.fighter_subtypes ?? []).includes('Leader'));
           }
 
-          const variantGangTypeId = (variantGangTypes ?? []).find(gt =>
-            gt.gang_type === variantGangTypeName(subtype.subtype) &&
+          const subtypeGangTypeId = (subtypeGangTypes ?? []).find(gt =>
+            gt.gang_type === subtypeGangTypeName(subtype.subtype) &&
             gt.edition_id === subtype.edition_id
           )?.gang_type_id;
-          if (!variantGangTypeId) continue;
+          if (!subtypeGangTypeId) continue;
 
           // Fetch subtype-specific fighter types and merge
           const { data: subtypeData, error: subtypeError } = await supabase.rpc('get_fighter_types_with_cost', {
-            p_gang_type_id: variantGangTypeId,
+            p_gang_type_id: subtypeGangTypeId,
             p_gang_affiliation_id: null,
             p_is_gang_addition: false
           });

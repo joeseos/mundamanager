@@ -35,7 +35,7 @@ export interface GangBasic {
   created_at: string;
   last_updated: string;
   alliance_id?: string;
-  gang_variants?: string[];
+  gang_subtypes?: string[];
   user_id: string;
   gang_affiliation_id?: string | null;
   gang_affiliation?: {
@@ -237,7 +237,7 @@ export const getGangCore = async (gangId: string, supabase: any): Promise<GangCo
             alliance_name,
             alliance_type
           ),
-          gang_variants,
+          gang_subtypes,
           user_id,
           gang_affiliation_id,
           gang_affiliation:gang_affiliation_id (
@@ -486,7 +486,6 @@ export const getGangTypeConfig = (gangBasic: GangBasic) =>
 /**
  * Get gang subtypes
  * Cache: GLOBAL_GANG_TYPES (shared since subtypes rarely change)
- * DB table/column names remain gang_variant_types / variant; mapped to app subtype.
  */
 export const getGangSubtypes = async (gangSubtypeIds: string[], supabase: any): Promise<GangSubtype[]> => {
   if (!gangSubtypeIds || gangSubtypeIds.length === 0) return [];
@@ -494,15 +493,12 @@ export const getGangSubtypes = async (gangSubtypeIds: string[], supabase: any): 
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
-        .from('gang_variant_types')
-        .select('id, variant')
+        .from('gang_subtype_types')
+        .select('id, subtype')
         .in('id', gangSubtypeIds);
 
       if (error) return [];
-      return (data || []).map((row: { id: string; variant: string }) => ({
-        id: row.id,
-        subtype: row.variant,
-      }));
+      return data || [];
     },
     [`gang-subtypes-${gangSubtypeIds.join('-')}`],
     {

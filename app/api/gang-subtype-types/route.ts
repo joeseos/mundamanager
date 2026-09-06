@@ -5,7 +5,7 @@ import { editionSlugFromJoin } from "@/types/edition";
 
 interface DbGangSubtypeTypeRow {
     id: string;
-    variant: string;
+    subtype: string;
     edition_id?: string | null;
     editions?: { slug: string } | { slug: string }[] | null;
 }
@@ -21,18 +21,17 @@ export async function GET(request: Request) {
         }
 
         let query = supabase
-            .from('gang_variant_types')
-            .select('id, variant, edition_id, editions:edition_id (slug)')
-            .order('variant')
+            .from('gang_subtype_types')
+            .select('id, subtype, edition_id, editions:edition_id (slug)')
+            .order('subtype')
 
         const { data, error } = await query;
 
         if (error) throw error;
 
-        // Map DB column `variant` → app field `subtype`
         const modelData = data.map((row: DbGangSubtypeTypeRow) => ({
             id: row.id,
-            subtype: row.variant,
+            subtype: row.subtype,
             // Slug for the player-side callers; id for the admin editor, which saves one
             edition_id: row.edition_id ?? null,
             edition_slug: editionSlugFromJoin(row.editions),
