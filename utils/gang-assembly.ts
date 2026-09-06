@@ -1,35 +1,16 @@
+import 'server-only';
+import { countAdvancementsTaken } from '@/utils/advancementRanks';
 import { readHatredTarget } from '@/utils/injuryTarget';
 import { WeaponProps, WargearItem } from '@/types/fighter';
 import { WeaponProfile } from '@/types/equipment';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
-import type { GangFighter, GetGangFightersListOptions } from './gang-data';
+import type {
+  GangFighter,
+  GangFighterIndexEntry,
+  GangFightersBundle,
+  GetGangFightersListOptions,
+} from '@/types/gang';
 
-/**
- * Raw, unprocessed rows for everything fighter/vehicle-shaped in a gang.
- * Fetched once (getGangFightersBundle, tag gang-{id}) and assembled into the
- * page-specific shapes by the pure functions below. The transform logic is
- * moved verbatim from the previous getGangFightersList/getGangVehicles
- * implementations — queries got wider, the logic did not change.
- */
-export interface GangFightersBundle {
-  gangId: string;
-  fighters: any[];
-  /** ALL gang vehicles (fighter-assigned and unassigned). */
-  vehicles: any[];
-  /** fighter_equipment rows for fighters AND vehicles (stash excluded). */
-  equipment: any[];
-  skills: any[];
-  /** fighter_effects rows for fighters AND vehicles (superset select). */
-  effects: any[];
-  /** fighter_exotic_beasts where the owner is in this gang. */
-  beastsOwned: any[];
-  /** fighter_exotic_beasts where the pet is in this gang (ownership info). */
-  beastsPetOf: any[];
-  /** ALL fighter_loadouts for the gang's fighters, with equipment assignments embedded. */
-  loadouts: any[];
-  /** {id, name} of gangs that captured this gang's fighters. */
-  capturedByGangs: any[];
-}
 
 export function groupBy<T extends Record<string, any>>(array: T[], key: string): Record<string, T[]> {
   return array.reduce((groups: Record<string, T[]>, item: T) => {
@@ -859,6 +840,61 @@ export function assembleGangVehicles(bundle: GangFightersBundle): any[] {
   });
 }
 
+/**
+ * Compact roster for the fighter page's navigation Combobox — the 13 fields it
+ * reads and nothing else. A selector over the bundle the caller already holds,
+ * so the fighter page no longer reads the entry a second time.
+ */
+export function selectGangFighterIndex(bundle: GangFightersBundle): GangFighterIndexEntry[] {
+  const advancementEffectsByFighter = new Map<string, unknown[]>();
+  for (const effect of bundle.effects) {
+    // effects is a superset select (fighter- AND vehicle-scoped rows); skip the
+    // vehicle ones, matching assembleGangFighters' fighterEffectsRows filter.
+    if (!effect.fighter_id || effect.vehicle_id) continue;
+    const category =
+      effect.fighter_effect_type?.fighter_effect_category?.category_name;
+    if (category !== 'advancements') continue;
+
+    const list = advancementEffectsByFighter.get(effect.fighter_id);
+    if (list) {
+      list.push(effect);
+    } else {
+      advancementEffectsByFighter.set(effect.fighter_id, [effect]);
+    }
+  }
+
+  const skillsByFighter = new Map<string, Record<string, { is_advance?: boolean }>>();
+  for (const skill of bundle.skills) {
+    if (!skill.fighter_id) continue;
+    const key = skill.id ?? `${skill.fighter_id}-${skill.created_at}`;
+    let existing = skillsByFighter.get(skill.fighter_id);
+    if (!existing) {
+      existing = {};
+      skillsByFighter.set(skill.fighter_id, existing);
+    }
+    existing[key] = { is_advance: skill.is_advance || false };
+  }
+
+  return bundle.fighters.map((f: any) => ({
+    id: f.id,
+    fighter_name: f.fighter_name,
+    fighter_type: f.fighter_type,
+    fighter_specialisation_id: f.fighter_specialisation_id ?? null,
+    xp: f.xp,
+    starting_xp: f.starting_xp ?? null,
+    advancements_taken: countAdvancementsTaken(
+      { advancements: advancementEffectsByFighter.get(f.id) ?? [] },
+      skillsByFighter.get(f.id) ?? {},
+    ),
+    killed: f.killed,
+    retired: f.retired,
+    enslaved: f.enslaved,
+    starved: f.starved,
+    recovery: f.recovery,
+    captured: f.captured,
+  }));
+}
+
 // =============================================================================
 // FIGHTER PAGE VIEW - assembled from the same bundle the gang page uses
 // =============================================================================
@@ -874,8 +910,6 @@ export interface FighterView {
   effects: Record<string, any[]>;
   vehicles: any[];
   beastCosts: { total: number; byEquipmentId: Record<string, { equipment: number; advancements: number }> };
-  ownedBeastsData: any[];
-  beastFighters: any[];
   ownershipInfo: { owner_name?: string; beast_equipment_stashed: boolean } | null;
   loadouts: Array<{ id: string; fighter_id: string; loadout_name: string; equipment_ids: string[] }>;
   capturedByGangName: string | null;
@@ -1262,30 +1296,6 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
     beastTotal += baseBeastCost + equipmentCost + skillsCost + effectsCost + (beast.cost_adjustment || 0);
   });
 
-  const ownedBeastsData = myBeastLinks.map((link: any) => ({
-    fighter_pet_id: link.fighter_pet_id,
-    fighter_equipment_id: link.fighter_equipment_id,
-    fighter_equipment: link.fighter_equipment
-      ? {
-          equipment: link.fighter_equipment.equipment || null,
-          custom_equipment: link.fighter_equipment.custom_equipment || null
-        }
-      : null
-  }));
-
-  const beastFighters = myBeastLinks
-    .map((link: any) => fighterById.get(link.fighter_pet_id))
-    .filter(Boolean)
-    .map((beast: any) => ({
-      id: beast.id,
-      fighter_name: beast.fighter_name,
-      fighter_type: beast.fighter_type,
-      fighter_class: beast.fighter_class,
-      credits: beast.credits,
-      created_at: beast.created_at,
-      retired: beast.retired
-    }));
-
   // ---- Ownership info (if this fighter IS a beast) ----
   const petRow = bundle.beastsPetOf.find((info: any) => info.fighter_pet_id === fighterId) || null;
   const ownershipInfo = petRow
@@ -1335,8 +1345,6 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
     effects,
     vehicles,
     beastCosts: { total: beastTotal, byEquipmentId },
-    ownedBeastsData,
-    beastFighters,
     ownershipInfo,
     loadouts,
     capturedByGangName,

@@ -1,5 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
-import { redirect, notFound, forbidden } from "next/navigation";
+import { redirect, notFound, forbidden, unstable_rethrow } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 import { canViewHiddenGang } from "@/utils/user-permissions";
@@ -71,7 +71,10 @@ export default async function PrintGangPage(props: {
     ] = await Promise.all([
       getGangPositioning(params.id, supabase),
       getGangType(gangBasic, supabase),
-      getGangFightersList(params.id, supabase, { expandLoadoutsForPrint: true }),
+      getGangFightersList(params.id, supabase, {
+        expandLoadoutsForPrint: true,
+        gangEditionSlug: gangBasic.edition_slug ?? null,
+      }),
       getGangCampaigns(params.id, supabase),
       getGangSubtypes(gangBasic.gang_subtypes || [], supabase),
       getGangStash(params.id, supabase),
@@ -130,6 +133,9 @@ export default async function PrintGangPage(props: {
       note: gangBasic.note,
     };
   } catch (error) {
+    // notFound()/forbidden()/redirect() signal by throwing; let them through
+    // untouched so they are not logged as failures.
+    unstable_rethrow(error);
     console.error("Error in PrintGangPage:", error);
     throw error;
   }

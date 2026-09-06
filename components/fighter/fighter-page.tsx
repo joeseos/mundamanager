@@ -1,5 +1,6 @@
 'use client';
 
+import type { GangFighterIndexEntry } from '@/types/gang';
 import { FighterSkills, FighterEffect } from "@/types/fighter";
 import { FighterDetailsCard } from "@/components/fighter/fighter-details-card";
 import { WeaponList } from "@/components/fighter/fighter-equipment-list";
@@ -37,21 +38,7 @@ import { hasN26ProspectPromotionOccurred } from '@/utils/keepTypePromotionN26';
 
 interface FighterPageProps {
   initialFighterData: any;
-  initialGangFighters: Array<{
-    id: string;
-    fighter_name: string;
-    fighter_type: string;
-    fighter_specialisation_id?: string | null;
-    xp: number | null;
-    starting_xp?: number | null;
-    advancements_taken?: number;
-    killed?: boolean;
-    retired?: boolean;
-    enslaved?: boolean;
-    starved?: boolean;
-    recovery?: boolean;
-    captured?: boolean;
-  }>;
+  initialGangFighters: GangFighterIndexEntry[];
   userPermissions: UserPermissions;
   fighterId: string;
 }
@@ -165,21 +152,7 @@ interface FighterPageState {
   equipment: Equipment[];
   vehicleEquipment: VehicleEquipment[];
   gang: Gang | null;
-  gangFighters: {
-    id: string;
-    fighter_name: string;
-    fighter_type: string;
-    fighter_specialisation_id?: string | null;
-    xp: number | null;
-    starting_xp?: number | null;
-    advancements_taken?: number;
-    killed?: boolean;
-    retired?: boolean;
-    enslaved?: boolean;
-    starved?: boolean;
-    recovery?: boolean;
-    captured?: boolean;
-  }[];
+  gangFighters: GangFighterIndexEntry[];
   loadouts: FighterLoadout[];
   activeLoadoutId: string | null;
 }
