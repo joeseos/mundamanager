@@ -1,5 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
-import { notFound } from "next/navigation";
+import { notFound, unstable_rethrow } from "next/navigation";
 import CampaignPageContent from "@/components/campaigns/[id]/campaign-page-content";
 import { CampaignErrorBoundary } from "@/components/campaigns/campaign-error-boundary";
 import { checkCampaignPermissions } from "@/utils/user-permissions";
@@ -183,6 +183,9 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       hasPendingJoinRequest,
     };
   } catch (error) {
+    // notFound()/forbidden()/redirect() signal by throwing; let them through
+    // untouched so they are not logged as failures.
+    unstable_rethrow(error);
     console.error('Error in CampaignPage:', error);
     console.error('Error details:', JSON.stringify(error, null, 2));
     if (error instanceof Error) {

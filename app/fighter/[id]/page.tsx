@@ -1,8 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
-import { redirect, notFound } from "next/navigation";
+import { redirect, notFound, unstable_rethrow } from "next/navigation";
 import FighterPageComponent from "@/components/fighter/fighter-page";
 import { checkPermissionCached } from "@/utils/user-permissions";
-import { getGangFighters } from "@/app/lib/fighter-advancements";
 import { getAuthenticatedUser, signInPath } from "@/utils/auth";
 
 interface FighterPageProps {
@@ -28,10 +27,9 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       getGangCore,
       getGangPositioning,
       getGangCampaigns,
-      getGangFightersBundle,
-      getGangSubtypes
+      getGangFightersBundle
     } = await import('@/app/lib/shared/gang-data');
-    const { assembleFighterView } = await import('@/app/lib/shared/gang-assembly');
+    const { assembleFighterView, selectGangFighterIndex } = await import('@/utils/gang-assembly');
 
     // Fetch basic fighter data first to check if fighter exists and resolve the gang
     const fighterBasic = await getFighterBasic(id, supabase);
@@ -42,13 +40,13 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
 
     // The fighter's data comes from the SAME cache entries the gang page uses
     // (core + fighters bundle + campaigns bundle) — usually warm after any
-    // gang page visit.
-    const [gangBasic, gangPositioning, bundle, gangCampaigns, gangFighters] = await Promise.all([
+    // gang page visit. The bundle is read ONCE: both the fighter view and the
+    // navigation roster are pure selectors over it.
+    const [gangBasic, gangPositioning, bundle, gangCampaigns] = await Promise.all([
       getGangCore(fighterBasic.gang_id, supabase),
       getGangPositioning(fighterBasic.gang_id, supabase),
       getGangFightersBundle(fighterBasic.gang_id, supabase),
       getGangCampaigns(fighterBasic.gang_id, supabase),
-      getGangFighters(fighterBasic.gang_id, supabase),
     ]);
 
     // Check if gang exists (shouldn't happen but handle gracefully)
@@ -56,10 +54,13 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       notFound();
     }
 
-    const [userPermissions, gangSubtypesResolved] = await Promise.all([
-      checkPermissionCached(user.id, fighterBasic.gang_id, gangBasic.user_id),
-      getGangSubtypes(gangBasic.gang_subtypes || [], supabase)
-    ]);
+    const gangFighters = selectGangFighterIndex(bundle);
+
+    const userPermissions = await checkPermissionCached(
+      user.id,
+      fighterBasic.gang_id,
+      gangBasic.user_id
+    );
 
     // Permissions: All authenticated users can view fighters (canView is always true)
     // Edit/delete permissions are enforced in FighterPageComponent
@@ -70,8 +71,6 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       effects,
       vehicles,
       beastCosts,
-      ownedBeastsData,
-      beastFighters,
       ownershipInfo,
       loadouts,
       capturedByGangName,
@@ -91,29 +90,6 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     const fighterEditionSlug = isCustomFighterType
       ? customFighterTypeInfo?.editions?.slug ?? (isVehicle ? gangBasic.edition_slug : null)
       : fighterTypeData?.editions?.slug ?? null;
-
-    // Process beast ownership data
-    const ownedBeasts: any[] = [];
-    if (beastFighters.length) {
-      ownedBeastsData.forEach((beastOwnership: any) => {
-        const beast = beastFighters.find((f: any) => f.id === beastOwnership.fighter_pet_id) as any;
-        const equipment = beastOwnership.fighter_equipment?.equipment || beastOwnership.fighter_equipment?.custom_equipment;
-
-        if (beast) {
-          ownedBeasts.push({
-            id: beast.id,
-            fighter_name: beast.fighter_name,
-            fighter_type: beast.fighter_type,
-            fighter_subtypes: beast.fighter_subtypes,
-            credits: beast.credits,
-            equipment_source: 'Granted by equipment',
-            equipment_name: equipment?.equipment_name || 'Unknown Equipment',
-            created_at: beast.created_at,
-            retired: beast.retired || false
-          });
-        }
-      });
-    }
 
     // Process owner data
     const ownerName = ownershipInfo?.owner_name;
@@ -239,7 +215,6 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         effects,
         vehicles,
         campaigns,
-        owned_beasts: ownedBeasts,
         owner_name: ownerName,
         captured_by_gang_name: capturedByGangName ?? undefined,
         refund_credits: refundCredits,
@@ -256,8 +231,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         venator_ranks_incomplete: gangBasic.venator_ranks_incomplete ?? false,
         gang_affiliation_id: gangBasic.gang_affiliation_id,
         gang_affiliation_name: gangBasic.gang_affiliation?.name,
-        positioning: gangPositioning,
-        gang_subtypes: gangSubtypesResolved
+        positioning: gangPositioning
       },
       equipment,
       loadouts,
@@ -265,6 +239,9 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
 
     pageProps = { fighterData, gangFighters, userPermissions };
   } catch (error) {
+    // notFound()/forbidden()/redirect() signal by throwing; let them through
+    // untouched so they are not logged as failures.
+    unstable_rethrow(error);
     console.error('Error in FighterPage:', error);
     throw error;
   }

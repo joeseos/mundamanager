@@ -1,5 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
-import { redirect, notFound, forbidden } from "next/navigation";
+import { redirect, notFound, forbidden, unstable_rethrow } from "next/navigation";
 import GangPageContent from "@/components/gang/gang-page-content";
 import { canViewHiddenGang, checkPermissionCached } from "@/utils/user-permissions";
 import { getAuthenticatedUser, signInPath } from "@/utils/auth";
@@ -9,14 +9,14 @@ import {
   getGangPositioning,
   getGangType,
   getGangTypeConfig,
-  getGangFightersList,
-  getGangVehicles,
+  getGangFightersBundle,
   getGangStash,
   getGangCampaigns,
   getGangSubtypes,
   getGangTacticsCards,
   getUserProfile
 } from '@/app/lib/shared/gang-data';
+import { assembleGangFighters, assembleGangVehicles } from '@/utils/gang-assembly';
 import { getGangBattleSessionsCached } from '@/app/lib/battle-sessions/get-battle-session-data';
 import { hasGangTacticsCards } from '@/types/edition';
 
@@ -32,6 +32,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
     redirect(signInPath(`/gang/${params.id}`));
   }
 
+  let pageProps;
   try {
     // Fetch the gang core first to check if gang exists
     const gangBasic = await getGangCore(params.id, supabase);
@@ -58,8 +59,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
     const [
       gangPositioning,
       gangType,
-      fighters,
-      vehicles,
+      roster,
       stash,
       campaigns,
       gangSubtypes,
@@ -70,8 +70,14 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
     ] = await Promise.all([
       getGangPositioning(params.id, supabase),
       getGangType(gangBasic, supabase),
-      getGangFightersList(params.id, supabase),
-      getGangVehicles(params.id, supabase),
+      // Assembled inside the batch so the CPU pass overlaps the remaining
+      // queries rather than landing on the critical path after all ten resolve.
+      getGangFightersBundle(params.id, supabase).then((bundle) => ({
+        fighters: assembleGangFighters(bundle, {
+          gangEditionSlug: gangBasic.edition_slug ?? null
+        }),
+        vehicles: assembleGangVehicles(bundle)
+      })),
       getGangStash(params.id, supabase),
       getGangCampaigns(params.id, supabase),
       getGangSubtypes(gangBasic.gang_subtypes || [], supabase),
@@ -84,6 +90,8 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
         : Promise.resolve([])
     ]);
 
+    const { fighters, vehicles } = roster;
+
     // Initialize positioning if needed (lazy initialization only)
     const processedPositioning = await initializePositioningIfNeeded(
       gangPositioning,
@@ -93,7 +101,6 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
     );
 
     // Assemble the gang data structure for client
-    // NOTE: fighters are already fully processed from getGangFightersList with shared cache tags
     const gangTypeConfig = getGangTypeConfig(gangBasic);
     const gangDataForClient = {
       id: gangBasic.id,
@@ -133,11 +140,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       campaigns: campaigns,
       vehicles: vehicles,
       alliance_id: gangBasic.alliance_id,
-      alliance_type: alliance?.alliance_type,
       gang_subtypes: gangSubtypes,
-      gang_affiliation: gangBasic.gang_affiliation,
-      gang_origin: gangBasic.gang_origin,
-      gang_types: gangBasic.gang_types,
       user_id: gangBasic.user_id,
       username: userProfile?.username,
       patreon_tier_id: userProfile?.patreon_tier_id,
@@ -148,16 +151,23 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       tacticsCards: tacticsCards
     };
 
-    return (
-      <GangPageContent
-        initialGangData={gangDataForClient}
-        gangId={params.id}
-        userId={user.id}
-        userPermissions={userPermissions}
-      />
-    );
+    pageProps = { gangDataForClient, userPermissions };
   } catch (error) {
+    // notFound()/forbidden()/redirect() signal by throwing; let them through
+    // untouched so they are not logged as failures.
+    unstable_rethrow(error);
     console.error('Error in GangPage:', error);
     throw error;
   }
+
+  // JSX is constructed outside the try: React renders it after this function
+  // returns, so the catch could never see a render error anyway.
+  return (
+    <GangPageContent
+      initialGangData={pageProps.gangDataForClient}
+      gangId={params.id}
+      userId={user.id}
+      userPermissions={pageProps.userPermissions}
+    />
+  );
 }

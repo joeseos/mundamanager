@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { sortParticipantFightersByPositioning } from '@/utils/fighter-positioning';
 
 import { useMutation } from '@tanstack/react-query';
-import type { GangFighter } from '@/app/lib/shared/gang-data';
+import type { GangFighter } from '@/types/gang';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
