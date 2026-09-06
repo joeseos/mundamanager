@@ -74,7 +74,7 @@ interface GangDataState {
     note_private_updated_at?: string;
     positioning: Record<number, string>;
     campaigns: any[];
-    gang_variants: Array<{id: string, variant: string}>;
+    gang_subtypes: Array<{id: string, subtype: string}>;
     username?: string;
     patreon_tier_id?: string;
     patreon_tier_title?: string;
@@ -641,7 +641,7 @@ export default function GangPageContent({
             onFighterUpdate={handleFighterUpdate}
             onGangCreditsUpdate={handleGangCreditsUpdate}
             onGangWealthUpdate={handleGangWealthUpdate}
-            gang_variants={gangData.processedData.gang_variants}
+            gang_subtypes={gangData.processedData.gang_subtypes}
             vehicles={gangData.processedData.vehicles || []}
             userPermissions={userPermissions}
           />

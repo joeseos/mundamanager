@@ -95,7 +95,7 @@ interface PrintGangProps {
     fighters: FighterProps[];
     stash: any[];
     campaigns: any[];
-    gang_variants: Array<{ id: string; variant: string }>;
+    gang_subtypes: Array<{ id: string; subtype: string }>;
     username?: string;
     patreon_tier_id?: string;
     patreon_tier_title?: string;
@@ -185,7 +185,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
     gang_type_has_origin,
     fighters,
     positioning,
-    gang_variants,
+    gang_subtypes,
     stash,
     campaigns,
     note,
@@ -487,8 +487,8 @@ export default function PrintGang({ gang }: PrintGangProps) {
                   {gang_type_has_origin && gang_origin_name && (
                     <> — {gang_origin_name}</>
                   )}
-                  {gang_variants && gang_variants.length > 0
-                    ? ` (${gang_variants.map((v) => v.variant).join(", ")})`
+                  {gang_subtypes && gang_subtypes.length > 0
+                    ? ` (${gang_subtypes.map((v) => v.subtype).join(", ")})`
                     : ""}
                 </span>
               </div>
@@ -1119,15 +1119,15 @@ export default function PrintGang({ gang }: PrintGangProps) {
                                   {gang_origin_category_name}: <Badge variant="secondary">{gang_origin_name}</Badge>
                                 </div>
                               )}
-                              {/* Gang Variants */}
-                              {gang_variants && gang_variants.length > 0 && !(gang_variants.length === 1 && gang_variants[0].variant === 'Outlaw') && (
+                              {/* Gang Subtypes */}
+                              {gang_subtypes && gang_subtypes.length > 0 && !(gang_subtypes.length === 1 && gang_subtypes[0].subtype === 'Outlaw') && (
                                 <div className="flex items-center gap-1">
-                                  Variants:
-                                  {gang_variants
-                                    .filter((variant) => variant.variant !== 'Outlaw')
-                                    .map((variant) => (
-                                      <Badge key={variant.id} variant="secondary">
-                                        {variant.variant}
+                                  Subtypes:
+                                  {gang_subtypes
+                                    .filter((subtype) => subtype.subtype !== 'Outlaw')
+                                    .map((subtype) => (
+                                      <Badge key={subtype.id} variant="secondary">
+                                        {subtype.subtype}
                                       </Badge>
                                     ))}
                                 </div>
@@ -1506,15 +1506,15 @@ export default function PrintGang({ gang }: PrintGangProps) {
                               {gang_origin_category_name}: <Badge variant="secondary">{gang_origin_name}</Badge>
                             </div>
                           )}
-                          {/* Gang Variants */}
-                          {gang_variants && gang_variants.length > 0 && !(gang_variants.length === 1 && gang_variants[0].variant === 'Outlaw') && (
+                          {/* Gang Subtypes */}
+                          {gang_subtypes && gang_subtypes.length > 0 && !(gang_subtypes.length === 1 && gang_subtypes[0].subtype === 'Outlaw') && (
                             <div className="flex items-center gap-1">
-                              Variants:
-                              {gang_variants
-                                .filter((variant) => variant.variant !== 'Outlaw')
-                                .map((variant) => (
-                                  <Badge key={variant.id} variant="secondary">
-                                    {variant.variant}
+                              Subtypes:
+                              {gang_subtypes
+                                .filter((subtype) => subtype.subtype !== 'Outlaw')
+                                .map((subtype) => (
+                                  <Badge key={subtype.id} variant="secondary">
+                                    {subtype.subtype}
                                   </Badge>
                                 ))}
                             </div>

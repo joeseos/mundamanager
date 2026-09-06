@@ -360,8 +360,8 @@ export async function GET(request: Request) {
       data = result;
     }
 
-    // Fetch gang variants from the database
-    let gangVariants: Array<{id: string, variant: string, edition_id: string | null}> = [];
+    // Fetch gang subtypes from the database
+    let gangSubtypes: Array<{id: string, subtype: string, edition_id: string | null}> = [];
     if (!isGangAddition) {
       try {
         // Get gang data including gang_variants
@@ -376,64 +376,68 @@ export async function GET(request: Request) {
           throw gangError;
         }
 
-        // If gang has variants, fetch the variant details
+        // If gang has subtypes, fetch the subtype details
         if (gangData.gang_variants && Array.isArray(gangData.gang_variants) && gangData.gang_variants.length > 0) {
-          const { data: variantDetails, error: variantError } = await supabase
+          const { data: subtypeDetails, error: subtypeError } = await supabase
             .from('gang_variant_types')
             .select('id, variant, edition_id')
             .in('id', gangData.gang_variants);
 
-          if (variantError) {
-            console.error('Error fetching variant details:', variantError);
-            throw variantError;
+          if (subtypeError) {
+            console.error('Error fetching subtype details:', subtypeError);
+            throw subtypeError;
           }
 
-          gangVariants = variantDetails || [];
+          gangSubtypes = (subtypeDetails || []).map((row: { id: string; variant: string; edition_id: string | null }) => ({
+            id: row.id,
+            subtype: row.variant,
+            edition_id: row.edition_id,
+          }));
         }
       } catch (error) {
-        // Continue without variants rather than failing
-        gangVariants = [];
+        // Continue without subtypes rather than failing
+        gangSubtypes = [];
       }
 
-      if (gangVariants.length > 0) {
+      if (gangSubtypes.length > 0) {
         // Match on edition too — "Malstrain Corrupted" exists in both N23 and N26.
         const { data: variantGangTypes, error: variantGangTypesError } = await supabase
           .from('gang_types')
           .select('gang_type_id, gang_type, edition_id')
-          .in('gang_type', gangVariants.map(v => variantGangTypeName(v.variant)));
+          .in('gang_type', gangSubtypes.map(v => variantGangTypeName(v.subtype)));
 
-        // Falling through to "no variant fighters" is a fine degradation, but a failure here
-        // looks identical to a variant having no pool, so say so rather than vanish silently.
+        // Falling through to "no subtype fighters" is a fine degradation, but a failure here
+        // looks identical to a subtype having no pool, so say so rather than vanish silently.
         if (variantGangTypesError) {
           console.error('Error fetching variant gang types:', variantGangTypesError);
         }
 
-        for (const variant of gangVariants) {
-          if (variantsWithoutLeaders.has(variant.variant.toLowerCase())) {
+        for (const subtype of gangSubtypes) {
+          if (variantsWithoutLeaders.has(subtype.subtype.toLowerCase())) {
             data = data.filter((type: any) => !(type.fighter_subtypes ?? []).includes('Leader'));
           }
 
           const variantGangTypeId = (variantGangTypes ?? []).find(gt =>
-            gt.gang_type === variantGangTypeName(variant.variant) &&
-            gt.edition_id === variant.edition_id
+            gt.gang_type === variantGangTypeName(subtype.subtype) &&
+            gt.edition_id === subtype.edition_id
           )?.gang_type_id;
           if (!variantGangTypeId) continue;
 
-          // Fetch variant-specific fighter types and merge
-          const { data: variantData, error: variantError } = await supabase.rpc('get_fighter_types_with_cost', {
+          // Fetch subtype-specific fighter types and merge
+          const { data: subtypeData, error: subtypeError } = await supabase.rpc('get_fighter_types_with_cost', {
             p_gang_type_id: variantGangTypeId,
             p_gang_affiliation_id: null,
             p_is_gang_addition: false
           });
           
-          if (!variantError && variantData) {
-            // Mark these as gang variant fighter types
-            const markedVariantData = variantData.map((type: any) => ({
+          if (!subtypeError && subtypeData) {
+            // Mark these as gang subtype fighter types
+            const markedSubtypeData = subtypeData.map((type: any) => ({
               ...type,
-              is_gang_variant: true,
-              gang_variant_name: variant.variant
+              is_gang_subtype: true,
+              gang_subtype_name: subtype.subtype
             }));
-            data = [...data, ...markedVariantData];
+            data = [...data, ...markedSubtypeData];
           }
         }
       }

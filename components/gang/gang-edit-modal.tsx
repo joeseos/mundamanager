@@ -11,7 +11,7 @@ import Modal from '@/components/ui/modal';
 import { toast } from 'sonner';
 import { HexColorPicker } from "react-colorful";
 import { groupAlliancesByType } from "@/utils/allianceRank";
-import { gangVariantRank } from "@/utils/gangVariantRank";
+import { gangSubtypeRank } from "@/utils/gangSubtypeRank";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { deleteGang } from '@/app/actions/delete-gang';
 import { hasAlignment, sameEditionForDisplay } from '@/types/edition';
@@ -31,7 +31,7 @@ interface GangUpdates {
   alignment?: string;
   alliance_id?: string | null;
   alliance_name?: string;
-  gang_variants?: string[];
+  gang_subtypes?: string[];
   gang_colour?: string;
   gang_affiliation_id?: string | null;
   gang_affiliation_name?: string;
@@ -65,8 +65,8 @@ interface GangEditModalProps {
   allianceId: string | null;
   allianceName: string;
   gangColour: string;
-  gangVariants: Array<{id: string, variant: string}>;
-  availableVariants: Array<{id: string, variant: string, edition_slug?: string | null}>;
+  gangSubtypes: Array<{id: string, subtype: string}>;
+  availableSubtypes: Array<{id: string, subtype: string, edition_slug?: string | null}>;
   gangAffiliationId: string | null;
   gangAffiliationName: string;
   gangType?: string | null;
@@ -162,7 +162,7 @@ function SortableSkillSetRankRow({
  * Handles all gang editing functionality including:
  * - Basic gang info (name, visibility)
  * - Alignment and alliance management
- * - Gang variants selection
+ * - Gang subtypes selection
  * - Colour picker
  * - Campaign allegiance
  */
@@ -176,8 +176,8 @@ export default function GangEditModal({
   allianceId,
   allianceName,
   gangColour,
-  gangVariants,
-  availableVariants,
+  gangSubtypes,
+  availableSubtypes,
   gangAffiliationId,
   gangAffiliationName,
   gangType,
@@ -195,10 +195,10 @@ export default function GangEditModal({
 }: GangEditModalProps) {
   const router = useRouter();
 
-  const editionAvailableVariants = availableVariants.filter(variant =>
-    sameEditionForDisplay(variant.edition_slug, editionSlug)
+  const editionAvailableSubtypes = availableSubtypes.filter(subtype =>
+    sameEditionForDisplay(subtype.edition_slug, editionSlug)
   );
-  const showGangVariants = editionAvailableVariants.length > 0;
+  const showGangSubtypes = editionAvailableSubtypes.length > 0;
   const showAlignment = hasAlignment(editionSlug);
   // Mirror admin fighter-type forms: clear alignment when the edition lacks it
   const effectiveAlignment = showAlignment ? alignment : '';
@@ -323,8 +323,8 @@ export default function GangEditModal({
     alignment: effectiveAlignment,
     allianceId: allianceId || '',
     gangColour: gangColour,
-    gangIsVariant: gangVariants.length > 0,
-    gangVariants: gangVariants,
+    gangHasSubtypes: gangSubtypes.length > 0,
+    gangSubtypes: gangSubtypes,
     gangAffiliationId: gangAffiliationId || '',
     gangOriginId: gangOriginId || '',
     hidden: hidden,
@@ -337,8 +337,8 @@ export default function GangEditModal({
     alignment: effectiveAlignment,
     allianceId: allianceId || '',
     gangColour: gangColour,
-    gangIsVariant: gangVariants.length > 0,
-    gangVariants: gangVariants,
+    gangHasSubtypes: gangSubtypes.length > 0,
+    gangSubtypes: gangSubtypes,
     gangAffiliationId: gangAffiliationId || '',
     gangOriginId: gangOriginId || '',
     hidden: hidden,
@@ -391,7 +391,7 @@ export default function GangEditModal({
     gcTime: 10 * 60 * 1000,  // 10 minutes - cache is kept for 10 minutes
   });
   
-  const resetKey = `${isOpen}-${gangName}-${alignment}-${allianceId}-${gangColour}-${JSON.stringify(gangVariants)}-${gangAffiliationId}-${gangOriginId}-${hidden}-${effectiveCurrentAllegianceId}`;
+  const resetKey = `${isOpen}-${gangName}-${alignment}-${allianceId}-${gangColour}-${JSON.stringify(gangSubtypes)}-${gangAffiliationId}-${gangOriginId}-${hidden}-${effectiveCurrentAllegianceId}`;
   const [prevResetKey, setPrevResetKey] = useState(resetKey);
   if (resetKey !== prevResetKey) {
     setPrevResetKey(resetKey);
@@ -401,8 +401,8 @@ export default function GangEditModal({
         alignment: effectiveAlignment,
         allianceId: allianceId || '',
         gangColour: gangColour,
-        gangIsVariant: gangVariants.length > 0,
-        gangVariants: gangVariants,
+        gangHasSubtypes: gangSubtypes.length > 0,
+        gangSubtypes: gangSubtypes,
         gangAffiliationId: gangAffiliationId || '',
         gangOriginId: gangOriginId || '',
         hidden: hidden,
@@ -415,8 +415,8 @@ export default function GangEditModal({
         alignment: effectiveAlignment,
         allianceId: allianceId || '',
         gangColour: gangColour,
-        gangIsVariant: gangVariants.length > 0,
-        gangVariants: gangVariants,
+        gangHasSubtypes: gangSubtypes.length > 0,
+        gangSubtypes: gangSubtypes,
         gangAffiliationId: gangAffiliationId || '',
         gangOriginId: gangOriginId || '',
         hidden: hidden,
@@ -502,24 +502,24 @@ export default function GangEditModal({
     }
   };
 
-  const syncGangVariantsWithAlignment = (newAlignment: string, currentVariants: Array<{id: string, variant: string}>) => {
-    const outlaw = editionAvailableVariants.find(v => v.variant === 'Outlaw');
-    const hasOutlaw = currentVariants.some(v => v.variant === 'Outlaw');
+  const syncGangSubtypesWithAlignment = (newAlignment: string, currentSubtypes: Array<{id: string, subtype: string}>) => {
+    const outlaw = editionAvailableSubtypes.find(v => v.subtype === 'Outlaw');
+    const hasOutlaw = currentSubtypes.some(v => v.subtype === 'Outlaw');
 
     if (newAlignment === 'Outlaw' && outlaw && !hasOutlaw) {
-      return [...currentVariants, outlaw];
+      return [...currentSubtypes, outlaw];
     } else if (newAlignment === 'Law Abiding' && hasOutlaw) {
-      return currentVariants.filter(v => v.variant !== 'Outlaw');
+      return currentSubtypes.filter(v => v.subtype !== 'Outlaw');
     }
-    return currentVariants;
+    return currentSubtypes;
   };
 
   const handleAlignmentChange = (value: string) => {
-    const newVariants = syncGangVariantsWithAlignment(value, formState.gangVariants);
+    const newSubtypes = syncGangSubtypesWithAlignment(value, formState.gangSubtypes);
     setFormState(prev => ({
       ...prev,
       alignment: value,
-      gangVariants: newVariants
+      gangSubtypes: newSubtypes
     }));
   };
 
@@ -615,12 +615,12 @@ export default function GangEditModal({
       updates.campaign_allegiance_is_custom = selectedAllegiance?.is_custom || false;
     }
 
-    // Only include gang variants if changed (bidirectional check)
-    const variantsChanged = formState.gangVariants.length !== initial.gangVariants.length ||
-      formState.gangVariants.some(v => !initial.gangVariants.some(iv => iv.id === v.id)) ||
-      initial.gangVariants.some(v => !formState.gangVariants.some(fv => fv.id === v.id));
-    if (variantsChanged) {
-      updates.gang_variants = formState.gangVariants.map(v => v.id);
+    // Only include gang subtypes if changed (bidirectional check)
+    const subtypesChanged = formState.gangSubtypes.length !== initial.gangSubtypes.length ||
+      formState.gangSubtypes.some(v => !initial.gangSubtypes.some(iv => iv.id === v.id)) ||
+      initial.gangSubtypes.some(v => !formState.gangSubtypes.some(fv => fv.id === v.id));
+    if (subtypesChanged) {
+      updates.gang_subtypes = formState.gangSubtypes.map(v => v.id);
     }
 
     if (isVenator) {
@@ -957,52 +957,52 @@ export default function GangEditModal({
         </div>
       )}
 
-      {showGangVariants && (
+      {showGangSubtypes && (
         <div className="mt-4">
           <div className="flex items-center space-x-2">
-            <label htmlFor="variant-toggle" className="text-sm font-medium">
-              Gang Variants
+            <label htmlFor="subtype-toggle" className="text-sm font-medium">
+              Gang Subtypes
             </label>
             <Switch
-              id="variant-toggle"
-              checked={formState.gangIsVariant}
-              onCheckedChange={(checked) => setFormState(prev => ({ ...prev, gangIsVariant: checked }))}
+              id="subtype-toggle"
+              checked={formState.gangHasSubtypes}
+              onCheckedChange={(checked) => setFormState(prev => ({ ...prev, gangHasSubtypes: checked }))}
             />
           </div>
 
-          {formState.gangIsVariant && (
+          {formState.gangHasSubtypes && (
             <div className="grid grid-cols-2 gap-4 ">
-              {/* Unaffiliated variants */}
+              {/* Unaffiliated subtypes */}
               <div>
                 <h3 className="text-xs font-semibold text-muted-foreground mb-1">Unaffiliated</h3>
                 <div className="flex flex-col gap-2">
-                  {editionAvailableVariants
-                    .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? Infinity) <= 9)
+                  {editionAvailableSubtypes
+                    .filter(v => (gangSubtypeRank[v.subtype.toLowerCase()] ?? Infinity) <= 9)
                     .sort((a, b) =>
-                      (gangVariantRank[a.variant.toLowerCase()] ?? Infinity) -
-                      (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
+                      (gangSubtypeRank[a.subtype.toLowerCase()] ?? Infinity) -
+                      (gangSubtypeRank[b.subtype.toLowerCase()] ?? Infinity)
                     )
-                    .map((variant) => (
-                      <React.Fragment key={variant.id}>
+                    .map((subtype) => (
+                      <React.Fragment key={subtype.id}>
                         {/* Insert separator before 'skirmish' */}
-                        {variant.variant.toLowerCase() === "skirmish" && (
+                        {subtype.subtype.toLowerCase() === "skirmish" && (
                           <div className="border-t border-border" />
                         )}
                         <div className="flex items-center space-x-2">
                           <Checkbox
-                            id={`variant-${variant.id}`}
-                            checked={formState.gangVariants.some(v => v.id === variant.id)}
+                            id={`subtype-${subtype.id}`}
+                            checked={formState.gangSubtypes.some(v => v.id === subtype.id)}
                             onCheckedChange={(checked) => {
                               setFormState(prev => ({
                                 ...prev,
-                                gangVariants: checked
-                                  ? [...prev.gangVariants, variant]
-                                  : prev.gangVariants.filter(v => v.id !== variant.id)
+                                gangSubtypes: checked
+                                  ? [...prev.gangSubtypes, subtype]
+                                  : prev.gangSubtypes.filter(v => v.id !== subtype.id)
                               }));
                             }}
                           />
-                          <label htmlFor={`variant-${variant.id}`} className="text-sm cursor-pointer">
-                            {variant.variant}
+                          <label htmlFor={`subtype-${subtype.id}`} className="text-sm cursor-pointer">
+                            {subtype.subtype}
                           </label>
                         </div>
                       </React.Fragment>
@@ -1010,32 +1010,32 @@ export default function GangEditModal({
                 </div>
               </div>
 
-              {/* Outlaw/Corrupted variants*/}
+              {/* Outlaw/Corrupted subtypes*/}
               <div>
                 <h3 className="text-xs font-semibold text-muted-foreground mb-1">Outlaw / Corrupted</h3>
                 <div className="flex flex-col gap-2">
-                  {editionAvailableVariants
-                    .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? -1) >= 10)
+                  {editionAvailableSubtypes
+                    .filter(v => (gangSubtypeRank[v.subtype.toLowerCase()] ?? -1) >= 10)
                     .sort((a, b) =>
-                      (gangVariantRank[a.variant.toLowerCase()] ?? Infinity) -
-                      (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
+                      (gangSubtypeRank[a.subtype.toLowerCase()] ?? Infinity) -
+                      (gangSubtypeRank[b.subtype.toLowerCase()] ?? Infinity)
                     )
-                    .map(variant => (
-                      <div key={variant.id} className="flex items-center space-x-2">
+                    .map(subtype => (
+                      <div key={subtype.id} className="flex items-center space-x-2">
                         <Checkbox
-                          id={`variant-${variant.id}`}
-                          checked={formState.gangVariants.some(v => v.id === variant.id)}
+                          id={`subtype-${subtype.id}`}
+                          checked={formState.gangSubtypes.some(v => v.id === subtype.id)}
                           onCheckedChange={(checked) => {
                             setFormState(prev => ({
                               ...prev,
-                              gangVariants: checked
-                                ? [...prev.gangVariants, variant]
-                                : prev.gangVariants.filter(v => v.id !== variant.id)
+                              gangSubtypes: checked
+                                ? [...prev.gangSubtypes, subtype]
+                                : prev.gangSubtypes.filter(v => v.id !== subtype.id)
                             }));
                           }}
                         />
-                        <label htmlFor={`variant-${variant.id}`} className="text-sm cursor-pointer">
-                          {variant.variant}
+                        <label htmlFor={`subtype-${subtype.id}`} className="text-sm cursor-pointer">
+                          {subtype.subtype}
                         </label>
                       </div>
                     ))}

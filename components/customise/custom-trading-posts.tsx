@@ -950,7 +950,7 @@ function EquipmentItemsSection({
             To override the default cost or availability of an item from the official Trading Posts, add the equipment first, then click the edit icon next to its row.
           </p>
           <p className="mt-2">
-            Custom rules can also be set per <strong>gang</strong>, <strong>alignment</strong>, <strong>gang variant</strong>, or <strong>allegiance</strong> to apply a dedicated cost or availability for specific groups.
+            Custom rules can also be set per <strong>gang</strong>, <strong>alignment</strong>, <strong>gang subtype</strong>, or <strong>allegiance</strong> to apply a dedicated cost or availability for specific groups.
           </p>
         </div>
       </Tooltip>
@@ -1436,7 +1436,7 @@ function EditEquipmentModal({
                     <tr className="border-b text-left">
                       <th className="py-1 pr-2 font-medium">Gang Type</th>
                       <th className="py-1 pr-2 font-medium">Origin</th>
-                      <th className="py-1 pr-2 font-medium">Variant</th>
+                      <th className="py-1 pr-2 font-medium">Subtype</th>
                       <th className="py-1 pr-2 font-medium">Allegiance</th>
                       <th className="py-1 pr-2 font-medium">Alignment</th>
                       <th className="py-1 pr-2 font-medium text-center">AL</th>
@@ -1448,7 +1448,7 @@ function EditEquipmentModal({
                       <tr key={rule.id || `new_${index}`} className="border-b last:border-0">
                         <td className="py-1 pr-2">{rule.gang_type_name || '-'}</td>
                         <td className="py-1 pr-2">{rule.gang_origin_name || '-'}</td>
-                        <td className="py-1 pr-2">{rule.gang_variant_name || '-'}</td>
+                        <td className="py-1 pr-2">{rule.gang_subtype_name || '-'}</td>
                         <td className="py-1 pr-2">{rule.allegiance_name || '-'}</td>
                         <td className="py-1 pr-2">{rule.alignment || '-'}</td>
                         <td className="py-1 pr-2 text-center">{rule.availability || '-'}</td>
@@ -1690,19 +1690,19 @@ function AddAvailabilityRuleModal({
   const [gangOriginId, setGangOriginId] = useState(initialRule?.gang_origin_id || '');
   const [gangTypeName, setGangTypeName] = useState<string | null>(initialRule?.gang_type_name ?? null);
   const [gangOriginName, setGangOriginName] = useState<string | null>(initialRule?.gang_origin_name ?? null);
-  const [gangVariantId, setGangVariantId] = useState(initialRule?.gang_variant_id || '');
+  const [gangSubtypeId, setGangSubtypeId] = useState(initialRule?.gang_variant_id || '');
   const [allegiance, setAllegiance] = useState(initialRule?.campaign_type_allegiance_id || '');
   const [alignment, setAlignment] = useState(initialRule?.alignment || '');
   const [availLetter, setAvailLetter] = useState(parsedAvail.letter);
   const [availNumber, setAvailNumber] = useState(parsedAvail.number);
 
   const editionSlug = useTradingPostEdition();
-  const { data: variants = [] } = useQuery({
-    queryKey: ['gangVariantTypes', editionSlug],
+  const { data: subtypes = [] } = useQuery({
+    queryKey: ['gangSubtypeTypes', editionSlug],
     queryFn: async () => {
-      const res = await fetch('/api/gang-variant-types');
-      if (!res.ok) throw new Error('Failed to fetch variants');
-      const data = await res.json() as Array<{ id: string; variant: string; edition_slug?: string | null }>;
+      const res = await fetch('/api/gang-subtype-types');
+      if (!res.ok) throw new Error('Failed to fetch subtypes');
+      const data = await res.json() as Array<{ id: string; subtype: string; edition_slug?: string | null }>;
       return data.filter(v => sameEditionForDisplay(v.edition_slug, editionSlug));
     },
     staleTime: 10 * 60 * 1000,
@@ -1718,7 +1718,7 @@ function AddAvailabilityRuleModal({
     staleTime: 10 * 60 * 1000,
   });
 
-  const selectedVariantName = variants.find(v => v.id === gangVariantId)?.variant || null;
+  const selectedSubtypeName = subtypes.find(v => v.id === gangSubtypeId)?.subtype || null;
   const selectedAllegianceName = allegiances.find(a => a.id === allegiance)?.allegiance_name || null;
 
   const handleSave = () => {
@@ -1728,19 +1728,19 @@ function AddAvailabilityRuleModal({
       gang_type_id: !isCustomGangType && gangTypeId ? gangTypeId : null,
       custom_gang_type_id: isCustomGangType && gangTypeId ? gangTypeId : null,
       gang_origin_id: gangOriginId || null,
-      gang_variant_id: gangVariantId || null,
+      gang_variant_id: gangSubtypeId || null,
       campaign_type_allegiance_id: allegiance || null,
       alignment: alignment || null,
       availability: combineAvailability(availLetter, availNumber),
       gang_type_name: gangTypeName,
       gang_origin_name: gangOriginName,
-      gang_variant_name: selectedVariantName,
+      gang_subtype_name: selectedSubtypeName,
       allegiance_name: selectedAllegianceName,
     };
     onSaved(rule);
   };
 
-  const hasAnyField = gangTypeId || gangOriginId || gangVariantId || allegiance || alignment;
+  const hasAnyField = gangTypeId || gangOriginId || gangSubtypeId || allegiance || alignment;
   const isEditing = !!initialRule;
 
   return (
@@ -1772,15 +1772,15 @@ function AddAvailabilityRuleModal({
         />
 
         <div>
-          <Label className="mb-1">Gang Variant</Label>
+          <Label className="mb-1">Gang Subtype</Label>
           <select
             className="w-full border rounded-md p-2 bg-background text-base md:text-sm"
-            value={gangVariantId}
-            onChange={(e) => setGangVariantId(e.target.value)}
+            value={gangSubtypeId}
+            onChange={(e) => setGangSubtypeId(e.target.value)}
           >
-            <option value="">Any variant</option>
-            {variants.map(v => (
-              <option key={v.id} value={v.id}>{v.variant}</option>
+            <option value="">Any subtype</option>
+            {subtypes.map(v => (
+              <option key={v.id} value={v.id}>{v.subtype}</option>
             ))}
           </select>
         </div>

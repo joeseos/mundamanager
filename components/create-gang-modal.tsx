@@ -11,7 +11,7 @@ import { createClient } from "@/utils/supabase/client"
 import { SubmitButton } from "./submit-button"
 import { toast } from 'sonner';
 import { getGangListRank } from "@/utils/gangListRank"
-import { gangVariantRank } from "@/utils/gangVariantRank"
+import { gangSubtypeRank } from "@/utils/gangSubtypeRank"
 import { gangArchetypesFor, hasParentGangType } from "@/utils/gangTypeArchetypes"
 import { createGang } from "@/app/actions/create-gang"
 import { useRouter } from "next/navigation"
@@ -60,9 +60,9 @@ type GangType = {
   edition_slug?: string | null;
 };
 
-type GangVariant = {
+type GangSubtype = {
   id: string;
-  variant: string;
+  subtype: string;
   edition_slug?: string | null;
 };
 
@@ -117,11 +117,11 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const [isLoadingGangTypes, setIsLoadingGangTypes] = useState(false);
   const [gangTypeImageArrays, setGangTypeImageArrays] = useState<Record<string, DefaultImageEntry[]>>({});
   
-  // Gang variants state
-  const [availableVariants, setAvailableVariants] = useState<GangVariant[]>([]);
-  const [isLoadingVariants, setIsLoadingVariants] = useState(false);
-  const [selectedVariants, setSelectedVariants] = useState<GangVariant[]>([]);
-  const [showVariants, setShowVariants] = useState(false);
+  // Gang subtypes state
+  const [availableSubtypes, setAvailableSubtypes] = useState<GangSubtype[]>([]);
+  const [isLoadingSubtypes, setIsLoadingSubtypes] = useState(false);
+  const [selectedSubtypes, setSelectedSubtypes] = useState<GangSubtype[]>([]);
+  const [showSubtypes, setShowSubtypes] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(DEFAULT_IMAGE_INDEX);
 
   const editionGangTypes = useMemo(
@@ -129,9 +129,9 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
     [gangTypes, editionSlug]
   );
 
-  const editionVariants = useMemo(
-    () => availableVariants.filter(variant => sameEditionForDisplay(variant.edition_slug, editionSlug)),
-    [availableVariants, editionSlug]
+  const editionSubtypes = useMemo(
+    () => availableSubtypes.filter(subtype => sameEditionForDisplay(subtype.edition_slug, editionSlug)),
+    [availableSubtypes, editionSlug]
   );
 
   const selectedRootGangType = useMemo(
@@ -243,12 +243,12 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
       setSelectedAffiliation("");
       setSelectedOrigin("");
     }
-    setSelectedVariants(prev =>
-      prev.filter(variant => sameEditionForDisplay(variant.edition_slug, editionSlug))
+    setSelectedSubtypes(prev =>
+      prev.filter(subtype => sameEditionForDisplay(subtype.edition_slug, editionSlug))
     );
-    // Edition with no variant types: hide the switch and clear the toggle
-    if (!availableVariants.some(variant => sameEditionForDisplay(variant.edition_slug, editionSlug))) {
-      setShowVariants(false);
+    // Edition with no subtype types: hide the switch and clear the toggle
+    if (!availableSubtypes.some(subtype => sameEditionForDisplay(subtype.edition_slug, editionSlug))) {
+      setShowSubtypes(false);
     }
   }
 
@@ -308,29 +308,29 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
     });
   }, [resolvedGangTypeId, gangTypeImageArrays, currentImageIndex]);
 
-  // Fetch gang variants when modal opens
+  // Fetch gang subtypes when modal opens
   useEffect(() => {
-    const fetchVariants = async () => {
-      if (availableVariants.length === 0 && !isLoadingVariants) {
-        setIsLoadingVariants(true);
+    const fetchSubtypes = async () => {
+      if (availableSubtypes.length === 0 && !isLoadingSubtypes) {
+        setIsLoadingSubtypes(true);
         try {
-          const response = await fetch('/api/gang-variant-types');
+          const response = await fetch('/api/gang-subtype-types');
           if (!response.ok) {
-            throw new Error('Failed to fetch gang variants');
+            throw new Error('Failed to fetch gang subtypes');
           }
-          const variantsData = await response.json();
-          setAvailableVariants(variantsData);
+          const subtypesData = await response.json();
+          setAvailableSubtypes(subtypesData);
         } catch (err) {
-          console.error('Error fetching gang variants:', err);
-          // Don't show error toast for variants, just log it
+          console.error('Error fetching gang subtypes:', err);
+          // Don't show error toast for subtypes, just log it
         } finally {
-          setIsLoadingVariants(false);
+          setIsLoadingSubtypes(false);
         }
       }
     };
 
-    fetchVariants();
-  }, [availableVariants.length, isLoadingVariants]);
+    fetchSubtypes();
+  }, [availableSubtypes.length, isLoadingSubtypes]);
 
   // Clear affiliation, origin, and gang archetype when gang type (root) changes
   const [prevGangType, setPrevGangType] = useState(gangType);
@@ -361,12 +361,12 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
     }
   }
 
-  // Update credits when Wasteland variant is selected/deselected
-  const [prevSelectedVariants, setPrevSelectedVariants] = useState(selectedVariants);
-  if (selectedVariants !== prevSelectedVariants) {
-    setPrevSelectedVariants(selectedVariants);
-    const wastelandVariant = selectedVariants.find(v => v.variant === 'Wasteland');
-    if (wastelandVariant) {
+  // Update credits when Wasteland subtype is selected/deselected
+  const [prevSelectedSubtypes, setPrevSelectedSubtypes] = useState(selectedSubtypes);
+  if (selectedSubtypes !== prevSelectedSubtypes) {
+    setPrevSelectedSubtypes(selectedSubtypes);
+    const wastelandSubtype = selectedSubtypes.find(v => v.subtype === 'Wasteland');
+    if (wastelandSubtype) {
       setCredits("1400");
     } else {
       if (credits === "1400") {
@@ -417,7 +417,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
           gangAffiliationId: selectedAffiliation || null,
           gangOriginId: selectedOrigin || null,
           credits: parseInt(credits),
-          gangVariants: selectedVariants.map(v => v.id),
+          gangSubtypes: selectedSubtypes.map(v => v.id),
           defaultGangImage: (gangTypeImageArrays[resolvedGangTypeId] || []).length > 0
             ? currentImageIndex
             : null
@@ -436,8 +436,8 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
         setSelectedAffiliation("")
         setSelectedOrigin("")
         setCredits("1000")
-        setSelectedVariants([])
-        setShowVariants(false)
+        setSelectedSubtypes([])
+        setShowSubtypes(false)
         onClose()
         
         // Check if we're currently on the gangs tab, if not redirect to it
@@ -531,8 +531,9 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
 
           {gangArchetypeOptions.length > 0 && (
             <div>
+              {/* TODO: UI label only for now (was "Gang archetype"). Concept is Gang Variant; additional variable renaming is left to do. */}
               <span className="block text-sm font-medium text-muted-foreground mb-1">
-                Gang archetype
+                Gang Variant
               </span>
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-2">
@@ -620,52 +621,52 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
             </div>
           ) : null}
 
-          {/* Gang Variants Section — only when the edition has variant types */}
-          {editionVariants.length > 0 && (
+          {/* Gang Subtypes Section — only when the edition has subtype types */}
+          {editionSubtypes.length > 0 && (
             <div className="mt-4">
               <div className="flex items-center space-x-2">
-                <label htmlFor="variant-toggle" className="text-sm font-medium">
-                  Gang Variants
+                <label htmlFor="subtype-toggle" className="text-sm font-medium text-muted-foreground">
+                  Gang Subtypes
                 </label>
                 <Switch
-                  id="variant-toggle"
-                  checked={showVariants}
-                  onCheckedChange={setShowVariants}
+                  id="subtype-toggle"
+                  checked={showSubtypes}
+                  onCheckedChange={setShowSubtypes}
                 />
               </div>
 
-              {showVariants && (
+              {showSubtypes && (
                 <div className="grid grid-cols-2 gap-4 mt-2">
-                  {/* Unaffiliated variants */}
+                  {/* Unaffiliated subtypes */}
                   <div>
                     <h3 className="text-xs font-semibold text-muted-foreground mb-1">Unaffiliated</h3>
                     <div className="flex flex-col gap-2">
-                      {editionVariants
-                        .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? Infinity) <= 9)
+                      {editionSubtypes
+                        .filter(v => (gangSubtypeRank[v.subtype.toLowerCase()] ?? Infinity) <= 9)
                         .sort((a, b) =>
-                          (gangVariantRank[a.variant.toLowerCase()] ?? Infinity) -
-                          (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
+                          (gangSubtypeRank[a.subtype.toLowerCase()] ?? Infinity) -
+                          (gangSubtypeRank[b.subtype.toLowerCase()] ?? Infinity)
                         )
-                        .map((variant) => (
-                          <React.Fragment key={variant.id}>
+                        .map((subtype) => (
+                          <React.Fragment key={subtype.id}>
                             {/* Insert separator before 'skirmish' */}
-                            {variant.variant.toLowerCase() === "skirmish" && (
+                            {subtype.subtype.toLowerCase() === "skirmish" && (
                               <div className="border-t border-border" />
                             )}
                             <div className="flex items-center space-x-2">
                               <Checkbox
-                                id={`variant-${variant.id}`}
-                                checked={selectedVariants.some(v => v.id === variant.id)}
+                                id={`subtype-${subtype.id}`}
+                                checked={selectedSubtypes.some(v => v.id === subtype.id)}
                                 onCheckedChange={(checked) => {
                                   if (checked) {
-                                    setSelectedVariants(prev => [...prev, variant]);
+                                    setSelectedSubtypes(prev => [...prev, subtype]);
                                   } else {
-                                    setSelectedVariants(prev => prev.filter(v => v.id !== variant.id));
+                                    setSelectedSubtypes(prev => prev.filter(v => v.id !== subtype.id));
                                   }
                                 }}
                               />
-                              <label htmlFor={`variant-${variant.id}`} className="text-sm cursor-pointer">
-                                {variant.variant}
+                              <label htmlFor={`subtype-${subtype.id}`} className="text-sm cursor-pointer">
+                                {subtype.subtype}
                               </label>
                             </div>
                           </React.Fragment>
@@ -673,31 +674,31 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
                     </div>
                   </div>
 
-                  {/* Outlaw/Corrupted variants*/}
+                  {/* Outlaw/Corrupted subtypes*/}
                   <div>
                     <h3 className="text-xs font-semibold text-muted-foreground mb-1">Outlaw / Corrupted</h3>
                     <div className="flex flex-col gap-2">
-                      {editionVariants
-                        .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? -1) >= 10)
+                      {editionSubtypes
+                        .filter(v => (gangSubtypeRank[v.subtype.toLowerCase()] ?? -1) >= 10)
                         .sort((a, b) =>
-                          (gangVariantRank[a.variant.toLowerCase()] ?? Infinity) -
-                          (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
+                          (gangSubtypeRank[a.subtype.toLowerCase()] ?? Infinity) -
+                          (gangSubtypeRank[b.subtype.toLowerCase()] ?? Infinity)
                         )
-                        .map(variant => (
-                          <div key={variant.id} className="flex items-center space-x-2">
+                        .map(subtype => (
+                          <div key={subtype.id} className="flex items-center space-x-2">
                             <Checkbox
-                              id={`variant-${variant.id}`}
-                              checked={selectedVariants.some(v => v.id === variant.id)}
+                              id={`subtype-${subtype.id}`}
+                              checked={selectedSubtypes.some(v => v.id === subtype.id)}
                               onCheckedChange={(checked) => {
                                 if (checked) {
-                                  setSelectedVariants(prev => [...prev, variant]);
+                                  setSelectedSubtypes(prev => [...prev, subtype]);
                                 } else {
-                                  setSelectedVariants(prev => prev.filter(v => v.id !== variant.id));
+                                  setSelectedSubtypes(prev => prev.filter(v => v.id !== subtype.id));
                                 }
                               }}
                             />
-                            <label htmlFor={`variant-${variant.id}`} className="text-sm cursor-pointer">
-                              {variant.variant}
+                            <label htmlFor={`subtype-${subtype.id}`} className="text-sm cursor-pointer">
+                              {subtype.subtype}
                             </label>
                           </div>
                         ))}

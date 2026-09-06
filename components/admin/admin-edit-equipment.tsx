@@ -8,11 +8,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
 import { toast } from 'sonner';
 import { FighterType } from "@/types/fighter";
-import { WeaponProfileInput, emptyWeaponProfile, EquipmentGrants, EquipmentAvailability, EquipmentOriginAvailability, EquipmentVariantAvailability, FighterTypeEquipmentGrant, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
+import { WeaponProfileInput, emptyWeaponProfile, EquipmentGrants, EquipmentAvailability, EquipmentOriginAvailability, EquipmentSubtypeAvailability, FighterTypeEquipmentGrant, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
 import { HiX } from "react-icons/hi";
 import { getFighterSubtypeSortRank } from "@/utils/fighterSubtypeRank";
 import { gangOriginRank } from "@/utils/gangOriginRank";
-import { gangVariantRank } from "@/utils/gangVariantRank";
+import { gangSubtypeRank } from "@/utils/gangSubtypeRank";
 import { AdminFighterEffects } from "./admin-fighter-effects";
 import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
 import { hasLethalityStatline, hasTradePoints } from '@/types/edition';
@@ -86,18 +86,18 @@ function GangOriginOptions({ origins }: { origins: GangOriginOption[] }) {
   );
 }
 
-/** Gang-variant <option>s ordered by gangVariantRank. */
-function GangVariantOptions({ variants }: { variants: Array<{ id: string; variant: string }> }) {
+/** Gang-subtype <option>s ordered by gangSubtypeRank. */
+function GangSubtypeOptions({ subtypes }: { subtypes: Array<{ id: string; subtype: string }> }) {
   return (
     <>
-      {[...variants]
+      {[...subtypes]
         .sort((a, b) =>
-          (gangVariantRank[a.variant.toLowerCase()] ?? Infinity)
-          - (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
+          (gangSubtypeRank[a.subtype.toLowerCase()] ?? Infinity)
+          - (gangSubtypeRank[b.subtype.toLowerCase()] ?? Infinity)
         )
-        .map((variant) => (
-          <option key={variant.id} value={variant.id}>
-            {variant.variant}
+        .map((subtype) => (
+          <option key={subtype.id} value={subtype.id}>
+            {subtype.subtype}
           </option>
         ))}
     </>
@@ -174,7 +174,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [showScopedGrantDialog, setShowScopedGrantDialog] = useState(false);
   const [scopedGrantFighterType, setScopedGrantFighterType] = useState('');
   const [scopedGrantOrigin, setScopedGrantOrigin] = useState('');
-  const [scopedGrantVariant, setScopedGrantVariant] = useState('');
+  const [scopedGrantGangSubtype, setScopedGrantGangSubtype] = useState('');
   const [scopedGrantSubtype, setScopedGrantSubtype] = useState('');
   const [showAdjustedCostDialog, setShowAdjustedCostDialog] = useState(false);
   const [selectedGangType, setSelectedGangType] = useState("");
@@ -196,10 +196,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [originAvailValueNumber, setOriginAvailValueNumber] = useState(6);
   const [equipmentOriginAvailabilities, setEquipmentOriginAvailabilities] = useState<EquipmentOriginAvailability[]>([]);
   const [showVariantAvailabilityDialog, setShowVariantAvailabilityDialog] = useState(false);
-  const [selectedAvailabilityGangVariant, setSelectedAvailabilityGangVariant] = useState("");
+  const [selectedAvailabilityGangSubtype, setSelectedAvailabilityGangSubtype] = useState("");
   const [variantAvailValueLetter, setVariantAvailValueLetter] = useState('');
   const [variantAvailValueNumber, setVariantAvailValueNumber] = useState(6);
-  const [equipmentVariantAvailabilities, setEquipmentVariantAvailabilities] = useState<EquipmentVariantAvailability[]>([]);
+  const [equipmentSubtypeAvailabilities, setEquipmentSubtypeAvailabilities] = useState<EquipmentSubtypeAvailability[]>([]);
   const [fighterEffects, setFighterEffects] = useState<any[]>([]);
   const [fighterEffectCategories, setFighterEffectCategories] = useState<any[]>([]);
   const [selectedTradingPosts, setSelectedTradingPosts] = useState<string[]>([]);
@@ -285,7 +285,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       setGangOriginAdjustedCosts([]);
       setEquipmentAvailabilities([]);
       setEquipmentOriginAvailabilities([]);
-      setEquipmentVariantAvailabilities([]);
+      setEquipmentSubtypeAvailabilities([]);
       setSelectedTradingPosts([]);
       setFighterTypeGrants([]);
     } else if (equipmentDetails) {
@@ -354,9 +354,9 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         })));
       }
 
-      if (equipmentDetails.equipment_variant_availabilities) {
-        setEquipmentVariantAvailabilities(equipmentDetails.equipment_variant_availabilities.map((a: any) => ({
-          variant: a.variant,
+      if (equipmentDetails.equipment_subtype_availabilities) {
+        setEquipmentSubtypeAvailabilities(equipmentDetails.equipment_subtype_availabilities.map((a: any) => ({
+          subtype: a.subtype,
           gang_variant_id: a.gang_variant_id,
           availability: a.availability
         })));
@@ -472,11 +472,11 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: gangVariantList = [] } = useQuery<Array<{id: string, variant: string, edition_id?: string | null}>>({
-    queryKey: ['admin-gang-variants'],
+  const { data: gangSubtypeList = [] } = useQuery<Array<{id: string, subtype: string, edition_id?: string | null, edition_slug?: string | null}>>({
+    queryKey: ['admin-gang-subtypes'],
     queryFn: async () => {
-      const response = await fetch('/api/gang-variant-types');
-      if (!response.ok) throw new Error('Failed to fetch gang variants');
+      const response = await fetch('/api/gang-subtype-types');
+      if (!response.ok) throw new Error('Failed to fetch gang subtypes');
       return response.json();
     },
     // Also needed unopened, to label scoped grants
@@ -484,15 +484,15 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     staleTime: 5 * 60 * 1000,
   });
 
-  // Origin and variant names repeat across editions under different ids
+  // Origin and subtype names repeat across editions under different ids
   const filteredGangOrigins = useMemo(
     () => editionId ? gangOriginList.filter(origin => origin.edition_id === editionId) : gangOriginList,
     [gangOriginList, editionId]
   );
 
-  const filteredGangVariants = useMemo(
-    () => editionId ? gangVariantList.filter(variant => variant.edition_id === editionId) : gangVariantList,
-    [gangVariantList, editionId]
+  const filteredGangSubtypes = useMemo(
+    () => editionId ? gangSubtypeList.filter(subtype => subtype.edition_id === editionId) : gangSubtypeList,
+    [gangSubtypeList, editionId]
   );
 
   const { data: fighterSubtypeList = [] } = useQuery<Array<{id: string, subtype_name: string, edition_id?: string | null}>>({
@@ -543,14 +543,14 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     }
     // Gang types are edition-scoped; clear any in-progress Cost-per-Gang pick
     setSelectedGangType('');
-    // Origin/variant/subtype picks are edition-scoped too; drop in-progress ones
+    // Origin/gang-subtype/fighter-subtype picks are edition-scoped too; drop in-progress ones
     setSelectedAdjustedCostGangOrigin('');
     setSelectedAvailabilityGangOrigin('');
-    setSelectedAvailabilityGangVariant('');
+    setSelectedAvailabilityGangSubtype('');
     setScopedGrantFighterType('');
     setScopedGrantSubtype('');
     setScopedGrantOrigin('');
-    setScopedGrantVariant('');
+    setScopedGrantGangSubtype('');
     // Drop trading posts / fighter types that belong to another edition
     if (newEditionId) {
       setSelectedTradingPosts(prev =>
@@ -566,8 +566,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           if (ft && ft.edition_id !== newEditionId) return false;
           const origin = gangOriginList.find(o => o.id === grant.gang_origin_id);
           if (origin && origin.edition_id !== newEditionId) return false;
-          const variant = gangVariantList.find(v => v.id === grant.gang_variant_id);
-          if (variant && variant.edition_id !== newEditionId) return false;
+          const subtype = gangSubtypeList.find(v => v.id === grant.gang_variant_id);
+          if (subtype && subtype.edition_id !== newEditionId) return false;
           return true;
         })
       );
@@ -578,7 +578,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           return !gt || gt.edition_id === newEditionId;
         })
       );
-      // Origin- and variant-scoped rows are edition-scoped as well
+      // Origin- and subtype-scoped rows are edition-scoped as well
       setGangOriginAdjustedCosts(prev =>
         prev.filter(cost => {
           const origin = gangOriginList.find(o => o.id === cost.gang_origin_id);
@@ -591,10 +591,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           return !origin || origin.edition_id === newEditionId;
         })
       );
-      setEquipmentVariantAvailabilities(prev =>
+      setEquipmentSubtypeAvailabilities(prev =>
         prev.filter(avail => {
-          const variant = gangVariantList.find(v => v.id === avail.gang_variant_id);
-          return !variant || variant.edition_id === newEditionId;
+          const subtype = gangSubtypeList.find(v => v.id === avail.gang_variant_id);
+          return !subtype || subtype.edition_id === newEditionId;
         })
       );
     }
@@ -612,10 +612,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       setOriginAvailValueNumber(6);
       setEquipmentOriginAvailabilities([]);
       setShowVariantAvailabilityDialog(false);
-      setSelectedAvailabilityGangVariant('');
+      setSelectedAvailabilityGangSubtype('');
       setVariantAvailValueLetter('');
       setVariantAvailValueNumber(6);
-      setEquipmentVariantAvailabilities([]);
+      setEquipmentSubtypeAvailabilities([]);
     }
     // Weapon Group parents are edition-scoped; drop a cross-edition pick
     if (newEditionId) {
@@ -730,8 +730,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
               availability: a.availability
             }))
           : [],
-        equipment_variant_availabilities: showAvailability
-          ? equipmentVariantAvailabilities.map(a => ({
+        equipment_subtype_availabilities: showAvailability
+          ? equipmentSubtypeAvailabilities.map(a => ({
               gang_variant_id: a.gang_variant_id,
               availability: a.availability
             }))
@@ -779,7 +779,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         queryClient.invalidateQueries({ queryKey: ['admin-weapons'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-gang-types'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-gang-origins'] }),
-        queryClient.invalidateQueries({ queryKey: ['admin-gang-variants'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-gang-subtypes'] }),
       ]);
 
       if (onSubmit) {
@@ -1637,11 +1637,11 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                     </div>
                     )}
 
-                    {/* Availability per Gang Variant — N23 only */}
+                    {/* Availability per Gang Subtype — N23 only */}
                     {showAvailability && (
                     <div>
                       <label className="block text-sm font-medium text-muted-foreground mb-1">
-                        Availability per Gang Variant
+                        Availability per Gang Subtype
                       </label>
                       <Button
                         onClick={() => setShowVariantAvailabilityDialog(true)}
@@ -1649,19 +1649,19 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         size="sm"
                         className="mb-2"
                       >
-                        Add Variant
+                        Add Subtype
                       </Button>
 
-                      {equipmentVariantAvailabilities.length > 0 && (
+                      {equipmentSubtypeAvailabilities.length > 0 && (
                         <div className="flex flex-wrap gap-2">
-                          {equipmentVariantAvailabilities.map((avail, index) => (
+                          {equipmentSubtypeAvailabilities.map((avail, index) => (
                             <div
                               key={index}
                               className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                             >
-                              <span>{avail.variant} (Availability: {avail.availability})</span>
+                              <span>{avail.subtype} (Availability: {avail.availability})</span>
                               <button
-                                onClick={() => setEquipmentVariantAvailabilities(prev =>
+                                onClick={() => setEquipmentSubtypeAvailabilities(prev =>
                                   prev.filter((_, i) => i !== index)
                                 )}
                                 className="hover:text-red-500 focus:outline-hidden"
@@ -1676,37 +1676,37 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
 
                       {showVariantAvailabilityDialog && (
                         <Modal
-                          title="Availability per Gang Variant"
-                          helper="Select a gang variant and enter an availability value"
+                          title="Availability per Gang Subtype"
+                          helper="Select a gang subtype and enter an availability value"
                           onClose={() => {
                             setShowVariantAvailabilityDialog(false);
-                            setSelectedAvailabilityGangVariant("");
+                            setSelectedAvailabilityGangSubtype("");
                             setVariantAvailValueLetter('');
                             setVariantAvailValueNumber(6);
                           }}
                           onConfirm={() => {
                             const combined = combineAvailability(variantAvailValueLetter, variantAvailValueNumber);
-                            if (selectedAvailabilityGangVariant && combined) {
-                              const alreadyExists = equipmentVariantAvailabilities.some(
-                                a => a.gang_variant_id === selectedAvailabilityGangVariant
+                            if (selectedAvailabilityGangSubtype && combined) {
+                              const alreadyExists = equipmentSubtypeAvailabilities.some(
+                                a => a.gang_variant_id === selectedAvailabilityGangSubtype
                               );
                               if (alreadyExists) {
-                                toast.error('This variant already has an availability set');
+                                toast.error('This subtype already has an availability set');
                                 return false;
                               }
 
-                              const selectedVariant = gangVariantList.find(g => g.id === selectedAvailabilityGangVariant);
-                              if (selectedVariant) {
-                                setEquipmentVariantAvailabilities(prev => [
+                              const selectedSubtype = gangSubtypeList.find(g => g.id === selectedAvailabilityGangSubtype);
+                              if (selectedSubtype) {
+                                setEquipmentSubtypeAvailabilities(prev => [
                                   ...prev,
                                   {
-                                    variant: selectedVariant.variant,
-                                    gang_variant_id: selectedVariant.id,
+                                    subtype: selectedSubtype.subtype,
+                                    gang_variant_id: selectedSubtype.id,
                                     availability: combined
                                   }
                                 ]);
                                 setShowVariantAvailabilityDialog(false);
-                                setSelectedAvailabilityGangVariant("");
+                                setSelectedAvailabilityGangSubtype("");
                                 setVariantAvailValueLetter('');
                                 setVariantAvailValueNumber(6);
                               }
@@ -1714,26 +1714,26 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           }}
                           confirmText="Save"
                           confirmDisabled={
-                            !selectedAvailabilityGangVariant ||
+                            !selectedAvailabilityGangSubtype ||
                             !variantAvailValueLetter
                           }
                           width="sm"
                         >
                           <div className="space-y-4">
                             <div>
-                              <label className="block text-sm font-medium mb-1">Gang Variant</label>
+                              <label className="block text-sm font-medium mb-1">Gang Subtype</label>
                               <select
-                                value={selectedAvailabilityGangVariant}
+                                value={selectedAvailabilityGangSubtype}
                                 onChange={(e) => {
-                                  const selected = gangVariantList.find(g => g.id === e.target.value);
+                                  const selected = gangSubtypeList.find(g => g.id === e.target.value);
                                   if (selected) {
-                                    setSelectedAvailabilityGangVariant(e.target.value);
+                                    setSelectedAvailabilityGangSubtype(e.target.value);
                                   }
                                 }}
                                 className="w-full p-2 border rounded-md"
                               >
-                                <option key="default" value="">Select a Gang Variant</option>
-                                <GangVariantOptions variants={filteredGangVariants} />
+                                <option key="default" value="">Select a Gang Subtype</option>
+                                <GangSubtypeOptions subtypes={filteredGangSubtypes} />
                               </select>
                             </div>
 
@@ -1809,7 +1809,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           ? `Origin: ${gangOriginList.find(o => o.id === grant.gang_origin_id)?.origin_name ?? '…'}`
                           : null,
                         grant.gang_variant_id
-                          ? `Variant: ${gangVariantList.find(v => v.id === grant.gang_variant_id)?.variant ?? '…'}`
+                          ? `Gang subtype: ${gangSubtypeList.find(v => v.id === grant.gang_variant_id)?.subtype ?? '…'}`
                           : null,
                         grant.fighter_subtype ? `Subtype: ${grant.fighter_subtype}` : null
                       ].filter(Boolean).join(', ');
@@ -1838,19 +1838,19 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                   {showScopedGrantDialog && (
                     <Modal
                       title="Scoped Equipment List Entry"
-                      helper="Narrow a grant to a gang origin, variant and/or fighter subtype. Leave Fighter Type as Any for a subtype rule spanning every gang."
+                      helper="Narrow a grant to a gang origin, gang subtype and/or fighter subtype. Leave Fighter Type as Any for a subtype rule spanning every gang."
                       onClose={() => {
                         setShowScopedGrantDialog(false);
                         setScopedGrantFighterType("");
                         setScopedGrantOrigin("");
-                        setScopedGrantVariant("");
+                        setScopedGrantGangSubtype("");
                         setScopedGrantSubtype("");
                       }}
                       onConfirm={() => {
                         const grant: FighterTypeEquipmentGrant = {
                           fighter_type_id: scopedGrantFighterType || null,
                           gang_origin_id: scopedGrantOrigin || null,
-                          gang_variant_id: scopedGrantVariant || null,
+                          gang_variant_id: scopedGrantGangSubtype || null,
                           fighter_subtype: scopedGrantSubtype || null
                         };
                         if (fighterTypeGrants.some(g => grantKey(g) === grantKey(grant))) {
@@ -1861,14 +1861,14 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         setShowScopedGrantDialog(false);
                         setScopedGrantFighterType("");
                         setScopedGrantOrigin("");
-                        setScopedGrantVariant("");
+                        setScopedGrantGangSubtype("");
                         setScopedGrantSubtype("");
                       }}
                       confirmText="Save"
                       confirmDisabled={
                         // Needs an identity, and a scope the dropdown can't already give
                         (!scopedGrantFighterType && !scopedGrantSubtype)
-                        || (!scopedGrantOrigin && !scopedGrantVariant && !scopedGrantSubtype)
+                        || (!scopedGrantOrigin && !scopedGrantGangSubtype && !scopedGrantSubtype)
                       }
                       width="sm"
                     >
@@ -1918,14 +1918,14 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium mb-1">Gang Variant</label>
+                          <label className="block text-sm font-medium mb-1">Gang Subtype</label>
                           <select
-                            value={scopedGrantVariant}
-                            onChange={(e) => setScopedGrantVariant(e.target.value)}
+                            value={scopedGrantGangSubtype}
+                            onChange={(e) => setScopedGrantGangSubtype(e.target.value)}
                             className="w-full p-2 border rounded-md"
                           >
-                            <option key="default" value="">Any Gang Variant</option>
-                            <GangVariantOptions variants={filteredGangVariants} />
+                            <option key="default" value="">Any Gang Subtype</option>
+                            <GangSubtypeOptions subtypes={filteredGangSubtypes} />
                           </select>
                         </div>
                       </div>

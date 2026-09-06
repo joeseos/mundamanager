@@ -15,7 +15,7 @@ interface CreateGangParams {
   gangAffiliationId?: string | null;
   gangOriginId?: string | null;
   credits?: number;
-  gangVariants?: string[];
+  gangSubtypes?: string[];
   defaultGangImage: number | null;
 }
 
@@ -28,7 +28,7 @@ export async function createGang({
   gangAffiliationId,
   gangOriginId,
   credits = 1000,
-  gangVariants = [],
+  gangSubtypes = [],
   defaultGangImage
 }: CreateGangParams) {
   try {
@@ -55,6 +55,7 @@ export async function createGang({
     }
 
     // Insert the new gang (exclusive arc: gang_type_id or custom_gang_type_id, never both)
+    // DB column remains gang_variants
     const { data, error } = await supabase
       .from('gangs')
       .insert([{
@@ -70,7 +71,7 @@ export async function createGang({
         alignment,
         gang_affiliation_id: gangAffiliationId || null,
         gang_origin_id: gangOriginId || null,
-        gang_variants: gangVariants.length > 0 ? gangVariants : null,
+        gang_variants: gangSubtypes.length > 0 ? gangSubtypes : null,
         default_gang_image: defaultGangImage
       }])
       .select();

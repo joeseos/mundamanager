@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
-import { checkAdmin, getUserIdFromClaims } from "@/utils/auth";
+import { getUserIdFromClaims } from "@/utils/auth";
 import { editionSlugFromJoin } from "@/types/edition";
 
-interface Variant {
+interface DbGangSubtypeTypeRow {
     id: string;
     variant: string;
     edition_id?: string | null;
@@ -29,20 +29,21 @@ export async function GET(request: Request) {
 
         if (error) throw error;
 
-        const modelData = data.map((variant: Variant) => ({
-            id: variant.id,
-            variant: variant.variant,
+        // Map DB column `variant` → app field `subtype`
+        const modelData = data.map((row: DbGangSubtypeTypeRow) => ({
+            id: row.id,
+            subtype: row.variant,
             // Slug for the player-side callers; id for the admin editor, which saves one
-            edition_id: variant.edition_id ?? null,
-            edition_slug: editionSlugFromJoin(variant.editions),
+            edition_id: row.edition_id ?? null,
+            edition_slug: editionSlugFromJoin(row.editions),
         }));
 
         return NextResponse.json(modelData);
     } catch (error)
     {
-        console.error('Error fetching gang variant types: ', error);
+        console.error('Error fetching gang subtype types: ', error);
         return NextResponse.json(
-            {error: 'Failed to fetch gang variant types'},
+            {error: 'Failed to fetch gang subtype types'},
             {status: 500}
         );
     }
