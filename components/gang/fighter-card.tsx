@@ -137,7 +137,6 @@ const FighterCard = memo(function FighterCard({
   type,
   label,
   fighter_subtypes,
-  fighter_type_subtypes,
   fighter_specialisation,
   fighter_variant,
   alliance_crew_name,
@@ -472,12 +471,11 @@ const FighterCard = memo(function FighterCard({
       {
         prospectPromotionConsumed: hasN26ProspectPromotionOccurred(
           edition_slug,
-          fighter_type_subtypes,
-          fighter_subtypes,
+          fighter_specialisation?.fighter_specialisation_id,
         ),
       },
     ),
-    [edition_slug, starting_xp, xp, effects, skills, fighter_type_subtypes, fighter_subtypes]
+    [edition_slug, starting_xp, xp, effects, skills, fighter_specialisation?.fighter_specialisation_id]
   );
 
   // Determine a unique and valid id for the fighter card based on its status.
