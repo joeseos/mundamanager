@@ -925,11 +925,11 @@ BEGIN
 
   INSERT INTO public.custom_trading_post_availability (id, created_at, user_id, custom_trading_post_equipment_id,
                                                        gang_type_id, custom_gang_type_id, gang_origin_id,
-                                                       gang_variant_id, campaign_type_allegiance_id, alignment,
+                                                       gang_subtype_id, campaign_type_allegiance_id, alignment,
                                                        availability)
   SELECT gen_random_uuid(), now(), v_user, (v_map_tpe ->> a.custom_trading_post_equipment_id::text)::uuid,
          a.gang_type_id, (v_map_gt ->> a.custom_gang_type_id::text)::uuid, a.gang_origin_id,
-         a.gang_variant_id, a.campaign_type_allegiance_id, a.alignment, a.availability
+         a.gang_subtype_id, a.campaign_type_allegiance_id, a.alignment, a.availability
   FROM public.custom_trading_post_availability a
   WHERE (v_map_tpe ? a.custom_trading_post_equipment_id::text);
 
@@ -1375,7 +1375,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
     WITH gang_data AS (
         SELECT
             g.gang_origin_id,
-            g.gang_variants,
+            g.gang_subtypes,
             g.alignment,
             g.custom_gang_type_id,
             cg.campaign_type_allegiance_id,
@@ -1560,7 +1560,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             AND (a.gang_type_id IS NULL OR a.gang_type_id = $1)
             AND (a.custom_gang_type_id IS NULL OR a.custom_gang_type_id = gd.custom_gang_type_id)
             AND (a.gang_origin_id IS NULL OR a.gang_origin_id = gd.gang_origin_id)
-            AND (a.gang_variant_id IS NULL OR gd.gang_variants ? a.gang_variant_id::text)
+            AND (a.gang_subtype_id IS NULL OR gd.gang_subtypes ? a.gang_subtype_id::text)
             AND (a.campaign_type_allegiance_id IS NULL OR a.campaign_type_allegiance_id = gd.campaign_type_allegiance_id)
             AND (a.alignment IS NULL OR a.alignment = gd.alignment)
         WHERE ctpe.equipment_id IS NOT NULL
@@ -1719,8 +1719,8 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         ON e.id = ea.equipment_id AND ea.gang_type_id = $1
     LEFT JOIN equipment_availability ea_var
         ON e.id = ea_var.equipment_id
-        AND ea_var.gang_variant_id IS NOT NULL
-        AND gd.gang_variants ? ea_var.gang_variant_id::text
+        AND ea_var.gang_subtype_id IS NOT NULL
+        AND gd.gang_subtypes ? ea_var.gang_subtype_id::text
     LEFT JOIN equipment_availability ea_origin
         ON e.id = ea_origin.equipment_id
         AND ea_origin.gang_origin_id IS NOT NULL
@@ -1743,7 +1743,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
                  AND fte.custom_fighter_type_id IS NULL
                  AND fte.fighter_subtype IS NOT NULL))
         AND (fte.gang_origin_id IS NULL OR fte.gang_origin_id = gd.gang_origin_id)
-        AND (fte.gang_variant_id IS NULL OR gd.gang_variants ? fte.gang_variant_id::text)
+        AND (fte.gang_subtype_id IS NULL OR gd.gang_subtypes ? fte.gang_subtype_id::text)
         AND (fte.gang_type_id IS NULL OR fte.gang_type_id = $1)
         AND (fte.fighter_subtype IS NULL OR gd.fighter_subtypes ? fte.fighter_subtype)
 
@@ -1924,7 +1924,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             AND (a.gang_type_id IS NULL OR a.gang_type_id = $1)
             AND (a.custom_gang_type_id IS NULL OR a.custom_gang_type_id = gd.custom_gang_type_id)
             AND (a.gang_origin_id IS NULL OR a.gang_origin_id = gd.gang_origin_id)
-            AND (a.gang_variant_id IS NULL OR gd.gang_variants ? a.gang_variant_id::text)
+            AND (a.gang_subtype_id IS NULL OR gd.gang_subtypes ? a.gang_subtype_id::text)
             AND (a.campaign_type_allegiance_id IS NULL OR a.campaign_type_allegiance_id = gd.campaign_type_allegiance_id)
             AND (a.alignment IS NULL OR a.alignment = gd.alignment)
         WHERE ctpe.custom_equipment_id IS NOT NULL
@@ -3046,7 +3046,7 @@ $$;
 -- Name: get_gang_details(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_gang_details(p_gang_id uuid) RETURNS TABLE(id uuid, name text, gang_type text, gang_type_id uuid, gang_type_image_url text, gang_colour text, credits numeric, reputation numeric, rating numeric, alignment public.alignment, positioning jsonb, note text, stash json, created_at timestamp with time zone, last_updated timestamp with time zone, fighters json, campaigns json, vehicles json, alliance_id uuid, alliance_name text, alliance_type text, gang_variants json, edition_slug text)
+CREATE FUNCTION public.get_gang_details(p_gang_id uuid) RETURNS TABLE(id uuid, name text, gang_type text, gang_type_id uuid, gang_type_image_url text, gang_colour text, credits numeric, reputation numeric, rating numeric, alignment public.alignment, positioning jsonb, note text, stash json, created_at timestamp with time zone, last_updated timestamp with time zone, fighters json, campaigns json, vehicles json, alliance_id uuid, alliance_name text, alliance_type text, gang_subtypes json, edition_slug text)
     LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -3724,22 +3724,22 @@ BEGIN
        WHERE cg.gang_id = p_gang_id
        GROUP BY cg.gang_id
    ),
-   gang_variant_info AS (
+   gang_subtype_info AS (
        SELECT 
            COALESCE(
                json_agg(
                    json_build_object(
-                       'id', gvt.id,
-                       'variant', gvt.variant
+                       'id', gst.id,
+                       'subtype', gst.subtype
                    )
-                   ORDER BY gvt.variant
+                   ORDER BY gst.subtype
                ),
                '[]'::json
-           ) as variant_info
-       FROM gang_variant_types gvt
+           ) as subtype_info
+       FROM gang_subtype_types gst
        JOIN gangs g ON g.id = p_gang_id
-       WHERE gvt.id::text IN (
-           SELECT jsonb_array_elements_text(g.gang_variants)
+       WHERE gst.id::text IN (
+           SELECT jsonb_array_elements_text(g.gang_subtypes)
        )
    ),
    all_fighters_json AS (
@@ -3844,7 +3844,7 @@ BEGIN
        g.alliance_id,
        a.alliance_name,
        a.alliance_type,
-       (SELECT variant_info FROM gang_variant_info) as gang_variants,
+       (SELECT subtype_info FROM gang_subtype_info) as gang_subtypes,
        ed.slug AS edition_slug
    FROM gangs g
    LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
@@ -4889,7 +4889,7 @@ CREATE TABLE public.custom_trading_post_availability (
     gang_type_id uuid,
     custom_gang_type_id uuid,
     gang_origin_id uuid,
-    gang_variant_id uuid,
+    gang_subtype_id uuid,
     campaign_type_allegiance_id uuid,
     alignment public.alignment,
     availability text
@@ -4901,6 +4901,13 @@ CREATE TABLE public.custom_trading_post_availability (
 --
 
 COMMENT ON TABLE public.custom_trading_post_availability IS 'Per-item access restrictions and availability ratings by gang type, origin, variant, allegiance, and/or alignment. No rows means available to everyone; one or more rows act as an allowlist.';
+
+
+--
+-- Name: COLUMN custom_trading_post_availability.gang_subtype_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.custom_trading_post_availability.gang_subtype_id IS 'When set, this custom trading-post availability rule applies only to gangs holding this subtype.';
 
 
 --
@@ -5089,9 +5096,16 @@ CREATE TABLE public.equipment_availability (
     gang_type_id uuid,
     equipment_id uuid,
     gang_origin_id uuid,
-    gang_variant_id uuid,
+    gang_subtype_id uuid,
     exclusive boolean DEFAULT false NOT NULL
 );
+
+
+--
+-- Name: COLUMN equipment_availability.gang_subtype_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.equipment_availability.gang_subtype_id IS 'When set, this availability row applies only to gangs whose gang_subtypes contains this id.';
 
 
 --
@@ -5500,17 +5514,17 @@ CREATE TABLE public.fighter_type_equipment (
     custom_fighter_type_id uuid,
     gang_type_id uuid,
     gang_origin_id uuid,
-    gang_variant_id uuid,
+    gang_subtype_id uuid,
     fighter_subtype text,
     excluded boolean DEFAULT false NOT NULL
 );
 
 
 --
--- Name: COLUMN fighter_type_equipment.gang_variant_id; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN fighter_type_equipment.gang_subtype_id; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.fighter_type_equipment.gang_variant_id IS 'Restricts the row to gangs holding this variant (gangs.gang_variants contains the id). NULL applies regardless of variant.';
+COMMENT ON COLUMN public.fighter_type_equipment.gang_subtype_id IS 'Restricts the row to gangs holding this subtype (gangs.gang_subtypes contains the id). NULL applies regardless of subtype.';
 
 
 --
@@ -5843,6 +5857,33 @@ CREATE TABLE public.gang_stash (
 
 
 --
+-- Name: gang_subtype_types; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.gang_subtype_types (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    subtype text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    edition_id uuid
+);
+
+
+--
+-- Name: TABLE gang_subtype_types; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.gang_subtype_types IS 'Gang subtype catalog (Chaos Corrupted, Wasteland, Skirmish, …). Formerly gang_variant_types.';
+
+
+--
+-- Name: COLUMN gang_subtype_types.subtype; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gang_subtype_types.subtype IS 'Display name of the gang subtype. Unique enough in practice per edition; matched by gangs.gang_subtypes UUID array.';
+
+
+--
 -- Name: gang_tactics_cards; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5908,19 +5949,6 @@ ALTER TABLE public.gang_types ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTI
 
 
 --
--- Name: gang_variant_types; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.gang_variant_types (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    variant text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone,
-    edition_id uuid
-);
-
-
---
 -- Name: gangs; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5939,7 +5967,7 @@ CREATE TABLE public.gangs (
     positioning jsonb,
     note text,
     alliance_id uuid,
-    gang_variants jsonb,
+    gang_subtypes jsonb,
     gang_colour text,
     image_url text,
     note_backstory text,
@@ -5956,6 +5984,13 @@ CREATE TABLE public.gangs (
     trade_points numeric DEFAULT 0 NOT NULL,
     CONSTRAINT chk_gang_type_exclusive CHECK ((num_nonnulls(gang_type_id, custom_gang_type_id) = 1))
 );
+
+
+--
+-- Name: COLUMN gangs.gang_subtypes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gangs.gang_subtypes IS 'JSONB array of gang_subtype_types.id values held by this gang. Formerly gangs.gang_variants.';
 
 
 --
@@ -6084,9 +6119,31 @@ CREATE TABLE public.tactics_cards (
     name text NOT NULL,
     d66_min smallint,
     d66_max smallint,
+    tactics_cards_pack_id uuid NOT NULL,
     CONSTRAINT tactics_cards_d66_order_check CHECK (((d66_min IS NULL) OR (d66_min <= d66_max))),
     CONSTRAINT tactics_cards_d66_pair_check CHECK ((((d66_min IS NULL) AND (d66_max IS NULL)) OR ((d66_min IS NOT NULL) AND (d66_max IS NOT NULL))))
 );
+
+
+--
+-- Name: tactics_cards_packs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tactics_cards_packs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    edition_id uuid NOT NULL,
+    gang_type_id uuid,
+    name text NOT NULL
+);
+
+
+--
+-- Name: COLUMN tactics_cards_packs.gang_type_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.tactics_cards_packs.gang_type_id IS 'Gang type this deck belongs to. NULL is the edition''s core deck, offered to every gang and used when no pack is picked. A value also covers that type''s alternate lists via gang_types.parent_gang_type_id.';
 
 
 --
@@ -6932,6 +6989,14 @@ ALTER TABLE ONLY public.gang_stash
 
 
 --
+-- Name: gang_subtype_types gang_subtype_types_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_subtype_types
+    ADD CONSTRAINT gang_subtype_types_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: gang_tactics_cards gang_tactics_cards_gang_id_tactics_cards_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6969,14 +7034,6 @@ ALTER TABLE ONLY public.gang_types
 
 ALTER TABLE ONLY public.gang_types
     ADD CONSTRAINT gang_types_pkey PRIMARY KEY (id, gang_type_id);
-
-
---
--- Name: gang_variant_types gang_variant_types_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.gang_variant_types
-    ADD CONSTRAINT gang_variant_types_pkey PRIMARY KEY (id);
 
 
 --
@@ -7067,11 +7124,27 @@ ALTER TABLE ONLY public.skills
 
 
 --
--- Name: tactics_cards tactics_cards_edition_id_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: tactics_cards_packs tactics_cards_packs_edition_id_name_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.tactics_cards
-    ADD CONSTRAINT tactics_cards_edition_id_name_key UNIQUE (edition_id, name);
+ALTER TABLE ONLY public.tactics_cards_packs
+    ADD CONSTRAINT tactics_cards_packs_edition_id_name_key UNIQUE (edition_id, name);
+
+
+--
+-- Name: tactics_cards_packs tactics_cards_packs_id_edition_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tactics_cards_packs
+    ADD CONSTRAINT tactics_cards_packs_id_edition_id_key UNIQUE (id, edition_id);
+
+
+--
+-- Name: tactics_cards_packs tactics_cards_packs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tactics_cards_packs
+    ADD CONSTRAINT tactics_cards_packs_pkey PRIMARY KEY (id);
 
 
 --
@@ -7080,6 +7153,14 @@ ALTER TABLE ONLY public.tactics_cards
 
 ALTER TABLE ONLY public.tactics_cards
     ADD CONSTRAINT tactics_cards_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tactics_cards tactics_cards_tactics_cards_pack_id_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tactics_cards
+    ADD CONSTRAINT tactics_cards_tactics_cards_pack_id_name_key UNIQUE (tactics_cards_pack_id, name);
 
 
 --
@@ -7885,7 +7966,7 @@ CREATE INDEX fighter_type_equipment_equipment_id_idx ON public.fighter_type_equi
 -- Name: fighter_type_equipment_fighter_scope_uidx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX fighter_type_equipment_fighter_scope_uidx ON public.fighter_type_equipment USING btree (equipment_id, fighter_type_id, custom_fighter_type_id, fighter_subtype, gang_variant_id, gang_type_id, gang_origin_id) NULLS NOT DISTINCT WHERE (vehicle_type_id IS NULL);
+CREATE UNIQUE INDEX fighter_type_equipment_fighter_scope_uidx ON public.fighter_type_equipment USING btree (equipment_id, fighter_type_id, custom_fighter_type_id, fighter_subtype, gang_subtype_id, gang_type_id, gang_origin_id) NULLS NOT DISTINCT WHERE (vehicle_type_id IS NULL);
 
 
 --
@@ -7896,10 +7977,10 @@ CREATE INDEX fighter_type_equipment_fighter_subtype_idx ON public.fighter_type_e
 
 
 --
--- Name: fighter_type_equipment_gang_variant_id_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: fighter_type_equipment_gang_subtype_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX fighter_type_equipment_gang_variant_id_idx ON public.fighter_type_equipment USING btree (gang_variant_id);
+CREATE INDEX fighter_type_equipment_gang_subtype_id_idx ON public.fighter_type_equipment USING btree (gang_subtype_id);
 
 
 --
@@ -8071,6 +8152,13 @@ CREATE INDEX gang_stash_gang_id_idx ON public.gang_stash USING btree (gang_id);
 
 
 --
+-- Name: gang_subtype_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gang_subtype_types_edition_id_idx ON public.gang_subtype_types USING btree (edition_id);
+
+
+--
 -- Name: gang_tactics_cards_tactics_cards_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8103,13 +8191,6 @@ CREATE INDEX gang_types_parent_gang_type_id_idx ON public.gang_types USING btree
 --
 
 CREATE INDEX gang_types_trading_post_type_id_idx ON public.gang_types USING btree (trading_post_type_id);
-
-
---
--- Name: gang_variant_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX gang_variant_types_edition_id_idx ON public.gang_variant_types USING btree (edition_id);
 
 
 --
@@ -8691,6 +8772,27 @@ CREATE INDEX skills_name_idx ON public.skills USING btree (name);
 --
 
 CREATE INDEX skills_skill_type_id_idx ON public.skills USING btree (skill_type_id);
+
+
+--
+-- Name: tactics_cards_packs_edition_core_uidx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX tactics_cards_packs_edition_core_uidx ON public.tactics_cards_packs USING btree (edition_id) WHERE (gang_type_id IS NULL);
+
+
+--
+-- Name: tactics_cards_packs_gang_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX tactics_cards_packs_gang_type_id_idx ON public.tactics_cards_packs USING btree (gang_type_id);
+
+
+--
+-- Name: tactics_cards_tactics_cards_pack_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX tactics_cards_tactics_cards_pack_id_idx ON public.tactics_cards USING btree (tactics_cards_pack_id);
 
 
 --
@@ -9486,11 +9588,11 @@ ALTER TABLE ONLY public.custom_trading_post_availability
 
 
 --
--- Name: custom_trading_post_availability custom_trading_post_availability_gang_variant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: custom_trading_post_availability custom_trading_post_availability_gang_subtype_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.custom_trading_post_availability
-    ADD CONSTRAINT custom_trading_post_availability_gang_variant_id_fkey FOREIGN KEY (gang_variant_id) REFERENCES public.gang_variant_types(id) ON DELETE CASCADE;
+    ADD CONSTRAINT custom_trading_post_availability_gang_subtype_id_fkey FOREIGN KEY (gang_subtype_id) REFERENCES public.gang_subtype_types(id) ON DELETE CASCADE;
 
 
 --
@@ -9646,11 +9748,11 @@ ALTER TABLE ONLY public.equipment_availability
 
 
 --
--- Name: equipment_availability equipment_availability_gang_variant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: equipment_availability equipment_availability_gang_subtype_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.equipment_availability
-    ADD CONSTRAINT equipment_availability_gang_variant_id_fkey FOREIGN KEY (gang_variant_id) REFERENCES public.gang_variant_types(id) ON DELETE CASCADE;
+    ADD CONSTRAINT equipment_availability_gang_subtype_id_fkey FOREIGN KEY (gang_subtype_id) REFERENCES public.gang_subtype_types(id) ON DELETE CASCADE;
 
 
 --
@@ -10102,19 +10204,19 @@ ALTER TABLE ONLY public.fighter_type_equipment
 
 
 --
+-- Name: fighter_type_equipment fighter_type_equipment_gang_subtype_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_type_equipment
+    ADD CONSTRAINT fighter_type_equipment_gang_subtype_id_fkey FOREIGN KEY (gang_subtype_id) REFERENCES public.gang_subtype_types(id) ON DELETE CASCADE;
+
+
+--
 -- Name: fighter_type_equipment fighter_type_equipment_gang_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.fighter_type_equipment
     ADD CONSTRAINT fighter_type_equipment_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(gang_type_id) ON DELETE CASCADE;
-
-
---
--- Name: fighter_type_equipment fighter_type_equipment_gang_variant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.fighter_type_equipment
-    ADD CONSTRAINT fighter_type_equipment_gang_variant_id_fkey FOREIGN KEY (gang_variant_id) REFERENCES public.gang_variant_types(id) ON DELETE CASCADE;
 
 
 --
@@ -10414,6 +10516,14 @@ ALTER TABLE ONLY public.gang_stash
 
 
 --
+-- Name: gang_subtype_types gang_subtype_types_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_subtype_types
+    ADD CONSTRAINT gang_subtype_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: gang_tactics_cards gang_tactics_cards_gang_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10459,14 +10569,6 @@ ALTER TABLE ONLY public.gang_types
 
 ALTER TABLE ONLY public.gang_types
     ADD CONSTRAINT gang_types_trading_post_type_id_fkey FOREIGN KEY (trading_post_type_id) REFERENCES public.trading_post_types(id) ON DELETE SET NULL;
-
-
---
--- Name: gang_variant_types gang_variant_types_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.gang_variant_types
-    ADD CONSTRAINT gang_variant_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
 
 
 --
@@ -10587,6 +10689,46 @@ ALTER TABLE ONLY public.skills
 
 ALTER TABLE ONLY public.tactics_cards
     ADD CONSTRAINT tactics_cards_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: tactics_cards tactics_cards_pack_edition_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tactics_cards
+    ADD CONSTRAINT tactics_cards_pack_edition_fkey FOREIGN KEY (tactics_cards_pack_id, edition_id) REFERENCES public.tactics_cards_packs(id, edition_id) ON UPDATE CASCADE;
+
+
+--
+-- Name: tactics_cards_packs tactics_cards_packs_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tactics_cards_packs
+    ADD CONSTRAINT tactics_cards_packs_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: tactics_cards_packs tactics_cards_packs_gang_type_edition_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tactics_cards_packs
+    ADD CONSTRAINT tactics_cards_packs_gang_type_edition_fkey FOREIGN KEY (gang_type_id, edition_id) REFERENCES public.gang_types(gang_type_id, edition_id) ON UPDATE CASCADE;
+
+
+--
+-- Name: tactics_cards_packs tactics_cards_packs_gang_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tactics_cards_packs
+    ADD CONSTRAINT tactics_cards_packs_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(gang_type_id) ON DELETE CASCADE;
+
+
+--
+-- Name: tactics_cards tactics_cards_tactics_cards_pack_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tactics_cards
+    ADD CONSTRAINT tactics_cards_tactics_cards_pack_id_fkey FOREIGN KEY (tactics_cards_pack_id) REFERENCES public.tactics_cards_packs(id) ON DELETE RESTRICT;
 
 
 --
@@ -11231,17 +11373,17 @@ CREATE POLICY "Allow authenticated users to view gang_stash" ON public.gang_stas
 
 
 --
+-- Name: gang_subtype_types Allow authenticated users to view gang_subtype_types; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view gang_subtype_types" ON public.gang_subtype_types FOR SELECT TO authenticated USING (true);
+
+
+--
 -- Name: gang_types Allow authenticated users to view gang_types; Type: POLICY; Schema: public; Owner: -
 --
 
 CREATE POLICY "Allow authenticated users to view gang_types" ON public.gang_types FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: gang_variant_types Allow authenticated users to view gang_variant_types; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Allow authenticated users to view gang_variant_types" ON public.gang_variant_types FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -11284,6 +11426,13 @@ CREATE POLICY "Allow authenticated users to view skill_types" ON public.skill_ty
 --
 
 CREATE POLICY "Allow authenticated users to view skills" ON public.skills FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: tactics_cards_packs Allow authenticated users to view tactic card packs; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view tactic card packs" ON public.tactics_cards_packs FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -11700,6 +11849,13 @@ CREATE POLICY "Only admin can create skills entries" ON public.skills FOR INSERT
 
 
 --
+-- Name: tactics_cards_packs Only admin can create tactic card packs; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can create tactic card packs" ON public.tactics_cards_packs FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
 -- Name: tactics_cards Only admin can create tactic cards; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -11851,6 +12007,13 @@ CREATE POLICY "Only admin can delete skill_types" ON public.skill_types FOR DELE
 --
 
 CREATE POLICY "Only admin can delete skills" ON public.skills FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: tactics_cards_packs Only admin can delete tactic card packs; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can delete tactic card packs" ON public.tactics_cards_packs FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -12026,6 +12189,13 @@ CREATE POLICY "Only admin can update skill_types" ON public.skill_types FOR UPDA
 --
 
 CREATE POLICY "Only admin can update skills" ON public.skills FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: tactics_cards_packs Only admin can update tactic card packs; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can update tactic card packs" ON public.tactics_cards_packs FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -13787,6 +13957,33 @@ ALTER TABLE public.gang_skill_set_ranks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.gang_stash ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: gang_subtype_types; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.gang_subtype_types ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: gang_subtype_types gang_subtype_types_admin_delete_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY gang_subtype_types_admin_delete_policy ON public.gang_subtype_types FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: gang_subtype_types gang_subtype_types_admin_insert_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY gang_subtype_types_admin_insert_policy ON public.gang_subtype_types FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: gang_subtype_types gang_subtype_types_admin_update_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY gang_subtype_types_admin_update_policy ON public.gang_subtype_types FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
 -- Name: gang_tactics_cards; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -13797,33 +13994,6 @@ ALTER TABLE public.gang_tactics_cards ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.gang_types ENABLE ROW LEVEL SECURITY;
-
---
--- Name: gang_variant_types; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.gang_variant_types ENABLE ROW LEVEL SECURITY;
-
---
--- Name: gang_variant_types gang_variant_types_admin_delete_policy; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY gang_variant_types_admin_delete_policy ON public.gang_variant_types FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
-
-
---
--- Name: gang_variant_types gang_variant_types_admin_insert_policy; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY gang_variant_types_admin_insert_policy ON public.gang_variant_types FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
-
-
---
--- Name: gang_variant_types gang_variant_types_admin_update_policy; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY gang_variant_types_admin_update_policy ON public.gang_variant_types FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
-
 
 --
 -- Name: gangs; Type: ROW SECURITY; Schema: public; Owner: -
@@ -13893,6 +14063,12 @@ ALTER TABLE public.skills ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.tactics_cards ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: tactics_cards_packs; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.tactics_cards_packs ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: territories; Type: ROW SECURITY; Schema: public; Owner: -
