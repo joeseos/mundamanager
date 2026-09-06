@@ -531,8 +531,9 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
 
           {gangArchetypeOptions.length > 0 && (
             <div>
+              {/* TODO: UI label only for now (was "Gang archetype"). Concept is Gang Variant; additional variable renaming is left to do. */}
               <span className="block text-sm font-medium text-muted-foreground mb-1">
-                Gang archetype
+                Gang Variant
               </span>
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-2">
