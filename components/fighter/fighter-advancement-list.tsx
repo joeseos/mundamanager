@@ -80,6 +80,7 @@ interface AdvancementModalProps {
     fighter_specialisation?: string | null;
     fighter_specialisation_id?: string | null;
     special_rules?: string[];
+    promoted_from_prospect?: boolean;
   }) => void;
 }
 
@@ -212,6 +213,7 @@ interface AdvancementsListProps {
     fighter_specialisation?: string | null;
     fighter_specialisation_id?: string | null;
     special_rules?: string[];
+    promoted_from_prospect?: boolean;
   }) => void;
 }
 
@@ -3013,6 +3015,7 @@ export function AdvancementsList({
         fighter_type: fighterTypeName,
         fighter_type_id: fighterTypeId,
         special_rules: fighterSpecialRules,
+        promoted_from_prospect: promotedFromProspect,
         ...currentPromotionSpecialisation,
       };
       const previousSkills = { ...skills };

@@ -946,6 +946,7 @@ export default function FighterPage({
                       ...prev.fighter,
                       fighter_subtypes: patch.fighter_subtypes ?? prev.fighter.fighter_subtypes,
                       special_rules: patch.special_rules ?? prev.fighter.special_rules,
+                      promoted_from_prospect: patch.promoted_from_prospect ?? prev.fighter.promoted_from_prospect,
                       fighter_type:
                         patch.fighter_type !== undefined && patch.fighter_type_id !== undefined
                           ? {
