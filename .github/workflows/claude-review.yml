@@ -90,15 +90,6 @@ jobs:
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}`
               + `/actions/runs/${context.runId}`;
 
-            // Best-effort: name the cause so nobody has to read the log to know
-            // whether this was a rate limit or a real error.
-            //
-            // Match ONLY the final result message, never the file as a whole: the
-            // execution file is the entire session transcript, including every file
-            // Claude read. This workflow is one of them, and it contains the strings
-            // "usage limit" and "401" - so grepping the transcript reports a usage
-            // limit for any failure on a PR that touches this file. A generic message
-            // is better than a confidently wrong one.
             // The action exits cleanly without setting `conclusion` when the Claude
             // GitHub App declines to mint a token because this workflow file is not on
             // the default branch yet (`workflow_not_found_on_default_branch`). A green
@@ -116,6 +107,13 @@ jobs:
                 + 'and it resolves once the PR is merged. No review was produced.';
             }
 
+            // Best-effort: name the cause so nobody has to read the log to know whether
+            // this was a rate limit or a real error. Match ONLY the final result message,
+            // never the file as a whole: the execution file is the entire session
+            // transcript, including every file Claude read. This workflow is one of them,
+            // and it contains the strings "usage limit" and "401" - so grepping the
+            // transcript reports a usage limit for any failure on a PR that touches this
+            // file. A generic message is better than a confidently wrong one.
             const file = process.env.EXECUTION_FILE;
             if (!ok && !skipped && file && fs.existsSync(file)) {
               let result = null;
@@ -148,14 +146,21 @@ jobs:
               }
             }
 
+            // Retrying a skip cannot work - the workflow has to reach the default
+            // branch first - so do not send anyone round that loop.
+            const retry = skipped
+              ? `Re-running will not change this until the PR is merged. `
+                + `[Run log](${runUrl}).`
+              : `To retry: remove and re-add the \`claude-review\` label, or re-run the `
+                + `failed job from the [run page](${runUrl}).`;
+
             const body = ok
               ? `${MARKER}\n✅ Automated Claude review completed. [Run log](${runUrl})`
               : `${MARKER}\n### ⚠️ Automated Claude review did not complete\n\n`
                 + `${reason}\n\n`
                 + `**This PR has not been machine-reviewed, so treat human review as `
                 + `required.**\n\n`
-                + `To retry: remove and re-add the \`claude-review\` label, or re-run the `
-                + `failed job from the [run page](${runUrl}).`;
+                + retry;
 
             // Paginated: on a long thread the marker comment can fall past page 1, and
             // missing it would post a second status comment instead of updating the first.
