@@ -19,25 +19,7 @@ import { mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility
 import { syncFighter } from '@/utils/syncVenatorSkillOverrides';
 import { isVenatorGang } from '@/utils/venatorSkillAccess';
 import { gangEditionSlug } from '@/types/edition';
-
-// Helper function to invalidate owner's cache when beast fighter is updated
-async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
-  // Check if this fighter is an exotic beast owned by another fighter
-  const { data: ownerData } = await supabase
-    .from('fighter_exotic_beasts')
-    .select('fighter_owner_id')
-    .eq('fighter_pet_id', fighterId)
-    .single();
-    
-  if (ownerData) {
-    // Invalidate the owner's cache since their total cost changed
-    invalidateFighter(ownerData.fighter_owner_id, gangId);
-
-    // Invalidate the owner's beast costs cache
-    // Without this, the owner's cost calculation uses stale beast data
-    revalidateTag(TAGS.fighter(ownerData.fighter_owner_id), { expire: 0 });
-  }
-}
+import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 
 async function getKilledStatusEffects(supabase: any, fighterId: string) {
   const { data: effects, error } = await supabase

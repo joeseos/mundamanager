@@ -10,18 +10,7 @@ import { logEquipmentAction } from './logs/equipment-logs';
 import { insertEffectWithModifiers } from './equipment';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
 import { countsTowardRating } from '@/utils/fighter-status';
-
-async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
-  const { data: ownerData } = await supabase
-    .from('fighter_exotic_beasts')
-    .select('fighter_owner_id')
-    .eq('fighter_pet_id', fighterId)
-    .single();
-
-  if (ownerData) {
-    invalidateFighter(ownerData.fighter_owner_id, gangId);
-  }
-}
+import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 
 export interface MoveFromStashItem {
   stash_id: string;
@@ -108,17 +97,20 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
 
     // Validate target belongs to same gang (once)
     let fighterOwnerId: string | null = null;
+    /** From the fighters row below; undefined means "unknown" and falls back to a lookup. */
+    let fighterPetId: string | null | undefined;
 
     if (params.fighter_id) {
       const { data: fighter, error: fighterError } = await supabase
         .from('fighters')
-        .select('gang_id, user_id')
+        .select('gang_id, user_id, fighter_pet_id')
         .eq('id', params.fighter_id)
         .single();
 
       if (fighterError || !fighter) throw new Error('Fighter not found');
       if (fighter.gang_id !== gangId) throw new Error('Fighter does not belong to the same gang');
       fighterOwnerId = fighter.user_id;
+      fighterPetId = fighter.fighter_pet_id ?? null;
     } else if (params.vehicle_id) {
       const { data: vehicle, error: vehicleError } = await supabase
         .from('vehicles')
@@ -537,7 +529,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       if (hasExoticBeastEquipment) {
         revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
       }
-      await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+      await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase, fighterPetId);
     }
 
     if (params.vehicle_id) {

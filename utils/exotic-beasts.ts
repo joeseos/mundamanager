@@ -1,6 +1,40 @@
-'use server'
+import 'server-only';
 
 import { createClient } from "@/utils/supabase/server";
+import { invalidateFighter } from '@/utils/cache-tags';
+
+/**
+ * A beast's cost rolls up into its owner, so changing a beast invalidates the
+ * OWNER's cached data, not just its own. Callers fire this after any mutation
+ * that could alter a beast's cost.
+ *
+ * Only 3% of fighters are beasts, so pass `fighterPetId` whenever the caller
+ * already holds the fighters row — `null` skips the lookup entirely. Omit it
+ * only when the row isn't at hand; the lookup then runs as before.
+ * (`fighters.fighter_pet_id` is a safe predicate: no fighter has a link row
+ * without it set.)
+ *
+ * maybeSingle() rather than single(), which would make PostgREST return
+ * PGRST116 for every ordinary fighter.
+ */
+export async function invalidateBeastOwnerCache(
+  fighterId: string,
+  gangId: string,
+  supabase: any,
+  fighterPetId?: string | null
+) {
+  if (fighterPetId === null) return;
+
+  const { data: ownerData } = await supabase
+    .from('fighter_exotic_beasts')
+    .select('fighter_owner_id')
+    .eq('fighter_pet_id', fighterId)
+    .maybeSingle();
+
+  if (ownerData) {
+    invalidateFighter(ownerData.fighter_owner_id, gangId);
+  }
+}
 
 export interface ExoticBeastCreationParams {
   equipmentId: string;
@@ -412,23 +446,3 @@ async function addDefaultSkillsToBeast(
     return [];
   }
 }
-
-/**
- * Checks if equipment can create exotic beasts
- */
-export async function canEquipmentCreateBeasts(equipmentId: string): Promise<boolean> {
-  try {
-    const supabase = await createClient();
-    
-    const { data: beastConfigs } = await supabase
-      .from('exotic_beasts')
-      .select('id')
-      .eq('equipment_id', equipmentId)
-      .limit(1);
-
-    return !!(beastConfigs && beastConfigs.length > 0);
-  } catch (error) {
-    console.error('Error checking if equipment can create beasts:', error);
-    return false;
-  }
-} 
