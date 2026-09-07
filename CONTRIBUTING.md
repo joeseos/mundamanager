@@ -38,6 +38,10 @@ The check never blocks a merge. On a PR from a branch in this repository, re-run
 pushing fixes by adding the `claude-review` label (remove and re-add it if it is already
 there), or re-run the job from the Actions run page.
 
+A PR that changes `.github/workflows/claude-review.yml` itself is the one case that always
+goes red: the Claude GitHub App only runs a workflow version that is already on `main`, so
+the review is skipped until the change merges. The comment says so when it happens.
+
 Mention `@claude` in a PR or issue comment to ask a follow-up question about a finding, or to
 ask for a fix.
 

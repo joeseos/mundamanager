@@ -81,6 +81,7 @@ jobs:
         env:
           CONCLUSION: ${{ steps.claude.outputs.conclusion }}
           EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+          CLAUDE_OUTCOME: ${{ steps.claude.outcome }}
         with:
           script: |
             const fs = require('fs');
@@ -98,9 +99,25 @@ jobs:
             // "usage limit" and "401" - so grepping the transcript reports a usage
             // limit for any failure on a PR that touches this file. A generic message
             // is better than a confidently wrong one.
+            // The action exits cleanly without setting `conclusion` when the Claude
+            // GitHub App declines to mint a token because this workflow file is not on
+            // the default branch yet (`workflow_not_found_on_default_branch`). A green
+            // step with no conclusion is that skip, not a failure - and it is what
+            // every PR that edits this file will see until the change is merged.
+            const skipped = !ok
+              && !process.env.CONCLUSION
+              && process.env.CLAUDE_OUTCOME === 'success';
+
             let reason = 'The review job failed. See the run log for details.';
+            if (skipped) {
+              reason = 'The Claude GitHub App declined to run because this version of '
+                + '`.github/workflows/claude-review.yml` is not on the default branch yet. '
+                + 'That is expected on a PR that adds or edits the review workflow itself, '
+                + 'and it resolves once the PR is merged. No review was produced.';
+            }
+
             const file = process.env.EXECUTION_FILE;
-            if (!ok && file && fs.existsSync(file)) {
+            if (!ok && !skipped && file && fs.existsSync(file)) {
               let result = null;
               try {
                 const messages = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -162,4 +179,11 @@ jobs:
                 issue_number: context.payload.pull_request.number,
                 body,
               });
+            }
+
+            // A skipped review leaves the Claude step green, which would make this check
+            // green too - and a green check has to keep meaning "the review ran".
+            if (skipped) {
+              core.setFailed('No review was produced: this workflow file is not on the '
+                + 'default branch yet.');
             }
