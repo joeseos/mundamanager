@@ -51,7 +51,7 @@ const GANG_EDITION_EMBED = `
 // Whether an Advancement costs XP is edition-specific, so every action that
 // touches a fighter's XP balance loads the edition alongside the fighter.
 const FIGHTER_WITH_EDITION_SELECT = `
-  id, user_id, gang_id, xp, starting_xp, free_skill, fighter_name, killed, retired, enslaved, captured,
+  id, user_id, gang_id, xp, starting_xp, free_skill, fighter_name, killed, retired, enslaved, captured, fighter_pet_id,
   ${GANG_EDITION_EMBED}
 `;
 
@@ -330,7 +330,7 @@ export async function addCharacteristicAdvancement(
 
     
     // If this is a beast fighter, also invalidate owner's cache
-    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
+    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase, fighter.fighter_pet_id ?? null);
 
     // Log the characteristic advancement
     await logCharacteristicAdvancement({
@@ -595,7 +595,7 @@ async function addSkillAdvancementInternal(
     invalidateFighter(params.fighter_id, fighter.gang_id);
 
     // If this is a beast fighter, also invalidate owner's cache
-    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
+    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase, fighter.fighter_pet_id ?? null);
 
     // Get skill name for logging
     let skillName = 'Unknown Skill';
@@ -1582,7 +1582,7 @@ export async function deleteAdvancement(
     invalidateFighter(params.fighter_id, fighter.gang_id);
     
     // If this is a beast fighter, also invalidate owner's cache
-    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
+    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase, fighter.fighter_pet_id ?? null);
 
     let advancementName = deletedSkillName ? deletedSkillName : deletedEffectName
     // Log the advancement deletion
@@ -1641,7 +1641,7 @@ export async function addPowerBoost(
     // Verify fighter ownership and get fighter data
     const { data: fighter, error: fighterError} = await supabase
       .from('fighters')
-      .select('id, user_id, gang_id, kill_count, fighter_name, killed, retired, enslaved, captured')
+      .select('id, user_id, gang_id, kill_count, fighter_name, killed, retired, enslaved, captured, fighter_pet_id')
       .eq('id', params.fighter_id)
       .single();
 
@@ -1832,7 +1832,7 @@ export async function addPowerBoost(
     invalidateFighter(params.fighter_id, fighter.gang_id);
 
     // If this is a beast fighter, also invalidate owner's cache
-    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
+    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase, fighter.fighter_pet_id ?? null);
 
     // Invalidate cache for fighter advancement (effects for power boosts)
     invalidateFighter(params.fighter_id, fighter.gang_id);
@@ -1889,7 +1889,7 @@ export async function deletePowerBoost(
     // Verify fighter ownership
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, user_id, gang_id, kill_count, fighter_name, killed, retired, enslaved, captured')
+      .select('id, user_id, gang_id, kill_count, fighter_name, killed, retired, enslaved, captured, fighter_pet_id')
       .eq('id', params.fighter_id)
       .single();
 
@@ -1961,7 +1961,7 @@ export async function deletePowerBoost(
     invalidateFighter(params.fighter_id, fighter.gang_id);
 
     // If this is a beast fighter, also invalidate owner's cache
-    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
+    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase, fighter.fighter_pet_id ?? null);
 
     // Invalidate cache for fighter advancement
     invalidateFighter(params.fighter_id, fighter.gang_id);

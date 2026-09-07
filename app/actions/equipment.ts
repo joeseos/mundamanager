@@ -350,7 +350,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       // owner-cache invalidation below skip its lookup for the 97% of fighters
       // that are not pets. Fetched here so it overlaps the gang read instead of
       // costing a serial round trip later.
-      params.fighter_id
+      (params.fighter_id && !params.buy_for_gang_stash)
         ? supabase
             .from('fighters')
             .select('fighter_name, fighter_pet_id')
@@ -366,9 +366,15 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
 
     // Extract parallel query results
     const vehicleAssignedFighterId = vehicleResult.data?.fighter_id || null;
-    const fighterRow = fighterResult.data as { fighter_name?: string; fighter_pet_id?: string | null } | null;
-    /** null when the row says this fighter is not a pet; undefined when unknown. */
-    const fighterPetId = params.fighter_id ? fighterRow?.fighter_pet_id ?? null : undefined;
+    // Shape must match the fighters select in the Promise.all above; the cast is
+    // unavoidable there, so keep the two in step by hand.
+    const fighterRow = fighterResult.data as { fighter_name: string | null; fighter_pet_id: string | null } | null;
+    /**
+     * null only when the row was actually read and says this fighter is not a
+     * pet. A missing/failed read stays undefined so the helper falls back to
+     * its own lookup rather than silently skipping the invalidation.
+     */
+    const fighterPetId = fighterRow ? fighterRow.fighter_pet_id ?? null : undefined;
 
     // Get equipment details
     let equipmentDetails: any;
@@ -1208,7 +1214,12 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
         .single();
 
       const fighterIsActive = countsTowardRating(fighter);
-      fighterPetId = fighter?.fighter_pet_id ?? null;
+      // Only a hint when the row was read AND belongs to the fighter the
+      // invalidation below targets; otherwise leave undefined to force a lookup.
+      fighterPetId =
+        fighter && equipmentBefore.fighter_id === params.fighter_id
+          ? fighter.fighter_pet_id ?? null
+          : undefined;
 
       if (fighterIsActive) {
         ratingDelta -= (equipmentBefore.purchase_cost || 0);
