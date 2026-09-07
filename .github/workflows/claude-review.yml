@@ -17,14 +17,19 @@ permissions:
 jobs:
   claude-review:
     runs-on: ubuntu-latest
+    timeout-minutes: 30 # a hung run must not leave the check pending for hours
     # Forks get no secrets and a read-only token, so a fork PR would fail on auth
     # rather than on merit. Skip it — no label can rescue it, because this guard is
     # evaluated for the `labeled` event too. Fork PRs get a human review instead.
     # See CONTRIBUTING.md.
+    #
+    # Drafts are skipped, except when someone applies the label: that is an explicit
+    # request for a review, and silently ignoring it would leave no comment either.
     if: >-
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.draft == false &&
-      (github.event.action != 'labeled' || github.event.label.name == 'claude-review')
+      github.event.pull_request.head.repo.full_name == github.repository && (
+        (github.event.action == 'labeled' && github.event.label.name == 'claude-review') ||
+        (github.event.action != 'labeled' && github.event.pull_request.draft == false)
+      )
     steps:
       - uses: actions/checkout@v5
         with:
@@ -32,13 +37,26 @@ jobs:
 
       # The review criteria live in one file so the local pre-PR review documented in
       # CONTRIBUTING.md and this workflow cannot drift apart.
+      #
+      # Read it from the BASE branch, never from the PR checkout: a PR must not be able
+      # to rewrite the prompt that reviews it. (The Claude App's own default-branch check
+      # covers the workflow file, but not this one.) The heredoc delimiter is randomised
+      # so no line in the file can close it early and inject step outputs.
       - name: Load the shared review prompt
         id: review-prompt
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
+          set -euo pipefail
+          gh api -H "Accept: application/vnd.github.raw" \
+            "repos/${GITHUB_REPOSITORY}/contents/.github/review-prompt.md?ref=${BASE_SHA}" \
+            > "${RUNNER_TEMP}/review-prompt.md"
+          delimiter="REVIEW_PROMPT_$(openssl rand -hex 8)"
           {
-            echo 'text<<CLAUDE_REVIEW_PROMPT_EOF'
-            cat .github/review-prompt.md
-            echo 'CLAUDE_REVIEW_PROMPT_EOF'
+            printf 'text<<%s\n' "$delimiter"
+            cat "${RUNNER_TEMP}/review-prompt.md"
+            printf '\n%s\n' "$delimiter"
           } >> "$GITHUB_OUTPUT"
 
       - id: claude
@@ -50,8 +68,13 @@ jobs:
           # Swap this one line to `anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}`
           # to decouple the reviewer from subscription rate limits entirely.
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          track_progress: true # posts a live "in progress" comment
-          use_sticky_comment: true # re-runs update one comment instead of piling up
+          # Deliberately no `track_progress` / `use_sticky_comment`. Either one puts the
+          # action in tag mode, which appends `--permission-mode acceptEdits` and
+          # `Bash(git add|commit|push|rm)` to the tool list — so a "reviewer" could commit
+          # to the branch it is reviewing, held back only by a line in the prompt. Without
+          # them the action runs in agent mode, where the tool list below is the whole
+          # list and read-only is enforced rather than requested. The cost is no live
+          # "in progress" comment, and re-runs post a new summary instead of updating one.
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
@@ -62,7 +85,11 @@ jobs:
 
             Post specific findings with `mcp__github_inline_comment__create_inline_comment`
             (with `confirmed: true`). Post the summary and verdict with `gh pr comment`,
-            tagging the PR author.
+            tagging the PR author. Start that comment with this line exactly, so a re-run
+            can fold the superseded summary away:
+
+            <!-- claude-review-summary -->
+
             Only post via GitHub - do not return the review as a chat message.
             You are a reviewer: do not modify any files.
           claude_args: |
@@ -86,6 +113,8 @@ jobs:
           script: |
             const fs = require('fs');
             const MARKER = '<!-- claude-review-status -->';
+            const SUMMARY_MARKER = '<!-- claude-review-summary -->';
+            const COLLAPSED = '<!-- claude-review-summary-superseded -->';
             const ok = process.env.CONCLUSION === 'success';
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}`
               + `/actions/runs/${context.runId}`;
@@ -170,6 +199,27 @@ jobs:
               per_page: 100,
             });
             const existing = comments.find((c) => c.body && c.body.includes(MARKER));
+
+            // Without a sticky comment, each run posts a fresh summary via `gh pr comment`.
+            // Fold every superseded one into a <details> so the newest review is the one
+            // you read, without destroying the older text. Only ever touches bot comments
+            // carrying the summary marker, and never fails the job.
+            try {
+              const summaries = comments.filter((c) =>
+                c.user && c.user.type === 'Bot'
+                && c.body && c.body.includes(SUMMARY_MARKER)
+                && !c.body.startsWith(COLLAPSED));
+              for (const stale of summaries.slice(0, -1)) {
+                await github.rest.issues.updateComment({
+                  ...context.repo,
+                  comment_id: stale.id,
+                  body: `${COLLAPSED}\n<details>\n<summary>Superseded review summary</summary>\n\n`
+                    + `${stale.body}\n</details>`,
+                });
+              }
+            } catch (err) {
+              core.warning(`Could not fold superseded summaries: ${err.message}`);
+            }
 
             if (existing) {
               await github.rest.issues.updateComment({
