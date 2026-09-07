@@ -1,8 +1,5 @@
--- Drop previous versions.
---
--- The 3-arg drop is load-bearing now that a 4-arg version exists: CREATE OR REPLACE with a new
--- arity creates an *overload* rather than replacing, and two candidates make the PostgREST call
--- ambiguous because every argument is defaulted.
+-- Drop previous versions. Every arg is defaulted, so leaving an older arity in place would make
+-- the PostgREST call ambiguous.
 DROP FUNCTION IF EXISTS get_fighter_types_with_cost(uuid, uuid, boolean, uuid);
 DROP FUNCTION IF EXISTS get_fighter_types_with_cost(uuid, uuid, boolean);
 DROP FUNCTION IF EXISTS get_fighter_types_with_cost(uuid, boolean);
@@ -14,9 +11,7 @@ CREATE OR REPLACE FUNCTION get_fighter_types_with_cost(
     p_gang_type_id uuid DEFAULT NULL,
     p_gang_affiliation_id uuid DEFAULT NULL,
     p_is_gang_addition boolean DEFAULT NULL,
-    -- Applies fighter_type_availability for this gang: grants pull fighters in from the hidden
-    -- 'Subtype: <name>' pools, denies remove the gang type's own. NULL skips availability
-    -- entirely, which is what the gang-addition and Available-to-All callers want.
+    -- Applies fighter_type_availability for this gang. NULL skips it entirely.
     p_gang_id uuid DEFAULT NULL
 )
 RETURNS TABLE (
@@ -57,8 +52,8 @@ RETURNS TABLE (
     edition_slug text,
     starting_xp numeric,
     is_vehicle boolean,
-    -- Set when a fighter_type_availability grant scoped by gang_subtype_id pulled this row in.
-    -- A grant scoped only by origin or gang type leaves both NULL/false.
+    -- Set when a grant scoped by gang_subtype_id pulled this row in; an origin- or
+    -- gang-type-scoped grant leaves both unset.
     is_gang_subtype boolean,
     gang_subtype_name text
 ) LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
@@ -69,17 +64,14 @@ DECLARE
     v_has_gang       boolean := false;
 BEGIN
     IF p_gang_id IS NOT NULL THEN
-        -- The gang's own gang type, not p_gang_type_id: the include-all caller passes NULL for
-        -- that, and a rule must still know which gang type it is dealing with.
+        -- The gang's own gang type, not p_gang_type_id, which the include-all caller passes NULL.
         SELECT g.gang_type_id, g.gang_origin_id, COALESCE(g.gang_subtypes, '[]'::jsonb)
           INTO v_gang_type_id, v_gang_origin_id, v_gang_subtypes
           FROM gangs g
          WHERE g.id = p_gang_id;
 
-        -- SELECT INTO sets every target to NULL when no row matches, discarding the '[]'
-        -- initialiser above. Left as NULL the jsonb ? test below yields NULL, which would skip
-        -- subtype and origin rules while gang-type-only rules still fired -- a half-applied
-        -- ruleset. An unknown gang must mean no rules at all.
+        -- SELECT INTO nulls every target when no row matches, discarding the '[]' initialiser;
+        -- a NULL there would skip subtype and origin rules while gang-type rules still fired.
         v_has_gang := FOUND;
         IF NOT v_has_gang THEN
             v_gang_subtypes := '[]'::jsonb;
@@ -88,12 +80,9 @@ BEGIN
 
     RETURN QUERY
     WITH rules AS (
-        -- Every non-NULL axis must match, mirroring the conjunction get_equipment_detailed_data
-        -- applies to equipment_availability and fighter_type_equipment.
+        -- Every non-NULL axis must match, as get_equipment_detailed_data does for its own tables.
         SELECT a.fighter_type_id, a.fighter_subtype, a.excluded, a.gang_subtype_id
         FROM fighter_type_availability a
-        -- Availability is opt-in per call site: no gang, no rules. Keeps the gang-addition and
-        -- Available-to-All callers byte-identical to the 3-arg function.
         WHERE v_has_gang
           AND (a.gang_subtype_id IS NULL OR v_gang_subtypes ? a.gang_subtype_id::text)
           AND (a.gang_origin_id  IS NULL OR a.gang_origin_id = v_gang_origin_id)
@@ -961,12 +950,8 @@ BEGIN
                 SELECT 1
                 FROM rules r
                 WHERE r.excluded
-                  -- A deny only ever removes the gang's OWN gang type's fighters. Without this
-                  -- anchor an include-all call would strip every matching fighter in the game,
-                  -- and a roster call would strip affiliation-granted ones that are not the
-                  -- gang's. Anchored to the gang's gang type rather than p_gang_type_id, which
-                  -- the include-all caller passes as NULL -- that would silently disable every
-                  -- deny on exactly the path where the fighter is still offered.
+                  -- A deny only removes the gang's own gang type's fighters; without the anchor
+                  -- an include-all call would strip every match in the game.
                   AND ft.gang_type_id = v_gang_type_id
                   AND (
                       r.fighter_type_id = ft.id
@@ -975,14 +960,12 @@ BEGIN
                   )
             )
         )
-        -- Grants reach into the hidden 'Subtype: <name>' pools, which the CASE above excludes.
-        -- Evaluated after the deny block, so a granted fighter is never removed by a deny.
+        -- Outside the parens so a grant survives a deny, and reaches the hidden 'Subtype: <name>'
+        -- pools the CASE above excludes.
         OR g.fighter_type_id IS NOT NULL;
 END;
 $$;
 
--- Signature must match the function created above: the 3-arg version is dropped, so naming it
--- here would abort the deploy with "function does not exist".
 REVOKE ALL ON FUNCTION public.get_fighter_types_with_cost(UUID, UUID, BOOLEAN, UUID) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION public.get_fighter_types_with_cost(UUID, UUID, BOOLEAN, UUID) FROM anon;
 GRANT EXECUTE ON FUNCTION public.get_fighter_types_with_cost(UUID, UUID, BOOLEAN, UUID) TO authenticated;
