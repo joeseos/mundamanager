@@ -201,6 +201,7 @@ export interface AdvancementResult {
     fighter_specialisation: string | null;
     fighter_specialisation_id: string | null;
     special_rules: string[];
+    promoted_from_prospect?: boolean;
   };
   /** False when rating changed without a stash refund (e.g. Prospect promotion undo). */
   refund_stash?: boolean;
@@ -1233,7 +1234,8 @@ export async function deleteAdvancement(
       .select(`
         ${FIGHTER_WITH_EDITION_SELECT},
         fighter_subtypes, fighter_type, fighter_type_id,
-        fighter_specialisation, fighter_specialisation_id, special_rules
+        fighter_specialisation, fighter_specialisation_id, special_rules,
+        promoted_from_prospect
       `)
       .eq('id', params.fighter_id)
       .single();
@@ -1486,6 +1488,9 @@ export async function deleteAdvancement(
             ? null
             : (fighter.fighter_specialisation_id ?? null),
           special_rules: specialRules,
+          promoted_from_prospect: isProspectPromotionGrant
+            ? false
+            : (fighter.promoted_from_prospect ?? false),
         };
       }
 

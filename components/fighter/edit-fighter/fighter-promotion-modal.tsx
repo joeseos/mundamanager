@@ -90,6 +90,7 @@ export type FighterPromotionResult = {
   /** N26 promotion recipes with skill grants. */
   kind?: 'n26_prospect' | 'n26_ganger_champion' | 'n26_champion_leader';
   credits_increase?: number;
+  promoted_from_prospect?: boolean;
 };
 
 function promotionSpecialisationFields(
@@ -327,6 +328,7 @@ export function FighterPromotionModal({
         fighter_specialisation: selectedSpecialisation.name,
         fighter_specialisation_id: selectedSpecialisation.id,
         credits_increase: N26_PROSPECT_PROMOTION_CREDITS,
+        promoted_from_prospect: true,
       });
       return;
     }
