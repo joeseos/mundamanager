@@ -1381,14 +1381,15 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             cg.campaign_type_allegiance_id,
             fgl.fighter_type_id AS legacy_ft_id,
             ga.fighter_type_id  AS affiliation_ft_id,
-            -- Empty when called without a fighter ($6), so it matches no
-            -- subtype rule rather than every one
-            COALESCE(f.fighter_subtypes, '[]'::jsonb) AS fighter_subtypes,
+            -- Empty for gang and vehicle calls, so a subtype rule matches nothing
+            COALESCE(f.fighter_subtypes, ft_sub.fighter_subtypes, cft_sub.fighter_subtypes, '[]'::jsonb) AS fighter_subtypes,
             COALESCE(gt.edition_id, cgt.edition_id) AS edition_id
         FROM (SELECT 1) AS _dummy
         LEFT JOIN gangs g ON g.id = $8
         LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
         LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
+        LEFT JOIN fighter_types ft_sub ON ft_sub.id = $3
+        LEFT JOIN custom_fighter_types cft_sub ON cft_sub.id = $3
         LEFT JOIN LATERAL (
             SELECT cg2.campaign_type_allegiance_id
             FROM campaign_gangs cg2
@@ -5754,6 +5755,13 @@ COMMENT ON COLUMN public.fighters.starting_xp IS 'XP this fighter was recruited 
 --
 
 COMMENT ON COLUMN public.fighters.fighter_variant IS 'Type variant label, following the fighter type. The variant follows the type; the specialisation follows the fighter.';
+
+
+--
+-- Name: COLUMN fighters.promoted_from_prospect; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighters.promoted_from_prospect IS 'True when the N26 Prospect→Ganger+Specialist promotion has been applied. Read by openAdvancementsFor to deduct one Advancement (the roll the promotion traded in). Written by applyN26ProspectPromotion, cleared by its undo path, preserved on copy.';
 
 
 --
