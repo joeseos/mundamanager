@@ -5716,6 +5716,7 @@ CREATE TABLE public.fighters (
     is_vehicle boolean DEFAULT false NOT NULL,
     starting_xp numeric,
     fighter_variant text,
+    promoted_from_prospect boolean DEFAULT false NOT NULL,
     CONSTRAINT fighters_label_check CHECK ((length(label) <= 5))
 );
 

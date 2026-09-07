@@ -204,6 +204,7 @@ interface AdvancementsListProps {
   fighterTypeName?: string;
   fighterTypeId?: string;
   fighterSpecialisationId?: string;
+  promotedFromProspect?: boolean;
   onFighterDetailsUpdate?: (patch: {
     fighter_subtypes?: string[];
     fighter_type?: string;
@@ -2909,6 +2910,7 @@ export function AdvancementsList({
   fighterTypeName = '',
   fighterTypeId = '',
   fighterSpecialisationId = '',
+  promotedFromProspect = false,
   onFighterDetailsUpdate
 }: AdvancementsListProps) {
   const [isAdvancementModalOpen, setIsAdvancementModalOpen] = useState(false);
@@ -3319,7 +3321,7 @@ export function AdvancementsList({
 
   const prospectPromotionConsumed = hasN26ProspectPromotionOccurred(
     editionSlug,
-    fighterSpecialisationId,
+    promotedFromProspect,
   );
 
   const openAdvancements = openAdvancementsFor(

@@ -834,6 +834,7 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
               name
             ),
             fighter_specialisation_id,
+            promoted_from_prospect,
             fighter_variant,
             killed,
             starved,

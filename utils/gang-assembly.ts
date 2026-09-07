@@ -658,6 +658,7 @@ export function assembleGangFighters(
           label: fighter.label,
           fighter_type: fighter.fighter_type || fighterTypeInfo.fighter_type || 'Unknown',
           fighter_subtypes: fighter.fighter_subtypes || [],
+          promoted_from_prospect: fighter.promoted_from_prospect,
           fighter_specialisation: fighterSpecialisationInfo ? {
             fighter_specialisation: fighterSpecialisationInfo.specialisation_name,
             fighter_specialisation_id: fighterSpecialisationInfo.id
@@ -880,6 +881,7 @@ export function selectGangFighterIndex(bundle: GangFightersBundle): GangFighterI
     fighter_name: f.fighter_name,
     fighter_type: f.fighter_type,
     fighter_specialisation_id: f.fighter_specialisation_id ?? null,
+    promoted_from_prospect: f.promoted_from_prospect,
     xp: f.xp,
     starting_xp: f.starting_xp ?? null,
     advancements_taken: countAdvancementsTaken(

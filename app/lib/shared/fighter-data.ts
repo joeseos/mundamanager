@@ -47,6 +47,7 @@ export interface FighterBasic {
     name?: string;
   } | null;
   fighter_specialisation_id?: string;
+  promoted_from_prospect?: boolean;
   fighter_variant?: string | null;
   killed?: boolean;
   starved?: boolean;
@@ -124,6 +125,7 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
             name
           ),
           fighter_specialisation_id,
+          promoted_from_prospect,
           fighter_variant,
           killed,
           starved,
@@ -156,7 +158,7 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
       }
       return data;
     },
-    [`fighter-basic-v4-${fighterId}`],
+    [`fighter-basic-v5-${fighterId}`],
     {
       tags: [TAGS.fighter(fighterId)],
       revalidate: false
