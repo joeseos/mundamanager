@@ -244,7 +244,8 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         starved,
         recovery,
         captured,
-        captured_by_gang_id
+        captured_by_gang_id,
+        fighter_pet_id
       `)
       .eq('id', params.fighter_id)
       .single();
@@ -368,7 +369,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           : { removedCount: 0, removedSkillCount: 0 };
 
         invalidateFighter(params.fighter_id, gangId);
-        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase, fighter.fighter_pet_id ?? null);
         if (removedKilledStatusEffects.removedCount > 0) {
           revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
         }
@@ -461,7 +462,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         const financialResult = await adjustRating(delta);
         invalidateFighter(params.fighter_id, gangId);
-        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase, fighter.fighter_pet_id ?? null);
 
         // Log fighter status change
         if (willBeRetired) {
@@ -548,7 +549,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         };
         invalidateFighter(params.fighter_id, gangId);
         invalidateGangFinancials(gangId);
-        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase, fighter.fighter_pet_id ?? null);
 
         // Log fighter enslaved
         try {
@@ -631,7 +632,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         }
 
         invalidateFighter(params.fighter_id, gangId);
-        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase, fighter.fighter_pet_id ?? null);
 
         return {
           success: true,
@@ -750,7 +751,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           }
 
           invalidateFighter(params.fighter_id, gangId);
-          await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+          await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase, fighter.fighter_pet_id ?? null);
           invalidateCampaign(campaignId);
           invalidateGangCampaignMembership(gangId);
 
@@ -785,7 +786,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           }
 
           invalidateFighter(params.fighter_id, gangId);
-          await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+          await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase, fighter.fighter_pet_id ?? null);
 
           return {
             success: true,
@@ -817,7 +818,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         });
 
         invalidateFighter(params.fighter_id, gangId);
-        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase, fighter.fighter_pet_id ?? null);
 
         return {
           success: true,
@@ -920,7 +921,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         }
 
         invalidateFighter(params.fighter_id, gangId);
-        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase, fighter.fighter_pet_id ?? null);
         // The capturing gang's pages show this fighter as captured
         if (params.captured_by_gang_id) {
           invalidateGang(params.captured_by_gang_id);
@@ -1004,7 +1005,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         }
 
         invalidateFighter(params.fighter_id, gangId);
-        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase, fighter.fighter_pet_id ?? null);
         // The gang that held this fighter no longer shows it as captured
         if (fighter.captured_by_gang_id) {
           invalidateGang(fighter.captured_by_gang_id);
@@ -1124,7 +1125,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         invalidateFighter(params.fighter_id, gangId);
         invalidateGang(gangId);
         if (refundAmount) invalidateGangFinancials(gangId);
-        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase, fighter.fighter_pet_id ?? null);
 
         // If fighter had a vehicle, invalidate gang vehicles cache so it appears in unassigned list
         if (vehicleData?.id) {
@@ -1181,7 +1182,7 @@ export async function updateFighterXp(params: UpdateFighterXpParams): Promise<Ed
     // Get fighter data (RLS will handle permissions)
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, xp, fighter_name')
+      .select('id, gang_id, xp, fighter_name, fighter_pet_id')
       .eq('id', params.fighter_id)
       .single();
 
@@ -1220,7 +1221,7 @@ export async function updateFighterXp(params: UpdateFighterXpParams): Promise<Ed
     // Invalidate cache - surgical XP-only invalidation
     revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
     invalidateGang(fighter.gang_id);
-    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
+    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase, fighter.fighter_pet_id ?? null);
 
     return {
       success: true,
@@ -1265,7 +1266,7 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
     // Get fighter data (RLS will handle permissions)
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, xp, kills, kill_count, fighter_name, fighter_type, fighter_subtypes, fighter_type_id, fighter_types(is_spyrer), gangs!gang_id(name)')
+      .select('id, gang_id, xp, kills, kill_count, fighter_name, fighter_type, fighter_subtypes, fighter_type_id, fighter_pet_id, fighter_types(is_spyrer), gangs!gang_id(name)')
       .eq('id', params.fighter_id)
       .single();
 
@@ -1351,7 +1352,7 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
     if (params.ooa_count && params.ooa_count > 0) {
       invalidateGang(fighter.gang_id);
     }
-    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
+    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase, fighter.fighter_pet_id ?? null);
 
     return {
       success: true,
@@ -1382,7 +1383,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     // Get fighter data (RLS will handle permissions)
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, user_id, cost_adjustment, kills, kill_count, killed, retired, enslaved, captured, fighter_name, fighter_subtypes, selected_archetype_id')
+      .select('id, gang_id, user_id, cost_adjustment, kills, kill_count, killed, retired, enslaved, captured, fighter_name, fighter_subtypes, selected_archetype_id, fighter_pet_id')
       .eq('id', params.fighter_id)
       .single();
 
@@ -1805,7 +1806,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
 
     // Invalidate cache (already handles BASE_FIGHTER_BASIC and COMPOSITE_GANG_FIGHTERS_LIST)
     invalidateFighter(params.fighter_id, fighter.gang_id);
-    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
+    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase, fighter.fighter_pet_id ?? null);
 
     // If fighter name changed, invalidate ownership info for any beasts owned by this fighter
     if (params.fighter_name !== undefined && params.fighter_name.trimEnd() !== fighter.fighter_name) {

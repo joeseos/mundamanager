@@ -25,13 +25,17 @@ export async function invalidateBeastOwnerCache(
 ) {
   if (fighterPetId === null) return;
 
-  const { data: ownerData } = await supabase
-    .from('fighter_exotic_beasts')
-    .select('fighter_owner_id')
-    .eq('fighter_pet_id', fighterId)
-    .maybeSingle();
+  // fighters.fighter_pet_id is the PK of the link row, so a supplied value is a
+  // direct primary-key read; without one, fall back to scanning by pet id.
+  const query = supabase.from('fighter_exotic_beasts').select('fighter_owner_id');
+  const { data: ownerData } = await (fighterPetId
+    ? query.eq('id', fighterPetId)
+    : query.eq('fighter_pet_id', fighterId)
+  ).maybeSingle();
 
-  if (ownerData) {
+  // fighter_owner_id is nullable: a beast created into the gang stash has no
+  // owner fighter, so there is nothing to invalidate.
+  if (ownerData?.fighter_owner_id) {
     invalidateFighter(ownerData.fighter_owner_id, gangId);
   }
 }
