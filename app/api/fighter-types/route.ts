@@ -279,9 +279,8 @@ export async function GET(request: Request) {
     }
 
     if (includeAllTypes) {
-      // Fetch all fighter types across all gang types. p_gang_id still applies the gang's grants,
-      // which is what surfaces its subtype pools here; denies self-disable because they are
-      // anchored to p_gang_type_id, which is NULL on this path.
+      // Fetch all fighter types across all gang types. p_gang_id still applies this gang's rules,
+      // so its own denied fighters stay out even here.
       const { data: result, error } = await supabase.rpc('get_fighter_types_with_cost', {
         p_gang_type_id: null,
         p_gang_affiliation_id: null,
@@ -309,10 +308,8 @@ export async function GET(request: Request) {
 
       if (hiddenGangTypes && hiddenGangTypes.length > 0) {
         const hiddenIds = new Set(hiddenGangTypes.map(gt => gt.gang_type_id));
-        // The 'Subtype: <name>' pools are hidden gang types, so a fighter this gang was granted
-        // has to survive this filter — it is in the list because a rule put it there, not because
-        // the catalogue offers it. Keyed on is_gang_subtype rather than "was granted" because a
-        // grant scoped only by origin or gang type has no business pointing into a hidden pool.
+        // The 'Subtype: <name>' pools are themselves hidden gang types, so a granted fighter has
+        // to survive this filter — a rule put it in the list, not the catalogue.
         data = data.filter((fighter: any) =>
           fighter.is_gang_subtype || !hiddenIds.has(fighter.gang_type_id)
         );
@@ -350,8 +347,8 @@ export async function GET(request: Request) {
       // Use the unified catalog function for regular (roster) fighters.
       // p_is_gang_addition=false reproduces the old get_add_fighter_details filter:
       // fighters of this gang type (incl. its gang-addition-flagged fighters).
-      // p_gang_id applies fighter_type_availability: grants pull in the gang's subtype pools,
-      // denies drop the gang type's own fighters the gang may not take.
+      // p_gang_id applies fighter_type_availability: the gang's subtype pools in, its denied
+      // fighters out.
       const { data: result, error } = await supabase.rpc('get_fighter_types_with_cost', {
         p_gang_type_id: gangTypeId,
         p_gang_affiliation_id: gangAffiliationId || null,
