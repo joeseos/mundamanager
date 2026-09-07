@@ -996,7 +996,7 @@ export async function applyN26ProspectPromotion(
       params.special_rules ??
       (Array.isArray(before.special_rules) ? before.special_rules : []);
 
-    return await applyKeepTypePromotionWithSkillGrant({
+    const promotionResult = await applyKeepTypePromotionWithSkillGrant({
       fighterId: params.fighter_id,
       before,
       newSubtypes,
@@ -1006,6 +1006,18 @@ export async function applyN26ProspectPromotion(
       skillId: skillResolved.skillId,
       creditsIncrease: N26_PROSPECT_PROMOTION_CREDITS,
     });
+
+    if (promotionResult.success) {
+      const { error: flagError } = await supabase
+        .from('fighters')
+        .update({ promoted_from_prospect: true })
+        .eq('id', params.fighter_id);
+      if (flagError) {
+        console.error('Failed to set promoted_from_prospect after Prospect promotion:', flagError);
+      }
+    }
+
+    return promotionResult;
   } catch (error) {
     console.error('Error applying N26 Prospect promotion:', error);
     return {
@@ -1455,6 +1467,15 @@ export async function deleteAdvancement(
                   ? 'Skill removed but Leader demotion failed — please restore Champion subtype in Edit Fighter.'
                   : 'Skill removed but Ganger demotion failed — please restore Ganger subtype in Edit Fighter.'),
           };
+        }
+        if (isProspectPromotionGrant) {
+          const { error: flagError } = await supabase
+            .from('fighters')
+            .update({ promoted_from_prospect: false })
+            .eq('id', params.fighter_id);
+          if (flagError) {
+            console.error('Failed to clear promoted_from_prospect on Prospect undo:', flagError);
+          }
         }
         demotedFighterDetails = {
           fighter_subtypes: demotedSubtypes,

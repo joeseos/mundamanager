@@ -60,6 +60,7 @@ interface Fighter {
   };
   fighter_variant?: string | null;
   fighter_subtypes: string[];
+  promoted_from_prospect?: boolean;
   alliance_crew_name?: string;
   label?: string;
   credits: number;
@@ -624,7 +625,7 @@ export default function FighterPage({
             {
               prospectPromotionConsumed: hasN26ProspectPromotionOccurred(
                 editionSlug,
-                f.fighter_specialisation_id,
+                f.promoted_from_prospect,
               ),
             },
           )
@@ -936,6 +937,7 @@ export default function FighterPage({
             fighterTypeName={fighterData.fighter?.fighter_type?.fighter_type || ''}
             fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
             fighterSpecialisationId={fighterData.fighter?.fighter_specialisation?.fighter_specialisation_id || ''}
+            promotedFromProspect={fighterData.fighter?.promoted_from_prospect ?? false}
             onFighterDetailsUpdate={(patch) => {
               setFighterData((prev) => ({
                 ...prev,

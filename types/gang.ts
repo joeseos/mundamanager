@@ -148,6 +148,7 @@ export interface GangFighter {
   label?: string;
   fighter_type: string;
   fighter_subtypes: string[];
+  promoted_from_prospect?: boolean;
   fighter_specialisation?: {
     fighter_specialisation: string;
     fighter_specialisation_id: string;
@@ -226,6 +227,7 @@ export interface GangFighterIndexEntry {
   fighter_name: string;
   fighter_type: string;
   fighter_specialisation_id: string | null;
+  promoted_from_prospect: boolean;
   xp: number | null;
   starting_xp: number | null;
   advancements_taken: number;
