@@ -1,10 +1,9 @@
 'use server';
 
-import { TAGS, invalidateFighter, invalidateGangFinancials } from '@/utils/cache-tags';
+import { invalidateFighter, invalidateGangFinancials } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 
 import { getAuthenticatedUser } from '@/utils/auth';
-import { revalidateTag } from 'next/cache';
 import { updateGangRatingSimple, updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { countsTowardRating } from '@/utils/fighter-status';
 import {
@@ -39,6 +38,7 @@ import {
 } from './logs/gang-fighter-logs';
 import type { GangLogActionResult } from './logs/gang-logs';
 import { updateFighterDetails } from './edit-fighter';
+import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 
 // A fighter's edition comes from its gang's (custom) gang type.
 const GANG_EDITION_EMBED = `
@@ -90,25 +90,6 @@ function advancementBlockedReason(
 interface PowerBoostTypeData {
   kill_cost?: number;
   credits_increase?: number;
-}
-
-// Helper function to invalidate owner's cache when beast fighter is updated
-async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
-  // Check if this fighter is an exotic beast owned by another fighter
-  const { data: ownerData } = await supabase
-    .from('fighter_exotic_beasts')
-    .select('fighter_owner_id')
-    .eq('fighter_pet_id', fighterId)
-    .single();
-
-  if (ownerData) {
-    // Invalidate the owner's cache since their total cost changed
-    invalidateFighter(ownerData.fighter_owner_id, gangId);
-
-    // Invalidate the owner's beast costs cache
-    // Without this, the owner's cost calculation uses stale beast data
-    revalidateTag(TAGS.fighter(ownerData.fighter_owner_id), { expire: 0 });
-  }
 }
 
 // Types for advancement operations

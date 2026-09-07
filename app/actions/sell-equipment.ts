@@ -12,19 +12,7 @@ import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { clearHardpointReference } from './vehicle-hardpoints';
 import { returnCostResource } from '@/utils/campaigns/resources';
 import type { CostResourcePayload } from '@/types/equipment';
-
-// Helper function to invalidate owner's cache when beast fighter is updated
-async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
-  const { data: ownerData } = await supabase
-    .from('fighter_exotic_beasts')
-    .select('fighter_owner_id')
-    .eq('fighter_pet_id', fighterId)
-    .single();
-
-  if (ownerData) {
-    invalidateFighter(ownerData.fighter_owner_id, gangId);
-  }
-}
+import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 
 interface SellEquipmentParams {
   fighter_equipment_id: string;
@@ -94,12 +82,14 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
     let gangOwnerUserId: string | null = null;
     let vehicleAssigned = false;
     let fighterIsActive = true; // Default to true for non-fighter equipment
+    /** From the fighters row below; undefined means "unknown" and falls back to a lookup. */
+    let fighterPetId: string | null | undefined;
     
     if (equipmentData.fighter_id) {
       // Get gang_id and status from fighter
       const { data: fighter, error: fighterError } = await supabase
         .from('fighters')
-        .select('gang_id, user_id, killed, retired, enslaved, captured, fighter_subtypes')
+        .select('gang_id, user_id, killed, retired, enslaved, captured, fighter_subtypes, fighter_pet_id')
         .eq('id', equipmentData.fighter_id)
         .single();
 
@@ -109,6 +99,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       gangId = fighter.gang_id;
       gangOwnerUserId = fighter.user_id ?? null;
       fighterIsActive = countsTowardRating(fighter);
+      fighterPetId = fighter.fighter_pet_id ?? null;
 
       // Exotic beasts derive their rating contribution from the owner, not themselves.
       // Check the owner's active status instead.
@@ -321,7 +312,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
         revalidateTag(TAGS.fighter(equipmentData.fighter_id), { expire: 0 });
       }
       // If this fighter is a beast, invalidate the owner's cache
-      await invalidateBeastOwnerCache(equipmentData.fighter_id, gangId, supabase);
+      await invalidateBeastOwnerCache(equipmentData.fighter_id, gangId, supabase, fighterPetId);
     } else if (equipmentData.vehicle_id) {
       // For vehicle equipment, we need to get the fighter_id from the vehicle
       const { data: vehicleData, error: vehicleError } = await supabase
