@@ -63,14 +63,27 @@ RETURNS TABLE (
     gang_subtype_name text
 ) LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
+    v_gang_type_id   uuid;
     v_gang_origin_id uuid;
     v_gang_subtypes  jsonb := '[]'::jsonb;
+    v_has_gang       boolean := false;
 BEGIN
     IF p_gang_id IS NOT NULL THEN
-        SELECT g.gang_origin_id, COALESCE(g.gang_subtypes, '[]'::jsonb)
-          INTO v_gang_origin_id, v_gang_subtypes
+        -- The gang's own gang type, not p_gang_type_id: the include-all caller passes NULL for
+        -- that, and a rule must still know which gang type it is dealing with.
+        SELECT g.gang_type_id, g.gang_origin_id, COALESCE(g.gang_subtypes, '[]'::jsonb)
+          INTO v_gang_type_id, v_gang_origin_id, v_gang_subtypes
           FROM gangs g
          WHERE g.id = p_gang_id;
+
+        -- SELECT INTO sets every target to NULL when no row matches, discarding the '[]'
+        -- initialiser above. Left as NULL the jsonb ? test below yields NULL, which would skip
+        -- subtype and origin rules while gang-type-only rules still fired -- a half-applied
+        -- ruleset. An unknown gang must mean no rules at all.
+        v_has_gang := FOUND;
+        IF NOT v_has_gang THEN
+            v_gang_subtypes := '[]'::jsonb;
+        END IF;
     END IF;
 
     RETURN QUERY
@@ -81,10 +94,10 @@ BEGIN
         FROM fighter_type_availability a
         -- Availability is opt-in per call site: no gang, no rules. Keeps the gang-addition and
         -- Available-to-All callers byte-identical to the 3-arg function.
-        WHERE p_gang_id IS NOT NULL
+        WHERE v_has_gang
           AND (a.gang_subtype_id IS NULL OR v_gang_subtypes ? a.gang_subtype_id::text)
           AND (a.gang_origin_id  IS NULL OR a.gang_origin_id = v_gang_origin_id)
-          AND (a.gang_type_id    IS NULL OR a.gang_type_id  = p_gang_type_id)
+          AND (a.gang_type_id    IS NULL OR a.gang_type_id  = v_gang_type_id)
     ),
     granted AS (
         -- DISTINCT ON so two subtypes granting the same fighter yield one row, not a duplicate.
@@ -948,10 +961,13 @@ BEGIN
                 SELECT 1
                 FROM rules r
                 WHERE r.excluded
-                  -- A deny only ever removes the gang type's OWN fighters. Without this anchor
-                  -- an include-all call would strip every matching fighter in the game, and a
-                  -- roster call would strip affiliation-granted ones that are not the gang's.
-                  AND ft.gang_type_id = p_gang_type_id
+                  -- A deny only ever removes the gang's OWN gang type's fighters. Without this
+                  -- anchor an include-all call would strip every matching fighter in the game,
+                  -- and a roster call would strip affiliation-granted ones that are not the
+                  -- gang's. Anchored to the gang's gang type rather than p_gang_type_id, which
+                  -- the include-all caller passes as NULL -- that would silently disable every
+                  -- deny on exactly the path where the fighter is still offered.
+                  AND ft.gang_type_id = v_gang_type_id
                   AND (
                       r.fighter_type_id = ft.id
                       OR (r.fighter_subtype IS NOT NULL
