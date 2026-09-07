@@ -6,15 +6,6 @@ import { withEditionSlug } from '@/types/edition';
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
-type GangSubtype = { id: string; subtype: string; edition_id: string | null };
-
-// The gang properties fighter_type_availability scopes against.
-type GangScope = {
-  gangTypeId: string | null;
-  gangOriginId: string | null;
-  gangSubtypes: GangSubtype[];
-};
-
 // Fetch the user's own custom fighters plus any shared with them through campaigns,
 // de-duplicated by id.
 async function getCombinedCustomFighters(supabase: SupabaseServerClient, userId: string) {
@@ -236,122 +227,6 @@ function mergeById(existing: any[], extra: any[]) {
   return [...existing, ...extra.filter((row: any) => !seen.has(row.id))];
 }
 
-/**
- * Applies fighter_type_availability to the gang's own pool: denies first, then grants.
- *
- * Order is load-bearing. Secundan Incursion denies 'Leader' and grants four Spyre Hunters that
- * are themselves ["Leader"], so a deny evaluated over the appended grants would leave those
- * gangs with no addable leader at all. Denies only ever narrow the gang type's own fighters;
- * grants only ever add.
- */
-async function applyAvailabilityRules(
-  supabase: SupabaseServerClient,
-  rows: any[],
-  scope: GangScope
-) {
-  const subtypeIds = scope.gangSubtypes.map(subtype => subtype.id);
-
-  // Fetch anything matching on at least one axis; the conjunction below does the real filtering.
-  const axisMatches = [
-    subtypeIds.length > 0 ? `gang_subtype_id.in.(${subtypeIds.join(',')})` : null,
-    scope.gangOriginId ? `gang_origin_id.eq.${scope.gangOriginId}` : null,
-    scope.gangTypeId ? `gang_type_id.eq.${scope.gangTypeId}` : null,
-  ].filter((clause): clause is string => clause !== null);
-
-  if (axisMatches.length === 0) return rows;
-
-  const { data: candidates, error } = await supabase
-    .from('fighter_type_availability')
-    .select('fighter_type_id, fighter_subtype, gang_type_id, gang_origin_id, gang_subtype_id, excluded')
-    .or(axisMatches.join(','));
-
-  // Returning the rows unfiltered is the safer degradation — it offers too many fighters rather
-  // than hiding a gang's roster — but it is indistinguishable from a gang with no rules, so say so.
-  if (error) {
-    console.error('Error fetching fighter type availability:', error);
-    return rows;
-  }
-
-  // Every non-NULL axis must match: the JS twin of the (X IS NULL OR X = ...) conjunction
-  // get_equipment_detailed_data.sql uses for the same three axes.
-  const held = new Set(subtypeIds);
-  const rules = (candidates ?? []).filter((rule: any) =>
-    (rule.gang_subtype_id === null || held.has(rule.gang_subtype_id)) &&
-    (rule.gang_origin_id === null || rule.gang_origin_id === scope.gangOriginId) &&
-    (rule.gang_type_id === null || rule.gang_type_id === scope.gangTypeId)
-  );
-
-  if (rules.length === 0) return rows;
-
-  const denies = rules.filter((rule: any) => rule.excluded);
-  const deniedIds = new Set(
-    denies.map((rule: any) => rule.fighter_type_id).filter((id: string | null): id is string => id !== null)
-  );
-  const deniedSubtypes = new Set(
-    denies.map((rule: any) => rule.fighter_subtype).filter((name: string | null): name is string => name !== null)
-  );
-
-  let result = rows.filter((type: any) =>
-    !deniedIds.has(type.id) &&
-    !((type.fighter_subtypes ?? []) as string[]).some(name => deniedSubtypes.has(name))
-  );
-
-  const grants = rules.filter((rule: any) => !rule.excluded);
-  const grantedIds = [...new Set<string>(grants.map((rule: any) => rule.fighter_type_id))];
-  if (grantedIds.length === 0) return result;
-
-  // A granted fighter still needs its adjusted cost, equipment and skills, so it comes back
-  // through the same RPC as the gang's own roster — reached by the fighter's own gang type
-  // rather than by the 'Subtype: <name>' string match this replaces.
-  const { data: granted, error: grantedError } = await supabase
-    .from('fighter_types')
-    .select('id, gang_type_id')
-    .in('id', grantedIds);
-
-  if (grantedError) {
-    console.error('Error resolving granted fighter types:', grantedError);
-    return result;
-  }
-
-  // Name the subtype that granted each fighter, so the UI still groups it as a subtype addition.
-  // A row scoped only by origin or gang type carries no subtype name and stays untagged.
-  const subtypeNameById = new Map(scope.gangSubtypes.map(subtype => [subtype.id, subtype.subtype]));
-  const grantedBy = new Map<string, string>();
-  for (const rule of grants) {
-    const name = rule.gang_subtype_id ? subtypeNameById.get(rule.gang_subtype_id) : undefined;
-    if (name && !grantedBy.has(rule.fighter_type_id)) grantedBy.set(rule.fighter_type_id, name);
-  }
-
-  const wanted = new Set(grantedIds);
-  const pools = new Set<string>((granted ?? []).map((row: any) => row.gang_type_id));
-
-  for (const poolGangTypeId of pools) {
-    const { data: poolRows, error: poolError } = await supabase.rpc('get_fighter_types_with_cost', {
-      p_gang_type_id: poolGangTypeId,
-      p_gang_affiliation_id: null,
-      p_is_gang_addition: false
-    });
-
-    if (poolError) {
-      console.error('Error fetching granted fighter pool:', poolError);
-      continue;
-    }
-
-    const additions = (poolRows ?? [])
-      .filter((type: any) => wanted.has(type.id))
-      .map((type: any) => {
-        const subtypeName = grantedBy.get(type.id);
-        return subtypeName
-          ? { ...type, is_gang_subtype: true, gang_subtype_name: subtypeName }
-          : type;
-      });
-
-    result = mergeById(result, additions);
-  }
-
-  return result;
-}
-
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const gangId = searchParams.get('gang_id');
@@ -404,11 +279,14 @@ export async function GET(request: Request) {
     }
 
     if (includeAllTypes) {
-      // Fetch all fighter types across all gang types
+      // Fetch all fighter types across all gang types. p_gang_id still applies the gang's grants,
+      // which is what surfaces its subtype pools here; denies self-disable because they are
+      // anchored to p_gang_type_id, which is NULL on this path.
       const { data: result, error } = await supabase.rpc('get_fighter_types_with_cost', {
         p_gang_type_id: null,
         p_gang_affiliation_id: null,
-        p_is_gang_addition: null
+        p_is_gang_addition: null,
+        p_gang_id: gangId
       });
 
       if (error) {
@@ -431,7 +309,13 @@ export async function GET(request: Request) {
 
       if (hiddenGangTypes && hiddenGangTypes.length > 0) {
         const hiddenIds = new Set(hiddenGangTypes.map(gt => gt.gang_type_id));
-        data = data.filter((fighter: any) => !hiddenIds.has(fighter.gang_type_id));
+        // The 'Subtype: <name>' pools are hidden gang types, so a fighter this gang was granted
+        // has to survive this filter — it is in the list because a rule put it there, not because
+        // the catalogue offers it. Keyed on is_gang_subtype rather than "was granted" because a
+        // grant scoped only by origin or gang type has no business pointing into a hidden pool.
+        data = data.filter((fighter: any) =>
+          fighter.is_gang_subtype || !hiddenIds.has(fighter.gang_type_id)
+        );
       }
 
       // For a custom gang, keep its own custom fighters in the list alongside the
@@ -466,10 +350,13 @@ export async function GET(request: Request) {
       // Use the unified catalog function for regular (roster) fighters.
       // p_is_gang_addition=false reproduces the old get_add_fighter_details filter:
       // fighters of this gang type (incl. its gang-addition-flagged fighters).
+      // p_gang_id applies fighter_type_availability: grants pull in the gang's subtype pools,
+      // denies drop the gang type's own fighters the gang may not take.
       const { data: result, error } = await supabase.rpc('get_fighter_types_with_cost', {
         p_gang_type_id: gangTypeId,
         p_gang_affiliation_id: gangAffiliationId || null,
-        p_is_gang_addition: false
+        p_is_gang_addition: false,
+        p_gang_id: gangId
       });
 
       if (error) {
@@ -478,53 +365,6 @@ export async function GET(request: Request) {
       }
 
       data = result;
-    }
-
-    // Fighter types this gang's scope grants or denies. Gang additions are out of scope: the
-    // generic Brutes and Hired Guns they return belong to no gang type in particular.
-    if (!isGangAddition) {
-      let gangSubtypes: GangSubtype[] = [];
-      let gangOriginId: string | null = null;
-
-      try {
-        const { data: gangData, error: gangError } = await supabase
-          .from('gangs')
-          .select('gang_subtypes, gang_origin_id')
-          .eq('id', gangId)
-          .single();
-
-        if (gangError) {
-          console.error('Error fetching gang data:', gangError);
-          throw gangError;
-        }
-
-        gangOriginId = gangData.gang_origin_id ?? null;
-
-        // If gang has subtypes, fetch the subtype details
-        if (Array.isArray(gangData.gang_subtypes) && gangData.gang_subtypes.length > 0) {
-          const { data: subtypeDetails, error: subtypeError } = await supabase
-            .from('gang_subtype_types')
-            .select('id, subtype, edition_id')
-            .in('id', gangData.gang_subtypes);
-
-          if (subtypeError) {
-            console.error('Error fetching subtype details:', subtypeError);
-            throw subtypeError;
-          }
-
-          gangSubtypes = subtypeDetails ?? [];
-        }
-      } catch (error) {
-        // Continue without a scope rather than failing
-        gangSubtypes = [];
-        gangOriginId = null;
-      }
-
-      data = await applyAvailabilityRules(supabase, data, {
-        gangTypeId,
-        gangOriginId,
-        gangSubtypes,
-      });
     }
 
     // Add custom fighter types if requested.
