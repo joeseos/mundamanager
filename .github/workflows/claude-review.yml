@@ -91,18 +91,43 @@ jobs:
 
             // Best-effort: name the cause so nobody has to read the log to know
             // whether this was a rate limit or a real error.
+            //
+            // Match ONLY the final result message, never the file as a whole: the
+            // execution file is the entire session transcript, including every file
+            // Claude read. This workflow is one of them, and it contains the strings
+            // "usage limit" and "401" - so grepping the transcript reports a usage
+            // limit for any failure on a PR that touches this file. A generic message
+            // is better than a confidently wrong one.
             let reason = 'The review job failed. See the run log for details.';
             const file = process.env.EXECUTION_FILE;
             if (!ok && file && fs.existsSync(file)) {
-              const log = fs.readFileSync(file, 'utf8').toLowerCase();
-              if (/rate.?limit|usage limit|quota|\b429\b/.test(log)) {
+              let result = null;
+              try {
+                const messages = JSON.parse(fs.readFileSync(file, 'utf8'));
+                if (Array.isArray(messages)) {
+                  result = messages.reverse().find((m) => m && m.type === 'result');
+                }
+              } catch (err) {
+                core.warning(`Could not parse ${file}: ${err.message}`);
+              }
+
+              // `errors` and `result` are the only fields carrying failure text.
+              const detail = result
+                ? [].concat(result.errors || [], result.result || '').join('\n').toLowerCase()
+                : '';
+
+              if (/rate.?limit|usage limit|quota|\b429\b/.test(detail)) {
                 reason = 'The Claude subscription usage limit (hourly or weekly cap) was '
                   + 'reached, so no review was produced. **This is not a problem with your '
                   + 'PR.** Reviews resume once the limit resets.';
-              } else if (/authentication|unauthorized|invalid.*token|expired|\b401\b/.test(log)) {
+              } else if (/authentication|unauthorized|invalid.*token|expired|\b401\b/.test(detail)) {
                 reason = 'Claude authentication failed. The `CLAUDE_CODE_OAUTH_TOKEN` '
                   + 'repository secret is likely expired or invalid, and a maintainer needs '
                   + 'to regenerate it with `claude setup-token`.';
+              } else if (result && result.subtype === 'error_max_turns') {
+                reason = 'The review ran out of turns (`--max-turns`) before it finished, so '
+                  + 'its findings may be incomplete or missing. **This is not a problem with '
+                  + 'your PR.**';
               }
             }
 
