@@ -18,25 +18,11 @@ Before opening a PR, run `npm run lint` and make sure your changes work locally.
 
 This is a local step before you open a PR; it is separate from any automated review that may run after the PR is opened.
 
-Paste the following into a coding assistant to get a review of your local changes:
+Paste the contents of [`.github/review-prompt.md`](.github/review-prompt.md) into a coding
+assistant to get a review of your local changes, and ask it to post the review in the chat.
 
-```
-You are a senior engineer reviewing a future pull request against the full codebase.
-
-1. Examine the files being modified, either stashed or not
-2. Check against these criteria:
-   - Correctness: bugs, logic errors, regressions
-   - Edge cases and null/undefined handling
-   - Security issues (auth, injection, data leaks)
-   - Performance concerns (N+1 queries, unnecessary re-renders, large allocations)
-   - Readability and maintainability
-   - Adherence to project conventions in CONTRIBUTING.md and README.md
-   - DRY and YAGNI: duplicated logic, unnecessary parameters, prop threading bloat
-3. Focus on high-signal issues. Do not nitpick style unless it impacts clarity.
-4. Compile findings as a list: file + line number, issue description, suggested fix, and severity (high/medium/low).
-5. Provide a final verdict: approve, or changes requested (with summary of blockers).
-6. Post the review as a comment in the chat
-```
+That file is the same prompt the automated review below runs, so it is kept in one place
+rather than copied here — a clean local pass is a good predictor of a clean PR review.
 
 ### Automated review on the PR
 
@@ -48,15 +34,18 @@ review automatically and posts its findings as inline comments plus a summary.
   cause is the maintainer's Claude usage limit being reached; that is not a problem with your PR.
   When this happens, human review is required before merge.
 
-The check never blocks a merge. To re-run it after pushing fixes, remove and re-add the
-`claude-review` label, or re-run the failed job from the Actions run page.
+The check never blocks a merge. On a PR from a branch in this repository, re-run it after
+pushing fixes by adding the `claude-review` label (remove and re-add it if it is already
+there), or re-run the job from the Actions run page.
 
 Mention `@claude` in a PR or issue comment to ask a follow-up question about a finding, or to
 ask for a fix.
 
-**Pull requests from forks are not reviewed automatically.** GitHub does not give fork PRs access
-to the repository secrets the workflow needs. A maintainer applies the `claude-review` label once
-they have looked over the diff.
+**Pull requests from forks are not reviewed automatically, and the `claude-review` label does
+not change that.** GitHub withholds the repository secrets the workflow needs from fork PRs, so
+the workflow skips them regardless of labels. Fork PRs are reviewed by a human instead; running
+the local step above before opening one is the quickest way to catch what the automated review
+would have.
 
 ## How to set up your environment
 

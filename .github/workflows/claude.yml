@@ -8,7 +8,10 @@ on:
   pull_request_review:
     types: [submitted]
   issues:
-    types: [opened, assigned]
+    # Only `opened`: the `if` below keys off @claude in the issue body or title, which
+    # assigning does not change. To trigger on assignment instead, set the action's
+    # `assignee_trigger` input and add `assigned` back here.
+    types: [opened]
 
 concurrency:
   group: claude-${{ github.event.issue.number || github.event.pull_request.number }}
@@ -49,4 +52,8 @@ jobs:
             --model claude-sonnet-5
             --effort high
             --max-turns 40
+            # Adds to the action's own tool list rather than replacing it. File edits do
+            # not need listing: the action runs @claude mentions with
+            # `--permission-mode acceptEdits`, which allows writes inside the workspace
+            # (and only there), so `@claude fix this` can still change files.
             --allowedTools "Bash(npm install),Bash(npm run lint),Bash(npx tsc --noEmit)"
