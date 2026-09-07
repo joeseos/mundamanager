@@ -23,17 +23,26 @@ ON CONFLICT (slug) DO NOTHING;
 -- ============================================================================
 -- 1. EQUIPMENT CATEGORIES
 -- ============================================================================
-INSERT INTO public.equipment_categories (id, category_name, created_at) VALUES
-('0d689aac-81cf-4a7d-81a0-953f2f5d6e47', 'Ammunition', now()),
-('9a3f7568-2e70-4d67-97cc-f5c9f21ac753', 'Armour', now()),
-('eafb69c2-3d86-44da-95a3-e815cdc63b3c', 'Basic Weapons', now()),
-('aceb626f-259d-45b2-8a36-0d9c7369969f', 'Close Combat Weapons', now()),
-('931fe7d2-4913-4cbc-b5d0-d34ef0865815', 'Grenades', now()),
-('2f58f3cb-d5c5-4620-86e6-a91e6428ca34', 'Heavy Weapons', now()),
-('18a867b0-42cb-42bb-b3a6-330fa3e65700', 'Personal Equipment', now()),
-('8e6fe32b-d70d-48a5-95c0-00441b502ae5', 'Pistols', now()),
-('1e3528d0-2064-4766-a23b-62b39ead07f4', 'Special Weapons', now()),
-('ad9d7b9b-7cea-48dc-9278-45e3e47a1aad', 'Weapon Accessories', now())
+-- Categories are edition-scoped and the same name may repeat across editions, so
+-- clients key on id rather than category_name.
+INSERT INTO public.equipment_categories (id, category_name, edition_id, created_at) VALUES
+('0d689aac-81cf-4a7d-81a0-953f2f5d6e47', 'Ammunition', '00000000-0000-0000-0000-000000000023', now()),
+('9a3f7568-2e70-4d67-97cc-f5c9f21ac753', 'Armour', '00000000-0000-0000-0000-000000000023', now()),
+('eafb69c2-3d86-44da-95a3-e815cdc63b3c', 'Basic Weapons', '00000000-0000-0000-0000-000000000023', now()),
+('aceb626f-259d-45b2-8a36-0d9c7369969f', 'Close Combat Weapons', '00000000-0000-0000-0000-000000000023', now()),
+('931fe7d2-4913-4cbc-b5d0-d34ef0865815', 'Grenades', '00000000-0000-0000-0000-000000000023', now()),
+('2f58f3cb-d5c5-4620-86e6-a91e6428ca34', 'Heavy Weapons', '00000000-0000-0000-0000-000000000023', now()),
+('18a867b0-42cb-42bb-b3a6-330fa3e65700', 'Personal Equipment', '00000000-0000-0000-0000-000000000023', now()),
+('8e6fe32b-d70d-48a5-95c0-00441b502ae5', 'Pistols', '00000000-0000-0000-0000-000000000023', now()),
+('1e3528d0-2064-4766-a23b-62b39ead07f4', 'Special Weapons', '00000000-0000-0000-0000-000000000023', now()),
+('ad9d7b9b-7cea-48dc-9278-45e3e47a1aad', 'Weapon Accessories', '00000000-0000-0000-0000-000000000023', now()),
+-- N26. Names are copied verbatim from utils/equipmentCategoryRankN26.ts, including any
+-- parenthetical: a category missing from that list sorts last with no super-category header.
+('26010000-0000-0000-0000-000000000001', 'Las Weapons', '00000000-0000-0000-0000-000000000026', now()),
+('26010000-0000-0000-0000-000000000002', 'Auto/Stub Weapons', '00000000-0000-0000-0000-000000000026', now()),
+('26010000-0000-0000-0000-000000000003', 'Hand Weapons', '00000000-0000-0000-0000-000000000026', now()),
+('26010000-0000-0000-0000-000000000004', 'Armour & Field Armour', '00000000-0000-0000-0000-000000000026', now()),
+('26010000-0000-0000-0000-000000000005', 'Personal Equipment', '00000000-0000-0000-0000-000000000026', now())
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
@@ -61,7 +70,8 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.trading_post_types (id, trading_post_name, edition_id, created_at) VALUES
 ('cada4005-66e3-4e3c-8a77-146329bd1eda', 'General Trading Post', '00000000-0000-0000-0000-000000000023', now()),
 ('c38706e9-2eda-4141-9ee3-4261e56582e0', 'Badzones Trading Post', '00000000-0000-0000-0000-000000000023', now()),
-('110ed3fe-3d35-43ca-afed-28af071cd3a6', 'Nomad Trading Post', '00000000-0000-0000-0000-000000000023', now())
+('110ed3fe-3d35-43ca-afed-28af071cd3a6', 'Nomad Trading Post', '00000000-0000-0000-0000-000000000023', now()),
+('260a0000-0000-0000-0000-000000000001', 'Trading Post', '00000000-0000-0000-0000-000000000026', now())
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
@@ -75,7 +85,13 @@ INSERT INTO public.gang_types (gang_type_id, gang_type, alignment, affiliation, 
 ('b86a0a06-4f47-4c78-8d04-fb7b7042c14e', 'House Orlock', 'Law Abiding', false, false, 'cada4005-66e3-4e3c-8a77-146329bd1eda', null, '00000000-0000-0000-0000-000000000023', now()),
 -- Hidden pseudo-gang that owns Bounty Hunters / Dramatis Personae. Fighters here are
 -- surfaced through the "Gang Additions" tab of every gang, not as a playable gang.
-('6145eb6e-84a6-4fbd-b1d3-87348505db42', 'Hired Guns', null, false, true, 'cada4005-66e3-4e3c-8a77-146329bd1eda', null, '00000000-0000-0000-0000-000000000023', now())
+('6145eb6e-84a6-4fbd-b1d3-87348505db42', 'Hired Guns', null, false, true, 'cada4005-66e3-4e3c-8a77-146329bd1eda', null, '00000000-0000-0000-0000-000000000023', now()),
+-- N26. alignment is null because the edition has no Law Abiding/Outlaw axis.
+('26090000-0000-0000-0000-000000000001', 'House Escher', null, false, false, '260a0000-0000-0000-0000-000000000001', null, '00000000-0000-0000-0000-000000000026', now()),
+-- Vehicles any N26 gang may take. fighter_types.gang_type_id is NOT NULL, so N23's
+-- "vehicle_types.gang_type_id IS NULL" becomes this per-edition pseudo-gang, which
+-- app/api/fighter-types/route.ts resolves by this exact name plus the gang's edition.
+('26090000-0000-0000-0000-000000000002', 'Available to All', null, false, true, '260a0000-0000-0000-0000-000000000001', null, '00000000-0000-0000-0000-000000000026', now())
 ON CONFLICT (gang_type_id) DO NOTHING;
 
 -- ============================================================================
@@ -94,6 +110,19 @@ INSERT INTO public.fighter_subtypes (id, subtype_name, edition_id, created_at) V
 ('9e310c58-5276-4758-bc9f-be010ac69457', 'Bounty Hunter', '00000000-0000-0000-0000-000000000023', now())
 ON CONFLICT (id) DO NOTHING;
 
+-- The rest of the N26 subtype list (utils/fighterSubtypeRankN26.ts). Wheeled is not a
+-- rank but a locomotion label (utils/vehicle-locomotion.ts), carried by the vehicle
+-- fighter type below because an N26 vehicle is a fighter and has no vehicles row.
+INSERT INTO public.fighter_subtypes (id, subtype_name, edition_id, created_at) VALUES
+('26080000-0000-0000-0000-000000000001', 'Leader', '00000000-0000-0000-0000-000000000026', now()),
+('26080000-0000-0000-0000-000000000002', 'Champion', '00000000-0000-0000-0000-000000000026', now()),
+('26080000-0000-0000-0000-000000000003', 'Prospect', '00000000-0000-0000-0000-000000000026', now()),
+('26080000-0000-0000-0000-000000000004', 'Specialist', '00000000-0000-0000-0000-000000000026', now()),
+('26080000-0000-0000-0000-000000000005', 'Ganger', '00000000-0000-0000-0000-000000000026', now()),
+('26080000-0000-0000-0000-000000000006', 'Juve', '00000000-0000-0000-0000-000000000026', now()),
+('26080000-0000-0000-0000-000000000007', 'Wheeled', '00000000-0000-0000-0000-000000000026', now())
+ON CONFLICT (id) DO NOTHING;
+
 -- Beast and Pet are N26 subtypes, so they are scoped to that edition rather than
 -- left edition-less: fighter_subtypes holds one row per subtype per edition.
 INSERT INTO public.fighter_subtypes (subtype_name, edition_id)
@@ -106,6 +135,26 @@ WHERE NOT EXISTS (
   );
 
 -- ============================================================================
+-- 6b. FIGHTER SPECIALISATIONS (N26)
+-- ============================================================================
+-- The eight houseless specialisations a Prospect picks on promotion. Unlike every
+-- other N26 block here these keep their production ids: the picker is built from the
+-- hardcoded N26_PROSPECT_SPECIALISATIONS array in utils/keepTypePromotionN26.ts and
+-- posts the chosen id straight into fighters.fighter_specialisation_id, which is an FK
+-- to this table. Unlike the skills below there is no name fallback, so a synthetic id
+-- here is an FK violation. The table is edition-less; N23 does not use it.
+INSERT INTO public.fighter_specialisations (id, specialisation_name, created_at) VALUES
+('f16c7f9c-3fcc-4384-81c8-14a9e863dc28', 'Heavy', now()),
+('71a99cf2-5a95-4328-b053-ece6cf70818f', 'Gunner', now()),
+('6ba5f84f-1bba-4b33-9837-20750e272b7f', 'Gunslinger', now()),
+('575d0857-1d6d-41f3-ae41-a2d529d648e2', 'Scout', now()),
+('1d32f47b-3788-4fc9-a80a-a20ed63e1601', 'Sniper', now()),
+('f9a96b0e-ec6e-4888-b122-84d9d5b8f62a', 'Brawler', now()),
+('83f5f0f8-43bc-4c2c-b1d0-e8a2e092e98c', 'Medic', now()),
+('5ca912ac-a74f-4320-a6b2-affb159b95ce', 'Tech', now())
+ON CONFLICT (id) DO NOTHING;
+
+-- ============================================================================
 -- 7. SKILL TYPES
 -- ============================================================================
 INSERT INTO public.skill_types (id, name, legendary_name, edition_id, created_at) VALUES
@@ -116,7 +165,17 @@ INSERT INTO public.skill_types (id, name, legendary_name, edition_id, created_at
 ('7341bb7b-f1e4-40bf-a605-2cb33c213c7c', 'Cunning', false, '00000000-0000-0000-0000-000000000023', now()),
 ('9d1eeed9-02e3-4dd4-a0ab-39639805bca0', 'Ferocity', false, '00000000-0000-0000-0000-000000000023', now()),
 ('c234579d-a27e-4b7d-abb3-9ffa8a57b3ba', 'Leadership', false, '00000000-0000-0000-0000-000000000023', now()),
-('419983ce-5fb1-4ad3-a68b-ccce33b7275f', 'Shooting', false, '00000000-0000-0000-0000-000000000023', now())
+('419983ce-5fb1-4ad3-a68b-ccce33b7275f', 'Shooting', false, '00000000-0000-0000-0000-000000000023', now()),
+-- The six core N26 sets (utils/skillSetRankN26.ts). N26 drops Bravado, Ferocity and
+-- Leadership and adds Savant. The unique key is (edition_id, name), so the four shared
+-- names coexist with their N23 rows above. Until these exist app/api/skill-types/route.ts
+-- falls back to the N23 catalog.
+('26050000-0000-0000-0000-000000000001', 'Agility', false, '00000000-0000-0000-0000-000000000026', now()),
+('26050000-0000-0000-0000-000000000002', 'Brawn', false, '00000000-0000-0000-0000-000000000026', now()),
+('26050000-0000-0000-0000-000000000003', 'Combat', false, '00000000-0000-0000-0000-000000000026', now()),
+('26050000-0000-0000-0000-000000000004', 'Cunning', false, '00000000-0000-0000-0000-000000000026', now()),
+('26050000-0000-0000-0000-000000000005', 'Savant', false, '00000000-0000-0000-0000-000000000026', now()),
+('26050000-0000-0000-0000-000000000006', 'Shooting', false, '00000000-0000-0000-0000-000000000026', now())
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
@@ -130,7 +189,24 @@ INSERT INTO public.skills (id, name, skill_type_id, created_at) VALUES
 -- Default skills of Arbelesta Raen Catallus (granted, not bought)
 ('9518eb83-c10c-4f1b-a7dc-3f0351209ae3', 'Precision Shot', '419983ce-5fb1-4ad3-a68b-ccce33b7275f', now()),
 ('43095380-4e72-4fea-8741-16ab4b21a69b', 'Trick Shot', '419983ce-5fb1-4ad3-a68b-ccce33b7275f', now()),
-('9a7d31f4-00a5-444d-ae04-0a060ee1359b', 'Infiltrate', '7341bb7b-f1e4-40bf-a605-2cb33c213c7c', now())
+('9a7d31f4-00a5-444d-ae04-0a060ee1359b', 'Infiltrate', '7341bb7b-f1e4-40bf-a605-2cb33c213c7c', now()),
+-- N26 promotion grants: one per Prospect specialisation, plus Inspiring for the
+-- Ganger -> Champion keep-type promotion. skills has no edition_id; the edition comes
+-- from skill_type_id. add-fighter resolves these by preferred id and falls back to a
+-- unique name match, so synthetic ids are fine...
+('26060000-0000-0000-0000-000000000001', 'Bulging Biceps', '26050000-0000-0000-0000-000000000002', now()),
+('26060000-0000-0000-0000-000000000002', 'Hip-shooting', '26050000-0000-0000-0000-000000000006', now()),
+('26060000-0000-0000-0000-000000000003', 'Gunfighter', '26050000-0000-0000-0000-000000000006', now()),
+('26060000-0000-0000-0000-000000000004', 'Clamber', '26050000-0000-0000-0000-000000000001', now()),
+('26060000-0000-0000-0000-000000000005', 'Berserker', '26050000-0000-0000-0000-000000000003', now()),
+('26060000-0000-0000-0000-000000000006', 'Medicate', '26050000-0000-0000-0000-000000000005', now()),
+('26060000-0000-0000-0000-000000000007', 'Munitioneer', '26050000-0000-0000-0000-000000000005', now()),
+('26060000-0000-0000-0000-000000000008', 'Inspiring', '26050000-0000-0000-0000-000000000004', now()),
+-- ...except this one. The name fallback is not edition-filtered and rejects more than
+-- one match, and 'Precision Shot' already exists above as an N23 skill. Carrying the
+-- production id the Sniper specialisation asks for keeps the preferred-id lookup ahead
+-- of the ambiguous name lookup.
+('bc28a44e-15ba-41d5-9b01-d6b5a4ba7dca', 'Precision Shot', '26050000-0000-0000-0000-000000000006', now())
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
@@ -139,7 +215,8 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.campaign_types (id, campaign_type_name, description, image_url, trading_posts, edition_id, created_at) VALUES
 ('bc299009-0dbd-4ae9-b457-491841622b73', 'Dominion Campaign', 'Territory control and resource production.', null, null, '00000000-0000-0000-0000-000000000023', now()),
 ('7d98953c-267c-4da4-a32d-c58c2e8d369f', 'Uprising Campaign', 'A struggle for survival amidst starvation.', null, null, '00000000-0000-0000-0000-000000000023', now()),
-('30147c4b-a2ba-4e41-a055-87237d4ab4e8', 'Custom Campaign', 'A flexible custom campaign setup.', null, null, '00000000-0000-0000-0000-000000000023', now())
+('30147c4b-a2ba-4e41-a055-87237d4ab4e8', 'Custom Campaign', 'A flexible custom campaign setup.', null, null, '00000000-0000-0000-0000-000000000023', now()),
+('260b0000-0000-0000-0000-000000000001', 'Core Campaign', 'The standard N26 campaign.', null, null, '00000000-0000-0000-0000-000000000026', now())
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
@@ -185,12 +262,38 @@ INSERT INTO public.fighter_effect_types (id, effect_name, fighter_effect_categor
 -- Weapon-accessory upgrade. "applies_to": "equipment" is what makes the purchase flow
 -- ask which weapon to fit it to; add-fighter.ts finds this row by matching
 -- type_specific_data->>'equipment_id' against the equipment being granted.
-('c9ac2edb-22e1-4b63-808f-ce3db6db9261', 'Infra-sight†', '54065db2-c547-430e-ba88-4dc48c39a3b3', '{"applies_to": "equipment", "equipment_id": "3b509dcd-47ed-4938-837d-7bbdc74df58c", "effect_selection": "fixed"}'::jsonb, '00000000-0000-0000-0000-000000000023', now())
+('c9ac2edb-22e1-4b63-808f-ce3db6db9261', 'Infra-sight†', '54065db2-c547-430e-ba88-4dc48c39a3b3', '{"applies_to": "equipment", "equipment_id": "3b509dcd-47ed-4938-837d-7bbdc74df58c", "effect_selection": "fixed"}'::jsonb, '00000000-0000-0000-0000-000000000023', now()),
+-- N26 sample. effect_name repeats across editions -- these are new rows alongside their
+-- N23 namesakes, not shared ones. xp_cost is 0 because N26 earns Advancements by reaching
+-- a rank rather than buying them, and the credit increases are flat. The full 13-row
+-- Advancement table and 17-row Lasting Injury table are in
+-- supabase/migrations/20260810130000_n26_advancements.sql and
+-- 20260806160000_seed_n26_lasting_injuries.sql; only enough is seeded here to exercise
+-- both paths. Injury names must match LASTING_INJURY_TABLE_N26 in utils/dice.ts exactly,
+-- because the UI reverse-looks-up the D66 range by name.
+('26070000-0000-0000-0000-000000000001', 'Leadership', '789b2065-c26d-453b-a4d5-81c04c5d4419', '{"xp_cost": 0, "credits_increase": 5}'::jsonb, '00000000-0000-0000-0000-000000000026', now()),
+('26070000-0000-0000-0000-000000000002', 'Weapon Skill', '789b2065-c26d-453b-a4d5-81c04c5d4419', '{"xp_cost": 0, "credits_increase": 15}'::jsonb, '00000000-0000-0000-0000-000000000026', now()),
+('26070000-0000-0000-0000-000000000003', 'Strength', '789b2065-c26d-453b-a4d5-81c04c5d4419', '{"xp_cost": 0, "credits_increase": 20}'::jsonb, '00000000-0000-0000-0000-000000000026', now()),
+-- Save is an N26-only characteristic; N23 has no such Advancement.
+('26070000-0000-0000-0000-000000000004', 'Save', '789b2065-c26d-453b-a4d5-81c04c5d4419', '{"xp_cost": 0, "credits_increase": 20}'::jsonb, '00000000-0000-0000-0000-000000000026', now()),
+('26070000-0000-0000-0000-000000000005', 'Out Cold', '890c3065-c26d-453b-a4d5-81c04c5d4420', '{"recovery": "false", "convalescence": "false"}'::jsonb, '00000000-0000-0000-0000-000000000026', now()),
+-- Replaces N23's Convalescence over a wider 31-46 spread.
+('26070000-0000-0000-0000-000000000006', 'Grievous Wound', '890c3065-c26d-453b-a4d5-81c04c5d4420', '{"recovery": "true", "convalescence": "false"}'::jsonb, '00000000-0000-0000-0000-000000000026', now()),
+('26070000-0000-0000-0000-000000000007', 'Impressive Scars', '890c3065-c26d-453b-a4d5-81c04c5d4420', '{"recovery": "false", "convalescence": "false"}'::jsonb, '00000000-0000-0000-0000-000000000026', now()),
+('26070000-0000-0000-0000-000000000008', 'Memorable Death', '890c3065-c26d-453b-a4d5-81c04c5d4420', '{"killed": "true", "recovery": "false", "convalescence": "false"}'::jsonb, '00000000-0000-0000-0000-000000000026', now())
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.fighter_effect_type_modifiers (id, fighter_effect_type_id, stat_name, default_numeric_value, operation, created_at) VALUES
 ('a3628d78-4080-4b63-89b7-b1112232bcac', '2172a7a0-7892-4d31-bd7b-512b744a8fdd', 'attacks', 1, null, now()),
-('a3628d78-4080-4b63-89b7-b1112232bcad', '2172a7a0-7892-4d31-bd7b-512b744a8fde', 'ballistic_skill', -1, null, now())
+('a3628d78-4080-4b63-89b7-b1112232bcad', '2172a7a0-7892-4d31-bd7b-512b744a8fde', 'ballistic_skill', -1, null, now()),
+-- N26 signs are not N23's. Target numbers improve by going down (weapon_skill, save -> -1),
+-- raw values by going up (strength -> +1). N26 moves Ld/Cl/Wil/Int from target numbers to
+-- raw values, so both leadership rows here are +1 where the N23 equivalents would be -1.
+('260c0000-0000-0000-0000-000000000001', '26070000-0000-0000-0000-000000000001', 'leadership', 1, 'add', now()),
+('260c0000-0000-0000-0000-000000000002', '26070000-0000-0000-0000-000000000002', 'weapon_skill', -1, 'add', now()),
+('260c0000-0000-0000-0000-000000000003', '26070000-0000-0000-0000-000000000003', 'strength', 1, 'add', now()),
+('260c0000-0000-0000-0000-000000000004', '26070000-0000-0000-0000-000000000004', 'save', -1, 'add', now()),
+('260c0000-0000-0000-0000-000000000005', '26070000-0000-0000-0000-000000000007', 'leadership', 1, 'add', now())
 ON CONFLICT (id) DO NOTHING;
 -- Note: Infra-sight† intentionally has no modifier rows (matches production). It is a
 -- rules-text upgrade, so the visible outcome is the wargear nesting under the weapon
@@ -224,6 +327,18 @@ INSERT INTO public.equipment (id, equipment_name, cost, equipment_category, equi
 ('d131bb1e-809b-4652-8c39-93fdc21c1256', 'Respirator', 15, 'Personal Equipment', '18a867b0-42cb-42bb-b3a6-330fa3e65700', 'wargear', 'C', false, false, false, '00000000-0000-0000-0000-000000000023', now())
 ON CONFLICT (id) DO NOTHING;
 
+-- N26 equipment. Separate statement because these carry trade_points, the N26 cost axis,
+-- and leave availability null: N23 rarity does not apply. trade_points is text so it can
+-- hold 'E' as well as a numeric string.
+INSERT INTO public.equipment (id, equipment_name, cost, equipment_category, equipment_category_id, equipment_type, availability, core_equipment, is_editable, is_consumable, trade_points, edition_id, created_at) VALUES
+('26020000-0000-0000-0000-000000000001', 'Lasgun', 15, 'Las Weapons', '26010000-0000-0000-0000-000000000001', 'weapon', null, true, false, false, '1', '00000000-0000-0000-0000-000000000026', now()),
+('26020000-0000-0000-0000-000000000002', 'Autogun', 15, 'Auto/Stub Weapons', '26010000-0000-0000-0000-000000000002', 'weapon', null, true, false, false, '1', '00000000-0000-0000-0000-000000000026', now()),
+('26020000-0000-0000-0000-000000000003', 'Stub gun', 5, 'Auto/Stub Weapons', '26010000-0000-0000-0000-000000000002', 'weapon', null, true, false, false, '1', '00000000-0000-0000-0000-000000000026', now()),
+('26020000-0000-0000-0000-000000000004', 'Fighting knife', 10, 'Hand Weapons', '26010000-0000-0000-0000-000000000003', 'weapon', null, true, false, false, '1', '00000000-0000-0000-0000-000000000026', now()),
+('26020000-0000-0000-0000-000000000005', 'Mesh armour', 15, 'Armour & Field Armour', '26010000-0000-0000-0000-000000000004', 'wargear', null, true, false, false, '2', '00000000-0000-0000-0000-000000000026', now()),
+('26020000-0000-0000-0000-000000000006', 'Respirator', 15, 'Personal Equipment', '26010000-0000-0000-0000-000000000005', 'wargear', null, true, false, false, '1', '00000000-0000-0000-0000-000000000026', now())
+ON CONFLICT (id) DO NOTHING;
+
 -- ============================================================================
 -- 15. WEAPON PROFILES
 -- ============================================================================
@@ -236,6 +351,16 @@ INSERT INTO public.weapon_profiles (id, weapon_id, profile_name, range_short, ra
 -- Hired Guns / Dramatis Personae weapons
 ('e1a34e27-612d-4051-ab74-e1bdb59b74e2', '43892923-61f5-4b59-88ea-b4dfa78bcb36', 'Needle long rifle', '24"', '45"', '-', '+1', '-', '-2', '-', '6+', 'Scarce, Silent, Toxin', 1, now()),
 ('916b024a-ea68-4bba-99a1-3500887ef193', '791b34ff-a194-4fbf-9a7d-57e055af9e6d', 'Needle pistol', '4"', '9"', '+2', '-', '-', '-1', '-', '6+', 'Scarce, Sidearm, Silent, Toxin', null, now())
+ON CONFLICT (id) DO NOTHING;
+
+-- N26 profiles. The statline is SR / LR / Str / AP / Lethality / Traits, so acc_short,
+-- acc_long, damage and ammo are not rendered -- but they are NOT NULL with no default,
+-- hence the '-' placeholders. Anything the N23 columns would have carried goes in traits.
+INSERT INTO public.weapon_profiles (id, weapon_id, profile_name, range_short, range_long, acc_short, acc_long, strength, ap, damage, ammo, lethality, traits, sort_order, created_at) VALUES
+('26030000-0000-0000-0000-000000000001', '26020000-0000-0000-0000-000000000001', 'Lasgun', '8"', '24"', '-', '-', '3', '-', '-', '-', '5+', 'Plentiful', 1, now()),
+('26030000-0000-0000-0000-000000000002', '26020000-0000-0000-0000-000000000002', 'Autogun', '8"', '24"', '-', '-', '3', '-', '-', '-', '5+', 'Rapid Fire (1)', 1, now()),
+('26030000-0000-0000-0000-000000000003', '26020000-0000-0000-0000-000000000003', 'Stub gun', '6"', '12"', '-', '-', '3', '-', '-', '-', '6+', 'Sidearm', 1, now()),
+('26030000-0000-0000-0000-000000000004', '26020000-0000-0000-0000-000000000004', 'Fighting knife', 'E', '-', '-', '-', 'S', '-1', '-', '-', '5+', 'Melee', 1, now())
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
@@ -300,6 +425,31 @@ INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cos
 ('7eaf0b51-6e82-4b8d-861c-e870927f665e', '6145eb6e-84a6-4fbd-b1d3-87348505db42', 'Hired Guns', 'Arbelesta Raen Catallus', 250, 5, 6, 2, 3, 3, 2, 3, 7, 7, 6, 6, 1, '["Bounty Hunter"]', false, true, ARRAY['"Unique Partnership"', '"Bounty Hunter"', '"Slotted"']::jsonb[], 1, 'Law Abiding', true, '00000000-0000-0000-0000-000000000023', now(), 0)
 ON CONFLICT (id) DO NOTHING;
 
+-- House Escher (N26)
+-- Four columns the N23 rows above do not use: save (an N26-only characteristic),
+-- starting_xp (a real value rather than N23's explicit 0 -- these are illustrative, the
+-- rulebook numbers are not in this repo), is_vehicle, and a multi-valued fighter_subtypes.
+-- edition_id must match the gang type's: (gang_type_id, edition_id) is a composite FK.
+-- Ld/Cl/Wil/Int are raw values here, not N23 target numbers -- higher is better, legal
+-- range 4-10 (N26_FIGHTER_LIMITS in utils/characteristicLimits.ts). free_skill is false
+-- throughout because N26 earns Advancements by rank instead.
+INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, save, fighter_subtypes, fighter_specialisation_id, free_skill, is_gang_addition, is_vehicle, edition_id, created_at, starting_xp) VALUES
+('26040000-0000-0000-0000-000000000001', '26090000-0000-0000-0000-000000000001', 'House Escher', 'Matriarch', 120, 5, 3, 3, 3, 3, 2, 6, 8, 8, 8, 7, 2, 6, '["Leader"]', null, false, false, false, '00000000-0000-0000-0000-000000000026', now(), 40),
+('26040000-0000-0000-0000-000000000002', '26090000-0000-0000-0000-000000000001', 'House Escher', 'Matron', 95, 5, 3, 4, 3, 3, 2, 6, 7, 7, 7, 6, 2, 6, '["Champion"]', null, false, false, false, '00000000-0000-0000-0000-000000000026', now(), 20),
+('26040000-0000-0000-0000-000000000003', '26090000-0000-0000-0000-000000000001', 'House Escher', 'Sister', 55, 5, 4, 4, 3, 3, 1, 5, 6, 6, 6, 5, 1, 6, '["Ganger"]', null, false, false, false, '00000000-0000-0000-0000-000000000026', now(), 6),
+-- Two subtypes at once, which only N26 allows, and the only row carrying a specialisation
+-- (Sniper). A specialisation is valid only alongside the Specialist subtype.
+('26040000-0000-0000-0000-000000000004', '26090000-0000-0000-0000-000000000001', 'House Escher', 'Sister (Specialist)', 65, 5, 4, 4, 3, 3, 1, 5, 6, 6, 6, 5, 1, 6, '["Ganger", "Specialist"]', '1d32f47b-3788-4fc9-a80a-a20ed63e1601', false, false, false, '00000000-0000-0000-0000-000000000026', now(), 6),
+-- Prospect is the N26 entry rank and the one that can trade an Advancement for a
+-- specialisation; starting_xp 1 puts it on Rookie rank 0, so it advances at 4 XP.
+('26040000-0000-0000-0000-000000000005', '26090000-0000-0000-0000-000000000001', 'House Escher', 'Little Sister', 35, 6, 5, 5, 3, 3, 1, 5, 5, 5, 5, 5, 1, 6, '["Prospect"]', null, false, false, false, '00000000-0000-0000-0000-000000000026', now(), 1),
+-- An N26 vehicle IS a fighter: no vehicles row, no Crew subtype, an ordinary statline, and
+-- its lasting damages land on fighter_effects.fighter_id. is_gang_addition must stay false
+-- because app/api/fighter-types/route.ts fetches the Available to All list with
+-- p_is_gang_addition => false. starting_xp null means N/A: this type cannot gain XP.
+('26040000-0000-0000-0000-000000000006', '26090000-0000-0000-0000-000000000002', 'Available to All', 'Cargo-8 Ridgehauler', 230, 8, 6, 5, 5, 5, 4, 4, 4, 4, 4, 4, 1, 4, '["Wheeled"]', null, false, false, true, '00000000-0000-0000-0000-000000000026', now(), null)
+ON CONFLICT (id) DO NOTHING;
+
 -- ============================================================================
 -- 17. FIGHTER DEFAULTS (STARTING EQUIPMENT AND SKILLS)
 -- ============================================================================
@@ -330,9 +480,16 @@ ON CONFLICT (id) DO NOTHING;
 -- ============================================================================
 -- 22. TRADING POST EQUIPMENT MAPPING
 -- ============================================================================
+-- Joined on edition rather than selecting every equipment row: the table has no edition
+-- column of its own, so a trading post can only stay edition-consistent by construction.
 INSERT INTO public.trading_post_equipment (trading_post_type_id, equipment_id)
-SELECT 'cada4005-66e3-4e3c-8a77-146329bd1eda', id
-FROM public.equipment;
+SELECT tpt.id, e.id
+FROM public.trading_post_types tpt
+JOIN public.equipment e ON e.edition_id = tpt.edition_id
+WHERE tpt.id IN (
+  'cada4005-66e3-4e3c-8a77-146329bd1eda',  -- N23 General Trading Post
+  '260a0000-0000-0000-0000-000000000001'   -- N26 Trading Post
+);
 
 -- ============================================================================
 -- 23. FIGHTER TYPE EQUIPMENT MAPPING (HOUSE LISTS)
@@ -340,38 +497,67 @@ FROM public.equipment;
 -- All house fighter types can have Flak Armour and Stub Guns.
 -- Hired Guns are excluded: Dramatis Personae have no equipment list of their own
 -- (production has zero fighter_type_equipment rows for them).
+-- Every rule below matches on subtype and equipment NAME, and both repeat across editions
+-- ('Autogun' and 'Leader' exist in each), so all four are pinned to N23. Scoping them by
+-- "same edition on both sides" instead is not enough: that still matches the N26 rows, and
+-- the N26 grants further down would then insert the same (fighter_type, equipment) pair a
+-- second time and trip fighter_type_equipment_fighter_scope_uidx, which is NULLS NOT
+-- DISTINCT. N26 grants nothing implicitly -- it is spelled out below.
 INSERT INTO public.fighter_type_equipment (fighter_type_id, equipment_id)
 SELECT ft.id, e.id
 FROM public.fighter_types ft, public.equipment e
 WHERE e.equipment_name IN ('Flak Armour', 'Stub Gun')
-  AND ft.gang_type <> 'Hired Guns';
+  AND ft.gang_type <> 'Hired Guns'
+  AND ft.edition_id = '00000000-0000-0000-0000-000000000023' AND e.edition_id = '00000000-0000-0000-0000-000000000023';
 
 -- Leaders, Champions, Specialists, and Gangers can have Autoguns, Lasguns, and Fighting Knives
 INSERT INTO public.fighter_type_equipment (fighter_type_id, equipment_id)
 SELECT ft.id, e.id
 FROM public.fighter_types ft, public.equipment e
 WHERE ft.fighter_subtypes ?| array['Leader', 'Champion', 'Specialist', 'Ganger']
-  AND e.equipment_name IN ('Autogun', 'Lasgun', 'Fighting Knife');
+  AND e.equipment_name IN ('Autogun', 'Lasgun', 'Fighting Knife')
+  AND ft.edition_id = '00000000-0000-0000-0000-000000000023' AND e.edition_id = '00000000-0000-0000-0000-000000000023';
 
 -- Leaders and Champions can have Mesh Armour and Boltguns
 INSERT INTO public.fighter_type_equipment (fighter_type_id, equipment_id)
 SELECT ft.id, e.id
 FROM public.fighter_types ft, public.equipment e
 WHERE ft.fighter_subtypes ?| array['Leader', 'Champion']
-  AND e.equipment_name IN ('Mesh Armour', 'Boltgun');
+  AND e.equipment_name IN ('Mesh Armour', 'Boltgun')
+  AND ft.edition_id = '00000000-0000-0000-0000-000000000023' AND e.edition_id = '00000000-0000-0000-0000-000000000023';
 
 -- Juves can have Fighting Knives
 INSERT INTO public.fighter_type_equipment (fighter_type_id, equipment_id)
 SELECT ft.id, e.id
 FROM public.fighter_types ft, public.equipment e
 WHERE ft.fighter_subtypes ? 'Juve'
-  AND e.equipment_name = 'Fighting Knife';
+  AND e.equipment_name = 'Fighting Knife'
+  AND ft.edition_id = '00000000-0000-0000-0000-000000000023' AND e.edition_id = '00000000-0000-0000-0000-000000000023';
 
 -- Cawdor Leaders and Champions can have Sheenbird (Exotic Beast)
 INSERT INTO public.fighter_type_equipment (fighter_type_id, equipment_id)
 SELECT ft.id, 'e8888888-8888-8888-8888-888888888888'
 FROM public.fighter_types ft
 WHERE ft.gang_type = 'House Cawdor' AND ft.fighter_subtypes ?| array['Leader', 'Champion'];
+
+-- N26 House Escher. Every grant is explicit, so the two blocks below are the whole N26
+-- equipment list and cannot collide with the N23 rules above.
+INSERT INTO public.fighter_type_equipment (fighter_type_id, equipment_id)
+SELECT ft.id, e.id
+FROM public.fighter_types ft, public.equipment e
+WHERE ft.edition_id = '00000000-0000-0000-0000-000000000026'
+  AND ft.gang_type = 'House Escher'
+  AND e.equipment_name IN ('Stub gun', 'Fighting knife')
+  AND e.edition_id = '00000000-0000-0000-0000-000000000026';
+
+INSERT INTO public.fighter_type_equipment (fighter_type_id, equipment_id)
+SELECT ft.id, e.id
+FROM public.fighter_types ft, public.equipment e
+WHERE ft.edition_id = '00000000-0000-0000-0000-000000000026'
+  AND ft.gang_type = 'House Escher'
+  AND ft.fighter_subtypes ?| array['Leader', 'Champion', 'Ganger']
+  AND e.equipment_name IN ('Lasgun', 'Autogun', 'Mesh armour', 'Respirator')
+  AND e.edition_id = '00000000-0000-0000-0000-000000000026';
 
 -- ============================================================================
 -- 24. EXOTIC BEAST MAPPINGS (EQUIPMENT TO FIGHTER TYPE)
