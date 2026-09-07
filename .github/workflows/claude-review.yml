@@ -49,13 +49,28 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
-          gh api -H "Accept: application/vnd.github.raw" \
-            "repos/${GITHUB_REPOSITORY}/contents/.github/review-prompt.md?ref=${BASE_SHA}" \
-            > "${RUNNER_TEMP}/review-prompt.md"
+          prompt="${RUNNER_TEMP}/review-prompt.md"
+          if ! gh api -H "Accept: application/vnd.github.raw" \
+                 "repos/${GITHUB_REPOSITORY}/contents/.github/review-prompt.md?ref=${BASE_SHA}" \
+                 > "$prompt" 2> "${RUNNER_TEMP}/gh-err"; then
+            # 404 means the prompt is not on the base branch yet, which happens only while
+            # this workflow is being introduced - the PR adding it is its own base's future.
+            # Fall back to the checked-out copy there; once merged, the file always exists
+            # on base and this branch is unreachable, so it cannot be used to bypass the
+            # base-branch rule. Any other failure is real and must stop the job.
+            if grep -q 'HTTP 404' "${RUNNER_TEMP}/gh-err"; then
+              echo "::warning::.github/review-prompt.md is not on the base branch yet;" \
+                "using the copy from this PR. Expected only while adding this workflow."
+              cp .github/review-prompt.md "$prompt"
+            else
+              cat "${RUNNER_TEMP}/gh-err" >&2
+              exit 1
+            fi
+          fi
           delimiter="REVIEW_PROMPT_$(openssl rand -hex 8)"
           {
             printf 'text<<%s\n' "$delimiter"
-            cat "${RUNNER_TEMP}/review-prompt.md"
+            cat "$prompt"
             printf '\n%s\n' "$delimiter"
           } >> "$GITHUB_OUTPUT"
 
