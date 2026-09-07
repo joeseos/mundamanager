@@ -61,14 +61,15 @@ AS $$
             cg.campaign_type_allegiance_id,
             fgl.fighter_type_id AS legacy_ft_id,
             ga.fighter_type_id  AS affiliation_ft_id,
-            -- Empty when called without a fighter ($6), so it matches no
-            -- subtype rule rather than every one
-            COALESCE(f.fighter_subtypes, '[]'::jsonb) AS fighter_subtypes,
+            -- Empty for gang and vehicle calls, so a subtype rule matches nothing
+            COALESCE(f.fighter_subtypes, ft_sub.fighter_subtypes, cft_sub.fighter_subtypes, '[]'::jsonb) AS fighter_subtypes,
             COALESCE(gt.edition_id, cgt.edition_id) AS edition_id
         FROM (SELECT 1) AS _dummy
         LEFT JOIN gangs g ON g.id = $8
         LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
         LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
+        LEFT JOIN fighter_types ft_sub ON ft_sub.id = $3
+        LEFT JOIN custom_fighter_types cft_sub ON cft_sub.id = $3
         LEFT JOIN LATERAL (
             SELECT cg2.campaign_type_allegiance_id
             FROM campaign_gangs cg2
