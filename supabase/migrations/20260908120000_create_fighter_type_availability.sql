@@ -112,11 +112,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.fighter_type_availability
     TO authenticated, service_role;
 
 -- Seed the grants from the 'Subtype: <name>' pools the route matched by name until now, so
--- behaviour is unchanged. Derived rather than literal: 30 rows across six subtypes today.
---
--- 'Subtype: Genestealer Corrupted' (N26) is deliberately not reached -- the N26 subtype row is
--- named 'Genestealer Infected', so the name convention never matched that pool either, and
--- reviving it would hand those gangs fighters they do not currently get.
+-- behaviour is unchanged. Derived rather than literal: 32 rows across seven subtypes today.
 INSERT INTO public.fighter_type_availability (fighter_type_id, gang_subtype_id, excluded)
 SELECT ft.id, gst.id, false
 FROM public.gang_subtype_types gst
