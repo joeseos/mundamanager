@@ -8091,6 +8091,13 @@ CREATE INDEX fighters_captured_by_gang_id_idx ON public.fighters USING btree (ca
 
 
 --
+-- Name: fighters_created_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighters_created_at_idx ON public.fighters USING btree (created_at);
+
+
+--
 -- Name: fighters_fighter_name_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8102,6 +8109,13 @@ CREATE INDEX fighters_fighter_name_idx ON public.fighters USING btree (fighter_n
 --
 
 CREATE INDEX fighters_fighter_pet_id_idx ON public.fighters USING btree (fighter_pet_id) WHERE (fighter_pet_id IS NOT NULL);
+
+
+--
+-- Name: fighters_fighter_pet_id_idx1; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighters_fighter_pet_id_idx1 ON public.fighters USING btree (fighter_pet_id);
 
 
 --
