@@ -310,6 +310,9 @@ export async function GET(request: Request) {
         const hiddenIds = new Set(hiddenGangTypes.map(gt => gt.gang_type_id));
         // The 'Subtype: <name>' pools are themselves hidden gang types, so a granted fighter has
         // to survive this filter — a rule put it in the list, not the catalogue.
+        // Only subtype-scoped grants set is_gang_subtype, so an origin- or gang-type-scoped grant
+        // pointing into a hidden pool would still be dropped here. None exist yet; widening the
+        // flag is not the fix, since fighter-edit-modal renders gang_subtype_name off it.
         data = data.filter((fighter: any) =>
           fighter.is_gang_subtype || !hiddenIds.has(fighter.gang_type_id)
         );

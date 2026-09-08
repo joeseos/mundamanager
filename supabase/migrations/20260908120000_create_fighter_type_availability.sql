@@ -137,3 +137,42 @@ JOIN public.gang_subtype_types gst
   ON gst.subtype = v.subtype
  AND gst.edition_id = e.id
 ON CONFLICT DO NOTHING;
+
+-- Both seeds above match names as text, and both are ON CONFLICT DO NOTHING, so a rename makes
+-- them insert nothing and raise nothing -- the rule just quietly ceases to exist. That is not
+-- hypothetical: the N26 'Subtype: Genestealer Corrupted' pool sat unreachable for weeks because
+-- its catalog row was spelled 'Genestealer Infected'. Assert instead of trusting.
+DO $$
+DECLARE
+    v_denies       int;
+    v_orphan_pools text;
+BEGIN
+    SELECT count(*) INTO v_denies
+    FROM public.fighter_type_availability WHERE excluded;
+
+    IF v_denies <> 2 THEN
+        RAISE EXCEPTION
+            'fighter_type_availability: expected 2 deny rows, found %. A gang_subtype_types.subtype '
+            'rename breaks the literal join in the deny seed above.', v_denies;
+    END IF;
+
+    -- A populated 'Subtype: <name>' pool that pairs with no catalog row contributes no grants and
+    -- reports no error; its fighters simply never reach the gangs that should get them.
+    SELECT string_agg(gt.gang_type || ' (' || coalesce(e.slug, '?') || ')', ', ')
+      INTO v_orphan_pools
+    FROM public.gang_types gt
+    LEFT JOIN public.editions e ON e.id = gt.edition_id
+    WHERE gt.gang_type LIKE 'Subtype: %'
+      AND EXISTS (SELECT 1 FROM public.fighter_types ft WHERE ft.gang_type_id = gt.gang_type_id)
+      AND NOT EXISTS (
+          SELECT 1 FROM public.gang_subtype_types gst
+          WHERE ('Subtype: ' || gst.subtype) = gt.gang_type
+            AND gst.edition_id = gt.edition_id
+      );
+
+    IF v_orphan_pools IS NOT NULL THEN
+        RAISE EXCEPTION
+            'fighter_type_availability: fighter pool(s) with no matching gang subtype, whose '
+            'fighters would be silently ungranted: %', v_orphan_pools;
+    END IF;
+END $$;
