@@ -11,7 +11,7 @@ import { createClient } from "@/utils/supabase/client"
 import { SubmitButton } from "./submit-button"
 import { toast } from 'sonner';
 import { getGangListRank } from "@/utils/gangListRank"
-import { gangSubtypeRank } from "@/utils/gangSubtypeRank"
+import { getGangSubtypeRank } from "@/utils/gangSubtypeRank"
 import { gangVariantsFor, hasParentGangType } from "@/utils/gangTypeVariants"
 import { createGang } from "@/app/actions/create-gang"
 import { useRouter } from "next/navigation"
@@ -133,6 +133,8 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
     () => availableSubtypes.filter(subtype => sameEditionForDisplay(subtype.edition_slug, editionSlug)),
     [availableSubtypes, editionSlug]
   );
+
+  const gangSubtypeRank = useMemo(() => getGangSubtypeRank(editionSlug), [editionSlug]);
 
   const selectedRootGangType = useMemo(
     () => editionGangTypes.find(type => type.gang_type_id === gangType),

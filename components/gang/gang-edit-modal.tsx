@@ -11,7 +11,7 @@ import Modal from '@/components/ui/modal';
 import { toast } from 'sonner';
 import { HexColorPicker } from "react-colorful";
 import { groupAlliancesByType } from "@/utils/allianceRank";
-import { gangSubtypeRank } from "@/utils/gangSubtypeRank";
+import { getGangSubtypeRank } from "@/utils/gangSubtypeRank";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { deleteGang } from '@/app/actions/delete-gang';
 import { hasAlignment, sameEditionForDisplay } from '@/types/edition';
@@ -199,6 +199,7 @@ export default function GangEditModal({
     sameEditionForDisplay(subtype.edition_slug, editionSlug)
   );
   const showGangSubtypes = editionAvailableSubtypes.length > 0;
+  const gangSubtypeRank = getGangSubtypeRank(editionSlug);
   const showAlignment = hasAlignment(editionSlug);
   // Mirror admin fighter-type forms: clear alignment when the edition lacks it
   const effectiveAlignment = showAlignment ? alignment : '';

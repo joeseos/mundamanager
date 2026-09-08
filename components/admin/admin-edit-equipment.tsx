@@ -12,7 +12,7 @@ import { WeaponProfileInput, emptyWeaponProfile, EquipmentGrants, EquipmentAvail
 import { HiX } from "react-icons/hi";
 import { getFighterSubtypeSortRank } from "@/utils/fighterSubtypeRank";
 import { gangOriginRank } from "@/utils/gangOriginRank";
-import { gangSubtypeRank } from "@/utils/gangSubtypeRank";
+import { getGangSubtypeRank } from "@/utils/gangSubtypeRank";
 import { AdminFighterEffects } from "./admin-fighter-effects";
 import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
 import { hasLethalityStatline, hasTradePoints } from '@/types/edition';
@@ -86,8 +86,17 @@ function GangOriginOptions({ origins }: { origins: GangOriginOption[] }) {
   );
 }
 
-/** Gang-subtype <option>s ordered by gangSubtypeRank. */
-function GangSubtypeOptions({ subtypes }: { subtypes: Array<{ id: string; subtype: string }> }) {
+/**
+ * Gang-subtype <option>s in the edition's own order. With no edition selected the list spans
+ * editions and ranks empty, leaving them unordered rather than in one edition's order.
+ */
+function GangSubtypeOptions(
+  { subtypes, editionSlug }: {
+    subtypes: Array<{ id: string; subtype: string }>;
+    editionSlug?: string | null;
+  }
+) {
+  const gangSubtypeRank = getGangSubtypeRank(editionSlug);
   return (
     <>
       {[...subtypes]
@@ -1733,7 +1742,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                 className="w-full p-2 border rounded-md"
                               >
                                 <option key="default" value="">Select a Gang Subtype</option>
-                                <GangSubtypeOptions subtypes={filteredGangSubtypes} />
+                                <GangSubtypeOptions subtypes={filteredGangSubtypes} editionSlug={editionSlug} />
                               </select>
                             </div>
 
@@ -1925,7 +1934,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             className="w-full p-2 border rounded-md"
                           >
                             <option key="default" value="">Any Gang Subtype</option>
-                            <GangSubtypeOptions subtypes={filteredGangSubtypes} />
+                            <GangSubtypeOptions subtypes={filteredGangSubtypes} editionSlug={editionSlug} />
                           </select>
                         </div>
                       </div>
