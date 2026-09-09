@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { LuPlus, LuTrash2 } from "react-icons/lu";
 import { EditionSelect } from '@/components/edition-select';
 import { normaliseDefaultImageUrls, type DefaultImageEntry } from '@/types/gang';
+import { isValidHttpUrl } from '@/utils/http-url';
 
 enum OperationType {
   POST = 'POST',
@@ -34,14 +35,6 @@ interface TradingPostType {
   edition_id?: string | null;
 }
 
-interface GangOrigin {
-  id: string;
-  origin_name: string;
-  edition_id?: string | null;
-  category_id: string | null;
-  category_name: string;
-}
-
 interface OriginCategory {
   id: string;
   category_name: string;
@@ -62,19 +55,10 @@ function emptyImageEntry(): ImageFormEntry {
   return { url: '', creditName: '', creditUrl: '', creditSuffix: '' };
 }
 
-function isPreviewableUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url.trim());
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
-
 function DefaultImagePreview({ url, className }: { url: string; className?: string }) {
   const [failed, setFailed] = useState(false);
   const trimmed = url.trim();
-  const previewable = isPreviewableUrl(trimmed);
+  const previewable = isValidHttpUrl(trimmed);
 
   useEffect(() => {
     setFailed(false);
@@ -134,12 +118,12 @@ function defaultImagesValidationError(entries: ImageFormEntry[]): string | null 
     if (!imageUrl) {
       return `Image ${index + 1}: image URL is required`;
     }
-    if (!isPreviewableUrl(imageUrl)) {
+    if (!isValidHttpUrl(imageUrl)) {
       return `Image ${index + 1}: image URL must be a valid http(s) URL`;
     }
 
     const creditUrl = entry.creditUrl.trim();
-    if (creditUrl && !isPreviewableUrl(creditUrl)) {
+    if (creditUrl && !isValidHttpUrl(creditUrl)) {
       return `Image ${index + 1}: credit URL must be a valid http(s) URL`;
     }
   }
@@ -201,32 +185,18 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: origins = [], isLoading: isLoadingOrigins } = useQuery<GangOrigin[]>({
-    queryKey: ['admin-gang-origins'],
+  const { data: originCategories = [], isLoading: isLoadingOriginCategories } = useQuery<OriginCategory[]>({
+    queryKey: ['admin-gang-origin-categories'],
     queryFn: async () => {
-      const response = await fetch('/api/admin/gang-origins');
-      if (!response.ok) throw new Error('Failed to fetch gang origins');
+      const response = await fetch('/api/admin/gang-origin-categories');
+      if (!response.ok) throw new Error('Failed to fetch origin categories');
       return response.json();
     },
     staleTime: 5 * 60 * 1000,
   });
 
-  const isLoading = isLoadingGangTypes || isLoadingTradingPosts || isLoadingOrigins || isSubmitting;
+  const isLoading = isLoadingGangTypes || isLoadingTradingPosts || isLoadingOriginCategories || isSubmitting;
   const isFormDisabled = (!isCreateMode && !selectedGangTypeId) || isLoading;
-
-  const originCategories = useMemo<OriginCategory[]>(() => {
-    const byId = new Map<string, OriginCategory>();
-    for (const origin of origins) {
-      if (!origin.category_id) continue;
-      if (!byId.has(origin.category_id)) {
-        byId.set(origin.category_id, {
-          id: origin.category_id,
-          category_name: origin.category_name,
-        });
-      }
-    }
-    return [...byId.values()].sort((a, b) => a.category_name.localeCompare(b.category_name));
-  }, [origins]);
 
   const filteredGangTypes = useMemo(
     () => editionId
