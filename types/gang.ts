@@ -42,9 +42,15 @@ export interface StashItem {
 }
 
 export interface DefaultImageCredit {
-  name: string;
-  url: string;
+  name?: string;
+  url?: string;
   suffix?: string;
+}
+
+export function hasDefaultImageCredit(
+  credit?: DefaultImageCredit | null
+): credit is DefaultImageCredit {
+  return Boolean(credit?.name?.trim() || credit?.url?.trim() || credit?.suffix?.trim());
 }
 
 export interface DefaultImageEntry {

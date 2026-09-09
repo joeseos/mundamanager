@@ -1,6 +1,6 @@
 'use client';
 
-import { LuUsers, LuSword, LuCar, LuBookOpen, LuScrollText, LuBookUser, LuHeartCrack, LuSearch, LuBell, LuHandshake } from "react-icons/lu";
+import { LuUsers, LuSword, LuCar, LuBookOpen, LuScrollText, LuBookUser, LuHeartCrack, LuSearch, LuBell, LuHandshake, LuHouse } from "react-icons/lu";
 import { LuChartColumn } from "react-icons/lu";
 import { PiFlagBannerFoldBold } from "react-icons/pi";
 import { LuSquarePen } from 'react-icons/lu';
@@ -18,6 +18,7 @@ import { AdminStatsModal } from "@/components/admin/admin-stats-modal";
 import { AdminScenariosModal } from "@/components/admin/admin-scenarios-modal";
 import { AdminInjuriesGlitchesModal } from "@/components/admin/admin-injuries";
 import { AdminAlliancesModal } from "@/components/admin/admin-alliances";
+import { AdminGangTypesModal } from "@/components/admin/admin-gang-types";
 import { AdminCampaignManagementModal } from "@/components/admin/admin-campaign-management";
 import { AdminSupportToolsModal } from "@/components/admin/admin-support-tools";
 import { AdminNotificationsModal } from "@/components/admin/admin-notifications-modal";
@@ -36,6 +37,7 @@ export default function AdminPage() {
   const [showScenarios, setShowScenarios] = useState(false);
   const [showInjuriesGlitches, setShowInjuriesGlitches] = useState(false);
   const [showAlliances, setShowAlliances] = useState(false);
+  const [showGangTypes, setShowGangTypes] = useState(false);
   const [showCampaignManagement, setShowCampaignManagement] = useState(false);
   const [showSupportTools, setShowSupportTools] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -118,6 +120,12 @@ export default function AdminPage() {
       description: "Manage campaign types, territories, and triumphs",
       action: () => setShowCampaignManagement(true),
       icon: PiFlagBannerFoldBold
+    },
+    {
+      title: "Gangs",
+      description: "Manage gang types",
+      action: () => setShowGangTypes(true),
+      icon: LuHouse
     }
   ];
 
@@ -286,6 +294,12 @@ export default function AdminPage() {
         {showAlliances && (
           <AdminAlliancesModal
             onClose={() => setShowAlliances(false)}
+          />
+        )}
+
+        {showGangTypes && (
+          <AdminGangTypesModal
+            onClose={() => setShowGangTypes(false)}
           />
         )}
 

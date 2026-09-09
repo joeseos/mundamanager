@@ -19,6 +19,7 @@ import { useSearchParams } from "next/navigation"
 import Image from 'next/image'
 import { LuChevronLeft, LuChevronRight } from "react-icons/lu"
 import { DefaultImageEntry, normaliseDefaultImageUrls, UNKNOWN_GANG_IMAGE_URL } from '@/types/gang'
+import { DefaultImageCreditLine } from '@/components/ui/default-image-credit-line'
 import { EditionToggle } from '@/components/home/edition-toggle'
 import { useHomeEdition } from '@/hooks/use-home-edition'
 import { sameEditionForDisplay } from '@/types/edition'
@@ -802,17 +803,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
                     )}
                   </div>
                 </div>
-                {displayCredit ? (
-                  <p className="text-xs italic text-center text-muted-foreground mt-1">
-                    Illustration by{' '}
-                    <a href={displayCredit.url} target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
-                      {displayCredit.name}
-                    </a>
-                    {displayCredit.suffix && ` ${displayCredit.suffix}`}
-                  </p>
-                ) : (
-                  <p className="text-xs mt-1">&nbsp;</p>
-                )}
+                <DefaultImageCreditLine credit={displayCredit} />
               </>
             );
           })()}
