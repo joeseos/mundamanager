@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
 import { revalidateTag } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isValidHttpUrl } from '@/utils/http-url';
 
 const GANG_TYPE_LIST_COLUMNS = 'gang_type_id, gang_type, edition_id';
 
@@ -38,18 +39,18 @@ function emptyToNull(value: unknown): string | null {
   return trimmed === '' ? null : trimmed;
 }
 
-function parseBoolean(value: unknown, defaultValue = false): boolean {
-  if (typeof value === 'boolean') return value;
-  return defaultValue;
-}
-
-function isValidHttpUrl(value: string): boolean {
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-  } catch {
-    return false;
+function parseOptionalBoolean(
+  value: unknown,
+  field: string,
+  defaultValue: boolean
+): { error: string } | { data: boolean } {
+  if (value === undefined || value === null) {
+    return { data: defaultValue };
   }
+  if (typeof value === 'boolean') {
+    return { data: value };
+  }
+  return { error: `${field} must be a boolean` };
 }
 
 function parseDefaultImageUrls(value: unknown):
@@ -161,13 +162,23 @@ function validateGangTypePayload(body: {
     return defaultImages;
   }
 
+  const isHidden = parseOptionalBoolean(body.is_hidden, 'is_hidden', false);
+  if ('error' in isHidden) {
+    return isHidden;
+  }
+
+  const affiliation = parseOptionalBoolean(body.affiliation, 'affiliation', false);
+  if ('error' in affiliation) {
+    return affiliation;
+  }
+
   return {
     data: {
       gang_type: gangType,
       edition_id: editionId,
       alignment,
-      is_hidden: parseBoolean(body.is_hidden),
-      affiliation: parseBoolean(body.affiliation),
+      is_hidden: isHidden.data,
+      affiliation: affiliation.data,
       trading_post_type_id: emptyToNull(body.trading_post_type_id),
       gang_origin_category_id: emptyToNull(body.gang_origin_category_id),
       parent_gang_type_id: emptyToNull(body.parent_gang_type_id),
@@ -291,6 +302,55 @@ async function assertEditionScopedRefs(
   return editionError ?? tradingPostError ?? originError ?? parentError;
 }
 
+async function assertEditionChangeAllowed(
+  supabase: SupabaseClient,
+  gangTypeId: string,
+  currentEditionId: string | null,
+  nextEditionId: string
+): Promise<string | null> {
+  if (currentEditionId === nextEditionId) return null;
+
+  const [
+    { count: gangCount, error: gangError },
+    { count: fighterTypeCount, error: fighterTypeError },
+    { count: tacticsPackCount, error: tacticsPackError },
+    { count: childTypeCount, error: childTypeError },
+  ] = await Promise.all([
+    supabase
+      .from('gangs')
+      .select('id', { count: 'exact', head: true })
+      .eq('gang_type_id', gangTypeId),
+    supabase
+      .from('fighter_types')
+      .select('id', { count: 'exact', head: true })
+      .eq('gang_type_id', gangTypeId),
+    supabase
+      .from('tactics_cards_packs')
+      .select('id', { count: 'exact', head: true })
+      .eq('gang_type_id', gangTypeId),
+    supabase
+      .from('gang_types')
+      .select('gang_type_id', { count: 'exact', head: true })
+      .eq('parent_gang_type_id', gangTypeId),
+  ]);
+
+  if (gangError) throw gangError;
+  if (fighterTypeError) throw fighterTypeError;
+  if (tacticsPackError) throw tacticsPackError;
+  if (childTypeError) throw childTypeError;
+
+  if (
+    (gangCount ?? 0) > 0 ||
+    (fighterTypeCount ?? 0) > 0 ||
+    (tacticsPackCount ?? 0) > 0 ||
+    (childTypeCount ?? 0) > 0
+  ) {
+    return 'Cannot change edition_id while gangs, fighter types, tactics packs, or child gang types still reference this gang type';
+  }
+
+  return null;
+}
+
 function withReferenceInvalidation(
   handler: (request: Request) => Promise<Response>
 ) {
@@ -386,6 +446,27 @@ async function _PATCH(request: Request) {
     const validated = validateGangTypePayload(body);
     if ('error' in validated) {
       return NextResponse.json({ error: validated.error }, { status: 400 });
+    }
+
+    const { data: existing, error: existingError } = await supabase
+      .from('gang_types')
+      .select('gang_type_id, edition_id')
+      .eq('gang_type_id', gangTypeId)
+      .maybeSingle();
+
+    if (existingError) throw existingError;
+    if (!existing) {
+      return NextResponse.json({ error: 'Gang type not found' }, { status: 404 });
+    }
+
+    const editionChangeError = await assertEditionChangeAllowed(
+      supabase,
+      gangTypeId,
+      existing.edition_id,
+      validated.data.edition_id
+    );
+    if (editionChangeError) {
+      return NextResponse.json({ error: editionChangeError }, { status: 409 });
     }
 
     const refError = await assertEditionScopedRefs(supabase, validated.data, gangTypeId);
