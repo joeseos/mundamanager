@@ -244,7 +244,7 @@ export const getFighterTotalCost = async (fighterId: string, supabase: any): Pro
 
   // Owned exotic beasts roll their cost into the owner
   let beastsCost = 0;
-  // A stashed beast's cost sits in the gang stash, not on its owner.
+  // Skip beasts created by equipment that is in the stash.
   const beastIds = (beastLinksRes.data || [])
     .filter((b: any) => !b.fighter_equipment?.gang_stash)
     .map((b: any) => b.fighter_pet_id);
