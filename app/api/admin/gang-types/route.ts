@@ -1,10 +1,9 @@
-import { TAGS } from '@/utils/cache-tags';
 import { NextResponse } from 'next/server';
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
-import { revalidateTag } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isValidHttpUrl } from '@/utils/http-url';
+import { invalidateGangTypesCatalog } from '@/utils/cache-tags';
 
 const GANG_TYPE_LIST_COLUMNS = 'gang_type_id, gang_type, edition_id';
 
@@ -634,7 +633,11 @@ function withReferenceInvalidation(
   return async (request: Request) => {
     const response = await handler(request);
     if (response.ok) {
-      revalidateTag(TAGS.globalGangTypes(), { expire: 0 });
+      const body = await response.clone().json().catch(() => null);
+      const gangTypeId = body && typeof body.gang_type_id === 'string'
+        ? body.gang_type_id
+        : undefined;
+      invalidateGangTypesCatalog(gangTypeId);
     }
     return response;
   };
