@@ -909,8 +909,7 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
         equipment: [],
         skills: [],
         effects: [],
-        beastsOwned: [],
-        beastsPetOf: [],
+        beastLinks: [],
         loadouts: [],
         capturedByGangs: []
       };
@@ -1042,8 +1041,7 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
         equipmentRes,
         skillsRes,
         effectsRes,
-        beastsOwnedRes,
-        beastsPetOfRes,
+        beastLinksRes,
         loadoutsRes,
         capturedByGangsRes
       ] = await Promise.all([
@@ -1084,26 +1082,6 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
                 fighter_owner_id,
                 fighter_pet_id,
                 fighter_equipment_id,
-                fighter_equipment!fighter_equipment_id (
-                  gang_stash,
-                  equipment!equipment_id (
-                    equipment_name
-                  ),
-                  custom_equipment!custom_equipment_id (
-                    equipment_name
-                  )
-                )
-              `)
-              .in('fighter_owner_id', fighterIds)
-          : Promise.resolve({ data: [] }),
-        fighterIds.length > 0
-          ? supabase
-              .from('fighter_exotic_beasts')
-              .select(`
-                id,
-                fighter_pet_id,
-                fighter_owner_id,
-                fighter_equipment_id,
                 fighters!fighter_owner_id (
                   fighter_name
                 ),
@@ -1111,7 +1089,7 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
                   gang_stash
                 )
               `)
-              .in('fighter_pet_id', fighterIds)
+              .in('fighter_owner_id', fighterIds)
           : Promise.resolve({ data: [] }),
         fighterIds.length > 0
           ? supabase
@@ -1132,8 +1110,7 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
         equipment: equipmentRes.data || [],
         skills: skillsRes.data || [],
         effects: effectsRes.data || [],
-        beastsOwned: beastsOwnedRes.data || [],
-        beastsPetOf: beastsPetOfRes.data || [],
+        beastLinks: beastLinksRes.data || [],
         loadouts: loadoutsRes.data || [],
         capturedByGangs: capturedByGangsRes.data || []
       };
