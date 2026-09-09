@@ -220,7 +220,7 @@ export const getFighterTotalCost = async (fighterId: string, supabase: any): Pro
       .eq('fighter_id', fighterId),
     supabase
       .from('fighter_exotic_beasts')
-      .select('fighter_pet_id')
+      .select('fighter_pet_id, fighter_equipment!fighter_equipment_id (gang_stash)')
       .eq('fighter_owner_id', fighterId)
   ]);
 
@@ -244,7 +244,10 @@ export const getFighterTotalCost = async (fighterId: string, supabase: any): Pro
 
   // Owned exotic beasts roll their cost into the owner
   let beastsCost = 0;
-  const beastIds = (beastLinksRes.data || []).map((b: any) => b.fighter_pet_id);
+  // A stashed beast's cost sits in the gang stash, not on its owner.
+  const beastIds = (beastLinksRes.data || [])
+    .filter((b: any) => !b.fighter_equipment?.gang_stash)
+    .map((b: any) => b.fighter_pet_id);
   if (beastIds.length > 0) {
     const { data: beastData } = await supabase
       .from('fighters')
