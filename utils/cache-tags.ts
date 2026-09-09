@@ -23,9 +23,8 @@ import { revalidateTag } from 'next/cache';
  * user-{id}        profile/gang list/        | profile, list, social
  *                  campaign list/friends     | mutations
  * custom-{id}      custom content            | customise mutations
- * gang-type-{id}   home cards that join this | admin edits of that gang type
- *                  catalog type's portraits  | (also busts global-gang-types)
- * global-gang-types gang type catalog        | any admin gang-type write
+ * global-gang-types gang type catalog +      | any admin gang-type write
+ *                  home-card portraits/names |
  */
 export const TAGS = {
   gang: (id: string) => `gang-${id}`,
@@ -41,8 +40,6 @@ export const TAGS = {
   permission: (userId: string, gangId: string) => `check-permission-${userId}-${gangId}`,
   // All cached permission entries for one user, across every gang (busted on sign-in)
   userPermissions: (userId: string) => `user-permissions-${userId}`,
-  // Home-card copies of one official gang type (portraits / denormalized name)
-  gangType: (id: string) => `gang-type-${id}`,
 
   // Battle sessions keep their own namespace: live battles mutate frequently
   // and must not thrash the gang bundles.
@@ -179,12 +176,11 @@ export function invalidateCampaignCatalogLists() {
 }
 
 /**
- * Official gang-type catalog changed (name, images, flags). Busts the shared
- * catalog caches and every home-card list that joined this type.
+ * Official gang-type catalog changed (name, images, flags). Home cards join
+ * that catalog under the same tag.
  */
-export function invalidateGangTypesCatalog(gangTypeId?: string) {
+export function invalidateGangTypesCatalog() {
   bust(TAGS.globalGangTypes());
-  if (gangTypeId) bust(TAGS.gangType(gangTypeId));
 }
 
 // Global reference data
