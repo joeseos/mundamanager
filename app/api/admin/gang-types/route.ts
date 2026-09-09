@@ -633,11 +633,7 @@ function withReferenceInvalidation(
   return async (request: Request) => {
     const response = await handler(request);
     if (response.ok) {
-      const body = await response.clone().json().catch(() => null);
-      const gangTypeId = body && typeof body.gang_type_id === 'string'
-        ? body.gang_type_id
-        : undefined;
-      invalidateGangTypesCatalog(gangTypeId);
+      invalidateGangTypesCatalog();
     }
     return response;
   };
