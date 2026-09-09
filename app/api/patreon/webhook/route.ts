@@ -1,7 +1,7 @@
 import { invalidateUser, invalidatePatreonSupporters } from '@/utils/cache-tags';
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { createClient } from '@supabase/supabase-js';
+import { createServiceRoleClient, findAuthUserIdByEmail } from '@/utils/supabase/server';
 
 /**
  * TypeScript interfaces for Patreon API data structures
@@ -47,22 +47,6 @@ interface DatabaseUserData {
 }
 
 /**
- * Create service role Supabase client for admin operations
- */
-function createServiceRoleClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    }
-  );
-}
-
-/**
  * Verify webhook signature using HMAC-MD5
  * @param payload - Raw request payload
  * @param signature - Signature from request headers
@@ -96,6 +80,8 @@ function verifyWebhookSignature(payload: string, signature: string): boolean {
  * Resolve a Patreon member to a profile id.
  * patreon_user_id first (unique index, and stable when either email changes);
  * email only for a patron who has never been linked.
+ * Throws rather than returning null when a lookup fails: null means "definitively absent",
+ * and conflating the two would 200 the webhook and lose the update with no retry.
  * @param patreonEmail - Email from Patreon webhook
  * @param patreonUserId - Patreon user ID
  * @returns Profile id or null if not found
@@ -104,44 +90,28 @@ async function matchPatreonToUser(patreonEmail: string, patreonUserId: string): 
   const supabase = createServiceRoleClient();
 
   if (patreonUserId) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .select('id')
       .eq('patreon_user_id', patreonUserId)
       .maybeSingle();
 
+    if (error) throw new Error(`Profile lookup by patreon_user_id failed: ${error.message}`);
     if (data) return data.id;
   }
 
   if (!patreonEmail) return null;
 
-  // auth.users isn't exposed to PostgREST, so filter server-side via the GoTrue admin API.
-  const email = patreonEmail.toLowerCase();
-  const url = new URL('/auth/v1/admin/users', process.env.NEXT_PUBLIC_SUPABASE_URL!);
-  url.searchParams.set('per_page', '50');
-  url.searchParams.set('filter', email);
+  const authUserId = await findAuthUserIdByEmail(patreonEmail);
+  if (!authUserId) return null;
 
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  const response = await fetch(url, {
-    headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` }
-  });
-
-  if (!response.ok) {
-    console.error(`Webhook user lookup failed: ${response.status} ${response.statusText}`);
-    return null;
-  }
-
-  const { users } = (await response.json()) as { users: Array<{ id: string; email?: string }> };
-  // `filter` is a substring match, so the exact address still has to be confirmed here.
-  const match = users.find(user => user.email?.toLowerCase() === email);
-  if (!match) return null;
-
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('id')
-    .eq('id', match.id)
+    .eq('id', authUserId)
     .maybeSingle();
 
+  if (profileError) throw new Error(`Profile lookup by id failed: ${profileError.message}`);
   return profile?.id ?? null;
 }
 
