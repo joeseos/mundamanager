@@ -201,8 +201,7 @@ export function assembleGangFighters(
       const skillsData = skillsByFighter[fighterId] || [];
       const effectsData = effectsByFighter[fighterId] || [];
       const vehicles = vehiclesByFighter[fighterId] || [];
-      // Skip beasts created by equipment that is in the stash.
-      const ownedBeasts = (beastsByOwner[fighterId] || []).filter((b: any) => !b.fighter_equipment?.gang_stash);
+      const ownedBeasts = beastsByOwner[fighterId] || [];
       const ownershipInfo = ownershipInfoMap.get(fighter.id) || null;
 
       // Build list of loadout contexts to process (one for normal, multiple when expanding for print)
@@ -455,7 +454,10 @@ export function assembleGangFighters(
           const beastSkills = skillsByFighter[beastRel.fighter_pet_id] || [];
           const beastEffects = effectsByFighter[beastRel.fighter_pet_id] || [];
 
-          const equipmentCost = beastEquipment.reduce((sum: number, eq: any) => sum + (eq.purchase_cost || 0), 0);
+          // Stashed equipment already moved its cost to stash value; the beast's advancements did not.
+          const equipmentCost = beastRel.fighter_equipment?.gang_stash
+            ? 0
+            : beastEquipment.reduce((sum: number, eq: any) => sum + (eq.purchase_cost || 0), 0);
           const skillsCost = beastSkills.reduce((sum: number, skill: any) => sum + (skill.credits_increase || 0), 0);
           const effectsCost = beastEffects.reduce((sum: number, effect: any) => {
             return sum + (effect.type_specific_data?.credits_increase || 0);
@@ -1271,8 +1273,7 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
     });
 
   // ---- Owned beasts: costs + display data (previous getFighterOwnedBeastsCost/Data) ----
-  // Skip beasts created by equipment that is in the stash.
-  const myBeastLinks = bundle.beastsOwned.filter((b: any) => b.fighter_owner_id === fighterId && !b.fighter_equipment?.gang_stash);
+  const myBeastLinks = bundle.beastsOwned.filter((b: any) => b.fighter_owner_id === fighterId);
   const fighterById = new Map(bundle.fighters.map((f: any) => [f.id, f]));
 
   const byEquipmentId: Record<string, { equipment: number; advancements: number }> = {};
@@ -1285,7 +1286,10 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
     const beastSkills = bundle.skills.filter((s: any) => s.fighter_id === beast.id);
     const beastEffects = bundle.effects.filter((e: any) => e.fighter_id === beast.id && !e.vehicle_id);
 
-    const equipmentCost = beastEquipment.reduce((s: number, eq: any) => s + (eq.purchase_cost || 0), 0);
+    // Stashed equipment already moved its cost to stash value; the beast's advancements did not.
+    const equipmentCost = link.fighter_equipment?.gang_stash
+      ? 0
+      : beastEquipment.reduce((s: number, eq: any) => s + (eq.purchase_cost || 0), 0);
     const skillsCost = beastSkills.reduce((s: number, skill: any) => s + (skill.credits_increase || 0), 0);
     const effectsCost = beastEffects.reduce((s: number, effect: any) => s + (effect.type_specific_data?.credits_increase || 0), 0);
     const baseBeastCost = (beast.fighter_types as any)?.cost || 0;
