@@ -27,20 +27,26 @@ export type Gang = {
 };
 
 /**
- * Cached list of the user's gang ids, so the list entry below can carry
- * per-gang tags (dynamic tags must be known before the cached call).
- * Busted via user-{id} whenever the list shape changes (create/delete/copy).
+ * Cached list of the user's gang ids and types, so the list entry below can
+ * carry per-gang and per-type tags (dynamic tags must be known before the
+ * cached call). Busted via user-{id} whenever the list shape changes.
  */
-const getUserGangIdsCached = async (userId: string, supabase: any): Promise<string[]> => {
+const getUserGangIdsCached = async (
+  userId: string,
+  supabase: any
+): Promise<Array<{ id: string; gang_type_id: string | null }>> => {
   return unstable_cache(
     async () => {
       const { data } = await supabase
         .from('gangs')
-        .select('id')
+        .select('id, gang_type_id')
         .eq('user_id', userId);
-      return (data || []).map((g: any) => g.id);
+      return (data || []).map((g: { id: string; gang_type_id: string | null }) => ({
+        id: g.id,
+        gang_type_id: g.gang_type_id,
+      }));
     },
-    [`user-gang-ids-v2-${userId}`],
+    [`user-gang-ids-v3-${userId}`],
     {
       tags: [TAGS.user(userId)],
       revalidate: false
@@ -49,7 +55,11 @@ const getUserGangIdsCached = async (userId: string, supabase: any): Promise<stri
 };
 
 export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[]> => {
-  const gangIdsForTags = await getUserGangIdsCached(userId, supabase);
+  const gangsForTags = await getUserGangIdsCached(userId, supabase);
+  const gangIdsForTags = gangsForTags.map((g) => g.id);
+  const gangTypeIdsForTags = [...new Set(
+    gangsForTags.map((g) => g.gang_type_id).filter((id): id is string => Boolean(id))
+  )];
 
   return unstable_cache(
     async () => {
@@ -165,13 +175,16 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
         throw error;
       }
     },
-    [`user-gangs-v3-${userId}`],
+    [`user-gangs-v4-${userId}`],
     {
       tags: [
         // List shape (create/delete/copy gang, favourites)
         TAGS.user(userId),
-        // Catalog portraits/names joined from gang_types (admin gang-type writes)
+        // Catalog portraits/names joined from gang_types (any type edit)
         TAGS.globalGangTypes(),
+        // Same copies, scoped to a type so an Escher edit does not wait on
+        // the global tag alone — admin gang-type writes fire this tag.
+        ...gangTypeIdsForTags.map(id => TAGS.gangType(id)),
         // Card fields: rating/credits/name via the financials choke point
         ...gangIdsForTags.map(id => TAGS.gangOverview(id)),
         // Campaign names on cards: join/leave (previously never invalidated)
