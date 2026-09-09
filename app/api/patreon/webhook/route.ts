@@ -93,63 +93,56 @@ function verifyWebhookSignature(payload: string, signature: string): boolean {
 }
 
 /**
- * Match Patreon user to existing profile by email using admin auth
+ * Resolve a Patreon member to a profile id.
+ * patreon_user_id first (unique index, and stable when either email changes);
+ * email only for a patron who has never been linked.
  * @param patreonEmail - Email from Patreon webhook
- * @param patreonUserId - Patreon user ID for fallback matching
- * @returns User profile or null if not found
+ * @param patreonUserId - Patreon user ID
+ * @returns Profile id or null if not found
  */
-async function matchPatreonToUser(patreonEmail: string, patreonUserId: string) {
+async function matchPatreonToUser(patreonEmail: string, patreonUserId: string): Promise<string | null> {
   const supabase = createServiceRoleClient();
 
-  if (patreonEmail) {
-    try {
-      let page = 1;
-      let hasMore = true;
-
-      while (hasMore) {
-        const { data: users, error: listError } = await supabase.auth.admin.listUsers({
-          page,
-          perPage: 1000
-        });
-
-        if (listError || !users?.users || users.users.length === 0) break;
-
-        const matchingUser = users.users.find(user =>
-          user.email?.toLowerCase() === patreonEmail.toLowerCase()
-        );
-
-        if (matchingUser) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', matchingUser.id)
-            .single();
-
-          if (profile) return profile;
-        }
-
-        hasMore = users.users.length === 1000;
-        page++;
-      }
-    } catch (adminError) {
-      console.error(`Webhook admin auth query failed for ${patreonEmail}:`, adminError);
-    }
-  }
-
-  // Method 2: Fallback to patreon_user_id for existing patrons
   if (patreonUserId) {
-    const { data: existingUser, error } = await supabase
+    const { data } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id')
       .eq('patreon_user_id', patreonUserId)
-      .single();
+      .maybeSingle();
 
-    if (!error && existingUser) {
-      return existingUser;
-    }
+    if (data) return data.id;
   }
 
-  return null;
+  if (!patreonEmail) return null;
+
+  // auth.users isn't exposed to PostgREST, so filter server-side via the GoTrue admin API.
+  const email = patreonEmail.toLowerCase();
+  const url = new URL('/auth/v1/admin/users', process.env.NEXT_PUBLIC_SUPABASE_URL!);
+  url.searchParams.set('per_page', '50');
+  url.searchParams.set('filter', email);
+
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  const response = await fetch(url, {
+    headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` }
+  });
+
+  if (!response.ok) {
+    console.error(`Webhook user lookup failed: ${response.status} ${response.statusText}`);
+    return null;
+  }
+
+  const { users } = (await response.json()) as { users: Array<{ id: string; email?: string }> };
+  // `filter` is a substring match, so the exact address still has to be confirmed here.
+  const match = users.find(user => user.email?.toLowerCase() === email);
+  if (!match) return null;
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('id', match.id)
+    .maybeSingle();
+
+  return profile?.id ?? null;
 }
 
 /**
@@ -232,13 +225,13 @@ async function processPatreonWebhook(webhookData: PatreonWebhookPayload): Promis
   const patronStatus = member.attributes.patron_status;
 
   // Find matching user
-  const user = await matchPatreonToUser(patreonEmail, patreonUserId);
-  if (!user) {
+  const userId = await matchPatreonToUser(patreonEmail, patreonUserId);
+  if (!userId) {
     console.log(`No matching user found for Patreon email: ${patreonEmail || 'N/A'}, user ID: ${patreonUserId}`);
     return true;
   }
 
-  console.log(`Processing webhook for user ${user.id}, patron_status: ${patronStatus}`);
+  console.log(`Processing webhook for user ${userId}, patron_status: ${patronStatus}`);
 
   // Handle active patrons
   if (patronStatus === 'active_patron') {
@@ -254,23 +247,23 @@ async function processPatreonWebhook(webhookData: PatreonWebhookPayload): Promis
       discordRoles: currentTier?.attributes.discord_role_ids || null
     };
 
-    return await updateUserPatreonData(user.id, patreonData);
+    return await updateUserPatreonData(userId, patreonData);
   }
 
   // Handle former/declined patrons
   else if (patronStatus === 'former_patron' || patronStatus === 'declined_patron') {
-    return await clearUserPatreonData(user.id, patronStatus);
+    return await clearUserPatreonData(userId, patronStatus);
   }
 
   // Handle followers (null status - never pledged)
   else if (patronStatus === null) {
-    console.log(`User ${user.id} is a follower (never pledged) - no patron data to update`);
+    console.log(`User ${userId} is a follower (never pledged) - no patron data to update`);
     return true; // Success - followers don't need patron data
   }
 
   // This should never happen based on Patreon's API, but handle gracefully
   else {
-    console.warn(`Unexpected patron_status '${patronStatus}' for user ${user.id}`);
+    console.warn(`Unexpected patron_status '${patronStatus}' for user ${userId}`);
     return true; // Don't fail the webhook for unexpected future values
   }
 }
@@ -284,19 +277,14 @@ async function processPatreonWebhook(webhookData: PatreonWebhookPayload): Promis
 async function processMemberDeletion(patreonUserId: string): Promise<boolean> {
   const supabase = createServiceRoleClient();
 
-  // Find user by Patreon user ID
-  const { data: profile, error: findError } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('patreon_user_id', patreonUserId)
-    .single();
+  const profileId = await matchPatreonToUser('', patreonUserId);
 
-  if (findError || !profile) {
+  if (!profileId) {
     console.log(`No profile found for deleted Patreon user ID: ${patreonUserId}`);
     return true; // Not an error - user may not have linked account
   }
 
-  console.log(`Processing member deletion for user ${profile.id}`);
+  console.log(`Processing member deletion for user ${profileId}`);
 
   // Clear all Patreon data when membership is deleted
   const { error: updateError } = await supabase
@@ -308,14 +296,14 @@ async function processMemberDeletion(patreonUserId: string): Promise<boolean> {
       patreon_discord_role_ids: null,
       updated_at: new Date().toISOString()
     })
-    .eq('id', profile.id);
+    .eq('id', profileId);
 
   if (updateError) {
     console.error('Error clearing Patreon data for deleted member:', updateError);
     return false;
   }
 
-  invalidateUser(profile.id);
+  invalidateUser(profileId);
   return true;
 }
 
