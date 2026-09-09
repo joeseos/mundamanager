@@ -1,4 +1,5 @@
 import { hasDefaultImageCredit, type DefaultImageCredit } from '@/types/gang';
+import { isValidHttpUrl } from '@/utils/http-url';
 
 export function DefaultImageCreditLine({
   credit,
@@ -10,7 +11,8 @@ export function DefaultImageCreditLine({
   }
 
   const name = credit.name?.trim();
-  const href = credit.url?.trim();
+  const rawHref = credit.url?.trim();
+  const href = rawHref && isValidHttpUrl(rawHref) ? rawHref : undefined;
   const suffix = credit.suffix?.trim();
   const hasByline = Boolean(name || href);
 

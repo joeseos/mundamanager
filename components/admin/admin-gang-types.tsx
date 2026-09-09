@@ -200,7 +200,7 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
 
   const filteredGangTypes = useMemo(
     () => editionId
-      ? gangTypes.filter(gt => gt.edition_id === editionId)
+      ? gangTypes.filter(gt => !gt.edition_id || gt.edition_id === editionId)
       : gangTypes,
     [gangTypes, editionId]
   );
@@ -240,7 +240,7 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
     setOriginCategoryId(gangType.gang_origin_category_id ?? '');
     setParentGangTypeId(gangType.parent_gang_type_id ?? '');
     setDefaultImages(toImageFormEntries(gangType.default_image_urls));
-    setEditionId(gangType.edition_id ?? '');
+    setEditionId(gangType.edition_id || editionId);
   };
 
   const handleEditionChange = (newEditionId: string) => {
@@ -248,7 +248,7 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
 
     if (newEditionId && selectedGangTypeId) {
       const gangType = gangTypes.find(gt => gt.gang_type_id === selectedGangTypeId);
-      if (gangType && gangType.edition_id !== newEditionId) {
+      if (gangType?.edition_id && gangType.edition_id !== newEditionId) {
         setSelectedGangTypeId('');
         clearFormFields();
         setIsCreateMode(false);
@@ -414,6 +414,7 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
                 {filteredGangTypes.map((gangType) => (
                   <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
                     {gangType.gang_type}
+                    {!gangType.edition_id ? ' (no edition)' : ''}
                     {gangType.is_hidden ? ' (hidden)' : ''}
                     {gangType.parent_gang_type_id ? ' (variant)' : ''}
                   </option>
@@ -560,6 +561,10 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
                   Add Image
                 </Button>
               </div>
+              <p className="text-xs text-muted-foreground mb-2">
+                Gangs pin a portrait by position. Removing an image remaps later
+                portraits and cannot be undone.
+              </p>
               {defaultImages.length === 0 && (
                 <p className="text-xs text-muted-foreground">No default images.</p>
               )}
@@ -573,7 +578,15 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={() => setDefaultImages((current) => current.filter((_, i) => i !== index))}
+                        onClick={() => {
+                          const hasPinnedUrl = Boolean(entry.url.trim());
+                          if (hasPinnedUrl && !window.confirm(
+                            'Remove this image? Gangs using it will lose that default portrait, and later images will shift. This cannot be undone.'
+                          )) {
+                            return;
+                          }
+                          setDefaultImages((current) => current.filter((_, i) => i !== index));
+                        }}
                         disabled={isFormDisabled}
                         className="text-xs h-7 px-2"
                       >
