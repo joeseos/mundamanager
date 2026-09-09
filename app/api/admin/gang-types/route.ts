@@ -221,19 +221,15 @@ function defaultImageUrlsOf(value: unknown): string[] {
 
 /**
  * gangs.default_gang_image is a positional index into default_image_urls.
- * Same-length edits keep indexes; length changes match by URL. Removed slots
- * map to null. Duplicate URLs are claimed left-to-right.
+ * Match by URL left-to-right so a same-length remove+add (e.g. [A,B,C] →
+ * [A,C,D]) remaps pins instead of keeping stale positions. Unmatched old
+ * slots map to null. Duplicate URLs are claimed in order.
  */
 function buildDefaultImageIndexMap(
   oldUrls: string[],
   newUrls: string[]
 ): Map<number, number | null> {
   const map = new Map<number, number | null>();
-  if (oldUrls.length === newUrls.length) {
-    oldUrls.forEach((_, index) => map.set(index, index));
-    return map;
-  }
-
   const used = new Set<number>();
   for (let oldIndex = 0; oldIndex < oldUrls.length; oldIndex++) {
     let found: number | null = null;
@@ -507,15 +503,45 @@ async function assertEditionChangeAllowed(
 ): Promise<string | null> {
   if (currentEditionId === nextEditionId) return null;
 
-  const { count: gangCount, error: gangError } = await supabase
-    .from('gangs')
-    .select('id', { count: 'exact', head: true })
-    .eq('gang_type_id', gangTypeId);
+  // Composite FKs on (gang_type_id, edition_id) are ON UPDATE CASCADE, so a
+  // successful edition change would silently reclassify fighter types, tactics
+  // packs, and child variants into the new edition. Block while any remain.
+  const [
+    { count: gangCount, error: gangError },
+    { count: fighterTypeCount, error: fighterTypeError },
+    { count: tacticsPackCount, error: tacticsPackError },
+    { count: childTypeCount, error: childTypeError },
+  ] = await Promise.all([
+    supabase
+      .from('gangs')
+      .select('id', { count: 'exact', head: true })
+      .eq('gang_type_id', gangTypeId),
+    supabase
+      .from('fighter_types')
+      .select('id', { count: 'exact', head: true })
+      .eq('gang_type_id', gangTypeId),
+    supabase
+      .from('tactics_cards_packs')
+      .select('id', { count: 'exact', head: true })
+      .eq('gang_type_id', gangTypeId),
+    supabase
+      .from('gang_types')
+      .select('gang_type_id', { count: 'exact', head: true })
+      .eq('parent_gang_type_id', gangTypeId),
+  ]);
 
   if (gangError) throw gangError;
+  if (fighterTypeError) throw fighterTypeError;
+  if (tacticsPackError) throw tacticsPackError;
+  if (childTypeError) throw childTypeError;
 
-  if ((gangCount ?? 0) > 0) {
-    return 'Cannot change edition_id while gangs still reference this gang type';
+  if (
+    (gangCount ?? 0) > 0 ||
+    (fighterTypeCount ?? 0) > 0 ||
+    (tacticsPackCount ?? 0) > 0 ||
+    (childTypeCount ?? 0) > 0
+  ) {
+    return 'Cannot change edition_id while gangs, fighter types, tactics packs, or child gang types still reference this gang type';
   }
 
   return null;
@@ -586,6 +612,8 @@ async function remapPinnedDefaultImages(
       if (error) throw error;
     }
   } catch (error) {
+    // Best-effort, not transactional: phase-2 rows already written to `to` no
+    // longer match -(from+1), so they stay migrated while later entries revert.
     for (const [from] of changes) {
       await supabase
         .from('gangs')

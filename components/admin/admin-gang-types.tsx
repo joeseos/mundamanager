@@ -220,6 +220,11 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
     [filteredGangTypes, selectedGangTypeId]
   );
 
+  const selectedGangType = gangTypes.find(gt => gt.gang_type_id === selectedGangTypeId);
+  const willAssignEdition = Boolean(
+    !isCreateMode && selectedGangType && !selectedGangType.edition_id && editionId
+  );
+
   const clearFormFields = () => {
     setGangTypeName('');
     setAlignment('');
@@ -389,7 +394,15 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
 
         <div className="px-[10px] py-4">
           <div className="space-y-4">
-            <EditionSelect value={editionId} onChange={handleEditionChange} defaultToCurrent />
+            <div>
+              <EditionSelect value={editionId} onChange={handleEditionChange} defaultToCurrent />
+              {willAssignEdition && (
+                <p className="text-xs text-amber-600 mt-1">
+                  This gang type has no edition. Saving will assign it to the
+                  edition selected above.
+                </p>
+              )}
+            </div>
 
             <div>
               <div className="flex justify-between items-center mb-1">
