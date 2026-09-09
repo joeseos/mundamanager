@@ -201,7 +201,7 @@ export function assembleGangFighters(
       const skillsData = skillsByFighter[fighterId] || [];
       const effectsData = effectsByFighter[fighterId] || [];
       const vehicles = vehiclesByFighter[fighterId] || [];
-      // A stashed beast's cost sits in the gang stash, not on its owner's card.
+      // Skip beasts created by equipment that is in the stash.
       const ownedBeasts = (beastsByOwner[fighterId] || []).filter((b: any) => !b.fighter_equipment?.gang_stash);
       const ownershipInfo = ownershipInfoMap.get(fighter.id) || null;
 
@@ -1271,7 +1271,7 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
     });
 
   // ---- Owned beasts: costs + display data (previous getFighterOwnedBeastsCost/Data) ----
-  // A stashed beast's cost sits in the gang stash, not on its owner's card.
+  // Skip beasts created by equipment that is in the stash.
   const myBeastLinks = bundle.beastsOwned.filter((b: any) => b.fighter_owner_id === fighterId && !b.fighter_equipment?.gang_stash);
   const fighterById = new Map(bundle.fighters.map((f: any) => [f.id, f]));
 
