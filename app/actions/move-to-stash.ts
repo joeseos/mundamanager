@@ -233,13 +233,6 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       }
     }
 
-    // Clear beast owner AFTER successful stash update (prevents data loss if stash update fails)
-    // Keep the fighter_exotic_beasts row (tracks beast_equipment_stashed via fighter_equipment.gang_stash)
-    await supabase
-      .from('fighter_exotic_beasts')
-      .update({ fighter_owner_id: null })
-      .eq('fighter_equipment_id', params.fighter_equipment_id);
-
     // Rating delta: subtract equipment purchase_cost, effects, and beast equipment cost
     // BUT only if the fighter is active (not killed, retired, enslaved, or captured)
     // Inactive fighters are already excluded from rating calculations

@@ -809,29 +809,6 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       }
     }
 
-    // Handle beast creation for STASH equipment purchases
-    if (params.buy_for_gang_stash && !params.custom_equipment_id && params.equipment_id) {
-      try {
-        const beastResult = await createExoticBeastsForEquipment({
-          equipmentId: params.equipment_id,
-          ownerFighterId: null,  // No owner for stash
-          ownerFighterName: null,
-          gangId: params.gang_id,
-          userId: gang.user_id,
-          fighterEquipmentId: newEquipmentId
-        });
-
-        if (beastResult.success && beastResult.createdBeasts.length > 0) {
-          createdBeasts = beastResult.createdBeasts;
-          // Note: Don't add to rating since equipment is in stash
-        }
-      } catch (error) {
-        // Clean up the stash equipment that was just inserted since the beast it grants failed to create
-        await supabase.from('gang_stash').delete().eq('id', newEquipmentId);
-        throw error;
-      }
-    }
-
     // Calculate deltas for gang updates
     const totalRatingDelta = ratingDelta + createdBeastsRatingDelta + grantsRatingDelta;
     const stashValueDelta = params.buy_for_gang_stash ? ratingCost : 0;
