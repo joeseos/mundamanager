@@ -118,11 +118,11 @@ export function assembleGangFighters(
   const skillsByFighter = groupBy(bundle.skills, 'fighter_id');
   const effectsByFighter = groupBy(fighterEffectsRows, 'fighter_id');
   const vehiclesByFighter = groupBy(assignedVehicles, 'fighter_id');
-  const beastsByOwner = groupBy(bundle.beastsOwned, 'fighter_owner_id');
+  const beastsByOwner = groupBy(bundle.beastLinks, 'fighter_owner_id');
 
   // Ownership info map (petId -> ownership info)
   const ownershipInfoMap = new Map();
-  bundle.beastsPetOf.forEach((info: any) => {
+  bundle.beastLinks.forEach((info: any) => {
     ownershipInfoMap.set(info.fighter_pet_id, {
       owner_id: info.fighter_owner_id,
       owner_name: (info.fighters as any)?.fighter_name,
@@ -1273,7 +1273,7 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
     });
 
   // ---- Owned beasts: costs + display data (previous getFighterOwnedBeastsCost/Data) ----
-  const myBeastLinks = bundle.beastsOwned.filter((b: any) => b.fighter_owner_id === fighterId);
+  const myBeastLinks = bundle.beastLinks.filter((b: any) => b.fighter_owner_id === fighterId);
   const fighterById = new Map(bundle.fighters.map((f: any) => [f.id, f]));
 
   const byEquipmentId: Record<string, { equipment: number; advancements: number }> = {};
@@ -1305,7 +1305,7 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
   });
 
   // ---- Ownership info (if this fighter IS a beast) ----
-  const petRow = bundle.beastsPetOf.find((info: any) => info.fighter_pet_id === fighterId) || null;
+  const petRow = bundle.beastLinks.find((info: any) => info.fighter_pet_id === fighterId) || null;
   const ownershipInfo = petRow
     ? {
         owner_name: (petRow.fighters as any)?.fighter_name,

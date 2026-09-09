@@ -133,9 +133,7 @@ export interface GangFightersBundle {
   /** fighter_effects rows for fighters AND vehicles (superset select). */
   effects: any[];
   /** fighter_exotic_beasts where the owner is in this gang. */
-  beastsOwned: any[];
-  /** fighter_exotic_beasts where the pet is in this gang (ownership info). */
-  beastsPetOf: any[];
+  beastLinks: any[];
   /** ALL fighter_loadouts for the gang's fighters, with equipment assignments embedded. */
   loadouts: any[];
   /** {id, name} of gangs that captured this gang's fighters. */
