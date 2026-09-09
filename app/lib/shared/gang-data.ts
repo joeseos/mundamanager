@@ -789,8 +789,8 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
  *
  * Stage 1 (parallel): fighters, ALL gang vehicles (both keyed by gang_id)
  * Stage 2 (parallel): equipment (fighter + vehicle rows in one query),
- *   skills, effects (fighter + vehicle scopes in one query), exotic beasts
- *   (both directions), loadouts (+assignments embedded), captured-by names
+ *   skills, effects (fighter + vehicle scopes in one query), exotic beasts,
+ *   loadouts (+assignments embedded), captured-by names
  */
 export const getGangFightersBundle = async (gangId: string, supabase: any): Promise<GangFightersBundle> => {
   return unstable_cache(
