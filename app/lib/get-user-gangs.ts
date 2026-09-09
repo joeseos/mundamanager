@@ -165,11 +165,13 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
         throw error;
       }
     },
-    [`user-gangs-v2-${userId}`],
+    [`user-gangs-v3-${userId}`],
     {
       tags: [
         // List shape (create/delete/copy gang, favourites)
         TAGS.user(userId),
+        // Catalog portraits/names joined from gang_types (admin gang-type writes)
+        TAGS.globalGangTypes(),
         // Card fields: rating/credits/name via the financials choke point
         ...gangIdsForTags.map(id => TAGS.gangOverview(id)),
         // Campaign names on cards: join/leave (previously never invalidated)

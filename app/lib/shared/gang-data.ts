@@ -241,9 +241,9 @@ export const getGangCore = async (gangId: string, supabase: any): Promise<GangCo
         venator_ranks_incomplete: venatorRanksIncomplete,
       };
     },
-    [`gang-core-v5-${gangId}`],
+    [`gang-core-v6-${gangId}`],
     {
-      tags: [TAGS.gang(gangId)],
+      tags: [TAGS.gang(gangId), TAGS.globalGangTypes()],
       revalidate: false
     }
   )();
