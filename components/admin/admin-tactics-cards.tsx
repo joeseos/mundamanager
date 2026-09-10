@@ -151,12 +151,10 @@ export function AdminTacticsCardsModal({ onClose }: AdminTacticsCardsModalProps)
       ? cards.filter(card => card.edition_id === editionId)
       : cards;
     const byPack = cardPackId
-      ? byEdition.filter(card =>
-          card.tactics_cards_pack_id === cardPackId || card.id === selectedCardId
-        )
+      ? byEdition.filter(card => card.tactics_cards_pack_id === cardPackId)
       : byEdition;
     return [...byPack].sort(compareTacticsCards);
-  }, [cards, editionId, cardPackId, selectedCardId]);
+  }, [cards, editionId, cardPackId]);
 
   const packSelectOptions = useMemo(
     () => filteredPacks.map((pack) => packSelectOption(pack, gangTypes)),
@@ -307,6 +305,14 @@ export function AdminTacticsCardsModal({ onClose }: AdminTacticsCardsModalProps)
     setSelectedCardId('');
     clearCardFields();
     setIsCreateModeCard(true);
+  };
+
+  const handleCardPackChange = (packId: string) => {
+    setCardPackId(packId);
+    if (!isCreateModeCard) {
+      setSelectedCardId('');
+      clearCardFields();
+    }
   };
 
   const invalidateTacticsQueries = () => Promise.all([
@@ -637,7 +643,7 @@ export function AdminTacticsCardsModal({ onClose }: AdminTacticsCardsModalProps)
                   </label>
                   <Combobox
                     value={cardPackId}
-                    onValueChange={setCardPackId}
+                    onValueChange={handleCardPackChange}
                     options={packSelectOptions}
                     placeholder="Select a pack"
                     clearable

@@ -339,6 +339,12 @@ export async function DELETE(request: Request) {
       if (isMissingRowError(error)) {
         return NextResponse.json({ error: 'Pack not found' }, { status: 404 });
       }
+      if (postgresCode(error) === '23503') {
+        return NextResponse.json(
+          { error: 'Cannot delete pack while tactics cards still reference it' },
+          { status: 409 }
+        );
+      }
       throw error;
     }
 
