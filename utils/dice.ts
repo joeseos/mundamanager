@@ -42,6 +42,11 @@ export function formatRollOutcomeLine(total: number, dice: number[], resultLabel
   return resultLabel !== undefined && resultLabel !== '' ? `${core}: ${resultLabel}` : core;
 }
 
+/** N26 Advancement rolls unlock every table result at or below the total. */
+export function formatN26AdvancementThresholdLabel(total: number): string {
+  return `any result of ${total} or less`;
+}
+
 /** Normalise a legacy `number` roll (shown as a single die) or a full outcome. */
 export function normaliseRollFnResult(raw: number | RollOutcome): RollOutcome {
   if (typeof raw === 'object' && raw !== null && Array.isArray(raw.dice)) {
@@ -482,9 +487,9 @@ export type N26AdvancementEntry = {
 
 /**
  * The player may take ANY result they rolled high enough for, so a roll sets an
- * upper bound rather than picking a row. Nothing here enforces that: the roll is
- * logged and the player selects a result, matching how the N23 Ganger table
- * already behaves.
+ * upper bound rather than picking a row. The Advancements modal shows the full
+ * table; an in-app roll is optional and only hints which rows are at or below
+ * that total. Claiming a row is a separate choice.
  */
 export const N26_ADVANCEMENT_TABLE: N26AdvancementEntry[] = [
   { range: [2, 2], name: '+1 Leadership, +1 Intelligence or a random Primary skill', credits: 5,
@@ -505,7 +510,8 @@ export const N26_ADVANCEMENT_TABLE: N26AdvancementEntry[] = [
     characteristics: ['Wounds', 'Attacks', 'Save'] },
   // A 12 lifts the Skill Set restriction entirely — any set, including sets
   // exclusive to other gangs and Inherent skills. The model's own Type/Subtype
-  // gate still applies and is never lifted.
+  // gate still applies and is never lifted. The modal shows this as one option
+  // ("A new skill from any Skill Set"), not the three acquisition modes.
   { range: [12, 12], name: 'Any skill', credits: 30,
     skillAcquisitionTypeIds: ['primary_selected', 'secondary_selected', 'any_random'] },
 ];

@@ -29,9 +29,11 @@ import { LuUndo2 } from 'react-icons/lu';
 import DiceRoller from '@/components/dice-roller';
 import { Combobox } from '@/components/ui/combobox';
 import { FighterPromotionModal, type FighterPromotionResult } from '@/components/fighter/edit-fighter/fighter-promotion-modal';
+import { N26AdvancementResultTable } from '@/components/fighter/n26-advancement-result-table';
 import {
   roll,
   formatRollOutcomeLine,
+  formatN26AdvancementThresholdLabel,
   rollNd6Outcome,
   GANGER_EXOTIC_BEAST_ADVANCEMENT_TABLE,
   resolveGangerExoticBeastAdvancementFromUtil,
@@ -314,12 +316,12 @@ function getAllowedAcquisitionTypeIds(
 
 /**
  * Builds grouped Skill Set combobox options with access annotations.
- * When `highlightPrimaryOnly` is true, only Primary sets use normal styling; all others are grey/italic.
+ * `highlightAccess` greys/italicises sets that are not that access level.
  */
 function buildSkillSetComboboxOptions(
   categories: SkillType[],
   skillAccess: SkillAccess[],
-  highlightPrimaryOnly: boolean,
+  highlightAccess: 'primary' | 'secondary' | null,
   editionSlug?: string | null
 ) {
   const skillAccessMap = new Map<string, SkillAccess>();
@@ -334,8 +336,8 @@ function buildSkillSetComboboxOptions(
       else if (effectiveLevel === 'secondary') accessLabel = '(Secondary)';
       else if (effectiveLevel === 'allowed') accessLabel = '(Allowed)';
       const labelText = accessLabel ? `${category.name} ${accessLabel}` : category.name;
-      const useNormalLabelStyle = highlightPrimaryOnly
-        ? effectiveLevel === 'primary'
+      const useNormalLabelStyle = highlightAccess
+        ? effectiveLevel === highlightAccess
         : !!effectiveLevel;
       return {
         label: useNormalLabelStyle ? (
@@ -343,8 +345,7 @@ function buildSkillSetComboboxOptions(
         ) : (
           <span className="pl-4 italic text-neutral-400">{labelText}</span>
         ),
-        displayValue: labelText,
-        ...(highlightPrimaryOnly && effectiveLevel !== 'primary' ? { disabled: true } : {}),
+        displayValue: labelText
       };
     },
   });
@@ -383,6 +384,32 @@ const N26_ADVANCEMENT_COMBO_OPTIONS: N26AdvancementComboRow[] = N26_ADVANCEMENT_
   ...entry,
   id: `n26-adv-${entry.range[0]}-${entry.range[1]}`
 }));
+
+const N26_SKILL_OPTION_LABELS: Record<string, string> = {
+  primary_random: 'A random Primary skill',
+  primary_selected: 'A new Primary skill',
+  secondary_random: 'A random Secondary skill',
+  secondary_selected: 'A new Secondary skill',
+  any_random: 'A random skill'
+};
+
+/** 12 is "any skill": pick a set, then a specific skill. Not an RPC acquisition type_id. */
+const N26_ANY_SKILL_TYPE_ID = 'any_selected';
+
+function n26SkillRadioOptions(
+  row: Pick<N26AdvancementEntry, 'range' | 'skillAcquisitionTypeIds'> | undefined
+): Array<{ typeId: string; label: string }> {
+  const ids = row?.skillAcquisitionTypeIds ?? [];
+  if (ids.length === 0) return [];
+  const [lo, hi] = row?.range ?? [0, 0];
+  if (lo === 12 && hi === 12) {
+    return [{ typeId: N26_ANY_SKILL_TYPE_ID, label: 'A new skill from any Skill Set' }];
+  }
+  return ids.map((typeId) => ({
+    typeId,
+    label: N26_SKILL_OPTION_LABELS[typeId] ?? typeId
+  }));
+}
 
 /**
  * One entry of the `characteristics` map returned by
@@ -457,8 +484,10 @@ export function AdvancementModal({
   const [gangerSelectedRowId, setGangerSelectedRowId] = useState('');
   const [gangerRollCooldown, setGangerRollCooldown] = useState(false);
   const [n26RollCooldown, setN26RollCooldown] = useState(false);
-  /** The chosen N26 result drives the ordinary flow; it has no purchase path. */
+  /** The claimed N26 table row drives the ordinary flow; it has no purchase path. */
   const [n26SelectedRowId, setN26SelectedRowId] = useState('');
+  /** In-app 2D6 total, when they used Roll. Null if they skipped the button. */
+  const [n26RollTotal, setN26RollTotal] = useState<number | null>(null);
   const [n26CharacteristicName, setN26CharacteristicName] = useState('');
   const [characteristicAdvancements, setCharacteristicAdvancements] = useState<Record<string, CharacteristicAdvancement>>({});
   /** Whether the RPC has answered — distinct from it having returned rows, so an
@@ -703,6 +732,15 @@ export function AdvancementModal({
     () => N26_ADVANCEMENT_COMBO_OPTIONS.find((r) => r.id === n26SelectedRowId),
     [n26SelectedRowId]
   );
+
+  const [prevN26SelectedRowId, setPrevN26SelectedRowId] = useState(n26SelectedRowId);
+  if (n26SelectedRowId !== prevN26SelectedRowId) {
+    setPrevN26SelectedRowId(n26SelectedRowId);
+    if (isCumulativeXp) {
+      setEditableXpCost(0);
+      setEditableCreditsIncrease(n26SelectedRow?.credits ?? 0);
+    }
+  }
 
   const isGangerOrExoticBeastSubtype =
     fighterSubtypes.includes('Ganger') || fighterSubtypes.includes('Exotic Beast');
@@ -1015,7 +1053,10 @@ export function AdvancementModal({
     if (n26RollCooldown || logN26RollMutation.isPending) return;
     setN26RollCooldown(true);
     try {
-      logN26RollMutation.mutate({ outcome_label: outcomeLabel, dice_data: { result: rollTotal, dice } });
+      logN26RollMutation.mutate({
+        outcome_label: outcomeLabel,
+        dice_data: { result: rollTotal, dice, may_take_lower_results: true }
+      });
     } finally {
       setTimeout(() => setN26RollCooldown(false), 2000);
     }
@@ -1251,13 +1292,7 @@ export function AdvancementModal({
         return false;
       }
       if (!gangerSelectedSkillSetId) {
-        toast.error('Choose a Primary skill set');
-        return false;
-      }
-      const accessRow = gangerPreviewSkillAccess.find((a) => a.skill_type_id === gangerSelectedSkillSetId);
-      const accessLevel = accessRow ? effectiveSkillAccess(accessRow) : null;
-      if (accessLevel !== 'primary') {
-        toast.error('This advancement requires a Primary skill set');
+        toast.error('Choose a skill set');
         return false;
       }
       if (gangerSelectedSkillIndex === null || !gangerSkillsInSet[gangerSelectedSkillIndex]) {
@@ -1291,7 +1326,6 @@ export function AdvancementModal({
       gangerSelectedRow,
       gangerPendingPromotion,
       gangerSelectedSkillSetId,
-      gangerPreviewSkillAccess,
       gangerSelectedSkillIndex,
       gangerSkillsInSet,
       currentXp,
@@ -1310,13 +1344,7 @@ export function AdvancementModal({
         return false;
       }
       if (!selectedCategory) {
-        toast.error('Choose a Primary skill set');
-        return false;
-      }
-      const accessRow = championPreviewSkillAccess.find((a) => a.skill_type_id === selectedCategory);
-      const accessLevel = accessRow ? effectiveSkillAccess(accessRow) : null;
-      if (accessLevel !== 'primary') {
-        toast.error('This advancement requires a Primary skill set');
+        toast.error('Choose a skill set');
         return false;
       }
       if (!selectedAdvancement) {
@@ -1348,7 +1376,6 @@ export function AdvancementModal({
       advancementType,
       championPendingPromotion,
       selectedCategory,
-      championPreviewSkillAccess,
       selectedAdvancement,
       currentXp,
       applyChampionPromotionMutation
@@ -1385,12 +1412,9 @@ export function AdvancementModal({
     if (gangerSelectedRow.kind === 'specialist') {
       const sk =
         gangerSelectedSkillIndex !== null ? gangerSkillsInSet[gangerSelectedSkillIndex] : undefined;
-      const accessRow = gangerPreviewSkillAccess.find((a) => a.skill_type_id === gangerSelectedSkillSetId);
-      const accessLevel = accessRow ? effectiveSkillAccess(accessRow) : null;
       const ok = !!(
         gangerPendingPromotion &&
         gangerSelectedSkillSetId &&
-        accessLevel === 'primary' &&
         gangerSelectedSkillIndex !== null &&
         sk?.available
       );
@@ -1408,7 +1432,6 @@ export function AdvancementModal({
     characteristicAdvancements,
     gangerPendingPromotion,
     gangerSelectedSkillSetId,
-    gangerPreviewSkillAccess,
     gangerSelectedSkillIndex,
     gangerSkillsInSet,
     applyGangerSpecialistMutation.isPending,
@@ -1481,7 +1504,10 @@ export function AdvancementModal({
     const skillSetName = matchedSet?.name ?? 'Unknown Skill Set';
     // Compute the effective access for the selected set inline (mirrors selectedSkillSetAccess
     // useMemo below; declared later in the file due to hook ordering).
-    const accessRow = skillAccess.find((a) => a.skill_type_id === selectedCategory);
+    // Champion promotion logs against the target type, not the current Specialist.
+    const accessSource =
+      advancementType === 'promotion_to_champion' ? championPreviewSkillAccess : skillAccess;
+    const accessRow = accessSource.find((a) => a.skill_type_id === selectedCategory);
     const accessLevel = accessRow ? effectiveSkillAccess(accessRow) : null;
     const skillSetAccessLabel =
       accessLevel === 'primary'
@@ -1522,6 +1548,7 @@ export function AdvancementModal({
     categories,
     selectedCategory,
     skillAccess,
+    championPreviewSkillAccess,
     skillAcquisitionType,
     advancementType,
     logSkillAdvancementRollMutation
@@ -1548,24 +1575,6 @@ export function AdvancementModal({
     []
   );
 
-  const n26AdvancementComboboxOptions = useMemo(
-    () =>
-      N26_ADVANCEMENT_COMBO_OPTIONS.map((row) => {
-        const range = formatAdvancementRangeLabel(row);
-        return {
-          value: row.id,
-          label: (
-            <>
-              <span className="text-muted-foreground inline-block w-14 text-center mr-1">{range}</span>
-              {row.name}
-            </>
-          ),
-          displayValue: `${range}: ${row.name}`
-        };
-      }),
-    []
-  );
-
   /** The effect watching selectedCategory fills in costs from the RPC map. */
   const selectN26Characteristic = useCallback(
     (name: string) => {
@@ -1579,36 +1588,49 @@ export function AdvancementModal({
     [characteristicAdvancements]
   );
 
-  const selectN26SkillOutcome = useCallback(() => {
+  const selectN26SkillOutcome = useCallback((typeId: string, credits: number) => {
     setN26CharacteristicName('');
     setAdvancementType('skill');
     setSelectedCategory('');
     setSelectedAdvancement(null);
-    setSkillAcquisitionType('');
+    setSkillAcquisitionType(typeId);
     setSkillRollResult(null);
     setAvailableAdvancements([]);
+    setEditableXpCost(0);
+    setEditableCreditsIncrease(credits);
   }, []);
 
-  const selectN26Row = useCallback((rowId: string) => {
-    const row = N26_ADVANCEMENT_COMBO_OPTIONS.find((r) => r.id === rowId);
-    // Nothing to disambiguate on a skill-only result, so skip the confirm step.
-    const skillOnly = !!row?.skillAcquisitionTypeIds?.length && !row?.characteristics?.length;
-    setN26SelectedRowId(rowId);
-    setN26CharacteristicName('');
-    setAdvancementType(skillOnly ? 'skill' : '');
-    setSelectedCategory('');
-    setSelectedAdvancement(null);
-    setSkillAcquisitionType('');
-    setSkillRollResult(null);
-    setAvailableAdvancements([]);
-  }, []);
+  const selectN26Row = useCallback(
+    (rowId: string) => {
+      if (rowId === n26SelectedRowId) return;
+      const row = N26_ADVANCEMENT_COMBO_OPTIONS.find((r) => r.id === rowId);
+      setN26SelectedRowId(rowId);
+      setN26CharacteristicName('');
+      setAdvancementType('');
+      setSelectedCategory('');
+      setSelectedAdvancement(null);
+      setSkillAcquisitionType('');
+      setSkillRollResult(null);
+      setAvailableAdvancements([]);
+
+      const characteristics = row?.characteristics ?? [];
+      const skillOptions = n26SkillRadioOptions(row);
+      if (characteristics.length + skillOptions.length !== 1) return;
+      if (characteristics.length === 1) {
+        selectN26Characteristic(characteristics[0]);
+        return;
+      }
+      selectN26SkillOutcome(skillOptions[0].typeId, row?.credits ?? 0);
+    },
+    [n26SelectedRowId, selectN26Characteristic, selectN26SkillOutcome]
+  );
 
   const gangerSpecialistSkillSetComboboxOptions = useMemo(
     () =>
       buildSkillSetComboboxOptions(
         gangerSpecialistSkillCategories,
         gangerPreviewSkillAccess,
-        true,
+        'primary',
         editionSlug
       ),
     [gangerSpecialistSkillCategories, gangerPreviewSkillAccess, editionSlug]
@@ -1623,6 +1645,7 @@ export function AdvancementModal({
   const gangerSpecialistRequiresPrimarySet =
     gangerSelectedRow?.kind === 'specialist' &&
     !!gangerSelectedSkillSetId &&
+    !gangerPreviewSkillAccessLoading &&
     gangerSelectedSkillSetAccess !== 'primary';
 
   const gangerSkillInSetComboboxOptions = useMemo(
@@ -1690,10 +1713,14 @@ export function AdvancementModal({
     selectedSkillSetAccess
   ]);
 
-  const championPromotionRequiresPrimarySet =
-    advancementType === 'promotion_to_champion' &&
+  /** N26 skill radios lock the acquisition mode; the Skill Set must match it. */
+  const n26SkillRequiresMatchingSet =
+    isCumulativeXp &&
+    advancementType === 'skill' &&
     !!selectedCategory &&
-    selectedSkillSetAccess !== 'primary';
+    !!skillAcquisitionType &&
+    ((skillAcquisitionType.startsWith('primary') && selectedSkillSetAccess !== 'primary') ||
+      (skillAcquisitionType.startsWith('secondary') && selectedSkillSetAccess !== 'secondary'));
 
   /**
    * Characteristic combobox options grouped by rank label.
@@ -1767,10 +1794,20 @@ export function AdvancementModal({
     const skillCategories = categories.filter((cat): cat is SkillType => cat.type === 'skill');
     const accessSource =
       advancementType === 'promotion_to_champion' ? championPreviewSkillAccess : skillAccess;
+    const n26HighlightAccess: 'primary' | 'secondary' | null =
+      isCumulativeXp && skillAcquisitionType.startsWith('primary')
+        ? 'primary'
+        : isCumulativeXp && skillAcquisitionType.startsWith('secondary')
+          ? 'secondary'
+          : null;
+    const highlightAccess: 'primary' | 'secondary' | null =
+      advancementType === 'promotion_to_champion'
+        ? 'primary'
+        : n26HighlightAccess;
     return buildSkillSetComboboxOptions(
       skillCategories,
       accessSource,
-      advancementType === 'promotion_to_champion',
+      highlightAccess,
       editionSlug
     );
   }, [
@@ -1779,7 +1816,9 @@ export function AdvancementModal({
     categories,
     skillAccess,
     championPreviewSkillAccess,
-    editionSlug
+    editionSlug,
+    isCumulativeXp,
+    skillAcquisitionType
   ]);
 
   /**
@@ -1793,11 +1832,19 @@ export function AdvancementModal({
     );
     const allTypes = sample?.available_acquisition_types ?? [];
     if (allTypes.length === 0) return [];
-    // Access level is the only filter. An N26 result deliberately does not narrow this
-    // further: its table is an upper bound the player picks from, not a restriction.
     const allowedIds = new Set(getAllowedAcquisitionTypeIds(selectedSkillSetAccess, allTypes));
+    // N26: the claimed row's radio already chose the acquisition type. Intersect
+    // with that type and the row's skillAcquisitionTypeIds so the follow-on
+    // cannot offer a mode the result does not grant.
+    const n26TypeIds = n26SelectedRow?.skillAcquisitionTypeIds;
     return allTypes
-      .filter((t) => allowedIds.has(t.type_id))
+      .filter((t) => {
+        if (!allowedIds.has(t.type_id)) return false;
+        if (!isCumulativeXp) return true;
+        if (skillAcquisitionType && t.type_id !== skillAcquisitionType) return false;
+        if (n26TypeIds && !n26TypeIds.includes(t.type_id)) return false;
+        return true;
+      })
       .sort((a, b) => a.xp_cost - b.xp_cost)
       .map((t) => {
         const label = isCumulativeXp
@@ -1810,7 +1857,9 @@ export function AdvancementModal({
     selectedCategory,
     availableAdvancements,
     selectedSkillSetAccess,
-    isCumulativeXp
+    isCumulativeXp,
+    skillAcquisitionType,
+    n26SelectedRow
   ]);
 
   /** Skill combobox options for the selected Skill Set; already-owned skills are disabled. */
@@ -1917,13 +1966,15 @@ export function AdvancementModal({
           const formattedAdvancement: AvailableAdvancement = {
             id: advancementDetails.id,
             level: advancementDetails.times_increased || 0,
-            xp_cost: advancementDetails.xp_cost,
+            xp_cost: isCumulativeXp ? 0 : advancementDetails.xp_cost,
             base_xp_cost: advancementDetails.base_xp_cost,
             stat_change: 1,
             can_purchase: advancementDetails.can_purchase,
             is_available: advancementDetails.is_available,
-            has_enough_xp: advancementDetails.has_enough_xp,
-            credits_increase: advancementDetails.credits_increase,
+            has_enough_xp: isCumulativeXp ? true : advancementDetails.has_enough_xp,
+            credits_increase: isCumulativeXp
+              ? (n26SelectedRow?.credits ?? 0)
+              : advancementDetails.credits_increase,
             stat_change_name: selectedCategoryObj.effect_name,
             characteristic_code: advancementDetails.characteristic_code,
             available_acquisition_types: []
@@ -1992,7 +2043,16 @@ export function AdvancementModal({
     };
 
     fetchAvailableAdvancements();
-  }, [advancementType, selectedCategory, fighterId, currentXp, categories, characteristicAdvancements]);
+  }, [
+    advancementType,
+    selectedCategory,
+    fighterId,
+    currentXp,
+    categories,
+    characteristicAdvancements,
+    isCumulativeXp,
+    n26SelectedRow
+  ]);
 
   // Set initial values when an advancement/acquisition type is selected
   const [prevSelectedAdvancement, setPrevSelectedAdvancement] = useState(selectedAdvancement);
@@ -2000,7 +2060,10 @@ export function AdvancementModal({
     setPrevSelectedAdvancement(selectedAdvancement);
     if (selectedAdvancement && advancementType !== 'promotion_to_champion') {
       setEditableXpCost(selectedAdvancement.xp_cost);
-      setEditableCreditsIncrease(selectedAdvancement.credits_increase || 0);
+      // N26 credits are fixed per claimed table row, not per characteristic/skill.
+      if (!isCumulativeXp) {
+        setEditableCreditsIncrease(selectedAdvancement.credits_increase || 0);
+      }
     }
   }
 
@@ -2210,7 +2273,6 @@ export function AdvancementModal({
       ? !championPendingPromotion ||
         championPreviewSkillAccessLoading ||
         !selectedCategory ||
-        selectedSkillSetAccess !== 'primary' ||
         !selectedAdvancement ||
         selectedAdvancement.is_available === false ||
         currentXp < editableXpCost ||
@@ -2218,6 +2280,7 @@ export function AdvancementModal({
         purchaseBlockingBusy
       : !selectedAdvancement ||
         (advancementType === 'skill' && !skillAcquisitionType) ||
+        n26SkillRequiresMatchingSet ||
         !selectedAdvancement.has_enough_xp ||
         editableXpCost < 0 ||
         purchaseBlockingBusy;
@@ -2255,7 +2318,7 @@ export function AdvancementModal({
           <div className="mb-4">
             <p className="text-sm text-muted-foreground mb-2">
               {isCumulativeXp
-                ? 'Rating increase is automatically calculated based on the type and number of advancements. The roll is recorded in your gang log. You can select or adjust the outcome below, whether using this roll or applying your own.'
+                ? 'Rating increase is automatic. Roll 2D6 to log it, or skip if you already rolled — you may take any result you rolled high enough for.'
                 : 'XP cost and rating increase are automatically calculated based on the type and number of advancements.'}
             </p>
           </div>
@@ -2267,15 +2330,17 @@ export function AdvancementModal({
                   items={N26_ADVANCEMENT_TABLE}
                   getRange={(r) => ({ min: r.range[0], max: r.range[1] })}
                   getName={(r) => r.name}
+                  getResultLabel={(total) => formatN26AdvancementThresholdLabel(total)}
                   inline
                   rollFn={() => rollNd6Outcome(2)}
-                  resolveNameForRoll={(t) => resolveN26AdvancementFromUtil(t)?.name}
+                  resolveNameForRoll={(t) => formatN26AdvancementThresholdLabel(t)}
                   onRolled={(rolled) => {
                     if (rolled.length > 0) {
                       const { roll: total, dice } = rolled[0];
                       const row = resolveN26AdvancementFromUtil(total);
                       if (row) {
-                        // Preselect the roll; picking a lower result stays allowed.
+                        setN26RollTotal(total);
+                        // Preselect the exact band; any result at or below the total stays allowed.
                         const combo = N26_ADVANCEMENT_COMBO_OPTIONS.find(
                           (o) => o.range[0] === row.range[0] && o.range[1] === row.range[1]
                         );
@@ -2285,6 +2350,7 @@ export function AdvancementModal({
                     }
                   }}
                   onRoll={(total, dice) => {
+                    setN26RollTotal(total);
                     const row = resolveN26AdvancementFromUtil(total);
                     if (row) logN26RollWithCooldown(row.name, total, dice);
                   }}
@@ -2293,26 +2359,27 @@ export function AdvancementModal({
                 />
               </div>
 
-              <div className="space-y-2 pt-2 border-t">
-                <label className="text-sm font-medium">Advancements</label>
-                <Combobox
-                  value={n26SelectedRowId}
-                  onValueChange={selectN26Row}
-                  placeholder="Select an Advancement"
-                  options={n26AdvancementComboboxOptions}
-                  dropdownPlacement="down"
+              <div>
+                <N26AdvancementResultTable
+                  rows={N26_ADVANCEMENT_COMBO_OPTIONS}
+                  selectedRowId={n26SelectedRowId}
+                  rollTotal={n26RollTotal}
+                  onSelectRow={selectN26Row}
+                  disabled={!userPermissions.canEdit}
                 />
               </div>
 
-              {n26SelectedRow?.characteristics?.length ? (
-                <div className="space-y-3 border-t pt-3">
-                  <p className="text-sm font-medium">Choose a characteristic</p>
+              {n26SelectedRow &&
+              ((n26SelectedRow.characteristics?.length ?? 0) > 0 ||
+                (n26SelectedRow.skillAcquisitionTypeIds?.length ?? 0) > 0) ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground font-medium">Choose an option *</p>
                   <div className="flex flex-col gap-2">
-                    {n26SelectedRow.characteristics.map((name) => (
+                    {n26SelectedRow.characteristics?.map((name) => (
                       <label key={name} className="flex items-center gap-2 text-sm cursor-pointer">
                         <input
                           type="radio"
-                          name="n26-characteristic"
+                          name="n26-result-option"
                           checked={n26CharacteristicName === name}
                           onChange={() => selectN26Characteristic(name)}
                           disabled={!characteristicsLoaded || !characteristicAdvancements[name]}
@@ -2320,26 +2387,24 @@ export function AdvancementModal({
                         {name}
                       </label>
                     ))}
+                    {n26SkillRadioOptions(n26SelectedRow).map((option) => (
+                      <label key={option.typeId} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="radio"
+                          name="n26-result-option"
+                          checked={advancementType === 'skill' && skillAcquisitionType === option.typeId}
+                          onChange={() => selectN26SkillOutcome(option.typeId, n26SelectedRow.credits)}
+                          disabled={!userPermissions.canEdit}
+                        />
+                        {option.label}
+                      </label>
+                    ))}
                   </div>
-                </div>
-              ) : null}
-
-              {n26SelectedRow?.skillAcquisitionTypeIds?.length ? (
-                <div className="space-y-3 border-t pt-3">
-                  <p className="text-sm font-medium">Choose a skill</p>
-                  {advancementType !== 'skill' ? (
-                    <Button
-                      type="button"
-                      variant="default"
-                      className="w-full sm:w-auto"
-                      onClick={selectN26SkillOutcome}
-                      disabled={!userPermissions.canEdit}
-                    >
-                      Take a skill instead
-                    </Button>
-                  ) : (
+                  {advancementType === 'skill' && (
                     <p className="text-xs text-muted-foreground">
-                      Pick a Skill Set below, then the skill this result awards.
+                      {isRandomAcquisitionType
+                        ? 'Choose a Skill Set below, then roll for a skill from it.'
+                        : 'Choose a Skill Set below, then select a skill from it.'}
                     </p>
                   )}
                 </div>
@@ -2391,7 +2456,6 @@ export function AdvancementModal({
                 </div>
 
                 <div className="space-y-2 pt-2 border-t">
-                  <label className="text-sm font-medium">Advancements</label>
                   <Combobox
                     value={gangerSelectedRowId}
                     onValueChange={(v) => {
@@ -2410,7 +2474,7 @@ export function AdvancementModal({
 
                 {gangerSelectedRow?.kind === 'pair' && gangerSelectedRow.pairOptions && (
                   <div className="space-y-3 border-t pt-3">
-                    <p className="text-sm font-medium">Choose a characteristic</p>
+                    <p className="text-sm text-muted-foreground font-medium">Choose a characteristic</p>
                     <div className="flex flex-col gap-2">
                       {gangerSelectedRow.pairOptions.map((name) => (
                         <label key={name} className="flex items-center gap-2 text-sm cursor-pointer">
@@ -2465,7 +2529,7 @@ export function AdvancementModal({
 
                     {gangerPendingPromotion && (
                       <div className="space-y-2">
-                        <label className="text-sm font-medium">Primary Skill Set</label>
+                        <label className="text-sm text-muted-foreground font-medium">Primary Skill Set</label>
                         <Combobox
                           value={gangerSelectedSkillSetId}
                           onValueChange={(v) => {
@@ -2494,10 +2558,9 @@ export function AdvancementModal({
                     )}
                     {gangerPendingPromotion &&
                       gangerSelectedSkillSetId &&
-                      !gangerSkillsInSetLoading &&
-                      gangerSkillsInSet.length > 0 && (
+                      !gangerSkillsInSetLoading && (
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Skill</label>
+                      <label className="text-sm text-muted-foreground font-medium">Skill</label>
                       <div className="flex flex-wrap items-center gap-2">
                         <Button
                           type="button"
@@ -2609,7 +2672,7 @@ export function AdvancementModal({
 
                 {championPendingPromotion && (
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Primary Skill Set</label>
+                    <label className="text-sm text-muted-foreground font-medium">Primary Skill Set</label>
                     <Combobox
                       value={selectedCategory}
                       onValueChange={(v) => {
@@ -2622,11 +2685,6 @@ export function AdvancementModal({
                       disabled={championPreviewSkillAccessLoading}
                       dropdownPlacement="down"
                     />
-                    {championPromotionRequiresPrimarySet && (
-                      <p className="text-sm text-amber-500">
-                        This advancement requires a Primary skill set.
-                      </p>
-                    )}
                   </div>
                 )}
 
@@ -2636,10 +2694,9 @@ export function AdvancementModal({
 
                 {championPendingPromotion &&
                   selectedCategory &&
-                  !skillsLoading &&
-                  availableAdvancements.length > 0 && (
+                  !skillsLoading && (
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Skill</label>
+                      <label className="text-sm text-muted-foreground font-medium">Skill</label>
                       <div className="flex flex-wrap items-center gap-2">
                         <Button
                           type="button"
@@ -2731,10 +2788,13 @@ export function AdvancementModal({
                     onValueChange={(v) => {
                       setSelectedCategory(v);
                       setSelectedAdvancement(null);
-                      setSkillAcquisitionType('');
                       setSkillRollResult(null);
-                      setEditableXpCost(0);
-                      setEditableCreditsIncrease(0);
+                      // N26 already chose the acquisition type on the table radio.
+                      if (!isCumulativeXp) {
+                        setSkillAcquisitionType('');
+                        setEditableXpCost(0);
+                        setEditableCreditsIncrease(0);
+                      }
                     }}
                     placeholder="Select a Skill Set"
                     options={skillSetComboboxOptions}
@@ -2751,13 +2811,22 @@ export function AdvancementModal({
                       access in: Edit Fighter &gt; Customise Skill Set Access.
                     </p>
                   )}
+                  {n26SkillRequiresMatchingSet && !skillAccessLoading && !selectedSkillSetLacksAccess && (
+                    <p className="text-sm text-amber-500">
+                      This advancement requires a{' '}
+                      {skillAcquisitionType.startsWith('primary') ? 'Primary' : 'Secondary'} skill set.
+                    </p>
+                  )}
                 </div>
 
                 {selectedCategory && skillsLoading && (
                   <p className="text-sm text-muted-foreground animate-pulse">Loading skills…</p>
                 )}
 
-                {selectedCategory && !skillsLoading && acquisitionTypeComboboxOptions.length > 0 && (
+                {selectedCategory &&
+                  !skillsLoading &&
+                  !isCumulativeXp &&
+                  acquisitionTypeComboboxOptions.length > 0 && (
                   <Combobox
                     value={skillAcquisitionType}
                     onValueChange={applyAcquisitionTypeSelection}
@@ -2836,7 +2905,7 @@ export function AdvancementModal({
               )}
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Cost Increase in Credits
+                  Credits Value Increase
                 </label>
                 <input
                   type="number"

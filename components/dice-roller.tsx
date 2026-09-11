@@ -19,6 +19,8 @@ type Props<T> = {
   /** Return a total, or totals plus individual dice for breakdown in the UI. */
   rollFn: () => number | RollOutcome;
   resolveNameForRoll?: (roll: number) => string | undefined; // display-only fallback label
+  /** When set, used instead of getName for the roll result line (e.g. N26 threshold). */
+  getResultLabel?: (total: number, item: T) => string;
   buttonText?: string;
   disabled?: boolean;
   className?: string;
@@ -35,6 +37,7 @@ export default function DiceRoller<T>({
   inline = false,
   rollFn,
   resolveNameForRoll,
+  getResultLabel,
   buttonText = 'Roll',
   disabled,
   className,
@@ -115,7 +118,7 @@ export default function DiceRoller<T>({
               results.map((r, idx) => (
                 <span key={idx}>
                   {idx > 0 ? ', ' : ''}
-                  {formatRollOutcomeLine(r.roll, r.dice, getName(r.item))}
+                  {formatRollOutcomeLine(r.roll, r.dice, getResultLabel?.(r.roll, r.item) ?? getName(r.item))}
                 </span>
               ))
             ) : lastOutcome !== null ? (
@@ -149,7 +152,7 @@ export default function DiceRoller<T>({
                 results.map((r, idx) => (
                   <div key={idx} className="p-2 border rounded-sm">
                     <div className="font-semibold">
-                      {formatRollOutcomeLine(r.roll, r.dice, getName(r.item))}
+                      {formatRollOutcomeLine(r.roll, r.dice, getResultLabel?.(r.roll, r.item) ?? getName(r.item))}
                     </div>
                   </div>
                 ))
