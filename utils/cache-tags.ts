@@ -10,7 +10,12 @@ import { revalidateTag } from 'next/cache';
  *
  * Read side                                  | Busted by
  * -------------------------------------------|------------------------------
- * gang-{id}        gang core + fighters      | any gang/fighter mutation
+ * gang-{id}        gang core, campaign        | any gang/fighter mutation
+ *                  captives                  |
+ * gang-roster-{id} fighters AND all gang     | any fighter OR vehicle
+ *                  vehicles, their equipment,| mutation — NOT
+ *                  effects, loadouts, stats  | updateGangFinancials
+ *                  (45 KB - 1 MB)            |
  * gang-overview-{id} name/rating/wealth/     | updateGangFinancials (choke
  *                  credits copies on other   | point) + gang name/reputation
  *                  pages (campaign, home)    | edits — NOT xp/image/loadouts
@@ -26,6 +31,7 @@ import { revalidateTag } from 'next/cache';
  */
 export const TAGS = {
   gang: (id: string) => `gang-${id}`,
+  gangRoster: (id: string) => `gang-roster-${id}`,
   gangOverview: (id: string) => `gang-overview-${id}`,
   gangCampaigns: (id: string) => `gang-campaigns-${id}`,
   gangPositioning: (id: string) => `gang-positioning-${id}`,
@@ -69,12 +75,22 @@ const bust = (tag: string) => revalidateTag(tag, { expire: 0 });
 /** Any gang-shaped data changed (gang core row and/or its fighters). */
 export const invalidateGang = (gangId: string) => {
   bust(TAGS.gang(gangId));
+  bust(TAGS.gangRoster(gangId));
+};
+
+/**
+ * Roster contents changed without a fighter being involved — the bundle holds ALL gang vehicles,
+ * assigned or not, with their equipment and effects.
+ */
+export const invalidateGangRoster = (gangId: string) => {
+  bust(TAGS.gangRoster(gangId));
 };
 
 /** A fighter changed. Always busts the owning gang's bundle too. */
 export const invalidateFighter = (fighterId: string, gangId: string) => {
   bust(TAGS.fighter(fighterId));
   bust(TAGS.gang(gangId));
+  bust(TAGS.gangRoster(gangId));
 };
 
 /**
@@ -91,6 +107,11 @@ export const invalidateGangOverview = (gangId: string) => {
  * Credits/rating/wealth changed: gang pages AND the cross-page copies
  * (campaign standings, home cards). updateGangFinancials calls this for
  * every financial write in the app.
+ *
+ * Deliberately does NOT bust gangRoster: rating is derived from fighters but
+ * stored on the gangs row, so money moving alters nothing the roster holds.
+ * A write that also changes roster contents must say so itself —
+ * invalidateFighter for a fighter, invalidateGangRoster for a vehicle.
  */
 export const invalidateGangFinancials = (gangId: string) => {
   bust(TAGS.gang(gangId));

@@ -1,6 +1,6 @@
 'use server'
 
-import { invalidateGang, invalidateFighter, invalidateGangFinancials } from '@/utils/cache-tags';
+import { invalidateGang, invalidateGangRoster, invalidateFighter, invalidateGangFinancials } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 
 import { getAuthenticatedUser } from '@/utils/auth';
@@ -183,6 +183,7 @@ export async function updateVehicle(params: UpdateVehicleParams): Promise<Update
     // not the caller. Stat-adjustment effects can carry credit costs, so the
     // cross-page financial copies refresh too.
     invalidateGangFinancials(currentVehicle.gang_id);
+    invalidateGangRoster(currentVehicle.gang_id);
     if (params.assignedFighterId) {
       invalidateFighter(params.assignedFighterId, currentVehicle.gang_id);
     }
