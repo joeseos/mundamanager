@@ -11,12 +11,12 @@ const defaultUrl = process.env.NODE_ENV === 'development'
 
 // SEO constants - edit these to update all metadata
 const PAGE_TITLE = 'Merch Store - Munda Manager Merchandise';
-const PAGE_DESCRIPTION = 'Show your support for Munda Manager with official merchandise! Browse our Redbubble store for t-shirts, stickers, mugs, and more featuring unique Necromunda-inspired designs, plus the Munda Manager 12" Assault Gauge from Rapid Fire Dice Box.';
+const PAGE_DESCRIPTION = 'Show your support for Munda Manager with official merchandise! Browse our Redbubble store for t-shirts, stickers, mugs, and more featuring unique Necromunda-inspired designs, plus the Munda Manager 12" Assault Gauge from Tempest Terrain.';
 const PAGE_DESCRIPTION_SHORT = 'Munda Manager merchandise. T-shirts, stickers, mugs and the 12" Assault Gauge for Necromunda fans.';
 const PAGE_KEYWORDS = 'Munda Manager merch, Necromunda merchandise, wargaming t-shirts, tabletop gaming stickers, Munda Manager shop, underhive merchandise, Necromunda measuring gauge, assault gauge';
 
 const REDBUBBLE_STORE_URL = 'https://www.redbubble.com/people/MundaManager';
-const RAPID_FIRE_DICE_BOX_URL = 'https://www.rapidfiredicebox.com/';
+const TEMPEST_TERRAIN_URL = 'https://www.rapidfiredicebox.com/';
 
 type Product = {
   name: string;
@@ -73,7 +73,7 @@ export default function MerchPage() {
       name: '12" Assault Gauge - Munda Manager',
       url: 'https://www.rapidfiredicebox.com/products/12-assault-gauge-munda-manager',
       image: 'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/merch/mm-measuring-gauge.webp',
-      vendor: 'Rapid Fire Dice Box',
+      vendor: 'Tempest Terrain',
     },
     {
       name: 'Munda Manager - Logo and Name Oversized T-Shirt',
@@ -232,12 +232,12 @@ export default function MerchPage() {
               <p className="text-muted-foreground text-sm mt-4">
                 The <strong className="text-foreground">12&quot; Assault Gauge</strong> is a fold-out measuring gauge made for us by{' '}
                 <a
-                  href={RAPID_FIRE_DICE_BOX_URL}
+                  href={TEMPEST_TERRAIN_URL}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="underline hover:text-red-800"
                 >
-                  Rapid Fire Dice Box
+                  Tempest Terrain
                 </a>
                 , so it&apos;s ordered from their store rather than our Redbubble one. Everything else on this page ships from Redbubble.
               </p>
