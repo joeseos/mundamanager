@@ -11,8 +11,8 @@ export default function GangForbidden() {
         stranger — there is nothing for you here.&rdquo;
       </p>
       <p className="text-white/70 text-sm leading-relaxed">
-        This gang has been set to <strong>private</strong> by its owner. Only
-        the gang&apos;s owner and campaign arbitrators can view it.
+        This gang has been set to <strong>private</strong>{' '}
+        by its owner. Only the gang&apos;s owner and campaign arbitrators can view it.
       </p>
       <Button asChild>
         <Link href="/">Return to the Homepage</Link>
