@@ -16,7 +16,6 @@ const PAGE_DESCRIPTION_SHORT = 'Munda Manager merchandise. T-shirts, stickers, m
 const PAGE_KEYWORDS = 'Munda Manager merch, Necromunda merchandise, wargaming t-shirts, tabletop gaming stickers, Munda Manager shop, underhive merchandise, Necromunda measuring gauge, assault gauge';
 
 const REDBUBBLE_STORE_URL = 'https://www.redbubble.com/people/MundaManager';
-const TEMPEST_TERRAIN_URL = 'https://www.rapidfiredicebox.com/';
 
 type Product = {
   name: string;
@@ -230,16 +229,10 @@ export default function MerchPage() {
                 ))}
               </div>
               <p className="text-muted-foreground text-sm mt-4">
-                The <strong className="text-foreground">12&quot; Assault Gauge</strong> is a fold-out measuring gauge made for us by{' '}
-                <a
-                  href={TEMPEST_TERRAIN_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline hover:text-red-800"
-                >
-                  Tempest Terrain
-                </a>
-                , so it&apos;s ordered from their store rather than our Redbubble one. Everything else on this page ships from Redbubble.
+                The <strong className="text-foreground">12&quot; Assault Gauge</strong>{' '}
+                is a fold-out measuring gauge made for us by Tempest Terrain, so it&apos;s
+                ordered from their store rather than our Redbubble one. Everything else on
+                this page ships from Redbubble.
               </p>
             </div>
 
