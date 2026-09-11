@@ -228,12 +228,6 @@ export default function MerchPage() {
                   </div>
                 ))}
               </div>
-              <p className="text-muted-foreground text-sm mt-4">
-                The <strong className="text-foreground">12&quot; Assault Gauge</strong>{' '}
-                is a fold-out measuring gauge made for us by Tempest Terrain, so it&apos;s
-                ordered from their store rather than our Redbubble one. Everything else on
-                this page ships from Redbubble.
-              </p>
             </div>
 
             <div className="mb-8">
