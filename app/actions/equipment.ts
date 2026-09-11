@@ -306,6 +306,70 @@ export async function insertEffectWithModifiers(
   }
 }
 
+/**
+ * Deletes the effects an incoming single_select pick supersedes on the same equipment.
+ *
+ * FighterEffectSelection only enforces single_select within one modal session, so an
+ * earlier pick from the same group is still on the row when the user changes their mind.
+ * Grouping mirrors the modal: same category, same selection_group, where a missing group
+ * is itself a group (the modal compares the raw values, so undefined matches undefined).
+ * Only single_select rows are removed, since a category can also hold multiple_select
+ * effects that are meant to coexist.
+ *
+ * Returns the total credits_increase of the rows removed, for the caller's rating delta.
+ */
+async function removeSupersededSingleSelect(
+  supabase: any,
+  params: {
+    fighter_equipment_id: string;
+    effect_type_id: string;
+    fighter_effect_category_id: string | null;
+    selection_group: string | null;
+  }
+): Promise<number> {
+  const { data: existing } = await supabase
+    .from('fighter_effects')
+    .select('id, fighter_effect_type_id, type_specific_data, fighter_effect_types(fighter_effect_category_id)')
+    .eq('fighter_equipment_id', params.fighter_equipment_id);
+
+  if (!existing?.length) return 0;
+
+  const superseded = existing.filter((effect: any) => {
+    // Re-picking the same effect is a no-op, not a replacement.
+    if (effect.fighter_effect_type_id === params.effect_type_id) return false;
+
+    const typeData = typeof effect.type_specific_data === 'string'
+      ? null
+      : effect.type_specific_data;
+    if (typeData?.effect_selection !== 'single_select') return false;
+
+    const category = effect.fighter_effect_types?.fighter_effect_category_id ?? null;
+    if (category !== params.fighter_effect_category_id) return false;
+
+    return (typeData.selection_group ?? null) === params.selection_group;
+  });
+
+  if (superseded.length === 0) return 0;
+
+  const { error } = await supabase
+    .from('fighter_effects')
+    .delete()
+    .in('id', superseded.map((e: any) => e.id));
+
+  if (error) {
+    console.error('Failed to remove superseded effects:', error);
+    return 0;
+  }
+
+  return superseded.reduce((sum: number, effect: any) => {
+    const typeData = typeof effect.type_specific_data === 'string'
+      ? null
+      : effect.type_specific_data;
+    const creditsIncrease = typeData?.credits_increase;
+    return sum + (typeof creditsIncrease === 'number' ? creditsIncrease : 0);
+  }, 0);
+}
+
 export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promise<EquipmentActionResult> {
   try {
     const supabase = await createClient();
@@ -732,6 +796,12 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           `)
           .in('id', params.selected_effect_ids);
 
+        // Equipment-scoped effects belong on the weapon the item was attached to, not on
+        // the item itself; fighter-level effects must stay unanchored or applyWeaponModifiers
+        // would fold them into a weapon profile.
+        const purchaseTargetId =
+          params.equipment_target?.target_equipment_id || params.target_equipment_id || null;
+
         if (effectTypes && effectTypes.length > 0) {
           // Insert each effect using helper function
           for (const effectType of effectTypes) {
@@ -741,7 +811,10 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
                 fighter_id: params.fighter_id || null,
                 vehicle_id: params.vehicle_id || null,
                 fighter_equipment_id: newEquipmentId,
-                target_equipment_id: null,
+                target_equipment_id:
+                  effectType.type_specific_data?.applies_to === 'equipment'
+                    ? purchaseTargetId
+                    : null,
                 effect_type_id: effectType.id,
                 user_id: user.id
               },
@@ -1506,17 +1579,48 @@ export async function applySelfUpgradesToEquipment(params: {
       return { success: false, error: 'Ownership mismatch' };
     }
 
+    // An accessory's link to the weapon it upgrades lives on the anchor effect row written
+    // at purchase (see the equipment_target branch in buyEquipmentForFighter), not on
+    // fighter_equipment. Without it the effect would key onto the accessory, which has no
+    // weapon profile for gang-assembly to modify.
+    const { data: anchorEffect } = await supabase
+      .from('fighter_effects')
+      .select('target_equipment_id')
+      .eq('fighter_equipment_id', params.fighter_equipment_id)
+      .not('target_equipment_id', 'is', null)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    // Null for an item edited directly (a weapon, or a fighter-level effect): gang-assembly
+    // then keys the effect onto the item itself, which is what those cases want.
+    const anchorTargetId = (anchorEffect as { target_equipment_id: string | null } | null)
+      ?.target_equipment_id ?? null;
+
+    const { data: effectTypeRows } = await supabase
+      .from('fighter_effect_types')
+      .select('id, fighter_effect_category_id, type_specific_data')
+      .in('id', params.effect_type_ids);
+
+    const effectTypesById = new Map<string, any>(
+      (effectTypeRows ?? []).map((t: any) => [t.id, t])
+    );
+
     // Insert all effects
     const results: { effect_type_id: string; success: boolean; error?: string }[] = [];
+    let replacedCreditsIncrease = 0;
 
     for (const effect_type_id of params.effect_type_ids) {
+      const effectType = effectTypesById.get(effect_type_id);
+      const typeData = effectType?.type_specific_data ?? {};
+
       const result = await insertEffectWithModifiers(
         supabase,
         {
           fighter_id: params.fighter_id,
           vehicle_id: null,
           fighter_equipment_id: params.fighter_equipment_id,
-          target_equipment_id: null,
+          target_equipment_id: typeData.applies_to === 'equipment' ? anchorTargetId : null,
           effect_type_id,
           user_id: user.id
         },
@@ -1525,6 +1629,20 @@ export async function applySelfUpgradesToEquipment(params: {
           includeOperation: true
         }
       );
+
+      // Replacing a single_select pick is the admin's configuration talking: the modal only
+      // enforces it within one session, so the previous pick in the same group is still on
+      // the row. Cleared only once the replacement is safely in, so a failed insert leaves
+      // the existing effect intact.
+      if (result.success && typeData.effect_selection === 'single_select') {
+        replacedCreditsIncrease += await removeSupersededSingleSelect(supabase, {
+          fighter_equipment_id: params.fighter_equipment_id,
+          effect_type_id,
+          fighter_effect_category_id: effectType?.fighter_effect_category_id ?? null,
+          // A missing selection_group is itself a group, matching how the modal compares them.
+          selection_group: typeData.selection_group ?? null
+        });
+      }
 
       results.push({
         effect_type_id,
@@ -1544,8 +1662,11 @@ export async function applySelfUpgradesToEquipment(params: {
       };
     }
 
-    // Update gang rating/wealth only if there's a credits_increase
-    if (params.credits_increase && params.credits_increase !== 0) {
+    // Update gang rating/wealth. A replacement nets out: the incoming effect's cost is added
+    // and the superseded one's is taken back off.
+    const ratingDelta = (params.credits_increase ?? 0) - replacedCreditsIncrease;
+
+    if (ratingDelta !== 0) {
       try {
         const { data: fighter } = await supabase
           .from('fighters')
@@ -1556,7 +1677,7 @@ export async function applySelfUpgradesToEquipment(params: {
         const fighterIsActive = fighter && countsTowardRating(fighter);
         await updateGangFinancials(supabase, {
           gangId: params.gang_id,
-          ratingDelta: params.credits_increase,
+          ratingDelta,
           applyToRating: fighterIsActive ?? false
         });
       } catch (e) {

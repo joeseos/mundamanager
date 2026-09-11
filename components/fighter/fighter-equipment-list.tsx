@@ -18,7 +18,7 @@ import { MdOutlineRemoveCircleOutline  } from 'react-icons/md';
 import { TbCornerLeftUp } from 'react-icons/tb';
 import { SellConfirmModal } from '@/components/equipment/sell-confirm-modal';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
-import { FighterEffectType, FighterEffect } from '@/types/fighter-effect';
+import { FighterEffectType, FighterEffect, TypeSpecificData } from '@/types/fighter-effect';
 import { applySelfUpgradesToEquipment } from '@/app/actions/equipment';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { FighterLoadout } from '@/types/equipment';
@@ -435,6 +435,43 @@ export function WeaponList({
       // Build optimistic effect data from selected effects
       const selectedEffects = effectTypesData.filter(et => selectedEffectIds.includes(et.id));
 
+      // Mirror the server's single_select replacement (applySelfUpgradesToEquipment), or the
+      // list would show the old and new pick side by side until the next refetch. Grouping
+      // matches the modal: same category, same selection_group, a missing group being a
+      // group of its own.
+      const incomingGroups = selectedEffects
+        .filter(et => et.type_specific_data?.effect_selection === 'single_select')
+        .map(et => ({
+          categoryId: et.fighter_effect_category_id ?? null,
+          group: et.type_specific_data?.selection_group ?? null,
+        }));
+
+      const supersededEffectIds = new Set(
+        incomingGroups.length === 0
+          ? []
+          : Object.values(fighterEffects)
+              .flat()
+              .filter(applied => {
+                if (applied.fighter_equipment_id !== equipmentData.fighter_equipment_id) return false;
+                if (!applied.fighter_effect_type_id) return false;
+                // Re-picking the same effect is a no-op, not a replacement.
+                if (selectedEffectIds.includes(applied.fighter_effect_type_id)) return false;
+
+                const appliedType = effectTypesData.find(et => et.id === applied.fighter_effect_type_id);
+                if (appliedType?.type_specific_data?.effect_selection !== 'single_select') return false;
+
+                return incomingGroups.some(incoming =>
+                  incoming.categoryId === (appliedType.fighter_effect_category_id ?? null) &&
+                  incoming.group === (appliedType.type_specific_data?.selection_group ?? null)
+                );
+              })
+              .map(applied => applied.id)
+      );
+
+      const supersededEffects = Object.values(fighterEffects)
+        .flat()
+        .filter(effect => supersededEffectIds.has(effect.id));
+
       // Build optimistic FighterEffect objects (include modifiers for weapon profile updates)
       const newEffects: FighterEffect[] = selectedEffects.map((effect, index) => {
         const tempId = `temp-${Date.now()}-${index}`;
@@ -456,9 +493,11 @@ export function WeaponList({
       });
 
       // Apply optimistic update: add effect_names and update weapon profiles
+      const supersededNames = new Set(supersededEffects.map(e => e.effect_name));
       const optimisticEquipment = equipment.map(item => {
         if (item.fighter_equipment_id === equipmentData.fighter_equipment_id) {
-          const existingEffectNames = item.effect_names || [];
+          const existingEffectNames = (item.effect_names || [])
+            .filter(name => !supersededNames.has(name));
           const newEffectNames = selectedEffects.map(e => e.effect_name);
 
           let updatedProfiles = item.weapon_profiles;
@@ -475,17 +514,25 @@ export function WeaponList({
         return item;
       });
 
-      // Add new effects to 'equipment' category (or create it)
-      const updatedFighterEffects = {
-        ...fighterEffects,
-        equipment: [...(fighterEffects.equipment || []), ...newEffects]
+      // Drop superseded effects, then add the new ones to the 'equipment' category
+      const updatedFighterEffects: Record<string, FighterEffect[]> = {};
+      for (const [category, effects] of Object.entries(fighterEffects)) {
+        updatedFighterEffects[category] = effects.filter(e => !supersededEffectIds.has(e.id));
+      }
+      updatedFighterEffects.equipment = [
+        ...(updatedFighterEffects.equipment || []),
+        ...newEffects
+      ];
+
+      // Net credits change: the incoming effects' cost less the superseded ones'
+      const creditsOf = (data: TypeSpecificData | string | null | undefined) => {
+        const creditsIncrease = (typeof data === 'string' ? null : data)?.credits_increase;
+        return typeof creditsIncrease === 'number' ? creditsIncrease : 0;
       };
 
-      // Calculate total credits increase from selected effects
-      const totalCreditsIncrease = selectedEffects.reduce((sum, effect) => {
-        const creditsIncrease = effect.type_specific_data?.credits_increase;
-        return sum + (typeof creditsIncrease === 'number' ? creditsIncrease : 0);
-      }, 0);
+      const totalCreditsIncrease =
+        selectedEffects.reduce((sum, effect) => sum + creditsOf(effect.type_specific_data), 0) -
+        supersededEffects.reduce((sum, effect) => sum + creditsOf(effect.type_specific_data), 0);
 
       // Apply optimistic updates
       onEquipmentUpdate(optimisticEquipment, previousFighterCredits + totalCreditsIncrease, previousGangCredits);

@@ -50,6 +50,10 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
   const [effectTypes, setEffectTypes] = useState<any[]>([]);
   const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] } | null>(null);
   const [upgradeEffect, setUpgradeEffect] = useState<{ id: string; name: string } | null>(null);
+  // An equipment upgrade can also carry editable effects (e.g. Enhance weapon's traits).
+  // Those are picked in a second step, once we know which weapon they land on.
+  const [upgradeEffectOptions, setUpgradeEffectOptions] = useState<any[]>([]);
+  const [chosenTargetId, setChosenTargetId] = useState<string | null>(null);
 
   // Grants selection state
   const [showGrantsSelection, setShowGrantsSelection] = useState(false);
@@ -92,16 +96,30 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
 
   const buildConfirmOptions = (
     overrides: Partial<PurchaseConfirmOptions> & { cost: number }
-  ): PurchaseConfirmOptions => ({
-    isMasterCrafted,
-    useBaseCostForRating,
-    selectedEffectIds: [],
-    selectedGrantEquipmentIds: [],
-    resourceCost,
-    // Explicit even when hidden: omitting it makes the server charge the catalog cost.
-    ...(editionHasTradePoints && { tradePoints: showTradePoints ? manualTradePoints.trim() : '0' }),
-    ...overrides,
-  });
+  ): PurchaseConfirmOptions => {
+    const options: PurchaseConfirmOptions = {
+      isMasterCrafted,
+      useBaseCostForRating,
+      selectedEffectIds: [],
+      selectedGrantEquipmentIds: [],
+      resourceCost,
+      // Explicit even when hidden: omitting it makes the server charge the catalog cost.
+      ...(editionHasTradePoints && { tradePoints: showTradePoints ? manualTradePoints.trim() : '0' }),
+      ...overrides,
+    };
+
+    // Carried on every path once a weapon has been chosen, so a later step (effects, grants)
+    // can't drop the anchor the upgrade needs. Applied after the overrides because callers
+    // that thread an optional target pass an explicit undefined when they have none.
+    if (!options.equipmentTarget && chosenTargetId && upgradeEffect) {
+      options.equipmentTarget = {
+        target_equipment_id: chosenTargetId,
+        effect_type_id: upgradeEffect.id,
+      };
+    }
+
+    return options;
+  };
 
   const calculateMasterCraftedCost = (baseCost: number) => {
     // Increase by 25% and round up to nearest 5
@@ -219,6 +237,15 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
             .map((effect: any) => effect.id) || [];
           setSelectedEffectIds(fixedFighterEffectIds);
 
+          // The upgrade's own editable effects are offered after the weapon is chosen, so
+          // they can be anchored to it in the same purchase.
+          setUpgradeEffectOptions(
+            fetchedEffectTypes?.filter((effect: any) =>
+              effect.type_specific_data?.applies_to === 'equipment' &&
+              effect.type_specific_data?.is_editable === true
+            ) || []
+          );
+
           setUpgradeEffect({ id: equipmentUpgrade.id, name: equipmentUpgrade.effect_name });
           setShowTargetSelection(true);
           return false;
@@ -262,18 +289,30 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
   };
 
   const handleEffectSelectionComplete = async (effectIds: string[]) => {
-    setSelectedEffectIds(effectIds);
+    // Merge rather than replace: the upgrade path already collected the item's fixed
+    // fighter effects before sending the user through the weapon and effect steps.
+    const mergedEffectIds = Array.from(new Set([...selectedEffectIds, ...effectIds]));
+    setSelectedEffectIds(mergedEffectIds);
     setShowEffectSelection(false);
     setEffectTypes([]);
     // Check for grants selection before proceeding
-    await checkAndShowGrantsSelection(effectIds);
+    await checkAndShowGrantsSelection(mergedEffectIds);
   };
 
   const handleEffectSelectionCancel = () => {
     setShowEffectSelection(false);
-    setSelectedEffectIds([]);
     setIsEffectSelectionValid(false);
     setEffectTypes([]);
+
+    // Backing out of the upgrade's effect step returns to the weapon choice rather than
+    // stranding the purchase half-configured.
+    if (chosenTargetId) {
+      setChosenTargetId(null);
+      setShowTargetSelection(true);
+      return;
+    }
+
+    setSelectedEffectIds([]);
   };
 
   const handleEffectSelectionValidityChange = (isValid: boolean) => {
@@ -295,15 +334,25 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
             effectName={upgradeEffect?.name}
             fighterWeapons={fighterWeapons}
             onApplyToTarget={async (targetEquipmentId) => {
-              // Execute purchase immediately with the chosen target
-              const equipmentTargetData = {
-                target_equipment_id: targetEquipmentId,
-                effect_type_id: upgradeEffect?.id as string
-              };
+              setChosenTargetId(targetEquipmentId);
+              setShowTargetSelection(false);
+
+              // The upgrade carries editable effects: pick them before buying, so they are
+              // anchored to this weapon in the same purchase.
+              if (upgradeEffectOptions.length > 0) {
+                setEffectTypes(upgradeEffectOptions);
+                setIsEffectSelectionValid(false);
+                setShowEffectSelection(true);
+                return;
+              }
+
               onConfirm(buildConfirmOptions({
                 cost: Number(manualCost),
                 selectedEffectIds,
-                equipmentTarget: equipmentTargetData,
+                equipmentTarget: {
+                  target_equipment_id: targetEquipmentId,
+                  effect_type_id: upgradeEffect?.id as string
+                },
               }));
             }}
             onSelectionComplete={() => {
@@ -312,6 +361,9 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
             onCancel={() => {
               setShowTargetSelection(false);
               setUpgradeEffect(null);
+              setUpgradeEffectOptions([]);
+              setChosenTargetId(null);
+              setSelectedEffectIds([]);
             }}
             onValidityChange={(isValid) => setIsEffectSelectionValid(isValid)}
             ref={effectSelectionRef}
@@ -319,9 +371,12 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
         }
         onClose={onClose}
         onConfirm={async () => {
-          return await effectSelectionRef.current?.handleConfirm() || false;
+          const confirmed = await effectSelectionRef.current?.handleConfirm() || false;
+          // handleConfirm reports success for the target step, which would close the whole
+          // purchase modal. When an effect step follows, stay open so it can render.
+          return confirmed && upgradeEffectOptions.length === 0;
         }}
-        confirmText="Confirm"
+        confirmText={upgradeEffectOptions.length > 0 ? 'Next' : 'Confirm'}
         confirmDisabled={!isEffectSelectionValid}
         width="lg"
       />
