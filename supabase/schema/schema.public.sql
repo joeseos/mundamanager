@@ -2186,15 +2186,54 @@ $$;
 
 
 --
--- Name: get_fighter_types_with_cost(uuid, uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
+-- Name: get_fighter_types_with_cost(uuid, uuid, boolean, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_fighter_types_with_cost(p_gang_type_id uuid DEFAULT NULL::uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid, p_is_gang_addition boolean DEFAULT NULL::boolean) RETURNS TABLE(id uuid, fighter_type text, fighter_subtypes jsonb, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, save numeric, limitation numeric, alignment public.alignment, is_gang_addition boolean, alliance_id uuid, alliance_crew_name text, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, specialisation jsonb, fighter_variant text, available_legacies jsonb, free_skill boolean, delegation_cost numeric, is_dramatis_personae boolean, edition_slug text, starting_xp numeric, is_vehicle boolean)
+CREATE FUNCTION public.get_fighter_types_with_cost(p_gang_type_id uuid DEFAULT NULL::uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid, p_is_gang_addition boolean DEFAULT NULL::boolean, p_gang_id uuid DEFAULT NULL::uuid) RETURNS TABLE(id uuid, fighter_type text, fighter_subtypes jsonb, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, save numeric, limitation numeric, alignment public.alignment, is_gang_addition boolean, alliance_id uuid, alliance_crew_name text, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, specialisation jsonb, fighter_variant text, available_legacies jsonb, free_skill boolean, delegation_cost numeric, is_dramatis_personae boolean, edition_slug text, starting_xp numeric, is_vehicle boolean, is_gang_subtype boolean, gang_subtype_name text)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
+DECLARE
+    v_gang_type_id   uuid;
+    v_gang_origin_id uuid;
+    v_gang_subtypes  jsonb := '[]'::jsonb;
+    v_has_gang       boolean := false;
 BEGIN
+    IF p_gang_id IS NOT NULL THEN
+        -- The gang's own gang type, not p_gang_type_id, which the include-all caller passes NULL.
+        SELECT g.gang_type_id, g.gang_origin_id, COALESCE(g.gang_subtypes, '[]'::jsonb)
+          INTO v_gang_type_id, v_gang_origin_id, v_gang_subtypes
+          FROM gangs g
+         WHERE g.id = p_gang_id;
+
+        -- SELECT INTO nulls every target when no row matches, discarding the '[]' initialiser;
+        -- a NULL there would skip subtype and origin rules while gang-type rules still fired.
+        v_has_gang := FOUND;
+        IF NOT v_has_gang THEN
+            v_gang_subtypes := '[]'::jsonb;
+        END IF;
+    END IF;
+
     RETURN QUERY
+    WITH rules AS (
+        -- Every non-NULL axis must match, as get_equipment_detailed_data does for its own tables.
+        SELECT a.fighter_type_id, a.fighter_subtype, a.excluded, a.gang_subtype_id
+        FROM fighter_type_availability a
+        WHERE v_has_gang
+          AND (a.gang_subtype_id IS NULL OR v_gang_subtypes ? a.gang_subtype_id::text)
+          AND (a.gang_origin_id  IS NULL OR a.gang_origin_id = v_gang_origin_id)
+          AND (a.gang_type_id    IS NULL OR a.gang_type_id  = v_gang_type_id)
+    ),
+    granted AS (
+        -- DISTINCT ON so two subtypes granting the same fighter yield one row, not a duplicate.
+        SELECT DISTINCT ON (r.fighter_type_id)
+               r.fighter_type_id,
+               gst.subtype AS subtype_name
+        FROM rules r
+        LEFT JOIN gang_subtype_types gst ON gst.id = r.gang_subtype_id
+        WHERE NOT r.excluded
+        ORDER BY r.fighter_type_id, gst.subtype NULLS LAST
+    )
     SELECT
         ft.id,
         ft.fighter_type,
@@ -3016,29 +3055,50 @@ BEGIN
         ft.is_dramatis_personae,
         ed.slug AS edition_slug,
         ft.starting_xp,
-        ft.is_vehicle
+        ft.is_vehicle,
+        (g.subtype_name IS NOT NULL) AS is_gang_subtype,
+        g.subtype_name AS gang_subtype_name
     FROM fighter_types ft
     LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id
         AND ftgc.gang_type_id = p_gang_type_id
         AND (ftgc.gang_affiliation_id IS NULL OR ftgc.gang_affiliation_id = p_gang_affiliation_id)
     LEFT JOIN fighter_specialisations fspec ON fspec.id = ft.fighter_specialisation_id
     LEFT JOIN editions ed ON ed.id = ft.edition_id
+    LEFT JOIN granted g ON g.fighter_type_id = ft.id
     WHERE
-        CASE
-            -- Gang additions: cross-gang pool, filtered only by the flag
-            WHEN p_is_gang_addition = true THEN ft.is_gang_addition = true
-            -- Roster: fighters belonging to this gang type (plus affiliation-cost
-            -- overrides). Matches the previous get_add_fighter_details behaviour,
-            -- including this gang type's own gang-addition-flagged fighters.
-            WHEN p_is_gang_addition = false THEN (
-                ft.gang_type_id = p_gang_type_id
-                OR (ftgc.fighter_type_id IS NOT NULL
-                    AND ftgc.gang_affiliation_id IS NOT NULL
-                    AND ftgc.gang_affiliation_id = p_gang_affiliation_id)
+        (
+            CASE
+                -- Gang additions: cross-gang pool, filtered only by the flag
+                WHEN p_is_gang_addition = true THEN ft.is_gang_addition = true
+                -- Roster: fighters belonging to this gang type (plus affiliation-cost
+                -- overrides). Matches the previous get_add_fighter_details behaviour,
+                -- including this gang type's own gang-addition-flagged fighters.
+                WHEN p_is_gang_addition = false THEN (
+                    ft.gang_type_id = p_gang_type_id
+                    OR (ftgc.fighter_type_id IS NOT NULL
+                        AND ftgc.gang_affiliation_id IS NOT NULL
+                        AND ftgc.gang_affiliation_id = p_gang_affiliation_id)
+                )
+                -- Include-all (both params NULL): every fighter type
+                ELSE true
+            END
+            AND NOT EXISTS (
+                SELECT 1
+                FROM rules r
+                WHERE r.excluded
+                  -- A deny only removes the gang's own gang type's fighters; without the anchor
+                  -- an include-all call would strip every match in the game.
+                  AND ft.gang_type_id = v_gang_type_id
+                  AND (
+                      r.fighter_type_id = ft.id
+                      OR (r.fighter_subtype IS NOT NULL
+                          AND ft.fighter_subtypes ? r.fighter_subtype)
+                  )
             )
-            -- Include-all (both params NULL): every fighter type
-            ELSE true
-        END;
+        )
+        -- Outside the parens so a grant survives a deny, and reaches the hidden 'Subtype: <name>'
+        -- pools the CASE above excludes.
+        OR g.fighter_type_id IS NOT NULL;
 END;
 $$;
 
@@ -5502,6 +5562,74 @@ COMMENT ON COLUMN public.fighter_subtypes.subtype_name IS 'Subtype identity. Uni
 
 
 --
+-- Name: fighter_type_availability; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.fighter_type_availability (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    fighter_type_id uuid,
+    fighter_subtype text,
+    gang_type_id uuid,
+    gang_origin_id uuid,
+    gang_subtype_id uuid,
+    excluded boolean DEFAULT false NOT NULL,
+    CONSTRAINT fighter_type_availability_scope_chk CHECK ((num_nonnulls(gang_type_id, gang_origin_id, gang_subtype_id) >= 1)),
+    CONSTRAINT fighter_type_availability_target_chk CHECK ((((fighter_type_id IS NOT NULL) <> (fighter_subtype IS NOT NULL)) AND (excluded OR (fighter_type_id IS NOT NULL))))
+);
+
+
+--
+-- Name: COLUMN fighter_type_availability.fighter_type_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighter_type_availability.fighter_type_id IS 'The fighter type this row acts on. Required for a grant -- "grant every Brute" names no fighter to add -- which fighter_type_availability_target_chk enforces.';
+
+
+--
+-- Name: COLUMN fighter_type_availability.fighter_subtype; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighter_type_availability.fighter_subtype IS 'Deny-only alternative to fighter_type_id: every fighter carrying this subtype name, matched against fighter_types.fighter_subtypes. A name rather than an FK because subtypes are stored as names in jsonb arrays throughout; see 20260806120000.';
+
+
+--
+-- Name: COLUMN fighter_type_availability.gang_type_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighter_type_availability.gang_type_id IS 'Restricts the row to gangs of this gang type. NULL applies regardless of gang type.';
+
+
+--
+-- Name: COLUMN fighter_type_availability.gang_origin_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighter_type_availability.gang_origin_id IS 'Restricts the row to gangs with this origin (gangs.gang_origin_id). NULL applies regardless of origin.';
+
+
+--
+-- Name: COLUMN fighter_type_availability.gang_subtype_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighter_type_availability.gang_subtype_id IS 'Restricts the row to gangs holding this subtype (gangs.gang_subtypes contains the id). Per-edition, so an N26 rule cannot reach the N23 re-issue of the same subtype. NULL applies regardless of subtype.';
+
+
+--
+-- Name: COLUMN fighter_type_availability.excluded; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighter_type_availability.excluded IS 'false grants the fighter type to gangs matching this row''s scope; true denies it, removing it from the gang type''s own pool even where the base catalogue offers it. A deny never strips a fighter that a grant supplied.';
+
+
+--
+-- Name: CONSTRAINT fighter_type_availability_scope_chk ON fighter_type_availability; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON CONSTRAINT fighter_type_availability_scope_chk ON public.fighter_type_availability IS 'At least one scope axis must be set; an all-NULL scope would apply to every gang in the game.';
+
+
+--
 -- Name: fighter_type_equipment; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6870,6 +6998,14 @@ ALTER TABLE ONLY public.fighter_subtypes
 
 
 --
+-- Name: fighter_type_availability fighter_type_availability_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_type_availability
+    ADD CONSTRAINT fighter_type_availability_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: fighter_type_equipment fighter_type_equipment_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7962,6 +8098,41 @@ CREATE UNIQUE INDEX fighter_subtypes_edition_subtype_name_idx ON public.fighter_
 --
 
 CREATE INDEX fighter_subtypes_subtype_name_idx ON public.fighter_subtypes USING btree (subtype_name);
+
+
+--
+-- Name: fighter_type_availability_fighter_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_type_availability_fighter_type_id_idx ON public.fighter_type_availability USING btree (fighter_type_id);
+
+
+--
+-- Name: fighter_type_availability_gang_origin_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_type_availability_gang_origin_id_idx ON public.fighter_type_availability USING btree (gang_origin_id);
+
+
+--
+-- Name: fighter_type_availability_gang_subtype_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_type_availability_gang_subtype_id_idx ON public.fighter_type_availability USING btree (gang_subtype_id);
+
+
+--
+-- Name: fighter_type_availability_gang_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_type_availability_gang_type_id_idx ON public.fighter_type_availability USING btree (gang_type_id);
+
+
+--
+-- Name: fighter_type_availability_scope_uidx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX fighter_type_availability_scope_uidx ON public.fighter_type_availability USING btree (fighter_type_id, fighter_subtype, gang_type_id, gang_origin_id, gang_subtype_id) NULLS NOT DISTINCT;
 
 
 --
@@ -10195,6 +10366,38 @@ ALTER TABLE ONLY public.fighter_subtypes
 
 
 --
+-- Name: fighter_type_availability fighter_type_availability_fighter_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_type_availability
+    ADD CONSTRAINT fighter_type_availability_fighter_type_id_fkey FOREIGN KEY (fighter_type_id) REFERENCES public.fighter_types(id) ON DELETE CASCADE;
+
+
+--
+-- Name: fighter_type_availability fighter_type_availability_gang_origin_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_type_availability
+    ADD CONSTRAINT fighter_type_availability_gang_origin_id_fkey FOREIGN KEY (gang_origin_id) REFERENCES public.gang_origins(id) ON DELETE CASCADE;
+
+
+--
+-- Name: fighter_type_availability fighter_type_availability_gang_subtype_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_type_availability
+    ADD CONSTRAINT fighter_type_availability_gang_subtype_id_fkey FOREIGN KEY (gang_subtype_id) REFERENCES public.gang_subtype_types(id) ON DELETE CASCADE;
+
+
+--
+-- Name: fighter_type_availability fighter_type_availability_gang_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_type_availability
+    ADD CONSTRAINT fighter_type_availability_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(gang_type_id) ON DELETE CASCADE;
+
+
+--
 -- Name: fighter_type_equipment fighter_type_equipment_custom_fighter_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11309,6 +11512,13 @@ CREATE POLICY "Allow authenticated users to view fighter_loadouts" ON public.fig
 --
 
 CREATE POLICY "Allow authenticated users to view fighter_specialisations" ON public.fighter_specialisations FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: fighter_type_availability Allow authenticated users to view fighter_type_availability; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view fighter_type_availability" ON public.fighter_type_availability FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -13786,6 +13996,33 @@ CREATE POLICY fighter_subtypes_select_policy ON public.fighter_subtypes FOR SELE
 --
 
 CREATE POLICY fighter_subtypes_update_policy ON public.fighter_subtypes FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: fighter_type_availability; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.fighter_type_availability ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: fighter_type_availability fighter_type_availability_admin_delete_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY fighter_type_availability_admin_delete_policy ON public.fighter_type_availability FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: fighter_type_availability fighter_type_availability_admin_insert_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY fighter_type_availability_admin_insert_policy ON public.fighter_type_availability FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: fighter_type_availability fighter_type_availability_admin_update_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY fighter_type_availability_admin_update_policy ON public.fighter_type_availability FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
 
 
 --
