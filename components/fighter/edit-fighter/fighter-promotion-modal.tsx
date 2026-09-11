@@ -454,7 +454,7 @@ export function FighterPromotionModal({
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium mb-1">
+                <label className="block text-sm text-muted-foreground font-medium mb-1">
                   Promote to Fighter Type
                 </label>
                 {displayTypes.length === 0 ? (
@@ -498,7 +498,7 @@ export function FighterPromotionModal({
               {/* Current Special Rules (read-only) */}
               {normalizedCurrentSpecialRules.length > 0 && (
                 <div>
-                  <label className="block text-sm font-medium mb-1">
+                  <label className="block text-sm text-muted-foreground font-medium mb-1">
                   Special Rules to be Removed
                   </label>
                   <div className="flex flex-wrap gap-2">
@@ -518,7 +518,7 @@ export function FighterPromotionModal({
 
           {/* Special Rules (editable) */}
           <div>
-            <label className="block text-sm font-medium mb-1">
+            <label className="block text-sm text-muted-foreground font-medium mb-1">
               {isSimplifiedPath ? 'Special Rules' : 'Special Rules to be Added'}
             </label>
             <div className="flex space-x-2 mb-2">

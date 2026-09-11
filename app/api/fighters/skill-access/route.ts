@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     /** When set, skill access rows are loaded for this promoted fighter type instead of the fighter's current type. */
     const previewFighterTypeId = searchParams.get('previewFighterTypeId');
     const previewCustomFighterTypeId = searchParams.get('previewCustomFighterTypeId');
-    /** When set, also return the individual skills in this skill type (must be a Primary set). */
+    /** When set, also return the individual skills in this skill type (should be a Primary set but no restriction in place). */
     const skillTypeId = searchParams.get('skillTypeId');
     if (!fighterId) {
       return NextResponse.json({ error: 'Missing fighterId' }, { status: 400 });
@@ -225,24 +225,9 @@ export async function GET(request: Request) {
       }
     }
 
-    // When skillTypeId is provided, also return individual skills for that skill type
+    // When skillTypeId is provided, also return individual skills for that skill type.
+    // Callers (e.g. N23 promotion) may list a non-Primary set and warn; do not 400 here.
     if (skillTypeId) {
-      // Verify the requested skill type has "primary" effective access
-      const matchedAccess = skillAccessWithOrigin.find(
-        (a) => a.skill_type_id === skillTypeId
-      );
-      const effectiveAccess = matchedAccess
-        ? (matchedAccess.override_access_level ?? matchedAccess.access_level)
-        : null;
-
-      if (effectiveAccess !== 'primary') {
-        return NextResponse.json(
-          { error: 'Skill type is not a Primary set for this fighter type' },
-          { status: 400 }
-        );
-      }
-
-      // Fetch skills in this skill type
       const { data: skillsRaw, error: skillsErr } = await supabase
         .from('skills')
         .select('id, name, skill_type_id, gang_origin_id')
