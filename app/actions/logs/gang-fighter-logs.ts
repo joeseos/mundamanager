@@ -3,7 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { createGangLog, GangLogActionResult } from "./gang-logs";
 
-import { formatN26AdvancementThresholdLabel, formatRollOutcomeLine } from "@/utils/dice";
+import { formatRollOutcomeLine } from "@/utils/dice";
 
 // Advancement Logging Functions
 
@@ -236,10 +236,8 @@ function gangerAdvancementRollDetailLine(diceData: unknown): string | null {
     Array.isArray(d.dice) && d.dice.length > 0 && d.dice.every((x) => typeof x === 'number')
       ? (d.dice as number[])
       : [d.result];
-  const label = mayTakeLowerAdvancementResults(diceData)
-    ? formatN26AdvancementThresholdLabel(d.result)
-    : undefined;
-  return formatRollOutcomeLine(d.result, dice, label);
+  // N26 threshold wording lives on the first log line; this line is dice only.
+  return formatRollOutcomeLine(d.result, dice);
 }
 
 export async function logRolledGangerAdvancement(params: GangerAdvancementRollLogParams): Promise<GangLogActionResult> {
