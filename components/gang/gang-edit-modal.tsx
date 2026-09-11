@@ -11,7 +11,7 @@ import Modal from '@/components/ui/modal';
 import { toast } from 'sonner';
 import { HexColorPicker } from "react-colorful";
 import { groupAlliancesByType } from "@/utils/allianceRank";
-import { gangSubtypeRank } from "@/utils/gangSubtypeRank";
+import { getGangSubtypeRank } from "@/utils/gangSubtypeRank";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { deleteGang } from '@/app/actions/delete-gang';
 import { hasAlignment, sameEditionForDisplay } from '@/types/edition';
@@ -199,6 +199,7 @@ export default function GangEditModal({
     sameEditionForDisplay(subtype.edition_slug, editionSlug)
   );
   const showGangSubtypes = editionAvailableSubtypes.length > 0;
+  const gangSubtypeRank = getGangSubtypeRank(editionSlug);
   const showAlignment = hasAlignment(editionSlug);
   // Mirror admin fighter-type forms: clear alignment when the edition lacks it
   const effectiveAlignment = showAlignment ? alignment : '';
@@ -295,23 +296,26 @@ export default function GangEditModal({
     });
   }, [unlockRankModalScroll]);
 
-  const ranksInitializedRef = useRef(false);
-  useEffect(() => {
-    if (!isOpen) {
-      ranksInitializedRef.current = false;
-      setShowRankChangeConfirm(false);
-      unlockRankModalScroll();
-      return;
-    }
-    if (ranksInitializedRef.current) return;
-    if (!existingRanksLoaded) return;
+  // Seeded once per opening, so a refetch mid-edit cannot overwrite unsaved reordering.
+  // Adjusted during render like the form state below; an effect here cascades a render.
+  const [ranksSeeded, setRanksSeeded] = useState(false);
+  if (!isOpen && ranksSeeded) {
+    setRanksSeeded(false);
+    setShowRankChangeConfirm(false);
+  }
+  if (isOpen && !ranksSeeded && existingRanksLoaded) {
+    setRanksSeeded(true);
     setRanks(
       [...existingRanks]
         .sort((a, b) => a.rank - b.rank)
         .map((r) => r.skill_type_id),
     );
-    ranksInitializedRef.current = true;
-  }, [isOpen, existingRanks, existingRanksLoaded, unlockRankModalScroll]);
+  }
+
+  // Closing mid-drag would otherwise leave the scroll parent locked.
+  useEffect(() => {
+    if (!isOpen) unlockRankModalScroll();
+  }, [isOpen, unlockRankModalScroll]);
 
   // Get campaign ID and current allegiance if gang is in a campaign
   const campaignId = campaigns?.[0]?.campaign_id;
