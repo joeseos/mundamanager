@@ -72,7 +72,7 @@ export default function MerchPage() {
     {
       name: '12" Assault Gauge - Munda Manager',
       url: 'https://www.rapidfiredicebox.com/products/12-assault-gauge-munda-manager',
-      image: '/images/merch/assault-gauge-munda-manager.webp',
+      image: 'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/merch/mm-measuring-gauge.webp',
       vendor: 'Rapid Fire Dice Box',
     },
     {
