@@ -382,11 +382,17 @@ const CampaignBattleLogModal = ({
       s.scenario_name === battleToEdit.scenario
     );
 
+    // A challenge slot is created without a scenario, so treat "none" as its own
+    // state rather than falling through to an empty custom name.
+    const existingScenario = battleToEdit.scenario || battleToEdit.scenario_name || '';
     if (matchingScenario) {
       setSelectedScenario(matchingScenario.id);
-    } else {
+    } else if (existingScenario) {
       setSelectedScenario('custom');
-      setCustomScenario(battleToEdit.scenario || battleToEdit.scenario_name || '');
+      setCustomScenario(existingScenario);
+    } else {
+      setSelectedScenario('');
+      setCustomScenario('');
     }
 
     if (battleToEdit.created_at) {
@@ -837,6 +843,7 @@ const CampaignBattleLogModal = ({
             </label>
             <Combobox
               options={[
+                { value: '', label: 'No scenario selected' },
                 { value: 'custom', label: 'Custom' },
                 ...scenarios.map(scenario => ({
                   value: scenario.id,
@@ -847,7 +854,10 @@ const CampaignBattleLogModal = ({
               ]}
               value={selectedScenario === 'custom' ? 'custom' : selectedScenario}
               onValueChange={(value) => {
-                if (value === 'custom') {
+                if (value === '') {
+                  setSelectedScenario('');
+                  setCustomScenario('');
+                } else if (value === 'custom') {
                   setSelectedScenario('custom');
                   setCustomScenario('');
                 } else {
