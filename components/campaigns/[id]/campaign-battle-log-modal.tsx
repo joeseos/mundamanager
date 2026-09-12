@@ -382,11 +382,17 @@ const CampaignBattleLogModal = ({
       s.scenario_name === battleToEdit.scenario
     );
 
+    // A challenge slot is created without a scenario, so treat "none" as its own
+    // state rather than falling through to an empty custom name.
+    const existingScenario = battleToEdit.scenario || battleToEdit.scenario_name || '';
     if (matchingScenario) {
       setSelectedScenario(matchingScenario.id);
-    } else {
+    } else if (existingScenario) {
       setSelectedScenario('custom');
-      setCustomScenario(battleToEdit.scenario || battleToEdit.scenario_name || '');
+      setCustomScenario(existingScenario);
+    } else {
+      setSelectedScenario('');
+      setCustomScenario('');
     }
 
     if (battleToEdit.created_at) {
@@ -534,7 +540,7 @@ const CampaignBattleLogModal = ({
     if (isSubmitting) return false;
 
     // Validate required fields
-    if (selectedScenario === '') {
+    if (showResultFields && selectedScenario === '') {
       toast.error("Please select a scenario");
       return false;
     }
@@ -564,7 +570,7 @@ const CampaignBattleLogModal = ({
       return false;
     }
 
-    if (!hasAnyWinnerSelected) {
+    if (showResultFields && !hasAnyWinnerSelected) {
       toast.error("Please select a winner");
       return false;
     }
@@ -765,22 +771,22 @@ const CampaignBattleLogModal = ({
       content={
         <div className="space-y-4">
           {isUnplayedChallenge && (
-            <div className="flex items-start gap-2 rounded-md border border-border bg-muted p-3">
-              <Checkbox
-                id="battle-played"
-                checked={battlePlayed}
-                onCheckedChange={(checked) => setBattlePlayed(checked === true)}
-                disabled={isLoadingBattleData}
-              />
-              <div>
+            <div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="battle-played"
+                  checked={battlePlayed}
+                  onCheckedChange={(checked) => setBattlePlayed(checked === true)}
+                  disabled={isLoadingBattleData}
+                />
                 <Label htmlFor="battle-played" className="text-sm font-medium">
                   Battle played
                 </Label>
-                <p className="text-xs text-muted-foreground">
-                  Tick this once the battle has been fought to record the result and
-                  file the report. Leave it unticked to save the challenge.
-                </p>
               </div>
+              <p className="ml-6 text-xs text-muted-foreground">
+                Tick this once the battle has been fought to record the result and
+                file the report. Leave it unticked to save the challenge.
+              </p>
             </div>
           )}
 
@@ -837,6 +843,7 @@ const CampaignBattleLogModal = ({
             </label>
             <Combobox
               options={[
+                { value: '', label: 'No scenario selected' },
                 { value: 'custom', label: 'Custom' },
                 ...scenarios.map(scenario => ({
                   value: scenario.id,
@@ -847,7 +854,10 @@ const CampaignBattleLogModal = ({
               ]}
               value={selectedScenario === 'custom' ? 'custom' : selectedScenario}
               onValueChange={(value) => {
-                if (value === 'custom') {
+                if (value === '') {
+                  setSelectedScenario('');
+                  setCustomScenario('');
+                } else if (value === 'custom') {
                   setSelectedScenario('custom');
                   setCustomScenario('');
                 } else {
