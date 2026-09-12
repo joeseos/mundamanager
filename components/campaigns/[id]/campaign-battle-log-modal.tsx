@@ -534,7 +534,7 @@ const CampaignBattleLogModal = ({
     if (isSubmitting) return false;
 
     // Validate required fields
-    if (selectedScenario === '') {
+    if (showResultFields && selectedScenario === '') {
       toast.error("Please select a scenario");
       return false;
     }
@@ -564,7 +564,7 @@ const CampaignBattleLogModal = ({
       return false;
     }
 
-    if (!hasAnyWinnerSelected) {
+    if (showResultFields && !hasAnyWinnerSelected) {
       toast.error("Please select a winner");
       return false;
     }
@@ -765,22 +765,22 @@ const CampaignBattleLogModal = ({
       content={
         <div className="space-y-4">
           {isUnplayedChallenge && (
-            <div className="flex items-start gap-2 rounded-md border border-border bg-muted p-3">
-              <Checkbox
-                id="battle-played"
-                checked={battlePlayed}
-                onCheckedChange={(checked) => setBattlePlayed(checked === true)}
-                disabled={isLoadingBattleData}
-              />
-              <div>
+            <div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="battle-played"
+                  checked={battlePlayed}
+                  onCheckedChange={(checked) => setBattlePlayed(checked === true)}
+                  disabled={isLoadingBattleData}
+                />
                 <Label htmlFor="battle-played" className="text-sm font-medium">
                   Battle played
                 </Label>
-                <p className="text-xs text-muted-foreground">
-                  Tick this once the battle has been fought to record the result and
-                  file the report. Leave it unticked to save the challenge.
-                </p>
               </div>
+              <p className="ml-6 text-xs text-muted-foreground">
+                Tick this once the battle has been fought to record the result and
+                file the report. Leave it unticked to save the challenge.
+              </p>
             </div>
           )}
 
