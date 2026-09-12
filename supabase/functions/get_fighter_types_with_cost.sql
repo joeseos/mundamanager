@@ -1,4 +1,6 @@
--- Drop previous versions
+-- Drop previous versions. Every arg is defaulted, so leaving an older arity in place would make
+-- the PostgREST call ambiguous.
+DROP FUNCTION IF EXISTS get_fighter_types_with_cost(uuid, uuid, boolean, uuid);
 DROP FUNCTION IF EXISTS get_fighter_types_with_cost(uuid, uuid, boolean);
 DROP FUNCTION IF EXISTS get_fighter_types_with_cost(uuid, boolean);
 DROP FUNCTION IF EXISTS get_fighter_types_with_cost(uuid);
@@ -8,7 +10,9 @@ DROP FUNCTION IF EXISTS get_fighter_types_with_cost();
 CREATE OR REPLACE FUNCTION get_fighter_types_with_cost(
     p_gang_type_id uuid DEFAULT NULL,
     p_gang_affiliation_id uuid DEFAULT NULL,
-    p_is_gang_addition boolean DEFAULT NULL
+    p_is_gang_addition boolean DEFAULT NULL,
+    -- Applies fighter_type_availability for this gang. NULL skips it entirely.
+    p_gang_id uuid DEFAULT NULL
 )
 RETURNS TABLE (
     id uuid,
@@ -47,10 +51,53 @@ RETURNS TABLE (
     is_dramatis_personae boolean,
     edition_slug text,
     starting_xp numeric,
-    is_vehicle boolean
+    is_vehicle boolean,
+    -- Set when a grant scoped by gang_subtype_id pulled this row in; an origin- or
+    -- gang-type-scoped grant leaves both unset.
+    is_gang_subtype boolean,
+    gang_subtype_name text
 ) LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+    v_gang_type_id   uuid;
+    v_gang_origin_id uuid;
+    v_gang_subtypes  jsonb := '[]'::jsonb;
+    v_has_gang       boolean := false;
 BEGIN
+    IF p_gang_id IS NOT NULL THEN
+        -- The gang's own gang type, not p_gang_type_id, which the include-all caller passes NULL.
+        SELECT g.gang_type_id, g.gang_origin_id, COALESCE(g.gang_subtypes, '[]'::jsonb)
+          INTO v_gang_type_id, v_gang_origin_id, v_gang_subtypes
+          FROM gangs g
+         WHERE g.id = p_gang_id;
+
+        -- SELECT INTO nulls every target when no row matches, discarding the '[]' initialiser;
+        -- a NULL there would skip subtype and origin rules while gang-type rules still fired.
+        v_has_gang := FOUND;
+        IF NOT v_has_gang THEN
+            v_gang_subtypes := '[]'::jsonb;
+        END IF;
+    END IF;
+
     RETURN QUERY
+    WITH rules AS (
+        -- Every non-NULL axis must match, as get_equipment_detailed_data does for its own tables.
+        SELECT a.fighter_type_id, a.fighter_subtype, a.excluded, a.gang_subtype_id
+        FROM fighter_type_availability a
+        WHERE v_has_gang
+          AND (a.gang_subtype_id IS NULL OR v_gang_subtypes ? a.gang_subtype_id::text)
+          AND (a.gang_origin_id  IS NULL OR a.gang_origin_id = v_gang_origin_id)
+          AND (a.gang_type_id    IS NULL OR a.gang_type_id  = v_gang_type_id)
+    ),
+    granted AS (
+        -- DISTINCT ON so two subtypes granting the same fighter yield one row, not a duplicate.
+        SELECT DISTINCT ON (r.fighter_type_id)
+               r.fighter_type_id,
+               gst.subtype AS subtype_name
+        FROM rules r
+        LEFT JOIN gang_subtype_types gst ON gst.id = r.gang_subtype_id
+        WHERE NOT r.excluded
+        ORDER BY r.fighter_type_id, gst.subtype NULLS LAST
+    )
     SELECT
         ft.id,
         ft.fighter_type,
@@ -872,33 +919,54 @@ BEGIN
         ft.is_dramatis_personae,
         ed.slug AS edition_slug,
         ft.starting_xp,
-        ft.is_vehicle
+        ft.is_vehicle,
+        (g.subtype_name IS NOT NULL) AS is_gang_subtype,
+        g.subtype_name AS gang_subtype_name
     FROM fighter_types ft
     LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id
         AND ftgc.gang_type_id = p_gang_type_id
         AND (ftgc.gang_affiliation_id IS NULL OR ftgc.gang_affiliation_id = p_gang_affiliation_id)
     LEFT JOIN fighter_specialisations fspec ON fspec.id = ft.fighter_specialisation_id
     LEFT JOIN editions ed ON ed.id = ft.edition_id
+    LEFT JOIN granted g ON g.fighter_type_id = ft.id
     WHERE
-        CASE
-            -- Gang additions: cross-gang pool, filtered only by the flag
-            WHEN p_is_gang_addition = true THEN ft.is_gang_addition = true
-            -- Roster: fighters belonging to this gang type (plus affiliation-cost
-            -- overrides). Matches the previous get_add_fighter_details behaviour,
-            -- including this gang type's own gang-addition-flagged fighters.
-            WHEN p_is_gang_addition = false THEN (
-                ft.gang_type_id = p_gang_type_id
-                OR (ftgc.fighter_type_id IS NOT NULL
-                    AND ftgc.gang_affiliation_id IS NOT NULL
-                    AND ftgc.gang_affiliation_id = p_gang_affiliation_id)
+        (
+            CASE
+                -- Gang additions: cross-gang pool, filtered only by the flag
+                WHEN p_is_gang_addition = true THEN ft.is_gang_addition = true
+                -- Roster: fighters belonging to this gang type (plus affiliation-cost
+                -- overrides). Matches the previous get_add_fighter_details behaviour,
+                -- including this gang type's own gang-addition-flagged fighters.
+                WHEN p_is_gang_addition = false THEN (
+                    ft.gang_type_id = p_gang_type_id
+                    OR (ftgc.fighter_type_id IS NOT NULL
+                        AND ftgc.gang_affiliation_id IS NOT NULL
+                        AND ftgc.gang_affiliation_id = p_gang_affiliation_id)
+                )
+                -- Include-all (both params NULL): every fighter type
+                ELSE true
+            END
+            AND NOT EXISTS (
+                SELECT 1
+                FROM rules r
+                WHERE r.excluded
+                  -- A deny only removes the gang's own gang type's fighters; without the anchor
+                  -- an include-all call would strip every match in the game.
+                  AND ft.gang_type_id = v_gang_type_id
+                  AND (
+                      r.fighter_type_id = ft.id
+                      OR (r.fighter_subtype IS NOT NULL
+                          AND ft.fighter_subtypes ? r.fighter_subtype)
+                  )
             )
-            -- Include-all (both params NULL): every fighter type
-            ELSE true
-        END;
+        )
+        -- Outside the parens so a grant survives a deny, and reaches the hidden 'Subtype: <name>'
+        -- pools the CASE above excludes.
+        OR g.fighter_type_id IS NOT NULL;
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.get_fighter_types_with_cost(UUID, UUID, BOOLEAN) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.get_fighter_types_with_cost(UUID, UUID, BOOLEAN) FROM anon;
-GRANT EXECUTE ON FUNCTION public.get_fighter_types_with_cost(UUID, UUID, BOOLEAN) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.get_fighter_types_with_cost(UUID, UUID, BOOLEAN) TO service_role;
+REVOKE ALL ON FUNCTION public.get_fighter_types_with_cost(UUID, UUID, BOOLEAN, UUID) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.get_fighter_types_with_cost(UUID, UUID, BOOLEAN, UUID) FROM anon;
+GRANT EXECUTE ON FUNCTION public.get_fighter_types_with_cost(UUID, UUID, BOOLEAN, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_fighter_types_with_cost(UUID, UUID, BOOLEAN, UUID) TO service_role;
