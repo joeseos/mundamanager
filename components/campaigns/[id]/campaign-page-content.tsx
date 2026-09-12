@@ -998,7 +998,7 @@ export default function CampaignPageContent({
                 <div className="flex justify-between items-start mb-4">
                   <h2 className="text-xl md:text-2xl font-bold">Battles</h2>
                   <div className="flex gap-2">
-                    {(safePermissions.isOwner || safePermissions.isArbitrator || safePermissions.isAdmin) && (
+                    {safePermissions.canEditCampaign && (
                       <Button
                         variant="outline"
                         onClick={() => battleLogsRef.current?.openChallengeRoundModal()}
