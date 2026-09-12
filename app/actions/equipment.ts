@@ -1,6 +1,6 @@
 'use server'
 
-import { invalidateGang, invalidateFighter, invalidateGangCampaignMembership, invalidateGangStash, invalidateGangFinancials } from '@/utils/cache-tags';
+import { invalidateGang, invalidateGangRoster, invalidateFighter, invalidateGangCampaignMembership, invalidateGangStash, invalidateGangFinancials } from '@/utils/cache-tags';
 import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
 
 import { updateGangFinancials, updateGangRatingSimple } from '@/utils/gang-rating-and-wealth';
@@ -909,6 +909,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       // If this fighter is a beast, invalidate the owner's cache
       await invalidateBeastOwnerCache(params.fighter_id, params.gang_id, supabase, fighterPetId);
     } else if (params.vehicle_id) {
+      invalidateGangRoster(params.gang_id);
       if (vehicleAssignedFighterId) {
         invalidateFighter(vehicleAssignedFighterId, params.gang_id); invalidateGangFinancials(params.gang_id);
       }

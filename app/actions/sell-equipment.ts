@@ -1,6 +1,6 @@
 'use server'
 
-import { TAGS, invalidateGang, invalidateFighter, invalidateGangCampaignMembership, invalidateGangStash, invalidateGangFinancials } from '@/utils/cache-tags';
+import { TAGS, invalidateGang, invalidateGangRoster, invalidateFighter, invalidateGangCampaignMembership, invalidateGangStash, invalidateGangFinancials } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
 
@@ -321,6 +321,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
         .eq('id', equipmentData.vehicle_id)
         .single();
       
+      invalidateGangRoster(gangId);
       if (!vehicleError && vehicleData?.fighter_id) {
         // Use equipment deletion invalidation for the fighter to ensure equipment list updates
         invalidateFighter(vehicleData.fighter_id, gangId);

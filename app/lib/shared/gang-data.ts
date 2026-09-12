@@ -1117,7 +1117,7 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
     },
     [`gang-fighters-bundle-v4-${gangId}`],
     {
-      tags: [TAGS.gang(gangId)],
+      tags: [TAGS.gangRoster(gangId)],
       revalidate: false
     }
   )();
@@ -1248,7 +1248,7 @@ export const getGangFighterStats = async (
     },
     [`gang-fighter-stats-v3-${gangId}`],
     {
-      tags: [TAGS.gang(gangId)],
+      tags: [TAGS.gangRoster(gangId)],
       revalidate: false
     }
   )();
