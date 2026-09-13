@@ -1,6 +1,6 @@
 'use server'
 
-import { TAGS, invalidateGang, invalidateFighter, invalidateGangOverview, invalidateGangCampaignMembership, invalidateGangFinancials, invalidateCampaignCaptives } from '@/utils/cache-tags';
+import { TAGS, invalidateGang, invalidateFighter, invalidateGangOverview, invalidateGangCampaignMembership, invalidateGangFinancials, invalidateCampaignResources } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 
 import { revalidateTag } from 'next/cache';
@@ -752,7 +752,9 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
           invalidateFighter(params.fighter_id, gangId);
           await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase, fighter.fighter_pet_id ?? null);
-          invalidateCampaignCaptives(campaignId);
+          // Feeding spends a Meat row in campaign_gang_resources; the standings show
+          // per-gang resource quantities, and that entry rides campaign-resources-{id}.
+          invalidateCampaignResources(campaignId);
           invalidateGangCampaignMembership(gangId);
 
           return {
