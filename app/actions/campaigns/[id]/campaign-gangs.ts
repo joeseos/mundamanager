@@ -2,246 +2,8 @@
 
 import { invalidateCampaignGang, invalidateUser, invalidatePermission } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
-import { revalidateTag } from "next/cache";
 
 import { getAuthenticatedUser } from '@/utils/auth';
-import { assertGangMatchesCampaignEdition } from './assert-gang-campaign-edition';
-
-export interface AddGangToCampaignDirectParams {
-  campaignId: string;
-  gangId: string;
-  allegianceId?: string | null;
-  isCustomAllegiance?: boolean;
-}
-
-export interface RemoveGangFromCampaignDirectParams {
-  campaignId: string;
-  gangId: string;
-}
-
-/**
- * Add a gang directly to a campaign
- * This simplified version automatically handles member lookup
- */
-export async function addGangToCampaignDirect(params: AddGangToCampaignDirectParams) {
-  try {
-    const supabase = await createClient();
-    
-    // Authenticate user
-    const user = await getAuthenticatedUser(supabase);
-    const { campaignId, gangId } = params;
-
-    const editionCheck = await assertGangMatchesCampaignEdition(supabase, campaignId, gangId);
-    if (!editionCheck.ok) {
-      return { success: false, error: editionCheck.error };
-    }
-    
-    // Get the gang's owner
-    const { data: gangData, error: gangError } = await supabase
-      .from('gangs')
-      .select('user_id, name')
-      .eq('id', gangId)
-      .single();
-    
-    if (gangError) throw gangError;
-    if (!gangData) throw new Error('Gang not found');
-    
-    const userId = gangData.user_id;
-    
-    // Check if this user is already a campaign member
-    let campaignMemberId: string;
-    const { data: existingMember, error: memberFetchError } = await supabase
-      .from('campaign_members')
-      .select('id')
-      .eq('campaign_id', campaignId)
-      .eq('user_id', userId)
-      .limit(1)
-      .maybeSingle();
-    
-    if (memberFetchError) throw memberFetchError;
-    
-    if (existingMember) {
-      campaignMemberId = existingMember.id;
-    } else {
-      // Create a new campaign member entry
-      const { data: newMember, error: memberInsertError } = await supabase
-        .from('campaign_members')
-        .insert({
-          campaign_id: campaignId,
-          user_id: userId,
-          role: 'MEMBER',
-          invited_at: new Date().toISOString(),
-          invited_by: user.id
-        })
-        .select('id')
-        .single();
-      
-      if (memberInsertError) throw memberInsertError;
-      if (!newMember) throw new Error('Failed to create campaign member');
-      
-      campaignMemberId = newMember.id;
-    }
-    
-    // Prevent duplicate: one gang per campaign
-    const { data: existingRows } = await supabase
-      .from('campaign_gangs')
-      .select('id')
-      .eq('campaign_id', campaignId)
-      .eq('gang_id', gangId)
-      .limit(1);
-    if (existingRows && existingRows.length > 0) {
-      return {
-        success: false,
-        error: 'This gang is already in the campaign'
-      };
-    }
-
-    // Prepare allegiance fields
-    const allegianceData: any = {};
-    if (params.allegianceId) {
-      if (params.isCustomAllegiance) {
-        allegianceData.campaign_allegiance_id = params.allegianceId;
-        allegianceData.campaign_type_allegiance_id = null;
-      } else {
-        allegianceData.campaign_type_allegiance_id = params.allegianceId;
-        allegianceData.campaign_allegiance_id = null;
-      }
-    }
-
-    // Add the gang to the campaign
-    // If adding your own gang, auto-accept. If adding someone else's gang, set to PENDING
-    const isOwnGang = user.id === userId;
-    const now = new Date().toISOString();
-    const { data: insertedGang, error: insertError } = await supabase
-      .from('campaign_gangs')
-      .insert({
-        campaign_id: campaignId,
-        gang_id: gangId,
-        user_id: userId,
-        campaign_member_id: campaignMemberId,
-        status: isOwnGang ? 'ACCEPTED' : 'PENDING',
-        invited_at: now,
-        joined_at: isOwnGang ? now : null,
-        invited_by: user.id,
-        ...allegianceData
-      })
-      .select('id, status')
-      .single();
-
-    if (insertError) throw insertError;
-    
-    // Use granular campaign membership invalidation
-    invalidateCampaignGang(campaignId, gangId);
-    invalidateUser(userId);
-
-    // Invalidate permission cache
-    invalidatePermission(userId, gangId);
-    invalidateUser(userId);
-
-    // Also invalidate campaign gangs modal data
-    revalidateTag(`campaign-${campaignId}`, { expire: 0 }); // Legacy compatibility
-    
-    const isPending = insertedGang?.status === 'PENDING';
-    return {
-      success: true,
-      message: isPending
-        ? `Sent invitation to add ${gangData.name} to the campaign`
-        : `Added ${gangData.name} to the campaign`,
-      isPending
-    };
-  } catch (error) {
-    console.error('Error adding gang to campaign:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to add gang to campaign' 
-    };
-  }
-}
-
-/**
- * Remove a gang directly from a campaign
- * This simplified version handles territory cleanup automatically
- */
-export async function removeGangFromCampaignDirect(params: RemoveGangFromCampaignDirectParams) {
-  try {
-    const supabase = await createClient();
-    
-    // Authenticate user
-    await getAuthenticatedUser(supabase);
-    const { campaignId, gangId } = params;
-    
-    // Get the gang's owner and name
-    const { data: gangData, error: gangError } = await supabase
-      .from('gangs')
-      .select('user_id, name')
-      .eq('id', gangId)
-      .single();
-    
-    if (gangError) throw gangError;
-    if (!gangData) throw new Error('Gang not found');
-    
-    // First, update any territories controlled by this gang
-    const { error: territoryError } = await supabase
-      .from('campaign_territories')
-      .update({ gang_id: null })
-      .eq('campaign_id', campaignId)
-      .eq('gang_id', gangId);
-    
-    if (territoryError) throw territoryError;
-    
-    // Remove the gang from the campaign
-    const { error: deleteError } = await supabase
-      .from('campaign_gangs')
-      .delete()
-      .eq('campaign_id', campaignId)
-      .eq('gang_id', gangId);
-    
-    if (deleteError) throw deleteError;
-    
-    // Use granular campaign membership invalidation
-    invalidateCampaignGang(campaignId, gangId);
-    invalidateUser(gangData.user_id);
-
-    // Invalidate permission cache for gang owner
-    invalidatePermission(gangData.user_id, gangId);
-    invalidateUser(gangData.user_id);
-
-    // Also invalidate permissions for all campaign arbitrators (OWNER/ARBITRATOR)
-    // They no longer have edit rights for this gang since it's removed
-    const { data: campaignArbitrators } = await supabase
-      .from('campaign_members')
-      .select('user_id')
-      .eq('campaign_id', campaignId)
-      .in('role', ['OWNER', 'ARBITRATOR']);
-
-    if (campaignArbitrators) {
-      for (const arbitrator of campaignArbitrators) {
-        // Skip gang owner - already invalidated above
-        if (arbitrator.user_id !== gangData.user_id) {
-          invalidatePermission(arbitrator.user_id, gangId);
-          invalidateUser(arbitrator.user_id);
-        }
-      }
-    }
-
-    // Invalidate territory cache since we modified territories
-    invalidateCampaignGang(campaignId, gangId);
-    
-    // Also invalidate campaign gangs modal data
-    revalidateTag(`campaign-${campaignId}`, { expire: 0 }); // Legacy compatibility
-    
-    return {
-      success: true,
-      message: `Removed ${gangData.name} from the campaign`
-    };
-  } catch (error) {
-    console.error('Error removing gang from campaign:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to remove gang from campaign'
-    };
-  }
-}
 
 export interface AcceptGangInviteParams {
   campaignId: string;
@@ -292,15 +54,22 @@ export async function acceptGangInvite(params: AcceptGangInviteParams) {
 
     // Update status to ACCEPTED
     const now = new Date().toISOString();
-    const { error: updateError } = await supabase
+    // Zero rows matched is not an error, so a lost race or an RLS denial would
+    // otherwise report success — and bust caches — while the row stayed PENDING.
+    const { data: accepted, error: updateError } = await supabase
       .from('campaign_gangs')
       .update({
         status: 'ACCEPTED',
         joined_at: now
       })
-      .eq('id', campaignGang.id);
+      .eq('id', campaignGang.id)
+      .eq('status', 'PENDING')
+      .select('id');
 
     if (updateError) throw updateError;
+    if (!accepted || accepted.length === 0) {
+      return { success: false, error: 'This invitation has already been answered' };
+    }
 
     // Invalidate caches
     invalidateCampaignGang(campaignId, gangId);
@@ -326,7 +95,6 @@ export async function acceptGangInvite(params: AcceptGangInviteParams) {
         }
       }
     }
-    revalidateTag(`campaign-${campaignId}`, { expire: 0 });
 
     return {
       success: true,
@@ -366,20 +134,25 @@ export async function declineGangInvite(params: DeclineGangInviteParams) {
       throw new Error('Only the gang owner can decline this invitation');
     }
 
-    // Find and delete the PENDING campaign_gang record
-    const { error: deleteError } = await supabase
+    // Find and delete the PENDING campaign_gang record. The DELETE policy admits
+    // admins, campaign arbitrators, and MEMBER-role owners of the gang — anyone
+    // else matches no rows and gets no error, so count what was removed.
+    const { data: declined, error: deleteError } = await supabase
       .from('campaign_gangs')
       .delete()
       .eq('campaign_id', campaignId)
       .eq('gang_id', gangId)
-      .eq('status', 'PENDING');
+      .eq('status', 'PENDING')
+      .select('id');
 
     if (deleteError) throw deleteError;
+    if (!declined || declined.length === 0) {
+      return { success: false, error: 'This invitation has already been answered' };
+    }
 
     // Invalidate caches - same as accept but with 'leave' action
     invalidateCampaignGang(campaignId, gangId);
     invalidateUser(user.id);
-    revalidateTag(`campaign-${campaignId}`, { expire: 0 });
 
     return {
       success: true,

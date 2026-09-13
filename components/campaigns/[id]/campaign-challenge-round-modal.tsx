@@ -5,13 +5,14 @@ import { toast } from 'sonner';
 import { useMutation } from '@tanstack/react-query';
 import Modal from "@/components/ui/modal";
 import { generateChallengeRound } from "@/app/actions/campaigns/[id]/battle-logs";
+import type { Battle } from "@/types/campaign";
 
 interface CampaignChallengeRoundModalProps {
   campaignId: string;
   gangCount: number;
   defaultCycle?: number | null;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (created: Battle[]) => void;
 }
 
 const CampaignChallengeRoundModal = ({
@@ -36,7 +37,7 @@ const CampaignChallengeRoundModal = ({
         return;
       }
       toast.success(`Opened ${result.created} challenge${result.created === 1 ? '' : 's'}`);
-      onSuccess();
+      onSuccess((result.battles ?? []) as Battle[]);
     },
     onError: () => toast.error('Failed to open challenge round'),
   });

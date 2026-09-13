@@ -124,6 +124,54 @@ export interface Territory {
   territory_id?: string | null;
 }
 
+/** A `campaign_maps` row. */
+export interface CampaignMapRow {
+  id: string;
+  campaign_id: string;
+  background_image_url: string;
+  hex_grid_enabled: boolean;
+  hex_size: number;
+  created_at: string;
+  updated_at: string | null;
+}
+
+/** A `campaign_map_objects` row. */
+export interface CampaignMapObjectRow {
+  id: string;
+  campaign_map_id: string;
+  object_type: string;
+  geometry: Record<string, unknown>;
+  properties: Record<string, unknown>;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface CampaignMapBundle {
+  map: CampaignMapRow | null;
+  objects: CampaignMapObjectRow[];
+}
+
+/**
+ * A `campaign_territories` row as the cached reader and the add/create mutations
+ * return it, before any client-side view shaping.
+ */
+export interface CampaignTerritoryRow {
+  id: string;
+  territory_id: string | null;
+  territory_name: string;
+  gang_id: string | null;
+  created_at: string;
+  ruined?: boolean;
+  default_gang_territory?: boolean;
+  playing_card?: string | null;
+  description?: string | null;
+  map_object_id?: string | null;
+  map_hex_coords?: { x: number; y: number; z: number } | null;
+  show_name_on_map?: boolean;
+  /** The territory reader always populates every gang field, unlike other references. */
+  owning_gangs?: Required<GangReference>[];
+}
+
 /**
  * Campaign territory with clean structure
  */

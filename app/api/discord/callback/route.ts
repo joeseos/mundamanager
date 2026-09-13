@@ -1,4 +1,4 @@
-import { invalidateCampaign } from '@/utils/cache-tags';
+import { invalidateCampaignCore } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserIdFromClaims, signInPath } from "@/utils/auth"
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
     console.log('[Discord Callback] DB update success — guildId:', guildId, 'campaignId:', campaignId)
 
     // Invalidate campaign cache
-    invalidateCampaign(campaignId);
+    invalidateCampaignCore(campaignId);
 
     // Return self-closing HTML that notifies the opener window via postMessage
     const origin = new URL(request.url).origin

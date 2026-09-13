@@ -30,9 +30,14 @@ interface CampaignBattleLogModalProps {
   territories?: BattleLogTerritory[];
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
   onBattleUpdate: (updatedBattles: Battle[] | ((prevBattles: Battle[]) => Battle[])) => void;
-  localBattles: Battle[];
+  /** Battle logs can claim or release a territory; this reports that to the page. */
+  onTerritoryUpdate: (update: {
+    action: 'assign' | 'remove';
+    territoryId: string;
+    gangId?: string;
+  }) => void;
+  battles: Battle[];
   battleToEdit?: Battle | null;
   userRole?: 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 }
@@ -54,9 +59,9 @@ const CampaignBattleLogModal = ({
   territories = [],
   isOpen,
   onClose,
-  onSuccess,
   onBattleUpdate,
-  localBattles: _localBattles,
+  onTerritoryUpdate,
+  battles,
   battleToEdit = null,
   userRole = 'MEMBER'
 }: CampaignBattleLogModalProps) => {
@@ -130,6 +135,7 @@ const CampaignBattleLogModal = ({
   const createBattleMutation = useMutation({
     mutationFn: async (battleData: BattleLogParams) => {
       const result = await createBattleLog(campaignId, battleData);
+      if (!result.success) throw new Error(result.error);
       return result;
     },
     onMutate: async (battleData) => {
@@ -193,19 +199,26 @@ const CampaignBattleLogModal = ({
       return { optimisticId };
     },
     onSuccess: (result, _variables, context) => {
-      // Replace optimistic entry with real server data if available
+      // Take the server's row (above all, its real id) over the optimistic one, but
+      // keep the display fields the action doesn't resolve (scenario/territory names).
       if (result?.data && context?.optimisticId) {
+        const saved = result.data;
         onBattleUpdate((currentBattles) =>
           currentBattles.map(b =>
-            b.id === context.optimisticId ? result.data : b
+            b.id === context.optimisticId ? { ...b, ...saved } as Battle : b
           )
         );
       }
 
+      const claimed = _variables.claimed_territories?.[0]?.campaign_territory_id;
+      if (claimed) {
+        onTerritoryUpdate({
+          action: 'assign',
+          territoryId: claimed,
+          gangId: _variables.participants.find(p => p.claimed_territory === true)?.gang_id
+        });
+      }
       toast.success("Battle report added successfully");
-
-      // Call onSuccess to trigger server refresh after optimistic update is complete
-      onSuccess();
     },
     onError: (error, _variables, context) => {
       console.error('Battle creation failed:', error);
@@ -225,9 +238,13 @@ const CampaignBattleLogModal = ({
   const updateBattleMutation = useMutation({
     mutationFn: async ({ battleId, battleData }: { battleId: string, battleData: BattleLogParams }) => {
       const result = await updateBattleLog(campaignId, battleId, battleData);
+      if (!result.success) throw new Error(result.error);
       return result;
     },
     onMutate: async ({ battleId, battleData }) => {
+      // Snapshot first, so a failed update can be put back as it was.
+      const previousBattle = battles.find(b => b.id === battleId);
+
       // Find territory name if selected
       let territoryName: string | undefined = undefined;
       if (battleData.claimed_territories && battleData.claimed_territories.length > 0) {
@@ -286,30 +303,37 @@ const CampaignBattleLogModal = ({
         })
       );
 
-      return { battleId };
+      return { battleId, previousBattle };
     },
     onSuccess: (result, _variables, context) => {
-      // Replace with real server data if available
       if (result?.data && context?.battleId) {
+        const saved = result.data;
         onBattleUpdate((currentBattles) =>
           currentBattles.map(b =>
-            b.id === context.battleId ? result.data : b
+            b.id === context.battleId ? { ...b, ...saved } as Battle : b
           )
         );
       }
 
+      const claimed = _variables.battleData.claimed_territories?.[0]?.campaign_territory_id;
+      if (claimed) {
+        onTerritoryUpdate({
+          action: 'assign',
+          territoryId: claimed,
+          gangId: _variables.battleData.participants.find(p => p.claimed_territory === true)?.gang_id
+        });
+      }
       toast.success("Battle report updated successfully");
-
-      // Call onSuccess to trigger server refresh after optimistic update is complete
-      onSuccess();
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
       console.error('Battle update failed:', error);
 
-      // For updates, we need to fetch the original data to rollback
-      // Since we used functional updates, the state should be consistent
-      // Just trigger a server refresh to get back to correct state
-      onSuccess();
+      if (context?.previousBattle) {
+        const previous = context.previousBattle;
+        onBattleUpdate((currentBattles) =>
+          currentBattles.map(b => (b.id === previous.id ? previous : b))
+        );
+      }
 
       const errorMessage = error instanceof Error ? error.message : 'Failed to update battle report';
       toast.error(errorMessage);

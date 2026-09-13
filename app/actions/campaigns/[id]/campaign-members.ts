@@ -1,6 +1,6 @@
 'use server';
 
-import { invalidateCampaign, invalidateCampaignGang, invalidateUser, invalidatePermission } from '@/utils/cache-tags';
+import { invalidateCampaignMembers, invalidateCampaignGang, invalidateCampaignTradingPosts, invalidateUser, invalidatePermission } from '@/utils/cache-tags';
 import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
 
 import { logGangJoinedCampaign, logGangLeftCampaign } from "../../logs/gang-campaign-logs";
@@ -183,10 +183,7 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
     // Use granular campaign membership invalidation
     invalidateCampaignGang(campaignId, gangId);
     invalidateUser(userId);
-
-    // Invalidate permission cache
     invalidatePermission(userId, gangId);
-    invalidateUser(userId);
 
     return {
       success: true,
@@ -267,11 +264,12 @@ export async function removeMemberFromCampaign(params: RemoveMemberParams) {
     // Cleanup any custom_shared records for this user in this campaign
     // Use service role client to bypass RLS (owner deleting another user's shares)
     const serviceClient = createServiceRoleClient();
-    await serviceClient
+    const { data: removedShares } = await serviceClient
       .from('custom_shared')
       .delete()
       .eq('user_id', userId)
-      .eq('campaign_id', campaignId);
+      .eq('campaign_id', campaignId)
+      .select('id');
 
     // Finally delete the campaign member
     const { error } = await supabase
@@ -281,6 +279,11 @@ export async function removeMemberFromCampaign(params: RemoveMemberParams) {
 
     if (error) throw error;
 
+    // Only if they actually had something shared into this campaign.
+    if (removedShares && removedShares.length > 0) {
+      invalidateCampaignTradingPosts(campaignId);
+    }
+
     // Use granular campaign membership invalidation for each affected gang
     if (memberGangs && memberGangs.length > 0) {
       memberGangs.forEach(gang => {
@@ -289,8 +292,7 @@ export async function removeMemberFromCampaign(params: RemoveMemberParams) {
       });
     } else {
       // If no specific gangs, still invalidate campaign data
-      invalidateCampaign(campaignId);
-      invalidateCampaign(campaignId);
+      invalidateCampaignMembers(campaignId);
     }
 
     return { success: true };
@@ -468,8 +470,7 @@ export async function addMemberToCampaign(params: AddMemberToCampaignParams) {
     if (error) throw error;
 
     // Use targeted cache invalidation for member addition
-    invalidateCampaign(campaignId);
-    invalidateCampaign(campaignId);
+    invalidateCampaignMembers(campaignId);
 
     return { success: true, data };
   } catch (error) {
@@ -504,11 +505,17 @@ export async function updateMemberRole(params: UpdateMemberRoleParams) {
     // Use service role client to bypass RLS (owner deleting another user's shares)
     if ((previousRole === 'ARBITRATOR' || previousRole === 'OWNER') && newRole === 'MEMBER') {
       const serviceClient = createServiceRoleClient();
-      await serviceClient
+      const { data: removedShares } = await serviceClient
         .from('custom_shared')
         .delete()
         .eq('user_id', userId)
-        .eq('campaign_id', campaignId);
+        .eq('campaign_id', campaignId)
+        .select('id');
+
+      // A demotion withdraws whatever they had shared into the campaign.
+      if (removedShares && removedShares.length > 0) {
+        invalidateCampaignTradingPosts(campaignId);
+      }
     }
 
     // If promoting from MEMBER to ARBITRATOR, send notification to the promoted user
@@ -550,8 +557,7 @@ export async function updateMemberRole(params: UpdateMemberRoleParams) {
     invalidateUser(userId);
 
     // Use targeted cache invalidation for role update
-    invalidateCampaign(campaignId);
-    invalidateCampaign(campaignId);
+    invalidateCampaignMembers(campaignId);
 
     return { success: true };
   } catch (error) {

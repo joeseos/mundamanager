@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import Modal from "@/components/ui/modal";
 import { toast } from 'sonner';
 import { useRouter } from "next/navigation";
-import { deleteCampaign } from "@/app/actions/campaigns/[id]/campaign-settings";
+import { deleteCampaign, updateCampaignSettings } from "@/app/actions/campaigns/[id]/campaign-settings";
 import { ImInfo } from "react-icons/im";
 import { Tooltip } from 'react-tooltip';
 import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
@@ -22,6 +22,18 @@ interface TradingPostType {
   id: string;
   trading_post_name: string;
   edition_slug?: string | null;
+}
+
+interface SettingsFormValues {
+  campaign_name: string;
+  description: string;
+  trading_posts: string[];
+  custom_trading_posts: string[];
+  status: string;
+  allow_join_requests: boolean;
+  discord_guild_id?: string | null;
+  discord_channel_id?: string | null;
+  discord_channel_type?: number | null;
 }
 
 interface EditCampaignModalProps {
@@ -42,17 +54,8 @@ interface EditCampaignModalProps {
     discord_channel_type?: number | null;
   };
   onClose: () => void;
-  onSave: (updatedData: {
-    campaign_name: string;
-    description: string;
-    trading_posts: string[];
-    custom_trading_posts: string[];
-    status: string;
-    allow_join_requests: boolean;
-    discord_guild_id?: string | null;
-    discord_channel_id?: string | null;
-    discord_channel_type?: number | null;
-  }) => Promise<boolean>;
+  /** The saved row, straight from the action, for the page to patch into its state. */
+  onSaved: (saved: Record<string, unknown>) => void;
   isOwner: boolean;
   isArbitrator?: boolean;
   isAdmin?: boolean;
@@ -73,7 +76,7 @@ export default function CampaignEditModal({
   isOpen,
   campaignData,
   onClose,
-  onSave,
+  onSaved,
   isOwner,
   isArbitrator = false,
   isAdmin = false,
@@ -171,11 +174,25 @@ export default function CampaignEditModal({
     return () => window.removeEventListener('message', handleMessage);
   }, [isOpen, onDiscordConnected]);
 
+  const saveSettings = async (saveData: SettingsFormValues): Promise<boolean> => {
+    try {
+      const result = await updateCampaignSettings({ campaignId: campaignData.id, ...saveData });
+      if (!result.success) throw new Error(result.error);
+      if (result.data) onSaved(result.data);
+      toast.success("Campaign settings updated successfully");
+      return true;
+    } catch (error) {
+      console.error('Error updating campaign:', error);
+      toast.error("Failed to update campaign settings");
+      return false;
+    }
+  };
+
   // Handler for form submission
   const handleSubmit = async () => {
     // Saved as-is. The checkbox list is already edition-filtered, and
     // re-filtering here would wipe every trading post if it evaluated empty.
-    const saveData: Parameters<typeof onSave>[0] = {
+    const saveData: SettingsFormValues = {
       campaign_name: formValues.campaignName,
       description: formValues.description,
       trading_posts: formValues.tradingPosts,
@@ -191,8 +208,7 @@ export default function CampaignEditModal({
       saveData.discord_channel_type = selectedChannel?.type ?? 0;
     }
 
-    const result = await onSave(saveData);
-    return result;
+    return saveSettings(saveData);
   };
 
   const handleConnectDiscord = () => {
@@ -217,7 +233,7 @@ export default function CampaignEditModal({
   };
 
   const handleDisconnectDiscord = async () => {
-    const result = await onSave({
+    const result = await saveSettings({
       campaign_name: formValues.campaignName,
       description: formValues.description,
       trading_posts: formValues.tradingPosts,

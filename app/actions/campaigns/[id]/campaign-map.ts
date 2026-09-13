@@ -1,6 +1,6 @@
 'use server';
 
-import { invalidateCampaign } from '@/utils/cache-tags';
+import { invalidateCampaignMap, invalidateCampaignTerritories } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 
 import { getAuthenticatedUser } from '@/utils/auth';
@@ -68,7 +68,7 @@ async function verifyCampaignEditor(supabase: Awaited<ReturnType<typeof createCl
 }
 
 function invalidateMapCache(campaignId: string) {
-  invalidateCampaign(campaignId);
+  invalidateCampaignMap(campaignId);
 }
 
 // ---------------------------------------------------------------------------
@@ -294,6 +294,9 @@ export async function bulkDeleteMapObjects(params: BulkDeleteMapObjectsParams) {
     }
 
     invalidateMapCache(params.campaignId);
+    // campaign_territories.map_object_id is ON DELETE SET NULL, so removing objects
+    // silently clears their territory associations.
+    invalidateCampaignTerritories(params.campaignId);
     return { success: true };
   } catch (error) {
     console.error('Error in bulkDeleteMapObjects:', error);
@@ -337,7 +340,8 @@ export async function updateTerritoryMapAssociation(params: UpdateTerritoryMapAs
     }
 
     invalidateMapCache(params.campaignId);
-    invalidateCampaign(params.campaignId);
+    // The association is stored on the territory row, which the territories entry reads.
+    invalidateCampaignTerritories(params.campaignId);
     return { success: true };
   } catch (error) {
     console.error('Error in updateTerritoryMapAssociation:', error);
@@ -398,7 +402,8 @@ export async function bulkUpdateTerritoryMapAssociations(params: {
     }
 
     invalidateMapCache(params.campaignId);
-    invalidateCampaign(params.campaignId);
+    // The association is stored on the territory row, which the territories entry reads.
+    invalidateCampaignTerritories(params.campaignId);
     return { success: true };
   } catch (error) {
     console.error('Error in bulkUpdateTerritoryMapAssociations:', error);
@@ -470,7 +475,9 @@ export async function deleteCampaignMap(params: { campaignId: string }) {
     }
 
     invalidateMapCache(params.campaignId);
-    invalidateCampaign(params.campaignId);
+    // Deleting the map cascades to its objects, which SET NULL every territory's
+    // map_object_id.
+    invalidateCampaignTerritories(params.campaignId);
 
     return { success: true };
   } catch (error) {

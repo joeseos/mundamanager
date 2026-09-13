@@ -1,6 +1,6 @@
 'use server';
 
-import { invalidateCampaign } from '@/utils/cache-tags';
+import { invalidateCampaignResources } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 
 import { getAuthenticatedUser } from '@/utils/auth';
@@ -66,11 +66,7 @@ export async function createCampaignResource(params: CreateCampaignResourceParam
 
     if (error) throw error;
 
-    // Invalidate campaign cache
-    invalidateCampaign(params.campaignId);
-    invalidateCampaign(params.campaignId);
-    // Also invalidate the specific resource cache
-    invalidateCampaign(params.campaignId);
+    invalidateCampaignResources(params.campaignId);
 
     return { success: true, data };
   } catch (error) {
@@ -116,13 +112,7 @@ export async function updateCampaignResource(params: UpdateCampaignResourceParam
 
     if (error) throw error;
 
-    // Invalidate campaign cache
-    invalidateCampaign(params.campaignId);
-    invalidateCampaign(params.campaignId);
-    // Also invalidate the specific resource cache
-    invalidateCampaign(params.campaignId);
-    // Invalidate campaign members cache since resource names may have changed
-    invalidateCampaign(params.campaignId);
+    invalidateCampaignResources(params.campaignId);
 
     return { success: true, data };
   } catch (error) {
@@ -161,13 +151,7 @@ export async function deleteCampaignResource(params: DeleteCampaignResourceParam
 
     if (error) throw error;
 
-    // Invalidate campaign cache
-    invalidateCampaign(params.campaignId);
-    invalidateCampaign(params.campaignId);
-    // Also invalidate the specific resource cache
-    invalidateCampaign(params.campaignId);
-    // Invalidate campaign members cache since resource data has changed
-    invalidateCampaign(params.campaignId);
+    invalidateCampaignResources(params.campaignId);
 
     return { success: true };
   } catch (error) {

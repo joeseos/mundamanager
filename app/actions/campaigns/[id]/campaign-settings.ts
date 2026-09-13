@@ -1,6 +1,6 @@
 'use server';
 
-import { invalidateGang, invalidateGangCampaignMembership, invalidateCampaign, invalidateUser, invalidateCampaignCount } from '@/utils/cache-tags';
+import { invalidateGang, invalidateGangCampaignMembership, invalidateCampaignCore, invalidateCampaignAll, invalidateUser, invalidateCampaignCount } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 
 import { getAuthenticatedUser } from '@/utils/auth';
@@ -55,10 +55,12 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
     if (discord_channel_type !== undefined) updateData.discord_channel_type = discord_channel_type;
     if (allow_join_requests !== undefined) updateData.allow_join_requests = allow_join_requests;
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('campaigns')
       .update(updateData)
-      .eq('id', campaignId);
+      .eq('id', campaignId)
+      .select('campaign_name, description, status, note, trading_posts, custom_trading_posts, allow_join_requests, discord_guild_id, discord_channel_id, discord_channel_type, updated_at')
+      .single();
 
     if (error) throw error;
 
@@ -69,9 +71,8 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
       .eq('campaign_id', campaignId);
 
     // Use granular cache invalidation with proper taxonomy
-    invalidateCampaign(campaignId);
-    invalidateCampaign(campaignId);
-    
+    invalidateCampaignCore(campaignId);
+
     // Invalidate gang caches to update campaign resource settings display
     if (campaignGangs && campaignGangs.length > 0) {
       campaignGangs.forEach(gang => {
@@ -81,7 +82,7 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
       });
     }
 
-    return { success: true };
+    return { success: true, data };
   } catch (error) {
     console.error('Error updating campaign settings:', error);
     return { 
@@ -166,11 +167,7 @@ export async function deleteCampaign(campaignId: string) {
     }
 
     // Use comprehensive cache invalidation with proper taxonomy for deleted campaign
-    invalidateCampaign(campaignId);
-    invalidateCampaign(campaignId);
-    invalidateCampaign(campaignId);
-    invalidateCampaign(campaignId);
-    invalidateCampaign(campaignId);
+    invalidateCampaignAll(campaignId);
 
     // Invalidate gang campaign caches since campaign was deleted
     if (campaignGangs && campaignGangs.length > 0) {

@@ -1,6 +1,6 @@
 'use server'
 
-import { TAGS, invalidateGang, invalidateFighter, invalidateGangOverview, invalidateGangCampaignMembership, invalidateGangFinancials, invalidateCampaign } from '@/utils/cache-tags';
+import { TAGS, invalidateGang, invalidateFighter, invalidateGangOverview, invalidateGangCampaignMembership, invalidateGangFinancials, invalidateCampaignCaptives } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 
 import { revalidateTag } from 'next/cache';
@@ -752,7 +752,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
           invalidateFighter(params.fighter_id, gangId);
           await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase, fighter.fighter_pet_id ?? null);
-          invalidateCampaign(campaignId);
+          invalidateCampaignCaptives(campaignId);
           invalidateGangCampaignMembership(gangId);
 
           return {

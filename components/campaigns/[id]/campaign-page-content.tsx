@@ -28,7 +28,6 @@ import type { CampaignPermissions } from '@/types/user-permissions';
 import type { Battle, CampaignType } from '@/types/campaign';
 import type { BattleSession } from '@/types/battle-session';
 import CampaignBattleSessions from "@/components/campaigns/[id]/campaign-battle-sessions";
-import { updateCampaignSettings } from "@/app/actions/campaigns/[id]/campaign-settings";
 import { requestToJoinCampaign, withdrawJoinRequest } from "@/app/actions/campaigns/[id]/campaign-join-requests";
 import { CampaignNotes } from "@/components/campaigns/[id]/campaign-notes";
 import CampaignMap from "./campaign-map"
@@ -192,6 +191,10 @@ export default function CampaignPageContent({
   mapObjects: initialMapObjects = []
 }: CampaignPageContentProps) {
   const [campaignData, setCampaignData] = useState(initialCampaignData);
+  const [mapState, setMapState] = useState({
+    map: initialMapData ?? null,
+    objects: initialMapObjects
+  });
   const [showEditModal, setShowEditModal] = useState(false);
   const [joinRequestPending, setJoinRequestPending] = useState(hasPendingJoinRequest);
   const [joinRequestProcessing, setJoinRequestProcessing] = useState(false);
@@ -230,32 +233,14 @@ export default function CampaignPageContent({
   // Fix: Include app-level admin status in isAdmin check
   const isAdmin = safePermissions.isOwner || safePermissions.isArbitrator || safePermissions.isAdmin;
 
-  const refreshData = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/campaigns/${campaignData.id}`, {
-        method: 'GET',
-        headers: {
-          'Cache-Control': 'no-cache',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch updated campaign data');
-      }
-
-      const updatedCampaignData = await response.json();
-      setCampaignData(updatedCampaignData);
-
-    } catch (error) {
-      console.error('Error refreshing campaign data:', error);
-      toast.error("Failed to refresh campaign data");
-    }
-  }, [campaignData.id]);
-
   // Shared handler for territory updates with optimistic updates
   interface TerritoryUpdate {
-    action: 'assign' | 'remove' | 'update' | 'delete';
+    action: 'assign' | 'remove' | 'update' | 'delete' | 'restore';
     territoryId: string;
+    /** For 'restore': the row as it was before a mutation that then failed. */
+    territory?: Territory;
+    /** For 'restore' after a delete: where the row used to sit. */
+    index?: number;
     gangId?: string;
     gangData?: Gang;
     updates?: {
@@ -264,25 +249,46 @@ export default function CampaignPageContent({
       playing_card?: string | null;
       description?: string | null;
       territory_name?: string;
+      map_object_id?: string | null;
+      map_hex_coords?: { x: number; y: number; z: number } | null;
+      show_name_on_map?: boolean;
     };
   }
 
-  const handleTerritoryUpdate = useCallback((update?: TerritoryUpdate) => {
-    if (!update) {
-      refreshData();
-      return;
-    }
-
-    if (update.action === 'assign') {
-      // Optimistically assign gang to territory
-      setCampaignData(prev => ({
-        ...prev,
-        territories: (prev.territories || []).map(territory => 
-          territory.id === update.territoryId
-            ? { ...territory, gang_id: update.gangId ?? null, owning_gangs: update.gangData ? [update.gangData] : [] }
-            : territory
-        )
-      }));
+  const handleTerritoryUpdate = useCallback((update: TerritoryUpdate) => {
+    if (update.action === 'restore' && update.territory) {
+      // Undo a failed mutation by putting the snapshotted row back, re-adding it
+      // if the optimistic patch had removed it.
+      const restored = update.territory;
+      setCampaignData(prev => {
+        const territories = prev.territories || [];
+        if (territories.some(t => t.id === update.territoryId)) {
+          return {
+            ...prev,
+            territories: territories.map(t => (t.id === update.territoryId ? restored : t))
+          };
+        }
+        const reinstated = [...territories];
+        reinstated.splice(update.index ?? reinstated.length, 0, restored);
+        return { ...prev, territories: reinstated };
+      });
+    } else if (update.action === 'assign') {
+      // Optimistically assign gang to territory. Callers that already hold the gang
+      // pass it; the rest we look up in the members we were given.
+      setCampaignData(prev => {
+        const owner = update.gangData
+          ?? prev.members
+            .flatMap(member => member.gangs)
+            .find((gang: Member['gangs'][0]) => gang.id === update.gangId);
+        return {
+          ...prev,
+          territories: (prev.territories || []).map(territory =>
+            territory.id === update.territoryId
+              ? { ...territory, gang_id: update.gangId ?? null, owning_gangs: owner ? [owner] : [] }
+              : territory
+          )
+        };
+      });
     } else if (update.action === 'remove') {
       // Optimistically remove gang from territory
       setCampaignData(prev => ({
@@ -310,104 +316,39 @@ export default function CampaignPageContent({
         territories: (prev.territories || []).filter(t => t.id !== update.territoryId)
       }));
     }
-  }, [refreshData]);
+  }, []);
 
-  const handleSave = async (formValues: {
-    campaign_name: string;
-    description: string;
-    status: string;
-    trading_posts: string[];
-    custom_trading_posts: string[];
-    allow_join_requests: boolean;
-    discord_guild_id?: string | null;
-    discord_channel_id?: string | null;
-    discord_channel_type?: number | null;
-  }) => {
+  // The edit modal owns updateCampaignSettings; this only folds the saved row in.
+  const handleSettingsSaved = useCallback((saved: Record<string, unknown>) => {
+    setCampaignData(prev => ({ ...prev, ...saved }));
+    setShowEditModal(false);
+  }, []);
+
+  const runJoinRequestAction = useCallback(async (
+    action: typeof requestToJoinCampaign,
+    nextPending: boolean,
+    successMessage: string,
+    failureMessage: string
+  ) => {
+    setJoinRequestProcessing(true);
     try {
-      const result = await updateCampaignSettings({
-        campaignId: campaignData.id,
-        campaign_name: formValues.campaign_name,
-        description: formValues.description,
-        trading_posts: formValues.trading_posts,
-        custom_trading_posts: formValues.custom_trading_posts,
-        status: formValues.status,
-        allow_join_requests: formValues.allow_join_requests,
-        ...(formValues.discord_guild_id !== undefined && { discord_guild_id: formValues.discord_guild_id }),
-        ...(formValues.discord_channel_id !== undefined && { discord_channel_id: formValues.discord_channel_id }),
-        ...(formValues.discord_channel_type !== undefined && { discord_channel_type: formValues.discord_channel_type }),
-      });
-
-      if (!result.success) {
-        throw new Error(result.error);
-      }
-
-      const now = new Date().toISOString();
-
-      // Update local state
-      setCampaignData(prev => ({
-        ...prev,
-        campaign_name: formValues.campaign_name,
-        description: formValues.description,
-        trading_posts: formValues.trading_posts,
-        custom_trading_posts: formValues.custom_trading_posts,
-        status: formValues.status,
-        allow_join_requests: formValues.allow_join_requests,
-        updated_at: now,
-        ...(formValues.discord_guild_id !== undefined && { discord_guild_id: formValues.discord_guild_id }),
-        ...(formValues.discord_channel_id !== undefined && { discord_channel_id: formValues.discord_channel_id }),
-        ...(formValues.discord_channel_type !== undefined && { discord_channel_type: formValues.discord_channel_type }),
-      }));
-      
-      toast.success("Campaign settings updated successfully");
-      
-      setShowEditModal(false);
-      return true;
+      const result = await action({ campaignId: campaignData.id });
+      if (!result.success) throw new Error(result.error);
+      setJoinRequestPending(nextPending);
+      toast.success(successMessage);
     } catch (error) {
-      console.error('Error updating campaign:', error);
-      toast.error("Failed to update campaign settings");
-      return false;
+      console.error(failureMessage, error);
+      toast.error(error instanceof Error ? error.message : failureMessage);
+    } finally {
+      setJoinRequestProcessing(false);
     }
-  };
+  }, [campaignData.id]);
 
   // Shown to logged-in non-members of campaigns that opted into join requests
   const canRequestToJoin = !!userId
     && !safePermissions.campaignRole
     && !safePermissions.isAdmin
     && !!campaignData.allow_join_requests;
-
-  const handleRequestToJoin = async () => {
-    setJoinRequestProcessing(true);
-    try {
-      const result = await requestToJoinCampaign({ campaignId: campaignData.id });
-      if (!result.success) {
-        throw new Error(result.error);
-      }
-      setJoinRequestPending(true);
-      toast.success("Join request sent to the campaign's arbitrators");
-    } catch (error) {
-      console.error('Error requesting to join campaign:', error);
-      toast.error(error instanceof Error ? error.message : "Failed to send join request");
-    } finally {
-      setJoinRequestProcessing(false);
-    }
-  };
-
-  const handleWithdrawJoinRequest = async () => {
-    setJoinRequestProcessing(true);
-    try {
-      const result = await withdrawJoinRequest({ campaignId: campaignData.id });
-      if (!result.success) {
-        throw new Error(result.error);
-      }
-      setJoinRequestPending(false);
-      toast.success("Join request cancelled");
-    } catch (error) {
-      console.error('Error withdrawing join request:', error);
-      toast.error(error instanceof Error ? error.message : "Failed to cancel join request");
-    } finally {
-      setJoinRequestProcessing(false);
-    }
-  };
 
   // Add this function to handle the Add button click
   const handleAddBattleLog = () => {
@@ -597,7 +538,7 @@ export default function CampaignPageContent({
                    {canRequestToJoin && (
                      joinRequestPending ? (
                        <Button
-                         onClick={handleWithdrawJoinRequest}
+                         onClick={() => runJoinRequestAction(withdrawJoinRequest, false, 'Join request cancelled', 'Failed to cancel join request')}
                          disabled={joinRequestProcessing}
                          variant="outline"
                        >
@@ -605,7 +546,7 @@ export default function CampaignPageContent({
                        </Button>
                      ) : (
                        <Button
-                         onClick={handleRequestToJoin}
+                         onClick={() => runJoinRequestAction(requestToJoinCampaign, true, "Join request sent to the campaign's arbitrators", 'Failed to send join request')}
                          disabled={joinRequestProcessing}
                          className="bg-neutral-900 text-white hover:bg-gray-800"
                        >
@@ -809,10 +750,11 @@ export default function CampaignPageContent({
                 <MemberSearchBar
                   campaignId={campaignData.id}
                   campaignMembers={campaignData.members}
-                  onMemberAdd={() => {
-                    // ✅ Only refresh data after server action completes
-                    // The server action already handles cache invalidation
-                    refreshData();
+                  onMemberAdd={(newMember) => {
+                    setCampaignData(prev => ({
+                      ...prev,
+                      members: [...prev.members, newMember]
+                    }));
                   }}
                 />
               )}
@@ -823,9 +765,20 @@ export default function CampaignPageContent({
                 members={campaignData.members}
                 userId={userId}
                 initialAllegiances={campaignAllegiances}
-                onMemberUpdate={({ removedMemberId, removedGangIds, updatedMember }) => {
+                onMemberUpdate={({ removedMemberId, removedGangIds, updatedMember, roleChange, restoredMembers }) => {
                   // For specific updates, we do optimistic updates (no startTransition needed for instant updates)
-                  if (removedMemberId) {
+                  if (restoredMembers) {
+                    setCampaignData(prev => ({ ...prev, members: restoredMembers }));
+                  } else if (roleChange) {
+                    setCampaignData(prev => ({
+                      ...prev,
+                      members: prev.members.map(member =>
+                        member.user_id === roleChange.userId
+                          ? { ...member, role: roleChange.newRole }
+                          : member
+                      )
+                    }));
+                  } else if (removedMemberId) {
                     // Optimistically remove the member from the local state
                     setCampaignData(prev => ({
                       ...prev,
@@ -857,9 +810,6 @@ export default function CampaignPageContent({
                           : member
                       )
                     }));
-                  } else {
-                    // For other updates, fetch fresh data
-                    refreshData();
                   }
                 }}
                 isCampaignAdmin={!!safePermissions.isArbitrator || !!safePermissions.isAdmin}
@@ -919,50 +869,7 @@ export default function CampaignPageContent({
                       </Button>
                     ) : undefined
                   }
-                  onTerritoryUpdate={(update) => {
-                    if (!update) {
-                      refreshData();
-                      return;
-                    }
-
-                    if (update.action === 'assign') {
-                      // Optimistically assign gang to territory
-                      setCampaignData(prev => ({
-                        ...prev,
-                        territories: (prev.territories || []).map(territory => 
-                          territory.id === update.territoryId
-                            ? { ...territory, gang_id: update.gangId ?? null, owning_gangs: update.gangData ? [update.gangData] : [] }
-                            : territory
-                        )
-                      }));
-                    } else if (update.action === 'remove') {
-                      // Optimistically remove gang from territory
-                      setCampaignData(prev => ({
-                        ...prev,
-                        territories: (prev.territories || []).map(territory => 
-                          territory.id === update.territoryId
-                            ? { ...territory, gang_id: null, owning_gangs: [] }
-                            : territory
-                        )
-                      }));
-                    } else if (update.action === 'update') {
-                      // Optimistically update territory status
-                      setCampaignData(prev => ({
-                        ...prev,
-                        territories: (prev.territories || []).map(territory => 
-                          territory.id === update.territoryId
-                            ? { ...territory, ...update.updates }
-                            : territory
-                        )
-                      }));
-                    } else if (update.action === 'delete') {
-                      // Optimistically delete territory
-                      setCampaignData(prev => ({
-                        ...prev,
-                        territories: (prev.territories || []).filter(t => t.id !== update.territoryId)
-                      }));
-                    }
-                  }}
+                  onTerritoryUpdate={handleTerritoryUpdate}
                 />
               </div>
             </div>
@@ -1023,7 +930,24 @@ export default function CampaignPageContent({
                     editionSlug={campaignData.edition_slug ?? null}
                     battles={campaignData.battles || []}
                     isAdmin={!!safePermissions.canEditBattleLogs}
-                    onBattleAdd={refreshData}
+                    onBattlesChange={(update) => {
+                      setCampaignData(prev => ({
+                        ...prev,
+                        battles: typeof update === 'function'
+                          ? update(prev.battles || [])
+                          : update
+                      }));
+                    }}
+                    onTerritoryUpdate={handleTerritoryUpdate}
+                    onMemberRoleChange={(userId, newRole) => {
+                      // A user can hold more than one member row in a campaign (one per gang).
+                      setCampaignData(prev => ({
+                        ...prev,
+                        members: prev.members.map(member =>
+                          member.user_id === userId ? { ...member, role: newRole } : member
+                        )
+                      }));
+                    }}
                     members={campaignData.members}
                     territories={campaignData.territories}
                     noContainer={true}
@@ -1046,7 +970,9 @@ export default function CampaignPageContent({
               <CampaignNotes
                 campaignId={campaignData.id}
                 initialNote={campaignData.note || ''}
-                onNoteUpdate={refreshData}
+                onNoteUpdate={(updatedNote) => {
+                  setCampaignData(prev => ({ ...prev, note: updatedNote }));
+                }}
               />
               </div>
             </div>
@@ -1056,13 +982,14 @@ export default function CampaignPageContent({
           {activeTab === 4 && (
             <CampaignMap
               campaignId={campaignData.id}
-              mapData={initialMapData ?? null}
-              mapObjects={initialMapObjects}
+              mapData={mapState.map}
+              mapObjects={mapState.objects}
               territories={campaignData.territories || []}
               members={campaignData.members || []}
               canEdit={!!safePermissions.canEditCampaign}
               canClaimTerritories={!!safePermissions.canClaimTerritories}
-              onRefresh={refreshData}
+              onMapUpdate={setMapState}
+              onTerritoryUpdate={handleTerritoryUpdate}
             />
           )}
 
@@ -1106,14 +1033,10 @@ export default function CampaignPageContent({
           onClose={() => setShowEditModal(false)}
           isArbitrator={!!safePermissions.isArbitrator}
           isAdmin={isAdmin}
-          onSave={handleSave}
+          onSaved={handleSettingsSaved}
           isOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}
           campaignAllegiances={campaignAllegiances}
           predefinedAllegiances={campaignAllegiances.filter(a => !a.is_custom)}
-          onAllegiancesChange={() => {
-            // Cache invalidation is handled by the mutation in campaign-allegiances-actions
-            // This callback is kept for potential future use
-          }}
           onMembersUpdate={(allegianceId) => {
             // Optimistically clear allegiance from all gangs that have it
             setCampaignData(prev => ({
@@ -1147,10 +1070,6 @@ export default function CampaignPageContent({
           }}
           campaignResources={campaignResources}
           predefinedResources={campaignResources.filter(r => !r.is_custom)}
-          onResourcesChange={() => {
-            // Cache invalidation is handled by the mutation in campaign-resources-actions
-            // This callback is kept for potential future use
-          }}
           onDiscordConnected={(guildId) => {
             setCampaignData(prev => ({ ...prev, discord_guild_id: guildId }));
           }}
@@ -1177,7 +1096,12 @@ export default function CampaignPageContent({
             territory_id: territory.territory_id,
             territory_name: territory.territory_name
           }))}
-          onTerritoryAdd={refreshData}
+          onTerritoryAdd={(territory) => {
+            setCampaignData(prev => ({
+              ...prev,
+              territories: [...(prev.territories || []), territory]
+            }));
+          }}
           isAdmin={!!safePermissions.canManageTerritories}
         />
 

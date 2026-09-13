@@ -1,6 +1,6 @@
 'use server';
 
-import { invalidateGangCampaignMembership, invalidateCampaign, invalidateBattleSession, invalidateBattleSessions } from '@/utils/cache-tags';
+import { invalidateGangCampaignMembership, invalidateCampaignBattles, invalidateCampaignTerritories, invalidateBattleSession, invalidateBattleSessions } from '@/utils/cache-tags';
 import { createClient, createServiceRoleClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 
@@ -1376,6 +1376,7 @@ export async function completeBattleSession(
     // --- Campaign battle log (inline insert, no createBattleLog call) ---
     let campaign_battle_id: string | undefined;
     let dispossessedGangId: string | null = null;
+    let claimedTerritory = false;
     if (session.campaign_id) {
       const battleParticipants = allParticipants.map((p) => ({
         role: p.role,
@@ -1408,12 +1409,14 @@ export async function completeBattleSession(
       campaign_battle_id = battle.id;
 
       // Claim territory in same flow
-      if (options?.campaign_territory_id && claimerGangId) {
+      const claimTerritoryId = claimerGangId ? options?.campaign_territory_id : undefined;
+      claimedTerritory = !!claimTerritoryId;
+      if (claimTerritoryId) {
         // Remember who held it so the dispossessed gang's campaign tab refreshes
         const { data: previousHolder } = await supabase
           .from('campaign_territories')
           .select('gang_id')
-          .eq('id', options.campaign_territory_id)
+          .eq('id', claimTerritoryId)
           .single();
         if (previousHolder?.gang_id && previousHolder.gang_id !== claimerGangId) {
           dispossessedGangId = previousHolder.gang_id;
@@ -1422,7 +1425,7 @@ export async function completeBattleSession(
         const { error: claimError } = await supabase
           .from('campaign_territories')
           .update({ gang_id: claimerGangId })
-          .eq('id', options.campaign_territory_id)
+          .eq('id', claimTerritoryId)
           .eq('campaign_id', session.campaign_id);
 
         if (claimError) {
@@ -1559,7 +1562,10 @@ export async function completeBattleSession(
           invalidateBattleSessions(p.gang_id);
         }
         if (session.campaign_id) {
-          invalidateCampaign(session.campaign_id);
+          invalidateCampaignBattles(session.campaign_id);
+          if (claimedTerritory) {
+            invalidateCampaignTerritories(session.campaign_id);
+          }
           for (const wid of effectiveWinnerIds) {
             invalidateGangCampaignMembership(wid);
           }

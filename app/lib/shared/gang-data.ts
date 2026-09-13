@@ -765,7 +765,13 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
     {
       tags: [
         TAGS.gangCampaigns(gangId),
-        ...campaignIdsForTags.map(id => TAGS.campaign(id))
+        ...campaignIdsForTags.flatMap(id => [
+          TAGS.campaignCore(id),
+          TAGS.campaignMembers(id),
+          TAGS.campaignTerritories(id),
+          TAGS.campaignResources(id),
+          TAGS.campaignTradingPosts(id)
+        ])
       ],
       revalidate: false
     }

@@ -1,6 +1,6 @@
 'use server';
 
-import { invalidateCampaign, invalidateUser } from '@/utils/cache-tags';
+import { invalidateCampaignCore, invalidateUser } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 
@@ -12,22 +12,23 @@ export async function updateCampaignImage(campaignId: string, imageUrl: string |
     // Optional: ensure user is member of campaign (owner or arbitrator) before update
     // We keep it simple/trusted here, as UI gates this action. Add stricter checks if needed.
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('campaigns')
       .update({ image_url: imageUrl, updated_at: new Date().toISOString() })
-      .eq('id', campaignId);
+      .eq('id', campaignId)
+      .select('image_url, updated_at')
+      .single();
 
     if (error) {
       throw error;
     }
 
     // Invalidate caches for this campaign
-    invalidateCampaign(campaignId);
-    invalidateCampaign(campaignId);
+    invalidateCampaignCore(campaignId);
     // Also refresh user's campaigns list
     invalidateUser(user.id);
 
-    return { success: true };
+    return { success: true, data };
   } catch (error) {
     console.error('Error updating campaign image:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Failed to update campaign image' };
