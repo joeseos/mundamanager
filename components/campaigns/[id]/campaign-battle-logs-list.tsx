@@ -323,7 +323,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       }
       return 0;
     });
-  }, [localBattles, filterCycle, filterScenario, filterParticipatingGang, filterWinningGang, filterDraws, sortField, sortDirection, gangRatings]);
+  }, [battles, filterCycle, filterScenario, filterParticipatingGang, filterWinningGang, filterDraws, sortField, sortDirection, gangRatings]);
 
   // Handle sorting
   const handleSort = (field: string) => {
