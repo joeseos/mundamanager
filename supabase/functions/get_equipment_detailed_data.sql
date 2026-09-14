@@ -461,8 +461,17 @@ AS $$
             FROM fighter_type_equipment d
             WHERE d.equipment_id = e.id
               AND d.excluded
+              -- Vehicle rows belong to the vehicle admin, which has no deny UI, so a deny
+              -- cannot cancel a grant matched through fte.vehicle_type_id.
               AND d.vehicle_type_id IS NULL
-              AND (d.fighter_type_id IS NULL OR d.fighter_type_id = $3)
+              -- Same identity branches as the grant join above: a fighter reaching an equipment
+              -- list through a legacy or affiliation type must be deniable through it too.
+              AND (
+                  d.fighter_type_id IS NULL
+                  OR d.fighter_type_id = $3
+                  OR (gd.legacy_ft_id IS NOT NULL AND d.fighter_type_id = gd.legacy_ft_id AND $4 = true)
+                  OR (gd.affiliation_ft_id IS NOT NULL AND d.fighter_type_id = gd.affiliation_ft_id)
+              )
               AND (d.gang_origin_id  IS NULL OR d.gang_origin_id = gd.gang_origin_id)
               AND (d.gang_subtype_id IS NULL OR gd.gang_subtypes ? d.gang_subtype_id::text)
               AND (d.gang_type_id    IS NULL OR d.gang_type_id = $1)

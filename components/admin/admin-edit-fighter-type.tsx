@@ -181,6 +181,9 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   // null until the fighter type's rules have loaded, so a failed load submits no key and the
   // save leaves the existing rows alone rather than deleting them.
   const [availability, setAvailability] = useState<FighterTypeGrant[] | null>(null);
+  // The subtypes as stored, which is what the save scopes blanket rules to. Kept apart from
+  // selectedFighterSubtypes so a subtype ticked but not yet saved cannot be given a rule.
+  const [savedFighterSubtypes, setSavedFighterSubtypes] = useState<string[]>([]);
   const [showAvailabilityDialog, setShowAvailabilityDialog] = useState(false);
   const [ruleTarget, setRuleTarget] = useState<'type' | 'subtype'>('type');
   const [ruleFighterSubtype, setRuleFighterSubtype] = useState('');
@@ -509,6 +512,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         setSelectedFighterTypeId('');
         setSelectedSpecialisationId('');
         setAvailability(null);
+        setSavedFighterSubtypes([]);
       }
     }
 
@@ -692,6 +696,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         setEditionId(data.edition_id);
       }
       setSelectedFighterSubtypes(Array.isArray(data.fighter_subtypes) ? data.fighter_subtypes : []);
+      setSavedFighterSubtypes(Array.isArray(data.fighter_subtypes) ? data.fighter_subtypes : []);
       setMovement(data.movement?.toString() || '0');
       setWeaponSkill(data.weapon_skill?.toString() || '0');
       setBallisticSkill(data.ballistic_skill?.toString() || '0');
@@ -775,6 +780,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     // Cleared here, not just on load: a failed detail fetch would otherwise leave the previous
     // fighter type's rules in state and save them against this one.
     setAvailability(null);
+    setSavedFighterSubtypes([]);
     setAvailableSpecialisations([]);
     setVariantName('');
     setSpecialisationCatalogId('');
@@ -1341,6 +1347,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   setSelectedFighterTypeId('');
                   setSelectedSpecialisationId('');
                   setAvailability(null);
+                  setSavedFighterSubtypes([]);
                 }}
                 className="w-full p-2 border rounded-md"
               >
@@ -2462,9 +2469,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                             className="w-full p-2 border rounded-md"
                           >
                             <option value="">Select a Fighter Subtype</option>
-                            {selectedFighterSubtypes.map((subtype) => (
-                              <option key={subtype} value={subtype}>{subtype}</option>
-                            ))}
+                            {selectedFighterSubtypes
+                              .filter(subtype => savedFighterSubtypes.includes(subtype))
+                              .map((subtype) => (
+                                <option key={subtype} value={subtype}>{subtype}</option>
+                              ))}
                           </select>
                           <p className="text-sm text-muted-foreground mt-1">
                             A blanket rule, shared with every other fighter type carrying this subtype.
