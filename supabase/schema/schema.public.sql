@@ -1747,6 +1747,8 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         AND (fte.gang_subtype_id IS NULL OR gd.gang_subtypes ? fte.gang_subtype_id::text)
         AND (fte.gang_type_id IS NULL OR fte.gang_type_id = $1)
         AND (fte.fighter_subtype IS NULL OR gd.fighter_subtypes ? fte.fighter_subtype)
+        -- Grants only: this join sets is_fighter_list, so a deny matching here would grant.
+        AND NOT fte.excluded
 
     -- Is this system equipment on the current custom fighter type's equipment list?
     -- ($3 is a custom_fighter_types.id when the fighter is a custom fighter.)
@@ -1769,6 +1771,31 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             OR ea_var.id IS NOT NULL
             OR ea_origin.id IS NOT NULL
             OR cftl.is_ftl IS NOT NULL
+        )
+        -- ...unless a deny matches. Applied to the whole flag, not just the fighter_type_equipment
+        -- branch, so it also overrides a gang-wide equipment_availability grant as its column
+        -- comment promises. No fighter identity required: a row naming only a gang scope
+        -- withholds the item from every fighter in that gang.
+        AND NOT EXISTS (
+            SELECT 1
+            FROM fighter_type_equipment d
+            WHERE d.equipment_id = e.id
+              AND d.excluded
+              -- Vehicle rows belong to the vehicle admin, which has no deny UI, so a deny
+              -- cannot cancel a grant matched through fte.vehicle_type_id.
+              AND d.vehicle_type_id IS NULL
+              -- Same identity branches as the grant join above: a fighter reaching an equipment
+              -- list through a legacy or affiliation type must be deniable through it too.
+              AND (
+                  d.fighter_type_id IS NULL
+                  OR d.fighter_type_id = $3
+                  OR (gd.legacy_ft_id IS NOT NULL AND d.fighter_type_id = gd.legacy_ft_id AND $4 = true)
+                  OR (gd.affiliation_ft_id IS NOT NULL AND d.fighter_type_id = gd.affiliation_ft_id)
+              )
+              AND (d.gang_origin_id  IS NULL OR d.gang_origin_id = gd.gang_origin_id)
+              AND (d.gang_subtype_id IS NULL OR gd.gang_subtypes ? d.gang_subtype_id::text)
+              AND (d.gang_type_id    IS NULL OR d.gang_type_id = $1)
+              AND (d.fighter_subtype IS NULL OR gd.fighter_subtypes ? d.fighter_subtype)
         ) AS is_fighter_list
     ) ftl_flag ON true
 
@@ -6325,6 +6352,34 @@ CREATE TABLE public.trading_post_types (
 
 
 --
+-- Name: user_guides; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.user_guides (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    edition_id uuid NOT NULL,
+    content text DEFAULT ''::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    updated_by uuid
+);
+
+
+--
+-- Name: TABLE user_guides; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.user_guides IS 'Admin-editable user guide, one HTML document per edition. Rendered on /user-guide.';
+
+
+--
+-- Name: COLUMN user_guides.content; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.user_guides.content IS 'Full guide as rich-text HTML (TipTap output). Headings drive the generated table of contents.';
+
+
+--
 -- Name: user_notification_preferences; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -7330,6 +7385,22 @@ ALTER TABLE ONLY public.trading_post_types
 
 ALTER TABLE ONLY public.fighter_equipment_selections
     ADD CONSTRAINT unique_fighter_type_id UNIQUE (fighter_type_id);
+
+
+--
+-- Name: user_guides user_guides_edition_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_guides
+    ADD CONSTRAINT user_guides_edition_id_key UNIQUE (edition_id);
+
+
+--
+-- Name: user_guides user_guides_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_guides
+    ADD CONSTRAINT user_guides_pkey PRIMARY KEY (id);
 
 
 --
@@ -10990,6 +11061,22 @@ ALTER TABLE ONLY public.trading_post_types
 
 
 --
+-- Name: user_guides user_guides_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_guides
+    ADD CONSTRAINT user_guides_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_guides user_guides_updated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_guides
+    ADD CONSTRAINT user_guides_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
 -- Name: user_notification_preferences user_notification_preferences_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11899,6 +11986,13 @@ CREATE POLICY "Campaign owners and arbitrators can update campaign resources" ON
 
 
 --
+-- Name: editions Editions are viewable by everyone; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Editions are viewable by everyone" ON public.editions FOR SELECT USING (true);
+
+
+--
 -- Name: fighter_ooa_records Gang owner, admin or arb can delete fighter ooa records; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -12460,6 +12554,13 @@ CREATE POLICY "Only admin can update trading_post_types" ON public.trading_post_
 
 
 --
+-- Name: user_guides Only admins can create user guides; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admins can create user guides" ON public.user_guides FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
 -- Name: campaign_type_allegiances Only admins can delete campaign type allegiances; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -12499,6 +12600,13 @@ CREATE POLICY "Only admins can update campaign type allegiances" ON public.campa
 --
 
 CREATE POLICY "Only admins can update campaign type resources" ON public.campaign_type_resources FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: user_guides Only admins can update user guides; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admins can update user guides" ON public.user_guides FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -12993,6 +13101,13 @@ CREATE POLICY "Requester, arbitrators or admin can delete join requests" ON publ
 --
 
 CREATE POLICY "Requester, arbitrators or admin can view join requests" ON public.campaign_join_requests FOR SELECT TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR ( SELECT private.is_arb(campaign_join_requests.campaign_id) AS is_arb)));
+
+
+--
+-- Name: user_guides User guides are viewable by everyone; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "User guides are viewable by everyone" ON public.user_guides FOR SELECT USING (true);
 
 
 --
@@ -14347,6 +14462,12 @@ ALTER TABLE public.trading_post_equipment ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.trading_post_types ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: user_guides; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.user_guides ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: user_notification_preferences; Type: ROW SECURITY; Schema: public; Owner: -
