@@ -844,7 +844,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                 placeholder="Enter URL..."
                 value={linkUrl}
                 onChange={(e) => setLinkUrl(e.target.value)}
-                className="flex-1 px-3 py-1 border rounded-sm text-sm"
+                className="flex-1 px-3 py-1 border rounded-sm text-base md:text-sm"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     addLink();
@@ -898,7 +898,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                           Original
                         </Button>
                       </div>
-                      <div className="flex items-center border rounded-sm text-sm focus-within:ring-1 focus-within:ring-ring">
+                      <div className="flex items-center border rounded-sm text-base md:text-sm focus-within:ring-1 focus-within:ring-ring">
                         <input
                           type="number"
                           min={1}
@@ -1010,7 +1010,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                     placeholder="Image URL (hotlink)..."
                     value={imageUrl}
                     onChange={(e) => setImageUrl(e.target.value)}
-                    className="flex-1 px-3 py-1 border rounded-sm text-sm"
+                    className="flex-1 px-3 py-1 border rounded-sm text-base md:text-sm"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         addImage();
