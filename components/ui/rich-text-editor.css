@@ -8,9 +8,16 @@
   color: hsl(var(--primary));
 }
 
-/* Ensure bold text is properly colored in read-only mode */
+/* Bold and headings inherit the prose color so they follow light/dark mode.
+   Tailwind Typography otherwise paints headings with --tw-prose-headings (near-black). */
 .prose strong,
-.prose b {
+.prose b,
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6 {
   color: inherit;
 }
 
@@ -24,6 +31,14 @@
 
   /* Override prose text color to be black */
   color: #000000;
+}
+
+/* iOS Safari zooms any focused contenteditable whose computed font-size is
+   under 16px. prose-sm is 0.875rem (14px); lift only on iOS. */
+@supports (-webkit-touch-callout: none) {
+  .ProseMirror {
+    font-size: 16px;
+  }
 }
 
 /* Ensure bold text is properly colored */
