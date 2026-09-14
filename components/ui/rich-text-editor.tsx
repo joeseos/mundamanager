@@ -12,7 +12,22 @@ import Blockquote from '@tiptap/extension-blockquote';
 import Placeholder from '@tiptap/extension-placeholder';
 import Image from '@tiptap/extension-image';
 
-// Extend Image to support alignment attribute
+// Upper bound for a user-chosen display width, in CSS px.
+const MAX_IMAGE_WIDTH = 2000;
+const IMAGE_WIDTH_PRESETS = [
+  { label: 'Small', width: 300 },
+  { label: 'Medium', width: 450 },
+  { label: 'Large', width: 600 },
+] as const;
+
+/** Parses a display width; anything that is not a positive integer becomes null (= original size). */
+const normaliseImageWidth = (value: unknown): number | null => {
+  const n = typeof value === 'number' ? value : parseInt(String(value ?? ''), 10);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.min(Math.round(n), MAX_IMAGE_WIDTH);
+};
+
+// Extend Image to support alignment and an optional display width
 const CustomImage = Image.extend({
   addAttributes() {
     return {
@@ -25,6 +40,19 @@ const CustomImage = Image.extend({
             return {};
           }
           return { 'data-align': attributes.align };
+        },
+      },
+      // Display width in px. Rendered as the HTML `width` attribute; the
+      // `h-auto` / `max-w-full` classes keep the aspect ratio and stop it
+      // overflowing narrow containers. null = natural size.
+      width: {
+        default: null,
+        parseHTML: (element) => normaliseImageWidth(element.getAttribute('width')),
+        renderHTML: (attributes) => {
+          if (!attributes.width) {
+            return {};
+          }
+          return { width: attributes.width };
         },
       },
     };
@@ -58,6 +86,8 @@ import { useRichTextImages } from '@/hooks/use-rich-text-images';
 export interface RichTextEditorHandle {
   finalizeAssets: (currentHtml: string) => Promise<string>;
   discardAssets: () => Promise<void>;
+  /** Replace editor HTML without emitting onChange (caller owns draft state). */
+  setContent: (html: string) => void;
 }
 
 interface RichTextEditorProps {
@@ -66,7 +96,11 @@ interface RichTextEditorProps {
   placeholder?: string;
   className?: string;
   charLimit?: number;
-  campaignId?: string; // Optional campaign ID for image uploads
+  campaignId?: string; // Optional campaign ID for image uploads (Campaign Pack layout)
+  storageBucket?: string; // Storage bucket for uploads; defaults to 'users-images'
+  storageBasePath?: string; // Folder owning this editor's images, e.g. 'user-guide/n23'
+  filePrefix?: string; // Final file name prefix for promoted uploads; defaults to 'pack'
+  maxImages?: number | null; // Max hosted images; null = unlimited; defaults to 5
   enableImages?: boolean; // When false, hide all image upload/hotlink UI
   stickyWithinScrollContainer?: boolean; // When true, sticky toolbar follows nearest scrollable parent
 }
@@ -87,7 +121,20 @@ const colors = [
 ];
 
 export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(function RichTextEditor(
-  { content, onChange, placeholder, className, charLimit, campaignId, enableImages, stickyWithinScrollContainer = false }: RichTextEditorProps,
+  {
+    content,
+    onChange,
+    placeholder,
+    className,
+    charLimit,
+    campaignId,
+    storageBucket,
+    storageBasePath,
+    filePrefix,
+    maxImages,
+    enableImages,
+    stickyWithinScrollContainer = false,
+  }: RichTextEditorProps,
   ref
 ) {
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -95,6 +142,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
   const [linkUrl, setLinkUrl] = useState('');
   const [showImageInput, setShowImageInput] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
+  const [imageWidth, setImageWidth] = useState(''); // '' = original size
   const [isEditingImage, setIsEditingImage] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [toolbarTop, setToolbarTop] = useState(90);
@@ -127,25 +175,29 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
   // Image asset management hook
   const {
     isUploadingImage,
+    uploadsEnabled,
+    maxImages: imageLimit,
     uploadedImageCount,
     hostedImageToRemove,
     fileInputRef,
     setHostedImageToRemove,
-    getStorageBaseUrl,
-    getStoragePathFromUrl,
     isHostedImage,
     handleFileUpload,
     removeHostedImage,
     finalizeAssets,
     discardAssets,
-    resetImageInputState,
   } = useRichTextImages({
     campaignId,
+    bucket: storageBucket,
+    basePath: storageBasePath,
+    filePrefix,
     content,
-    maxImages: 5,
+    maxImages,
     onImageInserted: handleImageInserted,
     onCloseImageInput: handleCloseImageInput,
   });
+
+  const imageLimitReached = imageLimit !== null && uploadedImageCount >= imageLimit;
 
   const editor = useEditor({
     extensions: [
@@ -437,6 +489,18 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
   // Keep ref in sync for the image hook callback
   insertImageRef.current = insertImageWithAlignment;
 
+  // Apply a display width to the selected image ('' or invalid = original size)
+  const applyImageWidth = (value: string) => {
+    if (!editor || !editor.isActive('image')) return;
+    const width = normaliseImageWidth(value);
+    (editor.chain() as any)
+      .focus()
+      .updateAttributes('image', { width })
+      .run();
+    setImageWidth(width ? String(width) : '');
+    forceUpdate({});
+  };
+
   const addImage = () => {
     if (!editor) return;
     if (!imageUrl) return;
@@ -476,6 +540,9 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
   useImperativeHandle(ref, () => ({
     finalizeAssets,
     discardAssets,
+    setContent: (html: string) => {
+      editor?.commands.setContent(html || '', { emitUpdate: false });
+    },
   }));
 
   if (!editor) {
@@ -714,6 +781,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                 onClick={() => {
                   const attrs = editor.getAttributes('image');
                   if (attrs.src) {
+                    setImageWidth(attrs.width ? String(attrs.width) : '');
                     // If hosted on our storage, show removal menu instead of URL edit
                     if (isHostedImage(attrs.src)) {
                       setHostedImageToRemove(attrs.src);
@@ -732,7 +800,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                 }}
                 isActive={true}
                 className="border border-blue-500 text-blue-500 dark:border-blue-400 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/60"
-                title="Edit or Remove Image"
+                title="Resize, Edit or Remove Image"
               >
                 <LuImage className="h-4 w-4" />
               </MenuButton>
@@ -796,6 +864,67 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
             ref={imageInputRef}
           >
             <div className="flex flex-col gap-2">
+              {/* Display width (only when an existing image is selected) */}
+              {editor.isActive('image') && (hostedImageToRemove || isEditingImage) && (
+                <>
+                  <label className="text-xs text-muted-foreground font-medium">
+                    Display width
+                  </label>
+                  {editor.getAttributes('image').align === 'justify' ? (
+                    <p className="text-xs text-muted-foreground">
+                      Justify uses full width; display width is ignored.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="flex flex-wrap gap-1">
+                        {IMAGE_WIDTH_PRESETS.map((preset) => (
+                          <Button
+                            key={preset.width}
+                            size="sm"
+                            variant={imageWidth === String(preset.width) ? 'default' : 'outline'}
+                            onClick={() => applyImageWidth(String(preset.width))}
+                            disabled={isUploadingImage}
+                            title={`${preset.width}px`}
+                          >
+                            {preset.label}
+                          </Button>
+                        ))}
+                        <Button
+                          size="sm"
+                          variant={imageWidth === '' ? 'default' : 'outline'}
+                          onClick={() => applyImageWidth('')}
+                          disabled={isUploadingImage}
+                        >
+                          Original
+                        </Button>
+                      </div>
+                      <div className="flex items-center border rounded-sm text-sm focus-within:ring-1 focus-within:ring-ring">
+                        <input
+                          type="number"
+                          min={1}
+                          max={MAX_IMAGE_WIDTH}
+                          placeholder="Custom width"
+                          value={imageWidth}
+                          onChange={(e) => setImageWidth(e.target.value)}
+                          onBlur={(e) => applyImageWidth(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              applyImageWidth((e.target as HTMLInputElement).value);
+                            }
+                          }}
+                          className="flex-1 min-w-0 px-3 py-1 bg-transparent focus:outline-hidden"
+                          disabled={isUploadingImage}
+                        />
+                        <span className="pr-3 text-muted-foreground select-none" aria-hidden="true">
+                          px
+                        </span>
+                      </div>
+                    </>
+                  )}
+                  <div className="w-full h-px bg-border my-1" />
+                </>
+              )}
+
               {hostedImageToRemove ? (
                 <>
                   <div className="text-sm font-medium text-muted-foreground">
@@ -834,10 +963,12 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                 </>
               ) : (
                 <>
-                  {campaignId && !isEditingImage && (
+                  {uploadsEnabled && !isEditingImage && (
                     <>
                       <label className="text-xs text-muted-foreground font-medium">
-                        Upload Image ({uploadedImageCount}/5)
+                        {imageLimit !== null
+                          ? `Upload Image (${uploadedImageCount}/${imageLimit})`
+                          : 'Upload Image'}
                       </label>
                       <input
                         ref={fileInputRef}
@@ -845,16 +976,20 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                         accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/svg+xml,.heic,.heif,.avif,.svg"
                         onChange={handleFileUpload}
                         className="hidden"
-                        disabled={isUploadingImage || uploadedImageCount >= 5}
+                        disabled={isUploadingImage || imageLimitReached}
                       />
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => fileInputRef.current?.click()}
-                        disabled={isUploadingImage || uploadedImageCount >= 5}
+                        disabled={isUploadingImage || imageLimitReached}
                         className="w-full"
                       >
-                        {isUploadingImage ? 'Uploading...' : uploadedImageCount >= 5 ? 'Limit Reached (5/5)' : 'Choose File to Upload'}
+                        {isUploadingImage
+                          ? 'Uploading...'
+                          : imageLimitReached
+                            ? `Limit Reached (${imageLimit}/${imageLimit})`
+                            : 'Choose File to Upload'}
                       </Button>
                       <p className="text-xs text-muted-foreground text-center">
                         Max 10MB • Resized to 900x900 if larger
@@ -865,7 +1000,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                       </label>
                     </>
                   )}
-                  {(!campaignId || isEditingImage) && (
+                  {(!uploadsEnabled || isEditingImage) && (
                     <label className="text-xs text-muted-foreground">
                       {isEditingImage ? 'Edit Image URL' : 'Image URL (hotlink)'}
                     </label>
@@ -886,7 +1021,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                         setImageUrl('');
                       }
                     }}
-                    autoFocus={!campaignId || isEditingImage}
+                    autoFocus={!uploadsEnabled || isEditingImage}
                     disabled={isUploadingImage}
                   />
                   <div className="flex justify-between gap-2">

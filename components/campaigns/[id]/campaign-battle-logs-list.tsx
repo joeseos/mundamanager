@@ -201,6 +201,12 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     };
   }, [battles]);
 
+  const gangRatings = useMemo(() => {
+    const map = new Map<string, number>();
+    members.forEach((m) => m.gangs?.forEach((g) => map.set(g.id, g.rating ?? 0)));
+    return map;
+  }, [members]);
+
   // Sort and filter battles
   const sortedAndFilteredBattles = useMemo(() => {
     let filtered = [...battles];
@@ -304,18 +310,20 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       const bPending = isPlayedBattle(b) ? 1 : 0;
       if (aPending !== bPending) return aPending - bPending;
 
-      // Handle string comparison
-      if (typeof aValue === 'string' && typeof bValue === 'string') {
-        const comparison = aValue.localeCompare(bValue);
-        return sortDirection === 'asc' ? comparison : -comparison;
+      const comparison =
+        typeof aValue === 'string' && typeof bValue === 'string'
+          ? aValue.localeCompare(bValue)
+          : aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+      if (comparison !== 0) return sortDirection === 'asc' ? comparison : -comparison;
+
+      // Slots opened together tie on every column, so rank them by challenger rating.
+      if (aPending === 0 && bPending === 0) {
+        return (gangRatings.get(a.challenger_gang_id ?? '') ?? 0)
+          - (gangRatings.get(b.challenger_gang_id ?? '') ?? 0);
       }
-      
-      // Handle number comparison
-      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
-      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [battles, filterCycle, filterScenario, filterParticipatingGang, filterWinningGang, filterDraws, sortField, sortDirection]);
+  }, [localBattles, filterCycle, filterScenario, filterParticipatingGang, filterWinningGang, filterDraws, sortField, sortDirection, gangRatings]);
 
   // Handle sorting
   const handleSort = (field: string) => {
