@@ -16,9 +16,22 @@ export interface DraftUpload {
 }
 
 export interface UseRichTextImagesOptions {
+  /** Campaign Pack shorthand: uploads go to users-images/campaigns/{id}/pack. */
   campaignId?: string;
+  /** Storage bucket. Defaults to 'users-images'. */
+  bucket?: string;
+  /**
+   * Folder (no leading/trailing slash) that owns this editor's images, e.g.
+   * 'user-guide/n23'. Drafts are staged under `${basePath}/_draft/`. Defaults
+   * to `campaigns/${campaignId}/pack` when a campaignId is given. Uploads are
+   * disabled when neither is provided.
+   */
+  basePath?: string;
+  /** Final file name prefix. Defaults to 'pack'. */
+  filePrefix?: string;
   content?: string; // Current HTML content to count images from
-  maxImages?: number;
+  /** Max hosted images per document. `null` means unlimited. Defaults to 5. */
+  maxImages?: number | null;
   onImageInserted?: (url: string) => void;
   onCloseImageInput?: () => void;
 }
@@ -26,6 +39,9 @@ export interface UseRichTextImagesOptions {
 export interface UseRichTextImagesReturn {
   // State
   isUploadingImage: boolean;
+  uploadsEnabled: boolean;
+  /** Resolved limit; `null` when unlimited. */
+  maxImages: number | null;
   uploadedImageCount: number;
   draftUploads: DraftUpload[];
   pendingDeletes: string[];
@@ -50,6 +66,9 @@ export interface UseRichTextImagesReturn {
 
 export function useRichTextImages({
   campaignId,
+  bucket = 'users-images',
+  basePath: basePathOption,
+  filePrefix = 'pack',
   content = '',
   maxImages = 5,
   onImageInserted,
@@ -60,13 +79,17 @@ export function useRichTextImages({
   const [pendingDeletes, setPendingDeletes] = useState<string[]>([]);
   const [hostedImageToRemove, setHostedImageToRemove] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  
+
+  // Where this editor's images live. Campaign Pack keeps its historical layout.
+  const basePath = basePathOption ?? (campaignId ? `campaigns/${campaignId}/pack` : null);
+  const uploadsEnabled = basePath !== null;
+  const draftBasePath = basePath ? `${basePath}/_draft` : null;
 
   // Storage URL helpers
   const getStorageBaseUrl = useCallback(() => {
     const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '');
-    return supabaseUrl ? `${supabaseUrl}/storage/v1/object/public/users-images/` : '';
-  }, []);
+    return supabaseUrl ? `${supabaseUrl}/storage/v1/object/public/${bucket}/` : '';
+  }, [bucket]);
 
   const getStoragePathFromUrl = useCallback((src: string): string | null => {
     const base = getStorageBaseUrl();
@@ -74,26 +97,38 @@ export function useRichTextImages({
     if (base && withoutQuery.startsWith(base)) {
       return withoutQuery.replace(base, '');
     }
-    const marker = '/users-images/';
+    const marker = `/${bucket}/`;
     const idx = withoutQuery.indexOf(marker);
     if (idx !== -1) {
       return withoutQuery.slice(idx + marker.length);
     }
     return null;
-  }, [getStorageBaseUrl]);
+  }, [bucket, getStorageBaseUrl]);
+
+  /**
+   * Public URL prefix of the folder this editor owns (drafts included). Only
+   * images under it are "hosted": uploadable, countable and deletable from
+   * storage. Anything else in the bucket (e.g. shared site assets) is treated
+   * like an external hotlink so removing it from the document never deletes
+   * a file this editor does not own.
+   */
+  const getOwnedUrlPrefix = useCallback(() => {
+    const base = getStorageBaseUrl();
+    return base && basePath ? `${base}${basePath}/` : '';
+  }, [getStorageBaseUrl, basePath]);
 
   const isHostedImage = useCallback((src?: string) => {
     if (!src) return false;
-    const base = getStorageBaseUrl();
-    return !!base && src.startsWith(base);
-  }, [getStorageBaseUrl]);
+    const prefix = getOwnedUrlPrefix();
+    return !!prefix && src.startsWith(prefix);
+  }, [getOwnedUrlPrefix]);
 
   // Count hosted images currently in the HTML content
   const uploadedImageCount = useMemo(() => {
-    if (!campaignId) return 0;
+    if (!uploadsEnabled) return 0;
 
-    const base = getStorageBaseUrl();
-    if (!base) return 0;
+    const prefix = getOwnedUrlPrefix();
+    if (!prefix) return 0;
 
     // Parse content for img tags with our storage URL
     const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
@@ -102,14 +137,14 @@ export function useRichTextImages({
 
     while ((match = imgRegex.exec(content)) !== null) {
       const src = match[1];
-      // Count images hosted on our platform (both drafts and permanent)
-      if (src.startsWith(base)) {
+      // Count images in this editor's folder (both drafts and permanent)
+      if (src.startsWith(prefix)) {
         count++;
       }
     }
 
     return count;
-  }, [campaignId, content, getStorageBaseUrl]);
+  }, [uploadsEnabled, content, getOwnedUrlPrefix]);
 
   const resetImageInputState = useCallback(() => {
     setHostedImageToRemove(null);
@@ -128,9 +163,9 @@ export function useRichTextImages({
       return;
     }
 
-    // Check image limit
-    if (campaignId && uploadedImageCount >= maxImages) {
-      toast.error('Image limit reached', { description: `Maximum of ${maxImages} images can be uploaded per campaign.` });
+    // Check image limit (null = unlimited)
+    if (uploadsEnabled && maxImages !== null && uploadedImageCount >= maxImages) {
+      toast.error('Image limit reached', { description: `Maximum of ${maxImages} images can be uploaded.` });
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
@@ -150,17 +185,17 @@ export function useRichTextImages({
           const resizedBlob = await getResizedImgMax(dataUrl, 900, 900);
 
           // Upload to Supabase Storage
-          if (!campaignId) {
-            throw new Error('Campaign ID is required for image upload');
+          if (!draftBasePath) {
+            throw new Error('A storage base path is required for image upload');
           }
 
           const supabase = createClient();
           const ts = Date.now();
           const fileName = `draft_${ts}.webp`;
-          const filePath = `campaigns/${campaignId}/pack/_draft/${fileName}`;
+          const filePath = `${draftBasePath}/${fileName}`;
 
           const { error: uploadError } = await supabase.storage
-            .from('users-images')
+            .from(bucket)
             .upload(filePath, resizedBlob, {
               upsert: true,
               contentType: 'image/webp',
@@ -171,7 +206,7 @@ export function useRichTextImages({
 
           // Get public URL
           const { data: urlData } = supabase.storage
-            .from('users-images')
+            .from(bucket)
             .getPublicUrl(filePath);
 
           // Track draft upload for later promotion on save
@@ -199,11 +234,12 @@ export function useRichTextImages({
       setIsUploadingImage(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
-  }, [campaignId, maxImages, uploadedImageCount, onImageInserted, onCloseImageInput]);
+  }, [uploadsEnabled, draftBasePath, bucket, maxImages, uploadedImageCount, onImageInserted, onCloseImageInput]);
 
   const removeHostedImage = useCallback(async (src: string, removeImageFromEditor: () => void) => {
     const storagePath = getStoragePathFromUrl(src);
-    if (!storagePath || !campaignId) {
+    // Files outside this editor's folder are never deleted from storage.
+    if (!storagePath || !uploadsEnabled || !isHostedImage(src)) {
       removeImageFromEditor();
       return;
     }
@@ -213,7 +249,7 @@ export function useRichTextImages({
       setIsUploadingImage(true);
       try {
         const supabase = createClient();
-        const { error } = await supabase.storage.from('users-images').remove([storagePath]);
+        const { error } = await supabase.storage.from(bucket).remove([storagePath]);
         if (error) throw error;
         setDraftUploads((prev) => prev.filter((d) => d.draftPath !== storagePath));
         removeImageFromEditor(); // Count updates automatically via content change
@@ -233,11 +269,11 @@ export function useRichTextImages({
     removeImageFromEditor(); // Count updates automatically via content change
     resetImageInputState();
     toast.success('Image marked for removal', { description: 'It will be deleted when you save.' });
-  }, [campaignId, getStoragePathFromUrl, resetImageInputState]);
+  }, [uploadsEnabled, bucket, getStoragePathFromUrl, isHostedImage, resetImageInputState]);
 
   const finalizeAssets = useCallback(async (currentHtml: string): Promise<string> => {
     let html = currentHtml;
-    if (!campaignId) return html;
+    if (!basePath || !draftBasePath) return html;
 
     try {
       const supabase = createClient();
@@ -258,13 +294,13 @@ export function useRichTextImages({
 
       // Delete orphaned drafts from current session
       if (orphanedDraftPaths.length > 0) {
-        await supabase.storage.from('users-images').remove(orphanedDraftPaths);
+        await supabase.storage.from(bucket).remove(orphanedDraftPaths);
       }
 
       // Also clean up any orphaned draft files in storage (from previous sessions)
-      const draftPath = `campaigns/${campaignId}/pack/_draft`;
+      const draftPath = draftBasePath;
       const { data: draftFiles } = await supabase.storage
-        .from('users-images')
+        .from(bucket)
         .list(draftPath);
 
       if (draftFiles && draftFiles.length > 0) {
@@ -285,7 +321,7 @@ export function useRichTextImages({
         }
 
         if (orphanedStorageDrafts.length > 0) {
-          await supabase.storage.from('users-images').remove(orphanedStorageDrafts);
+          await supabase.storage.from(bucket).remove(orphanedStorageDrafts);
         }
       }
 
@@ -293,11 +329,11 @@ export function useRichTextImages({
       for (let i = 0; i < draftsToPromote.length; i++) {
         const draft = draftsToPromote[i];
         const ts = Date.now() + i;
-        const finalName = `pack_${ts}.webp`;
-        const finalPath = `campaigns/${campaignId}/pack/${finalName}`;
+        const finalName = `${filePrefix}_${ts}.webp`;
+        const finalPath = `${basePath}/${finalName}`;
 
         const { error: uploadError } = await supabase.storage
-          .from('users-images')
+          .from(bucket)
           .upload(finalPath, draft.blob, {
             upsert: true,
             contentType: 'image/webp',
@@ -306,10 +342,10 @@ export function useRichTextImages({
         if (uploadError) throw uploadError;
 
         // Delete draft file
-        await supabase.storage.from('users-images').remove([draft.draftPath]);
+        await supabase.storage.from(bucket).remove([draft.draftPath]);
 
         const { data: urlData } = supabase.storage
-          .from('users-images')
+          .from(bucket)
           .getPublicUrl(finalPath);
 
         // Replace draft URL in HTML with final URL
@@ -318,13 +354,13 @@ export function useRichTextImages({
 
       // Execute pending deletions (images explicitly marked for removal)
       if (pendingDeletes.length > 0) {
-        await supabase.storage.from('users-images').remove(pendingDeletes);
+        await supabase.storage.from(bucket).remove(pendingDeletes);
       }
 
       // Clean up permanent images that are no longer referenced in the final HTML
-      const packPath = `campaigns/${campaignId}/pack`;
+      const packPath = basePath;
       const { data: existingFiles } = await supabase.storage
-        .from('users-images')
+        .from(bucket)
         .list(packPath);
 
       if (existingFiles && existingFiles.length > 0) {
@@ -346,7 +382,7 @@ export function useRichTextImages({
         }
 
         if (orphanedPermanentPaths.length > 0) {
-          await supabase.storage.from('users-images').remove(orphanedPermanentPaths);
+          await supabase.storage.from(bucket).remove(orphanedPermanentPaths);
         }
       }
 
@@ -361,15 +397,15 @@ export function useRichTextImages({
       toast.error('Save warning', { description: 'Failed to finalize images. Please try again.' });
       return html;
     }
-  }, [campaignId, draftUploads, pendingDeletes, getStorageBaseUrl]);
+  }, [basePath, draftBasePath, bucket, filePrefix, draftUploads, pendingDeletes, getStorageBaseUrl]);
 
   const discardAssets = useCallback(async () => {
-    if (!campaignId) return;
+    if (!uploadsEnabled) return;
     try {
       const supabase = createClient();
       const draftPaths = draftUploads.map((d) => d.draftPath);
       if (draftPaths.length > 0) {
-        await supabase.storage.from('users-images').remove(draftPaths);
+        await supabase.storage.from(bucket).remove(draftPaths);
       }
     } catch (error) {
       console.error('Error discarding draft images:', error);
@@ -378,11 +414,13 @@ export function useRichTextImages({
       setPendingDeletes([]);
       setHostedImageToRemove(null);
     }
-  }, [campaignId, draftUploads]);
+  }, [uploadsEnabled, bucket, draftUploads]);
 
   return {
     // State
     isUploadingImage,
+    uploadsEnabled,
+    maxImages,
     uploadedImageCount,
     draftUploads,
     pendingDeletes,
