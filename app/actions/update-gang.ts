@@ -1,6 +1,6 @@
 'use server'
 
-import { invalidateGang, invalidateGangOverview, invalidateGangCampaignMembership, invalidateGangFinancials, invalidateCampaign, invalidateUser } from '@/utils/cache-tags';
+import { invalidateGang, invalidateGangOverview, invalidateGangCampaignMembership, invalidateGangFinancials, invalidateCampaignResources, invalidateUser } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
@@ -406,8 +406,7 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         .single();
 
       if (campaignGang) {
-        invalidateCampaign(campaignGang.campaign_id);
-        invalidateCampaign(campaignGang.campaign_id);
+        invalidateCampaignResources(campaignGang.campaign_id);
       }
       
       // Invalidate gang's campaign data cache (includes resources for gang page)
@@ -421,19 +420,9 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
 
     // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST - gang page uses specific granular tags
 
-    // Invalidate campaign caches if this gang is in any campaigns
-    const { data: campaignGangs, error: campaignGangsError } = await supabase
-      .from('campaign_gangs')
-      .select('campaign_id')
-      .eq('gang_id', params.gang_id);
-    if (!campaignGangsError && campaignGangs && campaignGangs.length > 0) {
-      for (const cg of campaignGangs) {
-        const campaignId = cg.campaign_id;
-        invalidateCampaign(campaignId);
-        invalidateCampaign(campaignId);
-        invalidateCampaign(campaignId);
-      }
-    }
+    // No campaign-wide bust here: the campaign entries that copy this gang's display
+    // fields (standings, territory owners, battle-log names) subscribe to
+    // gang-overview-{id}, which updateGangFinancials and the rename path already fire.
 
     // Log resource changes (campaign resources + credits/reputation)
     try {

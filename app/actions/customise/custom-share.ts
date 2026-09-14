@@ -1,6 +1,6 @@
 'use server';
 
-import { invalidateCampaign } from '@/utils/cache-tags';
+import { invalidateCampaignCore, invalidateCampaignTradingPosts } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { editionsConflict, editionSlugFromJoin } from '@/types/edition';
@@ -542,7 +542,8 @@ export async function shareCustomTradingPost(customTradingPostId: string, campai
     }
 
     for (const cid of campaignIds) {
-      invalidateCampaign(cid);
+      invalidateCampaignTradingPosts(cid);
+      invalidateCampaignCore(cid);
     }
 
     const removedCampaignIds = oldCampaignIds.filter(id => !campaignIds.includes(id));
@@ -560,7 +561,8 @@ export async function shareCustomTradingPost(customTradingPostId: string, campai
             .from('campaigns')
             .update({ custom_trading_posts: updated })
             .eq('id', campaign.id);
-          invalidateCampaign(campaign.id);
+          invalidateCampaignTradingPosts(campaign.id);
+          invalidateCampaignCore(campaign.id);
         }
       }
     }
@@ -740,7 +742,8 @@ export async function shareCollection(collectionId: string, campaignIds: string[
           if (merged.length !== current.length) {
             await supabase.from('campaigns').update({ custom_trading_posts: merged }).eq('id', c.id);
           }
-          invalidateCampaign(c.id);
+          invalidateCampaignTradingPosts(c.id);
+          invalidateCampaignCore(c.id);
         }
       }
 
@@ -769,13 +772,15 @@ export async function shareCollection(collectionId: string, campaignIds: string[
           if (filtered.length !== current.length) {
             await supabase.from('campaigns').update({ custom_trading_posts: filtered }).eq('id', c.id);
           }
-          invalidateCampaign(c.id);
+          invalidateCampaignTradingPosts(c.id);
+          invalidateCampaignCore(c.id);
         }
       }
     }
 
     for (const cid of campaignIds) {
-      invalidateCampaign(cid);
+      invalidateCampaignTradingPosts(cid);
+      invalidateCampaignCore(cid);
     }
     return { success: true };
   } catch (error) {

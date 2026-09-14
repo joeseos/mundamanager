@@ -19,7 +19,16 @@ import { revalidateTag } from 'next/cache';
  * gang-stash-{id}  stash equipment           | stash mutations
  * fighter-{id}     id→gang resolver +        | fighter mutations (always
  *                  advancement caches        | alongside gang-{id})
- * campaign-{id}    all campaign-page entries | campaign mutations
+ * campaign-core-{id}  the campaigns row itself  | campaign settings/image/discord
+ * campaign-members-{id} members, gangs, standings| member + campaign-gang mutations
+ * campaign-territories-{id} rows and ownership   | territory mutations
+ * campaign-battles-{id} battle logs              | battle log + challenge mutations
+ * campaign-allegiances-{id} allegiance catalog   | allegiance mutations
+ * campaign-resources-{id} resource catalog +     | resource mutations + gang resource
+ *                  per-gang resource rows        | edits
+ * campaign-map-{id} map and its objects          | map editor mutations
+ * campaign-captives-{id} captives held by gangs  | fighter capture/rescue
+ * campaign-trading-posts-{id} shared custom TPs  | custom-share mutations
  * user-{id}        profile/gang list/        | profile, list, social
  *                  campaign list/friends     | mutations
  * custom-{id}      custom content            | customise mutations
@@ -34,7 +43,15 @@ export const TAGS = {
   gangStash: (id: string) => `gang-stash-${id}`,
   gangTacticsCards: (id: string) => `gang-tactics-cards-${id}`,
   fighter: (id: string) => `fighter-${id}`,
-  campaign: (id: string) => `campaign-${id}`,
+  campaignCore: (id: string) => `campaign-core-${id}`,
+  campaignMembers: (id: string) => `campaign-members-${id}`,
+  campaignTerritories: (id: string) => `campaign-territories-${id}`,
+  campaignBattles: (id: string) => `campaign-battles-${id}`,
+  campaignAllegiances: (id: string) => `campaign-allegiances-${id}`,
+  campaignResources: (id: string) => `campaign-resources-${id}`,
+  campaignMap: (id: string) => `campaign-map-${id}`,
+  campaignCaptives: (id: string) => `campaign-captives-${id}`,
+  campaignTradingPosts: (id: string) => `campaign-trading-posts-${id}`,
   user: (id: string) => `user-${id}`,
   customs: (userId: string) => `custom-${userId}`,
   permission: (userId: string, gangId: string) => `check-permission-${userId}-${gangId}`,
@@ -123,17 +140,75 @@ export const invalidateGangTacticsCards = (gangId: string) => {
   bust(TAGS.gangTacticsCards(gangId));
 };
 
-/** Campaign content changed (settings/territories/resources/allegiances/…). */
-export const invalidateCampaign = (campaignId: string) => {
-  bust(TAGS.campaign(campaignId));
+/** The campaigns row changed: name, status, description, note, image, discord, cycle. */
+export const invalidateCampaignCore = (campaignId: string) => {
+  bust(TAGS.campaignCore(campaignId));
+};
+
+/** Membership changed: members, roles, or a gang's campaign_gangs row. */
+export const invalidateCampaignMembers = (campaignId: string) => {
+  bust(TAGS.campaignMembers(campaignId));
+};
+
+/** Territory rows, their ownership, or their map association changed. */
+export const invalidateCampaignTerritories = (campaignId: string) => {
+  bust(TAGS.campaignTerritories(campaignId));
+};
+
+/** Battle logs changed. */
+export const invalidateCampaignBattles = (campaignId: string) => {
+  bust(TAGS.campaignBattles(campaignId));
+};
+
+/** The allegiance catalog changed (created, renamed or deleted). */
+export const invalidateCampaignAllegiances = (campaignId: string) => {
+  bust(TAGS.campaignAllegiances(campaignId));
+};
+
+/** The resource catalog or a gang's resource quantities changed. */
+export const invalidateCampaignResources = (campaignId: string) => {
+  bust(TAGS.campaignResources(campaignId));
+};
+
+/** The map or its objects changed. */
+export const invalidateCampaignMap = (campaignId: string) => {
+  bust(TAGS.campaignMap(campaignId));
+};
+
+/** A fighter was captured or rescued in this campaign. */
+export const invalidateCampaignCaptives = (campaignId: string) => {
+  bust(TAGS.campaignCaptives(campaignId));
+};
+
+/** The set of custom trading posts shared into the campaign changed. */
+export const invalidateCampaignTradingPosts = (campaignId: string) => {
+  bust(TAGS.campaignTradingPosts(campaignId));
+};
+
+/**
+ * Every campaign subject at once. Only for mutations that invalidate the whole
+ * campaign — deleting it. Anything narrower must name its subject.
+ */
+export const invalidateCampaignAll = (campaignId: string) => {
+  bust(TAGS.campaignCore(campaignId));
+  bust(TAGS.campaignMembers(campaignId));
+  bust(TAGS.campaignTerritories(campaignId));
+  bust(TAGS.campaignBattles(campaignId));
+  bust(TAGS.campaignAllegiances(campaignId));
+  bust(TAGS.campaignResources(campaignId));
+  bust(TAGS.campaignMap(campaignId));
+  bust(TAGS.campaignCaptives(campaignId));
+  bust(TAGS.campaignTradingPosts(campaignId));
 };
 
 /**
  * A campaign↔gang relationship changed (join/leave, territory ownership,
- * gang allegiance, gang resources).
+ * gang allegiance, gang resources). The choke point for both sides.
  */
 export const invalidateCampaignGang = (campaignId: string, gangId: string) => {
-  bust(TAGS.campaign(campaignId));
+  bust(TAGS.campaignMembers(campaignId));
+  bust(TAGS.campaignTerritories(campaignId));
+  bust(TAGS.campaignCaptives(campaignId));
   bust(TAGS.gangCampaigns(gangId));
 };
 

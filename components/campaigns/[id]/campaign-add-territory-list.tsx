@@ -9,7 +9,7 @@ import { getCampaignRank } from '@/utils/campaigns/campaignRank';
 import { addTerritoryToCampaign, createCustomCampaignTerritory } from "@/app/actions/campaigns/[id]/campaign-territories";
 import { ImInfo } from "react-icons/im";
 import { Tooltip } from 'react-tooltip';
-import type { CampaignType } from '@/types/campaign';
+import type { CampaignType, CampaignTerritoryRow } from '@/types/campaign';
 import { sameEditionForDisplay } from '@/types/edition';
 import { TERRITORY_NAME_CHAR_LIMIT } from '@/utils/campaigns/territory-name';
 
@@ -34,7 +34,7 @@ interface TerritoryListProps {
   campaignTypes: CampaignType[];
   allTerritories: Territory[];
   existingCampaignTerritories: CampaignTerritory[];
-  onTerritoryAdd?: (territory: CampaignTerritory) => void;
+  onTerritoryAdd?: (territory: CampaignTerritoryRow) => void;
 }
 
 export default function TerritoryList({ 
@@ -95,8 +95,8 @@ export default function TerritoryList({
 
       setCampaignTerritories(prev => [...prev, newTerritory]);
 
-      if (onTerritoryAdd) {
-        onTerritoryAdd(newTerritory);
+      if (onTerritoryAdd && result.data) {
+        onTerritoryAdd(result.data as CampaignTerritoryRow);
       }
 
       toast.success(`Added ${territory.territory_name} to campaign`);
@@ -129,8 +129,8 @@ export default function TerritoryList({
 
       setCampaignTerritories(prev => [...prev, newTerritory]);
 
-      if (onTerritoryAdd) {
-        onTerritoryAdd(newTerritory);
+      if (onTerritoryAdd && result.data) {
+        onTerritoryAdd(result.data as CampaignTerritoryRow);
       }
 
       toast.success(`Created custom territory "${newTerritoryName.trim()}"`);

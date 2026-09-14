@@ -1,6 +1,6 @@
 'use server';
 
-import { invalidateCampaign, invalidateUserCustoms } from '@/utils/cache-tags';
+import { invalidateCampaignCore, invalidateCampaignTradingPosts, invalidateUserCustoms } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { getEditionIdBySlug } from '@/utils/editions';
@@ -165,9 +165,15 @@ export async function deleteCustomTradingPost(
             .from('campaigns')
             .update({ custom_trading_posts: updated })
             .eq('id', campaign.id);
-          invalidateCampaign(campaign.id);
+          invalidateCampaignCore(campaign.id);
         }
       }
+    }
+
+    // Every campaign it was shared into loses the row, whether or not that
+    // campaign had it enabled in its shop config.
+    for (const campaignId of affectedCampaignIds) {
+      invalidateCampaignTradingPosts(campaignId);
     }
 
     await removeItemFromAllCollections(supabase, user.id, [{ type: 'trading_post', id }]);

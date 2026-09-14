@@ -50,7 +50,7 @@ export async function renderBattleSessionPage(sessionId: string, currentPath: st
     Promise.all(uniqueGangIds.map((gId) => getGangFightersList(gId, supabase, { expandLoadoutsForPrint: true }))),
     Promise.all(uniqueGangIds.map((gId) => getGangPositioning(gId, supabase))),
     getScenariosCached(supabase),
-    session.campaign_id ? getCampaignTerritories(session.campaign_id, supabase) : Promise.resolve([]),
+    session.campaign_id ? getCampaignTerritories(session.campaign_id) : Promise.resolve([]),
   ]);
 
   const gangFightersMap: Record<string, GangFighter[]> = {};

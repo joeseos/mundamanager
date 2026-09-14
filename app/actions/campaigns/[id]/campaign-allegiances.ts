@@ -1,6 +1,6 @@
 'use server';
 
-import { invalidateGangCampaignMembership, invalidateCampaign } from '@/utils/cache-tags';
+import { invalidateGangCampaignMembership, invalidateCampaignAllegiances, invalidateCampaignMembers } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 
 import { getAuthenticatedUser } from '@/utils/auth';
@@ -73,11 +73,7 @@ export async function createCampaignAllegiance(params: CreateCampaignAllegianceP
 
     if (error) throw error;
 
-    // Invalidate campaign cache
-    invalidateCampaign(params.campaignId);
-    invalidateCampaign(params.campaignId);
-    // Also invalidate the specific allegiance cache
-    invalidateCampaign(params.campaignId);
+    invalidateCampaignAllegiances(params.campaignId);
 
     return { success: true, data };
   } catch (error) {
@@ -123,11 +119,7 @@ export async function updateCampaignAllegiance(params: UpdateCampaignAllegianceP
 
     if (error) throw error;
 
-    // Invalidate campaign cache
-    invalidateCampaign(params.campaignId);
-    invalidateCampaign(params.campaignId);
-    // Also invalidate the specific allegiance cache
-    invalidateCampaign(params.campaignId);
+    invalidateCampaignAllegiances(params.campaignId);
 
     // Invalidate all gangs in this campaign (allegiance name might have changed)
     const { data: campaignGangs } = await supabase
@@ -201,11 +193,7 @@ export async function deleteCampaignAllegiance(params: DeleteCampaignAllegianceP
       });
     }
 
-    // Invalidate campaign cache
-    invalidateCampaign(params.campaignId);
-    invalidateCampaign(params.campaignId);
-    // Also invalidate the specific allegiance cache
-    invalidateCampaign(params.campaignId);
+    invalidateCampaignAllegiances(params.campaignId);
 
     return { success: true };
   } catch (error) {
@@ -292,9 +280,8 @@ export async function updateGangAllegiance(params: UpdateGangAllegianceParams) {
 
     // Invalidate caches
     invalidateGangCampaignMembership(params.gangId);
-    invalidateCampaign(params.campaignId);
-    invalidateCampaign(params.campaignId);
-    invalidateCampaign(params.campaignId);
+    // The gang's allegiance lives on its campaign_gangs row, which the members entry reads.
+    invalidateCampaignMembers(params.campaignId);
 
     return { success: true };
   } catch (error) {
