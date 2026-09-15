@@ -123,7 +123,7 @@ export interface ResourceUpdate {
 
 /**
  * Raw, unprocessed rows for everything fighter/vehicle-shaped in a gang.
- * Fetched once (getGangFightersBundle, tag gang-{id}) and assembled into the
+ * Fetched once (getGangFightersBundle, tag gang-roster-{id}) and assembled into the
  * page-specific shapes by the pure functions in utils/gang-assembly.ts. The transform logic is
  * moved verbatim from the previous getGangFightersList/getGangVehicles
  * implementations — queries got wider, the logic did not change.
