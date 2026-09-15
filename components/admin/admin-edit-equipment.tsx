@@ -8,11 +8,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
 import { toast } from 'sonner';
 import { FighterType } from "@/types/fighter";
-import { WeaponProfileInput, emptyWeaponProfile, EquipmentGrants, EquipmentAvailability, EquipmentOriginAvailability, EquipmentSubtypeAvailability, FighterTypeEquipmentGrant, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
+import { WeaponProfileInput, emptyWeaponProfile, EquipmentGrants, EquipmentAvailability, EquipmentOriginAvailability, EquipmentSubtypeAvailability, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
+import { FighterTypeGrant } from "@/types/fighter-type";
 import { HiX } from "react-icons/hi";
 import { getFighterSubtypeSortRank } from "@/utils/fighterSubtypeRank";
-import { gangOriginRank } from "@/utils/gangOriginRank";
-import { getGangSubtypeRank } from "@/utils/gangSubtypeRank";
+import { GangOriginOptions, GangSubtypeOptions } from "./gang-scope-options";
 import { AdminFighterEffects } from "./admin-fighter-effects";
 import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
 import { hasLethalityStatline, hasTradePoints } from '@/types/edition';
@@ -36,10 +36,12 @@ interface AdminEditEquipmentModalProps {
 const EQUIPMENT_TYPES = ['wargear', 'weapon', 'vehicle_upgrade'] as const;
 type EquipmentType = typeof EQUIPMENT_TYPES[number];
 
-interface GangOriginOption {
-  id: string;
-  origin_name: string;
-}
+// Omits excluded, as fighter_type_equipment_fighter_scope_uidx does, so a grant and a deny for
+// one scope collide.
+const grantKey = (grant: FighterTypeGrant) =>
+  [grant.fighter_type_id, grant.gang_origin_id, grant.gang_subtype_id, grant.fighter_subtype]
+    .map(part => part ?? '')
+    .join('|');
 
 const fighterTypeLabel = (ft: FighterType) => {
   const suffix = [ft.fighter_variant, ft.fighter_specialisations?.specialisation_name]
@@ -48,70 +50,6 @@ const fighterTypeLabel = (ft: FighterType) => {
     .join('');
   return `${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_subtypes?.join(', ')})${suffix}`;
 };
-
-const grantKey = (grant: FighterTypeEquipmentGrant) =>
-  [grant.fighter_type_id, grant.gang_origin_id, grant.gang_subtype_id, grant.fighter_subtype]
-    .map(part => part ?? '')
-    .join('|');
-
-/** Gang-origin <option>s grouped by the category gangOriginRank implies. */
-function GangOriginOptions({ origins }: { origins: GangOriginOption[] }) {
-  const groups = [...origins]
-    .sort((a, b) =>
-      (gangOriginRank[a.origin_name.toLowerCase()] ?? Infinity)
-      - (gangOriginRank[b.origin_name.toLowerCase()] ?? Infinity)
-    )
-    .reduce((acc, origin) => {
-      const rank = gangOriginRank[origin.origin_name.toLowerCase()] ?? Infinity;
-      const label = rank <= 19 ? 'Prefecture'
-        : rank <= 39 ? 'Ancestry'
-        : rank <= 59 ? 'Tribe'
-        : 'Misc.';
-      (acc[label] ||= []).push(origin);
-      return acc;
-    }, {} as Record<string, GangOriginOption[]>);
-
-  return (
-    <>
-      {Object.entries(groups).map(([label, group]) => (
-        <optgroup key={label} label={label}>
-          {group.map((origin) => (
-            <option key={origin.id} value={origin.id}>
-              {origin.origin_name}
-            </option>
-          ))}
-        </optgroup>
-      ))}
-    </>
-  );
-}
-
-/**
- * Gang-subtype <option>s in the edition's own order. With no edition selected the list spans
- * editions and ranks empty, leaving them unordered rather than in one edition's order.
- */
-function GangSubtypeOptions(
-  { subtypes, editionSlug }: {
-    subtypes: Array<{ id: string; subtype: string }>;
-    editionSlug?: string | null;
-  }
-) {
-  const gangSubtypeRank = getGangSubtypeRank(editionSlug);
-  return (
-    <>
-      {[...subtypes]
-        .sort((a, b) =>
-          (gangSubtypeRank[a.subtype.toLowerCase()] ?? Infinity)
-          - (gangSubtypeRank[b.subtype.toLowerCase()] ?? Infinity)
-        )
-        .map((subtype) => (
-          <option key={subtype.id} value={subtype.id}>
-            {subtype.subtype}
-          </option>
-        ))}
-    </>
-  );
-}
 
 /** Blank grant options only when the target is found with a confirmed different edition. */
 function sanitizeGrantsOptionsForEdition(
@@ -179,12 +117,13 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [weaponProfiles, setWeaponProfiles] = useState<WeaponProfileInput[]>([emptyWeaponProfile(1)]);
   const [categoryFilter, setCategoryFilter] = useState('');
   const [fighterTypes, setFighterTypes] = useState<FighterType[]>([]);
-  const [fighterTypeGrants, setFighterTypeGrants] = useState<FighterTypeEquipmentGrant[]>([]);
+  const [fighterTypeGrants, setFighterTypeGrants] = useState<FighterTypeGrant[]>([]);
   const [showScopedGrantDialog, setShowScopedGrantDialog] = useState(false);
   const [scopedGrantFighterType, setScopedGrantFighterType] = useState('');
   const [scopedGrantOrigin, setScopedGrantOrigin] = useState('');
   const [scopedGrantGangSubtype, setScopedGrantGangSubtype] = useState('');
   const [scopedGrantSubtype, setScopedGrantSubtype] = useState('');
+  const [scopedGrantExcluded, setScopedGrantExcluded] = useState(false);
   const [showAdjustedCostDialog, setShowAdjustedCostDialog] = useState(false);
   const [selectedGangType, setSelectedGangType] = useState("");
   const [adjustedCostValue, setAdjustedCostValue] = useState("");
@@ -392,11 +331,14 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       }
 
       if (equipmentDetails.fighter_types_with_equipment) {
-        setFighterTypeGrants(equipmentDetails.fighter_types_with_equipment.map((ft: any) => ({
+        setFighterTypeGrants(equipmentDetails.fighter_types_with_equipment.map((ft: any): FighterTypeGrant => ({
           fighter_type_id: ft.fighter_type_id ?? null,
+          // Always null: scopeToFighterTypeGrants reads only rows this screen owns
+          gang_type_id: null,
           gang_origin_id: ft.gang_origin_id ?? null,
           gang_subtype_id: ft.gang_subtype_id ?? null,
-          fighter_subtype: ft.fighter_subtype ?? null
+          fighter_subtype: ft.fighter_subtype ?? null,
+          excluded: ft.excluded ?? false
         })));
       }
 
@@ -524,6 +466,15 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       ),
     [fighterSubtypeList, editionId, editions]
   );
+
+  const closeScopedGrantDialog = () => {
+    setShowScopedGrantDialog(false);
+    setScopedGrantFighterType("");
+    setScopedGrantOrigin("");
+    setScopedGrantGangSubtype("");
+    setScopedGrantSubtype("");
+    setScopedGrantExcluded(false);
+  };
 
   const handleEditionChange = (newEditionId: string) => {
     setEditionId(newEditionId);
@@ -1785,7 +1736,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       if (value) {
                         setFighterTypeGrants([
                           ...fighterTypeGrants,
-                          { fighter_type_id: value, gang_origin_id: null, gang_subtype_id: null, fighter_subtype: null }
+                          { fighter_type_id: value, gang_type_id: null, gang_origin_id: null, gang_subtype_id: null, fighter_subtype: null, excluded: false }
                         ]);
                       }
                       e.target.value = "";
@@ -1828,7 +1779,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           key={grantKey(grant)}
                           className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                         >
-                          <span>{ft ? fighterTypeLabel(ft) : 'Any fighter type'}{scope && ` — ${scope}`}</span>
+                          <span>{grant.excluded && 'Deny: '}{ft ? fighterTypeLabel(ft) : 'Any fighter type'}{scope && ` — ${scope}`}</span>
                           <button
                             type="button"
                             onClick={() => setFighterTypeGrants(
@@ -1847,37 +1798,35 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                   {showScopedGrantDialog && (
                     <Modal
                       title="Scoped Equipment List Entry"
-                      helper="Narrow a grant to a gang origin, gang subtype and/or fighter subtype. Leave Fighter Type as Any for a subtype rule spanning every gang."
-                      onClose={() => {
-                        setShowScopedGrantDialog(false);
-                        setScopedGrantFighterType("");
-                        setScopedGrantOrigin("");
-                        setScopedGrantGangSubtype("");
-                        setScopedGrantSubtype("");
-                      }}
+                      helper="Narrow a grant or deny to a gang origin, gang subtype and/or fighter subtype. Leave Fighter Type as Any for a subtype rule spanning every gang."
+                      onClose={closeScopedGrantDialog}
                       onConfirm={() => {
-                        const grant: FighterTypeEquipmentGrant = {
+                        const grant: FighterTypeGrant = {
                           fighter_type_id: scopedGrantFighterType || null,
+                          gang_type_id: null,
                           gang_origin_id: scopedGrantOrigin || null,
                           gang_subtype_id: scopedGrantGangSubtype || null,
-                          fighter_subtype: scopedGrantSubtype || null
+                          fighter_subtype: scopedGrantSubtype || null,
+                          excluded: scopedGrantExcluded
                         };
                         if (fighterTypeGrants.some(g => grantKey(g) === grantKey(grant))) {
                           toast.error('That combination is already on the list');
                           return false;
                         }
                         setFighterTypeGrants([...fighterTypeGrants, grant]);
-                        setShowScopedGrantDialog(false);
-                        setScopedGrantFighterType("");
-                        setScopedGrantOrigin("");
-                        setScopedGrantGangSubtype("");
-                        setScopedGrantSubtype("");
+                        closeScopedGrantDialog();
                       }}
                       confirmText="Save"
                       confirmDisabled={
-                        // Needs an identity, and a scope the dropdown can't already give
-                        (!scopedGrantFighterType && !scopedGrantSubtype)
-                        || (!scopedGrantOrigin && !scopedGrantGangSubtype && !scopedGrantSubtype)
+                        // A grant needs a fighter, and a scope the quick-add can't already give.
+                        (!scopedGrantExcluded && (
+                          (!scopedGrantFighterType && !scopedGrantSubtype)
+                          || (!scopedGrantOrigin && !scopedGrantGangSubtype && !scopedGrantSubtype)
+                        ))
+                        // A deny needs no fighter, but an all-null one would strip it everywhere.
+                        || (scopedGrantExcluded
+                            && !scopedGrantFighterType && !scopedGrantSubtype
+                            && !scopedGrantOrigin && !scopedGrantGangSubtype)
                       }
                       width="sm"
                     >
@@ -1937,6 +1886,22 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             <GangSubtypeOptions subtypes={filteredGangSubtypes} editionSlug={editionSlug} />
                           </select>
                         </div>
+
+                        <label className="flex items-start space-x-2">
+                          <Checkbox
+                            checked={scopedGrantExcluded}
+                            onCheckedChange={(checked) => setScopedGrantExcluded(checked === true)}
+                            className="mt-1"
+                          />
+                          <div>
+                            <span className="text-sm font-medium text-muted-foreground">Deny</span>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Removes this item from the Equipment List of matching fighters instead
+                              of granting it, overriding any other row that grants it. Equipment List
+                              only — it does not gate Trading Post access.
+                            </p>
+                          </div>
+                        </label>
                       </div>
                     </Modal>
                   )}

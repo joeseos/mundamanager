@@ -99,3 +99,25 @@ export interface FighterType {
   starting_xp?: number | null;
   is_vehicle?: boolean;
 }
+
+/**
+ * A grant or deny rule keyed on a fighter type, as the admin editors hold it. The target is
+ * fighter_type_id, or — where the table allows it — every fighter carrying fighter_subtype;
+ * the gang_* fields narrow which gangs the rule applies in, and excluded flips a grant into a
+ * deny. fighter_type_equipment (an entry on a fighter type's Equipment List) and
+ * fighter_type_availability (a fighter type offered to or withheld from a gang) both store
+ * this shape.
+ *
+ * Which combinations are legal is the table's business, not the type's: only
+ * fighter_type_availability constrains them, requiring exactly one of fighter_type_id /
+ * fighter_subtype with a subtype rule always a deny (target_chk), and at least one gang axis
+ * set (scope_chk).
+ */
+export interface FighterTypeGrant {
+  fighter_type_id: string | null;
+  fighter_subtype: string | null;
+  gang_type_id: string | null;
+  gang_origin_id: string | null;
+  gang_subtype_id: string | null;
+  excluded: boolean;
+}

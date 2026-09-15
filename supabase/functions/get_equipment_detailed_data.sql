@@ -427,6 +427,8 @@ AS $$
         AND (fte.gang_subtype_id IS NULL OR gd.gang_subtypes ? fte.gang_subtype_id::text)
         AND (fte.gang_type_id IS NULL OR fte.gang_type_id = $1)
         AND (fte.fighter_subtype IS NULL OR gd.fighter_subtypes ? fte.fighter_subtype)
+        -- Grants only: this join sets is_fighter_list, so a deny matching here would grant.
+        AND NOT fte.excluded
 
     -- Is this system equipment on the current custom fighter type's equipment list?
     -- ($3 is a custom_fighter_types.id when the fighter is a custom fighter.)
@@ -449,6 +451,31 @@ AS $$
             OR ea_var.id IS NOT NULL
             OR ea_origin.id IS NOT NULL
             OR cftl.is_ftl IS NOT NULL
+        )
+        -- ...unless a deny matches. Applied to the whole flag, not just the fighter_type_equipment
+        -- branch, so it also overrides a gang-wide equipment_availability grant as its column
+        -- comment promises. No fighter identity required: a row naming only a gang scope
+        -- withholds the item from every fighter in that gang.
+        AND NOT EXISTS (
+            SELECT 1
+            FROM fighter_type_equipment d
+            WHERE d.equipment_id = e.id
+              AND d.excluded
+              -- Vehicle rows belong to the vehicle admin, which has no deny UI, so a deny
+              -- cannot cancel a grant matched through fte.vehicle_type_id.
+              AND d.vehicle_type_id IS NULL
+              -- Same identity branches as the grant join above: a fighter reaching an equipment
+              -- list through a legacy or affiliation type must be deniable through it too.
+              AND (
+                  d.fighter_type_id IS NULL
+                  OR d.fighter_type_id = $3
+                  OR (gd.legacy_ft_id IS NOT NULL AND d.fighter_type_id = gd.legacy_ft_id AND $4 = true)
+                  OR (gd.affiliation_ft_id IS NOT NULL AND d.fighter_type_id = gd.affiliation_ft_id)
+              )
+              AND (d.gang_origin_id  IS NULL OR d.gang_origin_id = gd.gang_origin_id)
+              AND (d.gang_subtype_id IS NULL OR gd.gang_subtypes ? d.gang_subtype_id::text)
+              AND (d.gang_type_id    IS NULL OR d.gang_type_id = $1)
+              AND (d.fighter_subtype IS NULL OR gd.fighter_subtypes ? d.fighter_subtype)
         ) AS is_fighter_list
     ) ftl_flag ON true
 

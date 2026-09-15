@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
-import { WeaponProfileInput, EquipmentAvailability, EquipmentOriginAvailability, EquipmentSubtypeAvailability, FighterTypeEquipmentGrant, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
+import { WeaponProfileInput, EquipmentAvailability, EquipmentOriginAvailability, EquipmentSubtypeAvailability, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
+import { FighterTypeGrant } from "@/types/fighter-type";
 import {
   FighterEffectType,
   FighterEffectTypeModifier,
@@ -16,15 +17,13 @@ interface FighterTypeEquipment {
 }
 
 /**
- * The rows this screen owns: grants scoped at most by gang origin, gang subtype and
- * fighter subtype. Vehicle and gang-type rows belong to other screens and must
- * not be read here, because the save deletes everything it reads — so this is
- * applied to the read and the delete alike.
+ * The rows this screen owns: grants and denies scoped at most by gang origin, gang subtype and
+ * fighter subtype. Vehicle and gang-type rows belong to other screens; the save deletes
+ * everything it reads, so read and delete share this scope.
  */
 function scopeToFighterTypeGrants<T>(query: T): T {
   return ['vehicle_type_id', 'custom_fighter_type_id', 'gang_type_id']
-    .reduce((q, column) => q.is(column, null), query as any)
-    .eq('excluded', false) as T;
+    .reduce((q, column) => q.is(column, null), query as any) as T;
 }
 
 /** Normalize admin Trade Points input: "E" or non-negative integer digits. */
@@ -362,7 +361,7 @@ export async function GET(request: Request) {
             scopeToFighterTypeGrants(
               supabase
                 .from('fighter_type_equipment')
-                .select('fighter_type_id, gang_origin_id, gang_subtype_id, fighter_subtype')
+                .select('fighter_type_id, gang_origin_id, gang_subtype_id, fighter_subtype, excluded')
                 .eq('equipment_id', id)
             )
               .order('fighter_type_id')
@@ -725,13 +724,14 @@ export async function PATCH(request: Request) {
         // fighter_type_equipment_fighter_scope_uidx is NULLS NOT DISTINCT, so a
         // repeated scope is a unique violation rather than a no-op.
         const seen = new Set<string>();
-        const grantRecords = (fighter_type_grants as FighterTypeEquipmentGrant[])
+        const grantRecords = (fighter_type_grants as FighterTypeGrant[])
           .map(grant => ({
             fighter_type_id: grant.fighter_type_id ?? null,
             equipment_id: id,
             gang_origin_id: grant.gang_origin_id ?? null,
             gang_subtype_id: grant.gang_subtype_id ?? null,
             fighter_subtype: grant.fighter_subtype ?? null,
+            excluded: grant.excluded ?? false,
             updated_at: new Date().toISOString()
           }))
           .filter(record => {
