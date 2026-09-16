@@ -69,6 +69,7 @@ export async function proxy(request: NextRequest) {
     '/reset-password',
     '/reset-password/update',
     '/user-guide',
+    '/api-access',
     '/about',
     '/contributors',
     '/join-the-team',
