@@ -118,9 +118,8 @@ function SignInContent() {
         >
           {/* Carry next through to the server action */}
           {(() => {
-            const nextParam = searchParams.get('next');
-            const safeNext = safePostSignInPath(nextParam);
-            return nextParam && safeNext === nextParam && safeNext !== '/' ? (
+            const safeNext = safePostSignInPath(searchParams.get('next'));
+            return safeNext !== '/' ? (
               <input type="hidden" name="next" value={safeNext} />
             ) : null;
           })()}

@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
-import { getUserIdFromClaims } from './utils/auth'
+import { getUserIdFromClaims, safePostSignInPath, signInPath } from './utils/auth'
 
 function createSupabaseProxyClient(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -56,7 +56,8 @@ export async function proxy(request: NextRequest) {
     const userId = await getUserIdFromClaims(supabase);
 
     if (userId) {
-      const redirectResponse = NextResponse.redirect(new URL('/', request.url));
+      const destination = safePostSignInPath(request.nextUrl.searchParams.get('next'));
+      const redirectResponse = NextResponse.redirect(new URL(destination, request.url));
       return copyResponseCookies(getResponse(), redirectResponse);
     }
     return getResponse();
@@ -94,18 +95,7 @@ export async function proxy(request: NextRequest) {
   // Check authentication
   const userId = await getUserIdFromClaims(supabase);
 
-  // For unauthenticated users accessing root, redirect to the real sign-in URL.
-  // Keeping the browser at "/" while rendering sign-in can make Server Action
-  // auth redirects behave like same-path navigations and fail to persist cookies.
-  if (!userId && request.nextUrl.pathname === '/') {
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = '/sign-in';
-    redirectUrl.search = '';
-    const redirectResponse = NextResponse.redirect(redirectUrl);
-    return copyResponseCookies(getResponse(), redirectResponse);
-  }
-
-  // Redirect to sign-in if user is not authenticated
+  // Always redirect, never render sign-in at "/" - that broke Server Action cookie persistence.
   if (!userId) {
     // Build a clean redirect path: drop common tracking params
     const cleanUrl = request.nextUrl.clone();
@@ -116,13 +106,7 @@ export async function proxy(request: NextRequest) {
 
     const redirectPath = `${cleanUrl.pathname}${cleanUrl.search}`;
 
-    // Append next param to sign-in
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = '/sign-in';
-    redirectUrl.search = '';
-    redirectUrl.searchParams.set('next', redirectPath);
-
-    const redirectResponse = NextResponse.redirect(redirectUrl);
+    const redirectResponse = NextResponse.redirect(new URL(signInPath(redirectPath), request.url));
     return copyResponseCookies(getResponse(), redirectResponse);
   }
 
