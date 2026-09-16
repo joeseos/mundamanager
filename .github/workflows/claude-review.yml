@@ -167,13 +167,11 @@ jobs:
             const retry = `To retry: remove and re-add the \`claude-review\` label, or `
               + `re-run the failed job from the [run page](${runUrl}).`;
 
-            const body = ok
-              ? `${MARKER}\n✅ Automated Claude review completed. [Run log](${runUrl})`
-              : `${MARKER}\n### ⚠️ Automated Claude review did not complete\n\n`
-                + `${reason}\n\n`
-                + `**This PR has not been machine-reviewed, so treat human review as `
-                + `required.**\n\n`
-                + retry;
+            const body = `${MARKER}\n### ⚠️ Automated Claude review did not complete\n\n`
+              + `${reason}\n\n`
+              + `**This PR has not been machine-reviewed, so treat human review as `
+              + `required.**\n\n`
+              + retry;
 
             // Paginated: on a long thread the marker comment can fall past page 1, and
             // missing it would post a second status comment instead of updating the first.
@@ -205,14 +203,27 @@ jobs:
               core.warning(`Could not fold superseded summaries: ${err.message}`);
             }
 
-            if (existing) {
+            // Success posts nothing - the green check is the signal. Any status comment is
+            // from an earlier failure, so remove it rather than leave it contradicting the
+            // check. Never fail the job over it: a false red here would defeat the point.
+            if (ok) {
+              if (existing) {
+                try {
+                  await github.rest.issues.deleteComment({
+                    ...context.repo,
+                    comment_id: existing.id,
+                  });
+                } catch (err) {
+                  core.warning(`Could not remove the stale status comment: ${err.message}`);
+                }
+              }
+            } else if (existing) {
               await github.rest.issues.updateComment({
                 ...context.repo,
                 comment_id: existing.id,
                 body,
               });
-            } else if (!ok) {
-              // Only create a comment on failure; on success the green check is signal enough.
+            } else {
               await github.rest.issues.createComment({
                 ...context.repo,
                 issue_number: context.payload.pull_request.number,
