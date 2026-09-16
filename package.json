@@ -57,7 +57,7 @@
   "devDependencies": {
     "@parcel/css": "^1.14.0",
     "@tailwindcss/postcss": "^4.3.1",
-    "@types/node": "^20.19.43",
+    "@types/node": "^24.13.5",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "eslint": "^9.39.4",
@@ -69,7 +69,7 @@
     "typescript": "^5.9.3"
   },
   "engines": {
-    "node": ">=20.20.2"
+    "node": "24.x"
   },
   "overrides": {
     "@types/react-dom": "$@types/react-dom",
