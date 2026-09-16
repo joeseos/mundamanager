@@ -827,7 +827,7 @@ export default function GangInventory({
                   size="sm"
                   className="font-medium"
                 >
-                  Chem-Alchemy
+                  Chem-alchemy
                 </Button>
               )}
               <Button

@@ -75,6 +75,7 @@ interface SkillsListProps {
     fighter_specialisation?: string | null;
     fighter_specialisation_id?: string | null;
     special_rules?: string[];
+    promoted_from_prospect?: boolean;
   }) => void;
 }
 
@@ -534,6 +535,7 @@ export function SkillsList({
           fighter_subtypes: buildN26ProspectDemotionSubtypes(fighterSubtypes),
           fighter_specialisation: null,
           fighter_specialisation_id: null,
+          promoted_from_prospect: false,
         });
       } else if (isGangerChampionPromotionGrant) {
         onFighterDetailsUpdate?.({

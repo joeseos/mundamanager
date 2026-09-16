@@ -1,12 +1,12 @@
 'use client';
 
 import { signUpAction } from "@/app/actions/auth";
-import { FormMessage, Message } from "@/components/form-message";
+import { FormMessage } from "@/components/form-message";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, use } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import {
   EMPTY_PASSWORD_REQUIREMENTS,
   PASSWORD_ERROR_MESSAGE,
@@ -16,8 +16,16 @@ import {
 import { LuEye, LuEyeOff } from "react-icons/lu";
 import { RiErrorWarningFill } from "react-icons/ri";
 
-export default function Page(props: { searchParams: Promise<Message> }) {
-  const searchParams = use(props.searchParams);
+export default function SignUp() {
+  return (
+    <Suspense>
+      <SignUpContent />
+    </Suspense>
+  );
+}
+
+function SignUpContent() {
+  const searchParams = useSearchParams();
   const [passwordError, setPasswordError] = useState<string>("");
   const [usernameError, setUsernameError] = useState<string>("");
   const [emailError, setEmailError] = useState<string>("");
@@ -25,6 +33,9 @@ export default function Page(props: { searchParams: Promise<Message> }) {
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const [passwordRequirements, setPasswordRequirements] = useState(EMPTY_PASSWORD_REQUIREMENTS);
+
+  const message = searchParams.get('message');
+  const urlError = searchParams.get('error');
 
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -54,13 +65,13 @@ export default function Page(props: { searchParams: Promise<Message> }) {
     }
   };
 
-  if ("message" in searchParams) {
+  if (message) {
     return (
       <main className="flex flex-col items-center">
         <div className="container mx-auto max-w-4xl w-full px-4">
           <div className="flex flex-col items-center justify-center text-white text-center">
             <p className="text-lg mb-4">
-              {searchParams.message}
+              {message}
             </p>
             <Link href="/sign-in" className="text-lg text-white hover:underline">
               Sign in here once verified
@@ -244,7 +255,7 @@ export default function Page(props: { searchParams: Promise<Message> }) {
             >
               {isSubmitting ? 'Signing Up...' : 'Sign Up'}
             </button>
-            <FormMessage message={searchParams} />
+            {urlError && <FormMessage message={{ error: urlError }} />}
           </div>
         </form>
       </div>

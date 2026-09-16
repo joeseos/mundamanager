@@ -1,10 +1,10 @@
 import { createClient } from "@/utils/supabase/server";
-import { notFound } from "next/navigation";
+import { notFound, redirect, unstable_rethrow } from "next/navigation";
 import CampaignPageContent from "@/components/campaigns/[id]/campaign-page-content";
 import { CampaignErrorBoundary } from "@/components/campaigns/campaign-error-boundary";
 import { checkCampaignPermissions } from "@/utils/user-permissions";
 import type { CampaignPermissions } from "@/types/user-permissions";
-import { getAuthenticatedUser } from "@/utils/auth";
+import { getAuthenticatedUser, signInPath } from "@/utils/auth";
 import {
   getTradingPostTypesCached,
   getCampaignTriumphs,
@@ -18,7 +18,6 @@ import {
   getCampaignMembers,
   getCampaignTerritories,
   getCampaignBattles,
-  getCampaignGangsForModal,
   getCampaignAllegiances,
   getCampaignResources,
   getCampaignCaptives,
@@ -30,65 +29,82 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
   const params = await props.params;
   const supabase = await createClient();
 
-  // Get the user data once at the page level via claims
-  let userId: string | undefined = undefined;
+  // Get the user data once at the page level via claims. This is the authorisation
+  // gate for the whole page: the cached readers below fill from a service-role client
+  // and so do not enforce RLS themselves. proxy.ts already redirects anonymous
+  // requests for this path; this keeps the page correct independently of that.
+  let user: { id: string };
   try {
-    const user = await getAuthenticatedUser(supabase);
-    userId = user.id;
-  } catch {}
+    user = await getAuthenticatedUser(supabase);
+  } catch {
+    redirect(signInPath(`/campaigns/${params.id}`));
+  }
+  const userId = user.id;
 
   // Calculate permissions server-side
   let permissions: CampaignPermissions | null = null;
-  if (userId) {
-    try {
-      permissions = await checkCampaignPermissions(userId, params.id);
-    } catch (error) {
-      console.error('Error calculating permissions:', error);
-      // Set default read-only permissions on error
-      permissions = {
-        isOwner: false,
-        isAdmin: false,
-        canEdit: false,
-        canDelete: false,
-        canView: true,
-        userId,
-        isArbitrator: false,
-        isMember: false,
-        canEditCampaign: false,
-        canDeleteCampaign: false,
-        canManageMembers: false,
-        canManageTerritories: false,
-        canEditTerritories: false,
-        canDeleteTerritories: false,
-        canClaimTerritories: false,
-        canAddBattleLogs: false,
-        canEditBattleLogs: false,
-        campaignRole: null
-      };
-    }
+  try {
+    permissions = await checkCampaignPermissions(userId, params.id);
+  } catch (error) {
+    console.error('Error calculating permissions:', error);
+    // Set default read-only permissions on error
+    permissions = {
+      isOwner: false,
+      isAdmin: false,
+      canEdit: false,
+      canDelete: false,
+      canView: true,
+      userId,
+      isArbitrator: false,
+      isMember: false,
+      canEditCampaign: false,
+      canDeleteCampaign: false,
+      canManageMembers: false,
+      canManageTerritories: false,
+      canEditTerritories: false,
+      canDeleteTerritories: false,
+      canClaimTerritories: false,
+      canAddBattleLogs: false,
+      canEditBattleLogs: false,
+      campaignRole: null
+    };
   }
 
   let pageProps;
   try {
-    // PARALLEL DATA FETCHING - Main campaign data
+    // PARALLEL DATA FETCHING - everything that does not depend on another read
     const [
       campaignBasic,
       campaignMembers,
       campaignTerritories,
       campaignBattles,
       campaignMapBundle,
-      battleSessionsResult
+      battleSessionsResult,
+      campaignTypes,
+      allTerritories,
+      tradingPostTypes,
+      campaignAllegiances,
+      campaignResources,
+      campaignCaptives,
+      customTradingPostTypes
     ] = await Promise.all([
-      getCampaignBasic(params.id, supabase),
-      getCampaignMembers(params.id, supabase),
-      getCampaignTerritories(params.id, supabase),
-      getCampaignBattles(params.id, 100, supabase),
-      getCampaignMapWithObjects(params.id, supabase),
+      getCampaignBasic(params.id),
+      getCampaignMembers(params.id),
+      getCampaignTerritories(params.id),
+      getCampaignBattles(params.id, 100),
+      getCampaignMapWithObjects(params.id),
       supabase
         .from('battle_sessions')
         .select('*')
         .eq('campaign_id', params.id)
         .order('updated_at', { ascending: false }),
+      getCampaignTypes(),
+      getAllTerritories(),
+      getTradingPostTypesCached(supabase),
+      getCampaignAllegiances(params.id),
+      getCampaignResources(params.id),
+      getCampaignCaptives(params.id),
+      getCampaignSharedTradingPosts(params.id)
     ]);
 
     // Check if campaign exists
@@ -114,29 +130,8 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       hasPendingJoinRequest = !!joinRequest;
     }
 
-    // PARALLEL DATA FETCHING - Reference data for territory components
-    const [
-      campaignTriumphs,
-      campaignTypes,
-      allTerritories,
-      tradingPostTypesResult,
-      campaignAllegiances,
-      campaignResources,
-      campaignCaptives,
-      customTradingPostsResult
-    ] = await Promise.all([
-      getCampaignTriumphs(campaignBasic.campaign_type_id),
-      getCampaignTypes(),
-      getAllTerritories(),
-      getTradingPostTypesCached(supabase),
-      getCampaignAllegiances(params.id, supabase),
-      getCampaignResources(params.id, supabase),
-      getCampaignCaptives(params.id, supabase),
-      getCampaignSharedTradingPosts(params.id, supabase)
-    ]);
-
-    const tradingPostTypes = tradingPostTypesResult;
-    const customTradingPostTypes = customTradingPostsResult;
+    // The only read that depends on another: triumphs are keyed by campaign type.
+    const campaignTriumphs = await getCampaignTriumphs(campaignBasic.campaign_type_id);
 
     // Combine the data
     const campaignData = {
@@ -157,6 +152,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       discord_channel_id: campaignBasic.discord_channel_id || null,
       allow_join_requests: campaignBasic.allow_join_requests ?? false,
       note: campaignBasic.note,
+      current_cycle: (campaignBasic as any).current_cycle ?? null,
       members: campaignMembers,
       territories: campaignTerritories,
       battles: campaignBattles,
@@ -182,6 +178,9 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       hasPendingJoinRequest,
     };
   } catch (error) {
+    // notFound()/forbidden()/redirect() signal by throwing; let them through
+    // untouched so they are not logged as failures.
+    unstable_rethrow(error);
     console.error('Error in CampaignPage:', error);
     console.error('Error details:', JSON.stringify(error, null, 2));
     if (error instanceof Error) {

@@ -11,9 +11,11 @@ import { LuTrash2 } from "react-icons/lu";
 import { FighterType } from "@/types/fighter";
 import { GangType } from "@/types/gang";
 import { Equipment } from '@/types/equipment';
-import { getSkillSetRank } from "@/utils/skillSetRank";
+import { getSkillSetGroupLabel, getSkillSetRank } from "@/utils/skillSetRank";
 import { compareEquipmentCategories } from "@/utils/getEquipmentCategoryRank";
 import { AdminFighterEquipmentSelection, EquipmentSelection, guiToDataModel, dataModelToGui } from "@/components/admin/admin-fighter-equipment-selection";
+import { GangOriginOptions, GangSubtypeOptions } from "@/components/admin/gang-scope-options";
+import { FighterTypeGrant } from "@/types/fighter-type";
 import { EditionSelect, useEditions } from '@/components/edition-select';
 import { hasAlignment, hasSaveCharacteristic, allowsMultipleSubtypes, hasStartingXp, hasVehicles } from '@/types/edition';
 import { toggleFighterSubtype } from '@/utils/fighter-subtype-picker';
@@ -102,6 +104,13 @@ interface GangAffiliation {
   edition_id?: string | null;
 }
 
+// Omits excluded, as fighter_type_availability_scope_uidx does, so a grant and a deny for one
+// scope collide.
+const availabilityKey = (rule: FighterTypeGrant) =>
+  [rule.fighter_type_id, rule.fighter_subtype, rule.gang_type_id, rule.gang_origin_id, rule.gang_subtype_id]
+    .map(part => part ?? '')
+    .join('|');
+
 export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighterTypeModalProps) {
   const queryClient = useQueryClient();
   // Update state to track fighter type+subtype combinations
@@ -168,6 +177,20 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [selectedGangTypeForCost, setSelectedGangTypeForCost] = useState('');
   const [gangTypeCosts, setGangTypeCosts] = useState<FighterTypeGangCost[]>([]);
   const [selectedGangAffiliationForCost, setSelectedGangAffiliationForCost] = useState<string>('');
+
+  // null until the fighter type's rules have loaded, so a failed load submits no key and the
+  // save leaves the existing rows alone rather than deleting them.
+  const [availability, setAvailability] = useState<FighterTypeGrant[] | null>(null);
+  // The subtypes as stored, which is what the save scopes blanket rules to. Kept apart from
+  // selectedFighterSubtypes so a subtype ticked but not yet saved cannot be given a rule.
+  const [savedFighterSubtypes, setSavedFighterSubtypes] = useState<string[]>([]);
+  const [showAvailabilityDialog, setShowAvailabilityDialog] = useState(false);
+  const [ruleTarget, setRuleTarget] = useState<'type' | 'subtype'>('type');
+  const [ruleFighterSubtype, setRuleFighterSubtype] = useState('');
+  const [ruleGangType, setRuleGangType] = useState('');
+  const [ruleGangOrigin, setRuleGangOrigin] = useState('');
+  const [ruleGangSubtype, setRuleGangSubtype] = useState('');
+  const [ruleExcluded, setRuleExcluded] = useState(false);
   
   // Add at the top of the AdminEditFighterTypeModal component, after other state declarations
   const [skillAccess, setSkillAccess] = useState<{
@@ -331,9 +354,43 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: gangOriginList = [] } = useQuery<Array<{ id: string; origin_name: string; edition_id?: string | null }>>({
+    queryKey: ['admin-gang-origins'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/gang-origins');
+      if (!response.ok) throw new Error('Failed to fetch gang origins');
+      return response.json();
+    },
+    // Also needed unopened, to label the availability rules
+    enabled: !!selectedFighterTypeId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: gangSubtypeList = [] } = useQuery<Array<{ id: string; subtype: string; edition_id?: string | null }>>({
+    queryKey: ['admin-gang-subtypes'],
+    queryFn: async () => {
+      const response = await fetch('/api/gang-subtype-types');
+      if (!response.ok) throw new Error('Failed to fetch gang subtypes');
+      return response.json();
+    },
+    enabled: !!selectedFighterTypeId,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const filteredGangTypes = useMemo(
     () => editionId ? gangTypes.filter(type => type.edition_id === editionId) : gangTypes,
     [gangTypes, editionId]
+  );
+
+  // Origin and subtype names repeat across editions under different ids
+  const filteredGangOrigins = useMemo(
+    () => editionId ? gangOriginList.filter(origin => origin.edition_id === editionId) : gangOriginList,
+    [gangOriginList, editionId]
+  );
+
+  const filteredGangSubtypes = useMemo(
+    () => editionId ? gangSubtypeList.filter(subtype => subtype.edition_id === editionId) : gangSubtypeList,
+    [gangSubtypeList, editionId]
   );
 
   const filteredGangAffiliations = useMemo(
@@ -349,6 +406,15 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const fighterSubtypesForDisplay = useMemo(
     () => [...filteredFighterSubtypes].sort((a, b) => a.subtype_name.localeCompare(b.subtype_name)),
     [filteredFighterSubtypes]
+  );
+
+  // A blanket subtype rule belongs to this screen only while the fighter type still carries that
+  // subtype. Drop the rest rather than showing rules the save would reject.
+  const availabilityRules = useMemo(
+    () => (availability ?? []).filter(
+      rule => !rule.fighter_subtype || selectedFighterSubtypes.includes(rule.fighter_subtype)
+    ),
+    [availability, selectedFighterSubtypes]
   );
 
   const filteredSkillTypes = useMemo(
@@ -373,15 +439,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         })
         .reduce((groups, type) => {
           const rank = skillSetRank[type.skill_type.toLowerCase()] ?? Infinity;
-          let groupLabel = "Misc.";
-
-          if (rank <= 19) groupLabel = "Universal Skills";
-          else if (rank <= 39) groupLabel = "Gang-specific Skills";
-          else if (rank <= 59) groupLabel = "Wyrd Powers";
-          else if (rank <= 69) groupLabel = "Cult Wyrd Powers";
-          else if (rank <= 79) groupLabel = "Psychoteric Whispers";
-          else if (rank <= 89) groupLabel = "Legendary Names";
-          else if (rank <= 99) groupLabel = "Ironhead Squat Mining Clans";
+          const groupLabel = getSkillSetGroupLabel(rank);
 
           if (!groups[groupLabel]) groups[groupLabel] = [];
           groups[groupLabel].push(type);
@@ -429,12 +487,32 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     }
     setSelectedFighterSubtypes(nextSubtypes);
 
+    // Origin, subtype and gang type ids are per-edition, so one carried across stops matching
+    // silently. Only drop a rule whose target is found in another edition — an id the lists
+    // cannot account for yet is left alone rather than assumed foreign.
+    if (newEditionId) {
+      const fromAnotherEdition = (list: Array<{ id: string; edition_id?: string | null }>, id: string | null) => {
+        const row = id ? list.find(candidate => candidate.id === id) : null;
+        return !!row && row.edition_id !== newEditionId;
+      };
+      setAvailability(prev => prev?.filter(rule => !(
+        fromAnotherEdition(gangOriginList, rule.gang_origin_id)
+        || fromAnotherEdition(gangSubtypeList, rule.gang_subtype_id)
+        || fromAnotherEdition(
+          gangTypes.map(type => ({ id: type.gang_type_id, edition_id: type.edition_id })),
+          rule.gang_type_id
+        )
+      )) ?? null);
+    }
+
     if (newEditionId && gangTypeFilter) {
       const gangType = gangTypes.find(type => type.gang_type_id === gangTypeFilter);
       if (gangType && gangType.edition_id !== newEditionId) {
         setGangTypeFilter('');
         setSelectedFighterTypeId('');
         setSelectedSpecialisationId('');
+        setAvailability(null);
+        setSavedFighterSubtypes([]);
       }
     }
 
@@ -618,6 +696,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         setEditionId(data.edition_id);
       }
       setSelectedFighterSubtypes(Array.isArray(data.fighter_subtypes) ? data.fighter_subtypes : []);
+      setSavedFighterSubtypes(Array.isArray(data.fighter_subtypes) ? data.fighter_subtypes : []);
       setMovement(data.movement?.toString() || '0');
       setWeaponSkill(data.weapon_skill?.toString() || '0');
       setBallisticSkill(data.ballistic_skill?.toString() || '0');
@@ -654,6 +733,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       } else {
         setGangTypeCosts([]);
       }
+
+      setAvailability(Array.isArray(data.availability) ? data.availability : null);
 
       setVariantName(data.fighter_variant || '');
       if (variantNameInputRef.current) variantNameInputRef.current.value = data.fighter_variant || '';
@@ -696,6 +777,10 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     setSelectedFighterTypeCombo(comboString);
     setSelectedFighterTypeId('');
     setSelectedSpecialisationId('');
+    // Cleared here, not just on load: a failed detail fetch would otherwise leave the previous
+    // fighter type's rules in state and save them against this one.
+    setAvailability(null);
+    setSavedFighterSubtypes([]);
     setAvailableSpecialisations([]);
     setVariantName('');
     setSpecialisationCatalogId('');
@@ -987,6 +1072,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         equipment_discounts: equipmentDiscounts,
         equipment_selection: guiToDataModel(equipmentSelection),
         gang_type_costs: gangTypeCosts, // Add gang-specific costs
+        ...(availability ? { availability: availabilityRules } : {}),
         updated_at: new Date().toISOString(),
         skill_access: skillAccess
       };
@@ -1086,6 +1172,35 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
   // Add this useEffect after the existing useEffects to handle backward compatibility
 
+
+  const closeAvailabilityDialog = () => {
+    setShowAvailabilityDialog(false);
+    setRuleTarget('type');
+    setRuleFighterSubtype('');
+    setRuleGangType('');
+    setRuleGangOrigin('');
+    setRuleGangSubtype('');
+    setRuleExcluded(false);
+  };
+
+  const handleAddAvailabilityRule = () => {
+    const rule: FighterTypeGrant = {
+      fighter_type_id: ruleTarget === 'subtype' ? null : selectedFighterTypeId,
+      fighter_subtype: ruleTarget === 'subtype' ? ruleFighterSubtype : null,
+      gang_type_id: ruleGangType || null,
+      gang_origin_id: ruleGangOrigin || null,
+      gang_subtype_id: ruleGangSubtype || null,
+      excluded: ruleTarget === 'subtype' ? true : ruleExcluded
+    };
+
+    if (availabilityRules.some(r => availabilityKey(r) === availabilityKey(rule))) {
+      toast.error('That combination is already on the list');
+      return false;
+    }
+
+    setAvailability(prev => [...(prev ?? []), rule]);
+    closeAvailabilityDialog();
+  };
 
   const handleAddGangCost = () => {
     // Get the cost from the ref instead of state
@@ -1231,6 +1346,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   // Reset downstream selections when gang type changes
                   setSelectedFighterTypeId('');
                   setSelectedSpecialisationId('');
+                  setAvailability(null);
+                  setSavedFighterSubtypes([]);
                 }}
                 className="w-full p-2 border rounded-md"
               >
@@ -2243,6 +2360,187 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                     confirmText="Save Cost"
                     confirmDisabled={!selectedGangTypeForCost}
                   />
+                )}
+              </div>
+
+              {/* Gang Availability — fighter_type_availability grants and denies */}
+              <div className="col-span-3">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
+                  Gang Availability
+                </label>
+                <Button
+                  onClick={() => setShowAvailabilityDialog(true)}
+                  variant="outline"
+                  size="sm"
+                  className="mb-2"
+                  disabled={!selectedFighterTypeId}
+                >
+                  Add Rule
+                </Button>
+                {!selectedFighterTypeId && (
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Select a fighter type to add availability rules
+                  </p>
+                )}
+
+                {availabilityRules.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {availabilityRules.map((rule) => {
+                      const scope = [
+                        rule.gang_type_id
+                          ? `Gang type: ${filteredGangTypes.find(g => g.gang_type_id === rule.gang_type_id)?.gang_type
+                              ?? gangTypes.find(g => g.gang_type_id === rule.gang_type_id)?.gang_type ?? '…'}`
+                          : null,
+                        rule.gang_origin_id
+                          ? `Origin: ${gangOriginList.find(o => o.id === rule.gang_origin_id)?.origin_name ?? '…'}`
+                          : null,
+                        rule.gang_subtype_id
+                          ? `Gang subtype: ${gangSubtypeList.find(s => s.id === rule.gang_subtype_id)?.subtype ?? '…'}`
+                          : null
+                      ].filter(Boolean).join(', ');
+                      const target = rule.fighter_subtype
+                        ? `Deny '${rule.fighter_subtype}'`
+                        : rule.excluded ? 'Deny' : 'Grant';
+
+                      return (
+                        <div
+                          key={availabilityKey(rule)}
+                          className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
+                        >
+                          <span>{target} — {scope}</span>
+                          <button
+                            type="button"
+                            onClick={() => setAvailability(prev =>
+                              (prev ?? []).filter(r => availabilityKey(r) !== availabilityKey(rule))
+                            )}
+                            className="hover:text-red-500 focus:outline-hidden"
+                          >
+                            <HiX className="h-4 w-4" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {showAvailabilityDialog && (
+                  <Modal
+                    title="Gang Availability Rule"
+                    helper="Grants add this fighter type to gangs matching the scope. Denies remove it, but only from the gang's own gang type, and never a fighter another rule granted."
+                    onClose={closeAvailabilityDialog}
+                    onConfirm={handleAddAvailabilityRule}
+                    confirmText="Save Rule"
+                    confirmDisabled={
+                      // scope_chk: an all-null scope would apply to every gang in the game
+                      (!ruleGangType && !ruleGangOrigin && !ruleGangSubtype)
+                      || (ruleTarget === 'subtype' && !ruleFighterSubtype)
+                    }
+                    width="sm"
+                  >
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Applies to</label>
+                        <select
+                          value={ruleTarget}
+                          onChange={(e) => {
+                            const next = e.target.value as 'type' | 'subtype';
+                            setRuleTarget(next);
+                            // target_chk: a subtype rule names no fighter to add, so it is a deny
+                            if (next === 'subtype') {
+                              setRuleExcluded(true);
+                            } else {
+                              setRuleFighterSubtype('');
+                              setRuleExcluded(false);
+                            }
+                          }}
+                          className="w-full p-2 border rounded-md"
+                        >
+                          <option value="type">This fighter type</option>
+                          <option value="subtype">Any fighter with subtype…</option>
+                        </select>
+                      </div>
+
+                      {ruleTarget === 'subtype' && (
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Fighter Subtype</label>
+                          <select
+                            value={ruleFighterSubtype}
+                            onChange={(e) => setRuleFighterSubtype(e.target.value)}
+                            className="w-full p-2 border rounded-md"
+                          >
+                            <option value="">Select a Fighter Subtype</option>
+                            {selectedFighterSubtypes
+                              .filter(subtype => savedFighterSubtypes.includes(subtype))
+                              .map((subtype) => (
+                                <option key={subtype} value={subtype}>{subtype}</option>
+                              ))}
+                          </select>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            A blanket rule, shared with every other fighter type carrying this subtype.
+                            Only the subtypes this fighter type has are listed, because those are the
+                            rules this screen owns.
+                          </p>
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Gang Type</label>
+                        <select
+                          value={ruleGangType}
+                          onChange={(e) => setRuleGangType(e.target.value)}
+                          className="w-full p-2 border rounded-md"
+                        >
+                          <option value="">Any Gang Type</option>
+                          {filteredGangTypes.map((gangType) => (
+                            <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
+                              {gangType.gang_type}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Gang Origin</label>
+                        <select
+                          value={ruleGangOrigin}
+                          onChange={(e) => setRuleGangOrigin(e.target.value)}
+                          className="w-full p-2 border rounded-md"
+                        >
+                          <option value="">Any Gang Origin</option>
+                          <GangOriginOptions origins={filteredGangOrigins} />
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Gang Subtype</label>
+                        <select
+                          value={ruleGangSubtype}
+                          onChange={(e) => setRuleGangSubtype(e.target.value)}
+                          className="w-full p-2 border rounded-md"
+                        >
+                          <option value="">Any Gang Subtype</option>
+                          <GangSubtypeOptions subtypes={filteredGangSubtypes} editionSlug={editionSlug} />
+                        </select>
+                      </div>
+
+                      <label className="flex items-start space-x-2">
+                        <Checkbox
+                          checked={ruleExcluded}
+                          onCheckedChange={(checked) => setRuleExcluded(checked === true)}
+                          disabled={ruleTarget === 'subtype'}
+                          className="mt-1"
+                        />
+                        <div>
+                          <span className="text-sm font-medium text-muted-foreground">Deny</span>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {ruleTarget === 'subtype'
+                              ? 'A subtype rule can only ever be a deny — it names no fighter to add.'
+                              : 'Removes this fighter type from matching gangs instead of granting it.'}
+                          </p>
+                        </div>
+                      </label>
+                    </div>
+                  </Modal>
                 )}
               </div>
 

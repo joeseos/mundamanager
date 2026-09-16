@@ -6,11 +6,6 @@ import { withEditionSlug } from '@/types/edition';
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
-const variantGangTypeName = (variant: string) => `Variant: ${variant}`;
-
-// Keyed by name so a later edition's re-issue of the variant inherits the rule.
-const variantsWithoutLeaders = new Set(['secundan incursion']);
-
 // Fetch the user's own custom fighters plus any shared with them through campaigns,
 // de-duplicated by id.
 async function getCombinedCustomFighters(supabase: SupabaseServerClient, userId: string) {
@@ -284,11 +279,13 @@ export async function GET(request: Request) {
     }
 
     if (includeAllTypes) {
-      // Fetch all fighter types across all gang types
+      // Fetch all fighter types across all gang types. p_gang_id still applies this gang's rules,
+      // so its own denied fighters stay out even here.
       const { data: result, error } = await supabase.rpc('get_fighter_types_with_cost', {
         p_gang_type_id: null,
         p_gang_affiliation_id: null,
-        p_is_gang_addition: null
+        p_is_gang_addition: null,
+        p_gang_id: gangId
       });
 
       if (error) {
@@ -311,7 +308,14 @@ export async function GET(request: Request) {
 
       if (hiddenGangTypes && hiddenGangTypes.length > 0) {
         const hiddenIds = new Set(hiddenGangTypes.map(gt => gt.gang_type_id));
-        data = data.filter((fighter: any) => !hiddenIds.has(fighter.gang_type_id));
+        // The 'Subtype: <name>' pools are themselves hidden gang types, so a granted fighter has
+        // to survive this filter — a rule put it in the list, not the catalogue.
+        // Only subtype-scoped grants set is_gang_subtype, so an origin- or gang-type-scoped grant
+        // pointing into a hidden pool would still be dropped here. None exist yet; widening the
+        // flag is not the fix, since fighter-edit-modal renders gang_subtype_name off it.
+        data = data.filter((fighter: any) =>
+          fighter.is_gang_subtype || !hiddenIds.has(fighter.gang_type_id)
+        );
       }
 
       // For a custom gang, keep its own custom fighters in the list alongside the
@@ -346,10 +350,13 @@ export async function GET(request: Request) {
       // Use the unified catalog function for regular (roster) fighters.
       // p_is_gang_addition=false reproduces the old get_add_fighter_details filter:
       // fighters of this gang type (incl. its gang-addition-flagged fighters).
+      // p_gang_id applies fighter_type_availability: the gang's subtype pools in, its denied
+      // fighters out.
       const { data: result, error } = await supabase.rpc('get_fighter_types_with_cost', {
         p_gang_type_id: gangTypeId,
         p_gang_affiliation_id: gangAffiliationId || null,
-        p_is_gang_addition: false
+        p_is_gang_addition: false,
+        p_gang_id: gangId
       });
 
       if (error) {
@@ -358,85 +365,6 @@ export async function GET(request: Request) {
       }
 
       data = result;
-    }
-
-    // Fetch gang variants from the database
-    let gangVariants: Array<{id: string, variant: string, edition_id: string | null}> = [];
-    if (!isGangAddition) {
-      try {
-        // Get gang data including gang_variants
-        const { data: gangData, error: gangError } = await supabase
-          .from('gangs')
-          .select('gang_variants')
-          .eq('id', gangId)
-          .single();
-
-        if (gangError) {
-          console.error('Error fetching gang data:', gangError);
-          throw gangError;
-        }
-
-        // If gang has variants, fetch the variant details
-        if (gangData.gang_variants && Array.isArray(gangData.gang_variants) && gangData.gang_variants.length > 0) {
-          const { data: variantDetails, error: variantError } = await supabase
-            .from('gang_variant_types')
-            .select('id, variant, edition_id')
-            .in('id', gangData.gang_variants);
-
-          if (variantError) {
-            console.error('Error fetching variant details:', variantError);
-            throw variantError;
-          }
-
-          gangVariants = variantDetails || [];
-        }
-      } catch (error) {
-        // Continue without variants rather than failing
-        gangVariants = [];
-      }
-
-      if (gangVariants.length > 0) {
-        // Match on edition too — "Malstrain Corrupted" exists in both N23 and N26.
-        const { data: variantGangTypes, error: variantGangTypesError } = await supabase
-          .from('gang_types')
-          .select('gang_type_id, gang_type, edition_id')
-          .in('gang_type', gangVariants.map(v => variantGangTypeName(v.variant)));
-
-        // Falling through to "no variant fighters" is a fine degradation, but a failure here
-        // looks identical to a variant having no pool, so say so rather than vanish silently.
-        if (variantGangTypesError) {
-          console.error('Error fetching variant gang types:', variantGangTypesError);
-        }
-
-        for (const variant of gangVariants) {
-          if (variantsWithoutLeaders.has(variant.variant.toLowerCase())) {
-            data = data.filter((type: any) => !(type.fighter_subtypes ?? []).includes('Leader'));
-          }
-
-          const variantGangTypeId = (variantGangTypes ?? []).find(gt =>
-            gt.gang_type === variantGangTypeName(variant.variant) &&
-            gt.edition_id === variant.edition_id
-          )?.gang_type_id;
-          if (!variantGangTypeId) continue;
-
-          // Fetch variant-specific fighter types and merge
-          const { data: variantData, error: variantError } = await supabase.rpc('get_fighter_types_with_cost', {
-            p_gang_type_id: variantGangTypeId,
-            p_gang_affiliation_id: null,
-            p_is_gang_addition: false
-          });
-          
-          if (!variantError && variantData) {
-            // Mark these as gang variant fighter types
-            const markedVariantData = variantData.map((type: any) => ({
-              ...type,
-              is_gang_variant: true,
-              gang_variant_name: variant.variant
-            }));
-            data = [...data, ...markedVariantData];
-          }
-        }
-      }
     }
 
     // Add custom fighter types if requested.

@@ -211,7 +211,15 @@ const EDITION_CAPABILITIES = {
   championLeaderTypePromotion: { n23: false, n26: true },
   /** The battle's scenario is rolled for on a D6 against the edition's numbered scenarios. */
   scenarioD6Roll: { n23: false, n26: true },
+  /** Fighters can catch fire — the Blaze condition token in a battle session. */
+  blazeCondition:           { n23: true,  n26: false },
+  /** Fighters can be intoxicated — the Intoxicated condition token in a battle session. */
+  intoxicatedCondition:     { n23: true,  n26: false },
+  /** Damage short of a lost wound leaves a Flesh Wound, counted per fighter. */
+  fleshWoundCondition:      { n23: true,  n26: false },
   venatorSkillAccess:       { n23: false, n26: true  },
+  /** A Spyrer's Rig Glitches can send them into Recovery, so they get the Recovery toggle. */
+  spyrerRecovery:           { n23: false, n26: true  },
 } as const satisfies Record<string, Record<EditionSlug, unknown>>;
 
 type EditionCapability = keyof typeof EDITION_CAPABILITIES;
@@ -359,8 +367,20 @@ export const hasChampionLeaderTypePromotion = (
 export const hasScenarioD6Roll = (editionSlug?: string | null): boolean =>
   can('scenarioD6Roll', editionSlug);
 
+export const hasBlazeCondition = (editionSlug?: string | null): boolean =>
+  can('blazeCondition', editionSlug);
+
+export const hasIntoxicatedCondition = (editionSlug?: string | null): boolean =>
+  can('intoxicatedCondition', editionSlug);
+
+export const hasFleshWoundCondition = (editionSlug?: string | null): boolean =>
+  can('fleshWoundCondition', editionSlug);
+
 export const hasVenatorSkillAccess = (editionSlug: string | null | undefined): boolean =>
   can('venatorSkillAccess', editionSlug);
+
+export const hasSpyrerRecovery = (editionSlug?: string | null): boolean =>
+  can('spyrerRecovery', editionSlug);
 
 export interface Edition {
   id: string;

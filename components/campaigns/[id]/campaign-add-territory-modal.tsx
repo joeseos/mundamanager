@@ -1,10 +1,9 @@
 'use client'
 
-import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import Modal from "@/components/ui/modal"
 import TerritoryList from "@/components/campaigns/[id]/campaign-add-territory-list"
-import type { CampaignType } from '@/types/campaign';
+import type { CampaignType, CampaignTerritoryRow } from '@/types/campaign';
 
 interface Territory {
   id: string;
@@ -28,7 +27,7 @@ interface CampaignAddTerritoryModalProps {
   campaignTypes: CampaignType[];
   allTerritories: Territory[];
   existingCampaignTerritories: CampaignTerritory[];
-  onTerritoryAdd: () => void;
+  onTerritoryAdd: (territory: CampaignTerritoryRow) => void;
   isAdmin: boolean;
 }
 
@@ -44,18 +43,6 @@ export default function CampaignAddTerritoryModal({
   onTerritoryAdd,
   isAdmin
 }: CampaignAddTerritoryModalProps) {
-  const [isAdding, setIsAdding] = useState(false);
-
-  const handleTerritoryAdd = () => {
-    setIsAdding(true);
-    // Call the parent's refresh function
-    onTerritoryAdd();
-    // Reset the adding state after a short delay
-    setTimeout(() => {
-      setIsAdding(false);
-    }, 500);
-  };
-
   if (!isOpen) {
     return null;
   }
@@ -72,7 +59,7 @@ export default function CampaignAddTerritoryModal({
           campaignTypes={campaignTypes}
           allTerritories={allTerritories}
           existingCampaignTerritories={existingCampaignTerritories}
-          onTerritoryAdd={handleTerritoryAdd}
+          onTerritoryAdd={onTerritoryAdd}
         />
       }
       onClose={onClose}

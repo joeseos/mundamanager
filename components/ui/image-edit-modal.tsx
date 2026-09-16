@@ -8,6 +8,7 @@ import { UseImageEditorOptions } from '@/hooks/use-image-editor';
 import { useImageEditor } from '@/hooks/use-image-editor';
 import { LuChevronLeft, LuChevronRight } from 'react-icons/lu';
 import { DefaultImageEntry, DefaultImageCredit } from '@/types/gang';
+import { DefaultImageCreditLine } from '@/components/ui/default-image-credit-line';
 
 interface ImageEditModalProps {
   isOpen: boolean;
@@ -240,17 +241,7 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
                 )}
               </div>
             </div>
-            {displayDefaultImageCredit ? (
-              <p className="text-xs italic text-center text-muted-foreground mt-1">
-                Illustration by{' '}
-                <a href={displayDefaultImageCredit.url} target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
-                  {displayDefaultImageCredit.name}
-                </a>
-                {displayDefaultImageCredit.suffix && ` ${displayDefaultImageCredit.suffix}`}
-              </p>
-            ) : (
-              <p className="text-xs mt-1">&nbsp;</p>
-            )}
+            <DefaultImageCreditLine credit={displayDefaultImageCredit} />
           </div>
         )}
         <div className="mb-4">

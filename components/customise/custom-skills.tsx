@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { LuEye, LuSquarePen, LuTrash2 } from 'react-icons/lu';
 import { FaRegCopy } from 'react-icons/fa';
 import { FiShare2 } from 'react-icons/fi';
-import { getSkillSetRank } from '@/utils/skillSetRank';
+import { getSkillSetGroupLabel, getSkillSetRank } from '@/utils/skillSetRank';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { BiSolidNotepad } from 'react-icons/bi';
@@ -339,14 +339,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
     const groupByLabel: Record<string, SkillType[]> = {};
     standardTypes.forEach(type => {
       const rank = skillSetRank[type.name.toLowerCase()] ?? Infinity;
-      let groupLabel = 'Misc.';
-      if (rank <= 19) groupLabel = 'Universal Skill Sets';
-      else if (rank <= 39) groupLabel = 'Gang-specific Skill Sets';
-      else if (rank <= 59) groupLabel = 'Wyrd Powers';
-      else if (rank <= 69) groupLabel = 'Cult Wyrd Powers';
-      else if (rank <= 79) groupLabel = 'Psychoteric Whispers';
-      else if (rank <= 89) groupLabel = 'Legendary Names';
-      else if (rank <= 99) groupLabel = 'Ironhead Squat Mining Clans';
+      const groupLabel = getSkillSetGroupLabel(rank);
       if (!groupByLabel[groupLabel]) groupByLabel[groupLabel] = [];
       groupByLabel[groupLabel].push(type);
     });

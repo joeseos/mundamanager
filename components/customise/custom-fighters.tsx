@@ -22,7 +22,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createCustomFighter, deleteCustomFighter, updateCustomFighter } from '@/app/actions/customise/custom-fighters';
 import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants';
 import { ShareCustomFighterModal } from '@/components/customise/custom-shared';
-import { getSkillSetRank } from '@/utils/skillSetRank';
+import { getSkillSetGroupLabel, getSkillSetRank } from '@/utils/skillSetRank';
 import type { UserCampaign } from '@/types/campaign';
 import type { EquipmentListItem } from '@/types/equipment';
 import {
@@ -62,14 +62,7 @@ function SkillSetOptions({ skillTypes, excludeIds, editionSlug }: {
   const groupByLabel: Record<string, SkillTypeItem[]> = {};
   standardTypes.forEach(st => {
     const rank = skillSetRank[st.skill_type.toLowerCase()] ?? Infinity;
-    let groupLabel = 'Misc.';
-    if (rank <= 19) groupLabel = 'Universal Skill Sets';
-    else if (rank <= 39) groupLabel = 'Gang-specific Skill Sets';
-    else if (rank <= 59) groupLabel = 'Wyrd Powers';
-    else if (rank <= 69) groupLabel = 'Cult Wyrd Powers';
-    else if (rank <= 79) groupLabel = 'Psychoteric Whispers';
-    else if (rank <= 89) groupLabel = 'Legendary Names';
-    else if (rank <= 99) groupLabel = 'Ironhead Squat Mining Clans';
+    const groupLabel = getSkillSetGroupLabel(rank);
     if (!groupByLabel[groupLabel]) groupByLabel[groupLabel] = [];
     groupByLabel[groupLabel].push(st);
   });

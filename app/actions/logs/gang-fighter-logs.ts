@@ -220,6 +220,14 @@ export async function logSkillAdvancementDeletion(params: AdvancementDeletionLog
   }
 }
 
+function mayTakeLowerAdvancementResults(diceData: unknown): boolean {
+  return (
+    !!diceData &&
+    typeof diceData === 'object' &&
+    (diceData as { may_take_lower_results?: unknown }).may_take_lower_results === true
+  );
+}
+
 function gangerAdvancementRollDetailLine(diceData: unknown): string | null {
   if (!diceData || typeof diceData !== 'object') return null;
   const d = diceData as { result?: unknown; dice?: unknown };
@@ -228,6 +236,7 @@ function gangerAdvancementRollDetailLine(diceData: unknown): string | null {
     Array.isArray(d.dice) && d.dice.length > 0 && d.dice.every((x) => typeof x === 'number')
       ? (d.dice as number[])
       : [d.result];
+  // N26 threshold wording lives on the first log line; this line is dice only.
   return formatRollOutcomeLine(d.result, dice);
 }
 
@@ -241,7 +250,10 @@ export async function logRolledGangerAdvancement(params: GangerAdvancementRollLo
         : '?';
 
     const detail = gangerAdvancementRollDetailLine(params.dice_data);
-    const firstLine = `Fighter "${params.fighter_name}" rolled ${resultNum} on the ${params.advancement_table} table, resulting in: "${params.outcome_label}"`;
+    const firstLine =
+      mayTakeLowerAdvancementResults(params.dice_data) && typeof resultNum === 'number'
+        ? `Fighter "${params.fighter_name}" rolled ${resultNum} on the ${params.advancement_table} table and may take any result of ${resultNum} or less`
+        : `Fighter "${params.fighter_name}" rolled ${resultNum} on the ${params.advancement_table} table, resulting in: "${params.outcome_label}"`;
     const description = detail ? `${firstLine}\n${detail}` : firstLine;
 
     return await createGangLog({

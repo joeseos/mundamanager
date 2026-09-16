@@ -26,6 +26,43 @@ export interface BattleParticipant {
 }
 
 /**
+ * Lifecycle of a battle log. A challenge round creates `challenge_pending` slots
+ * (one per gang, no opponent yet); the gang's owner issues it, the challenged
+ * gang answers, and filing the report converts the same row to `played`.
+ */
+export type BattleStatus =
+  | 'challenge_pending'
+  | 'challenge_issued'
+  | 'challenge_accepted'
+  | 'challenge_declined'
+  | 'played';
+
+export const battleStatusLabels: Record<BattleStatus, string> = {
+  challenge_pending: 'Awaiting opponent',
+  challenge_issued: 'Challenge issued',
+  challenge_accepted: 'Accepted',
+  challenge_declined: 'Declined',
+  played: 'Played',
+};
+
+export const battleStatusColors: Record<BattleStatus, string> = {
+  challenge_pending: 'bg-muted text-muted-foreground',
+  challenge_issued: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
+  challenge_accepted: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+  challenge_declined: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+  played: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+};
+
+/** Rows cached before the status column existed have none; they are all played. */
+export function battleStatusOf(battle: Pick<Battle, 'status'>): BattleStatus {
+  return battle.status ?? 'played';
+}
+
+export function isPlayedBattle(battle: Pick<Battle, 'status'>): boolean {
+  return battleStatusOf(battle) === 'played';
+}
+
+/**
  * Battle/Battle log data structure
  */
 export interface Battle {
@@ -41,6 +78,11 @@ export interface Battle {
   campaign_territory_id?: string | null;
   territory_name?: string;
   cycle?: number | null;
+  status?: BattleStatus;
+  /** Gang that issued the challenge. Not the attacker: that is a scenario role. */
+  challenger_gang_id?: string | null;
+  /** Gang the challenge was issued to. Null on a slot with no opponent yet. */
+  challenged_gang_id?: string | null;
   attacker?: GangReference;
   defender?: GangReference;
   winner?: GangReference;
@@ -80,6 +122,54 @@ export interface Territory {
   gang_id?: string | null;
   is_custom?: boolean;
   territory_id?: string | null;
+}
+
+/** A `campaign_maps` row. */
+export interface CampaignMapRow {
+  id: string;
+  campaign_id: string;
+  background_image_url: string;
+  hex_grid_enabled: boolean;
+  hex_size: number;
+  created_at: string;
+  updated_at: string | null;
+}
+
+/** A `campaign_map_objects` row. */
+export interface CampaignMapObjectRow {
+  id: string;
+  campaign_map_id: string;
+  object_type: string;
+  geometry: Record<string, unknown>;
+  properties: Record<string, unknown>;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface CampaignMapBundle {
+  map: CampaignMapRow | null;
+  objects: CampaignMapObjectRow[];
+}
+
+/**
+ * A `campaign_territories` row as the cached reader and the add/create mutations
+ * return it, before any client-side view shaping.
+ */
+export interface CampaignTerritoryRow {
+  id: string;
+  territory_id: string | null;
+  territory_name: string;
+  gang_id: string | null;
+  created_at: string;
+  ruined?: boolean;
+  default_gang_territory?: boolean;
+  playing_card?: string | null;
+  description?: string | null;
+  map_object_id?: string | null;
+  map_hex_coords?: { x: number; y: number; z: number } | null;
+  show_name_on_map?: boolean;
+  /** The territory reader always populates every gang field, unlike other references. */
+  owning_gangs?: Required<GangReference>[];
 }
 
 /**

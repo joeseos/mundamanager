@@ -20,7 +20,8 @@ import {
   normaliseTacticsDescription,
   TACTICS_DESCRIPTION_CHAR_LIMIT,
   type GangTacticsCard,
-  type TacticsCard
+  type TacticsCard,
+  type TacticsCardsPack
 } from '@/types/tactics-card';
 import {
   addGangTacticsCards,
@@ -31,7 +32,6 @@ import {
 
 interface GangTacticsCardsProps {
   gangId: string;
-  editionSlug?: string | null;
   tacticsCards: GangTacticsCard[];
   /** Tab bodies unmount on switch, so the list itself lives in the page. */
   onTacticsCardsUpdate: (cards: GangTacticsCard[]) => void;
@@ -42,13 +42,13 @@ const TOOLTIP_ID = 'gang-tactics-description-tooltip';
 
 export default function GangTacticsCards({
   gangId,
-  editionSlug,
   tacticsCards,
   onTacticsCardsUpdate,
   userPermissions
 }: GangTacticsCardsProps) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
+  const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
   const [editCard, setEditCard] = useState<GangTacticsCard | null>(null);
   const [editDescription, setEditDescription] = useState('');
   const [deleteCard, setDeleteCard] = useState<GangTacticsCard | null>(null);
@@ -62,23 +62,36 @@ export default function GangTacticsCards({
     [tacticsCards]
   );
 
-  // Only fetched once the Add modal is opened.
-  const { data: catalogue = [], isLoading: isLoadingCatalogue, error: catalogueError } = useQuery<TacticsCard[]>({
-    queryKey: ['tactics-cards', editionSlug],
+  // Only fetched once the Add modal is opened. Every pack arrives with its
+  // cards, so switching pack is local.
+  const { data: packs = [], isLoading: isLoadingPacks, error: packsError } = useQuery<TacticsCardsPack[]>({
+    queryKey: ['tactics-cards', gangId],
     queryFn: async () => {
-      const response = await fetch(`/api/tactics-cards?edition_slug=${editionSlug}`);
+      const response = await fetch(`/api/tactics-cards?gang_id=${gangId}`);
       if (!response.ok) throw new Error('Failed to fetch tactics cards');
       return response.json();
     },
     staleTime: 5 * 60 * 1000,
-    enabled: isAddModalOpen && !!editionSlug
+    enabled: isAddModalOpen && !!gangId
   });
+
+  const corePack = packs.find(pack => pack.is_core);
+  const selectablePacks = packs.filter(pack => !pack.is_core);
+  // Each pack is its own D66 table, so one is active at a time and the roller
+  // follows it.
+  const activePack = selectedPackId ? packs.find(pack => pack.id === selectedPackId) : corePack;
+  const catalogue = activePack?.cards ?? [];
 
   const hasRollableCard = catalogue.some(card => card.d66_min != null && !ownedCardIds.has(card.id));
 
   const logRollMutation = useMutation({
     mutationFn: (outcome: RollOutcome) =>
-      verifyAndLogRolledTacticsCard({ gangId, total: outcome.total, dice: outcome.dice })
+      verifyAndLogRolledTacticsCard({
+        gangId,
+        total: outcome.total,
+        dice: outcome.dice,
+        tacticsCardsPackId: activePack?.id ?? null
+      })
   });
 
   const logRollWithCooldown = (outcome: RollOutcome) => {
@@ -109,7 +122,15 @@ export default function GangTacticsCards({
 
   const handleOpenAddModal = () => {
     setSelectedCardIds(new Set());
+    setSelectedPackId(null);
     setIsAddModalOpen(true);
+  };
+
+  // Assigning one id is what makes "only one pack at a time" true. The card
+  // selection goes with the list it was made in.
+  const selectPack = (packId: string | null) => {
+    setSelectedPackId(packId);
+    setSelectedCardIds(new Set());
   };
 
   const toggleCard = (cardId: string) => {
@@ -279,6 +300,22 @@ export default function GangTacticsCards({
           helper="Pick the tactics cards this gang holds."
           content={
             <div>
+              {selectablePacks.length > 0 && (
+                <div className="mb-3 flex flex-wrap gap-x-4 gap-y-2">
+                  {selectablePacks.map(pack => (
+                    <div key={pack.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`tactics-pack-${pack.id}`}
+                        checked={selectedPackId === pack.id}
+                        onCheckedChange={(checked) => selectPack(checked ? pack.id : null)}
+                      />
+                      <label htmlFor={`tactics-pack-${pack.id}`} className="text-sm cursor-pointer">
+                        {pack.name}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="mb-3">
                 <DiceRoller<TacticsCard>
                   items={catalogue}
@@ -291,7 +328,7 @@ export default function GangTacticsCards({
                   inline
                   rollFn={rollUnownedD66}
                   buttonText="Roll D66"
-                  disabled={isLoadingCatalogue || !hasRollableCard}
+                  disabled={isLoadingPacks || !hasRollableCard}
                   onRolled={(rolled) => {
                     const result = rolled[0];
                     const card = result?.item;
@@ -304,9 +341,9 @@ export default function GangTacticsCards({
                   }}
                 />
               </div>
-              {isLoadingCatalogue ? (
+              {isLoadingPacks ? (
                 <p className="text-muted-foreground italic text-center py-4">Loading tactics cards...</p>
-              ) : catalogueError ? (
+              ) : packsError ? (
                 <p className="text-muted-foreground italic text-center py-4">Failed to load tactics cards.</p>
               ) : catalogue.length === 0 ? (
                 <p className="text-muted-foreground italic text-center py-4">No tactics cards available.</p>

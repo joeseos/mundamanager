@@ -1,12 +1,18 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { getUserIdFromClaims } from '@/utils/auth';
-import { withEditionSlug } from '@/types/edition';
-import { compareTacticsCards } from '@/types/tactics-card';
+import { gangEditionJoin } from '@/types/edition';
+import {
+  compareTacticsCards,
+  tacticsCardsPackFilter,
+  type TacticsCard,
+  type TacticsCardsPack
+} from '@/types/tactics-card';
 
 /**
- * The Gang Tactics catalogue for one edition, for the "Add Gang Tactics" picker.
- * The caller passes the slug it already holds, so this never resolves a gang.
+ * Every Gang Tactics deck a gang may draw from, each with its cards, for the
+ * "Add Gang Tactics" picker. Returned in one response so ticking a pack needs
+ * no refetch.
  */
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -17,22 +23,55 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const editionSlug = new URL(request.url).searchParams.get('edition_slug');
-    if (!editionSlug) {
+    const gangId = new URL(request.url).searchParams.get('gang_id');
+    if (!gangId) {
       return NextResponse.json(
-        { error: 'Missing edition', details: 'edition_slug is required' },
+        { error: 'Missing gang', details: 'gang_id is required' },
         { status: 400 }
       );
     }
 
-    const { data, error } = await supabase
-      .from('tactics_cards')
-      .select('id, name, d66_min, d66_max, editions!inner ( slug )')
-      .eq('editions.slug', editionSlug);
+    const { data: gang, error: gangError } = await supabase
+      .from('gangs')
+      .select(`
+        gang_types!gang_type_id ( gang_type_id, parent_gang_type_id, editions:edition_id ( id ) ),
+        custom_gang_types!custom_gang_type_id ( editions:edition_id ( id ) )
+      `)
+      .eq('id', gangId)
+      .maybeSingle();
 
-    if (error) throw error;
+    if (gangError) throw gangError;
 
-    return NextResponse.json((data ?? []).map(withEditionSlug).sort(compareTacticsCards));
+    const editionId = gangEditionJoin(gang)?.id;
+    if (!gang || !editionId) return NextResponse.json([]);
+
+    const gangType = Array.isArray(gang.gang_types) ? gang.gang_types[0] : gang.gang_types;
+
+    // tactics_cards reaches packs through two FKs, so the embed names the one it means.
+    const { data: packs, error: packsError } = await supabase
+      .from('tactics_cards_packs')
+      .select(`
+        id,
+        name,
+        gang_type_id,
+        tactics_cards!tactics_cards_tactics_cards_pack_id_fkey ( id, name, d66_min, d66_max )
+      `)
+      .eq('edition_id', editionId)
+      .or(tacticsCardsPackFilter(gangType?.gang_type_id, gangType?.parent_gang_type_id));
+
+    if (packsError) throw packsError;
+
+    const result: TacticsCardsPack[] = (packs ?? [])
+      .map((pack: any) => ({
+        id: pack.id,
+        name: pack.name,
+        is_core: pack.gang_type_id === null,
+        cards: ((pack.tactics_cards ?? []) as TacticsCard[]).sort(compareTacticsCards)
+      }))
+      // The client splits core off, so this is the checkbox row's order.
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error in GET /api/tactics-cards:', error);
     return NextResponse.json(

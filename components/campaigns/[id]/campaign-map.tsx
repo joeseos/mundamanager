@@ -8,6 +8,7 @@ import { Combobox } from '@/components/ui/combobox';
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { assignGangToTerritory } from '@/app/actions/campaigns/[id]/campaign-territories';
 import { toast } from 'sonner';
+import type { CampaignMapRow as MapData, CampaignMapObjectRow as MapObject } from '@/types/campaign';
 
 const CampaignMapCanvas = dynamic(() => import('@/components/campaigns/[id]/campaign-map-canvas'), {
   ssr: false,
@@ -51,26 +52,6 @@ interface Territory {
   owning_gangs?: Gang[];
 }
 
-interface MapData {
-  id: string;
-  campaign_id: string;
-  background_image_url: string;
-  hex_grid_enabled: boolean;
-  hex_size: number;
-  created_at: string;
-  updated_at: string | null;
-}
-
-interface MapObject {
-  id: string;
-  campaign_map_id: string;
-  object_type: string;
-  geometry: Record<string, unknown>;
-  properties: Record<string, unknown>;
-  created_at: string;
-  updated_at: string | null;
-}
-
 interface CampaignMapProps {
   campaignId: string;
   mapData: MapData | null;
@@ -85,7 +66,18 @@ interface CampaignMapProps {
   }>;
   canEdit: boolean;
   canClaimTerritories: boolean;
-  onRefresh: () => void;
+  onMapUpdate: (next: { map: MapData | null; objects: MapObject[] }) => void;
+  onTerritoryUpdate: (update: {
+    action: 'assign' | 'update';
+    territoryId: string;
+    gangId?: string;
+    gangData?: Gang;
+    updates?: {
+      map_object_id?: string | null;
+      map_hex_coords?: { x: number; y: number; z: number } | null;
+      show_name_on_map?: boolean;
+    };
+  }) => void;
 }
 
 export default function CampaignMap({
@@ -96,7 +88,8 @@ export default function CampaignMap({
   members,
   canEdit,
   canClaimTerritories,
-  onRefresh,
+  onMapUpdate,
+  onTerritoryUpdate,
 }: CampaignMapProps) {
   const [showEditorModal, setShowEditorModal] = useState(false);
   const [selectedTerritoryId, setSelectedTerritoryId] = useState<string | null>(null);
@@ -155,7 +148,12 @@ export default function CampaignMap({
       });
       if (result.success) {
         toast.success('Territory assigned');
-        onRefresh();
+        onTerritoryUpdate({
+          action: 'assign',
+          territoryId: selectedTerritoryId,
+          gangId,
+          gangData: allGangs.find(g => g.id === gangId),
+        });
       } else {
         toast.error(result.error || 'Failed to assign territory');
       }
@@ -164,7 +162,7 @@ export default function CampaignMap({
     } finally {
       setIsAssigning(false);
     }
-  }, [campaignId, selectedTerritoryId, onRefresh]);
+  }, [campaignId, selectedTerritoryId, allGangs, onTerritoryUpdate]);
 
   const hasMap = !!mapData;
 
@@ -236,9 +234,19 @@ export default function CampaignMap({
           territories={territories}
           allGangs={allGangs}
           onClose={() => setShowEditorModal(false)}
-          onSave={() => {
+          onSaved={({ map, objects, associations }) => {
             setShowEditorModal(false);
-            onRefresh();
+            onMapUpdate({ map, objects });
+            // Associations live on the territory rows, so they go back the territory way.
+            associations.forEach(a => onTerritoryUpdate({
+              action: 'update',
+              territoryId: a.territoryId,
+              updates: {
+                map_object_id: a.mapObjectId,
+                map_hex_coords: a.mapHexCoords,
+                show_name_on_map: a.showNameOnMap,
+              },
+            }));
           }}
         />
       )}

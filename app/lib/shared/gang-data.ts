@@ -1,9 +1,14 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
 
-import { assembleGangFighters, assembleGangVehicles, groupBy, type GangFightersBundle } from './gang-assembly';
-import { WeaponProps, WargearItem } from '@/types/fighter';
-import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang';
+import { assembleGangFighters, groupBy } from '@/utils/gang-assembly';
+import {
+  DefaultImageEntry,
+  normaliseDefaultImageUrls,
+  type GangFighter,
+  type GangFightersBundle,
+  type GetGangFightersListOptions,
+} from '@/types/gang';
 import { gangEditionSlug } from '@/types/edition';
 import { isVenatorGang } from '@/utils/venatorSkillAccess';
 import { GangTacticsCard, GANG_TACTICS_CARD_SELECT, toGangTacticsCard } from '@/types/tactics-card';
@@ -13,12 +18,6 @@ import { GangTacticsCard, GANG_TACTICS_CARD_SELECT, toGangTacticsCard } from '@/
 // =============================================================================
 
 /** The gang's spendable resources, all stored on the gangs row. */
-export interface GangResources {
-  credits: number;
-  reputation: number;
-  trade_points: number;
-}
-
 export interface GangBasic {
   id: string;
   name: string;
@@ -35,7 +34,7 @@ export interface GangBasic {
   created_at: string;
   last_updated: string;
   alliance_id?: string;
-  gang_variants?: string[];
+  gang_subtypes?: string[];
   user_id: string;
   gang_affiliation_id?: string | null;
   gang_affiliation?: {
@@ -126,68 +125,11 @@ export interface GangCampaign {
   resources: GangCampaignResource[];
 }
 
-export interface GangVariant {
+export interface GangSubtype {
   id: string;
-  variant: string;
+  subtype: string;
 }
 
-export interface GangFighter {
-  id: string;
-  fighter_name: string;
-  label?: string;
-  fighter_type: string;
-  fighter_subtypes: string[];
-  fighter_specialisation?: {
-    fighter_specialisation: string;
-    fighter_specialisation_id: string;
-  };
-  fighter_variant?: string | null;
-  alliance_crew_name?: string;
-  position?: string;
-  xp: number;
-  kills: number;
-  credits: number;
-  loadout_cost?: number; // Cost of equipment in active loadout only (for fighter card display)
-  movement: number;
-  weapon_skill: number;
-  ballistic_skill: number;
-  strength: number;
-  toughness: number;
-  wounds: number;
-  initiative: number;
-  attacks: number;
-  leadership: number;
-  cool: number;
-  willpower: number;
-  intelligence: number;
-  save?: number | null;
-  edition_slug?: string | null;
-  /** null means N/A: this fighter's type cannot gain XP. */
-  starting_xp: number | null;
-  weapons: WeaponProps[];
-  wargear: WargearItem[];
-  effects: Record<string, any[]>;
-  skills: Record<string, any>;
-  vehicles: any[];
-  cost_adjustment?: number;
-  special_rules?: string[];
-  note?: string;
-  killed: boolean;
-  starved: boolean;
-  retired: boolean;
-  enslaved: boolean;
-  recovery: boolean;
-  captured: boolean;
-  free_skill: boolean;
-  image_url?: string;
-  owner_id?: string;
-  owner_name?: string;
-  beast_equipment_stashed?: boolean;
-  active_loadout_id?: string;
-  active_loadout_name?: string;
-  /** When true, this entry represents the fighter's in-game active loadout (used for print filtering) */
-  isActiveLoadoutForPrint?: boolean;
-}
 
 // =============================================================================
 // BASE DATA FUNCTIONS - Raw database queries with proper cache tags
@@ -237,7 +179,7 @@ export const getGangCore = async (gangId: string, supabase: any): Promise<GangCo
             alliance_name,
             alliance_type
           ),
-          gang_variants,
+          gang_subtypes,
           user_id,
           gang_affiliation_id,
           gang_affiliation:gang_affiliation_id (
@@ -299,26 +241,12 @@ export const getGangCore = async (gangId: string, supabase: any): Promise<GangCo
         venator_ranks_incomplete: venatorRanksIncomplete,
       };
     },
-    [`gang-core-v5-${gangId}`],
+    [`gang-core-v6-${gangId}`],
     {
-      tags: [TAGS.gang(gangId)],
+      tags: [TAGS.gang(gangId), TAGS.globalGangTypes()],
       revalidate: false
     }
   )();
-};
-
-/**
- * Get the gang's spendable resources: credits, reputation and Trade Points.
- * All three live on the gangs row, so this is a selector over getGangCore —
- * the same cache entry the gang page already holds, no extra query or entry.
- */
-export const getGangResources = async (gangId: string, supabase: any): Promise<GangResources> => {
-  const core = await getGangCore(gangId, supabase);
-  return {
-    credits: core?.credits ?? 0,
-    reputation: core?.reputation ?? 0,
-    trade_points: core?.trade_points ?? 0
-  };
 };
 
 /**
@@ -484,26 +412,26 @@ export const getGangTypeConfig = (gangBasic: GangBasic) =>
   gangBasic.gang_types ?? gangBasic.custom_gang_types ?? null;
 
 /**
- * Get gang variants
- * Cache: GLOBAL_GANG_TYPES (shared since variants rarely change)
+ * Get gang subtypes
+ * Cache: GLOBAL_GANG_TYPES (shared since subtypes rarely change)
  */
-export const getGangVariants = async (gangVariantIds: string[], supabase: any): Promise<GangVariant[]> => {
-  if (!gangVariantIds || gangVariantIds.length === 0) return [];
+export const getGangSubtypes = async (gangSubtypeIds: string[], supabase: any): Promise<GangSubtype[]> => {
+  if (!gangSubtypeIds || gangSubtypeIds.length === 0) return [];
   
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
-        .from('gang_variant_types')
-        .select('id, variant')
-        .in('id', gangVariantIds);
+        .from('gang_subtype_types')
+        .select('id, subtype')
+        .in('id', gangSubtypeIds);
 
       if (error) return [];
       return data || [];
     },
-    [`gang-variants-${gangVariantIds.join('-')}`],
+    [`gang-subtypes-${gangSubtypeIds.join('-')}`],
     {
       tags: [TAGS.globalGangTypes()],
-      revalidate: 3600 // 1 hour - variants rarely change
+      revalidate: 3600 // 1 hour - subtypes rarely change
     }
   )();
 };
@@ -837,7 +765,13 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
     {
       tags: [
         TAGS.gangCampaigns(gangId),
-        ...campaignIdsForTags.map(id => TAGS.campaign(id))
+        ...campaignIdsForTags.flatMap(id => [
+          TAGS.campaignCore(id),
+          TAGS.campaignMembers(id),
+          TAGS.campaignTerritories(id),
+          TAGS.campaignResources(id),
+          TAGS.campaignTradingPosts(id)
+        ])
       ],
       revalidate: false
     }
@@ -852,35 +786,17 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
 // COMPOSITE DATA FUNCTIONS - Multi-entity aggregated data
 // =============================================================================
 
-/**
- * Get all fighters in a gang with complete data (BATCHED QUERIES)
- *
- * Uses batched database queries to minimize round trips:
- * - Single query for all fighters with joins for types/sub-types
- * - Batch query for all equipment (WHERE fighter_id IN (...))
- * - Batch query for all skills
- * - Batch query for all effects
- * - Batch query for all vehicles
- * - Batch query for beast relationships
- *
- * Target: ~8 queries total regardless of fighter count (vs ~100+ with N+1 pattern)
- */
-export interface GetGangFightersListOptions {
-  expandLoadoutsForPrint?: boolean;
-  /** Resolved by the getGangFightersList selector from the gang core entry. */
-  gangEditionSlug?: string | null;
-}
 
 /**
  * Fetch the raw gang fighters bundle: every fighter/vehicle-shaped row for a
  * gang in ONE cache entry (tag gang-{id}) filled by two round-trip stages of
  * wide batched queries. Page-specific shapes are produced by the pure
- * assemble* functions in gang-assembly.ts.
+ * assemble* functions in utils/gang-assembly.ts.
  *
  * Stage 1 (parallel): fighters, ALL gang vehicles (both keyed by gang_id)
  * Stage 2 (parallel): equipment (fighter + vehicle rows in one query),
- *   skills, effects (fighter + vehicle scopes in one query), exotic beasts
- *   (both directions), loadouts (+assignments embedded), captured-by names
+ *   skills, effects (fighter + vehicle scopes in one query), exotic beasts,
+ *   loadouts (+assignments embedded), captured-by names
  */
 export const getGangFightersBundle = async (gangId: string, supabase: any): Promise<GangFightersBundle> => {
   return unstable_cache(
@@ -924,6 +840,7 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
               name
             ),
             fighter_specialisation_id,
+            promoted_from_prospect,
             fighter_variant,
             killed,
             starved,
@@ -998,8 +915,7 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
         equipment: [],
         skills: [],
         effects: [],
-        beastsOwned: [],
-        beastsPetOf: [],
+        beastLinks: [],
         loadouts: [],
         capturedByGangs: []
       };
@@ -1131,8 +1047,7 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
         equipmentRes,
         skillsRes,
         effectsRes,
-        beastsOwnedRes,
-        beastsPetOfRes,
+        beastLinksRes,
         loadoutsRes,
         capturedByGangsRes
       ] = await Promise.all([
@@ -1173,26 +1088,6 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
                 fighter_owner_id,
                 fighter_pet_id,
                 fighter_equipment_id,
-                fighter_equipment!fighter_equipment_id (
-                  gang_stash,
-                  equipment!equipment_id (
-                    equipment_name
-                  ),
-                  custom_equipment!custom_equipment_id (
-                    equipment_name
-                  )
-                )
-              `)
-              .in('fighter_owner_id', fighterIds)
-          : Promise.resolve({ data: [] }),
-        fighterIds.length > 0
-          ? supabase
-              .from('fighter_exotic_beasts')
-              .select(`
-                id,
-                fighter_pet_id,
-                fighter_owner_id,
-                fighter_equipment_id,
                 fighters!fighter_owner_id (
                   fighter_name
                 ),
@@ -1200,7 +1095,7 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
                   gang_stash
                 )
               `)
-              .in('fighter_pet_id', fighterIds)
+              .in('fighter_owner_id', fighterIds)
           : Promise.resolve({ data: [] }),
         fighterIds.length > 0
           ? supabase
@@ -1221,15 +1116,14 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
         equipment: equipmentRes.data || [],
         skills: skillsRes.data || [],
         effects: effectsRes.data || [],
-        beastsOwned: beastsOwnedRes.data || [],
-        beastsPetOf: beastsPetOfRes.data || [],
+        beastLinks: beastLinksRes.data || [],
         loadouts: loadoutsRes.data || [],
         capturedByGangs: capturedByGangsRes.data || []
       };
     },
     [`gang-fighters-bundle-v4-${gangId}`],
     {
-      tags: [TAGS.gang(gangId)],
+      tags: [TAGS.gangRoster(gangId)],
       revalidate: false
     }
   )();
@@ -1246,23 +1140,20 @@ export const getGangFightersList = async (
   options?: GetGangFightersListOptions
 ): Promise<GangFighter[]> => {
   // Every fighter in a roster belongs to one gang, so the edition is resolved
-  // once from the gang core entry (warm by the time the gang and print pages
-  // reach this) rather than per fighter from fighter_types — which yields null
-  // for custom fighter types, and would leave them with no edition at all.
+  // once for the whole roster rather than per fighter from fighter_types —
+  // which yields null for custom fighter types, and would leave them with no
+  // edition at all. Callers already holding the gang core pass it in; only the
+  // battle-session page, which has no core for the gangs it lists, pays a read.
+  const callerSlug = options?.gangEditionSlug;
+  const needsCore = callerSlug === undefined;
   const [bundle, core] = await Promise.all([
     getGangFightersBundle(gangId, supabase),
-    getGangCore(gangId, supabase)
+    needsCore ? getGangCore(gangId, supabase) : Promise.resolve(null)
   ]);
-  return assembleGangFighters(bundle, { ...options, gangEditionSlug: core?.edition_slug ?? null });
-};
-
-/**
- * Get gang vehicles (not assigned to specific fighters) — selector over
- * getGangFightersBundle (same cache entry as the fighters list).
- */
-export const getGangVehicles = async (gangId: string, supabase: any): Promise<any[]> => {
-  const bundle = await getGangFightersBundle(gangId, supabase);
-  return assembleGangVehicles(bundle);
+  return assembleGangFighters(bundle, {
+    ...options,
+    gangEditionSlug: needsCore ? core?.edition_slug ?? null : callerSlug
+  });
 };
 
 /**
@@ -1363,7 +1254,7 @@ export const getGangFighterStats = async (
     },
     [`gang-fighter-stats-v3-${gangId}`],
     {
-      tags: [TAGS.gang(gangId)],
+      tags: [TAGS.gangRoster(gangId)],
       revalidate: false
     }
   )();

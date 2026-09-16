@@ -26,16 +26,12 @@
     "@tailwindcss/typography": "^0.5.20",
     "@tanstack/react-query": "^5.101.0",
     "@tanstack/react-query-devtools": "^5.101.0",
-    "@tiptap/extension-blockquote": "^3.26.1",
     "@tiptap/extension-color": "^3.26.1",
-    "@tiptap/extension-heading": "^3.26.1",
     "@tiptap/extension-image": "^3.26.1",
     "@tiptap/extension-link": "^3.26.1",
     "@tiptap/extension-placeholder": "^3.26.1",
-    "@tiptap/extension-strike": "^3.26.1",
     "@tiptap/extension-text-align": "^3.26.1",
     "@tiptap/extension-text-style": "^3.26.1",
-    "@tiptap/extension-underline": "^3.26.1",
     "@tiptap/pm": "^3.26.1",
     "@tiptap/react": "^3.26.1",
     "@tiptap/starter-kit": "^3.26.1",
@@ -45,7 +41,7 @@
     "heic2any": "^0.0.4",
     "html-to-image": "^1.11.13",
     "leaflet": "^1.9.4",
-    "next": "^16.2.9",
+    "next": "^16.3.3",
     "next-themes": "^0.4.6",
     "react": "^19.2.7",
     "react-colorful": "^5.7.0",
@@ -61,11 +57,11 @@
   "devDependencies": {
     "@parcel/css": "^1.14.0",
     "@tailwindcss/postcss": "^4.3.1",
-    "@types/node": "^20.19.43",
+    "@types/node": "^24.13.5",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "eslint": "^9.39.4",
-    "eslint-config-next": "^16.2.9",
+    "eslint-config-next": "^16.3.3",
     "postcss": "^8.5.15",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.3.1",
@@ -73,7 +69,7 @@
     "typescript": "^5.9.3"
   },
   "engines": {
-    "node": ">=20.20.2"
+    "node": "24.x"
   },
   "overrides": {
     "@types/react-dom": "$@types/react-dom",

@@ -1,6 +1,6 @@
 'use server'
 
-import { invalidateGang, invalidateGangOverview, invalidateGangCampaignMembership, invalidateGangFinancials, invalidateCampaign, invalidateUser } from '@/utils/cache-tags';
+import { invalidateGang, invalidateGangOverview, invalidateGangCampaignMembership, invalidateGangFinancials, invalidateCampaignResources, invalidateUser } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
@@ -35,7 +35,7 @@ interface UpdateGangParams {
     quantity_delta: number;
     reason?: string;
   }>;
-  gang_variants?: string[];
+  gang_subtypes?: string[];
   note?: string;
   hidden?: boolean;
 }
@@ -57,7 +57,7 @@ interface UpdateGangResult {
     gang_origin_name?: string;
     gang_colour: string;
     last_updated: string;
-    gang_variants: Array<{id: string, variant: string}>;
+    gang_subtypes: Array<{id: string, subtype: string}>;
     resources?: Array<{
       resource_id: string;
       resource_name: string;
@@ -175,9 +175,9 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       tradePointsChanged = true;
     }
 
-    // Handle gang variants - store as JSONB array
-    if (params.gang_variants !== undefined) {
-      updates.gang_variants = params.gang_variants;
+    // Handle gang subtypes - store as JSONB array
+    if (params.gang_subtypes !== undefined) {
+      updates.gang_subtypes = params.gang_subtypes;
     }
 
     // Perform the gang update
@@ -341,18 +341,18 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       }
     }
 
-    // Fetch updated gang variants if they were changed
-    let gangVariants: Array<{id: string, variant: string}> = [];
-    if (params.gang_variants !== undefined && params.gang_variants.length > 0) {
-      const { data: variantsData, error: variantsError } = await supabase
-        .from('gang_variant_types')
-        .select('id, variant')
-        .in('id', params.gang_variants);
+    // Fetch updated gang subtypes if they were changed
+    let gangSubtypes: Array<{id: string, subtype: string}> = [];
+    if (params.gang_subtypes !== undefined && params.gang_subtypes.length > 0) {
+      const { data: subtypesData, error: subtypesError } = await supabase
+        .from('gang_subtype_types')
+        .select('id, subtype')
+        .in('id', params.gang_subtypes);
 
-      if (!variantsError && variantsData) {
-        gangVariants = variantsData.map((v: any) => ({
-          id: v.id,
-          variant: v.variant
+      if (!subtypesError && subtypesData) {
+        gangSubtypes = subtypesData.map((row: { id: string; subtype: string }) => ({
+          id: row.id,
+          subtype: row.subtype
         }));
       }
     }
@@ -406,34 +406,23 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         .single();
 
       if (campaignGang) {
-        invalidateCampaign(campaignGang.campaign_id);
-        invalidateCampaign(campaignGang.campaign_id);
+        invalidateCampaignResources(campaignGang.campaign_id);
       }
       
       // Invalidate gang's campaign data cache (includes resources for gang page)
       invalidateGangCampaignMembership(params.gang_id);
     }
     
-    // If gang variants were updated, invalidate basic gang data (variants are stored there)
-    if (params.gang_variants !== undefined) {
+    // If gang subtypes were updated, invalidate basic gang data
+    if (params.gang_subtypes !== undefined) {
       invalidateGang(params.gang_id);
     }
 
     // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST - gang page uses specific granular tags
 
-    // Invalidate campaign caches if this gang is in any campaigns
-    const { data: campaignGangs, error: campaignGangsError } = await supabase
-      .from('campaign_gangs')
-      .select('campaign_id')
-      .eq('gang_id', params.gang_id);
-    if (!campaignGangsError && campaignGangs && campaignGangs.length > 0) {
-      for (const cg of campaignGangs) {
-        const campaignId = cg.campaign_id;
-        invalidateCampaign(campaignId);
-        invalidateCampaign(campaignId);
-        invalidateCampaign(campaignId);
-      }
-    }
+    // No campaign-wide bust here: the campaign entries that copy this gang's display
+    // fields (standings, territory owners, battle-log names) subscribe to
+    // gang-overview-{id}, which updateGangFinancials and the rename path already fire.
 
     // Log resource changes (campaign resources + credits/reputation)
     try {
@@ -527,7 +516,7 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         gang_origin_name: undefined, // Frontend handles display
         gang_colour: updatedGang.gang_colour,
         last_updated: updatedGang.last_updated,
-        gang_variants: gangVariants,
+        gang_subtypes: gangSubtypes,
         resources: updatedResources.length > 0 ? updatedResources : undefined,
         failedResources: failedResources.length > 0 ? failedResources : undefined
       }

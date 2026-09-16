@@ -105,10 +105,14 @@ interface MembersTableProps {
   isAdmin: boolean;
   members: Member[];
   userId?: string;
-  onMemberUpdate: (args: { 
-    removedMemberId?: string; 
+  onMemberUpdate: (args: {
+    removedMemberId?: string;
     removedGangIds?: string[];
     updatedMember?: Member;
+    /** Role applies to every campaign_members row for that user in this campaign. */
+    roleChange?: { userId: string; newRole: string };
+    /** Full snapshot, for rolling an optimistic change back. */
+    restoredMembers?: Member[];
   }) => void;
   isCampaignAdmin: boolean;
   isCampaignOwner: boolean;
@@ -505,8 +509,7 @@ export default function MembersTable({
         throw new Error(result.error);
       }
 
-      // Trigger refresh to get updated data from cache
-      onMemberUpdate({});
+      onMemberUpdate({ roleChange: { userId: roleChange.memberId, newRole: roleChange.newRole } });
       toast.success(`Updated ${roleChange.username}'s role to ${roleChange.newRole}`);
       return true;
     } catch (error) {
@@ -604,10 +607,11 @@ export default function MembersTable({
       setShowRemoveGangModal(false);
       setGangToRemove(null);
     },
-    onError: (error) => {
-      // Rollback optimistic update by refreshing data
-      onMemberUpdate({});
-      
+    onError: (error, _variables, context) => {
+      if (context?.previousMembers) {
+        onMemberUpdate({ restoredMembers: context.previousMembers });
+      }
+
       toast.error(error instanceof Error ? error.message : "Failed to remove gang");
     }
   });
@@ -742,8 +746,6 @@ export default function MembersTable({
     );
 
     if (memberIndexToUpdate === -1) {
-      // Gang not found, just refresh
-      onMemberUpdate({});
       setEditingAllegiance(null);
       return;
     }
@@ -812,8 +814,7 @@ export default function MembersTable({
       if (previousMember) {
         onMemberUpdate({ updatedMember: previousMember });
       } else {
-        // If we can't find the previous state, trigger a full refresh
-        onMemberUpdate({});
+        onMemberUpdate({ restoredMembers: previousMembers });
       }
 
       toast.error(error instanceof Error ? error.message : "Failed to update allegiance");

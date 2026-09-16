@@ -1,4 +1,3 @@
-import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { getCampaignAllegiances } from "@/app/lib/campaigns/[id]/get-campaign-data";
 
@@ -14,7 +13,6 @@ export async function GET(
   props: { params: Promise<{ campaignId: string }> }
 ) {
   const params = await props.params;
-  const supabase = await createClient();
   const { campaignId } = params;
 
   if (!campaignId) {
@@ -25,7 +23,7 @@ export async function GET(
   }
 
   try {
-    const allegiances = await getCampaignAllegiances(campaignId, supabase);
+    const allegiances = await getCampaignAllegiances(campaignId);
     return NextResponse.json(allegiances);
   } catch (error: any) {
     console.error('Error fetching allegiances:', error);

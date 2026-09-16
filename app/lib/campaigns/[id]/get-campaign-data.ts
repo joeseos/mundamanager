@@ -1,12 +1,14 @@
 import { TAGS } from '@/utils/cache-tags';
-import { createClient } from "@/utils/supabase/server";
+import { createServiceRoleClient } from "@/utils/supabase/server";
 import { unstable_cache } from 'next/cache';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { fetchCampaignAllegiances } from '@/utils/campaigns/allegiances';
 import { getWinnerIdsFromParsed, getClaimerGangIdFromParsed } from '@/utils/battle-winners';
 import { fetchCampaignResources } from '@/utils/campaigns/resources';
-import { editionSlugFromJoin, withEditionSlug } from '@/types/edition';
+import { CAMPAIGN_TERRITORY_COLUMNS } from '@/utils/campaigns/territories';
+import { editionSlugFromJoin } from '@/types/edition';
+import type { CampaignMapRow, CampaignMapObjectRow, CampaignMapBundle } from '@/types/campaign';
 
 // No TTL - infinite cache with server action invalidation only
 // Cache only expires when explicitly invalidated via revalidateTag()
@@ -29,7 +31,8 @@ async function _getCampaignBasic(campaignId: string, supabase: SupabaseClient) {
       image_url,
       discord_guild_id,
       discord_channel_id,
-      allow_join_requests
+      allow_join_requests,
+      current_cycle
     `)
     .eq('id', campaignId)
     .single();
@@ -355,20 +358,7 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
 async function _getCampaignTerritories(campaignId: string, supabase: SupabaseClient) {
   const { data: territories, error } = await supabase
     .from('campaign_territories')
-    .select(`
-      id,
-      territory_id,
-      territory_name,
-      gang_id,
-      created_at,
-      ruined,
-      default_gang_territory,
-      playing_card,
-      description,
-      map_object_id,
-      map_hex_coords,
-      show_name_on_map
-    `)
+    .select(CAMPAIGN_TERRITORY_COLUMNS)
     .eq('campaign_id', campaignId);
 
   if (error) throw error;
@@ -457,7 +447,10 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
       participants,
       scenario_id,
       campaign_territory_id,
-      cycle
+      cycle,
+      status,
+      challenger_gang_id,
+      challenged_gang_id
     `)
     .eq('campaign_id', campaignId)
     .order('created_at', { ascending: false })
@@ -562,6 +555,9 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
       campaign_territory_id: battle.campaign_territory_id,
       territory_name: territoryName,
       cycle: battle.cycle,
+      status: battle.status ?? 'played',
+      challenger_gang_id: battle.challenger_gang_id,
+      challenged_gang_id: battle.challenged_gang_id,
       attacker: attackerId ? {
         id: attackerId,
         name: gangMap.get(attackerId)?.name || 'Unknown'
@@ -581,14 +577,22 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
 }
 
 // 🚀 OPTIMIZED PUBLIC API FUNCTIONS USING unstable_cache()
+//
+// Every entry below is keyed by campaign id alone and shared by every viewer, so it
+// must be filled by a client whose visibility cannot vary per request. A request-scoped
+// RLS client matches no policy when its session is missing and returns zero rows with no
+// error — unstable_cache cannot tell that from an answer, and revalidate:false makes it
+// permanent. Each reader therefore builds its own service-role client inside the cached
+// callback (so cache hits skip it entirely) and takes no client from its caller.
 
 /**
  * Get gang IDs for a campaign (cached)
  * Used internally to build cache tags for getCampaignMembers
  */
-const getCampaignGangIds = async (campaignId: string, supabase: SupabaseClient) => {
+const getCampaignGangIds = async (campaignId: string) => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data: campaignGangs } = await supabase
         .from('campaign_gangs')
         .select('gang_id')
@@ -598,7 +602,7 @@ const getCampaignGangIds = async (campaignId: string, supabase: SupabaseClient) 
     },
     [`campaign-gang-ids-v2-${campaignId}`],
     {
-      tags: [TAGS.campaign(campaignId)],
+      tags: [TAGS.campaignMembers(campaignId)],
       revalidate: false
     }
   )();
@@ -609,15 +613,14 @@ const getCampaignGangIds = async (campaignId: string, supabase: SupabaseClient) 
  * Cache key: campaign-basic-{campaignId}
  * Invalidation: Server actions only via revalidateTag()
  */
-export const getCampaignBasic = async (campaignId: string, supabaseClient?: SupabaseClient) => {
-  const supabase = supabaseClient ?? await createClient();
+export const getCampaignBasic = async (campaignId: string) => {
   return unstable_cache(
     async () => {
-      return _getCampaignBasic(campaignId, supabase);
+      return _getCampaignBasic(campaignId, createServiceRoleClient());
     },
     [`campaign-basic-v3-${campaignId}`],
     {
-      tags: [TAGS.campaign(campaignId)],
+      tags: [TAGS.campaignCore(campaignId)],
       revalidate: false
     }
   )();
@@ -628,18 +631,17 @@ export const getCampaignBasic = async (campaignId: string, supabaseClient?: Supa
  * Cache key: campaign-members-{campaignId}
  * Invalidation: Server actions + gang cache tags
  */
-export const getCampaignMembers = async (campaignId: string, supabaseClient?: SupabaseClient) => {
-  const supabase = supabaseClient ?? await createClient();
-
+export const getCampaignMembers = async (campaignId: string) => {
   // Get gang IDs using cached helper - only hits DB on cache miss
-  const gangIds = await getCampaignGangIds(campaignId, supabase);
+  const gangIds = await getCampaignGangIds(campaignId);
 
-  // Build cache tags that include gang overview and rating tags
+  // This entry is a fan-in: as well as membership it shows each gang's territory
+  // count and resource quantities, so it subscribes to those subjects too.
   const cacheTags = [
-    TAGS.campaign(campaignId),
-    TAGS.campaign(campaignId),
-    // Keep legacy tag for backward compatibility during transition
-    `campaign-${campaignId}`,
+    TAGS.campaignMembers(campaignId),
+    TAGS.campaignTerritories(campaignId),
+    TAGS.campaignAllegiances(campaignId),
+    TAGS.campaignResources(campaignId),
     // Per-gang overview tags: standings refresh when a member gang's
     // rating/wealth/credits/name actually change (fired by the
     // updateGangFinancials choke point), NOT on every fighter edit —
@@ -649,7 +651,7 @@ export const getCampaignMembers = async (campaignId: string, supabaseClient?: Su
 
   return unstable_cache(
     async () => {
-      return _getCampaignMembers(campaignId, supabase);
+      return _getCampaignMembers(campaignId, createServiceRoleClient());
     },
     [`campaign-members-v3-${campaignId}`],
     {
@@ -664,15 +666,20 @@ export const getCampaignMembers = async (campaignId: string, supabaseClient?: Su
  * Cache key: campaign-territories-{campaignId}
  * Invalidation: Server actions only via revalidateTag()
  */
-export const getCampaignTerritories = async (campaignId: string, supabaseClient?: SupabaseClient) => {
-  const supabase = supabaseClient ?? await createClient();
+export const getCampaignTerritories = async (campaignId: string) => {
+  // Owning gang names and colours are copied in here, so the entry subscribes to
+  // each member gang's overview tag rather than to every gang mutation.
+  const gangIds = await getCampaignGangIds(campaignId);
   return unstable_cache(
     async () => {
-      return _getCampaignTerritories(campaignId, supabase);
+      return _getCampaignTerritories(campaignId, createServiceRoleClient());
     },
     [`campaign-territories-v2-${campaignId}`],
     {
-      tags: [TAGS.campaign(campaignId)],
+      tags: [
+        TAGS.campaignTerritories(campaignId),
+        ...gangIds.map(gangId => TAGS.gangOverview(gangId))
+      ],
       revalidate: false
     }
   )();
@@ -683,78 +690,22 @@ export const getCampaignTerritories = async (campaignId: string, supabaseClient?
  * Cache key: campaign-battles-{campaignId}-{limit}
  * Invalidation: Server actions only via revalidateTag()
  */
-export const getCampaignBattles = async (campaignId: string, limit = 100, supabaseClient?: SupabaseClient) => {
-  const supabase = supabaseClient ?? await createClient();
+export const getCampaignBattles = async (campaignId: string, limit = 100) => {
+  // Participant and winner names are resolved here, so the same gang-overview
+  // subscription as territories applies.
+  const gangIds = await getCampaignGangIds(campaignId);
   return unstable_cache(
     async () => {
-      return _getCampaignBattles(campaignId, supabase, limit);
+      return _getCampaignBattles(campaignId, createServiceRoleClient(), limit);
     },
     [`campaign-battles-v2-${campaignId}-${limit}`],
     {
-      tags: [TAGS.campaign(campaignId)],
-      revalidate: false
-    }
-  )();
-};
-
-/**
- * Get gangs available for territory assignment with persistent caching
- * Used by territory gang modal
- */
-export const getCampaignGangsForModal = async (campaignId: string) => {
-  const supabase = await createClient();
-  return unstable_cache(
-    async () => {
-      // Get campaign gangs
-      const { data: campaignGangs, error: campaignGangsError } = await supabase
-        .from('campaign_gangs')
-        .select(`
-          id,
-          gang_id,
-          user_id,
-          campaign_member_id
-        `)
-        .eq('campaign_id', campaignId);
-
-      if (campaignGangsError) throw campaignGangsError;
-
-      const gangIds = campaignGangs?.map(cg => cg.gang_id) || [];
-      let gangsData: any[] = [];
-
-      if (gangIds.length > 0) {
-        const { data: gangs, error: gangsError } = await supabase
-          .from('gangs')
-          .select(`
-            id,
-            name,
-            gang_type,
-            gang_colour
-          `)
-          .in('id', gangIds);
-
-        if (gangsError) throw gangsError;
-        gangsData = gangs || [];
-      }
-
-      // Combine campaign gangs with gang details
-      const availableGangs = campaignGangs?.map(cg => {
-        const gangDetails = gangsData.find(g => g.id === cg.gang_id);
-        return {
-          campaign_gang_id: cg.id,
-          campaign_member_id: cg.campaign_member_id,
-          user_id: cg.user_id,
-          id: cg.gang_id,
-          name: gangDetails?.name || 'Unknown',
-          gang_type: gangDetails?.gang_type || '',
-          gang_colour: gangDetails?.gang_colour || '#000000'
-        };
-      }) || [];
-
-      return availableGangs;
-    },
-    [`campaign-gangs-modal-v2-${campaignId}`],
-    {
-      tags: [TAGS.campaign(campaignId)],
+      tags: [
+        TAGS.campaignBattles(campaignId),
+        // territory_name for a claimed territory is copied in here too
+        TAGS.campaignTerritories(campaignId),
+        ...gangIds.map(gangId => TAGS.gangOverview(gangId))
+      ],
       revalidate: false
     }
   )();
@@ -764,11 +715,11 @@ export const getCampaignGangsForModal = async (campaignId: string) => {
  * Get available allegiances for a campaign
  * Returns custom allegiances for custom campaigns, or predefined allegiances for other campaign types
  */
-export async function getCampaignAllegiances(campaignId: string, supabase: SupabaseClient) {
+export async function getCampaignAllegiances(campaignId: string) {
   return unstable_cache(
     async () => {
       try {
-        return await fetchCampaignAllegiances(campaignId, supabase);
+        return await fetchCampaignAllegiances(campaignId, createServiceRoleClient());
       } catch (error) {
         // Return empty array if campaign not found (graceful degradation for server-side)
         if (error instanceof Error && error.message === 'Campaign not found') {
@@ -780,7 +731,7 @@ export async function getCampaignAllegiances(campaignId: string, supabase: Supab
     },
     [`campaign-allegiances-v2-${campaignId}`],
     {
-      tags: [TAGS.campaign(campaignId), TAGS.campaign(campaignId)],
+      tags: [TAGS.campaignAllegiances(campaignId)],
       revalidate: false
     }
   )();
@@ -791,20 +742,19 @@ export async function getCampaignAllegiances(campaignId: string, supabase: Supab
  * Returns fighters captured by campaign gangs, grouped by holding gang.
  * Not cached - captives change when fighters are captured/rescued.
  */
-export async function getCampaignCaptives(campaignId: string, supabaseClient?: SupabaseClient) {
-  const supabase = supabaseClient ?? await createClient();
+export async function getCampaignCaptives(campaignId: string) {
   // Captives change on fighter capture/rescue, which fires gang-{id} for the
   // capturing gang — so this entry subscribes to each member gang's tag in
-  // addition to campaign-{id}.
-  const gangIds = await getCampaignGangIds(campaignId, supabase);
+  // addition to its own subject.
+  const gangIds = await getCampaignGangIds(campaignId);
   return unstable_cache(
     async () => {
-      return _getCampaignCaptives(campaignId, supabase);
+      return _getCampaignCaptives(campaignId, createServiceRoleClient());
     },
     [`campaign-captives-v2-${campaignId}`],
     {
       tags: [
-        TAGS.campaign(campaignId),
+        TAGS.campaignCaptives(campaignId),
         ...gangIds.map((id: string) => TAGS.gang(id))
       ],
       revalidate: false
@@ -870,11 +820,11 @@ async function _getCampaignCaptives(campaignId: string, supabase: SupabaseClient
  * Get available resources for a campaign
  * Returns predefined campaign type resources and custom campaign resources
  */
-export async function getCampaignResources(campaignId: string, supabase: SupabaseClient) {
+export async function getCampaignResources(campaignId: string) {
   return unstable_cache(
     async () => {
       try {
-        return await fetchCampaignResources(campaignId, supabase);
+        return await fetchCampaignResources(campaignId, createServiceRoleClient());
       } catch (error) {
         // Return empty array if campaign not found (graceful degradation for server-side)
         if (error instanceof Error && error.message === 'Campaign not found') {
@@ -886,7 +836,7 @@ export async function getCampaignResources(campaignId: string, supabase: Supabas
     },
     [`campaign-resources-v2-${campaignId}`],
     {
-      tags: [TAGS.campaign(campaignId), TAGS.campaign(campaignId)],
+      tags: [TAGS.campaignResources(campaignId)],
       revalidate: false
     }
   )();
@@ -895,31 +845,6 @@ export async function getCampaignResources(campaignId: string, supabase: Supabas
 // ---------------------------------------------------------------------------
 // Campaign Map
 // ---------------------------------------------------------------------------
-
-export interface CampaignMapRow {
-  id: string;
-  campaign_id: string;
-  background_image_url: string;
-  hex_grid_enabled: boolean;
-  hex_size: number;
-  created_at: string;
-  updated_at: string | null;
-}
-
-export interface CampaignMapObjectRow {
-  id: string;
-  campaign_map_id: string;
-  object_type: string;
-  geometry: Record<string, unknown>;
-  properties: Record<string, unknown>;
-  created_at: string;
-  updated_at: string | null;
-}
-
-export interface CampaignMapBundle {
-  map: CampaignMapRow | null;
-  objects: CampaignMapObjectRow[];
-}
 
 async function _getCampaignMapWithObjects(
   campaignId: string,
@@ -964,17 +889,15 @@ async function _getCampaignMapWithObjects(
 }
 
 export const getCampaignMapWithObjects = async (
-  campaignId: string,
-  supabaseClient?: SupabaseClient
+  campaignId: string
 ): Promise<CampaignMapBundle> => {
-  const supabase = supabaseClient ?? await createClient();
   return unstable_cache(
     async () => {
-      return _getCampaignMapWithObjects(campaignId, supabase);
+      return _getCampaignMapWithObjects(campaignId, createServiceRoleClient());
     },
     [`campaign-map-v2-${campaignId}`],
     {
-      tags: [TAGS.campaign(campaignId)],
+      tags: [TAGS.campaignMap(campaignId)],
       revalidate: false
     }
   )();
@@ -984,10 +907,10 @@ export const getCampaignMapWithObjects = async (
  * Custom trading posts shared into a campaign (campaign page shop config).
  * Cache: campaign-{id} — fired by the custom-share action.
  */
-export async function getCampaignSharedTradingPosts(campaignId: string, supabaseClient?: SupabaseClient) {
-  const supabase = supabaseClient ?? await createClient();
+export async function getCampaignSharedTradingPosts(campaignId: string) {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data } = await supabase
         .from('custom_shared')
         .select('custom_trading_post_id, custom_trading_posts!inner(id, custom_trading_post_name, editions:edition_id (slug))')
@@ -1002,7 +925,7 @@ export async function getCampaignSharedTradingPosts(campaignId: string, supabase
     },
     [`campaign-shared-trading-posts-v3-${campaignId}`],
     {
-      tags: [TAGS.campaign(campaignId)],
+      tags: [TAGS.campaignTradingPosts(campaignId)],
       revalidate: false
     }
   )();

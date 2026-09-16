@@ -350,6 +350,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       fighter_subtypes: sourceFighter.fighter_subtypes || [],
       fighter_specialisation: copySpecialisation.fighter_specialisation,
       fighter_specialisation_id: copySpecialisation.fighter_specialisation_id,
+      promoted_from_prospect: sourceFighter.promoted_from_prospect ?? false,
       fighter_variant: sourceFighter.fighter_variant,
       custom_fighter_type_id: sourceFighter.custom_fighter_type_id,
       fighter_gang_legacy_id: sourceFighter.fighter_gang_legacy_id,

@@ -11,11 +11,19 @@ const defaultUrl = process.env.NODE_ENV === 'development'
 
 // SEO constants - edit these to update all metadata
 const PAGE_TITLE = 'Merch Store - Munda Manager Merchandise';
-const PAGE_DESCRIPTION = 'Show your support for Munda Manager with official merchandise! Browse our Redbubble store for t-shirts, stickers, mugs, and more featuring unique Necromunda-inspired designs.';
-const PAGE_DESCRIPTION_SHORT = 'Munda Manager merchandise on Redbubble. T-shirts, stickers, mugs, and more for Necromunda fans.';
-const PAGE_KEYWORDS = 'Munda Manager merch, Necromunda merchandise, wargaming t-shirts, tabletop gaming stickers, Munda Manager shop, underhive merchandise';
+const PAGE_DESCRIPTION = 'Show your support for Munda Manager with official merchandise! Browse our Redbubble store for t-shirts, stickers, mugs, and more featuring unique Necromunda-inspired designs, plus the Munda Manager 12" Assault Gauge from Tempest Terrain.';
+const PAGE_DESCRIPTION_SHORT = 'Munda Manager merchandise. T-shirts, stickers, mugs and the 12" Assault Gauge for Necromunda fans.';
+const PAGE_KEYWORDS = 'Munda Manager merch, Necromunda merchandise, wargaming t-shirts, tabletop gaming stickers, Munda Manager shop, underhive merchandise, Necromunda measuring gauge, assault gauge';
 
 const REDBUBBLE_STORE_URL = 'https://www.redbubble.com/people/MundaManager';
+
+type Product = {
+  name: string;
+  url: string;
+  image: string;
+  /** Shown under the name when the item isn't sold through our Redbubble store. */
+  vendor?: string;
+};
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
@@ -59,7 +67,13 @@ export default function MerchPage() {
     "keywords": PAGE_KEYWORDS
   };
 
-  const products = [
+  const products: Product[] = [
+    {
+      name: '12" Assault Gauge - Munda Manager',
+      url: 'https://www.rapidfiredicebox.com/products/12-assault-gauge-munda-manager',
+      image: 'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/merch/mm-measuring-gauge.webp',
+      vendor: 'Tempest Terrain',
+    },
     {
       name: 'Munda Manager - Logo and Name Oversized T-Shirt',
       url: 'https://www.redbubble.com/i/t-shirt/Munda-Manager-Logo-and-Name-by-MundaManager/176762687.74GE1',
@@ -191,6 +205,11 @@ export default function MerchPage() {
                         <h3 className="text-sm font-semibold text-foreground line-clamp-2 group-hover:text-red-800 transition-colors">
                           {product.name}
                         </h3>
+                        {product.vendor && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            by {product.vendor}
+                          </p>
+                        )}
                       </div>
                     </a>
                     <div className="p-3 pt-0 mt-auto">

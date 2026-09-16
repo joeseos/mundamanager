@@ -1,6 +1,7 @@
 'use server';
 
-import { invalidateCampaign, invalidateGangCampaignMembership } from '@/utils/cache-tags';
+import { invalidateCampaignTerritories, invalidateGangCampaignMembership } from '@/utils/cache-tags';
+import { CAMPAIGN_TERRITORY_COLUMNS, shapeCampaignTerritory } from '@/utils/campaigns/territories';
 import { createClient } from "@/utils/supabase/server";
 import { logTerritoryLost, logTerritoryClaimed } from "../../logs/gang-campaign-logs";
 import { getAuthenticatedUser } from '@/utils/auth';
@@ -139,7 +140,7 @@ export async function assignGangToTerritory(params: AssignGangToTerritoryParams)
       }
     }
 
-    invalidateCampaign(campaignId);
+    invalidateCampaignTerritories(campaignId);
 
     // Invalidate gang cache to update territory ownership display
     invalidateGangCampaignMembership(gangId);
@@ -225,7 +226,7 @@ export async function removeGangFromTerritory(params: RemoveGangFromTerritoryPar
       }
     }
 
-    invalidateCampaign(campaignId);
+    invalidateCampaignTerritories(campaignId);
     
     // Invalidate gang cache to update territory ownership display
     if (territoryData?.gang_id) {
@@ -307,15 +308,20 @@ export async function addTerritoryToCampaign(params: AddTerritoryParams) {
     insertData.playing_card =
       typeof rawCard === 'string' && rawCard.trim() ? rawCard.trim() : null;
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('campaign_territories')
-      .insert([insertData]);
+      .insert([insertData])
+      .select(CAMPAIGN_TERRITORY_COLUMNS)
+      .single();
 
     if (error) throw error;
 
-    invalidateCampaign(campaignId);
+    invalidateCampaignTerritories(campaignId);
 
-    return { success: true };
+    return {
+      success: true,
+      data: shapeCampaignTerritory(data, templateTerritory.territory_name)
+    };
   } catch (error) {
     console.error('Error adding territory to campaign:', error);
     return { 
@@ -347,20 +353,22 @@ export async function createCustomCampaignTerritory(params: CreateCustomCampaign
       return { success: false, error: nameError };
     }
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('campaign_territories')
       .insert([{
         campaign_id: campaignId,
         territory_name: trimmedName,
         territory_id: null,
         playing_card: null
-      }]);
+      }])
+      .select(CAMPAIGN_TERRITORY_COLUMNS)
+      .single();
 
     if (error) throw error;
 
-    invalidateCampaign(campaignId);
+    invalidateCampaignTerritories(campaignId);
 
-    return { success: true };
+    return { success: true, data: shapeCampaignTerritory(data) };
   } catch (error) {
     console.error('Error creating custom campaign territory:', error);
     return {
@@ -436,7 +444,7 @@ export async function removeTerritoryFromCampaign(params: RemoveTerritoryParams)
       }
     }
 
-    invalidateCampaign(campaignId);
+    invalidateCampaignTerritories(campaignId);
     
     if (territoryData?.gang_id) {
       invalidateGangCampaignMembership(territoryData.gang_id);
@@ -520,7 +528,7 @@ export async function updateTerritoryStatus(params: UpdateTerritoryStatusParams)
 
     if (error) throw error;
 
-    invalidateCampaign(campaignId);
+    invalidateCampaignTerritories(campaignId);
 
     // Invalidate gang cache to update territory display on gang page
     if (territoryData.gang_id) {

@@ -1,7 +1,7 @@
 import { invalidateUser, invalidatePatreonSupporters } from '@/utils/cache-tags';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { createClient as createAuthClient } from "@/utils/supabase/server";
+import { createClient as createAuthClient, createServiceRoleClient, findAuthUserIdByEmail } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
 
 /**
@@ -53,22 +53,6 @@ interface DatabaseUserData {
   tierTitle: string | null;
   tierId: string | null;
   discordRoles: string[] | null;
-}
-
-/**
- * Create service role Supabase client for admin operations
- */
-function createServiceRoleClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    }
-  );
 }
 
 /**
@@ -186,109 +170,44 @@ async function fetchAllCampaignMembers(): Promise<{ members: PatreonMember[]; ti
 }
 
 /**
- * Cache for all Supabase users to avoid repeated API calls
- */
-let allSupabaseUsersCache: Map<string, { id: string; email: string }> | null = null;
-
-/**
- * Fetch all Supabase users once and cache them
- */
-async function getAllSupabaseUsers(): Promise<Map<string, { id: string; email: string }>> {
-  if (allSupabaseUsersCache) {
-    return allSupabaseUsersCache;
-  }
-
-  const supabase = createServiceRoleClient();
-  const userMap = new Map<string, { id: string; email: string }>();
-
-  try {
-    // Fetch all users with pagination
-    let page = 1;
-    let hasMore = true;
-    let totalUsers = 0;
-
-    while (hasMore) {
-      const { data: users, error: listError } = await supabase.auth.admin.listUsers({
-        page,
-        perPage: 1000 // Maximum allowed
-      });
-
-      if (listError) {
-        console.log(`Error fetching users on page ${page}: ${listError.message}`);
-        break;
-      }
-
-      if (users?.users && users.users.length > 0) {
-        users.users.forEach(user => {
-          if (user.email) {
-            userMap.set(user.email.toLowerCase(), { id: user.id, email: user.email });
-          }
-        });
-        totalUsers += users.users.length;
-
-        // Check if there are more pages
-        hasMore = users.users.length === 1000;
-        page++;
-      } else {
-        hasMore = false;
-      }
-    }
-
-    console.log(`Cached ${totalUsers} users for matching`);
-    allSupabaseUsersCache = userMap;
-    return userMap;
-
-  } catch (error) {
-    console.log(`❌ Failed to fetch Supabase users: ${error}`);
-    return userMap;
-  }
-}
-
-/**
- * Match Patreon user to existing profile by email
+ * Match a Patreon member to an existing profile.
+ * patreon_user_id first (unique index, and stable when either email changes);
+ * email only for a patron who has never been linked.
+ * Throws rather than returning null when a lookup fails, so a transient failure is
+ * counted as skipped instead of being mistaken for "no such user".
  * @param patreonEmail - Email from Patreon API
- * @param patreonUserId - Patreon user ID for fallback matching
- * @param usersMap - Pre-fetched map of all Supabase users
- * @returns User profile or null if not found
+ * @param patreonUserId - Patreon user ID
+ * @returns Profile id or null if not found
  */
-async function matchPatreonToUser(patreonEmail: string, patreonUserId: string, usersMap: Map<string, { id: string; email: string }>) {
+async function matchPatreonToUser(patreonEmail: string, patreonUserId: string): Promise<string | null> {
   const supabase = createServiceRoleClient();
 
-  // Method 1: Try email match first (most reliable)
-  if (patreonEmail) {
-    const emailLower = patreonEmail.toLowerCase();
-    const matchingUser = usersMap.get(emailLower);
-
-    if (matchingUser) {
-      // Now get the profile using the auth user ID
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', matchingUser.id)
-        .single();
-
-      if (!profileError && profile) {
-        console.log(`Email match: ${patreonEmail} -> ${profile.username || 'N/A'}`);
-        return profile;
-      }
-    }
-  }
-
-  // Method 2: Fallback to patreon_user_id for existing patrons
   if (patreonUserId) {
-    const { data: existingUser, error } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id')
       .eq('patreon_user_id', patreonUserId)
-      .single();
+      .maybeSingle();
 
-    if (!error && existingUser) {
-      return existingUser;
-    }
+    if (error) throw new Error(`Profile lookup by patreon_user_id failed: ${error.message}`);
+    if (data) return data.id;
   }
 
-  return null;
+  if (!patreonEmail) return null;
+
+  const authUserId = await findAuthUserIdByEmail(patreonEmail);
+  if (!authUserId) return null;
+
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('id', authUserId)
+    .maybeSingle();
+
+  if (profileError) throw new Error(`Profile lookup by id failed: ${profileError.message}`);
+  return profile?.id ?? null;
 }
+
 
 /**
  * Update user's Patreon data in the database
@@ -370,8 +289,6 @@ async function syncPatreonData(members: PatreonMember[], tiers: PatreonTier[]) {
   let cleared = 0;
   let skipped = 0;
 
-  const usersMap = await getAllSupabaseUsers();
-
   const activePatreonUserIds = new Set<string>();
 
   // Process each member
@@ -386,9 +303,9 @@ async function syncPatreonData(members: PatreonMember[], tiers: PatreonTier[]) {
         activePatreonUserIds.add(patreonUserId);
       }
 
-      // Find matching user using the cached users map
-      const user = await matchPatreonToUser(patreonEmail, patreonUserId, usersMap);
-      if (!user) {
+      // Find matching user
+      const userId = await matchPatreonToUser(patreonEmail, patreonUserId);
+      if (!userId) {
         console.log(`❌ No matching user found for Patreon email: ${patreonEmail}, user ID: ${patreonUserId}, full name: ${member.attributes.full_name}`);
         skipped++;
         continue;
@@ -407,13 +324,13 @@ async function syncPatreonData(members: PatreonMember[], tiers: PatreonTier[]) {
           discordRoles: currentTier?.attributes.discord_role_ids || null
         };
 
-        const success = await updateUserPatreonData(user.id, patreonData);
+        const success = await updateUserPatreonData(userId, patreonData);
         if (success) {
           updated++;
         }
       } else if (patronStatus === 'former_patron' || patronStatus === 'declined_patron') {
         // Clear tier data but keep the status
-        const success = await clearUserPatreonData(user.id, patronStatus);
+        const success = await clearUserPatreonData(userId, patronStatus);
         if (success) {
           cleared++;
         }

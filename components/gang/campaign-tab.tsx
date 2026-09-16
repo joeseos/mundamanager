@@ -148,6 +148,8 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
             campaign_id
           `)
           .in('campaign_id', campaignIds)
+          // Challenges live in this table too; only played battles are results.
+          .eq('status', 'played')
           .order('created_at', { ascending: false })
           .limit(100);
 

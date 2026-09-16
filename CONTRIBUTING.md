@@ -57,7 +57,7 @@ would have.
 ## How to set up your environment
 
 1. **Prerequisites**
-   - Node.js 20.20.2 or newer (see `.nvmrc`)
+   - Node.js 24.x (see `.nvmrc`)
    - Supabase project URL and key
    - Cloudflare Turnstile keys
 

@@ -5,4 +5,16 @@ export const skillSetRankN26: { [key: string]: number } = {
   "cunning": 4,
   "savant": 5,
   "shooting": 6,
+  //
+  "finesse": 20,
+  "muscle": 21,
+  //
+  "wyrd powers": 40,
+  //
+  "bonecrusher wyrd powers": 60,
+  "chaos helot wyrd powers": 61,
+  "genestealer wyrd powers": 62,
+  "malstrain wyrd powers": 63,
+  "psychoteric whispers": 64,
+  "psyrender wyrd powers": 65,
 };

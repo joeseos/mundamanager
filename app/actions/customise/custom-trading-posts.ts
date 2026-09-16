@@ -1,6 +1,6 @@
 'use server';
 
-import { invalidateCampaign, invalidateUserCustoms } from '@/utils/cache-tags';
+import { invalidateCampaignCore, invalidateCampaignTradingPosts, invalidateUserCustoms } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { getEditionIdBySlug } from '@/utils/editions';
@@ -165,9 +165,15 @@ export async function deleteCustomTradingPost(
             .from('campaigns')
             .update({ custom_trading_posts: updated })
             .eq('id', campaign.id);
-          invalidateCampaign(campaign.id);
+          invalidateCampaignCore(campaign.id);
         }
       }
+    }
+
+    // Every campaign it was shared into loses the row, whether or not that
+    // campaign had it enabled in its shop config.
+    for (const campaignId of affectedCampaignIds) {
+      invalidateCampaignTradingPosts(campaignId);
     }
 
     await removeItemFromAllCollections(supabase, user.id, [{ type: 'trading_post', id }]);
@@ -254,13 +260,13 @@ export interface CustomTPAvailabilityRule {
   gang_type_id: string | null;
   custom_gang_type_id: string | null;
   gang_origin_id: string | null;
-  gang_variant_id: string | null;
+  gang_subtype_id: string | null;
   campaign_type_allegiance_id: string | null;
   alignment: string | null;
   availability: string | null;
   gang_type_name: string | null;
   gang_origin_name: string | null;
-  gang_variant_name: string | null;
+  gang_subtype_name: string | null;
   allegiance_name: string | null;
 }
 
@@ -464,13 +470,13 @@ export async function getAvailabilityRules(
         gang_type_id,
         custom_gang_type_id,
         gang_origin_id,
-        gang_variant_id,
+        gang_subtype_id,
         campaign_type_allegiance_id,
         alignment,
         availability,
         custom_gang_types (gang_type),
         gang_origins (origin_name),
-        gang_variant_types (variant),
+        gang_subtype_types (subtype),
         campaign_type_allegiances (allegiance_name)
       `)
       .eq('custom_trading_post_equipment_id', equipmentItemId)
@@ -490,7 +496,7 @@ export async function getAvailabilityRules(
       gang_type_id: row.gang_type_id,
       custom_gang_type_id: row.custom_gang_type_id,
       gang_origin_id: row.gang_origin_id,
-      gang_variant_id: row.gang_variant_id,
+      gang_subtype_id: row.gang_subtype_id,
       campaign_type_allegiance_id: row.campaign_type_allegiance_id,
       alignment: row.alignment,
       availability: row.availability,
@@ -498,7 +504,7 @@ export async function getAvailabilityRules(
         ? gangTypeNames[row.gang_type_id] || null
         : row.custom_gang_types?.gang_type || null,
       gang_origin_name: row.gang_origins?.origin_name || null,
-      gang_variant_name: row.gang_variant_types?.variant || null,
+      gang_subtype_name: row.gang_subtype_types?.subtype || null,
       allegiance_name: row.campaign_type_allegiances?.allegiance_name || null,
     }));
 
@@ -515,7 +521,7 @@ export async function addAvailabilityRule(
     gang_type_id?: string | null;
     custom_gang_type_id?: string | null;
     gang_origin_id?: string | null;
-    gang_variant_id?: string | null;
+    gang_subtype_id?: string | null;
     campaign_type_allegiance_id?: string | null;
     alignment?: string | null;
     availability?: string | null;
@@ -533,7 +539,7 @@ export async function addAvailabilityRule(
         gang_type_id: data.gang_type_id || null,
         custom_gang_type_id: data.custom_gang_type_id || null,
         gang_origin_id: data.gang_origin_id || null,
-        gang_variant_id: data.gang_variant_id || null,
+        gang_subtype_id: data.gang_subtype_id || null,
         campaign_type_allegiance_id: data.campaign_type_allegiance_id || null,
         alignment: data.alignment || null,
         availability: data.availability || null,
@@ -711,7 +717,7 @@ export async function saveEquipmentRules(
     gang_type_id?: string | null;
     custom_gang_type_id?: string | null;
     gang_origin_id?: string | null;
-    gang_variant_id?: string | null;
+    gang_subtype_id?: string | null;
     campaign_type_allegiance_id?: string | null;
     alignment?: string | null;
     availability?: string | null;
@@ -754,7 +760,7 @@ export async function saveEquipmentRules(
             gang_type_id: r.gang_type_id || null,
             custom_gang_type_id: r.custom_gang_type_id || null,
             gang_origin_id: r.gang_origin_id || null,
-            gang_variant_id: r.gang_variant_id || null,
+            gang_subtype_id: r.gang_subtype_id || null,
             campaign_type_allegiance_id: r.campaign_type_allegiance_id || null,
             alignment: r.alignment || null,
             availability: r.availability || null,

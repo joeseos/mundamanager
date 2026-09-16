@@ -12,7 +12,7 @@
  * (fighter_specialisations / fighter_defaults) if these ever drift.
  */
 
-import { hasFighterSpecialisations } from '@/types/edition';
+import { hasFighterSpecialisations, hasProspectSpecialisationPromotion } from '@/types/edition';
 
 export const N26_PROSPECT_PROMOTION_CREDITS = 15;
 
@@ -42,6 +42,29 @@ export function shouldClearSpecialisationForSubtypes(
   subtypes?: string[] | null
 ): boolean {
   return hasFighterSpecialisations(editionSlug) && !hasN26SpecialistSubtype(subtypes);
+}
+
+/**
+ * True when the fighter went through the N26 Prospect promotion, per the
+ * persisted `fighters.promoted_from_prospect` flag written by
+ * applyN26ProspectPromotion (and cleared by the undo path, preserved on copy).
+ *
+ * RAW, the 13-XP Advancement roll is what a Prospect trades in to become a
+ * Ganger+Specialist; the roll itself remains a normal Advancement (a CGC
+ * Initiate can spend it on a stat or skill instead). This helper is the signal
+ * to deduct one from the fighter's available Advancements once the trade has
+ * been made.
+ *
+ * We tried inferring provenance from the fighter's data (catalog subtypes,
+ * then specialisation id) — both false-positive on natively specialised
+ * fighter types, which share the same eight houseless specialisation ids the
+ * Prospect promotion assigns. Only the persisted flag is unambiguous.
+ */
+export function hasN26ProspectPromotionOccurred(
+  editionSlug?: string | null,
+  promotedFromProspect?: boolean | null
+): boolean {
+  return hasProspectSpecialisationPromotion(editionSlug) && Boolean(promotedFromProspect);
 }
 
 /** Catalog ids for the eight houseless specialisations offered on Prospect promotion. */

@@ -2,10 +2,40 @@ import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
 import { fetchAllRows } from "@/utils/supabase/fetch-all-rows";
+import { FighterTypeGrant } from "@/types/fighter-type";
 
 // Add type guard at the top of the file
 function isNonEmptyArray(value: unknown): boolean {
   return Array.isArray(value) && value.length > 0;
+}
+
+/**
+ * The rows this screen owns: grants that apply to the fighter type
+ * unconditionally. Anything scoped belongs to the equipment admin and must not
+ * be read here, because the save deletes everything it reads — so this is
+ * applied to the reads and the delete alike.
+ */
+function scopeToUnscopedGrants<T>(query: T): T {
+  return ['gang_origin_id', 'gang_subtype_id', 'gang_type_id', 'fighter_subtype']
+    .reduce((q, column) => q.is(column, null), query as any)
+    .eq('excluded', false) as T;
+}
+
+/**
+ * The availability rows this screen owns: those naming this fighter type, plus blanket subtype
+ * rules on a subtype it carries. The save deletes everything it reads, so read and delete share
+ * this scope.
+ */
+function scopeToOwnedAvailability<T>(query: T, fighterTypeId: string, subtypeNames: string[]): T {
+  const blanket = subtypeNames.length > 0
+    // Quoted so a name like "Transport (X)" survives the PostgREST filter grammar.
+    ? `and(fighter_type_id.is.null,fighter_subtype.in.(${subtypeNames
+        .map(name => `"${name.replace(/["\\]/g, '\\$&')}"`)
+        .join(',')}))`
+    : null;
+  return (query as any).or(
+    [`fighter_type_id.eq.${fighterTypeId}`, blanket].filter(Boolean).join(',')
+  ) as T;
 }
 
 // Get all fighter types
@@ -152,6 +182,20 @@ export async function GET(request: Request) {
         throw gangCostsError;
       }
 
+      // Fetch gang availability rules
+      const { data: availability, error: availabilityError } = await scopeToOwnedAvailability(
+        supabase
+          .from('fighter_type_availability')
+          .select('fighter_type_id, fighter_subtype, gang_type_id, gang_origin_id, gang_subtype_id, excluded'),
+        fighterType.id,
+        (fighterType.fighter_subtypes ?? []) as string[]
+      );
+
+      if (availabilityError) {
+        console.error('Error fetching fighter type availability:', availabilityError);
+        throw availabilityError;
+      }
+
       // Fetch equipment selection
       const { data: equipmentSelection, error: equipmentSelectionError } = await supabase
         .from('fighter_equipment_selections')
@@ -189,10 +233,12 @@ export async function GET(request: Request) {
       }
 
       // Fetch equipment list
-      const { data: equipmentList, error: equipmentListError } = await supabase
-        .from('fighter_type_equipment')
-        .select('equipment_id')
-        .eq('fighter_type_id', fighterType.id);
+      const { data: equipmentList, error: equipmentListError } = await scopeToUnscopedGrants(
+        supabase
+          .from('fighter_type_equipment')
+          .select('equipment_id')
+          .eq('fighter_type_id', fighterType.id)
+      );
 
       if (equipmentListError) {
         console.error('Error fetching equipment list:', equipmentListError);
@@ -220,7 +266,8 @@ export async function GET(request: Request) {
         })) || [],
         equipment_selection: equipmentSelection?.equipment_selection || null,
         gang_type_costs: gangTypeCosts || [],
-        skill_access: skillAccess || []
+        skill_access: skillAccess || [],
+        availability: availability || []
       };
 
       return NextResponse.json(formattedFighterType);
@@ -336,10 +383,12 @@ export async function GET(request: Request) {
             }
 
             // Fetch equipment list
-            const { data: equipmentList, error: equipmentListError } = await supabase
-              .from('fighter_type_equipment')
-              .select('equipment_id')
-              .eq('fighter_type_id', fighter.id);
+            const { data: equipmentList, error: equipmentListError } = await scopeToUnscopedGrants(
+              supabase
+                .from('fighter_type_equipment')
+                .select('equipment_id')
+                .eq('fighter_type_id', fighter.id)
+            );
 
             if (equipmentListError) {
               console.error('Error fetching equipment list:', equipmentListError);
@@ -507,6 +556,69 @@ export async function PATCH(request: Request) {
       throw gangTypeError;
     }
 
+    // Availability is validated before any write: a 400 partway through a six-table save would
+    // leave the fighter type half-updated.
+    const availabilityRows: FighterTypeGrant[] | null =
+      data.availability === undefined ? null : (Array.isArray(data.availability) ? data.availability : []);
+    let ownedSubtypes: string[] = [];
+
+    if (availabilityRows) {
+      const { data: stored, error: storedError } = await supabase
+        .from('fighter_types')
+        .select('fighter_subtypes')
+        .eq('id', id)
+        .single();
+
+      if (storedError) {
+        console.error('Error fetching stored fighter subtypes:', storedError);
+        throw storedError;
+      }
+
+      // Only subtypes the client both loaded and still has. Bounding the delete by the submitted
+      // list alone would drop blanket rules the GET never returned; by the stored list alone it
+      // would drop ones the client deliberately left out.
+      const storedSubtypes = new Set((stored?.fighter_subtypes ?? []) as string[]);
+      const submitted: string[] = Array.isArray(data.fighter_subtypes) ? data.fighter_subtypes : [];
+      ownedSubtypes = submitted.filter(name => storedSubtypes.has(name));
+
+      for (const row of availabilityRows) {
+        const targetsType = !!row.fighter_type_id;
+        const targetsSubtype = !!row.fighter_subtype;
+        // Mirrors target_chk and scope_chk, for a readable 400 over a constraint name.
+        if (targetsType === targetsSubtype) {
+          return NextResponse.json(
+            { error: 'An availability rule must target either a fighter type or a fighter subtype, not both' },
+            { status: 400 }
+          );
+        }
+        if (targetsSubtype && !row.excluded) {
+          return NextResponse.json(
+            { error: 'A fighter subtype rule names no fighter to add, so it can only be a deny' },
+            { status: 400 }
+          );
+        }
+        if (!row.gang_type_id && !row.gang_origin_id && !row.gang_subtype_id) {
+          return NextResponse.json(
+            { error: 'An availability rule needs at least one of gang type, gang origin or gang subtype' },
+            { status: 400 }
+          );
+        }
+        // Outside the delete's scope the row would be orphaned here.
+        if (targetsType && row.fighter_type_id !== id) {
+          return NextResponse.json(
+            { error: 'An availability rule must name the fighter type being edited' },
+            { status: 400 }
+          );
+        }
+        if (targetsSubtype && !ownedSubtypes.includes(row.fighter_subtype!)) {
+          return NextResponse.json(
+            { error: `Save the subtype '${row.fighter_subtype}' on this fighter type before adding a rule for it` },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     // Update fighter type
     const { error: updateError } = await supabase
       .from('fighter_types')
@@ -599,10 +711,12 @@ export async function PATCH(request: Request) {
     // Handle equipment list
     if (data.equipment_list) {
       // First delete existing equipment list entries
-      const { error: deleteError } = await supabase
-        .from('fighter_type_equipment')
-        .delete()
-        .eq('fighter_type_id', id);
+      const { error: deleteError } = await scopeToUnscopedGrants(
+        supabase
+          .from('fighter_type_equipment')
+          .delete()
+          .eq('fighter_type_id', id)
+      );
 
       if (deleteError) throw deleteError;
 
@@ -732,6 +846,49 @@ export async function PATCH(request: Request) {
           
         if (insertError) {
           console.error('Error inserting gang-specific costs:', insertError);
+          throw insertError;
+        }
+      }
+    }
+
+    if (availabilityRows) {
+      const { error: deleteError } = await scopeToOwnedAvailability(
+        supabase.from('fighter_type_availability').delete(),
+        id,
+        ownedSubtypes
+      );
+
+      if (deleteError) {
+        console.error('Error deleting existing availability rules:', deleteError);
+        throw deleteError;
+      }
+
+      if (availabilityRows.length > 0) {
+        // scope_uidx is NULLS NOT DISTINCT, so a repeated scope is a unique violation.
+        const seen = new Set<string>();
+        const availabilityRecords = availabilityRows
+          .map(row => ({
+            fighter_type_id: row.fighter_type_id ?? null,
+            fighter_subtype: row.fighter_subtype ?? null,
+            gang_type_id: row.gang_type_id ?? null,
+            gang_origin_id: row.gang_origin_id ?? null,
+            gang_subtype_id: row.gang_subtype_id ?? null,
+            excluded: row.excluded ?? false,
+            updated_at: new Date().toISOString()
+          }))
+          .filter(record => {
+            const key = `${record.fighter_type_id ?? ''}|${record.fighter_subtype ?? ''}|${record.gang_type_id ?? ''}|${record.gang_origin_id ?? ''}|${record.gang_subtype_id ?? ''}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+
+        const { error: insertError } = await supabase
+          .from('fighter_type_availability')
+          .insert(availabilityRecords);
+
+        if (insertError) {
+          console.error('Error inserting availability rules:', insertError);
           throw insertError;
         }
       }

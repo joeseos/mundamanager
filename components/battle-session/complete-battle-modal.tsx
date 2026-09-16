@@ -15,7 +15,7 @@ import {
   completeBattleSession,
 } from '@/app/actions/battle-sessions';
 import type { BattleSessionFull } from '@/types/battle-session';
-import type { GangFighter } from '@/app/lib/shared/gang-data';
+import type { GangFighter } from '@/types/gang';
 import {
   getSessionClaimerGangId,
   getSessionWinnerIds,

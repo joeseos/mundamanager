@@ -17,6 +17,9 @@ import { HiUser } from "react-icons/hi2";
 import { LuTrash2, LuSquarePen } from "react-icons/lu";
 import { useMutation } from '@tanstack/react-query';
 import { Battle, BattleParticipant, CampaignGang, Territory, Member } from '@/types/campaign';
+import { battleStatusColors, battleStatusLabels, battleStatusOf, isPlayedBattle } from '@/types/campaign';
+import CampaignChallengeRoundModal from '@/components/campaigns/[id]/campaign-challenge-round-modal';
+import { respondToChallenge } from '@/app/actions/campaigns/[id]/battle-logs';
 import { getWinnerIds } from '@/utils/battle-winners';
 import { Combobox } from "@/components/ui/combobox";
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
@@ -34,7 +37,15 @@ interface CampaignBattleLogsListProps {
   editionSlug?: string | null;
   battles: Battle[];
   isAdmin: boolean;
-  onBattleAdd: () => void;
+  /** Battles live in the campaign page's state; this patches them there. */
+  onBattlesChange: (battles: Battle[] | ((prev: Battle[]) => Battle[])) => void;
+  onMemberRoleChange: (userId: string, newRole: string) => void;
+  /** Battle logs can claim or release a territory; this reports that to the page. */
+  onTerritoryUpdate: (update: {
+    action: 'assign' | 'remove';
+    territoryId: string;
+    gangId?: string;
+  }) => void;
   members: Member[];
   territories?: CampaignBattleLogsTerritory[];
   noContainer?: boolean;
@@ -42,10 +53,12 @@ interface CampaignBattleLogsListProps {
   userId: string;
   isCampaignOwner?: boolean;
   isCampaignAdmin?: boolean;
+  currentCycle?: number | null;
 }
 
 export interface CampaignBattleLogsListRef {
   openAddModal: () => void;
+  openChallengeRoundModal: () => void;
 }
 
 const formatRole = (role: MemberRole | undefined) => {
@@ -73,7 +86,9 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     editionSlug,
     battles,
     isAdmin,
-    onBattleAdd,
+    onBattlesChange,
+    onMemberRoleChange,
+    onTerritoryUpdate,
     members,
     territories = [],
     noContainer = false,
@@ -81,9 +96,11 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     userId,
     isCampaignOwner = false,
     isCampaignAdmin = false,
+    currentCycle = null,
   } = props;
   
   const [showBattleModal, setShowBattleModal] = useState(false);
+  const [showChallengeRoundModal, setShowChallengeRoundModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [availableGangs, setAvailableGangs] = useState<CampaignGang[]>([]);
   const [showNoteModal, setShowNoteModal] = useState(false);
@@ -99,14 +116,6 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     e.preventDefault();
     router.push(`/gang/${gangId}`);
   }, [router]);
-
-  // Local state for optimistic updates
-  const [localBattles, setLocalBattles] = useState<Battle[]>(battles);
-
-  // Sync with props when they change (from server refresh)
-  useEffect(() => {
-    setLocalBattles(battles);
-  }, [battles]);
 
   // Filter state
   const [filterCycle, setFilterCycle] = useState<string>('');
@@ -143,7 +152,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     const winningGangIds = new Set<string>();
     let hasDraws = false;
 
-    localBattles.forEach(battle => {
+    battles.forEach(battle => {
       // Cycles
       if (battle.cycle !== null && battle.cycle !== undefined) {
         cycles.add(battle.cycle);
@@ -177,7 +186,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       // Winning gangs (multi-winner aware via helper)
       const winnerIds = getWinnerIds(battle);
       if (winnerIds.length === 0) {
-        hasDraws = true;
+        if (isPlayedBattle(battle)) hasDraws = true;
       } else {
         winnerIds.forEach((id) => winningGangIds.add(id));
       }
@@ -190,11 +199,17 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       winningGangIds: Array.from(winningGangIds),
       hasDraws
     };
-  }, [localBattles]);
+  }, [battles]);
+
+  const gangRatings = useMemo(() => {
+    const map = new Map<string, number>();
+    members.forEach((m) => m.gangs?.forEach((g) => map.set(g.id, g.rating ?? 0)));
+    return map;
+  }, [members]);
 
   // Sort and filter battles
   const sortedAndFilteredBattles = useMemo(() => {
-    let filtered = [...localBattles];
+    let filtered = [...battles];
 
     // Apply filters
     if (filterCycle) {
@@ -231,7 +246,9 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     }
 
     if (filterDraws) {
-      filtered = filtered.filter(battle => getWinnerIds(battle).length === 0);
+      filtered = filtered.filter(
+        battle => isPlayedBattle(battle) && getWinnerIds(battle).length === 0
+      );
     }
 
     // Sort based on selected field and direction
@@ -287,18 +304,26 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           bValue = new Date(b.created_at).getTime();
       }
       
-      // Handle string comparison
-      if (typeof aValue === 'string' && typeof bValue === 'string') {
-        const comparison = aValue.localeCompare(bValue);
-        return sortDirection === 'asc' ? comparison : -comparison;
+      // Challenges outrank played battles regardless of the chosen sort:
+      // they are the outstanding work, the history sits below them.
+      const aPending = isPlayedBattle(a) ? 1 : 0;
+      const bPending = isPlayedBattle(b) ? 1 : 0;
+      if (aPending !== bPending) return aPending - bPending;
+
+      const comparison =
+        typeof aValue === 'string' && typeof bValue === 'string'
+          ? aValue.localeCompare(bValue)
+          : aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+      if (comparison !== 0) return sortDirection === 'asc' ? comparison : -comparison;
+
+      // Slots opened together tie on every column, so rank them by challenger rating.
+      if (aPending === 0 && bPending === 0) {
+        return (gangRatings.get(a.challenger_gang_id ?? '') ?? 0)
+          - (gangRatings.get(b.challenger_gang_id ?? '') ?? 0);
       }
-      
-      // Handle number comparison
-      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
-      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [localBattles, filterCycle, filterScenario, filterParticipatingGang, filterWinningGang, filterDraws, sortField, sortDirection]);
+  }, [battles, filterCycle, filterScenario, filterParticipatingGang, filterWinningGang, filterDraws, sortField, sortDirection, gangRatings]);
 
   // Handle sorting
   const handleSort = (field: string) => {
@@ -371,46 +396,73 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   };
 
   // TanStack Query mutation for deleting battles
+  const respondMutation = useMutation({
+    mutationFn: async ({ battleId, response }: { battleId: string; response: 'accepted' | 'declined' }) =>
+      respondToChallenge(campaignId, battleId, response),
+    onSuccess: (result) => {
+      if (!result.success) {
+        toast.error(result.error || 'Failed to answer challenge');
+        return;
+      }
+      toast.success('Challenge answered');
+      const answered = result.data;
+      if (answered) {
+        onBattlesChange(prev =>
+          prev.map(b => (b.id === answered.id ? { ...b, ...answered } as Battle : b))
+        );
+      }
+    },
+    onError: () => toast.error('Failed to answer challenge'),
+  });
+
   const deleteBattleMutation = useMutation({
     mutationFn: async (battleId: string) => {
-      await deleteBattleLog(campaignId, battleId);
+      const result = await deleteBattleLog(campaignId, battleId);
+      if (!result.success) throw new Error(result.error || 'Failed to delete battle report');
+      return result;
     },
     onMutate: async (battleId) => {
-      // Optimistically remove the battle using functional update for fresh state
-      setLocalBattles((currentBattles) =>
+      // Snapshot before removing, so a failure can put the row back where it was.
+      const removed = battles.find(battle => battle.id === battleId);
+      const removedIndex = battles.findIndex(battle => battle.id === battleId);
+      onBattlesChange((currentBattles) =>
         currentBattles.filter(battle => battle.id !== battleId)
       );
 
-      return { battleId };
+      return { battleId, removed, removedIndex };
     },
-    onSuccess: () => {
+    onSuccess: (_result, _battleId, context) => {
+      // Deleting a played battle releases the territory it claimed.
+      const released = context?.removed;
+      if (released?.campaign_territory_id && isPlayedBattle(released)) {
+        onTerritoryUpdate({ action: 'remove', territoryId: released.campaign_territory_id });
+      }
       toast.success("Battle report deleted successfully");
-
-      // Trigger server refresh after successful delete
-      onBattleAdd();
     },
-    onError: (error) => {
+    onError: (error, _battleId, context) => {
       console.error('Battle deletion failed:', error);
 
-      // Trigger server refresh to get correct state back
-      onBattleAdd();
+      if (context?.removed) {
+        const { removed, removedIndex } = context;
+        onBattlesChange((currentBattles) => {
+          const restored = [...currentBattles];
+          restored.splice(removedIndex, 0, removed);
+          return restored;
+        });
+      }
 
       const errorMessage = error instanceof Error ? error.message : 'Failed to delete battle report';
       toast.error(errorMessage);
     }
   });
 
-  // Callback to handle battle updates from modal - supports both value and updater function
-  const handleBattleUpdate = (updatedBattles: Battle[] | ((prevBattles: Battle[]) => Battle[])) => {
-    setLocalBattles(updatedBattles);
-  };
-
   // Expose the openAddModal function to parent components
   useImperativeHandle(ref, () => ({
     openAddModal: () => {
       setSelectedBattle(null);
       setShowBattleModal(true);
-    }
+    },
+    openChallengeRoundModal: () => setShowChallengeRoundModal(true)
   }));
 
   // Extract gangs from members
@@ -511,14 +563,16 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       if (!member.gangs) return;
       member.gangs.forEach(gang => {
         const gangId = gang.id;
-        let battles = 0;
+        let battlesPlayed = 0;
         let victories = 0;
         let defeats = 0;
         let draws = 0;
 
-        localBattles.forEach(battle => {
+        battles.forEach(battle => {
+          // Challenges are not results; counting them would distort every record.
+          if (!isPlayedBattle(battle)) return;
           if (!gangParticipatedIn(battle, gangId)) return;
-          battles++;
+          battlesPlayed++;
           const winnerIds = getWinnerIds(battle);
           if (winnerIds.length === 0) {
             draws++;
@@ -537,7 +591,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           playerId: member.user_id,
           playerRole: member.role as MemberRole | undefined,
           allegianceName: gang.allegiance?.name || '',
-          battles,
+          battles: battlesPlayed,
           victories,
           defeats,
           draws,
@@ -571,9 +625,25 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     });
 
     return rows;
-  }, [members, localBattles, standingsSortField, standingsSortDirection, gangParticipatedIn]);
+  }, [members, battles, standingsSortField, standingsSortDirection, gangParticipatedIn]);
 
   // Check if user can edit/delete this battle
+  // A challenge round is only opened for accepted gangs, so count those rather
+  // than availableGangs, which also carries pending ones.
+  const acceptedGangCount = useMemo(
+    () => members.reduce(
+      (total, member) =>
+        total + (member.gangs?.filter((g) => g.status === 'ACCEPTED').length ?? 0),
+      0
+    ),
+    [members]
+  );
+
+  const ownsGang = useCallback((gangId: string | null | undefined): boolean => {
+    if (!gangId) return false;
+    return availableGangs.find(g => g.id === gangId)?.user_id === userId;
+  }, [availableGangs, userId]);
+
   const canUserEditBattle = useCallback((battle: Battle): boolean => {
     // Admins can edit any battle
     if (isAdmin) return true;
@@ -593,12 +663,8 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     }
 
     // Check if user owns any participating gang
-    return participants.some((p) => {
-      if (!p.gang_id) return false;
-      const gang = availableGangs.find(g => g.id === p.gang_id);
-      return gang?.user_id === userId;
-    });
-  }, [isAdmin, availableGangs, userId]);
+    return participants.some((p) => ownsGang(p.gang_id));
+  }, [isAdmin, ownsGang]);
 
   // Get all gangs with their roles for a battle
   const getGangsWithRoles = (battle: Battle): React.ReactNode => {
@@ -817,7 +883,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         throw new Error(result.error);
       }
 
-      onBattleAdd();
+      onMemberRoleChange(roleChange.memberId, roleChange.newRole);
       toast.success(`Updated ${roleChange.username}'s role to ${roleChange.newRole}`);
       setShowRoleModal(false);
       setRoleChange(null);
@@ -972,8 +1038,8 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         <div className="flex items-center justify-between gap-2">
           <span className="leading-[3] text-xs text-muted-foreground">
             {hasActiveFilters 
-              ? `Showing ${sortedAndFilteredBattles.length} of ${localBattles.length} battles`
-              : `Showing all ${localBattles.length} battles`}
+              ? `Showing ${sortedAndFilteredBattles.length} of ${battles.length} battles`
+              : `Showing all ${battles.length} battles`}
           </span>
           {hasActiveFilters && (
             <Button
@@ -1046,6 +1112,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
               </th>
               <th className="px-7 py-2 text-left font-medium">Gangs</th>
               <th className="px-2 py-2 text-left font-medium">Winner(s)</th>
+              <th className="p-1 md:p-2 text-left font-medium">Status</th>
               <th className="p-1 md:p-2 text-left font-medium">Report</th>
               {(isAdmin || availableGangs.length > 0) && <th className="p-1 md:p-2 text-right font-medium">Actions</th>}
             </tr>
@@ -1053,8 +1120,8 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           <tbody>
             {sortedAndFilteredBattles.length === 0 ? (
               <tr>
-                <td colSpan={(isAdmin || availableGangs.length > 0) ? 8 : 7} className="text-muted-foreground italic text-center">
-                  {localBattles.length === 0 
+                <td colSpan={(isAdmin || availableGangs.length > 0) ? 9 : 8} className="text-muted-foreground italic text-center">
+                  {battles.length === 0 
                     ? "No battles recorded yet."
                     : "No battles match the selected filters."}
                 </td>
@@ -1071,7 +1138,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                   </td>
 
                   <td className="p-1 md:p-2 align-top max-w-[8rem]">
-                    {battle.scenario || battle.scenario_name || 'N/A'}
+                    {battle.scenario || battle.scenario_name || '-'}
                   </td>
 
                   <td className="p-1 md:p-2 align-top">
@@ -1086,7 +1153,11 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                     {(() => {
                       const winnerIds = getWinnerIds(battle);
                       if (winnerIds.length === 0) {
-                        return <span className="ml-2 text-xs">Draw</span>;
+                        // A draw is a result. An unplayed challenge has none yet,
+                        // so it gets the same plain placeholder as the other columns.
+                        return isPlayedBattle(battle)
+                          ? <span className="ml-2 text-xs">Draw</span>
+                          : '-';
                       }
                       // Resolve names from the enriched winners array first,
                       // fall back to the legacy single-winner enrichment for
@@ -1118,6 +1189,12 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                   </td>
 
                   <td className="p-1 md:p-2 align-top">
+                    <span className={`inline-block whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium ${battleStatusColors[battleStatusOf(battle)]}`}>
+                      {battleStatusLabels[battleStatusOf(battle)]}
+                    </span>
+                  </td>
+
+                  <td className="p-1 md:p-2 align-top">
                     {battle.note && (
                       <button
                         onClick={() => {
@@ -1133,7 +1210,27 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                   </td>
                   {canUserEditBattle(battle) && (
                     <td className="p-1 md:p-2 align-top text-right">
-                      <div className="flex justify-end space-x-2">
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {battleStatusOf(battle) === 'challenge_issued' && ownsGang(battle.challenged_gang_id) && (
+                          <>
+                            <Button
+                              onClick={() => respondMutation.mutate({ battleId: battle.id, response: 'accepted' })}
+                              variant="outline_accept"
+                              size="sm"
+                              className="h-8"
+                            >
+                              Accept
+                            </Button>
+                            <Button
+                              onClick={() => respondMutation.mutate({ battleId: battle.id, response: 'declined' })}
+                              variant="outline_remove"
+                              size="sm"
+                              className="h-8"
+                            >
+                              Decline
+                            </Button>
+                          </>
+                        )}
                         <Button
                           onClick={() => handleEditBattle(battle)}
                           variant="outline"
@@ -1286,6 +1383,16 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       </div>
 
       {/* Battle Log Modal for Add/Edit */}
+      {showChallengeRoundModal && (
+        <CampaignChallengeRoundModal
+          campaignId={campaignId}
+          gangCount={acceptedGangCount}
+          defaultCycle={currentCycle}
+          onClose={() => setShowChallengeRoundModal(false)}
+          onSuccess={(created) => onBattlesChange(prev => [...prev, ...created])}
+        />
+      )}
+
       <CampaignBattleLogModal
         campaignId={campaignId}
         editionSlug={editionSlug}
@@ -1299,9 +1406,9 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         }))}
         isOpen={showBattleModal}
         onClose={handleModalClose}
-        onSuccess={onBattleAdd}
-        onBattleUpdate={handleBattleUpdate}
-        localBattles={localBattles}
+        onBattleUpdate={onBattlesChange}
+        onTerritoryUpdate={onTerritoryUpdate}
+        battles={battles}
         battleToEdit={selectedBattle}
         userRole={isAdmin ? 'ARBITRATOR' : 'MEMBER'}
       />

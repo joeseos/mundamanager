@@ -69,7 +69,7 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
         credits: sourceGang.credits,
         reputation: sourceGang.reputation,
         trade_points: sourceGang.trade_points ?? 0,
-        gang_variants: sourceGang.gang_variants,
+        gang_subtypes: sourceGang.gang_subtypes,
         note: sourceGang.note,
         note_backstory: sourceGang.note_backstory,
         positioning: null, // Will be updated after fighters are copied

@@ -55,17 +55,21 @@ AS $$
     WITH gang_data AS (
         SELECT
             g.gang_origin_id,
-            g.gang_variants,
+            g.gang_subtypes,
             g.alignment,
             g.custom_gang_type_id,
             cg.campaign_type_allegiance_id,
             fgl.fighter_type_id AS legacy_ft_id,
             ga.fighter_type_id  AS affiliation_ft_id,
+            -- Empty for gang and vehicle calls, so a subtype rule matches nothing
+            COALESCE(f.fighter_subtypes, ft_sub.fighter_subtypes, cft_sub.fighter_subtypes, '[]'::jsonb) AS fighter_subtypes,
             COALESCE(gt.edition_id, cgt.edition_id) AS edition_id
         FROM (SELECT 1) AS _dummy
         LEFT JOIN gangs g ON g.id = $8
         LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
         LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
+        LEFT JOIN fighter_types ft_sub ON ft_sub.id = $3
+        LEFT JOIN custom_fighter_types cft_sub ON cft_sub.id = $3
         LEFT JOIN LATERAL (
             SELECT cg2.campaign_type_allegiance_id
             FROM campaign_gangs cg2
@@ -237,7 +241,7 @@ AS $$
             AND (a.gang_type_id IS NULL OR a.gang_type_id = $1)
             AND (a.custom_gang_type_id IS NULL OR a.custom_gang_type_id = gd.custom_gang_type_id)
             AND (a.gang_origin_id IS NULL OR a.gang_origin_id = gd.gang_origin_id)
-            AND (a.gang_variant_id IS NULL OR gd.gang_variants ? a.gang_variant_id::text)
+            AND (a.gang_subtype_id IS NULL OR gd.gang_subtypes ? a.gang_subtype_id::text)
             AND (a.campaign_type_allegiance_id IS NULL OR a.campaign_type_allegiance_id = gd.campaign_type_allegiance_id)
             AND (a.alignment IS NULL OR a.alignment = gd.alignment)
         WHERE ctpe.equipment_id IS NOT NULL
@@ -396,14 +400,14 @@ AS $$
         ON e.id = ea.equipment_id AND ea.gang_type_id = $1
     LEFT JOIN equipment_availability ea_var
         ON e.id = ea_var.equipment_id
-        AND ea_var.gang_variant_id IS NOT NULL
-        AND gd.gang_variants ? ea_var.gang_variant_id::text
+        AND ea_var.gang_subtype_id IS NOT NULL
+        AND gd.gang_subtypes ? ea_var.gang_subtype_id::text
     LEFT JOIN equipment_availability ea_origin
         ON e.id = ea_origin.equipment_id
         AND ea_origin.gang_origin_id IS NOT NULL
         AND ea_origin.gang_origin_id = gd.gang_origin_id
 
-    -- Fighter type equipment (unchanged)
+    -- Fighter type equipment
     LEFT JOIN fighter_type_equipment fte
         ON e.id = fte.equipment_id
         AND (fte.fighter_type_id = $3
@@ -412,9 +416,19 @@ AS $$
                  AND (fte.fighter_type_id = gd.legacy_ft_id OR fte.vehicle_type_id = gd.legacy_ft_id)
                  AND $4 = true)
              OR (gd.affiliation_ft_id IS NOT NULL
-                 AND (fte.fighter_type_id = gd.affiliation_ft_id OR fte.vehicle_type_id = gd.affiliation_ft_id)))
+                 AND (fte.fighter_type_id = gd.affiliation_ft_id OR fte.vehicle_type_id = gd.affiliation_ft_id))
+             -- A subtype rule spanning every gang names no fighter of its own.
+             -- fighter_subtype must be set, or an all-NULL row matches everything.
+             OR (fte.fighter_type_id IS NULL
+                 AND fte.vehicle_type_id IS NULL
+                 AND fte.custom_fighter_type_id IS NULL
+                 AND fte.fighter_subtype IS NOT NULL))
         AND (fte.gang_origin_id IS NULL OR fte.gang_origin_id = gd.gang_origin_id)
+        AND (fte.gang_subtype_id IS NULL OR gd.gang_subtypes ? fte.gang_subtype_id::text)
         AND (fte.gang_type_id IS NULL OR fte.gang_type_id = $1)
+        AND (fte.fighter_subtype IS NULL OR gd.fighter_subtypes ? fte.fighter_subtype)
+        -- Grants only: this join sets is_fighter_list, so a deny matching here would grant.
+        AND NOT fte.excluded
 
     -- Is this system equipment on the current custom fighter type's equipment list?
     -- ($3 is a custom_fighter_types.id when the fighter is a custom fighter.)
@@ -431,11 +445,37 @@ AS $$
     -- so the predicate lives in exactly one place.
     LEFT JOIN LATERAL (
         SELECT (
-            fte.fighter_type_id IS NOT NULL
-            OR fte.vehicle_type_id IS NOT NULL
+            -- Any matched row counts, including a gang-wide subtype rule,
+            -- which has neither id
+            fte.id IS NOT NULL
             OR ea_var.id IS NOT NULL
             OR ea_origin.id IS NOT NULL
             OR cftl.is_ftl IS NOT NULL
+        )
+        -- ...unless a deny matches. Applied to the whole flag, not just the fighter_type_equipment
+        -- branch, so it also overrides a gang-wide equipment_availability grant as its column
+        -- comment promises. No fighter identity required: a row naming only a gang scope
+        -- withholds the item from every fighter in that gang.
+        AND NOT EXISTS (
+            SELECT 1
+            FROM fighter_type_equipment d
+            WHERE d.equipment_id = e.id
+              AND d.excluded
+              -- Vehicle rows belong to the vehicle admin, which has no deny UI, so a deny
+              -- cannot cancel a grant matched through fte.vehicle_type_id.
+              AND d.vehicle_type_id IS NULL
+              -- Same identity branches as the grant join above: a fighter reaching an equipment
+              -- list through a legacy or affiliation type must be deniable through it too.
+              AND (
+                  d.fighter_type_id IS NULL
+                  OR d.fighter_type_id = $3
+                  OR (gd.legacy_ft_id IS NOT NULL AND d.fighter_type_id = gd.legacy_ft_id AND $4 = true)
+                  OR (gd.affiliation_ft_id IS NOT NULL AND d.fighter_type_id = gd.affiliation_ft_id)
+              )
+              AND (d.gang_origin_id  IS NULL OR d.gang_origin_id = gd.gang_origin_id)
+              AND (d.gang_subtype_id IS NULL OR gd.gang_subtypes ? d.gang_subtype_id::text)
+              AND (d.gang_type_id    IS NULL OR d.gang_type_id = $1)
+              AND (d.fighter_subtype IS NULL OR gd.fighter_subtypes ? d.fighter_subtype)
         ) AS is_fighter_list
     ) ftl_flag ON true
 
@@ -453,7 +493,14 @@ AS $$
         -- Core equipment gating
         AND (
             COALESCE(e.core_equipment, false) = false
-            OR (e.core_equipment = true AND (fte.fighter_type_id IS NOT NULL OR cftl.is_ftl IS NOT NULL OR $3 IS NULL))
+            OR (e.core_equipment = true AND (
+                fte.fighter_type_id IS NOT NULL
+                -- A matched gang-wide subtype rule carries no fighter id of its
+                -- own, so it needs the same allowance is_fighter_list gives it
+                OR (fte.id IS NOT NULL AND fte.fighter_type_id IS NULL AND fte.vehicle_type_id IS NULL)
+                OR cftl.is_ftl IS NOT NULL
+                OR $3 IS NULL
+            ))
         )
         -- Fighter list / trading post filter logic
         AND (
@@ -585,7 +632,7 @@ AS $$
             AND (a.gang_type_id IS NULL OR a.gang_type_id = $1)
             AND (a.custom_gang_type_id IS NULL OR a.custom_gang_type_id = gd.custom_gang_type_id)
             AND (a.gang_origin_id IS NULL OR a.gang_origin_id = gd.gang_origin_id)
-            AND (a.gang_variant_id IS NULL OR gd.gang_variants ? a.gang_variant_id::text)
+            AND (a.gang_subtype_id IS NULL OR gd.gang_subtypes ? a.gang_subtype_id::text)
             AND (a.campaign_type_allegiance_id IS NULL OR a.campaign_type_allegiance_id = gd.campaign_type_allegiance_id)
             AND (a.alignment IS NULL OR a.alignment = gd.alignment)
         WHERE ctpe.custom_equipment_id IS NOT NULL

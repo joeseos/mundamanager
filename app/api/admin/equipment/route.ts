@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
-import { WeaponProfileInput, EquipmentAvailability, EquipmentOriginAvailability, EquipmentVariantAvailability, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
+import { WeaponProfileInput, EquipmentAvailability, EquipmentOriginAvailability, EquipmentSubtypeAvailability, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
+import { FighterTypeGrant } from "@/types/fighter-type";
 import {
   FighterEffectType,
   FighterEffectTypeModifier,
@@ -13,6 +14,16 @@ import { fetchAllRows } from "@/utils/supabase/fetch-all-rows";
 interface FighterTypeEquipment {
   fighter_type_id: string;
   equipment_id: string;
+}
+
+/**
+ * The rows this screen owns: grants and denies scoped at most by gang origin, gang subtype and
+ * fighter subtype. Vehicle and gang-type rows belong to other screens; the save deletes
+ * everything it reads, so read and delete share this scope.
+ */
+function scopeToFighterTypeGrants<T>(query: T): T {
+  return ['vehicle_type_id', 'custom_fighter_type_id', 'gang_type_id']
+    .reduce((q, column) => q.is(column, null), query as any) as T;
 }
 
 /** Normalize admin Trade Points input: "E" or non-negative integer digits. */
@@ -109,22 +120,22 @@ export async function GET(request: Request) {
         console.warn('Error fetching origin availabilities from equipment_availability:', originAvailabilitiesError);
       }
 
-      // Fetch equipment variant availabilities (gang variant-based)
-      const { data: variantAvailabilities, error: variantAvailabilitiesError } = await supabase
+      // Fetch equipment subtype availabilities (gang subtype-based)
+      const { data: subtypeAvailabilities, error: subtypeAvailabilitiesError } = await supabase
         .from('equipment_availability')
         .select(`
           availability,
-          gang_variant_id,
-          gang_variant_types!gang_variant_id (
-            variant
+          gang_subtype_id,
+          gang_subtype_types!gang_subtype_id (
+            subtype
           )
         `)
         .eq('equipment_id', id)
-        .not('gang_variant_id', 'is', null);
+        .not('gang_subtype_id', 'is', null);
 
       // Don't throw error if the query fails or returns empty, just log it
-      if (variantAvailabilitiesError) {
-        console.warn('Error fetching variant availabilities from equipment_availability:', variantAvailabilitiesError);
+      if (subtypeAvailabilitiesError) {
+        console.warn('Error fetching subtype availabilities from equipment_availability:', subtypeAvailabilitiesError);
       }
 
       // Fetch trading post associations
@@ -212,18 +223,18 @@ export async function GET(request: Request) {
           availability: a.availability
         }));
 
-      // Format the variant availabilities
-      interface VariantAvailabilityData {
+      // Format the subtype availabilities
+      interface SubtypeAvailabilityData {
         availability: string;
-        gang_variant_id: string | null;
-        gang_variant_types: { variant: string } | null;
+        gang_subtype_id: string | null;
+        gang_subtype_types: { subtype: string } | null;
       }
 
-      const formattedVariantAvailabilities = (variantAvailabilities || [])
-        .filter((a: any) => a && a.gang_variant_id !== null && a.gang_variant_types)
+      const formattedSubtypeAvailabilities = (subtypeAvailabilities || [])
+        .filter((a: any) => a && a.gang_subtype_id !== null && a.gang_subtype_types)
         .map((a: any) => ({
-          variant: a.gang_variant_types.variant,
-          gang_variant_id: a.gang_variant_id,
+          subtype: a.gang_subtype_types.subtype,
+          gang_subtype_id: a.gang_subtype_id,
           availability: a.availability
         }));
 
@@ -345,15 +356,20 @@ export async function GET(request: Request) {
         }
 
         // Fetch fighter types that have this equipment
-        const { data: equipmentFighterTypes, error: equipmentFighterTypesError } = await supabase
-          .from('fighter_type_equipment')
-          .select('fighter_type_id')
-          .eq('equipment_id', id);
-
-        if (equipmentFighterTypesError) {
+        try {
+          fighterTypesWithEquipment = await fetchAllRows((from, to) =>
+            scopeToFighterTypeGrants(
+              supabase
+                .from('fighter_type_equipment')
+                .select('fighter_type_id, gang_origin_id, gang_subtype_id, fighter_subtype, excluded')
+                .eq('equipment_id', id)
+            )
+              .order('fighter_type_id')
+              .order('id')
+              .range(from, to)
+          );
+        } catch (equipmentFighterTypesError) {
           console.warn('Error fetching fighter types with equipment:', equipmentFighterTypesError);
-        } else {
-          fighterTypesWithEquipment = equipmentFighterTypes || [];
         }
       } catch (error) {
         console.warn('Error in fighter types fetch:', error);
@@ -380,7 +396,7 @@ export async function GET(request: Request) {
         gang_origin_adjusted_costs: formattedOriginAdjustedCosts || [],
         equipment_availabilities: formattedAvailabilities || [],
         equipment_origin_availabilities: formattedOriginAvailabilities || [],
-        equipment_variant_availabilities: formattedVariantAvailabilities || [],
+        equipment_subtype_availabilities: formattedSubtypeAvailabilities || [],
         trading_post_associations: tradingPostIds,
         trading_post_types: tradingPostTypes || [],
         fighter_effects: fighterEffects,
@@ -617,12 +633,12 @@ export async function PATCH(request: Request) {
       is_editable,
       is_consumable,
       weapon_profiles,
-      fighter_types,
+      fighter_type_grants,
       gang_adjusted_costs,
       gang_origin_adjusted_costs,
       equipment_availabilities,
       equipment_origin_availabilities,
-      equipment_variant_availabilities,
+      equipment_subtype_availabilities,
       fighter_effects,
       grants_equipment,
       edition_id
@@ -693,51 +709,43 @@ export async function PATCH(request: Request) {
       }
     }
 
-    // More robust fighter type association handling
-    if (fighter_types !== undefined) {
-      
-      // First, get current associations to ensure we don't lose data
-      const { data: currentAssociations, error: fetchError } = await supabase
-        .from('fighter_type_equipment')
-        .select('fighter_type_id')
-        .eq('equipment_id', id);
-      
-      if (fetchError) {
-        console.error('Error fetching current fighter type associations:', fetchError);
-        // Continue with the operation even if this check fails
-      }
-      
-      // Only proceed with deleting & updating if:
-      // 1. We successfully fetched the current associations
-      // 2. The new list is different from the current list
-      if (currentAssociations) {
-        const currentIds = currentAssociations.map(a => a.fighter_type_id);
-        const hasChanges = JSON.stringify(currentIds.sort()) !== JSON.stringify([...fighter_types].sort());
-        
-        if (hasChanges) {
-          // Delete existing associations
-          const { error: deleteError } = await supabase
-            .from('fighter_type_equipment')
-            .delete()
-            .eq('equipment_id', id);
-          
-          if (deleteError) throw deleteError;
-          
-          // Insert new associations if there are any
-          if (fighter_types.length > 0) {
-            const { error: insertError } = await supabase
-              .from('fighter_type_equipment')
-              .insert(
-                fighter_types.map((fighter_type_id: string) => ({
-                  fighter_type_id,
-                  equipment_id: id,
-                  updated_at: new Date().toISOString()
-                }))
-              );
-            
-            if (insertError) throw insertError;
-          }
-        }
+    // Handle fighter type associations
+    if (fighter_type_grants !== undefined) {
+      const { error: deleteError } = await scopeToFighterTypeGrants(
+        supabase
+          .from('fighter_type_equipment')
+          .delete()
+          .eq('equipment_id', id)
+      );
+
+      if (deleteError) throw deleteError;
+
+      if (Array.isArray(fighter_type_grants) && fighter_type_grants.length > 0) {
+        // fighter_type_equipment_fighter_scope_uidx is NULLS NOT DISTINCT, so a
+        // repeated scope is a unique violation rather than a no-op.
+        const seen = new Set<string>();
+        const grantRecords = (fighter_type_grants as FighterTypeGrant[])
+          .map(grant => ({
+            fighter_type_id: grant.fighter_type_id ?? null,
+            equipment_id: id,
+            gang_origin_id: grant.gang_origin_id ?? null,
+            gang_subtype_id: grant.gang_subtype_id ?? null,
+            fighter_subtype: grant.fighter_subtype ?? null,
+            excluded: grant.excluded ?? false,
+            updated_at: new Date().toISOString()
+          }))
+          .filter(record => {
+            const key = `${record.fighter_type_id ?? ''}|${record.gang_origin_id ?? ''}|${record.gang_subtype_id ?? ''}|${record.fighter_subtype ?? ''}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+
+        const { error: insertError } = await supabase
+          .from('fighter_type_equipment')
+          .insert(grantRecords);
+
+        if (insertError) throw insertError;
       }
     }
 
@@ -885,38 +893,38 @@ export async function PATCH(request: Request) {
       }
     }
 
-    // Handle equipment variant availabilities
-    if (equipment_variant_availabilities !== undefined) {
-      // First, delete all existing gang variant availabilities for this equipment
+    // Handle equipment subtype availabilities
+    if (equipment_subtype_availabilities !== undefined) {
+      // First, delete all existing gang subtype availabilities for this equipment
       const { error: deleteError } = await supabase
         .from('equipment_availability')
         .delete()
         .eq('equipment_id', id)
-        .not('gang_variant_id', 'is', null);
+        .not('gang_subtype_id', 'is', null);
 
       // Log but don't throw on delete error
       if (deleteError) {
-        console.warn('Error deleting gang variant availabilities from equipment_availability:', deleteError);
+        console.warn('Error deleting gang subtype availabilities from equipment_availability:', deleteError);
       }
 
-      // If there are new variant availabilities to add
-      if (Array.isArray(equipment_variant_availabilities) && equipment_variant_availabilities.length > 0) {
-        const variantAvailabilityRecords = equipment_variant_availabilities.map((avail: Pick<EquipmentVariantAvailability, 'gang_variant_id' | 'availability'>) => ({
+      // If there are new subtype availabilities to add
+      if (Array.isArray(equipment_subtype_availabilities) && equipment_subtype_availabilities.length > 0) {
+        const subtypeAvailabilityRecords = equipment_subtype_availabilities.map((avail: Pick<EquipmentSubtypeAvailability, 'gang_subtype_id' | 'availability'>) => ({
           equipment_id: id,
-          gang_variant_id: avail.gang_variant_id,
+          gang_subtype_id: avail.gang_subtype_id,
           availability: avail.availability.trimEnd(),
           gang_type_id: null,
           gang_origin_id: null
         }));
 
-        if (variantAvailabilityRecords.length > 0) {
+        if (subtypeAvailabilityRecords.length > 0) {
           const { error: insertError } = await supabase
             .from('equipment_availability')
-            .insert(variantAvailabilityRecords);
+            .insert(subtypeAvailabilityRecords);
 
           // Log but don't throw on insert error
           if (insertError) {
-            console.warn('Error inserting gang variant availabilities into equipment_availability:', insertError);
+            console.warn('Error inserting gang subtype availabilities into equipment_availability:', insertError);
           }
         }
       }

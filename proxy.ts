@@ -65,6 +65,7 @@ export async function proxy(request: NextRequest) {
   // Public pages - accessible to everyone, no auth check
   const publicPaths = [
     '/auth/callback',
+    '/confirm-email',
     '/reset-password',
     '/reset-password/update',
     '/user-guide',

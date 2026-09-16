@@ -62,8 +62,8 @@ interface FighterTypesData {
     gang_type_id: string;
     total_cost: number;
     typeSubtypeKey?: string;
-    is_gang_variant?: boolean;
-    gang_variant_name?: string;
+    is_gang_subtype?: boolean;
+    gang_subtype_name?: string;
   }>;
   specialisationsByTypeSubtype: Map<string, Array<{
     id: string;
@@ -175,8 +175,8 @@ export function EditFighterModal({
     typeSubtypeKey?: string;
     variantLabel?: string;
     fighter_variant?: string | null;
-    is_gang_variant?: boolean;
-    gang_variant_name?: string;
+    is_gang_subtype?: boolean;
+    gang_subtype_name?: string;
     fighter_specialisation?: string | null;
     fighter_specialisation_id?: string | null;
     available_legacies?: Array<{id: string; name: string}>;
@@ -196,8 +196,8 @@ export function EditFighterModal({
       typeSubtypeKey: type.typeSubtypeKey,
       variantLabel: type.variantLabel,
       fighter_variant: type.fighter_variant ?? null,
-      is_gang_variant: type.is_gang_variant,
-      gang_variant_name: type.gang_variant_name,
+      is_gang_subtype: type.is_gang_subtype,
+      gang_subtype_name: type.gang_subtype_name,
       specialisation: type.specialisation || {},
       fighter_specialisation: type.specialisation?.specialisation_name || null,
       fighter_specialisation_id: type.specialisation?.id || null,
@@ -436,10 +436,10 @@ export function EditFighterModal({
         const displayName = omitsNamedTypeSubtypeSuffix(fighter.edition_slug)
           ? ft.fighter_type
           : `${ft.fighter_type} (${ft.fighter_subtypes.join(', ')})`;
-        const gangVariantSuffix = (ft as any).is_gang_variant ? ` - ${(ft as any).gang_variant_name}` : '';
+        const gangSubtypeSuffix = (ft as any).is_gang_subtype ? ` - ${(ft as any).gang_subtype_name}` : '';
         return {
           value: ft.id,
-          label: `${displayName}${gangVariantSuffix}`,
+          label: `${displayName}${gangSubtypeSuffix}`,
         };
       });
 

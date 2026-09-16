@@ -218,11 +218,11 @@ BEGIN
 
   INSERT INTO public.custom_trading_post_availability (id, created_at, user_id, custom_trading_post_equipment_id,
                                                        gang_type_id, custom_gang_type_id, gang_origin_id,
-                                                       gang_variant_id, campaign_type_allegiance_id, alignment,
+                                                       gang_subtype_id, campaign_type_allegiance_id, alignment,
                                                        availability)
   SELECT gen_random_uuid(), now(), v_user, (v_map_tpe ->> a.custom_trading_post_equipment_id::text)::uuid,
          a.gang_type_id, (v_map_gt ->> a.custom_gang_type_id::text)::uuid, a.gang_origin_id,
-         a.gang_variant_id, a.campaign_type_allegiance_id, a.alignment, a.availability
+         a.gang_subtype_id, a.campaign_type_allegiance_id, a.alignment, a.availability
   FROM public.custom_trading_post_availability a
   WHERE (v_map_tpe ? a.custom_trading_post_equipment_id::text);
 

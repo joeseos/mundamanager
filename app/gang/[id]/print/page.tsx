@@ -1,5 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
-import { redirect, notFound, forbidden } from "next/navigation";
+import { redirect, notFound, forbidden, unstable_rethrow } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 import { canViewHiddenGang } from "@/utils/user-permissions";
@@ -32,7 +32,7 @@ export default async function PrintGangPage(props: {
       getGangTypeConfig,
       getGangFightersList,
       getGangCampaigns,
-      getGangVariants,
+      getGangSubtypes,
       getGangStash,
       getUserProfile,
     } = await import("@/app/lib/shared/gang-data");
@@ -65,15 +65,18 @@ export default async function PrintGangPage(props: {
       gangType,
       fighters,
       campaigns,
-      gangVariants,
+      gangSubtypes,
       stash,
       ownerProfile,
     ] = await Promise.all([
       getGangPositioning(params.id, supabase),
       getGangType(gangBasic, supabase),
-      getGangFightersList(params.id, supabase, { expandLoadoutsForPrint: true }),
+      getGangFightersList(params.id, supabase, {
+        expandLoadoutsForPrint: true,
+        gangEditionSlug: gangBasic.edition_slug ?? null,
+      }),
       getGangCampaigns(params.id, supabase),
-      getGangVariants(gangBasic.gang_variants || [], supabase),
+      getGangSubtypes(gangBasic.gang_subtypes || [], supabase),
       getGangStash(params.id, supabase),
       getUserProfile(gangBasic.user_id, supabase),
     ]);
@@ -121,7 +124,7 @@ export default async function PrintGangPage(props: {
       fightersActiveLoadoutOnly: fightersActiveLoadoutOnly as unknown as FighterProps[],
       stash,
       campaigns,
-      gang_variants: gangVariants,
+      gang_subtypes: gangSubtypes,
       username: ownerProfile?.username,
       patreon_tier_id: ownerProfile?.patreon_tier_id,
       patreon_tier_title: ownerProfile?.patreon_tier_title,
@@ -130,6 +133,9 @@ export default async function PrintGangPage(props: {
       note: gangBasic.note,
     };
   } catch (error) {
+    // notFound()/forbidden()/redirect() signal by throwing; let them through
+    // untouched so they are not logged as failures.
+    unstable_rethrow(error);
     console.error("Error in PrintGangPage:", error);
     throw error;
   }

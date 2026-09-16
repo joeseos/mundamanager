@@ -1,5 +1,6 @@
 'use client';
 
+import type { GangFighterIndexEntry } from '@/types/gang';
 import { FighterSkills, FighterEffect } from "@/types/fighter";
 import { FighterDetailsCard } from "@/components/fighter/fighter-details-card";
 import { WeaponList } from "@/components/fighter/fighter-equipment-list";
@@ -33,23 +34,11 @@ import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { sortFightersByPositioning } from '@/utils/fighter-positioning';
 import { hasCumulativeXp } from '@/types/edition';
 import { nextTierStartFor, openAdvancementsFor } from '@/utils/advancementRanks';
+import { hasN26ProspectPromotionOccurred } from '@/utils/keepTypePromotionN26';
 
 interface FighterPageProps {
   initialFighterData: any;
-  initialGangFighters: Array<{
-    id: string;
-    fighter_name: string;
-    fighter_type: string;
-    xp: number | null;
-    starting_xp?: number | null;
-    advancements_taken?: number;
-    killed?: boolean;
-    retired?: boolean;
-    enslaved?: boolean;
-    starved?: boolean;
-    recovery?: boolean;
-    captured?: boolean;
-  }>;
+  initialGangFighters: GangFighterIndexEntry[];
   userPermissions: UserPermissions;
   fighterId: string;
 }
@@ -71,6 +60,7 @@ interface Fighter {
   };
   fighter_variant?: string | null;
   fighter_subtypes: string[];
+  promoted_from_prospect?: boolean;
   alliance_crew_name?: string;
   label?: string;
   credits: number;
@@ -163,20 +153,7 @@ interface FighterPageState {
   equipment: Equipment[];
   vehicleEquipment: VehicleEquipment[];
   gang: Gang | null;
-  gangFighters: {
-    id: string;
-    fighter_name: string;
-    fighter_type: string;
-    xp: number | null;
-    starting_xp?: number | null;
-    advancements_taken?: number;
-    killed?: boolean;
-    retired?: boolean;
-    enslaved?: boolean;
-    starved?: boolean;
-    recovery?: boolean;
-    captured?: boolean;
-  }[];
+  gangFighters: GangFighterIndexEntry[];
   loadouts: FighterLoadout[];
   activeLoadoutId: string | null;
 }
@@ -645,6 +622,12 @@ export default function FighterPage({
             f.starting_xp ?? null,
             currentXp,
             f.advancements_taken ?? 0,
+            {
+              prospectPromotionConsumed: hasN26ProspectPromotionOccurred(
+                editionSlug,
+                f.promoted_from_prospect,
+              ),
+            },
           )
         : 0;
       const showAdvancementIcon = isCumulativeXp && openAdvancements > 0;
@@ -954,6 +937,7 @@ export default function FighterPage({
             fighterTypeName={fighterData.fighter?.fighter_type?.fighter_type || ''}
             fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
             fighterSpecialisationId={fighterData.fighter?.fighter_specialisation?.fighter_specialisation_id || ''}
+            promotedFromProspect={fighterData.fighter?.promoted_from_prospect ?? false}
             onFighterDetailsUpdate={(patch) => {
               setFighterData((prev) => ({
                 ...prev,
@@ -962,6 +946,7 @@ export default function FighterPage({
                       ...prev.fighter,
                       fighter_subtypes: patch.fighter_subtypes ?? prev.fighter.fighter_subtypes,
                       special_rules: patch.special_rules ?? prev.fighter.special_rules,
+                      promoted_from_prospect: patch.promoted_from_prospect ?? prev.fighter.promoted_from_prospect,
                       fighter_type:
                         patch.fighter_type !== undefined && patch.fighter_type_id !== undefined
                           ? {

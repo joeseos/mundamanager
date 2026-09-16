@@ -47,6 +47,7 @@ export interface FighterBasic {
     name?: string;
   } | null;
   fighter_specialisation_id?: string;
+  promoted_from_prospect?: boolean;
   fighter_variant?: string | null;
   killed?: boolean;
   starved?: boolean;
@@ -124,6 +125,7 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
             name
           ),
           fighter_specialisation_id,
+          promoted_from_prospect,
           fighter_variant,
           killed,
           starved,
@@ -156,7 +158,7 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
       }
       return data;
     },
-    [`fighter-basic-v4-${fighterId}`],
+    [`fighter-basic-v5-${fighterId}`],
     {
       tags: [TAGS.fighter(fighterId)],
       revalidate: false
@@ -218,7 +220,7 @@ export const getFighterTotalCost = async (fighterId: string, supabase: any): Pro
       .eq('fighter_id', fighterId),
     supabase
       .from('fighter_exotic_beasts')
-      .select('fighter_pet_id')
+      .select('fighter_pet_id, fighter_equipment!fighter_equipment_id (gang_stash)')
       .eq('fighter_owner_id', fighterId)
   ]);
 
@@ -242,7 +244,11 @@ export const getFighterTotalCost = async (fighterId: string, supabase: any): Pro
 
   // Owned exotic beasts roll their cost into the owner
   let beastsCost = 0;
-  const beastIds = (beastLinksRes.data || []).map((b: any) => b.fighter_pet_id);
+  const beastLinks = beastLinksRes.data || [];
+  const stashedBeastIds = new Set(
+    beastLinks.filter((b: any) => b.fighter_equipment?.gang_stash).map((b: any) => b.fighter_pet_id)
+  );
+  const beastIds = beastLinks.map((b: any) => b.fighter_pet_id);
   if (beastIds.length > 0) {
     const { data: beastData } = await supabase
       .from('fighters')
@@ -262,7 +268,10 @@ export const getFighterTotalCost = async (fighterId: string, supabase: any): Pro
       .eq('captured', false);
 
     beastsCost = (beastData || []).reduce((sum: number, beast: any) => {
-      const beastEquipment = ((beast.fighter_equipment as any[]) || []).reduce((s, eq) => s + (eq.purchase_cost || 0), 0);
+      // Stashed equipment already moved its cost to stash value; the beast's advancements did not.
+      const beastEquipment = stashedBeastIds.has(beast.id)
+        ? 0
+        : ((beast.fighter_equipment as any[]) || []).reduce((s, eq) => s + (eq.purchase_cost || 0), 0);
       const beastSkills = ((beast.fighter_skills as any[]) || []).reduce((s, skill) => s + (skill.credits_increase || 0), 0);
       const beastEffects = ((beast.fighter_effects as any[]) || []).reduce(
         (s, effect) => s + (effect.type_specific_data?.credits_increase || 0), 0

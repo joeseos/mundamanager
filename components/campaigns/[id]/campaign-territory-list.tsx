@@ -75,7 +75,7 @@ type DisplayItem = {
 };
 
 interface TerritoryUpdate {
-  action: 'assign' | 'remove' | 'update' | 'delete';
+  action: 'assign' | 'remove' | 'update' | 'delete' | 'restore';
   territoryId: string;
   gangId?: string;
   gangData?: Gang;
@@ -86,6 +86,10 @@ interface TerritoryUpdate {
     description?: string | null;
     territory_name?: string;
   };
+  /** For 'restore': the row as it was before a mutation that then failed. */
+  territory?: Territory;
+  /** For 'restore' after a delete: where the row used to sit. */
+  index?: number;
 }
 
 interface CampaignTerritoryListProps {
@@ -98,7 +102,7 @@ interface CampaignTerritoryListProps {
     canDeleteTerritories: boolean;
     canClaimTerritories: boolean;
   };
-  onTerritoryUpdate?: (update?: TerritoryUpdate) => void;
+  onTerritoryUpdate?: (update: TerritoryUpdate) => void;
   /** Shown on the right of the Territories heading (e.g. Add territory). */
   sectionHeaderEnd?: React.ReactNode;
 }
@@ -226,8 +230,11 @@ export default function CampaignTerritoryList({
       setShowGangModal(false);
       setSelectedTerritory(null);
     },
-    onError: (error) => {
-      onTerritoryUpdate?.();
+    onError: (error, variables, context) => {
+      const previous = context?.previousTerritories.find(t => t.id === variables.territoryId);
+      if (previous) {
+        onTerritoryUpdate?.({ action: 'restore', territoryId: variables.territoryId, territory: previous });
+      }
       console.error('Error assigning gang:', error);
       toast.error(error instanceof Error ? error.message : "Failed to assign gang to territory");
     }
@@ -287,8 +294,11 @@ export default function CampaignTerritoryList({
     onSuccess: (_result, _variables, context) => {
       toast.success(`Gang removed from ${context?.territoryName}`);
     },
-    onError: (error) => {
-      onTerritoryUpdate?.();
+    onError: (error, variables, context) => {
+      const previous = context?.previousTerritories.find(t => t.id === variables.territoryId);
+      if (previous) {
+        onTerritoryUpdate?.({ action: 'restore', territoryId: variables.territoryId, territory: previous });
+      }
       console.error('Error removing gang:', error);
       toast.error(error instanceof Error ? error.message : "Failed to remove gang from territory");
     }
@@ -367,8 +377,11 @@ export default function CampaignTerritoryList({
       setTerritoryToEdit(null);
       setEditGroupTerritories([]);
     },
-    onError: (error) => {
-      onTerritoryUpdate?.();
+    onError: (error, variables, context) => {
+      const previous = context?.previousTerritories.find(t => t.id === variables.territoryId);
+      if (previous) {
+        onTerritoryUpdate?.({ action: 'restore', territoryId: variables.territoryId, territory: previous });
+      }
       console.error('Error updating territory:', error);
       toast.error(error instanceof Error ? error.message : "Failed to update territory");
     }
@@ -534,8 +547,16 @@ export default function CampaignTerritoryList({
       setShowDeleteModal(false);
       setTerritoryToDelete(null);
     },
-    onError: (error) => {
-      onTerritoryUpdate?.();
+    onError: (error, variables, context) => {
+      const previous = context?.previousTerritories.find(t => t.id === variables.territoryId);
+      if (previous) {
+        onTerritoryUpdate?.({
+          action: 'restore',
+          territoryId: variables.territoryId,
+          territory: previous,
+          index: context?.previousTerritories.findIndex(t => t.id === variables.territoryId)
+        });
+      }
       console.error('Error removing territory:', error);
       toast.error(error instanceof Error ? error.message : "Failed to remove territory");
     }

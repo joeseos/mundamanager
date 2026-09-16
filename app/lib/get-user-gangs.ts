@@ -18,7 +18,7 @@ export type Gang = {
   rating: number;
   created_at: string;
   last_updated: string;
-  gang_variants: Array<{id: string, variant: string}>;
+  gang_subtypes: Array<{id: string, subtype: string}>;
   campaigns: Array<{campaign_id: string, campaign_name: string}>;
   is_favourite: boolean;
   favourite_order: number | null;
@@ -38,9 +38,9 @@ const getUserGangIdsCached = async (userId: string, supabase: any): Promise<stri
         .from('gangs')
         .select('id')
         .eq('user_id', userId);
-      return (data || []).map((g: any) => g.id);
+      return (data || []).map((g: { id: string }) => g.id);
     },
-    [`user-gang-ids-v2-${userId}`],
+    [`user-gang-ids-v4-${userId}`],
     {
       tags: [TAGS.user(userId)],
       revalidate: false
@@ -69,7 +69,7 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
             rating,
             created_at,
             last_updated,
-            gang_variants,
+            gang_subtypes,
             is_favourite,
             favourite_order,
             gang_types!gang_type_id(
@@ -94,19 +94,19 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
           return [];
         }
 
-        // Batch the per-gang lookups (previously one variants query and one
+        // Batch the per-gang lookups (previously one subtypes query and one
         // campaigns query PER GANG) into two .in() queries.
         const gangIds = data.map((g: any) => g.id);
-        const allVariantIds = Array.from(new Set(
-          data.flatMap((g: any) => (Array.isArray(g.gang_variants) ? g.gang_variants : []))
+        const allSubtypeIds = Array.from(new Set(
+          data.flatMap((g: any) => (Array.isArray(g.gang_subtypes) ? g.gang_subtypes : []))
         ));
 
-        const [variantsRes, campaignGangsRes] = await Promise.all([
-          allVariantIds.length > 0
+        const [subtypesRes, campaignGangsRes] = await Promise.all([
+          allSubtypeIds.length > 0
             ? supabase
-                .from('gang_variant_types')
-                .select('id, variant')
-                .in('id', allVariantIds)
+                .from('gang_subtype_types')
+                .select('id, subtype')
+                .in('id', allSubtypeIds)
             : Promise.resolve({ data: [] }),
           supabase
             .from('campaign_gangs')
@@ -118,9 +118,9 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
             .in('gang_id', gangIds)
         ]);
 
-        const variantById = new Map<string, { id: string; variant: string }>();
-        (variantsRes.data || []).forEach((v: any) => {
-          variantById.set(v.id, { id: v.id, variant: v.variant });
+        const subtypeById = new Map<string, { id: string; subtype: string }>();
+        (subtypesRes.data || []).forEach((row: { id: string; subtype: string }) => {
+          subtypeById.set(row.id, { id: row.id, subtype: row.subtype });
         });
 
         const campaignsByGang = new Map<string, Array<{ campaign_id: string; campaign_name: string }>>();
@@ -146,9 +146,9 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
           rating: gang.rating || 0,
           created_at: gang.created_at,
           last_updated: gang.last_updated,
-          gang_variants: (Array.isArray(gang.gang_variants) ? gang.gang_variants : [])
-            .map((id: string) => variantById.get(id))
-            .filter(Boolean) as Array<{ id: string; variant: string }>,
+          gang_subtypes: (Array.isArray(gang.gang_subtypes) ? gang.gang_subtypes : [])
+            .map((id: string) => subtypeById.get(id))
+            .filter(Boolean) as Array<{ id: string; subtype: string }>,
           campaigns: campaignsByGang.get(gang.id) || [],
           is_favourite: gang.is_favourite ?? false,
           favourite_order: gang.favourite_order ?? null,
@@ -165,11 +165,13 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
         throw error;
       }
     },
-    [`user-gangs-v2-${userId}`],
+    [`user-gangs-v5-${userId}`],
     {
       tags: [
         // List shape (create/delete/copy gang, favourites)
         TAGS.user(userId),
+        // Catalog portraits/names joined from gang_types (admin gang-type writes)
+        TAGS.globalGangTypes(),
         // Card fields: rating/credits/name via the financials choke point
         ...gangIdsForTags.map(id => TAGS.gangOverview(id)),
         // Campaign names on cards: join/leave (previously never invalidated)

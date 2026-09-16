@@ -1,6 +1,6 @@
 'use server'
 
-import { invalidateGang, invalidateFighter, invalidateGangCampaignMembership, invalidateGangStash, invalidateGangFinancials } from '@/utils/cache-tags';
+import { invalidateGang, invalidateGangRoster, invalidateFighter, invalidateGangCampaignMembership, invalidateGangStash, invalidateGangFinancials } from '@/utils/cache-tags';
 import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
 
 import { updateGangFinancials, updateGangRatingSimple } from '@/utils/gang-rating-and-wealth';
@@ -9,25 +9,12 @@ import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { countsTowardRating } from '@/utils/fighter-status';
 import { EquipmentGrants, ResourceCost, CostResourcePayload } from '@/types/equipment';
-import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
+import { createExoticBeastsForEquipment, invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
 import { grantedSkillFromEffect } from '@/utils/effect-modifiers';
 import { clearHardpointReference } from './vehicle-hardpoints';
 import { deductGangResource, returnGangResource, parseTradePointsCost, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
 import { gangEditionSlug, hasMasterCraftedWeapons, hasTradePoints } from '@/types/edition';
-
-// Helper function to invalidate owner's cache when beast fighter is updated
-async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
-  const { data: ownerData } = await supabase
-    .from('fighter_exotic_beasts')
-    .select('fighter_owner_id')
-    .eq('fighter_pet_id', fighterId)
-    .single();
-
-  if (ownerData) {
-    invalidateFighter(ownerData.fighter_owner_id, gangId);
-  }
-}
 
 interface BuyEquipmentParams {
   equipment_id?: string;
@@ -338,7 +325,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
 
     // PARALLEL: Gang info and vehicle data
     // Note: Authorization is enforced by RLS policies on fighter_equipment table
-    const [gangResult, vehicleResult] = await Promise.all([
+    const [gangResult, vehicleResult, fighterResult] = await Promise.all([
       // Gang info
       supabase
         .from('gangs')
@@ -357,6 +344,18 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
             .select('fighter_id')
             .eq('id', params.vehicle_id)
             .single()
+        : Promise.resolve({ data: null }),
+
+      // Fighter row: fighter_name feeds beast creation, fighter_pet_id lets the
+      // owner-cache invalidation below skip its lookup for the 97% of fighters
+      // that are not pets. Fetched here so it overlaps the gang read instead of
+      // costing a serial round trip later.
+      (params.fighter_id && !params.buy_for_gang_stash)
+        ? supabase
+            .from('fighters')
+            .select('fighter_name, fighter_pet_id')
+            .eq('id', params.fighter_id)
+            .maybeSingle()
         : Promise.resolve({ data: null })
     ]);
 
@@ -367,6 +366,15 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
 
     // Extract parallel query results
     const vehicleAssignedFighterId = vehicleResult.data?.fighter_id || null;
+    // Shape must match the fighters select in the Promise.all above; the cast is
+    // unavoidable there, so keep the two in step by hand.
+    const fighterRow = fighterResult.data as { fighter_name: string | null; fighter_pet_id: string | null } | null;
+    /**
+     * null only when the row was actually read and says this fighter is not a
+     * pet. A missing/failed read stays undefined so the helper falls back to
+     * its own lookup rather than silently skipping the invalidation.
+     */
+    const fighterPetId = fighterRow ? fighterRow.fighter_pet_id ?? null : undefined;
 
     // Get equipment details
     let equipmentDetails: any;
@@ -767,16 +775,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
 
     await syncSubtypeGrants(supabase, params.fighter_id, { granted: appliedEffects });
 
-    // Get fighter name for beast creation (if applicable)
-    let fighterName: string | null = null;
-    if (params.fighter_id && !params.buy_for_gang_stash && !params.custom_equipment_id && params.equipment_id) {
-      const { data: fighterData } = await supabase
-        .from('fighters')
-        .select('fighter_name')
-        .eq('id', params.fighter_id)
-        .single();
-      fighterName = fighterData?.fighter_name || null;
-    }
+    // Name for beast creation — from the fighter row read in the opening batch.
+    const fighterName: string | null = fighterRow?.fighter_name ?? null;
 
     // Handle beast creation for fighter equipment purchases
     let createdBeasts: any[] = [];
@@ -806,29 +806,6 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         // Clean up the equipment that was just inserted since the beast it grants failed to create
         await supabase.from('fighter_equipment').delete().eq('id', newEquipmentId);
         throw beastCreationError;
-      }
-    }
-
-    // Handle beast creation for STASH equipment purchases
-    if (params.buy_for_gang_stash && !params.custom_equipment_id && params.equipment_id) {
-      try {
-        const beastResult = await createExoticBeastsForEquipment({
-          equipmentId: params.equipment_id,
-          ownerFighterId: null,  // No owner for stash
-          ownerFighterName: null,
-          gangId: params.gang_id,
-          userId: gang.user_id,
-          fighterEquipmentId: newEquipmentId
-        });
-
-        if (beastResult.success && beastResult.createdBeasts.length > 0) {
-          createdBeasts = beastResult.createdBeasts;
-          // Note: Don't add to rating since equipment is in stash
-        }
-      } catch (error) {
-        // Clean up the stash equipment that was just inserted since the beast it grants failed to create
-        await supabase.from('gang_stash').delete().eq('id', newEquipmentId);
-        throw error;
       }
     }
 
@@ -930,8 +907,9 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         invalidateFighter(params.fighter_id, params.gang_id);
       }
       // If this fighter is a beast, invalidate the owner's cache
-      await invalidateBeastOwnerCache(params.fighter_id, params.gang_id, supabase);
+      await invalidateBeastOwnerCache(params.fighter_id, params.gang_id, supabase, fighterPetId);
     } else if (params.vehicle_id) {
+      invalidateGangRoster(params.gang_id);
       if (vehicleAssignedFighterId) {
         invalidateFighter(vehicleAssignedFighterId, params.gang_id); invalidateGangFinancials(params.gang_id);
       }
@@ -1203,15 +1181,23 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
     // BUT only if the fighter is active (not killed, retired, enslaved, or captured)
     // Inactive fighters are already excluded from rating calculations
     let ratingDelta = 0;
+    /** From the fighters row below; undefined means "unknown" and falls back to a lookup. */
+    let fighterPetId: string | null | undefined;
     if (equipmentBefore.fighter_id) {
       // Check if the fighter is active before applying rating delta
       const { data: fighter } = await supabase
         .from('fighters')
-        .select('killed, retired, enslaved, captured')
+        .select('killed, retired, enslaved, captured, fighter_pet_id')
         .eq('id', equipmentBefore.fighter_id)
         .single();
 
       const fighterIsActive = countsTowardRating(fighter);
+      // Only a hint when the row was read AND belongs to the fighter the
+      // invalidation below targets; otherwise leave undefined to force a lookup.
+      fighterPetId =
+        fighter && equipmentBefore.fighter_id === params.fighter_id
+          ? fighter.fighter_pet_id ?? null
+          : undefined;
 
       if (fighterIsActive) {
         ratingDelta -= (equipmentBefore.purchase_cost || 0);
@@ -1316,7 +1302,7 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
     }
 
     // If this fighter is a beast, invalidate the owner's cache
-    await invalidateBeastOwnerCache(params.fighter_id, params.gang_id, supabase);
+    await invalidateBeastOwnerCache(params.fighter_id, params.gang_id, supabase, fighterPetId);
 
     return {
       success: true, 

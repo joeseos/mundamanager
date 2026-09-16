@@ -1,10 +1,9 @@
 'use server';
 
-import { TAGS, invalidateFighter, invalidateGangFinancials } from '@/utils/cache-tags';
+import { invalidateFighter, invalidateGangFinancials } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 
 import { getAuthenticatedUser } from '@/utils/auth';
-import { revalidateTag } from 'next/cache';
 import { updateGangRatingSimple, updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { countsTowardRating } from '@/utils/fighter-status';
 import {
@@ -39,6 +38,7 @@ import {
 } from './logs/gang-fighter-logs';
 import type { GangLogActionResult } from './logs/gang-logs';
 import { updateFighterDetails } from './edit-fighter';
+import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 
 // A fighter's edition comes from its gang's (custom) gang type.
 const GANG_EDITION_EMBED = `
@@ -51,7 +51,7 @@ const GANG_EDITION_EMBED = `
 // Whether an Advancement costs XP is edition-specific, so every action that
 // touches a fighter's XP balance loads the edition alongside the fighter.
 const FIGHTER_WITH_EDITION_SELECT = `
-  id, user_id, gang_id, xp, starting_xp, free_skill, fighter_name, killed, retired, enslaved, captured,
+  id, user_id, gang_id, xp, starting_xp, free_skill, fighter_name, killed, retired, enslaved, captured, fighter_pet_id,
   ${GANG_EDITION_EMBED}
 `;
 
@@ -90,25 +90,6 @@ function advancementBlockedReason(
 interface PowerBoostTypeData {
   kill_cost?: number;
   credits_increase?: number;
-}
-
-// Helper function to invalidate owner's cache when beast fighter is updated
-async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
-  // Check if this fighter is an exotic beast owned by another fighter
-  const { data: ownerData } = await supabase
-    .from('fighter_exotic_beasts')
-    .select('fighter_owner_id')
-    .eq('fighter_pet_id', fighterId)
-    .single();
-
-  if (ownerData) {
-    // Invalidate the owner's cache since their total cost changed
-    invalidateFighter(ownerData.fighter_owner_id, gangId);
-
-    // Invalidate the owner's beast costs cache
-    // Without this, the owner's cost calculation uses stale beast data
-    revalidateTag(TAGS.fighter(ownerData.fighter_owner_id), { expire: 0 });
-  }
 }
 
 // Types for advancement operations
@@ -201,6 +182,7 @@ export interface AdvancementResult {
     fighter_specialisation: string | null;
     fighter_specialisation_id: string | null;
     special_rules: string[];
+    promoted_from_prospect?: boolean;
   };
   /** False when rating changed without a stash refund (e.g. Prospect promotion undo). */
   refund_stash?: boolean;
@@ -349,7 +331,7 @@ export async function addCharacteristicAdvancement(
 
     
     // If this is a beast fighter, also invalidate owner's cache
-    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
+    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase, fighter.fighter_pet_id ?? null);
 
     // Log the characteristic advancement
     await logCharacteristicAdvancement({
@@ -614,7 +596,7 @@ async function addSkillAdvancementInternal(
     invalidateFighter(params.fighter_id, fighter.gang_id);
 
     // If this is a beast fighter, also invalidate owner's cache
-    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
+    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase, fighter.fighter_pet_id ?? null);
 
     // Get skill name for logging
     let skillName = 'Unknown Skill';
@@ -996,7 +978,7 @@ export async function applyN26ProspectPromotion(
       params.special_rules ??
       (Array.isArray(before.special_rules) ? before.special_rules : []);
 
-    return await applyKeepTypePromotionWithSkillGrant({
+    const promotionResult = await applyKeepTypePromotionWithSkillGrant({
       fighterId: params.fighter_id,
       before,
       newSubtypes,
@@ -1006,6 +988,18 @@ export async function applyN26ProspectPromotion(
       skillId: skillResolved.skillId,
       creditsIncrease: N26_PROSPECT_PROMOTION_CREDITS,
     });
+
+    if (promotionResult.success) {
+      const { error: flagError } = await supabase
+        .from('fighters')
+        .update({ promoted_from_prospect: true })
+        .eq('id', params.fighter_id);
+      if (flagError) {
+        console.error('Failed to set promoted_from_prospect after Prospect promotion:', flagError);
+      }
+    }
+
+    return promotionResult;
   } catch (error) {
     console.error('Error applying N26 Prospect promotion:', error);
     return {
@@ -1221,7 +1215,8 @@ export async function deleteAdvancement(
       .select(`
         ${FIGHTER_WITH_EDITION_SELECT},
         fighter_subtypes, fighter_type, fighter_type_id,
-        fighter_specialisation, fighter_specialisation_id, special_rules
+        fighter_specialisation, fighter_specialisation_id, special_rules,
+        promoted_from_prospect
       `)
       .eq('id', params.fighter_id)
       .single();
@@ -1456,6 +1451,15 @@ export async function deleteAdvancement(
                   : 'Skill removed but Ganger demotion failed — please restore Ganger subtype in Edit Fighter.'),
           };
         }
+        if (isProspectPromotionGrant) {
+          const { error: flagError } = await supabase
+            .from('fighters')
+            .update({ promoted_from_prospect: false })
+            .eq('id', params.fighter_id);
+          if (flagError) {
+            console.error('Failed to clear promoted_from_prospect on Prospect undo:', flagError);
+          }
+        }
         demotedFighterDetails = {
           fighter_subtypes: demotedSubtypes,
           fighter_specialisation: isProspectPromotionGrant
@@ -1465,6 +1469,9 @@ export async function deleteAdvancement(
             ? null
             : (fighter.fighter_specialisation_id ?? null),
           special_rules: specialRules,
+          promoted_from_prospect: isProspectPromotionGrant
+            ? false
+            : (fighter.promoted_from_prospect ?? false),
         };
       }
 
@@ -1601,7 +1608,7 @@ export async function deleteAdvancement(
     invalidateFighter(params.fighter_id, fighter.gang_id);
     
     // If this is a beast fighter, also invalidate owner's cache
-    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
+    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase, fighter.fighter_pet_id ?? null);
 
     let advancementName = deletedSkillName ? deletedSkillName : deletedEffectName
     // Log the advancement deletion
@@ -1660,7 +1667,7 @@ export async function addPowerBoost(
     // Verify fighter ownership and get fighter data
     const { data: fighter, error: fighterError} = await supabase
       .from('fighters')
-      .select('id, user_id, gang_id, kill_count, fighter_name, killed, retired, enslaved, captured')
+      .select('id, user_id, gang_id, kill_count, fighter_name, killed, retired, enslaved, captured, fighter_pet_id')
       .eq('id', params.fighter_id)
       .single();
 
@@ -1851,7 +1858,7 @@ export async function addPowerBoost(
     invalidateFighter(params.fighter_id, fighter.gang_id);
 
     // If this is a beast fighter, also invalidate owner's cache
-    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
+    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase, fighter.fighter_pet_id ?? null);
 
     // Invalidate cache for fighter advancement (effects for power boosts)
     invalidateFighter(params.fighter_id, fighter.gang_id);
@@ -1908,7 +1915,7 @@ export async function deletePowerBoost(
     // Verify fighter ownership
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, user_id, gang_id, kill_count, fighter_name, killed, retired, enslaved, captured')
+      .select('id, user_id, gang_id, kill_count, fighter_name, killed, retired, enslaved, captured, fighter_pet_id')
       .eq('id', params.fighter_id)
       .single();
 
@@ -1980,7 +1987,7 @@ export async function deletePowerBoost(
     invalidateFighter(params.fighter_id, fighter.gang_id);
 
     // If this is a beast fighter, also invalidate owner's cache
-    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
+    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase, fighter.fighter_pet_id ?? null);
 
     // Invalidate cache for fighter advancement
     invalidateFighter(params.fighter_id, fighter.gang_id);

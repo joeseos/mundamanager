@@ -1,8 +1,9 @@
 'use client';
 
-import { LuUsers, LuSword, LuCar, LuBookOpen, LuScrollText, LuBookUser, LuHeartCrack, LuSearch, LuBell, LuHandshake } from "react-icons/lu";
+import { LuUsers, LuSword, LuCar, LuBookOpen, LuBookOpenText, LuScrollText, LuBookUser, LuHeartCrack, LuSearch, LuBell, LuHandshake, LuHouse } from "react-icons/lu";
 import { LuChartColumn } from "react-icons/lu";
 import { PiFlagBannerFoldBold } from "react-icons/pi";
+import { TbCards } from "react-icons/tb";
 import { LuSquarePen } from 'react-icons/lu';
 import { useState } from "react";
 import { AdminCreateFighterTypeModal } from "@/components/admin/admin-create-fighter-type";
@@ -18,9 +19,12 @@ import { AdminStatsModal } from "@/components/admin/admin-stats-modal";
 import { AdminScenariosModal } from "@/components/admin/admin-scenarios-modal";
 import { AdminInjuriesGlitchesModal } from "@/components/admin/admin-injuries";
 import { AdminAlliancesModal } from "@/components/admin/admin-alliances";
+import { AdminGangTypesModal } from "@/components/admin/admin-gang-types";
+import { AdminTacticsCardsModal } from "@/components/admin/admin-tactics-cards";
 import { AdminCampaignManagementModal } from "@/components/admin/admin-campaign-management";
 import { AdminSupportToolsModal } from "@/components/admin/admin-support-tools";
 import { AdminNotificationsModal } from "@/components/admin/admin-notifications-modal";
+import { AdminUserGuidesModal } from "@/components/admin/admin-user-guides-modal";
 
 export default function AdminPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -36,9 +40,12 @@ export default function AdminPage() {
   const [showScenarios, setShowScenarios] = useState(false);
   const [showInjuriesGlitches, setShowInjuriesGlitches] = useState(false);
   const [showAlliances, setShowAlliances] = useState(false);
+  const [showGangTypes, setShowGangTypes] = useState(false);
+  const [showTacticsCards, setShowTacticsCards] = useState(false);
   const [showCampaignManagement, setShowCampaignManagement] = useState(false);
   const [showSupportTools, setShowSupportTools] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showUserGuides, setShowUserGuides] = useState(false);
 
   const coreSections = [
     {
@@ -118,6 +125,18 @@ export default function AdminPage() {
       description: "Manage campaign types, territories, and triumphs",
       action: () => setShowCampaignManagement(true),
       icon: PiFlagBannerFoldBold
+    },
+    {
+      title: "Gangs",
+      description: "Manage gang types",
+      action: () => setShowGangTypes(true),
+      icon: LuHouse
+    },
+    {
+      title: "Tactics Cards",
+      description: "Manage tactics card packs and cards",
+      action: () => setShowTacticsCards(true),
+      icon: TbCards
     }
   ];
 
@@ -140,6 +159,13 @@ export default function AdminPage() {
     description: "Send a message to one or more users",
     action: () => setShowNotifications(true),
     icon: LuBell
+  };
+
+  const userGuidesSection = {
+    title: "User Guides",
+    description: "Edit the N23 and N26 user guides",
+    action: () => setShowUserGuides(true),
+    icon: LuBookOpenText
   };
 
   return (
@@ -172,7 +198,7 @@ export default function AdminPage() {
             <hr className="my-6 border-t border-border" />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[supportToolsSection, notificationsSection, statsSection].map((section) => (
+              {[supportToolsSection, notificationsSection, userGuidesSection, statsSection].map((section) => (
                 <button
                   key={section.title}
                   onClick={section.action}
@@ -289,6 +315,18 @@ export default function AdminPage() {
           />
         )}
 
+        {showGangTypes && (
+          <AdminGangTypesModal
+            onClose={() => setShowGangTypes(false)}
+          />
+        )}
+
+        {showTacticsCards && (
+          <AdminTacticsCardsModal
+            onClose={() => setShowTacticsCards(false)}
+          />
+        )}
+
         {showCampaignManagement && (
           <AdminCampaignManagementModal
             onClose={() => setShowCampaignManagement(false)}
@@ -306,6 +344,12 @@ export default function AdminPage() {
         {showNotifications && (
           <AdminNotificationsModal
             onClose={() => setShowNotifications(false)}
+          />
+        )}
+
+        {showUserGuides && (
+          <AdminUserGuidesModal
+            onClose={() => setShowUserGuides(false)}
           />
         )}
       </main>

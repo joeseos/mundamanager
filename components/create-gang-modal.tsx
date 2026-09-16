@@ -11,13 +11,15 @@ import { createClient } from "@/utils/supabase/client"
 import { SubmitButton } from "./submit-button"
 import { toast } from 'sonner';
 import { getGangListRank } from "@/utils/gangListRank"
-import { gangVariantRank } from "@/utils/gangVariantRank"
+import { getGangSubtypeRank } from "@/utils/gangSubtypeRank"
+import { gangVariantsFor, hasParentGangType } from "@/utils/gangTypeVariants"
 import { createGang } from "@/app/actions/create-gang"
 import { useRouter } from "next/navigation"
 import { useSearchParams } from "next/navigation"
 import Image from 'next/image'
 import { LuChevronLeft, LuChevronRight } from "react-icons/lu"
 import { DefaultImageEntry, normaliseDefaultImageUrls, UNKNOWN_GANG_IMAGE_URL } from '@/types/gang'
+import { DefaultImageCreditLine } from '@/components/ui/default-image-credit-line'
 import { EditionToggle } from '@/components/home/edition-toggle'
 import { useHomeEdition } from '@/hooks/use-home-edition'
 import { sameEditionForDisplay } from '@/types/edition'
@@ -54,13 +56,14 @@ type GangType = {
     origin_name: string;
     category_name: string;
   }>;
+  parent_gang_type_id?: string | null;
   is_custom?: boolean;
   edition_slug?: string | null;
 };
 
-type GangVariant = {
+type GangSubtype = {
   id: string;
-  variant: string;
+  subtype: string;
   edition_slug?: string | null;
 };
 
@@ -105,6 +108,8 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const [gangTypes, setGangTypes] = useState<GangType[]>([]);
   const [gangName, setGangName] = useState("")
   const [gangType, setGangType] = useState("")
+  // Resolved catalog id used on create: null = Standard (root), string = variant child id.
+  const [gangVariantId, setGangVariantId] = useState<string | null>(null)
   const [selectedAffiliation, setSelectedAffiliation] = useState("")
   const [selectedOrigin, setSelectedOrigin] = useState("")
   const [credits, setCredits] = useState("1000")
@@ -113,11 +118,11 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const [isLoadingGangTypes, setIsLoadingGangTypes] = useState(false);
   const [gangTypeImageArrays, setGangTypeImageArrays] = useState<Record<string, DefaultImageEntry[]>>({});
   
-  // Gang variants state
-  const [availableVariants, setAvailableVariants] = useState<GangVariant[]>([]);
-  const [isLoadingVariants, setIsLoadingVariants] = useState(false);
-  const [selectedVariants, setSelectedVariants] = useState<GangVariant[]>([]);
-  const [showVariants, setShowVariants] = useState(false);
+  // Gang subtypes state
+  const [availableSubtypes, setAvailableSubtypes] = useState<GangSubtype[]>([]);
+  const [isLoadingSubtypes, setIsLoadingSubtypes] = useState(false);
+  const [selectedSubtypes, setSelectedSubtypes] = useState<GangSubtype[]>([]);
+  const [showSubtypes, setShowSubtypes] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(DEFAULT_IMAGE_INDEX);
 
   const editionGangTypes = useMemo(
@@ -125,9 +130,29 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
     [gangTypes, editionSlug]
   );
 
-  const editionVariants = useMemo(
-    () => availableVariants.filter(variant => sameEditionForDisplay(variant.edition_slug, editionSlug)),
-    [availableVariants, editionSlug]
+  const editionSubtypes = useMemo(
+    () => availableSubtypes.filter(subtype => sameEditionForDisplay(subtype.edition_slug, editionSlug)),
+    [availableSubtypes, editionSlug]
+  );
+
+  const gangSubtypeRank = useMemo(() => getGangSubtypeRank(editionSlug), [editionSlug]);
+
+  const selectedRootGangType = useMemo(
+    () => editionGangTypes.find(type => type.gang_type_id === gangType),
+    [editionGangTypes, gangType]
+  );
+
+  const gangVariantOptions = useMemo(
+    () => (selectedRootGangType ? gangVariantsFor(selectedRootGangType, editionGangTypes) : []),
+    [selectedRootGangType, editionGangTypes]
+  );
+
+  // null gangVariantId means Standard: resolve to the root gang type id.
+  const resolvedGangTypeId = gangVariantId ?? gangType;
+
+  const resolvedGangType = useMemo(
+    () => gangTypes.find(type => type.gang_type_id === resolvedGangTypeId),
+    [gangTypes, resolvedGangTypeId]
   );
 
   const gangTypeOptions = useMemo(() => {
@@ -149,7 +174,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
     ];
 
     const systemGroups = editionGangTypes
-      .filter(t => !t.is_custom)
+      .filter(t => !t.is_custom && !hasParentGangType(t))
       .sort((a, b) => {
         const rankA = gangListRank[a.gang_type.toLowerCase()] ?? Infinity;
         const rankB = gangListRank[b.gang_type.toLowerCase()] ?? Infinity;
@@ -217,15 +242,16 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
     setPrevEditionSlug(editionSlug);
     if (gangType && !editionGangTypes.some(type => type.gang_type_id === gangType)) {
       setGangType("");
+      setGangVariantId(null);
       setSelectedAffiliation("");
       setSelectedOrigin("");
     }
-    setSelectedVariants(prev =>
-      prev.filter(variant => sameEditionForDisplay(variant.edition_slug, editionSlug))
+    setSelectedSubtypes(prev =>
+      prev.filter(subtype => sameEditionForDisplay(subtype.edition_slug, editionSlug))
     );
-    // Edition with no variant types: hide the switch and clear the toggle
-    if (!availableVariants.some(variant => sameEditionForDisplay(variant.edition_slug, editionSlug))) {
-      setShowVariants(false);
+    // Edition with no subtype types: hide the switch and clear the toggle
+    if (!availableSubtypes.some(subtype => sameEditionForDisplay(subtype.edition_slug, editionSlug))) {
+      setShowSubtypes(false);
     }
   }
 
@@ -272,10 +298,10 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
     fetchGangTypes();
   }, [gangTypes.length, isLoadingGangTypes]);
 
-  // Preload other default images of the selected gang type so cycling with arrows is instant
+  // Preload other default images of the resolved gang type so cycling with arrows is instant
   useEffect(() => {
-    if (!gangType) return;
-    const entries = gangTypeImageArrays[gangType] || [];
+    if (!resolvedGangTypeId) return;
+    const entries = gangTypeImageArrays[resolvedGangTypeId] || [];
     if (entries.length <= 1) return;
     entries.forEach((entry, idx) => {
       if (idx !== currentImageIndex && entry?.url) {
@@ -283,38 +309,39 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
         img.src = entry.url;
       }
     });
-  }, [gangType, gangTypeImageArrays, currentImageIndex]);
+  }, [resolvedGangTypeId, gangTypeImageArrays, currentImageIndex]);
 
-  // Fetch gang variants when modal opens
+  // Fetch gang subtypes when modal opens
   useEffect(() => {
-    const fetchVariants = async () => {
-      if (availableVariants.length === 0 && !isLoadingVariants) {
-        setIsLoadingVariants(true);
+    const fetchSubtypes = async () => {
+      if (availableSubtypes.length === 0 && !isLoadingSubtypes) {
+        setIsLoadingSubtypes(true);
         try {
-          const response = await fetch('/api/gang-variant-types');
+          const response = await fetch('/api/gang-subtype-types');
           if (!response.ok) {
-            throw new Error('Failed to fetch gang variants');
+            throw new Error('Failed to fetch gang subtypes');
           }
-          const variantsData = await response.json();
-          setAvailableVariants(variantsData);
+          const subtypesData = await response.json();
+          setAvailableSubtypes(subtypesData);
         } catch (err) {
-          console.error('Error fetching gang variants:', err);
-          // Don't show error toast for variants, just log it
+          console.error('Error fetching gang subtypes:', err);
+          // Don't show error toast for subtypes, just log it
         } finally {
-          setIsLoadingVariants(false);
+          setIsLoadingSubtypes(false);
         }
       }
     };
 
-    fetchVariants();
-  }, [availableVariants.length, isLoadingVariants]);
+    fetchSubtypes();
+  }, [availableSubtypes.length, isLoadingSubtypes]);
 
-  // Clear affiliation and origin when gang type changes
+  // Clear affiliation, origin, and gang variant when gang type (root) changes
   const [prevGangType, setPrevGangType] = useState(gangType);
   if (gangType !== prevGangType) {
     setPrevGangType(gangType);
     setSelectedAffiliation("");
     setSelectedOrigin("");
+    setGangVariantId(null);
 
     if (gangType) {
       const imageUrls = gangTypeImageArrays[gangType] || [];
@@ -324,12 +351,25 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
     }
   }
 
-  // Update credits when Wasteland variant is selected/deselected
-  const [prevSelectedVariants, setPrevSelectedVariants] = useState(selectedVariants);
-  if (selectedVariants !== prevSelectedVariants) {
-    setPrevSelectedVariants(selectedVariants);
-    const wastelandVariant = selectedVariants.find(v => v.variant === 'Wasteland');
-    if (wastelandVariant) {
+  // When gang variant changes, clamp image index to that type's own gallery
+  const [prevGangVariantId, setPrevGangVariantId] = useState<string | null>(gangVariantId);
+  if (gangVariantId !== prevGangVariantId) {
+    setPrevGangVariantId(gangVariantId);
+    const galleryId = gangVariantId ?? gangType;
+    if (galleryId) {
+      const imageUrls = gangTypeImageArrays[galleryId] || [];
+      if (imageUrls.length > 0 && currentImageIndex >= imageUrls.length) {
+        setCurrentImageIndex(Math.min(DEFAULT_IMAGE_INDEX, imageUrls.length - 1));
+      }
+    }
+  }
+
+  // Update credits when Wasteland subtype is selected/deselected
+  const [prevSelectedSubtypes, setPrevSelectedSubtypes] = useState(selectedSubtypes);
+  if (selectedSubtypes !== prevSelectedSubtypes) {
+    setPrevSelectedSubtypes(selectedSubtypes);
+    const wastelandSubtype = selectedSubtypes.find(v => v.subtype === 'Wasteland');
+    if (wastelandSubtype) {
       setCredits("1400");
     } else {
       if (credits === "1400") {
@@ -345,8 +385,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
     }
     
     // Check if affiliation is required and selected
-    const selectedGangType = gangTypes.find(type => type.gang_type_id === gangType);
-    if (selectedGangType?.affiliation && !selectedAffiliation) {
+    if (resolvedGangType?.affiliation && !selectedAffiliation) {
       return false;
     }
     
@@ -364,7 +403,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
       setIsLoading(true)
       setError(null)
       try {
-        const selectedGangType = gangTypes.find(type => type.gang_type_id === gangType);
+        const selectedGangType = resolvedGangType;
         if (!selectedGangType) {
           throw new Error('Invalid gang type selected');
         }
@@ -374,15 +413,17 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
         // Use the server action to create the gang
         const result = await createGang({
           name: gangName,
-          gangTypeId: selectedGangType.is_custom ? '' : gangType,
-          customGangTypeId: selectedGangType.is_custom ? gangType : undefined,
+          gangTypeId: selectedGangType.is_custom ? '' : selectedGangType.gang_type_id,
+          customGangTypeId: selectedGangType.is_custom ? selectedGangType.gang_type_id : undefined,
           gangType: selectedGangType.gang_type,
           alignment: selectedGangType.alignment,
           gangAffiliationId: selectedAffiliation || null,
           gangOriginId: selectedOrigin || null,
           credits: parseInt(credits),
-          gangVariants: selectedVariants.map(v => v.id),
-          defaultGangImage: currentImageIndex
+          gangSubtypes: selectedSubtypes.map(v => v.id),
+          defaultGangImage: (gangTypeImageArrays[resolvedGangTypeId] || []).length > 0
+            ? currentImageIndex
+            : null
         });
 
         if (!result.success) {
@@ -394,11 +435,12 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
         // Reset form and close modal first for better UX
         setGangName("")
         setGangType("")
+        setGangVariantId(null)
         setSelectedAffiliation("")
         setSelectedOrigin("")
         setCredits("1000")
-        setSelectedVariants([])
-        setShowVariants(false)
+        setSelectedSubtypes([])
+        setShowSubtypes(false)
         onClose()
         
         // Check if we're currently on the gangs tab, if not redirect to it
@@ -489,105 +531,144 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
               disabled={isLoadingGangTypes}
             />
           </div>
+
+          {gangVariantOptions.length > 0 && (
+            <div>
+              <span className="block text-sm font-medium text-muted-foreground mb-1">
+                Gang Variant
+              </span>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      id="gang-variant-standard"
+                      name="gang-variant"
+                      checked={gangVariantId === null}
+                      onChange={() => setGangVariantId(null)}
+                      className="h-4 w-4 text-foreground focus:ring-black border-border"
+                    />
+                    <label htmlFor="gang-variant-standard" className="text-sm cursor-pointer">
+                      Standard
+                    </label>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2">
+                  {gangVariantOptions.map((variant) => (
+                    <div key={variant.gang_type_id} className="flex items-center space-x-2">
+                      <input
+                        type="radio"
+                        id={`gang-variant-${variant.gang_type_id}`}
+                        name="gang-variant"
+                        checked={gangVariantId === variant.gang_type_id}
+                        onChange={() => setGangVariantId(variant.gang_type_id)}
+                        className="h-4 w-4 text-foreground focus:ring-black border-border"
+                      />
+                      <label
+                        htmlFor={`gang-variant-${variant.gang_type_id}`}
+                        className="text-sm cursor-pointer"
+                      >
+                        {variant.gang_type}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
           
           {/* Conditional Affiliation Dropdown - moved to be right after Gang Type */}
-          {(() => {
-            const selectedGangType = gangTypes.find(type => type.gang_type_id === gangType);
-            return selectedGangType?.affiliation ? (
-              <div>
-                <label htmlFor="gang-affiliation" className="block text-sm font-medium text-muted-foreground mb-1">
-                  Gang Affiliation *
-                </label>
-                <select
-                  id="gang-affiliation"
-                  value={selectedAffiliation}
-                  onChange={(e) => setSelectedAffiliation(e.target.value)}
-                  className="w-full px-3 py-2 rounded-md border border-border focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="">Select gang affiliation</option>
-                  {selectedGangType.available_affiliations.map((affiliation) => (
-                    <option key={affiliation.id} value={affiliation.id}>
-                      {affiliation.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : null;
-          })()}
+          {resolvedGangType?.affiliation ? (
+            <div>
+              <label htmlFor="gang-affiliation" className="block text-sm font-medium text-muted-foreground mb-1">
+                Gang Affiliation *
+              </label>
+              <select
+                id="gang-affiliation"
+                value={selectedAffiliation}
+                onChange={(e) => setSelectedAffiliation(e.target.value)}
+                className="w-full px-3 py-2 rounded-md border border-border focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">Select gang affiliation</option>
+                {resolvedGangType.available_affiliations.map((affiliation) => (
+                  <option key={affiliation.id} value={affiliation.id}>
+                    {affiliation.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
 
           {/* Conditional Gang Origin Dropdown */}
-          {(() => {
-            const selectedGangType = gangTypes.find(type => type.gang_type_id === gangType);
-            return selectedGangType?.gang_origin_category_id && selectedGangType.available_origins?.length > 0 ? (
-              <div>
-                <label htmlFor="gang-origin" className="block text-sm font-medium text-muted-foreground mb-1">
-                  {selectedGangType.available_origins[0]?.category_name || 'Gang Origin'}
-                </label>
-                <select
-                  id="gang-origin"
-                  value={selectedOrigin}
-                  onChange={(e) => setSelectedOrigin(e.target.value)}
-                  className="w-full px-3 py-2 rounded-md border border-border focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="">None</option>
-                  {selectedGangType.available_origins
-                    .sort((a, b) => a.origin_name.localeCompare(b.origin_name))
-                    .map((origin) => (
-                      <option key={origin.id} value={origin.id}>
-                        {origin.origin_name}
-                      </option>
-                    ))}
-                </select>
-              </div>
-            ) : null;
-          })()}
+          {resolvedGangType?.gang_origin_category_id && resolvedGangType.available_origins?.length > 0 ? (
+            <div>
+              <label htmlFor="gang-origin" className="block text-sm font-medium text-muted-foreground mb-1">
+                {resolvedGangType.available_origins[0]?.category_name || 'Gang Origin'}
+              </label>
+              <select
+                id="gang-origin"
+                value={selectedOrigin}
+                onChange={(e) => setSelectedOrigin(e.target.value)}
+                className="w-full px-3 py-2 rounded-md border border-border focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">None</option>
+                {resolvedGangType.available_origins
+                  .sort((a, b) => a.origin_name.localeCompare(b.origin_name))
+                  .map((origin) => (
+                    <option key={origin.id} value={origin.id}>
+                      {origin.origin_name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          ) : null}
 
-          {/* Gang Variants Section — only when the edition has variant types */}
-          {editionVariants.length > 0 && (
+          {/* Gang Subtypes Section — only when the edition has subtype types */}
+          {editionSubtypes.length > 0 && (
             <div className="mt-4">
               <div className="flex items-center space-x-2">
-                <label htmlFor="variant-toggle" className="text-sm font-medium">
-                  Gang Variants
+                <label htmlFor="subtype-toggle" className="text-sm font-medium text-muted-foreground">
+                  Gang Subtypes
                 </label>
                 <Switch
-                  id="variant-toggle"
-                  checked={showVariants}
-                  onCheckedChange={setShowVariants}
+                  id="subtype-toggle"
+                  checked={showSubtypes}
+                  onCheckedChange={setShowSubtypes}
                 />
               </div>
 
-              {showVariants && (
+              {showSubtypes && (
                 <div className="grid grid-cols-2 gap-4 mt-2">
-                  {/* Unaffiliated variants */}
+                  {/* Unaffiliated subtypes */}
                   <div>
                     <h3 className="text-xs font-semibold text-muted-foreground mb-1">Unaffiliated</h3>
                     <div className="flex flex-col gap-2">
-                      {editionVariants
-                        .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? Infinity) <= 9)
+                      {editionSubtypes
+                        .filter(v => (gangSubtypeRank[v.subtype.toLowerCase()] ?? Infinity) <= 9)
                         .sort((a, b) =>
-                          (gangVariantRank[a.variant.toLowerCase()] ?? Infinity) -
-                          (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
+                          (gangSubtypeRank[a.subtype.toLowerCase()] ?? Infinity) -
+                          (gangSubtypeRank[b.subtype.toLowerCase()] ?? Infinity)
                         )
-                        .map((variant) => (
-                          <React.Fragment key={variant.id}>
+                        .map((subtype) => (
+                          <React.Fragment key={subtype.id}>
                             {/* Insert separator before 'skirmish' */}
-                            {variant.variant.toLowerCase() === "skirmish" && (
+                            {subtype.subtype.toLowerCase() === "skirmish" && (
                               <div className="border-t border-border" />
                             )}
                             <div className="flex items-center space-x-2">
                               <Checkbox
-                                id={`variant-${variant.id}`}
-                                checked={selectedVariants.some(v => v.id === variant.id)}
+                                id={`subtype-${subtype.id}`}
+                                checked={selectedSubtypes.some(v => v.id === subtype.id)}
                                 onCheckedChange={(checked) => {
                                   if (checked) {
-                                    setSelectedVariants(prev => [...prev, variant]);
+                                    setSelectedSubtypes(prev => [...prev, subtype]);
                                   } else {
-                                    setSelectedVariants(prev => prev.filter(v => v.id !== variant.id));
+                                    setSelectedSubtypes(prev => prev.filter(v => v.id !== subtype.id));
                                   }
                                 }}
                               />
-                              <label htmlFor={`variant-${variant.id}`} className="text-sm cursor-pointer">
-                                {variant.variant}
+                              <label htmlFor={`subtype-${subtype.id}`} className="text-sm cursor-pointer">
+                                {subtype.subtype}
                               </label>
                             </div>
                           </React.Fragment>
@@ -595,31 +676,31 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
                     </div>
                   </div>
 
-                  {/* Outlaw/Corrupted variants*/}
+                  {/* Outlaw/Corrupted subtypes*/}
                   <div>
                     <h3 className="text-xs font-semibold text-muted-foreground mb-1">Outlaw / Corrupted</h3>
                     <div className="flex flex-col gap-2">
-                      {editionVariants
-                        .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? -1) >= 10)
+                      {editionSubtypes
+                        .filter(v => (gangSubtypeRank[v.subtype.toLowerCase()] ?? -1) >= 10)
                         .sort((a, b) =>
-                          (gangVariantRank[a.variant.toLowerCase()] ?? Infinity) -
-                          (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
+                          (gangSubtypeRank[a.subtype.toLowerCase()] ?? Infinity) -
+                          (gangSubtypeRank[b.subtype.toLowerCase()] ?? Infinity)
                         )
-                        .map(variant => (
-                          <div key={variant.id} className="flex items-center space-x-2">
+                        .map(subtype => (
+                          <div key={subtype.id} className="flex items-center space-x-2">
                             <Checkbox
-                              id={`variant-${variant.id}`}
-                              checked={selectedVariants.some(v => v.id === variant.id)}
+                              id={`subtype-${subtype.id}`}
+                              checked={selectedSubtypes.some(v => v.id === subtype.id)}
                               onCheckedChange={(checked) => {
                                 if (checked) {
-                                  setSelectedVariants(prev => [...prev, variant]);
+                                  setSelectedSubtypes(prev => [...prev, subtype]);
                                 } else {
-                                  setSelectedVariants(prev => prev.filter(v => v.id !== variant.id));
+                                  setSelectedSubtypes(prev => prev.filter(v => v.id !== subtype.id));
                                 }
                               }}
                             />
-                            <label htmlFor={`variant-${variant.id}`} className="text-sm cursor-pointer">
-                              {variant.variant}
+                            <label htmlFor={`subtype-${subtype.id}`} className="text-sm cursor-pointer">
+                              {subtype.subtype}
                             </label>
                           </div>
                         ))}
@@ -647,8 +728,8 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
 
           {/* Gang Image Display */}
           {gangType && (() => {
-            const selectedGangType = gangTypes.find(type => type.gang_type_id === gangType);
-            const imageEntries = gangTypeImageArrays[gangType] || [];
+            const selectedGangType = resolvedGangType;
+            const imageEntries = gangTypeImageArrays[resolvedGangTypeId] || [];
             const gangTypeName = selectedGangType?.gang_type || '';
             const currentEntry = imageEntries.length > 0 && currentImageIndex < imageEntries.length
               ? imageEntries[currentImageIndex]
@@ -724,17 +805,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
                     )}
                   </div>
                 </div>
-                {displayCredit ? (
-                  <p className="text-xs italic text-center text-muted-foreground mt-1">
-                    Illustration by{' '}
-                    <a href={displayCredit.url} target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
-                      {displayCredit.name}
-                    </a>
-                    {displayCredit.suffix && ` ${displayCredit.suffix}`}
-                  </p>
-                ) : (
-                  <p className="text-xs mt-1">&nbsp;</p>
-                )}
+                <DefaultImageCreditLine credit={displayCredit} />
               </>
             );
           })()}

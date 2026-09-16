@@ -183,6 +183,7 @@ export interface FighterProps {
   captured_by_gang_name?: string;
   free_skill?: boolean;
   fighter_subtypes: string[];
+  promoted_from_prospect?: boolean;
   note?: string;
   effects: {
     injuries: FighterEffect[];

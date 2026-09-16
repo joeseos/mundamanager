@@ -23,7 +23,7 @@ import { Combobox } from '@/components/ui/combobox';
 import type { BattleSessionFull } from '@/types/battle-session';
 import type { Scenario } from '@/types/campaign';
 import { sameEditionForDisplay } from '@/types/edition';
-import type { GangFighter } from '@/app/lib/shared/gang-data';
+import type { GangFighter } from '@/types/gang';
 
 interface ActiveSessionProps {
   session: BattleSessionFull;

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
+import type { CampaignMapRow, CampaignMapObjectRow } from '@/types/campaign';
 import { createClient } from '@/utils/supabase/client';
 import {
   validateImageFile,
@@ -121,7 +122,17 @@ interface CampaignMapEditorModalProps {
   territories: Territory[];
   allGangs: Gang[];
   onClose: () => void;
-  onSave: () => void;
+  /** The saved map, its objects and the associations that changed, for the page to patch in. */
+  onSaved: (next: {
+    map: CampaignMapRow | null;
+    objects: CampaignMapObjectRow[];
+    associations: Array<{
+      territoryId: string;
+      mapObjectId: string | null;
+      mapHexCoords: { x: number; y: number; z: number } | null;
+      showNameOnMap: boolean;
+    }>;
+  }) => void;
 }
 
 type EditorStep = 'image' | 'editor';
@@ -167,7 +178,7 @@ export default function CampaignMapEditorModal({
   territories,
   allGangs: _allGangs,
   onClose,
-  onSave,
+  onSaved,
 }: CampaignMapEditorModalProps) {
   const isEditing = !!mapData;
 
@@ -1164,6 +1175,7 @@ export default function CampaignMapEditorModal({
     setIsSaving(true);
     try {
       // Create or update the map
+      let savedMap: CampaignMapRow | null = null;
       if (isEditing) {
         const result = await updateCampaignMap({
           campaignId,
@@ -1175,6 +1187,7 @@ export default function CampaignMapEditorModal({
           toast.error(result.error ?? 'Failed to update map');
           return false;
         }
+        savedMap = (result.data as CampaignMapRow) ?? null;
       } else {
         const result = await createCampaignMap({
           campaignId,
@@ -1186,6 +1199,7 @@ export default function CampaignMapEditorModal({
           toast.error(result.error ?? 'Failed to create map');
           return false;
         }
+        savedMap = (result.data as CampaignMapRow) ?? null;
       }
 
       if (deletedObjectIds.length > 0) {
@@ -1207,6 +1221,7 @@ export default function CampaignMapEditorModal({
 
       // Upsert objects and resolve new IDs via the explicit tempId mapping
       // returned by the server (avoids relying on positional indexing).
+      let savedObjects: CampaignMapObjectRow[] = [];
       if (localObjects.length > 0) {
         const result = await upsertMapObjects({
           campaignId,
@@ -1227,6 +1242,7 @@ export default function CampaignMapEditorModal({
         Object.entries(tempIdToId).forEach(([tempId, realId]) => {
           tempToRealId.set(tempId, realId);
         });
+        savedObjects = (result.data as CampaignMapObjectRow[]) ?? [];
       }
 
       // Save territory associations, resolving temp IDs to real DB IDs
@@ -1241,15 +1257,17 @@ export default function CampaignMapEditorModal({
         );
       });
 
-      if (changedAssociations.length > 0) {
+      const resolvedAssociations = changedAssociations.map(a => ({
+        territoryId: a.territoryId,
+        mapObjectId: a.mapObjectTempId ? (tempToRealId.get(a.mapObjectTempId) ?? a.mapObjectTempId) : null,
+        mapHexCoords: a.mapHexCoords ?? null,
+        showNameOnMap: a.showNameOnMap,
+      }));
+
+      if (resolvedAssociations.length > 0) {
         const result = await bulkUpdateTerritoryMapAssociations({
           campaignId,
-          associations: changedAssociations.map(a => ({
-            territoryId: a.territoryId,
-            mapObjectId: a.mapObjectTempId ? (tempToRealId.get(a.mapObjectTempId) ?? a.mapObjectTempId) : null,
-            mapHexCoords: a.mapHexCoords,
-            showNameOnMap: a.showNameOnMap,
-          })),
+          associations: resolvedAssociations,
         });
         if (!result.success) {
           toast.error(result.error ?? 'Failed to save territory associations');
@@ -1258,7 +1276,7 @@ export default function CampaignMapEditorModal({
       }
 
       toast.success(isEditing ? 'Map updated' : 'Map created');
-      onSave();
+      onSaved({ map: savedMap, objects: savedObjects, associations: resolvedAssociations });
       return true;
     } catch {
       toast.error('Failed to save map');
@@ -1268,7 +1286,7 @@ export default function CampaignMapEditorModal({
     }
   }, [
     selectedImageUrl, isEditing, campaignId, hexGridEnabled, hexSize,
-    deletedObjectIds, localObjects, associations, territories, onSave,
+    deletedObjectIds, localObjects, associations, territories, onSaved,
   ]);
 
   const handleDeleteMap = useCallback(async () => {
@@ -1283,7 +1301,7 @@ export default function CampaignMapEditorModal({
 
       toast.success('Map successfully deleted.');
 
-      onSave(); // Trigger parent refresh
+      onSaved({ map: null, objects: [], associations: [] });
       onClose();
     } catch (error) {
       console.error('Error deleting map:', error);
@@ -1298,7 +1316,7 @@ export default function CampaignMapEditorModal({
       setShowDeleteModal(false);
       setDeleteConfirmText('');
     }
-  }, [campaignId, onClose, onSave]);
+  }, [campaignId, onClose, onSaved]);
 
   const paletteItems = useMemo(
     () => MARKER_ICON_KEYS.map(key => ({

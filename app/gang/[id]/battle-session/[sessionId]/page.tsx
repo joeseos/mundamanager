@@ -2,7 +2,8 @@ import { createClient } from '@/utils/supabase/server';
 import { redirect, notFound } from 'next/navigation';
 import { getAuthenticatedUser, signInPath } from '@/utils/auth';
 import { getBattleSessionCached } from '@/app/lib/battle-sessions/get-battle-session-data';
-import { getGangFightersList, getGangPositioning, type GangFighter } from '@/app/lib/shared/gang-data';
+import { getGangFightersList, getGangPositioning } from '@/app/lib/shared/gang-data';
+import type { GangFighter } from '@/types/gang';
 import { getCampaignTerritories } from '@/app/lib/campaigns/[id]/get-campaign-data';
 import { getScenariosCached } from '@/app/lib/reference-data';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
@@ -49,7 +50,7 @@ export async function renderBattleSessionPage(sessionId: string, currentPath: st
     Promise.all(uniqueGangIds.map((gId) => getGangFightersList(gId, supabase, { expandLoadoutsForPrint: true }))),
     Promise.all(uniqueGangIds.map((gId) => getGangPositioning(gId, supabase))),
     getScenariosCached(supabase),
-    session.campaign_id ? getCampaignTerritories(session.campaign_id, supabase) : Promise.resolve([]),
+    session.campaign_id ? getCampaignTerritories(session.campaign_id) : Promise.resolve([]),
   ]);
 
   const gangFightersMap: Record<string, GangFighter[]> = {};

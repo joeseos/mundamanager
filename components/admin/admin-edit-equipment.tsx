@@ -8,11 +8,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
 import { toast } from 'sonner';
 import { FighterType } from "@/types/fighter";
-import { WeaponProfileInput, emptyWeaponProfile, EquipmentGrants, EquipmentAvailability, EquipmentOriginAvailability, EquipmentVariantAvailability, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
+import { WeaponProfileInput, emptyWeaponProfile, EquipmentGrants, EquipmentAvailability, EquipmentOriginAvailability, EquipmentSubtypeAvailability, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
+import { FighterTypeGrant } from "@/types/fighter-type";
 import { HiX } from "react-icons/hi";
 import { getFighterSubtypeSortRank } from "@/utils/fighterSubtypeRank";
-import { gangOriginRank } from "@/utils/gangOriginRank";
-import { gangVariantRank } from "@/utils/gangVariantRank";
+import { GangOriginOptions, GangSubtypeOptions } from "./gang-scope-options";
 import { AdminFighterEffects } from "./admin-fighter-effects";
 import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
 import { hasLethalityStatline, hasTradePoints } from '@/types/edition';
@@ -35,6 +35,21 @@ interface AdminEditEquipmentModalProps {
 
 const EQUIPMENT_TYPES = ['wargear', 'weapon', 'vehicle_upgrade'] as const;
 type EquipmentType = typeof EQUIPMENT_TYPES[number];
+
+// Omits excluded, as fighter_type_equipment_fighter_scope_uidx does, so a grant and a deny for
+// one scope collide.
+const grantKey = (grant: FighterTypeGrant) =>
+  [grant.fighter_type_id, grant.gang_origin_id, grant.gang_subtype_id, grant.fighter_subtype]
+    .map(part => part ?? '')
+    .join('|');
+
+const fighterTypeLabel = (ft: FighterType) => {
+  const suffix = [ft.fighter_variant, ft.fighter_specialisations?.specialisation_name]
+    .filter(Boolean)
+    .map(n => ` - ${n}`)
+    .join('');
+  return `${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_subtypes?.join(', ')})${suffix}`;
+};
 
 /** Blank grant options only when the target is found with a confirmed different edition. */
 function sanitizeGrantsOptionsForEdition(
@@ -102,7 +117,13 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [weaponProfiles, setWeaponProfiles] = useState<WeaponProfileInput[]>([emptyWeaponProfile(1)]);
   const [categoryFilter, setCategoryFilter] = useState('');
   const [fighterTypes, setFighterTypes] = useState<FighterType[]>([]);
-  const [selectedFighterTypes, setSelectedFighterTypes] = useState<string[]>([]);
+  const [fighterTypeGrants, setFighterTypeGrants] = useState<FighterTypeGrant[]>([]);
+  const [showScopedGrantDialog, setShowScopedGrantDialog] = useState(false);
+  const [scopedGrantFighterType, setScopedGrantFighterType] = useState('');
+  const [scopedGrantOrigin, setScopedGrantOrigin] = useState('');
+  const [scopedGrantGangSubtype, setScopedGrantGangSubtype] = useState('');
+  const [scopedGrantSubtype, setScopedGrantSubtype] = useState('');
+  const [scopedGrantExcluded, setScopedGrantExcluded] = useState(false);
   const [showAdjustedCostDialog, setShowAdjustedCostDialog] = useState(false);
   const [selectedGangType, setSelectedGangType] = useState("");
   const [adjustedCostValue, setAdjustedCostValue] = useState("");
@@ -123,10 +144,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [originAvailValueNumber, setOriginAvailValueNumber] = useState(6);
   const [equipmentOriginAvailabilities, setEquipmentOriginAvailabilities] = useState<EquipmentOriginAvailability[]>([]);
   const [showVariantAvailabilityDialog, setShowVariantAvailabilityDialog] = useState(false);
-  const [selectedAvailabilityGangVariant, setSelectedAvailabilityGangVariant] = useState("");
+  const [selectedAvailabilityGangSubtype, setSelectedAvailabilityGangSubtype] = useState("");
   const [variantAvailValueLetter, setVariantAvailValueLetter] = useState('');
   const [variantAvailValueNumber, setVariantAvailValueNumber] = useState(6);
-  const [equipmentVariantAvailabilities, setEquipmentVariantAvailabilities] = useState<EquipmentVariantAvailability[]>([]);
+  const [equipmentSubtypeAvailabilities, setEquipmentSubtypeAvailabilities] = useState<EquipmentSubtypeAvailability[]>([]);
   const [fighterEffects, setFighterEffects] = useState<any[]>([]);
   const [fighterEffectCategories, setFighterEffectCategories] = useState<any[]>([]);
   const [selectedTradingPosts, setSelectedTradingPosts] = useState<string[]>([]);
@@ -175,90 +196,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   // Str, AP, D and Am. Only the stats the selected edition uses are offered.
   const usesLethality = hasLethalityStatline(editionSlug);
 
-  const handleEditionChange = (newEditionId: string) => {
-    setEditionId(newEditionId);
-    if (newEditionId && selectedEquipmentId) {
-      const selected = equipmentList.find(item => item.id === selectedEquipmentId);
-      if (selected && selected.edition_id !== newEditionId) {
-        setSelectedEquipmentId('');
-      }
-    }
-    if (categoryFilter && newEditionId) {
-      // categoryFilter is a name; the same name can exist per edition
-      const stillValid = categories.some(
-        category => category.category_name === categoryFilter && category.edition_id === newEditionId
-      );
-      if (!stillValid) {
-        setCategoryFilter('');
-        setSelectedEquipmentId('');
-      }
-    }
-    if (equipmentCategory) {
-      const selected = categories.find(category => category.id === equipmentCategory);
-      if (selected && newEditionId && selected.edition_id !== newEditionId) {
-        setEquipmentCategory('');
-      }
-    }
-    // Gang types are edition-scoped; clear any in-progress Cost-per-Gang pick
-    setSelectedGangType('');
-    // Drop trading posts / fighter types that belong to another edition
-    if (newEditionId) {
-      setSelectedTradingPosts(prev =>
-        prev.filter(id => {
-          const tp = tradingPostTypes.find(t => t.id === id);
-          return !tp || tp.edition_id === newEditionId;
-        })
-      );
-      setSelectedFighterTypes(prev =>
-        prev.filter(id => {
-          const ft = fighterTypes.find(f => f.id === id);
-          return !ft || ft.edition_id === newEditionId;
-        })
-      );
-      // Cost per Gang is keyed on a gang type, which is edition-scoped too
-      setGangAdjustedCosts(prev =>
-        prev.filter(cost => {
-          const gt = gangTypeOptions.find(g => g.gang_type_id === cost.gang_type_id);
-          return !gt || gt.edition_id === newEditionId;
-        })
-      );
-    }
-    // N26 uses Trade Points instead of Availability; drop stale N23 rows
-    if (hasTradePoints(editionSlugOf(editions, newEditionId))) {
-      setShowAvailabilityDialog(false);
-      setSelectedAvailabilityGangType('');
-      setAvailValueLetter('');
-      setAvailValueNumber(6);
-      setAvailExclusive(false);
-      setEquipmentAvailabilities([]);
-      setShowOriginAvailabilityDialog(false);
-      setSelectedAvailabilityGangOrigin('');
-      setOriginAvailValueLetter('');
-      setOriginAvailValueNumber(6);
-      setEquipmentOriginAvailabilities([]);
-      setShowVariantAvailabilityDialog(false);
-      setSelectedAvailabilityGangVariant('');
-      setVariantAvailValueLetter('');
-      setVariantAvailValueNumber(6);
-      setEquipmentVariantAvailabilities([]);
-    }
-    // Weapon Group parents are edition-scoped; drop a cross-edition pick
-    if (newEditionId) {
-      setWeaponProfiles(profiles => profiles.map(profile => {
-        if (!profile.weapon_group_id) return profile;
-        const parent = weapons.find(w => w.id === profile.weapon_group_id);
-        if (parent && parent.edition_id !== newEditionId) {
-          return { ...profile, weapon_group_id: null };
-        }
-        return profile;
-      }));
-      // Grants options are edition-scoped; blank confirmed cross-edition picks
-      setGrantsEquipment(current =>
-        current ? sanitizeGrantsOptionsForEdition(current, allEquipment, newEditionId) : current
-      );
-    }
-  };
-
   const { data: equipmentDetails, isLoading: isEquipmentDetailsLoading } = useQuery<any>({
     queryKey: ['admin-equipment-details', selectedEquipmentId],
     queryFn: async () => {
@@ -296,8 +233,9 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       setGangOriginAdjustedCosts([]);
       setEquipmentAvailabilities([]);
       setEquipmentOriginAvailabilities([]);
-      setEquipmentVariantAvailabilities([]);
+      setEquipmentSubtypeAvailabilities([]);
       setSelectedTradingPosts([]);
+      setFighterTypeGrants([]);
     } else if (equipmentDetails) {
       setEquipmentName(equipmentDetails.equipment_name);
       const parsed = parseAvailability(equipmentDetails.availability);
@@ -364,10 +302,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         })));
       }
 
-      if (equipmentDetails.equipment_variant_availabilities) {
-        setEquipmentVariantAvailabilities(equipmentDetails.equipment_variant_availabilities.map((a: any) => ({
-          variant: a.variant,
-          gang_variant_id: a.gang_variant_id,
+      if (equipmentDetails.equipment_subtype_availabilities) {
+        setEquipmentSubtypeAvailabilities(equipmentDetails.equipment_subtype_availabilities.map((a: any) => ({
+          subtype: a.subtype,
+          gang_subtype_id: a.gang_subtype_id,
           availability: a.availability
         })));
       }
@@ -393,7 +331,15 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       }
 
       if (equipmentDetails.fighter_types_with_equipment) {
-        setSelectedFighterTypes(equipmentDetails.fighter_types_with_equipment.map((ft: any) => ft.fighter_type_id));
+        setFighterTypeGrants(equipmentDetails.fighter_types_with_equipment.map((ft: any): FighterTypeGrant => ({
+          fighter_type_id: ft.fighter_type_id ?? null,
+          // Always null: scopeToFighterTypeGrants reads only rows this screen owns
+          gang_type_id: null,
+          gang_origin_id: ft.gang_origin_id ?? null,
+          gang_subtype_id: ft.gang_subtype_id ?? null,
+          fighter_subtype: ft.fighter_subtype ?? null,
+          excluded: ft.excluded ?? false
+        })));
       }
 
       if (equipmentDetails.weapon_profiles && equipmentDetails.weapon_profiles.length > 0) {
@@ -451,31 +397,202 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   );
 
   const filteredFighterTypes = useMemo(
-    () => editionId ? fighterTypes.filter(ft => ft.edition_id === editionId) : fighterTypes,
-    [fighterTypes, editionId]
+    () => (editionId ? fighterTypes.filter(ft => ft.edition_id === editionId) : [...fighterTypes])
+      .sort((a, b) => {
+        const gangCompare = a.gang_type.localeCompare(b.gang_type);
+        if (gangCompare !== 0) return gangCompare;
+        // Subtype priority is per fighter type's own edition
+        const subtypeCompare =
+          getFighterSubtypeSortRank(a.fighter_subtypes, editionSlugOf(editions, a.edition_id))
+          - getFighterSubtypeSortRank(b.fighter_subtypes, editionSlugOf(editions, b.edition_id));
+        if (subtypeCompare !== 0) return subtypeCompare;
+        return a.fighter_type.localeCompare(b.fighter_type);
+      }),
+    [fighterTypes, editionId, editions]
   );
 
-  const { data: gangOriginList = [] } = useQuery<Array<{id: string, origin_name: string, category_name: string}>>({
+  const { data: gangOriginList = [] } = useQuery<Array<{id: string, origin_name: string, category_name: string, edition_id?: string | null}>>({
     queryKey: ['admin-gang-origins'],
     queryFn: async () => {
       const response = await fetch('/api/admin/gang-origins');
       if (!response.ok) throw new Error('Failed to fetch gang origins');
       return response.json();
     },
-    enabled: showOriginAvailabilityDialog || showOriginAdjustedCostDialog,
+    // Also needed unopened, to label scoped grants
+    enabled: !!selectedEquipmentId || showOriginAvailabilityDialog || showOriginAdjustedCostDialog,
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: gangVariantList = [] } = useQuery<Array<{id: string, variant: string}>>({
-    queryKey: ['admin-gang-variants'],
+  const { data: gangSubtypeList = [] } = useQuery<Array<{id: string, subtype: string, edition_id?: string | null, edition_slug?: string | null}>>({
+    queryKey: ['admin-gang-subtypes'],
     queryFn: async () => {
-      const response = await fetch('/api/gang-variant-types');
-      if (!response.ok) throw new Error('Failed to fetch gang variants');
+      const response = await fetch('/api/gang-subtype-types');
+      if (!response.ok) throw new Error('Failed to fetch gang subtypes');
       return response.json();
     },
-    enabled: showVariantAvailabilityDialog,
+    // Also needed unopened, to label scoped grants
+    enabled: !!selectedEquipmentId || showVariantAvailabilityDialog,
     staleTime: 5 * 60 * 1000,
   });
+
+  // Origin and subtype names repeat across editions under different ids
+  const filteredGangOrigins = useMemo(
+    () => editionId ? gangOriginList.filter(origin => origin.edition_id === editionId) : gangOriginList,
+    [gangOriginList, editionId]
+  );
+
+  const filteredGangSubtypes = useMemo(
+    () => editionId ? gangSubtypeList.filter(subtype => subtype.edition_id === editionId) : gangSubtypeList,
+    [gangSubtypeList, editionId]
+  );
+
+  const { data: fighterSubtypeList = [] } = useQuery<Array<{id: string, subtype_name: string, edition_id?: string | null}>>({
+    queryKey: ['admin-fighter-subtypes'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/fighter-subtypes');
+      if (!response.ok) throw new Error('Failed to fetch fighter subtypes');
+      return response.json();
+    },
+    enabled: !!selectedEquipmentId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Subtypes are stored on the grant by name, but the names are per edition
+  const filteredFighterSubtypes = useMemo(
+    () => (editionId ? fighterSubtypeList.filter(s => s.edition_id === editionId) : [...fighterSubtypeList])
+      .sort((a, b) =>
+        getFighterSubtypeSortRank([a.subtype_name], editionSlugOf(editions, a.edition_id))
+        - getFighterSubtypeSortRank([b.subtype_name], editionSlugOf(editions, b.edition_id))
+      ),
+    [fighterSubtypeList, editionId, editions]
+  );
+
+  const closeScopedGrantDialog = () => {
+    setShowScopedGrantDialog(false);
+    setScopedGrantFighterType("");
+    setScopedGrantOrigin("");
+    setScopedGrantGangSubtype("");
+    setScopedGrantSubtype("");
+    setScopedGrantExcluded(false);
+  };
+
+  const handleEditionChange = (newEditionId: string) => {
+    setEditionId(newEditionId);
+    const newSlug = editionSlugOf(editions, newEditionId);
+    if (newEditionId && selectedEquipmentId) {
+      const selected = equipmentList.find(item => item.id === selectedEquipmentId);
+      if (selected && selected.edition_id !== newEditionId) {
+        setSelectedEquipmentId('');
+      }
+    }
+    if (categoryFilter && newEditionId) {
+      // categoryFilter is a name; the same name can exist per edition
+      const stillValid = categories.some(
+        category => category.category_name === categoryFilter && category.edition_id === newEditionId
+      );
+      if (!stillValid) {
+        setCategoryFilter('');
+        setSelectedEquipmentId('');
+      }
+    }
+    if (equipmentCategory) {
+      const selected = categories.find(category => category.id === equipmentCategory);
+      if (selected && newEditionId && selected.edition_id !== newEditionId) {
+        setEquipmentCategory('');
+      }
+    }
+    // Gang types are edition-scoped; clear any in-progress Cost-per-Gang pick
+    setSelectedGangType('');
+    // Origin/gang-subtype/fighter-subtype picks are edition-scoped too; drop in-progress ones
+    setSelectedAdjustedCostGangOrigin('');
+    setSelectedAvailabilityGangOrigin('');
+    setSelectedAvailabilityGangSubtype('');
+    setScopedGrantFighterType('');
+    setScopedGrantSubtype('');
+    setScopedGrantOrigin('');
+    setScopedGrantGangSubtype('');
+    // Drop trading posts / fighter types that belong to another edition
+    if (newEditionId) {
+      setSelectedTradingPosts(prev =>
+        prev.filter(id => {
+          const tp = tradingPostTypes.find(t => t.id === id);
+          return !tp || tp.edition_id === newEditionId;
+        })
+      );
+      // fighter_subtype is not judged: it is stored by name, and names repeat per edition
+      setFighterTypeGrants(prev =>
+        prev.filter(grant => {
+          const ft = fighterTypes.find(f => f.id === grant.fighter_type_id);
+          if (ft && ft.edition_id !== newEditionId) return false;
+          const origin = gangOriginList.find(o => o.id === grant.gang_origin_id);
+          if (origin && origin.edition_id !== newEditionId) return false;
+          const subtype = gangSubtypeList.find(v => v.id === grant.gang_subtype_id);
+          if (subtype && subtype.edition_id !== newEditionId) return false;
+          return true;
+        })
+      );
+      // Cost per Gang is keyed on a gang type, which is edition-scoped too
+      setGangAdjustedCosts(prev =>
+        prev.filter(cost => {
+          const gt = gangTypeOptions.find(g => g.gang_type_id === cost.gang_type_id);
+          return !gt || gt.edition_id === newEditionId;
+        })
+      );
+      // Origin- and subtype-scoped rows are edition-scoped as well
+      setGangOriginAdjustedCosts(prev =>
+        prev.filter(cost => {
+          const origin = gangOriginList.find(o => o.id === cost.gang_origin_id);
+          return !origin || origin.edition_id === newEditionId;
+        })
+      );
+      setEquipmentOriginAvailabilities(prev =>
+        prev.filter(avail => {
+          const origin = gangOriginList.find(o => o.id === avail.gang_origin_id);
+          return !origin || origin.edition_id === newEditionId;
+        })
+      );
+      setEquipmentSubtypeAvailabilities(prev =>
+        prev.filter(avail => {
+          const subtype = gangSubtypeList.find(v => v.id === avail.gang_subtype_id);
+          return !subtype || subtype.edition_id === newEditionId;
+        })
+      );
+    }
+    // N26 uses Trade Points instead of Availability; drop stale N23 rows
+    if (hasTradePoints(newSlug)) {
+      setShowAvailabilityDialog(false);
+      setSelectedAvailabilityGangType('');
+      setAvailValueLetter('');
+      setAvailValueNumber(6);
+      setAvailExclusive(false);
+      setEquipmentAvailabilities([]);
+      setShowOriginAvailabilityDialog(false);
+      setSelectedAvailabilityGangOrigin('');
+      setOriginAvailValueLetter('');
+      setOriginAvailValueNumber(6);
+      setEquipmentOriginAvailabilities([]);
+      setShowVariantAvailabilityDialog(false);
+      setSelectedAvailabilityGangSubtype('');
+      setVariantAvailValueLetter('');
+      setVariantAvailValueNumber(6);
+      setEquipmentSubtypeAvailabilities([]);
+    }
+    // Weapon Group parents are edition-scoped; drop a cross-edition pick
+    if (newEditionId) {
+      setWeaponProfiles(profiles => profiles.map(profile => {
+        if (!profile.weapon_group_id) return profile;
+        const parent = weapons.find(w => w.id === profile.weapon_group_id);
+        if (parent && parent.edition_id !== newEditionId) {
+          return { ...profile, weapon_group_id: null };
+        }
+        return profile;
+      }));
+      // Grants options are edition-scoped; blank confirmed cross-edition picks
+      setGrantsEquipment(current =>
+        current ? sanitizeGrantsOptionsForEdition(current, allEquipment, newEditionId) : current
+      );
+    }
+  };
 
   const isLoading = isEquipmentDetailsLoading || isWeaponsLoading || isSubmitting;
 
@@ -518,8 +635,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         throw new Error('Invalid category selected');
       }
 
-      const hasEditedFighterTypes = selectedFighterTypes.length !== fighterTypes.filter(ft => selectedFighterTypes.includes(ft.id)).length;
-
       // Validate and normalize grants_equipment - treat empty options as no grants.
       // An option with no equipment picked is dropped: a blank equipment_id can never
       // be granted, and it is not a uuid, so anything casting it downstream breaks.
@@ -553,7 +668,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
             weapon_group_id: profile.weapon_group_id || selectedEquipmentId
           }))
         } : {}),
-        ...(hasEditedFighterTypes ? { fighter_types: selectedFighterTypes } : {}),
+        fighter_type_grants: fighterTypeGrants,
         gang_adjusted_costs: gangAdjustedCosts.map(d => ({
           gang_type_id: d.gang_type_id,
           adjusted_cost: d.adjusted_cost
@@ -575,9 +690,9 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
               availability: a.availability
             }))
           : [],
-        equipment_variant_availabilities: showAvailability
-          ? equipmentVariantAvailabilities.map(a => ({
-              gang_variant_id: a.gang_variant_id,
+        equipment_subtype_availabilities: showAvailability
+          ? equipmentSubtypeAvailabilities.map(a => ({
+              gang_subtype_id: a.gang_subtype_id,
               availability: a.availability
             }))
           : [],
@@ -624,7 +739,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         queryClient.invalidateQueries({ queryKey: ['admin-weapons'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-gang-types'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-gang-origins'] }),
-        queryClient.invalidateQueries({ queryKey: ['admin-gang-variants'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-gang-subtypes'] }),
       ]);
 
       if (onSubmit) {
@@ -1272,6 +1387,9 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         variant="outline"
                         size="sm"
                         className="mb-2"
+                        // Unlike the Availability sections this one renders in every
+                        // edition, so it can be the one with no origins left to add
+                        disabled={gangOriginList.length > 0 && filteredGangOrigins.length === 0}
                       >
                         Add Origin
                       </Button>
@@ -1349,34 +1467,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                 className="w-full p-2 border rounded-md"
                               >
                                 <option key="default" value="">Select a Gang Origin</option>
-                                {Object.entries(
-                                  gangOriginList
-                                    .sort((a, b) => {
-                                      const rankA = gangOriginRank[a.origin_name.toLowerCase()] ?? Infinity;
-                                      const rankB = gangOriginRank[b.origin_name.toLowerCase()] ?? Infinity;
-                                      return rankA - rankB;
-                                    })
-                                    .reduce((groups, origin) => {
-                                      const rank = gangOriginRank[origin.origin_name.toLowerCase()] ?? Infinity;
-                                      let groupLabel = "Misc."; // Default category for unlisted origins
-
-                                      if (rank <= 19) groupLabel = "Prefecture";
-                                      else if (rank <= 39) groupLabel = "Ancestry";
-                                      else if (rank <= 59) groupLabel = "Tribe";
-
-                                      if (!groups[groupLabel]) groups[groupLabel] = [];
-                                      groups[groupLabel].push(origin);
-                                      return groups;
-                                    }, {} as Record<string, typeof gangOriginList>)
-                                ).map(([groupLabel, origins]) => (
-                                  <optgroup key={groupLabel} label={groupLabel}>
-                                    {origins.map((origin) => (
-                                      <option key={origin.id} value={origin.id}>
-                                        {origin.origin_name}
-                                      </option>
-                                    ))}
-                                  </optgroup>
-                                ))}
+                                <GangOriginOptions origins={filteredGangOrigins} />
                               </select>
                             </div>
 
@@ -1488,34 +1579,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                 className="w-full p-2 border rounded-md"
                               >
                                 <option key="default" value="">Select a Gang Origin</option>
-                                {Object.entries(
-                                  gangOriginList
-                                    .sort((a, b) => {
-                                      const rankA = gangOriginRank[a.origin_name.toLowerCase()] ?? Infinity;
-                                      const rankB = gangOriginRank[b.origin_name.toLowerCase()] ?? Infinity;
-                                      return rankA - rankB;
-                                    })
-                                    .reduce((groups, origin) => {
-                                      const rank = gangOriginRank[origin.origin_name.toLowerCase()] ?? Infinity;
-                                      let groupLabel = "Misc."; // Default category for unlisted origins
-
-                                      if (rank <= 19) groupLabel = "Prefecture";
-                                      else if (rank <= 39) groupLabel = "Ancestry";
-                                      else if (rank <= 59) groupLabel = "Tribe";
-
-                                      if (!groups[groupLabel]) groups[groupLabel] = [];
-                                      groups[groupLabel].push(origin);
-                                      return groups;
-                                    }, {} as Record<string, typeof gangOriginList>)
-                                ).map(([groupLabel, origins]) => (
-                                  <optgroup key={groupLabel} label={groupLabel}>
-                                    {origins.map((origin) => (
-                                      <option key={origin.id} value={origin.id}>
-                                        {origin.origin_name}
-                                      </option>
-                                    ))}
-                                  </optgroup>
-                                ))}
+                                <GangOriginOptions origins={filteredGangOrigins} />
                               </select>
                             </div>
 
@@ -1533,11 +1597,11 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                     </div>
                     )}
 
-                    {/* Availability per Gang Variant — N23 only */}
+                    {/* Availability per Gang Subtype — N23 only */}
                     {showAvailability && (
                     <div>
                       <label className="block text-sm font-medium text-muted-foreground mb-1">
-                        Availability per Gang Variant
+                        Availability per Gang Subtype
                       </label>
                       <Button
                         onClick={() => setShowVariantAvailabilityDialog(true)}
@@ -1545,19 +1609,19 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         size="sm"
                         className="mb-2"
                       >
-                        Add Variant
+                        Add Subtype
                       </Button>
 
-                      {equipmentVariantAvailabilities.length > 0 && (
+                      {equipmentSubtypeAvailabilities.length > 0 && (
                         <div className="flex flex-wrap gap-2">
-                          {equipmentVariantAvailabilities.map((avail, index) => (
+                          {equipmentSubtypeAvailabilities.map((avail, index) => (
                             <div
                               key={index}
                               className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                             >
-                              <span>{avail.variant} (Availability: {avail.availability})</span>
+                              <span>{avail.subtype} (Availability: {avail.availability})</span>
                               <button
-                                onClick={() => setEquipmentVariantAvailabilities(prev =>
+                                onClick={() => setEquipmentSubtypeAvailabilities(prev =>
                                   prev.filter((_, i) => i !== index)
                                 )}
                                 className="hover:text-red-500 focus:outline-hidden"
@@ -1572,37 +1636,37 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
 
                       {showVariantAvailabilityDialog && (
                         <Modal
-                          title="Availability per Gang Variant"
-                          helper="Select a gang variant and enter an availability value"
+                          title="Availability per Gang Subtype"
+                          helper="Select a gang subtype and enter an availability value"
                           onClose={() => {
                             setShowVariantAvailabilityDialog(false);
-                            setSelectedAvailabilityGangVariant("");
+                            setSelectedAvailabilityGangSubtype("");
                             setVariantAvailValueLetter('');
                             setVariantAvailValueNumber(6);
                           }}
                           onConfirm={() => {
                             const combined = combineAvailability(variantAvailValueLetter, variantAvailValueNumber);
-                            if (selectedAvailabilityGangVariant && combined) {
-                              const alreadyExists = equipmentVariantAvailabilities.some(
-                                a => a.gang_variant_id === selectedAvailabilityGangVariant
+                            if (selectedAvailabilityGangSubtype && combined) {
+                              const alreadyExists = equipmentSubtypeAvailabilities.some(
+                                a => a.gang_subtype_id === selectedAvailabilityGangSubtype
                               );
                               if (alreadyExists) {
-                                toast.error('This variant already has an availability set');
-                                return;
+                                toast.error('This subtype already has an availability set');
+                                return false;
                               }
 
-                              const selectedVariant = gangVariantList.find(g => g.id === selectedAvailabilityGangVariant);
-                              if (selectedVariant) {
-                                setEquipmentVariantAvailabilities(prev => [
+                              const selectedSubtype = gangSubtypeList.find(g => g.id === selectedAvailabilityGangSubtype);
+                              if (selectedSubtype) {
+                                setEquipmentSubtypeAvailabilities(prev => [
                                   ...prev,
                                   {
-                                    variant: selectedVariant.variant,
-                                    gang_variant_id: selectedVariant.id,
+                                    subtype: selectedSubtype.subtype,
+                                    gang_subtype_id: selectedSubtype.id,
                                     availability: combined
                                   }
                                 ]);
                                 setShowVariantAvailabilityDialog(false);
-                                setSelectedAvailabilityGangVariant("");
+                                setSelectedAvailabilityGangSubtype("");
                                 setVariantAvailValueLetter('');
                                 setVariantAvailValueNumber(6);
                               }
@@ -1610,36 +1674,26 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           }}
                           confirmText="Save"
                           confirmDisabled={
-                            !selectedAvailabilityGangVariant ||
+                            !selectedAvailabilityGangSubtype ||
                             !variantAvailValueLetter
                           }
                           width="sm"
                         >
                           <div className="space-y-4">
                             <div>
-                              <label className="block text-sm font-medium mb-1">Gang Variant</label>
+                              <label className="block text-sm font-medium mb-1">Gang Subtype</label>
                               <select
-                                value={selectedAvailabilityGangVariant}
+                                value={selectedAvailabilityGangSubtype}
                                 onChange={(e) => {
-                                  const selected = gangVariantList.find(g => g.id === e.target.value);
+                                  const selected = gangSubtypeList.find(g => g.id === e.target.value);
                                   if (selected) {
-                                    setSelectedAvailabilityGangVariant(e.target.value);
+                                    setSelectedAvailabilityGangSubtype(e.target.value);
                                   }
                                 }}
                                 className="w-full p-2 border rounded-md"
                               >
-                                <option key="default" value="">Select a Gang Variant</option>
-                                {gangVariantList
-                                  .sort((a, b) => {
-                                    const rankA = gangVariantRank[a.variant.toLowerCase()] ?? Infinity;
-                                    const rankB = gangVariantRank[b.variant.toLowerCase()] ?? Infinity;
-                                    return rankA - rankB;
-                                  })
-                                  .map((variant) => (
-                                    <option key={variant.id} value={variant.id}>
-                                      {variant.variant}
-                                    </option>
-                                  ))}
+                                <option key="default" value="">Select a Gang Subtype</option>
+                                <GangSubtypeOptions subtypes={filteredGangSubtypes} editionSlug={editionSlug} />
                               </select>
                             </div>
 
@@ -1666,12 +1720,24 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                   <label className="block text-sm font-medium text-muted-foreground mb-1">
                     Fighter Types with this Equipment
                   </label>
+                  <Button
+                    onClick={() => setShowScopedGrantDialog(true)}
+                    variant="outline"
+                    size="sm"
+                    className="mb-2"
+                    disabled={!selectedEquipmentId}
+                  >
+                    Add Scoped
+                  </Button>
                   <select
                     value=""
                     onChange={(e) => {
                       const value = e.target.value;
-                      if (value && !selectedFighterTypes.includes(value)) {
-                        setSelectedFighterTypes([...selectedFighterTypes, value]);
+                      if (value) {
+                        setFighterTypeGrants([
+                          ...fighterTypeGrants,
+                          { fighter_type_id: value, gang_type_id: null, gang_origin_id: null, gang_subtype_id: null, fighter_subtype: null, excluded: false }
+                        ]);
                       }
                       e.target.value = "";
                     }}
@@ -1680,43 +1746,45 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                   >
                     <option value="">Select fighter type to add</option>
                     {filteredFighterTypes
-                      .filter(ft => !selectedFighterTypes.includes(ft.id))
-                      .sort((a, b) => {
-                        // First sort by gang type
-                        const gangCompare = a.gang_type.localeCompare(b.gang_type);
-                        if (gangCompare !== 0) return gangCompare;
-                        // Then by fighter subtype priority (per fighter type's own edition)
-                        const subtypeCompare =
-                          getFighterSubtypeSortRank(a.fighter_subtypes, editionSlugOf(editions, a.edition_id))
-                          - getFighterSubtypeSortRank(b.fighter_subtypes, editionSlugOf(editions, b.edition_id));
-                        if (subtypeCompare !== 0) return subtypeCompare;
-                        // Finally by fighter type name
-                        return a.fighter_type.localeCompare(b.fighter_type);
-                      })
-                      .map((ft) => {
-                        const specialisationText = [ft.fighter_variant, ft.fighter_specialisations?.specialisation_name].filter(Boolean).map(n => ` - ${n}`).join('');
-                        return (
-                          <option key={ft.id} value={ft.id}>
-                            {`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_subtypes?.join(', ')})${specialisationText}`}
-                          </option>
-                        );
-                      })}
+                      .filter(ft => !fighterTypeGrants.some(
+                        g => g.fighter_type_id === ft.id
+                          && !g.gang_origin_id && !g.gang_subtype_id && !g.fighter_subtype
+                      ))
+                      .map((ft) => (
+                        <option key={ft.id} value={ft.id}>
+                          {fighterTypeLabel(ft)}
+                        </option>
+                      ))}
                   </select>
 
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {selectedFighterTypes.map((ftId) => {
-                      const ft = fighterTypes.find(f => f.id === ftId);
-                      if (!ft) return null;
+                    {fighterTypeGrants.map((grant) => {
+                      const ft = grant.fighter_type_id
+                        ? fighterTypes.find(f => f.id === grant.fighter_type_id)
+                        : null;
+                      if (grant.fighter_type_id && !ft) return null;
+
+                      const scope = [
+                        grant.gang_origin_id
+                          ? `Origin: ${gangOriginList.find(o => o.id === grant.gang_origin_id)?.origin_name ?? '…'}`
+                          : null,
+                        grant.gang_subtype_id
+                          ? `Gang subtype: ${gangSubtypeList.find(v => v.id === grant.gang_subtype_id)?.subtype ?? '…'}`
+                          : null,
+                        grant.fighter_subtype ? `Subtype: ${grant.fighter_subtype}` : null
+                      ].filter(Boolean).join(', ');
 
                       return (
                         <div
-                          key={ft.id}
+                          key={grantKey(grant)}
                           className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                         >
-                          <span>{`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_subtypes?.join(', ')})${[ft.fighter_variant, ft.fighter_specialisations?.specialisation_name].filter(Boolean).map(n => ` - ${n}`).join('')}`}</span>
+                          <span>{grant.excluded && 'Deny: '}{ft ? fighterTypeLabel(ft) : 'Any fighter type'}{scope && ` — ${scope}`}</span>
                           <button
                             type="button"
-                            onClick={() => setSelectedFighterTypes(selectedFighterTypes.filter(id => id !== ft.id))}
+                            onClick={() => setFighterTypeGrants(
+                              fighterTypeGrants.filter(g => grantKey(g) !== grantKey(grant))
+                            )}
                             className="hover:text-red-500 focus:outline-hidden"
                             disabled={!selectedEquipmentId}
                           >
@@ -1726,6 +1794,117 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       );
                     })}
                   </div>
+
+                  {showScopedGrantDialog && (
+                    <Modal
+                      title="Scoped Equipment List Entry"
+                      helper="Narrow a grant or deny to a gang origin, gang subtype and/or fighter subtype. Leave Fighter Type as Any for a subtype rule spanning every gang."
+                      onClose={closeScopedGrantDialog}
+                      onConfirm={() => {
+                        const grant: FighterTypeGrant = {
+                          fighter_type_id: scopedGrantFighterType || null,
+                          gang_type_id: null,
+                          gang_origin_id: scopedGrantOrigin || null,
+                          gang_subtype_id: scopedGrantGangSubtype || null,
+                          fighter_subtype: scopedGrantSubtype || null,
+                          excluded: scopedGrantExcluded
+                        };
+                        if (fighterTypeGrants.some(g => grantKey(g) === grantKey(grant))) {
+                          toast.error('That combination is already on the list');
+                          return false;
+                        }
+                        setFighterTypeGrants([...fighterTypeGrants, grant]);
+                        closeScopedGrantDialog();
+                      }}
+                      confirmText="Save"
+                      confirmDisabled={
+                        // A grant needs a fighter, and a scope the quick-add can't already give.
+                        (!scopedGrantExcluded && (
+                          (!scopedGrantFighterType && !scopedGrantSubtype)
+                          || (!scopedGrantOrigin && !scopedGrantGangSubtype && !scopedGrantSubtype)
+                        ))
+                        // A deny needs no fighter, but an all-null one would strip it everywhere.
+                        || (scopedGrantExcluded
+                            && !scopedGrantFighterType && !scopedGrantSubtype
+                            && !scopedGrantOrigin && !scopedGrantGangSubtype)
+                      }
+                      width="sm"
+                    >
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Fighter Type</label>
+                          <select
+                            value={scopedGrantFighterType}
+                            onChange={(e) => setScopedGrantFighterType(e.target.value)}
+                            className="w-full p-2 border rounded-md"
+                          >
+                            <option key="default" value="">Any Fighter Type</option>
+                            {filteredFighterTypes.map((ft) => (
+                              <option key={ft.id} value={ft.id}>
+                                {fighterTypeLabel(ft)}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Fighter Subtype</label>
+                          <select
+                            value={scopedGrantSubtype}
+                            onChange={(e) => setScopedGrantSubtype(e.target.value)}
+                            className="w-full p-2 border rounded-md"
+                          >
+                            <option key="default" value="">Any Fighter Subtype</option>
+                            {filteredFighterSubtypes.map((subtype) => (
+                              <option key={subtype.id} value={subtype.subtype_name}>
+                                {subtype.subtype_name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Gang Origin</label>
+                          <select
+                            value={scopedGrantOrigin}
+                            onChange={(e) => setScopedGrantOrigin(e.target.value)}
+                            className="w-full p-2 border rounded-md"
+                          >
+                            <option key="default" value="">Any Gang Origin</option>
+                            <GangOriginOptions origins={filteredGangOrigins} />
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Gang Subtype</label>
+                          <select
+                            value={scopedGrantGangSubtype}
+                            onChange={(e) => setScopedGrantGangSubtype(e.target.value)}
+                            className="w-full p-2 border rounded-md"
+                          >
+                            <option key="default" value="">Any Gang Subtype</option>
+                            <GangSubtypeOptions subtypes={filteredGangSubtypes} editionSlug={editionSlug} />
+                          </select>
+                        </div>
+
+                        <label className="flex items-start space-x-2">
+                          <Checkbox
+                            checked={scopedGrantExcluded}
+                            onCheckedChange={(checked) => setScopedGrantExcluded(checked === true)}
+                            className="mt-1"
+                          />
+                          <div>
+                            <span className="text-sm font-medium text-muted-foreground">Deny</span>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Removes this item from the Equipment List of matching fighters instead
+                              of granting it, overriding any other row that grants it. Equipment List
+                              only — it does not gate Trading Post access.
+                            </p>
+                          </div>
+                        </label>
+                      </div>
+                    </Modal>
+                  )}
                 </div>
               )}
 

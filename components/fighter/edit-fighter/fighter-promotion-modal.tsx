@@ -90,6 +90,7 @@ export type FighterPromotionResult = {
   /** N26 promotion recipes with skill grants. */
   kind?: 'n26_prospect' | 'n26_ganger_champion' | 'n26_champion_leader';
   credits_increase?: number;
+  promoted_from_prospect?: boolean;
 };
 
 function promotionSpecialisationFields(
@@ -327,6 +328,7 @@ export function FighterPromotionModal({
         fighter_specialisation: selectedSpecialisation.name,
         fighter_specialisation_id: selectedSpecialisation.id,
         credits_increase: N26_PROSPECT_PROMOTION_CREDITS,
+        promoted_from_prospect: true,
       });
       return;
     }
@@ -452,7 +454,7 @@ export function FighterPromotionModal({
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium mb-1">
+                <label className="block text-sm text-muted-foreground font-medium mb-1">
                   Promote to Fighter Type
                 </label>
                 {displayTypes.length === 0 ? (
@@ -496,7 +498,7 @@ export function FighterPromotionModal({
               {/* Current Special Rules (read-only) */}
               {normalizedCurrentSpecialRules.length > 0 && (
                 <div>
-                  <label className="block text-sm font-medium mb-1">
+                  <label className="block text-sm text-muted-foreground font-medium mb-1">
                   Special Rules to be Removed
                   </label>
                   <div className="flex flex-wrap gap-2">
@@ -516,7 +518,7 @@ export function FighterPromotionModal({
 
           {/* Special Rules (editable) */}
           <div>
-            <label className="block text-sm font-medium mb-1">
+            <label className="block text-sm text-muted-foreground font-medium mb-1">
               {isSimplifiedPath ? 'Special Rules' : 'Special Rules to be Added'}
             </label>
             <div className="flex space-x-2 mb-2">

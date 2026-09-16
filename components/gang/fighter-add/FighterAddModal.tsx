@@ -88,7 +88,7 @@ interface FighterAddModalProps {
   onFighterAdded: (newFighter: any, cost: number) => void;
   onFighterRollback?: (tempFighterId: string, cost: number, ratingCost: number) => void;
   onFighterReconcile?: (tempFighterId: string, realFighter: FighterProps) => void;
-  gangVariants?: Array<{ id: string; variant: string }>;
+  gangSubtypes?: Array<{ id: string; subtype: string }>;
 }
 
 /** Map a raw API fighter-type row into the FighterType shape (superset of fields). */
@@ -154,7 +154,7 @@ export default function FighterAddModal({
   onFighterAdded,
   onFighterRollback,
   onFighterReconcile,
-  gangVariants = [],
+  gangSubtypes = [],
 }: FighterAddModalProps) {
   const isAdditions = catalog === 'additions';
   const usesCategories = hasGangAdditionCategories(editionSlug);
@@ -181,7 +181,7 @@ export default function FighterAddModal({
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   const { data: fighterTypes = [] } = useQuery<FighterType[]>({
-    queryKey: ['fighter-types', catalog, gangId, gangTypeId, customGangTypeId, includeCustomFighters, includeAllFighterTypes, gangAffiliationId, editionSlug, JSON.stringify(gangVariants)],
+    queryKey: ['fighter-types', catalog, gangId, gangTypeId, customGangTypeId, includeCustomFighters, includeAllFighterTypes, gangAffiliationId, editionSlug, JSON.stringify(gangSubtypes)],
     queryFn: async () => {
       const affiliationParam = gangAffiliationId ? `&gang_affiliation_id=${gangAffiliationId}` : '';
       const gangTypeParam = gangTypeId ? `&gang_type_id=${gangTypeId}` : '';
@@ -193,10 +193,9 @@ export default function FighterAddModal({
       if (isAdditions) {
         url = `/api/fighter-types?gang_id=${gangId}${gangTypeParam}&is_gang_addition=true${affiliationParam}${customFightersParam}${includeAllGangTypeParam}${isVehicleParam}`;
       } else {
-        const gangVariantsParam = gangVariants.length > 0 ? `&gang_variants=${encodeURIComponent(JSON.stringify(gangVariants))}` : '';
         const customGangTypeParam = customGangTypeId ? `&custom_gang_type_id=${customGangTypeId}` : '';
         const includeAllTypesParam = includeAllFighterTypes ? '&include_all_types=true' : '';
-        url = `/api/fighter-types?gang_id=${gangId}${gangTypeParam}${customGangTypeParam}&is_gang_addition=false${gangVariantsParam}${customFightersParam}${includeAllGangTypeParam}${affiliationParam}${includeAllTypesParam}${isVehicleParam}`;
+        url = `/api/fighter-types?gang_id=${gangId}${gangTypeParam}${customGangTypeParam}&is_gang_addition=false${customFightersParam}${includeAllGangTypeParam}${affiliationParam}${includeAllTypesParam}${isVehicleParam}`;
       }
 
       const response = await fetch(url);
