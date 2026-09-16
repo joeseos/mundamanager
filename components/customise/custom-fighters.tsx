@@ -536,17 +536,13 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
               ))}
           </optgroup>
         )}
-        {systemTypes.length > 0 && (
-          <optgroup label="System">
-            {systemTypes
-              .sort((a, b) => a.gang_type.localeCompare(b.gang_type))
-              .map((type) => (
-                <option key={type.gang_type_id} value={type.gang_type_id}>
-                  {type.gang_type}
-                </option>
-              ))}
-          </optgroup>
-        )}
+        {systemTypes
+          .sort((a, b) => a.gang_type.localeCompare(b.gang_type))
+          .map((type) => (
+            <option key={type.gang_type_id} value={type.gang_type_id}>
+              {type.gang_type}
+            </option>
+          ))}
       </>
     );
   };

@@ -379,10 +379,10 @@ export async function GET(request: Request) {
         // Transform custom fighters to match the FighterType interface
         const transformedCustomFighters = allCustomFighters
           .filter(cf => {
-            // Include custom fighters for the current gang type
-            if (cf.gang_type_id === gangTypeId) return true;
+            // gangTypeId is null on a custom gang, as is every custom-gang fighter's
+            // gang_type_id — without the guard, null === null matches all of them.
+            if (gangTypeId && cf.gang_type_id === gangTypeId) return true;
 
-            // Also include "Available to All" gang type fighters
             if (cf.gang_type?.toLowerCase().includes('available to all')) return true;
 
             return false;
