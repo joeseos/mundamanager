@@ -9,24 +9,22 @@ concurrency:
   group: claude-review-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
+# No `id-token: write`: `github_token` below means no OIDC token is ever minted.
 permissions:
   contents: read
   pull-requests: write
-  id-token: write
 
 jobs:
   claude-review:
     runs-on: ubuntu-latest
     timeout-minutes: 30 # a hung run must not leave the check pending for hours
-    # Forks get no secrets and a read-only token, so a fork PR would fail on auth
-    # rather than on merit. Skip it — no label can rescue it, because this guard is
-    # evaluated for the `labeled` event too. Fork PRs get a human review instead.
-    # See CONTRIBUTING.md.
-    #
-    # Drafts are skipped, except when someone applies the label: that is an explicit
-    # request for a review, and silently ignoring it would leave no comment either.
+    # Fork PRs get no secrets, so they would fail on auth rather than merit - skipped,
+    # and no label rescues them. Drafts are skipped unless labelled. See CONTRIBUTING.md.
+    # Bot PRs are skipped silently: the action rejects non-human actors outright, which
+    # would otherwise redden the check on every Dependabot PR.
     if: >-
-      github.event.pull_request.head.repo.full_name == github.repository && (
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.type != 'Bot' && (
         (github.event.action == 'labeled' && github.event.label.name == 'claude-review') ||
         (github.event.action != 'labeled' && github.event.pull_request.draft == false)
       )
@@ -38,26 +36,22 @@ jobs:
       # The review criteria live in one file so the local pre-PR review documented in
       # CONTRIBUTING.md and this workflow cannot drift apart.
       #
-      # Read it from the BASE branch, never from the PR checkout: a PR must not be able
-      # to rewrite the prompt that reviews it. (The Claude App's own default-branch check
-      # covers the workflow file, but not this one.) The heredoc delimiter is randomised
-      # so no line in the file can close it early and inject step outputs.
+      # Read from the base branch tip, never the PR checkout: a PR must not rewrite the
+      # prompt that reviews it. The heredoc delimiter is randomised so the file cannot
+      # close it early and inject step outputs.
       - name: Load the shared review prompt
         id: review-prompt
         env:
           GH_TOKEN: ${{ github.token }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           set -euo pipefail
           prompt="${RUNNER_TEMP}/review-prompt.md"
           if ! gh api -H "Accept: application/vnd.github.raw" \
-                 "repos/${GITHUB_REPOSITORY}/contents/.github/review-prompt.md?ref=${BASE_SHA}" \
+                 "repos/${GITHUB_REPOSITORY}/contents/.github/review-prompt.md?ref=${BASE_REF}" \
                  > "$prompt" 2> "${RUNNER_TEMP}/gh-err"; then
-            # 404 means the prompt is not on the base branch yet, which happens only while
-            # this workflow is being introduced - the PR adding it is its own base's future.
-            # Fall back to the checked-out copy there; once merged, the file always exists
-            # on base and this branch is unreachable, so it cannot be used to bypass the
-            # base-branch rule. Any other failure is real and must stop the job.
+            # 404 only while this workflow is being introduced: fall back to the PR's copy.
+            # Once merged the file always exists on base, so this cannot bypass the rule.
             if grep -q 'HTTP 404' "${RUNNER_TEMP}/gh-err"; then
               echo "::warning::.github/review-prompt.md is not on the base branch yet;" \
                 "using the copy from this PR. Expected only while adding this workflow."
@@ -77,19 +71,14 @@ jobs:
       - id: claude
         uses: anthropics/claude-code-action@v1
         with:
-          # Subscription auth: shares the hourly/weekly budget with interactive use,
-          # so the review can still be skipped when that budget is spent. The point
-          # of this workflow is that it now fails visibly when that happens.
-          # Swap this one line to `anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}`
-          # to decouple the reviewer from subscription rate limits entirely.
+          # Shares the subscription's hourly/weekly budget, so a spent budget still skips
+          # the review - but now visibly. Swap to `anthropic_api_key` to decouple.
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          # Deliberately no `track_progress` / `use_sticky_comment`. Either one puts the
-          # action in tag mode, which appends `--permission-mode acceptEdits` and
-          # `Bash(git add|commit|push|rm)` to the tool list — so a "reviewer" could commit
-          # to the branch it is reviewing, held back only by a line in the prompt. Without
-          # them the action runs in agent mode, where the tool list below is the whole
-          # list and read-only is enforced rather than requested. The cost is no live
-          # "in progress" comment, and re-runs post a new summary instead of updating one.
+          # Skips the Claude GitHub App token exchange, which refuses any workflow version
+          # not on the default branch - so a PR editing this file can still review itself.
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # No `track_progress` / `use_sticky_comment`: either forces tag mode, which adds
+          # acceptEdits and git write tools. Agent mode keeps the tool list below binding.
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
@@ -123,7 +112,6 @@ jobs:
         env:
           CONCLUSION: ${{ steps.claude.outputs.conclusion }}
           EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
-          CLAUDE_OUTCOME: ${{ steps.claude.outcome }}
         with:
           script: |
             const fs = require('fs');
@@ -134,32 +122,13 @@ jobs:
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}`
               + `/actions/runs/${context.runId}`;
 
-            // The action exits cleanly without setting `conclusion` when the Claude
-            // GitHub App declines to mint a token because this workflow file is not on
-            // the default branch yet (`workflow_not_found_on_default_branch`). A green
-            // step with no conclusion is that skip, not a failure - and it is what
-            // every PR that edits this file will see until the change is merged.
-            const skipped = !ok
-              && !process.env.CONCLUSION
-              && process.env.CLAUDE_OUTCOME === 'success';
-
             let reason = 'The review job failed. See the run log for details.';
-            if (skipped) {
-              reason = 'The Claude GitHub App declined to run because this version of '
-                + '`.github/workflows/claude-review.yml` is not on the default branch yet. '
-                + 'That is expected on a PR that adds or edits the review workflow itself, '
-                + 'and it resolves once the PR is merged. No review was produced.';
-            }
 
-            // Best-effort: name the cause so nobody has to read the log to know whether
-            // this was a rate limit or a real error. Match ONLY the final result message,
-            // never the file as a whole: the execution file is the entire session
-            // transcript, including every file Claude read. This workflow is one of them,
-            // and it contains the strings "usage limit" and "401" - so grepping the
-            // transcript reports a usage limit for any failure on a PR that touches this
-            // file. A generic message is better than a confidently wrong one.
+            // Match ONLY the final result message: the execution file is the whole
+            // transcript, and this workflow is in it - grepping it would report a usage
+            // limit for any failure on a PR that touches this file.
             const file = process.env.EXECUTION_FILE;
-            if (!ok && !skipped && file && fs.existsSync(file)) {
+            if (!ok && file && fs.existsSync(file)) {
               let result = null;
               try {
                 const messages = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -190,13 +159,8 @@ jobs:
               }
             }
 
-            // Retrying a skip cannot work - the workflow has to reach the default
-            // branch first - so do not send anyone round that loop.
-            const retry = skipped
-              ? `Re-running will not change this until the PR is merged. `
-                + `[Run log](${runUrl}).`
-              : `To retry: remove and re-add the \`claude-review\` label, or re-run the `
-                + `failed job from the [run page](${runUrl}).`;
+            const retry = `To retry: remove and re-add the \`claude-review\` label, or `
+              + `re-run the failed job from the [run page](${runUrl}).`;
 
             const body = ok
               ? `${MARKER}\n✅ Automated Claude review completed. [Run log](${runUrl})`
@@ -249,11 +213,4 @@ jobs:
                 issue_number: context.payload.pull_request.number,
                 body,
               });
-            }
-
-            // A skipped review leaves the Claude step green, which would make this check
-            // green too - and a green check has to keep meaning "the review ran".
-            if (skipped) {
-              core.setFailed('No review was produced: this workflow file is not on the '
-                + 'default branch yet.');
             }

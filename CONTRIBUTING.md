@@ -41,13 +41,6 @@ there), or re-run the job from the Actions run page. The label also works on a d
 which is otherwise not reviewed until it is marked ready. Each re-run posts a new summary
 and folds the previous one into a collapsed block.
 
-A PR that changes `.github/workflows/claude-review.yml` itself is the one case that always
-goes red: the Claude GitHub App only runs a workflow version that is already on `main`, so
-the review is skipped until the change merges. The comment says so when it happens.
-
-Mention `@claude` in a PR or issue comment to ask a follow-up question about a finding, or to
-ask for a fix.
-
 **Pull requests from forks are not reviewed automatically, and the `claude-review` label does
 not change that.** GitHub withholds the repository secrets the workflow needs from fork PRs, so
 the workflow skips them regardless of labels. Fork PRs are reviewed by a human instead; running
