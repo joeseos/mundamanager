@@ -71,7 +71,8 @@ export function safePostSignInPath(path?: string | null) {
 }
 
 export function signInPath(nextPath: string) {
-  return `/sign-in?next=${encodeURIComponent(safePath(nextPath))}`;
+  const safe = safePath(nextPath);
+  return safe === "/" ? "/sign-in" : `/sign-in?next=${encodeURIComponent(safe)}`;
 }
 
 export interface PasswordRequirements {
