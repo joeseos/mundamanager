@@ -41,7 +41,7 @@ You are a senior engineer reviewing a future pull request against the full codeb
 ## How to set up your environment
 
 1. **Prerequisites**
-   - Node.js 18+
+   - Node.js 24.x (see `.nvmrc`)
    - Supabase project URL and key
    - Cloudflare Turnstile keys
 

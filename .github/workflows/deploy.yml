@@ -20,6 +20,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: '.nvmrc'
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
       - name: Pull Vercel environment (production)
