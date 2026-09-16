@@ -218,6 +218,8 @@ const EDITION_CAPABILITIES = {
   /** Damage short of a lost wound leaves a Flesh Wound, counted per fighter. */
   fleshWoundCondition:      { n23: true,  n26: false },
   venatorSkillAccess:       { n23: false, n26: true  },
+  /** A Spyrer's Rig Glitches can send them into Recovery, so they get the Recovery toggle. */
+  spyrerRecovery:           { n23: false, n26: true  },
 } as const satisfies Record<string, Record<EditionSlug, unknown>>;
 
 type EditionCapability = keyof typeof EDITION_CAPABILITIES;
@@ -376,6 +378,9 @@ export const hasFleshWoundCondition = (editionSlug?: string | null): boolean =>
 
 export const hasVenatorSkillAccess = (editionSlug: string | null | undefined): boolean =>
   can('venatorSkillAccess', editionSlug);
+
+export const hasSpyrerRecovery = (editionSlug?: string | null): boolean =>
+  can('spyrerRecovery', editionSlug);
 
 export interface Edition {
   id: string;
