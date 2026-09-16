@@ -25,6 +25,7 @@ import { EditionToggle } from '@/components/home/edition-toggle'
 
 type TabKey = 'gangs' | 'campaigns' | 'customassets'
 const TAB_KEYS: TabKey[] = ['gangs', 'campaigns', 'customassets']
+const tabIndexFromParam = (tab: string | null) => Math.max(TAB_KEYS.indexOf(tab as TabKey), 0);
 
 interface HomeTabsProps {
   gangs: Gang[];
@@ -52,7 +53,8 @@ export default function HomeTabs({
   userCampaigns
 }: HomeTabsProps) {
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState(0);
+  // URL is the source of truth, so a fresh load of /?tab=... lands on the right tab.
+  const activeTab = tabIndexFromParam(searchParams.get('tab'));
   const [fighterTypes, setFighterTypes] = useState<CustomFighterType[]>(customFighterTypes);
   // Custom Assets shares the home edition store with the Gangs and Campaigns tabs.
   // The selected edition both filters these lists and becomes the edition of
@@ -112,11 +114,8 @@ export default function HomeTabs({
     window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
   }, []);
 
-  const handleTabChange = useCallback((tabIndex: number, syncUrl = true) => {
-    setActiveTab(tabIndex);
-    if (syncUrl) {
-      updateUrlParam(TAB_KEYS[tabIndex]);
-    }
+  const handleTabChange = useCallback((tabIndex: number) => {
+    updateUrlParam(TAB_KEYS[tabIndex]);
   }, [updateUrlParam]);
 
   useEffect(() => {
@@ -136,19 +135,6 @@ export default function HomeTabs({
       window.removeEventListener('homeTabSwitch', handleTabSwitch as EventListener);
     };
   }, [handleTabChange]);
-
-  const tabParam = searchParams.get('tab') as TabKey | null;
-  const [prevTabParam, setPrevTabParam] = useState(tabParam);
-  if (tabParam !== prevTabParam) {
-    setPrevTabParam(tabParam);
-    const tabIndex = tabParam ? TAB_KEYS.indexOf(tabParam) : -1;
-    if (tabIndex >= 0) {
-      setActiveTab(tabIndex);
-    } else {
-      setActiveTab(0);
-      updateUrlParam('gangs');
-    }
-  }
 
   const tabTitles = ['Gangs', 'Campaigns', 'Custom Assets'];
 
