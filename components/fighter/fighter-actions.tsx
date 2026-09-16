@@ -15,7 +15,7 @@ import { Tooltip } from 'react-tooltip';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
-import { beastSubtypeName, hasGuilderSales } from '@/types/edition';
+import { beastSubtypeName, hasGuilderSales, hasSpyrerRecovery } from '@/types/edition';
 
 interface Fighter {
   id: string;
@@ -173,6 +173,7 @@ export function FighterActions({
   const beastNoun = beastSubtypeName(editionSlug);
   // Selling a fighter to the Guilders is an N23 rule; N26 has no Guilders.
   const showGuilderSale = hasGuilderSales(editionSlug);
+  const showRecovery = !fighter?.is_spyrer || hasSpyrerRecovery(editionSlug);
   const isOwnedExoticBeast = fighter?.fighter_subtypes?.some(c => c.toLowerCase().startsWith('exotic beast') || c.toLowerCase() === 'pet') && !!fighter?.owner_name;
 
   // Calculate total vehicle equipment cost
@@ -330,7 +331,7 @@ export function FighterActions({
               {fighter?.starved ? 'Feed Fighter' : 'Starve Fighter'}
             </Button>
           )}
-          {!fighter?.is_spyrer && (
+          {showRecovery && (
             <Button
               variant={fighter?.recovery ? 'success' : 'default'}
               className="flex-1"
