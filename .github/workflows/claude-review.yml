@@ -1,13 +1,11 @@
 name: Claude PR Review
 
+# One automatic review when the PR is opened; every later one is asked for with the
+# `claude-review` label. No `synchronize`/`reopened`/`ready_for_review`, so the review
+# budget is never spent re-reviewing a commit that was already reviewed.
 on:
   pull_request:
-    types: [opened, reopened, ready_for_review, labeled]
-
-# one review per PR; a newer trigger supersedes an in-flight one
-concurrency:
-  group: claude-review-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+    types: [opened, labeled]
 
 # No `id-token: write`: `github_token` below means no OIDC token is ever minted.
 permissions:
@@ -17,6 +15,12 @@ permissions:
 jobs:
   claude-review:
     runs-on: ubuntu-latest
+    # On the job, never the workflow: a workflow-level group is claimed by every run
+    # before any `if:` is evaluated, so adding an unrelated label would cancel an
+    # in-flight review and then skip its own job - losing the review silently.
+    concurrency:
+      group: claude-review-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     timeout-minutes: 30 # a hung run must not leave the check pending for hours
     # Fork PRs get no secrets, so they would fail on auth rather than merit - skipped,
     # and no label rescues them. Drafts are skipped unless labelled. See CONTRIBUTING.md.
@@ -87,10 +91,11 @@ jobs:
 
             ${{ steps.review-prompt.outputs.text }}
 
-            Post specific findings with `mcp__github_inline_comment__create_inline_comment`
-            (with `confirmed: true`). Post the summary and verdict with `gh pr comment`,
-            tagging the PR author. Start that comment with this line exactly, so a re-run
-            can fold the superseded summary away:
+            Post the entire review - every finding, then the verdict - as EXACTLY ONE
+            `gh pr comment`, tagging the PR author. Do not post a comment per finding, and
+            do not post inline comments; cite each finding's location as `file:line` in the
+            text instead. Start the comment with this line exactly, so a re-run can fold
+            the superseded review away:
 
             <!-- claude-review-summary -->
 
@@ -100,7 +105,7 @@ jobs:
             --model claude-sonnet-5
             --effort high
             --max-turns 40
-            --allowedTools "Read,Glob,Grep,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+            --allowedTools "Read,Glob,Grep,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
 
       # The point of this workflow. Runs whether the step above succeeded, failed, or
       # died mid-run, so a review that does not happen is never silent. Deliberately not

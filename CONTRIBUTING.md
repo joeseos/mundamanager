@@ -26,20 +26,20 @@ rather than copied here — a clean local pass is a good predictor of a clean PR
 
 ### Automated review on the PR
 
-After a PR is opened (or marked ready for review), a **`claude-review`** check runs the same
-review automatically and posts its findings as inline comments plus a summary. The reviewer
+When a PR is opened as non-draft, a **`claude-review`** check runs the same review
+automatically once and posts all of its findings as a single comment. The reviewer
 is read-only: it comments, and cannot change files on your branch.
 
-- **Green check** - the review ran. Read the comments.
+- **Green check** - the review ran. Read the comment.
 - **Red check** - the review did **not** run, and a comment on the PR says why. The most common
   cause is the maintainer's Claude usage limit being reached; that is not a problem with your PR.
   When this happens, human review is required before merge.
 
-The check never blocks a merge. On a PR from a branch in this repository, re-run it after
-pushing fixes by adding the `claude-review` label (remove and re-add it if it is already
-there), or re-run the job from the Actions run page. The label also works on a draft PR,
-which is otherwise not reviewed until it is marked ready. Each re-run posts a new summary
-and folds the previous one into a collapsed block.
+That first review is the only automatic one: pushing more commits does not re-review, and
+neither does marking a draft ready. Ask for every follow-up review with the `claude-review`
+label - remove and re-add it if it is already there, since GitHub only fires on the change.
+It works on a draft PR too. Each re-run posts a new review and folds the previous one into
+a collapsed block. The check never blocks a merge.
 
 **Pull requests from forks are not reviewed automatically, and the `claude-review` label does
 not change that.** GitHub withholds the repository secrets the workflow needs from fork PRs, so
