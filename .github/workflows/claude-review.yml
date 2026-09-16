@@ -1,0 +1,232 @@
+name: Claude PR Review
+
+# One automatic review when the PR is opened; every later one is asked for with the
+# `claude-review` label. No `synchronize`/`reopened`/`ready_for_review`, so the review
+# budget is never spent re-reviewing a commit that was already reviewed.
+on:
+  pull_request:
+    types: [opened, labeled]
+
+# No `id-token: write`: `github_token` below means no OIDC token is ever minted.
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    # On the job, never the workflow: a workflow-level group is claimed by every run
+    # before any `if:` is evaluated, so adding an unrelated label would cancel an
+    # in-flight review and then skip its own job - losing the review silently.
+    concurrency:
+      group: claude-review-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    timeout-minutes: 30 # a hung run must not leave the check pending for hours
+    # Fork PRs get no secrets, so they would fail on auth rather than merit - skipped,
+    # and no label rescues them. Drafts are skipped unless labelled. See CONTRIBUTING.md.
+    # Bot PRs are skipped silently: the action rejects non-human actors outright, which
+    # would otherwise redden the check on every Dependabot PR.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.type != 'Bot' && (
+        (github.event.action == 'labeled' && github.event.label.name == 'claude-review') ||
+        (github.event.action != 'labeled' && github.event.pull_request.draft == false)
+      )
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      # The review criteria live in one file so the local pre-PR review documented in
+      # CONTRIBUTING.md and this workflow cannot drift apart.
+      #
+      # Read from the base branch tip, never the PR checkout: a PR must not rewrite the
+      # prompt that reviews it. The heredoc delimiter is randomised so the file cannot
+      # close it early and inject step outputs.
+      - name: Load the shared review prompt
+        id: review-prompt
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          prompt="${RUNNER_TEMP}/review-prompt.md"
+          if ! gh api -H "Accept: application/vnd.github.raw" \
+                 "repos/${GITHUB_REPOSITORY}/contents/.github/review-prompt.md?ref=${BASE_REF}" \
+                 > "$prompt" 2> "${RUNNER_TEMP}/gh-err"; then
+            # 404 only while this workflow is being introduced: fall back to the PR's copy.
+            # Once merged the file always exists on base, so this cannot bypass the rule.
+            if grep -q 'HTTP 404' "${RUNNER_TEMP}/gh-err"; then
+              echo "::warning::.github/review-prompt.md is not on the base branch yet;" \
+                "using the copy from this PR. Expected only while adding this workflow."
+              cp .github/review-prompt.md "$prompt"
+            else
+              cat "${RUNNER_TEMP}/gh-err" >&2
+              exit 1
+            fi
+          fi
+          delimiter="REVIEW_PROMPT_$(openssl rand -hex 8)"
+          {
+            printf 'text<<%s\n' "$delimiter"
+            cat "$prompt"
+            printf '\n%s\n' "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+      - id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          # Shares the subscription's hourly/weekly budget, so a spent budget still skips
+          # the review - but now visibly. Swap to `anthropic_api_key` to decouple.
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Skips the Claude GitHub App token exchange, which refuses any workflow version
+          # not on the default branch - so a PR editing this file can still review itself.
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # No `track_progress` / `use_sticky_comment`: either forces tag mode, which adds
+          # acceptEdits and git write tools. Agent mode keeps the tool list below binding.
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            The PR branch is already checked out in the working directory.
+
+            ${{ steps.review-prompt.outputs.text }}
+
+            Post the entire review - every finding, then the verdict - as EXACTLY ONE
+            `gh pr comment`, tagging the PR author. Do not post a comment per finding, and
+            do not post inline comments; cite each finding's location as `file:line` in the
+            text instead. Start the comment with this line exactly, so a re-run can fold
+            the superseded review away:
+
+            <!-- claude-review-summary -->
+
+            Only post via GitHub - do not return the review as a chat message.
+            You are a reviewer: do not modify any files.
+          claude_args: |
+            --model claude-sonnet-5
+            --effort high
+            --max-turns 40
+            --allowedTools "Read,Glob,Grep,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+
+      # The point of this workflow. Runs whether the step above succeeded, failed, or
+      # died mid-run, so a review that does not happen is never silent. Deliberately not
+      # `always()`: this job is superseded by cancel-in-progress, and a cancelled run must
+      # not post a "did not complete" status over the newer run's result.
+      - name: Report review status on the PR
+        if: ${{ !cancelled() }}
+        uses: actions/github-script@v9
+        env:
+          CONCLUSION: ${{ steps.claude.outputs.conclusion }}
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        with:
+          script: |
+            const fs = require('fs');
+            const MARKER = '<!-- claude-review-status -->';
+            const SUMMARY_MARKER = '<!-- claude-review-summary -->';
+            const COLLAPSED = '<!-- claude-review-summary-superseded -->';
+            const ok = process.env.CONCLUSION === 'success';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}`
+              + `/actions/runs/${context.runId}`;
+
+            let reason = 'The review job failed. See the run log for details.';
+
+            // Match ONLY the final result message: the execution file is the whole
+            // transcript, and this workflow is in it - grepping it would report a usage
+            // limit for any failure on a PR that touches this file.
+            const file = process.env.EXECUTION_FILE;
+            if (!ok && file && fs.existsSync(file)) {
+              let result = null;
+              try {
+                const messages = JSON.parse(fs.readFileSync(file, 'utf8'));
+                if (Array.isArray(messages)) {
+                  result = messages.reverse().find((m) => m && m.type === 'result');
+                }
+              } catch (err) {
+                core.warning(`Could not parse ${file}: ${err.message}`);
+              }
+
+              // `errors` and `result` are the only fields carrying failure text.
+              const detail = result
+                ? [].concat(result.errors || [], result.result || '').join('\n').toLowerCase()
+                : '';
+
+              if (/rate.?limit|usage limit|quota|\b429\b/.test(detail)) {
+                reason = 'The Claude subscription usage limit (hourly or weekly cap) was '
+                  + 'reached, so no review was produced. **This is not a problem with your '
+                  + 'PR.** Reviews resume once the limit resets.';
+              } else if (/authentication|unauthorized|invalid.*token|expired|\b401\b/.test(detail)) {
+                reason = 'Claude authentication failed. The `CLAUDE_CODE_OAUTH_TOKEN` '
+                  + 'repository secret is likely expired or invalid, and a maintainer needs '
+                  + 'to regenerate it with `claude setup-token`.';
+              } else if (result && result.subtype === 'error_max_turns') {
+                reason = 'The review ran out of turns (`--max-turns`) before it finished, so '
+                  + 'its findings may be incomplete or missing. **This is not a problem with '
+                  + 'your PR.**';
+              }
+            }
+
+            const retry = `To retry: remove and re-add the \`claude-review\` label, or `
+              + `re-run the failed job from the [run page](${runUrl}).`;
+
+            const body = `${MARKER}\n### ⚠️ Automated Claude review did not complete\n\n`
+              + `${reason}\n\n`
+              + `**This PR has not been machine-reviewed, so treat human review as `
+              + `required.**\n\n`
+              + retry;
+
+            // Paginated: on a long thread the marker comment can fall past page 1, and
+            // missing it would post a second status comment instead of updating the first.
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              ...context.repo,
+              issue_number: context.payload.pull_request.number,
+              per_page: 100,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(MARKER));
+
+            // Without a sticky comment, each run posts a fresh summary via `gh pr comment`.
+            // Fold every superseded one into a <details> so the newest review is the one
+            // you read, without destroying the older text. Only ever touches bot comments
+            // carrying the summary marker, and never fails the job.
+            try {
+              const summaries = comments.filter((c) =>
+                c.user && c.user.type === 'Bot'
+                && c.body && c.body.includes(SUMMARY_MARKER)
+                && !c.body.startsWith(COLLAPSED));
+              for (const stale of summaries.slice(0, -1)) {
+                await github.rest.issues.updateComment({
+                  ...context.repo,
+                  comment_id: stale.id,
+                  body: `${COLLAPSED}\n<details>\n<summary>Superseded review summary</summary>\n\n`
+                    + `${stale.body}\n</details>`,
+                });
+              }
+            } catch (err) {
+              core.warning(`Could not fold superseded summaries: ${err.message}`);
+            }
+
+            // Success posts nothing - the green check is the signal. Any status comment is
+            // from an earlier failure, so remove it rather than leave it contradicting the
+            // check. Never fail the job over it: a false red here would defeat the point.
+            if (ok) {
+              if (existing) {
+                try {
+                  await github.rest.issues.deleteComment({
+                    ...context.repo,
+                    comment_id: existing.id,
+                  });
+                } catch (err) {
+                  core.warning(`Could not remove the stale status comment: ${err.message}`);
+                }
+              }
+            } else if (existing) {
+              await github.rest.issues.updateComment({
+                ...context.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: context.payload.pull_request.number,
+                body,
+              });
+            }
