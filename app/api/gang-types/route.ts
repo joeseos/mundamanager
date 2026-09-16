@@ -35,8 +35,8 @@ export async function GET(request: Request) {
     // Only filter out hidden types if user is not admin
     if (!isAdmin) {
       if (includeAll) {
-        // Include "All" gang type even if hidden, but exclude other hidden types
-        query = query.or('is_hidden.eq.false,gang_type_id.eq.b181b2f7-59f9-452c-84fc-89f183fb8221');
+        // Matched by name, not id: each edition has its own "Available to All" row
+        query = query.or('is_hidden.eq.false,gang_type.eq."Available to All"');
       } else {
         query = query.eq('is_hidden', false);
       }
