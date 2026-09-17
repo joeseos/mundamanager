@@ -15,6 +15,7 @@ import {
   completeBattleSession,
 } from '@/app/actions/battle-sessions';
 import type { BattleSessionFull } from '@/types/battle-session';
+import { splitInjuryCounts } from '@/components/battle-session/participant-card';
 import type { GangFighter } from '@/types/gang';
 import {
   getSessionClaimerGangId,
@@ -206,10 +207,7 @@ export default function CompleteBattleModal({
                 (sum, f) => sum + (f.session_record?.xp_earned ?? 0),
                 0
               );
-              const totalInjuries = (p.fighters ?? []).reduce(
-                (sum, f) => sum + (f.session_record?.injuries?.length ?? 0),
-                0
-              );
+              const { totalInjuries, totalGlitches } = splitInjuryCounts(p.fighters ?? [], gfList);
 
               return (
                 <div
@@ -236,7 +234,10 @@ export default function CompleteBattleModal({
                     <span>{(p.fighters ?? []).length} fighters</span>
                     {totalXp > 0 && <span>+{totalXp} XP</span>}
                     {totalInjuries > 0 && (
-                      <span className="text-red-500">{totalInjuries} lasting injuries</span>
+                      <span className="text-red-500">{totalInjuries} {totalInjuries === 1 ? 'Lasting Injury' : 'Lasting Injuries'}</span>
+                    )}
+                    {totalGlitches > 0 && (
+                      <span className="text-red-500">{totalGlitches} {totalGlitches === 1 ? 'Rig Glitch' : 'Rig Glitches'}</span>
                     )}
                   </div>
                   {(p.reputation_change !== 0 || p.credits_earned !== 0 || (p.resource_changes ?? []).some((r) => r.quantity_delta !== 0)) && (
