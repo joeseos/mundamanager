@@ -107,6 +107,26 @@ const DUAL_ACTIVATION_RULES = ['Spyre Hunter', 'Aranthian Beauty Plating'];
 const hasDualActivation = (rules?: string[]) =>
   rules?.some((r) => DUAL_ACTIVATION_RULES.includes(r)) ?? false;
 
+/**
+ * Split a crew's session injuries into Lasting Injuries and Rig Glitches.
+ * `roster` supplies fighter_types.is_spyrer; a gang can field both kinds.
+ */
+export function splitInjuryCounts(
+  fighters: BattleSessionFighter[],
+  roster: GangFighter[],
+): { totalInjuries: number; totalGlitches: number } {
+  return fighters.reduce(
+    (acc, f) => {
+      const count = f.session_record?.injuries?.length ?? 0;
+      const isSpyrer = roster.find((gf) => gf.id === f.fighter_id)?.is_spyrer ?? false;
+      if (isSpyrer) acc.totalGlitches += count;
+      else acc.totalInjuries += count;
+      return acc;
+    },
+    { totalInjuries: 0, totalGlitches: 0 }
+  );
+}
+
 function ConditionBadge({
   condition,
   iconOnly = false,
@@ -161,6 +181,7 @@ function FighterActionModal({
   editionSlug,
   candidateGangs,
   isSkirmish,
+  isSpyrer,
   onXpChanged,
   onConditionsChanged,
   onInjuryAdded,
@@ -173,6 +194,7 @@ function FighterActionModal({
   editionSlug?: string | null;
   candidateGangs: CampaignGangWithFighters[];
   isSkirmish: boolean;
+  isSpyrer: boolean;
   onXpChanged: (delta: number) => void;
   onConditionsChanged: (conditions: SessionCondition[]) => void;
   onInjuryAdded: (injury: SessionInjuryRecord) => void;
@@ -278,7 +300,7 @@ function FighterActionModal({
               variant="outline"
               className="flex-1"
             >
-              Add Lasting Injury
+              {isSpyrer ? 'Add Rig Glitch' : 'Add Lasting Injury'}
             </Button>
           </div>
           <div className="space-y-2 border-t pt-3 text-left">
@@ -370,6 +392,7 @@ function FighterActionModal({
           editionSlug={editionSlug}
           candidateGangs={candidateGangs}
           isSkirmish={isSkirmish}
+          isSpyrer={isSpyrer}
           onClose={() => setShowInjuryModal(false)}
           onInjuryAdded={(injury) => {
             onInjuryAdded(injury);
@@ -397,6 +420,7 @@ function InjuryPickerModal({
   editionSlug,
   candidateGangs,
   isSkirmish,
+  isSpyrer,
   onClose,
   onInjuryAdded,
   onBroadcast,
@@ -406,6 +430,8 @@ function InjuryPickerModal({
   /** Gangs in THIS battle, own gang excluded — not every gang in the campaign. */
   candidateGangs: CampaignGangWithFighters[];
   isSkirmish: boolean;
+  /** fighter_types.is_spyrer — swaps the whole catalog to Rig Glitches. */
+  isSpyrer: boolean;
   onClose: () => void;
   onInjuryAdded: (injury: SessionInjuryRecord) => void;
   onBroadcast?: () => void;
@@ -427,7 +453,7 @@ function InjuryPickerModal({
         set_captured: params.set_captured,
         hatred_target_id: params.hatred_target_id ?? null,
       });
-      if (!injuryResult.success) throw new Error(injuryResult.error || 'Failed to add injury');
+      if (!injuryResult.success) throw new Error(injuryResult.error || 'Failed to add Injury');
 
       const sessionInjury: SessionInjuryRecord = {
         fighter_effect_id: injuryResult.injury!.id,
@@ -441,28 +467,30 @@ function InjuryPickerModal({
       return sessionInjury;
     },
     onSuccess: (injury) => {
-      toast.success('Injury added');
+      toast.success(isSpyrer ? 'Rig Glitch added' : 'Injury added');
       onInjuryAdded(injury);
       onBroadcast?.();
       onClose();
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to add injury'),
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to add Injury'),
   });
 
   useEffect(() => {
     const editionQuery = editionSlug ? `&edition_slug=${encodeURIComponent(editionSlug)}` : '';
-    fetch(`/api/fighters/injuries?is_spyrer=false${editionQuery}`)
+    fetch(`/api/fighters/injuries?is_spyrer=${isSpyrer}${editionQuery}`)
       .then((r) => r.json())
       .then(setInjuryTypes)
-      .catch(() => toast.error('Failed to load injuries'))
+      .catch(() => toast.error(isSpyrer ? 'Failed to load Rig Glitches' : 'Failed to load Injuries'))
       .finally(() => setLoading(false));
-  }, [editionSlug]);
+  }, [editionSlug, isSpyrer]);
 
-  // This picker is non-spyrer, non-crew by construction (is_spyrer=false above).
+  const injuryNoun = isSpyrer ? 'Rig Glitch' : 'Lasting Injury';
+  // Crew still resolves against the base table here — unchanged, pre-existing N23 gap.
+  const injuryTableOpts = { isSpyrer };
   const rankMap = lastingInjuryRankFor(editionSlug, false);
 
   const formatRange = (name: string): string => {
-    const range = resolveInjuryRangeByNameFor(name, editionSlug);
+    const range = resolveInjuryRangeByNameFor(name, editionSlug, injuryTableOpts);
     if (!range) return '';
     const [min, max] = range;
     return min === max ? `${min}` : `${min}-${max}`;
@@ -488,7 +516,7 @@ function InjuryPickerModal({
   };
 
   const handleAdd = (): false | void => {
-    if (!selectedInjury) { toast.error('Select an injury'); return false; }
+    if (!selectedInjury) { toast.error(`Select a ${injuryNoun}`); return false; }
     if (blockedByHatredTarget) {
       toast.error(`Please select the target for ${selectedInjury.effect_name}`);
       return false;
@@ -514,7 +542,9 @@ function InjuryPickerModal({
       })
       .reduce((groups, injury) => {
         let groupLabel = 'Lasting Injuries';
-        if (rankMap) {
+        if (isSpyrer) {
+          groupLabel = 'Rig Glitches';
+        } else if (rankMap) {
           const rank = rankMap[injury.effect_name] ?? Infinity;
           if (rank >= 30) groupLabel = 'Mutations / Festering Injuries';
         }
@@ -549,10 +579,10 @@ function InjuryPickerModal({
     <>
       {mode === 'main' && (
         <Modal
-          title="Add Lasting Injury"
+          title={`Add ${injuryNoun}`}
           onClose={onClose}
           onConfirm={handleAdd}
-          confirmText="Add Lasting Injury"
+          confirmText={`Add ${injuryNoun}`}
           confirmDisabled={!selectedId || addMut.isPending}
           width="md"
         >
@@ -566,15 +596,15 @@ function InjuryPickerModal({
               getName={(i) => (i as InjuryType).effect_name}
               inline
               rollFn={rollD66}
-              resolveNameForRoll={(r) => resolveInjuryFor(r, editionSlug)?.name}
+              resolveNameForRoll={(r) => resolveInjuryFor(r, editionSlug, injuryTableOpts)?.name}
               onRolled={(rolled) => {
                 if (!rolled.length) return;
-                const name = resolveInjuryFor(rolled[0].roll, editionSlug)?.name;
+                const name = resolveInjuryFor(rolled[0].roll, editionSlug, injuryTableOpts)?.name;
                 const match = injuryTypes.find((i) => i.effect_name === name) ?? (rolled[0].item as InjuryType);
                 if (match) { setSelectedId(match.id); setSelectedInjury(match); }
               }}
               onRoll={(roll) => {
-                const util = resolveInjuryFor(roll, editionSlug);
+                const util = resolveInjuryFor(roll, editionSlug, injuryTableOpts);
                 if (!util) return;
                 const match = injuryTypes.find((i) => i.effect_name === util.name);
                 if (match) { setSelectedId(match.id); setSelectedInjury(match); }
@@ -582,7 +612,7 @@ function InjuryPickerModal({
               buttonText="Roll D66"
             />
             <div className="space-y-2 border-t pt-3">
-              <label className="text-sm font-medium">Lasting Injuries</label>
+              <label className="text-sm font-medium">{isSpyrer ? 'Rig Glitches' : 'Lasting Injuries'}</label>
               <Combobox
                 value={selectedId}
                 onValueChange={(v) => {
@@ -591,7 +621,7 @@ function InjuryPickerModal({
                   setHatredTargetId('');
                   setHatredGangId('');
                 }}
-                placeholder={loading ? 'Loading...' : 'Select a Lasting Injury'}
+                placeholder={loading ? 'Loading...' : `Select a ${injuryNoun}`}
                 disabled={loading}
                 options={options}
               />
@@ -650,7 +680,7 @@ function FighterRow({
   injuryCount,
   canInteract,
   battleActive,
-  isSpyrer,
+  hasTwoActivations,
   gangFighter,
   gangId,
   campaignId,
@@ -672,7 +702,7 @@ function FighterRow({
   injuryCount: number;
   canInteract: boolean;
   battleActive: boolean;
-  isSpyrer: boolean;
+  hasTwoActivations: boolean;
   gangFighter: GangFighter | undefined;
   gangId: string;
   campaignId?: string | null;
@@ -693,9 +723,15 @@ function FighterRow({
   const injuries = fighter.session_record?.injuries ?? [];
   const conditions = fighter.session_record?.conditions ?? [];
   const note = fighter.session_record?.note ?? '';
+  // fighter_types.is_spyrer — Spyrers take Rig Glitches. Not hasTwoActivations,
+  // which is a special-rules flag some non-Spyrers also carry.
+  const isSpyrer = gangFighter?.is_spyrer ?? false;
+  const injuryCountLabel = isSpyrer
+    ? `${injuryCount} ${injuryCount === 1 ? 'Glitch' : 'Glitches'}`
+    : `${injuryCount} ${injuryCount === 1 ? 'Injury' : 'Injuries'}`;
   const activations = fighter.session_record?.activations ?? 1;
   const isReady = activations > 0;
-  const maxActivations = isSpyrer ? 2 : 1;
+  const maxActivations = hasTwoActivations ? 2 : 1;
 
   const toggleReady = () => {
     const next = activations > 0 ? activations - 1 : maxActivations;
@@ -750,7 +786,7 @@ function FighterRow({
                   <>
                     {injuryCount > 0 && (
                       <span className="inline-flex items-center rounded-full bg-red-50 px-1.5 py-0.5 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300">
-                        {injuryCount} {injuryCount === 1 ? 'injury' : 'injuries'}
+                        {injuryCountLabel}
                       </span>
                     )}
                     {conditions.map((condition) => (
@@ -814,6 +850,7 @@ function FighterRow({
               editionSlug={editionSlug}
               candidateGangs={candidateGangs}
               isSkirmish={isSkirmish}
+              isSpyrer={isSpyrer}
               onXpChanged={onXpChanged}
               onConditionsChanged={onConditionsChanged}
               onInjuryAdded={onInjuryAdded}
@@ -1173,7 +1210,7 @@ export default function ParticipantCard({
     return sortParticipantFightersByPositioning(localFighters, positioning);
   }, [localFighters, positioning]);
 
-  const totalInjuries = localFighters.reduce((sum, f) => sum + (f.session_record?.injuries?.length ?? 0), 0);
+  const { totalInjuries, totalGlitches } = splitInjuryCounts(localFighters, gangFightersList);
   const crewRating = localFighters.reduce((sum, f) => {
     const match = gangFighters.find(
       (gf) => gf.id === f.fighter_id && gf.loadout_id === (f.loadout_id ?? undefined)
@@ -1550,7 +1587,10 @@ export default function ParticipantCard({
                 );
               })()}
               {totalInjuries > 0 && (
-                <span className="text-red-500">{totalInjuries} lasting injuries</span>
+                <span className="text-red-500">{totalInjuries} {totalInjuries === 1 ? 'Lasting Injury' : 'Lasting Injuries'}</span>
+              )}
+              {totalGlitches > 0 && (
+                <span className="text-red-500">{totalGlitches} {totalGlitches === 1 ? 'Rig Glitch' : 'Rig Glitches'}</span>
               )}
             </div>
           </div>
@@ -1758,7 +1798,7 @@ export default function ParticipantCard({
                         injuryCount={injuryCount}
                         canInteract={canInteract}
                         battleActive={battleActive}
-                        isSpyrer={hasDualActivation(fullMatch?.special_rules) || hasDualActivation(f.fighter?.special_rules)}
+                        hasTwoActivations={hasDualActivation(fullMatch?.special_rules) || hasDualActivation(f.fighter?.special_rules)}
                         gangFighter={fullMatch}
                         gangId={participant.gang_id}
                         campaignId={session.campaign_id}
