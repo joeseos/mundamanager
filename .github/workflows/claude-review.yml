@@ -104,7 +104,7 @@ jobs:
           claude_args: |
             --model claude-sonnet-5
             --effort high
-            --max-turns 40
+            --max-turns 80
             --allowedTools "Read,Glob,Grep,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
 
       # The point of this workflow. Runs whether the step above succeeded, failed, or
