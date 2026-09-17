@@ -15,6 +15,7 @@ import { LuPlus, LuMinus, LuClipboard, LuSlash } from 'react-icons/lu';
 import { Combobox } from '@/components/ui/combobox';
 import Modal from '@/components/ui/modal';
 import CrewSelectionModal from '@/components/battle-session/crew-selection-modal';
+import FighterEffectSelection from '@/components/fighter-effect-selection';
 import DiceRoller from '@/components/dice-roller';
 import { FighterXpModal } from '@/components/fighter/fighter-xp-modal';
 import { rollD66, rollNd6Outcome, resolveInjuryFor, resolveInjuryRangeByNameFor } from '@/utils/dice';
@@ -107,10 +108,7 @@ const DUAL_ACTIVATION_RULES = ['Spyre Hunter', 'Aranthian Beauty Plating'];
 const hasDualActivation = (rules?: string[]) =>
   rules?.some((r) => DUAL_ACTIVATION_RULES.includes(r)) ?? false;
 
-/**
- * Split a crew's session injuries into Lasting Injuries and Rig Glitches.
- * `roster` supplies fighter_types.is_spyrer; a gang can field both kinds.
- */
+/** Splits session injuries by fighter_types.is_spyrer; a gang can field both. */
 export function splitInjuryCounts(
   fighters: BattleSessionFighter[],
   roster: GangFighter[],
@@ -182,6 +180,7 @@ function FighterActionModal({
   candidateGangs,
   isSkirmish,
   isSpyrer,
+  fighterWeapons,
   onXpChanged,
   onConditionsChanged,
   onInjuryAdded,
@@ -195,6 +194,7 @@ function FighterActionModal({
   candidateGangs: CampaignGangWithFighters[];
   isSkirmish: boolean;
   isSpyrer: boolean;
+  fighterWeapons: { id: string; name: string; equipment_category?: string; effect_names?: string[] }[];
   onXpChanged: (delta: number) => void;
   onConditionsChanged: (conditions: SessionCondition[]) => void;
   onInjuryAdded: (injury: SessionInjuryRecord) => void;
@@ -393,6 +393,7 @@ function FighterActionModal({
           candidateGangs={candidateGangs}
           isSkirmish={isSkirmish}
           isSpyrer={isSpyrer}
+          fighterWeapons={fighterWeapons}
           onClose={() => setShowInjuryModal(false)}
           onInjuryAdded={(injury) => {
             onInjuryAdded(injury);
@@ -421,6 +422,7 @@ function InjuryPickerModal({
   candidateGangs,
   isSkirmish,
   isSpyrer,
+  fighterWeapons,
   onClose,
   onInjuryAdded,
   onBroadcast,
@@ -430,8 +432,8 @@ function InjuryPickerModal({
   /** Gangs in THIS battle, own gang excluded — not every gang in the campaign. */
   candidateGangs: CampaignGangWithFighters[];
   isSkirmish: boolean;
-  /** fighter_types.is_spyrer — swaps the whole catalog to Rig Glitches. */
   isSpyrer: boolean;
+  fighterWeapons: { id: string; name: string; equipment_category?: string; effect_names?: string[] }[];
   onClose: () => void;
   onInjuryAdded: (injury: SessionInjuryRecord) => void;
   onBroadcast?: () => void;
@@ -440,20 +442,24 @@ function InjuryPickerModal({
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState('');
   const [selectedInjury, setSelectedInjury] = useState<InjuryType | null>(null);
-  const [mode, setMode] = useState<'main' | 'recovery' | 'captured'>('main');
+  const [mode, setMode] = useState<'main' | 'recovery' | 'captured' | 'equipment'>('main');
+  const [pendingEquipmentId, setPendingEquipmentId] = useState<string | undefined>(undefined);
+  const [effectSelectionValid, setEffectSelectionValid] = useState(false);
+  const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] }>(null);
   const [hatredTargetId, setHatredTargetId] = useState('');
   const [hatredGangId, setHatredGangId] = useState('');
 
   const addMut = useMutation({
-    mutationFn: async (params: { fighter_effect_type_id: string; effect_name: string; send_to_recovery: boolean; set_captured: boolean; hatred_target_id?: string | null }) => {
+    mutationFn: async (params: { fighter_effect_type_id: string; effect_name: string; send_to_recovery: boolean; set_captured: boolean; hatred_target_id?: string | null; target_equipment_id?: string }) => {
       const injuryResult = await addFighterInjury({
         fighter_id: fighter.fighter_id,
         injury_type_id: params.fighter_effect_type_id,
         send_to_recovery: params.send_to_recovery,
         set_captured: params.set_captured,
         hatred_target_id: params.hatred_target_id ?? null,
+        target_equipment_id: params.target_equipment_id,
       });
-      if (!injuryResult.success) throw new Error(injuryResult.error || 'Failed to add Injury');
+      if (!injuryResult.success) throw new Error(injuryResult.error || 'Failed to add injury');
 
       const sessionInjury: SessionInjuryRecord = {
         fighter_effect_id: injuryResult.injury!.id,
@@ -467,12 +473,12 @@ function InjuryPickerModal({
       return sessionInjury;
     },
     onSuccess: (injury) => {
-      toast.success(isSpyrer ? 'Rig Glitch added' : 'Injury added');
+      toast.success(isSpyrer ? 'Rig glitch added' : 'Injury added');
       onInjuryAdded(injury);
       onBroadcast?.();
       onClose();
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to add Injury'),
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to add injury'),
   });
 
   useEffect(() => {
@@ -480,12 +486,11 @@ function InjuryPickerModal({
     fetch(`/api/fighters/injuries?is_spyrer=${isSpyrer}${editionQuery}`)
       .then((r) => r.json())
       .then(setInjuryTypes)
-      .catch(() => toast.error(isSpyrer ? 'Failed to load Rig Glitches' : 'Failed to load Injuries'))
+      .catch(() => toast.error(isSpyrer ? 'Failed to load rig glitches' : 'Failed to load injuries'))
       .finally(() => setLoading(false));
   }, [editionSlug, isSpyrer]);
 
   const injuryNoun = isSpyrer ? 'Rig Glitch' : 'Lasting Injury';
-  // Crew still resolves against the base table here — unchanged, pre-existing N23 gap.
   const injuryTableOpts = { isSpyrer };
   const rankMap = lastingInjuryRankFor(editionSlug, false);
 
@@ -504,7 +509,7 @@ function InjuryPickerModal({
     hatredTarget === 'gang_type' || (!isSkirmish && candidateGangs.length > 0);
   const blockedByHatredTarget = hatredTarget !== null && hatredSelectable && !hatredTargetId;
 
-  const commit = (send_to_recovery: boolean, set_captured: boolean) => {
+  const commit = (send_to_recovery: boolean, set_captured: boolean, target_equipment_id?: string) => {
     if (!selectedInjury) return;
     addMut.mutate({
       fighter_effect_type_id: selectedInjury.id,
@@ -512,6 +517,7 @@ function InjuryPickerModal({
       send_to_recovery,
       set_captured,
       hatred_target_id: hatredTarget && hatredTargetId ? hatredTargetId : undefined,
+      target_equipment_id,
     });
   };
 
@@ -522,6 +528,16 @@ function InjuryPickerModal({
       return false;
     }
     const tsd = selectedInjury.type_specific_data || {};
+    if (tsd.applies_to === 'equipment') {
+      if (fighterWeapons.length === 0) {
+        toast.error(`${selectedInjury.effect_name} attaches to a weapon, but this fighter has none`);
+        return false;
+      }
+      setMode('equipment');
+      return false;
+    }
+    // Clear any weapon id left from a previous pick.
+    setPendingEquipmentId(undefined);
     if (tsd.recovery === 'true') { setMode('recovery'); return false; }
     if (tsd.captured === 'true') { setMode('captured'); return false; }
     commit(false, false);
@@ -640,11 +656,46 @@ function InjuryPickerModal({
         </Modal>
       )}
 
+      {mode === 'equipment' && selectedInjury && (
+        <Modal
+          title="Select Weapon"
+          content={
+            <FighterEffectSelection
+              ref={effectSelectionRef}
+              equipmentId=""
+              effectTypes={[]}
+              targetSelectionOnly
+              fighterId={fighter.fighter_id}
+              modifierEquipmentId=""
+              effectTypeId={selectedInjury.id}
+              effectName={selectedInjury.effect_name}
+              fighterWeapons={fighterWeapons}
+              onApplyToTarget={async (equipmentId) => {
+                const tsd = selectedInjury.type_specific_data || {};
+                setPendingEquipmentId(equipmentId);
+                if (tsd.recovery === 'true') { setMode('recovery'); return; }
+                if (tsd.captured === 'true') { setMode('captured'); return; }
+                commit(false, false, equipmentId);
+              }}
+              onSelectionComplete={() => {}}
+              onCancel={() => setMode('main')}
+              onValidityChange={setEffectSelectionValid}
+            />
+          }
+          onClose={() => setMode('main')}
+          // Never auto-close: onApplyToTarget owns the next mode.
+          onConfirm={async () => { await effectSelectionRef.current?.handleConfirm(); return false; }}
+          confirmText="Select Weapon"
+          confirmDisabled={!effectSelectionValid}
+          width="lg"
+        />
+      )}
+
       {mode === 'recovery' && (
         <Modal
           title="Send to Recovery?"
           onClose={() => setMode('main')}
-          onConfirm={async () => { commit(true, false); return false; }}
+          onConfirm={async () => { commit(true, false, pendingEquipmentId); return false; }}
           confirmText="Yes"
           confirmDisabled={addMut.isPending}
         >
@@ -656,7 +707,7 @@ function InjuryPickerModal({
         <Modal
           title="Mark as Captured?"
           onClose={() => setMode('main')}
-          onConfirm={async () => { commit(false, true); return false; }}
+          onConfirm={async () => { commit(false, true, pendingEquipmentId); return false; }}
           confirmText="Yes"
           confirmDisabled={addMut.isPending}
         >
@@ -723,8 +774,7 @@ function FighterRow({
   const injuries = fighter.session_record?.injuries ?? [];
   const conditions = fighter.session_record?.conditions ?? [];
   const note = fighter.session_record?.note ?? '';
-  // fighter_types.is_spyrer — Spyrers take Rig Glitches. Not hasTwoActivations,
-  // which is a special-rules flag some non-Spyrers also carry.
+  // Not hasTwoActivations — that's a special-rules flag some non-Spyrers carry.
   const isSpyrer = gangFighter?.is_spyrer ?? false;
   const injuryCountLabel = isSpyrer
     ? `${injuryCount} ${injuryCount === 1 ? 'Glitch' : 'Glitches'}`
@@ -851,6 +901,12 @@ function FighterRow({
               candidateGangs={candidateGangs}
               isSkirmish={isSkirmish}
               isSpyrer={isSpyrer}
+              fighterWeapons={(gangFighter?.weapons ?? []).map((w) => ({
+                id: w.fighter_weapon_id,
+                name: w.weapon_name,
+                equipment_category: w.equipment_category,
+                effect_names: w.effect_names,
+              }))}
               onXpChanged={onXpChanged}
               onConditionsChanged={onConditionsChanged}
               onInjuryAdded={onInjuryAdded}
