@@ -20,6 +20,8 @@ export const skillSetRankN23: { [key: string]: number } = {
   "wastelands": 28,
   "wisdom of the ancients": 29,
   //
+  // Ranks 40–69 are Wyrd Powers. isWyrdPowerSkillSet uses this band (plus a
+  // /wyrd/i name match) so do not place a non-Wyrd Skill Set here.
   "wyrd powers (core rulebook)": 40,
   "biomancy discipline": 41,
   "chronomancy discipline": 42,
@@ -29,6 +31,7 @@ export const skillSetRankN23: { [key: string]: number } = {
   "telepathy discipline": 46,
   "telekinesis discipline": 47,
   //
+  // Gang-specific Wyrd Powers (still 40–69).
   "chaos cult wyrd powers": 60,
   "genestealer cult wyrd powers": 61,
   "malstrain wyrd powers": 62,

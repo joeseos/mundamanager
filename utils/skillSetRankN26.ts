@@ -9,8 +9,11 @@ export const skillSetRankN26: { [key: string]: number } = {
   "finesse": 20,
   "muscle": 21,
   //
+  // Ranks 40–69 are Wyrd Powers. isWyrdPowerSkillSet uses this band (plus a
+  // /wyrd/i name match) so do not place a non-Wyrd Skill Set here.
   "wyrd powers": 40,
   //
+  // Gang-specific Wyrd Powers (still 40–69), including Psychoteric Whispers.
   "bonecrusher wyrd powers": 60,
   "chaos helot wyrd powers": 61,
   "genestealer wyrd powers": 62,
