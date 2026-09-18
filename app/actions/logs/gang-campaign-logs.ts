@@ -49,7 +49,6 @@ export async function logGangJoinedCampaign(params: GangJoinedCampaignLogParams)
   try {
     const supabase = await createClient();
     
-    // Get the gang owner's user_id to satisfy RLS policy
     const { data: gangData, error: gangError } = await supabase
       .from('gangs')
       .select('user_id')
@@ -67,7 +66,7 @@ export async function logGangJoinedCampaign(params: GangJoinedCampaignLogParams)
     const description = `Gang joined campaign "${params.campaign_name}" (added by ${params.user_name})`;
     return await createGangLog({
       gang_id: params.gang_id,
-      user_id: gangData.user_id, // Use gang owner's user_id to satisfy RLS policy
+      user_id: gangData.user_id,
       action_type: 'campaign_joined',
       description
     });
@@ -84,7 +83,6 @@ export async function logGangLeftCampaign(params: GangLeftCampaignLogParams): Pr
   try {
     const supabase = await createClient();
     
-    // Get the gang owner's user_id to satisfy RLS policy
     const { data: gangData, error: gangError } = await supabase
       .from('gangs')
       .select('user_id')
@@ -103,7 +101,7 @@ export async function logGangLeftCampaign(params: GangLeftCampaignLogParams): Pr
 
     return await createGangLog({
       gang_id: params.gang_id,
-      user_id: gangData.user_id, // Use gang owner's user_id to satisfy RLS policy
+      user_id: gangData.user_id,
       action_type: 'campaign_left',
       description
     });
@@ -120,7 +118,6 @@ export async function logBattleResult(params: BattleResultLogParams): Promise<Ga
   try {
     const supabase = await createClient();
     
-    // Get the gang owner's user_id to satisfy RLS policy
     const { data: gangData, error: gangError } = await supabase
       .from('gangs')
       .select('user_id')
@@ -162,7 +159,7 @@ export async function logBattleResult(params: BattleResultLogParams): Promise<Ga
 
     return await createGangLog({
       gang_id: params.gang_id,
-      user_id: gangData.user_id, // Use gang owner's user_id to satisfy RLS policy
+      user_id: gangData.user_id,
       action_type: `battle_${params.result}`,
       description
     });
@@ -179,7 +176,6 @@ export async function logTerritoryClaimed(params: TerritoryClaimedLogParams): Pr
   try {
     const supabase = await createClient();
     
-    // Get the gang owner's user_id to satisfy RLS policy
     const { data: gangData, error: gangError } = await supabase
       .from('gangs')
       .select('user_id')
@@ -199,7 +195,7 @@ export async function logTerritoryClaimed(params: TerritoryClaimedLogParams): Pr
 
     return await createGangLog({
       gang_id: params.gang_id,
-      user_id: gangData.user_id, // Use gang owner's user_id to satisfy RLS policy
+      user_id: gangData.user_id,
       action_type: 'territory_claimed',
       description
     });
@@ -216,7 +212,6 @@ export async function logTerritoryLost(params: TerritoryLostLogParams): Promise<
   try {
     const supabase = await createClient();
     
-    // Get the gang owner's user_id to satisfy RLS policy
     const { data: gangData, error: gangError } = await supabase
       .from('gangs')
       .select('user_id')
@@ -236,7 +231,7 @@ export async function logTerritoryLost(params: TerritoryLostLogParams): Promise<
 
     return await createGangLog({
       gang_id: params.gang_id,
-      user_id: gangData.user_id, // Use gang owner's user_id to satisfy RLS policy
+      user_id: gangData.user_id,
       action_type: 'territory_lost',
       description
     });

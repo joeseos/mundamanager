@@ -4,6 +4,7 @@ import { invalidateCampaignGang, invalidateUser, invalidatePermission } from '@/
 import { createClient } from "@/utils/supabase/server";
 
 import { getAuthenticatedUser } from '@/utils/auth';
+import { logGangJoinedCampaign } from '../../logs/gang-campaign-logs';
 
 export interface AcceptGangInviteParams {
   campaignId: string;
@@ -43,7 +44,7 @@ export async function acceptGangInvite(params: AcceptGangInviteParams) {
     // Find the PENDING campaign_gang record
     const { data: campaignGang, error: fetchError } = await supabase
       .from('campaign_gangs')
-      .select('id')
+      .select('id, invited_by')
       .eq('campaign_id', campaignId)
       .eq('gang_id', gangId)
       .eq('status', 'PENDING')
@@ -52,7 +53,6 @@ export async function acceptGangInvite(params: AcceptGangInviteParams) {
     if (fetchError) throw fetchError;
     if (!campaignGang) throw new Error('No pending invitation found');
 
-    // Update status to ACCEPTED
     const now = new Date().toISOString();
     // Zero rows matched is not an error, so a lost race or an RLS denial would
     // otherwise report success — and bust caches — while the row stayed PENDING.
@@ -71,10 +71,36 @@ export async function acceptGangInvite(params: AcceptGangInviteParams) {
       return { success: false, error: 'This invitation has already been answered' };
     }
 
+    // Logged here, not at invite time: while PENDING only the gang owner passes the gang_logs policy.
+    try {
+      const [
+        { data: campaignData, error: campaignError },
+        { data: inviterData, error: inviterError }
+      ] = await Promise.all([
+        supabase.from('campaigns').select('campaign_name').eq('id', campaignId).maybeSingle(),
+        campaignGang.invited_by
+          ? supabase.from('profiles').select('username').eq('id', campaignGang.invited_by).maybeSingle()
+          : Promise.resolve({ data: null as { username: string | null } | null, error: null })
+      ]);
+
+      if (campaignError) console.error('Error fetching campaign data:', campaignError);
+      if (inviterError) console.error('Error fetching inviter data:', inviterError);
+
+      if (campaignData) {
+        await logGangJoinedCampaign({
+          gang_id: gangId,
+          gang_name: gangData.name,
+          campaign_name: campaignData.campaign_name,
+          user_name: inviterData?.username || 'Unknown User'
+        });
+      }
+    } catch (logError) {
+      console.error('Error logging gang joined campaign:', logError);
+      // Don't fail the main operation if logging fails
+    }
+
     // Invalidate caches
     invalidateCampaignGang(campaignId, gangId);
-    invalidateUser(user.id);
-
     invalidatePermission(user.id, gangId);
     invalidateUser(user.id);
 
@@ -150,7 +176,7 @@ export async function declineGangInvite(params: DeclineGangInviteParams) {
       return { success: false, error: 'This invitation has already been answered' };
     }
 
-    // Invalidate caches - same as accept but with 'leave' action
+    // Invalidate caches
     invalidateCampaignGang(campaignId, gangId);
     invalidateUser(user.id);
 
