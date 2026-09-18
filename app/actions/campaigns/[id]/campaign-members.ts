@@ -328,7 +328,6 @@ export async function removeGangFromCampaign(params: RemoveGangParams) {
     if (territoryError) throw territoryError;
 
     // Log before the delete - for a non-owner the campaign_gangs row is what grants the insert.
-    // Target the same row the delete will: (campaign_id, gang_id) is not unique.
     const statusQuery = supabase.from('campaign_gangs').select('status');
     const { data: campaignGangRows, error: campaignGangError } = await (campaignGangId
       ? statusQuery.eq('id', campaignGangId)
