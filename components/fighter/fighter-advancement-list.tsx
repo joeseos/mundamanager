@@ -8,6 +8,7 @@ import { Skill, FighterSkills, FighterEffect as FighterEffectType } from '@/type
 import { TypeSpecificData } from '@/types/fighter-effect';
 import { createClient } from '@/utils/supabase/client';
 import { buildGroupedSkillSetComboboxOptions } from '@/utils/skillSetComboboxOptions';
+import { hasWyrdFighterSubtype, isWyrdPowerSkillSet } from '@/utils/skillSetRank';
 import { characteristicRank } from "@/utils/characteristicRank";
 import { countAdvancementsTaken, openAdvancementsFor } from "@/utils/advancementRanks";
 import { List } from "@/components/ui/list";
@@ -75,6 +76,8 @@ interface AdvancementModalProps {
   fighterTypeName?: string;
   fighterTypeId?: string;
   fighterSpecialisationId?: string;
+  /** Skill-access archetype name (e.g. Outcasts "Wyrd"). */
+  fighterArchetypeName?: string | null;
   onFighterDetailsUpdate?: (patch: {
     fighter_subtypes?: string[];
     fighter_type?: string;
@@ -208,6 +211,7 @@ interface AdvancementsListProps {
   fighterTypeId?: string;
   fighterSpecialisationId?: string;
   promotedFromProspect?: boolean;
+  fighterArchetypeName?: string | null;
   onFighterDetailsUpdate?: (patch: {
     fighter_subtypes?: string[];
     fighter_type?: string;
@@ -315,14 +319,35 @@ function getAllowedAcquisitionTypeIds(
 }
 
 /**
+ * Whether a fighter may take Wyrd Powers as skills. Per the FAQ, an "any skill"
+ * result never reaches a Wyrd Power unless the model has the Wyrd subtype or
+ * Wyrd archetype, or the set is already open to it through its normal skill
+ * access.
+ */
+function canPickWyrdPowerAsSkill(
+  wyrdPowersCountAsSkills: boolean,
+  effectiveLevel: 'primary' | 'secondary' | 'allowed' | null
+): boolean {
+  return wyrdPowersCountAsSkills || !!effectiveLevel;
+}
+
+/**
  * Builds grouped Skill Set combobox options with access annotations.
- * `highlightAccess` greys/italicises sets that are not that access level.
+ *
+ * `highlightAccess`:
+ * - `'primary'` / `'secondary'`: greys/italicises sets that are not that access level.
+ * - `null`: greys sets the fighter has no access to.
+ * - `'any'`: the N26 roll of 12. Every Skill Set is pickable, including sets
+ *   exclusive to other gangs and Inherent skills, so nothing is greyed except
+ *   Wyrd Powers the fighter cannot take as skills. `(Allowed)` is dropped since
+ *   Allowed access adds nothing when every set is open.
  */
 function buildSkillSetComboboxOptions(
   categories: SkillType[],
   skillAccess: SkillAccess[],
-  highlightAccess: 'primary' | 'secondary' | null,
-  editionSlug?: string | null
+  highlightAccess: 'primary' | 'secondary' | 'any' | null,
+  editionSlug?: string | null,
+  wyrdPowersCountAsSkills = false
 ) {
   const skillAccessMap = new Map<string, SkillAccess>();
   skillAccess.forEach((a) => skillAccessMap.set(a.skill_type_id, a));
@@ -331,14 +356,18 @@ function buildSkillSetComboboxOptions(
     formatItem: (category) => {
       const access = skillAccessMap.get(category.id);
       const effectiveLevel = access ? effectiveSkillAccess(access) : null;
+      const anySkill = highlightAccess === 'any';
       let accessLabel = '';
       if (effectiveLevel === 'primary') accessLabel = '(Primary)';
       else if (effectiveLevel === 'secondary') accessLabel = '(Secondary)';
-      else if (effectiveLevel === 'allowed') accessLabel = '(Allowed)';
+      else if (effectiveLevel === 'allowed' && !anySkill) accessLabel = '(Allowed)';
       const labelText = accessLabel ? `${category.name} ${accessLabel}` : category.name;
-      const useNormalLabelStyle = highlightAccess
-        ? effectiveLevel === highlightAccess
-        : !!effectiveLevel;
+      const useNormalLabelStyle = anySkill
+        ? !isWyrdPowerSkillSet(category.name, editionSlug) ||
+          canPickWyrdPowerAsSkill(wyrdPowersCountAsSkills, effectiveLevel)
+        : highlightAccess
+          ? effectiveLevel === highlightAccess
+          : !!effectiveLevel;
       return {
         label: useNormalLabelStyle ? (
           <span className="pl-4">{labelText}</span>
@@ -461,6 +490,7 @@ export function AdvancementModal({
   fighterTypeName = '',
   fighterTypeId = '',
   fighterSpecialisationId = '',
+  fighterArchetypeName = null,
   onFighterDetailsUpdate,
 }: AdvancementModalProps) {
   
@@ -502,6 +532,11 @@ export function AdvancementModal({
   // one table and no XP price is ever paid. The N23 subtype-specific tables and
   // escalating costs do not apply.
   const isCumulativeXp = hasCumulativeXp(editionSlug);
+
+  /** Wyrd Powers count as skills for this model — this fighter's Wyrd subtype or Wyrd archetype. */
+  const wyrdPowersCountAsSkills =
+    hasWyrdFighterSubtype(fighterSubtypes) ||
+    hasWyrdFighterSubtype(fighterArchetypeName ? [fighterArchetypeName] : []);
 
   /**
    * The characteristic list is derived from the RPC's map, not fetched and stored:
@@ -1713,6 +1748,32 @@ export function AdvancementModal({
     selectedSkillSetAccess
   ]);
 
+  /** The N26 roll of 12 ("any skill") is active: every Skill Set is open. */
+  const n26AnySkillSelected =
+    isCumulativeXp && advancementType === 'skill' && skillAcquisitionType === N26_ANY_SKILL_TYPE_ID;
+
+  /**
+   * On a roll of 12 the only set still out of reach is a Wyrd Power discipline
+   * the fighter cannot take as a skill. Replaces the generic "not accessible"
+   * warning, which would otherwise contradict the un-greyed combobox.
+   */
+  const n26AnySkillBlockedByWyrd = useMemo(() => {
+    if (!n26AnySkillSelected || !selectedCategory || skillAccessLoading) return false;
+    const matchedSet = categories.find(
+      (c): c is SkillType => c.type === 'skill' && c.id === selectedCategory
+    );
+    if (!matchedSet || !isWyrdPowerSkillSet(matchedSet.name, editionSlug)) return false;
+    return !canPickWyrdPowerAsSkill(wyrdPowersCountAsSkills, selectedSkillSetAccess);
+  }, [
+    n26AnySkillSelected,
+    selectedCategory,
+    skillAccessLoading,
+    categories,
+    editionSlug,
+    wyrdPowersCountAsSkills,
+    selectedSkillSetAccess
+  ]);
+
   /** N26 skill radios lock the acquisition mode; the Skill Set must match it. */
   const n26SkillRequiresMatchingSet =
     isCumulativeXp &&
@@ -1794,13 +1855,15 @@ export function AdvancementModal({
     const skillCategories = categories.filter((cat): cat is SkillType => cat.type === 'skill');
     const accessSource =
       advancementType === 'promotion_to_champion' ? championPreviewSkillAccess : skillAccess;
-    const n26HighlightAccess: 'primary' | 'secondary' | null =
+    const n26HighlightAccess: 'primary' | 'secondary' | 'any' | null =
       isCumulativeXp && skillAcquisitionType.startsWith('primary')
         ? 'primary'
         : isCumulativeXp && skillAcquisitionType.startsWith('secondary')
           ? 'secondary'
-          : null;
-    const highlightAccess: 'primary' | 'secondary' | null =
+          : isCumulativeXp && skillAcquisitionType === N26_ANY_SKILL_TYPE_ID
+            ? 'any'
+            : null;
+    const highlightAccess: 'primary' | 'secondary' | 'any' | null =
       advancementType === 'promotion_to_champion'
         ? 'primary'
         : n26HighlightAccess;
@@ -1808,7 +1871,8 @@ export function AdvancementModal({
       skillCategories,
       accessSource,
       highlightAccess,
-      editionSlug
+      editionSlug,
+      wyrdPowersCountAsSkills
     );
   }, [
     isSkillLikeAdvancementType,
@@ -1818,7 +1882,8 @@ export function AdvancementModal({
     championPreviewSkillAccess,
     editionSlug,
     isCumulativeXp,
-    skillAcquisitionType
+    skillAcquisitionType,
+    wyrdPowersCountAsSkills
   ]);
 
   /**
@@ -2805,10 +2870,17 @@ export function AdvancementModal({
                       {VENATOR_RANKS_INCOMPLETE_MESSAGE}
                     </p>
                   )}
-                  {selectedCategory && selectedSkillSetLacksAccess && (
+                  {selectedCategory && selectedSkillSetLacksAccess && !n26AnySkillSelected && (
                     <p className="text-sm text-amber-500">
                       This Skill Set is not accessible to this fighter. Change their Skill Set
                       access in: Edit Fighter &gt; Customise Skill Set Access.
+                    </p>
+                  )}
+                  {n26AnySkillBlockedByWyrd && (
+                    <p className="text-sm text-amber-500">
+                      Wyrd Powers are not skills. A roll of 12 only grants one if this fighter
+                      has the Wyrd subtype or Wyrd archetype, or already has access to this
+                      Skill Set.
                     </p>
                   )}
                   {n26SkillRequiresMatchingSet && !skillAccessLoading && !selectedSkillSetLacksAccess && (
@@ -2982,6 +3054,7 @@ export function AdvancementsList({
   fighterTypeId = '',
   fighterSpecialisationId = '',
   promotedFromProspect = false,
+  fighterArchetypeName = null,
   onFighterDetailsUpdate
 }: AdvancementsListProps) {
   const [isAdvancementModalOpen, setIsAdvancementModalOpen] = useState(false);
@@ -3534,6 +3607,7 @@ export function AdvancementsList({
           fighterTypeName={fighterTypeName}
           fighterTypeId={fighterTypeId}
           fighterSpecialisationId={fighterSpecialisationId}
+          fighterArchetypeName={fighterArchetypeName}
           onFighterDetailsUpdate={onFighterDetailsUpdate}
         />
       )}

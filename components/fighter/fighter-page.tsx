@@ -129,6 +129,10 @@ interface Fighter {
   is_spyrer?: boolean;
   is_vehicle?: boolean;
   selected_archetype_id?: string | null;
+  selected_archetype?: {
+    id: string;
+    name: string;
+  } | null;
 }
 
 interface Gang {
@@ -937,6 +941,7 @@ export default function FighterPage({
             fighterTypeName={fighterData.fighter?.fighter_type?.fighter_type || ''}
             fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
             fighterSpecialisationId={fighterData.fighter?.fighter_specialisation?.fighter_specialisation_id || ''}
+            fighterArchetypeName={fighterData.fighter?.selected_archetype?.name ?? null}
             promotedFromProspect={fighterData.fighter?.promoted_from_prospect ?? false}
             onFighterDetailsUpdate={(patch) => {
               setFighterData((prev) => ({
