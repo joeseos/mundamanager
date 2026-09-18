@@ -142,7 +142,11 @@ export default function RootLayout({
           <BackgroundImage />
           <header className="fixed top-0 left-0 right-0 bg-background border-b border-border shadow-md z-50 print:hidden">
           <div className="flex justify-between items-center h-14 px-2">
-            <Link href="/" className="flex items-center">
+            {/* prefetch={false}: / is dynamic and the app has no loading.tsx,
+                so the default prefetch server-renders the whole home page -
+                nine user-scoped queries - on every page view, to warm an entry
+                staleTimes.dynamic (0 by default) discards immediately. */}
+            <Link href="/" prefetch={false} className="flex items-center">
               <Image
                 src="/images/favicon-36x36-black.png"
                 alt="App Icon"
