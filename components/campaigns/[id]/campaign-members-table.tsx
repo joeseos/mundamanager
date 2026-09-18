@@ -598,8 +598,8 @@ export default function MembersTable({
         gangName: variables.gangName
       };
     },
-    retry: 2,
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+    // No retry: the action writes the gang's "left campaign" log before the delete, so a
+    // retried failure writes it again.
     onSuccess: (_result, _variables, context) => {
       toast.success(`Removed ${context?.gangName} from the campaign`);
 
