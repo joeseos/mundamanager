@@ -534,9 +534,10 @@ export function AdvancementModal({
   const isCumulativeXp = hasCumulativeXp(editionSlug);
 
   /** Wyrd Powers count as skills for this model — this fighter's Wyrd subtype or Wyrd archetype. */
-  const wyrdPowersCountAsSkills =
-    hasWyrdFighterSubtype(fighterSubtypes) ||
-    hasWyrdFighterSubtype(fighterArchetypeName ? [fighterArchetypeName] : []);
+  const wyrdPowersCountAsSkills = hasWyrdFighterSubtype([
+    ...fighterSubtypes,
+    fighterArchetypeName ?? '',
+  ]);
 
   /**
    * The characteristic list is derived from the RPC's map, not fetched and stored:

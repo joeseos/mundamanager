@@ -37,6 +37,8 @@ export function getSkillSetRank(
  *
  * Wyrd Powers are not skills, so an "any skill" advancement (the N26 roll of 12)
  * cannot reach them unless this fighter has the Wyrd subtype or Wyrd archetype.
+ * Callers today are N26-only (`n26AnySkillSelected`); the rank lookup still
+ * follows `editionSlug` so the N23 table stays consistent if reused.
  */
 export function isWyrdPowerSkillSet(
   name: string,
