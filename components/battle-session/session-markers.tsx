@@ -68,6 +68,7 @@ export interface SessionMarkerDef {
   section: SessionMarkerSection;
   kind: SessionMarkerKind;
   colorClass: string;
+  /** N23/plain glyph. N26-only markers omit this; outside composite mode they have no visible glyph. */
   icon?: ReactNode;
   n26?: SessionMarkerN26;
   isAvailable: (editionSlug?: string | null) => boolean;
@@ -108,6 +109,15 @@ export const N26_MARKER_SIZE_CLASS = 'size-7 md:size-10';
 
 /** Smaller glyphs beside labels in Fighter Actions. */
 export const N26_MODAL_MARKER_SIZE_CLASS = 'size-7';
+
+/** Composite modal/button box, or the N23 font-size fallback. */
+export function markerSizeClass(
+  useComposite: boolean,
+  fallback: string,
+  compositeClass = `inline-flex shrink-0 items-center justify-center ${N26_MODAL_MARKER_SIZE_CLASS}`,
+) {
+  return useComposite ? compositeClass : fallback;
+}
 
 /** Compile-time N26 catalog completeness. Conditions are not a display order. */
 export const N26_REQUIRED_KEYS = {

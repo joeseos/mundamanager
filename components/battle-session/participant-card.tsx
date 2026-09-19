@@ -32,7 +32,7 @@ import { FaRegAddressCard, FaMedkit } from 'react-icons/fa';
 import {
   CONDITION_BY_KEY,
   N26_MARKER_SIZE_CLASS,
-  N26_MODAL_MARKER_SIZE_CLASS,
+  markerSizeClass,
   ReadyActivatedIcon,
   SessionMarkerGlyph,
   groupFighterRowConditionBadges,
@@ -102,7 +102,7 @@ function MarkerToggleButton({
       variant={isActive ? 'default' : 'outline'}
       className="min-w-[140px] flex-1 max-w-[calc(50%-0.25rem)] justify-start pl-2 text-left text-xs md:pl-6 md:text-sm"
     >
-      <span className={`${condition.colorClass} mr-1.5 ${useComposite ? `inline-flex shrink-0 items-center justify-center ${N26_MODAL_MARKER_SIZE_CLASS}` : 'text-xl'}`}>
+      <span className={`${condition.colorClass} mr-1.5 ${markerSizeClass(useComposite, 'text-xl')}`}>
         <SessionMarkerGlyph def={condition} editionSlug={editionSlug} decorative />
       </span>
       {name}
@@ -145,7 +145,7 @@ function ConditionBadge({
         title={conditionLabel}
         aria-label={conditionLabel}
       >
-        <span className={useComposite ? `${config.colorClass} size-full` : `${config.colorClass} text-xl md:text-2xl`}>
+        <span className={`${config.colorClass} ${markerSizeClass(useComposite, 'text-xl md:text-2xl', 'size-full')}`}>
           <SessionMarkerGlyph def={config} editionSlug={editionSlug} decorative />
         </span>
         {condition.value != null && condition.value > 0 && (
@@ -229,8 +229,9 @@ function FighterActionModal({
     fighter.session_record?.conditions ?? []
   );
 
-  // Conditions the edition doesn't use aren't offered. CONDITION_BY_KEY keeps every
-  // definition, so a value another edition already recorded still renders its badge.
+  // Conditions the edition doesn't use aren't offered. CONDITION_BY_KEY still
+  // looks up a stored key from another edition. The glyph only falls back when
+  // that definition has `icon`; N26-only markers stay label-only outside composite mode.
   const showFleshWounds = hasFleshWoundCondition(editionSlug);
   const useCompositeMarkers = hasN26CompositeBattleMarkers(editionSlug);
   const { status: statusMarkers, wounds: woundMarkers, conditions: conditionMarkers } =
@@ -357,7 +358,7 @@ function FighterActionModal({
                 return (
                   <div key={nc.key} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className={`${nc.colorClass} ${useCompositeMarkers ? `inline-flex shrink-0 items-center justify-center ${N26_MODAL_MARKER_SIZE_CLASS}` : 'text-2xl'}`}>
+                      <span className={`${nc.colorClass} ${markerSizeClass(useCompositeMarkers, 'text-2xl')}`}>
                         <SessionMarkerGlyph def={nc} editionSlug={editionSlug} decorative />
                       </span>
                       <span className="text-sm">{name}</span>
