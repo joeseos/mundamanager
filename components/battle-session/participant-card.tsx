@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { useState, useEffect, useMemo, useRef, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import { sortParticipantFightersByPositioning } from '@/utils/fighter-positioning';
 
@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { PatreonSupporterIcon } from '@/components/ui/patreon-supporter-icon';
-import { LuPlus, LuMinus, LuClipboard, LuSlash } from 'react-icons/lu';
+import { LuPlus, LuMinus, LuClipboard } from 'react-icons/lu';
 import { Combobox } from '@/components/ui/combobox';
 import Modal from '@/components/ui/modal';
 import CrewSelectionModal from '@/components/battle-session/crew-selection-modal';
@@ -24,15 +24,22 @@ import { requiredHatredTarget } from '@/utils/injuryTarget';
 import { InjuryHatredTargetPicker } from '@/components/fighter/injury-hatred-target-picker';
 import type { CampaignGangWithFighters } from '@/types/fighter-ooa-record';
 import { CgMoreVerticalO } from 'react-icons/cg';
-import { BsFire, BsFillExclamationCircleFill } from 'react-icons/bs';
-import { GiPieceSkull, GiSpiderWeb, GiHeavyBullets, GiHealthNormal, GiWaterDrop, GiSpill, GiCrossedChains, GiHandcuffs } from 'react-icons/gi';
-import { IoFlashOutline, IoSkull } from 'react-icons/io5';
+import { GiCrossedChains, GiHandcuffs } from 'react-icons/gi';
+import { IoSkull } from 'react-icons/io5';
 import { MdChair } from 'react-icons/md';
 import { TbMeatOff } from 'react-icons/tb';
-import { IoMdEye, IoMdEyeOff } from 'react-icons/io';
-import { PiBeerBottleFill } from 'react-icons/pi';
-import { WiStars } from 'react-icons/wi';
-import { FaRegAddressCard, FaUserCheck, FaMedkit } from 'react-icons/fa';
+import { FaRegAddressCard, FaMedkit } from 'react-icons/fa';
+import {
+  CONDITION_BY_KEY,
+  N26_MARKER_SIZE_CLASS,
+  N26_MODAL_MARKER_SIZE_CLASS,
+  ReadyActivatedIcon,
+  SessionMarkerGlyph,
+  groupFighterRowConditionBadges,
+  markerName,
+  markersForEdition,
+  type SessionMarkerDef,
+} from '@/components/battle-session/session-markers';
 import {
   removeParticipant,
   updateParticipantRole,
@@ -53,56 +60,7 @@ import { createGangLog } from '@/app/actions/logs/gang-logs';
 import { updateFighterXp } from '@/app/actions/edit-fighter';
 import FighterCard from '@/components/gang/fighter-card';
 import type { BattleSessionFull, BattleSessionParticipant, BattleSessionFighter, SessionCondition, SessionInjuryRecord } from '@/types/battle-session';
-import { beastSubtypeName, hasBlazeCondition, hasFleshWoundCondition, hasIntoxicatedCondition } from '@/types/edition';
-
-interface ConditionDefinition {
-  key: string;
-  name: string;
-  colorClass: string;
-  icon: ReactNode;
-}
-
-// Condition tokens that are displayed in the fighter row of the participant card
-const SESSION_CONDITIONS: ConditionDefinition[] = [
-  { key: 'blaze', name: 'Blaze', colorClass: 'text-orange-500', icon: <BsFire /> },
-  { key: 'insane', name: 'Insane', colorClass: 'text-purple-700', icon: <GiPieceSkull /> },
-  { key: 'webbed', name: 'Webbed', colorClass: 'text-neutral-400', icon: <GiSpiderWeb /> },
-  { key: 'blind', name: 'Blind', colorClass: 'text-neutral-400', icon: <IoFlashOutline /> },
-  { key: 'broken', name: 'Broken', colorClass: 'text-red-700', icon: <BsFillExclamationCircleFill /> },
-  { key: 'intoxicated', name: 'Intoxicated', colorClass: 'text-emerald-500', icon: <PiBeerBottleFill /> },
-  { key: 'hidden', name: 'Hidden', colorClass: 'text-red-700', icon: <IoMdEyeOff /> },
-  { key: 'revealed', name: 'Revealed', colorClass: 'text-neutral-400', icon: <IoMdEye /> },
-  { key: 'concussion', name: 'Concussion', colorClass: 'text-red-400', icon: <WiStars /> },
-  {
-    key: 'out_of_ammo',
-    name: 'Out of Ammo',
-    colorClass: 'text-neutral-700',
-    icon: (
-      <span className="relative inline-flex items-center justify-center align-[-3px]">
-        <GiHeavyBullets />
-        <LuSlash className="absolute inset-0 m-auto" />
-      </span>
-    ),
-  },
-  { key: 'gunked', name: 'Gunked', colorClass: 'text-slate-900', icon: <GiSpill /> },
-];
-
-const NUMERIC_CONDITIONS: ConditionDefinition[] = [
-  {
-    key: 'flesh_wound',
-    name: 'Flesh Wounds',
-    colorClass: 'text-neutral-400',
-    icon: (
-      <span className="relative inline-flex items-center justify-center align-[-3px]">
-        <GiHealthNormal />
-        <GiWaterDrop className="absolute inset-0 m-auto text-red-800 size-2" />
-      </span>
-    ),
-  },
-  { key: 'wounds', name: 'Wounds', colorClass: 'text-red-800', icon: <GiWaterDrop /> },
-];
-
-const CONDITION_BY_KEY = new Map([...SESSION_CONDITIONS, ...NUMERIC_CONDITIONS].map((condition) => [condition.key, condition]));
+import { beastSubtypeName, hasFleshWoundCondition, hasN26CompositeBattleMarkers } from '@/types/edition';
 
 const DUAL_ACTIVATION_RULES = ['Spyre Hunter', 'Aranthian Beauty Plating'];
 const hasDualActivation = (rules?: string[]) =>
@@ -125,17 +83,47 @@ export function splitInjuryCounts(
   );
 }
 
+function MarkerToggleButton({
+  condition,
+  editionSlug,
+  isActive,
+  onToggle,
+}: {
+  condition: SessionMarkerDef;
+  editionSlug?: string | null;
+  isActive: boolean;
+  onToggle: () => void;
+}) {
+  const name = markerName(condition, editionSlug);
+  const useComposite = hasN26CompositeBattleMarkers(editionSlug);
+  return (
+    <Button
+      onClick={onToggle}
+      variant={isActive ? 'default' : 'outline'}
+      className="min-w-[140px] flex-1 max-w-[calc(50%-0.25rem)] justify-start pl-2 text-left text-xs md:pl-6 md:text-sm"
+    >
+      <span className={`${condition.colorClass} mr-1.5 ${useComposite ? `inline-flex shrink-0 items-center justify-center ${N26_MODAL_MARKER_SIZE_CLASS}` : 'text-xl'}`}>
+        <SessionMarkerGlyph def={condition} editionSlug={editionSlug} decorative />
+      </span>
+      {name}
+    </Button>
+  );
+}
+
 function ConditionBadge({
   condition,
   iconOnly = false,
+  editionSlug,
 }: {
   condition: SessionCondition;
   iconOnly?: boolean;
+  editionSlug?: string | null;
 }) {
   const config = CONDITION_BY_KEY.get(condition.key);
+  const displayName = config ? markerName(config, editionSlug) : condition.name;
   const conditionLabel = condition.value != null && condition.value > 0
-    ? `${condition.value} ${condition.name}`
-    : condition.name;
+    ? `${condition.value} ${displayName}`
+    : displayName;
   if (!config) {
     return (
       <span className="rounded-full bg-neutral-100 px-2 py-1 text-sm text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
@@ -144,13 +132,22 @@ function ConditionBadge({
     );
   }
 
+  const useComposite = hasN26CompositeBattleMarkers(editionSlug) && Boolean(config.n26);
+
   if (iconOnly) {
     return (
       <span
-        className="relative inline-flex size-7 md:size-10 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-sm text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
+        className={
+          useComposite
+            ? `relative inline-flex ${N26_MARKER_SIZE_CLASS} shrink-0 items-center justify-center`
+            : 'relative inline-flex size-7 md:size-10 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-sm text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300'
+        }
         title={conditionLabel}
+        aria-label={conditionLabel}
       >
-        <span className={`${config.colorClass} text-xl md:text-2xl`}>{config.icon}</span>
+        <span className={useComposite ? `${config.colorClass} size-full` : `${config.colorClass} text-xl md:text-2xl`}>
+          <SessionMarkerGlyph def={config} editionSlug={editionSlug} decorative />
+        </span>
         {condition.value != null && condition.value > 0 && (
           <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-neutral-700 text-[10px] font-bold leading-none text-white dark:bg-neutral-200 dark:text-neutral-900">
             {condition.value}
@@ -162,10 +159,33 @@ function ConditionBadge({
 
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2 py-1 text-sm text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-      <span className={`${config.colorClass} text-base`}>{config.icon}</span>
+      <span className={`${config.colorClass} text-base`}>
+        <SessionMarkerGlyph def={config} editionSlug={editionSlug} decorative />
+      </span>
       {conditionLabel}
     </span>
   );
+}
+
+function FighterRowConditionBadges({
+  conditions,
+  editionSlug,
+}: {
+  conditions: SessionCondition[];
+  editionSlug?: string | null;
+}) {
+  return groupFighterRowConditionBadges(conditions, editionSlug).map((group, index) => (
+    <Fragment key={group.map((condition) => condition.key).join('-')}>
+      {index > 0 && (
+        <span className="px-0.5 text-muted-foreground" aria-hidden>
+          ∙
+        </span>
+      )}
+      {group.map((condition) => (
+        <ConditionBadge key={condition.key} condition={condition} iconOnly editionSlug={editionSlug} />
+      ))}
+    </Fragment>
+  ));
 }
 
 // ---------------------------------------------------------------------------
@@ -212,13 +232,15 @@ function FighterActionModal({
   // Conditions the edition doesn't use aren't offered. CONDITION_BY_KEY keeps every
   // definition, so a value another edition already recorded still renders its badge.
   const showFleshWounds = hasFleshWoundCondition(editionSlug);
-  const hiddenConditionKeys = new Set<string>();
-  if (!hasBlazeCondition(editionSlug)) hiddenConditionKeys.add('blaze');
-  if (!hasIntoxicatedCondition(editionSlug)) hiddenConditionKeys.add('intoxicated');
-  if (!showFleshWounds) hiddenConditionKeys.add('flesh_wound');
-
-  const sessionConditions = SESSION_CONDITIONS.filter((c) => !hiddenConditionKeys.has(c.key));
-  const numericConditions = NUMERIC_CONDITIONS.filter((c) => !hiddenConditionKeys.has(c.key));
+  const useCompositeMarkers = hasN26CompositeBattleMarkers(editionSlug);
+  const { status: statusMarkers, wounds: woundMarkers, conditions: conditionMarkers } =
+    markersForEdition(editionSlug);
+  const visibilityMarkerKeys = new Set(['hidden', 'revealed']);
+  const injuredMarker = conditionMarkers.find((c) => c.key === 'injured');
+  const mainConditionMarkers = conditionMarkers
+    .filter((c) => !visibilityMarkerKeys.has(c.key) && c.key !== 'injured')
+    .sort((a, b) => markerName(a, editionSlug).localeCompare(markerName(b, editionSlug)));
+  const visibilityMarkers = conditionMarkers.filter((c) => visibilityMarkerKeys.has(c.key));
 
   const openXpModal = async () => {
     setLoadingXp(true);
@@ -245,15 +267,16 @@ function FighterActionModal({
     revealed: 'hidden',
   };
 
-  const toggleCondition = (condition: ConditionDefinition) => {
+  const toggleCondition = (condition: SessionMarkerDef) => {
     const exists = draftConditions.some((item) => item.key === condition.key);
+    const name = markerName(condition, editionSlug);
     if (exists) {
       setDraftConditions(draftConditions.filter((item) => item.key !== condition.key));
     } else {
       const excludeKey = EXCLUSIVE_PAIRS[condition.key];
       setDraftConditions([
         ...draftConditions.filter((item) => item.key !== excludeKey),
-        { key: condition.key, name: condition.name },
+        { key: condition.key, name },
       ]);
     }
   };
@@ -303,25 +326,48 @@ function FighterActionModal({
               {isSpyrer ? 'Add Rig Glitch' : 'Add Lasting Injury'}
             </Button>
           </div>
+          {useCompositeMarkers && statusMarkers.length > 0 && (
+            <div className="space-y-2 border-t pt-3 text-left">
+              <h4 className="text-sm font-medium text-neutral-500">Status</h4>
+              <div className="flex flex-wrap gap-2">
+                {statusMarkers.map((condition) => (
+                  <MarkerToggleButton
+                    key={condition.key}
+                    condition={condition}
+                    editionSlug={editionSlug}
+                    isActive={draftConditions.some((c) => c.key === condition.key)}
+                    onToggle={() => toggleCondition(condition)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
           <div className="space-y-2 border-t pt-3 text-left">
             <h4 className="text-sm font-medium text-neutral-500">
-              {showFleshWounds ? 'Wounds & Flesh Wounds' : 'Wounds'}
+              {useCompositeMarkers
+                ? 'Wounds'
+                : showFleshWounds
+                  ? 'Wounds & Flesh Wounds'
+                  : 'Wounds'}
             </h4>
             <div className="flex flex-col gap-2">
-              {numericConditions.map((nc) => {
+              {woundMarkers.map((nc) => {
                 const current = draftConditions.find((c) => c.key === nc.key)?.value ?? 0;
+                const name = markerName(nc, editionSlug);
                 return (
                   <div key={nc.key} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className={`${nc.colorClass} text-2xl`}>{nc.icon}</span>
-                      <span className="text-sm">{nc.name}</span>
+                      <span className={`${nc.colorClass} ${useCompositeMarkers ? `inline-flex shrink-0 items-center justify-center ${N26_MODAL_MARKER_SIZE_CLASS}` : 'text-2xl'}`}>
+                        <SessionMarkerGlyph def={nc} editionSlug={editionSlug} decorative />
+                      </span>
+                      <span className="text-sm">{name}</span>
                     </div>
                     <div className="flex items-center space-x-2">
                       <Button
                         variant="outline"
                         size="icon"
                         className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
-                        onClick={() => adjustNumericCondition(nc.key, nc.name, -1)}
+                        onClick={() => adjustNumericCondition(nc.key, name, -1)}
                         disabled={current === 0}
                       >
                         <LuMinus className="h-4 w-4" />
@@ -331,7 +377,7 @@ function FighterActionModal({
                         variant="outline"
                         size="icon"
                         className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
-                        onClick={() => adjustNumericCondition(nc.key, nc.name, 1)}
+                        onClick={() => adjustNumericCondition(nc.key, name, 1)}
                       >
                         <LuPlus className="h-4 w-4" />
                       </Button>
@@ -343,22 +389,40 @@ function FighterActionModal({
           </div>
           <div className="space-y-2 border-t pt-3 text-left">
             <h4 className="text-sm font-medium text-neutral-500">Conditions</h4>
+            {injuredMarker && (
+              <div className="flex flex-wrap gap-2 border-b pb-2">
+                <MarkerToggleButton
+                  condition={injuredMarker}
+                  editionSlug={editionSlug}
+                  isActive={draftConditions.some((c) => c.key === injuredMarker.key)}
+                  onToggle={() => toggleCondition(injuredMarker)}
+                />
+              </div>
+            )}
             <div className="flex flex-wrap gap-2">
-              {sessionConditions.map((condition) => {
-                const isActive = draftConditions.some((c) => c.key === condition.key);
-                return (
-                  <Button
-                    key={condition.key}
-                    onClick={() => toggleCondition(condition)}
-                    variant={isActive ? "default" : "outline"}
-                    className="flex-1 min-w-[140px] justify-center text-xs md:text-sm"
-                  >
-                    <span className={`${condition.colorClass} mr-1.5 text-xl`}>{condition.icon}</span>
-                    {condition.name}
-                  </Button>
-                );
-              })}
+              {mainConditionMarkers.map((condition) => (
+                <MarkerToggleButton
+                  key={condition.key}
+                  condition={condition}
+                  editionSlug={editionSlug}
+                  isActive={draftConditions.some((c) => c.key === condition.key)}
+                  onToggle={() => toggleCondition(condition)}
+                />
+              ))}
             </div>
+            {visibilityMarkers.length > 0 && (
+              <div className="flex flex-wrap gap-2 border-t pt-2">
+                {visibilityMarkers.map((condition) => (
+                  <MarkerToggleButton
+                    key={condition.key}
+                    condition={condition}
+                    editionSlug={editionSlug}
+                    isActive={draftConditions.some((c) => c.key === condition.key)}
+                    onToggle={() => toggleCondition(condition)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
 
@@ -839,9 +903,7 @@ function FighterRow({
                         {injuryCountLabel}
                       </span>
                     )}
-                    {conditions.map((condition) => (
-                      <ConditionBadge key={condition.key} condition={condition} iconOnly />
-                    ))}
+                    <FighterRowConditionBadges conditions={conditions} editionSlug={editionSlug} />
                   </>
                 ) : (
                   <>
@@ -853,9 +915,7 @@ function FighterRow({
                         {injury.effect_name}
                       </span>
                     ))}
-                    {conditions.map((condition) => (
-                      <ConditionBadge key={condition.key} condition={condition} iconOnly />
-                    ))}
+                    <FighterRowConditionBadges conditions={conditions} editionSlug={editionSlug} />
                   </>
                 )}
               </div>
@@ -881,7 +941,7 @@ function FighterRow({
               title={note || 'Add note'}
               onClick={() => { setNoteDraft(note); setShowNoteModal(true); }}
             />
-            <FaUserCheck
+            <ReadyActivatedIcon
               className={`size-6 transition-colors duration-200 ${iconColor} cursor-pointer hover:text-muted-foreground`}
               title={activations > 0 ? `${activations} activation${activations !== 1 ? 's' : ''} remaining` : 'Activated'}
               onClick={toggleReady}
@@ -934,7 +994,7 @@ function FighterRow({
               />
             )}
             {battleActive && (
-              <FaUserCheck
+              <ReadyActivatedIcon
                 className={`size-6 ${iconColor}`}
                 title={activations > 0 ? `${activations} activation${activations !== 1 ? 's' : ''} remaining` : 'Activated'}
               />

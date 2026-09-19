@@ -214,9 +214,29 @@ const EDITION_CAPABILITIES = {
   /** Fighters can catch fire — the Blaze condition token in a battle session. */
   blazeCondition:           { n23: true,  n26: false },
   /** Fighters can be intoxicated — the Intoxicated condition token in a battle session. */
-  intoxicatedCondition:     { n23: true,  n26: false },
+  intoxicatedCondition:     { n23: true,  n26: true  },
   /** Damage short of a lost wound leaves a Flesh Wound, counted per fighter. */
   fleshWoundCondition:      { n23: true,  n26: false },
+  /** Fighters can be broken — the Broken condition token in a battle session. */
+  brokenCondition:          { n23: true,  n26: false },
+  /** Fighters can be gunked — the Gunked condition token in a battle session. */
+  gunkedCondition:          { n23: true,  n26: false },
+  /** Battle-session tokens use an outlined shape with a centred inner symbol. */
+  n26CompositeBattleMarkers:{ n23: false, n26: true  },
+  /** Fighters can be suppressed — an N26 status token in a battle session. */
+  suppressedCondition:      { n23: false, n26: true  },
+  /** Fighters can be seriously injured — an N26 status token in a battle session. */
+  seriouslyInjuredCondition:{ n23: false, n26: true  },
+  /** Fighters can be injured or damaged — an N26 condition token in a battle session. */
+  injuredCondition:         { n23: false, n26: true  },
+  /** Fighters can be rad-poisoned — an N26 condition token in a battle session. */
+  radPoisonedCondition:     { n23: false, n26: true  },
+  /** Fighters can be fearsome — an N26 condition token in a battle session. */
+  fearsomeCondition:        { n23: false, n26: true  },
+  /** Fighters can be in a frenzy — an N26 condition token in a battle session. */
+  frenzyCondition:          { n23: false, n26: true  },
+  /** Fighters can be terrifying — an N26 condition token in a battle session. */
+  terrifyingCondition:      { n23: false, n26: true  },
   venatorSkillAccess:       { n23: false, n26: true  },
   /** A Spyrer's Rig Glitches can send them into Recovery, so they get the Recovery toggle. */
   spyrerRecovery:           { n23: false, n26: true  },
@@ -375,6 +395,36 @@ export const hasIntoxicatedCondition = (editionSlug?: string | null): boolean =>
 
 export const hasFleshWoundCondition = (editionSlug?: string | null): boolean =>
   can('fleshWoundCondition', editionSlug);
+
+export const hasBrokenCondition = (editionSlug?: string | null): boolean =>
+  can('brokenCondition', editionSlug);
+
+export const hasGunkedCondition = (editionSlug?: string | null): boolean =>
+  can('gunkedCondition', editionSlug);
+
+export const hasN26CompositeBattleMarkers = (editionSlug?: string | null): boolean =>
+  can('n26CompositeBattleMarkers', editionSlug);
+
+export const hasSuppressedCondition = (editionSlug?: string | null): boolean =>
+  can('suppressedCondition', editionSlug);
+
+export const hasSeriouslyInjuredCondition = (editionSlug?: string | null): boolean =>
+  can('seriouslyInjuredCondition', editionSlug);
+
+export const hasInjuredCondition = (editionSlug?: string | null): boolean =>
+  can('injuredCondition', editionSlug);
+
+export const hasRadPoisonedCondition = (editionSlug?: string | null): boolean =>
+  can('radPoisonedCondition', editionSlug);
+
+export const hasFearsomeCondition = (editionSlug?: string | null): boolean =>
+  can('fearsomeCondition', editionSlug);
+
+export const hasFrenzyCondition = (editionSlug?: string | null): boolean =>
+  can('frenzyCondition', editionSlug);
+
+export const hasTerrifyingCondition = (editionSlug?: string | null): boolean =>
+  can('terrifyingCondition', editionSlug);
 
 export const hasVenatorSkillAccess = (editionSlug: string | null | undefined): boolean =>
   can('venatorSkillAccess', editionSlug);
