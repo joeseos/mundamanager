@@ -1072,7 +1072,7 @@ export default function Gang({
                 {username && (
                   <div className="flex items-center gap-1 text-sm mt-1">
                     Owner: 
-                      <Link href={`/user/${user_id}`}>
+                      <Link href={`/user/${user_id}`} prefetch={false}>
                         <Badge variant="outline" className="flex items-center gap-1 hover:bg-accent transition-colors">
                           {patreon_tier_id && (
                             <PatreonSupporterIcon
@@ -1159,8 +1159,9 @@ export default function Gang({
                     {/* Campaign Name */}
                       <div className="flex items-center gap-1 text-sm">
                         Campaign: <Badge variant="outline" className="cursor-pointer hover:bg-accent">
-                          <Link 
-                            href={`/campaigns/${campaigns[0].campaign_id}`} 
+                          <Link
+                            href={`/campaigns/${campaigns[0].campaign_id}`}
+                            prefetch={false}
                             className="flex items-center"
                             data-tooltip-id={`campaign-name-tooltip-${id}`}
                             data-tooltip-content={campaigns[0].campaign_name.length > 30 ? campaigns[0].campaign_name : undefined}

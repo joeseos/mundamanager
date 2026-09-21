@@ -382,7 +382,7 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
                   <div className="flex flex-wrap gap-4 mb-1">
                     <div className="flex items-center gap-1 text-sm">
                       Campaign: <Badge variant="outline" className="cursor-pointer hover:bg-secondary">
-                        <Link href={`/campaigns/${campaign.campaign_id}`} className="flex items-center">
+                        <Link href={`/campaigns/${campaign.campaign_id}`} prefetch={false} className="flex items-center">
                           {campaign.campaign_name}
                         </Link>
                       </Badge>
@@ -703,6 +703,7 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
                                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted" style={{ color: gang.gang_colour }}>
                                         <Link
                                           href={`/gang/${gang.id}`}
+                                          prefetch={false}
                                           className="hover:text-muted-foreground transition-colors"
                                         >
                                           {gang.name}
