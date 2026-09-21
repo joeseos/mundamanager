@@ -193,7 +193,7 @@ Enforcing `cursor: pointer` has the default value. */
   }
 
   body::before {
-    display: none;
+    display: none !important;
   }
 
   .print-reset {
@@ -279,7 +279,6 @@ body::before {
   background-image: url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/background_numv5r.avif');
   background-size: cover;
   background-position: center;
-  background-repeat: no-repeat;
 }
 
 /* Prevent hover effects from sticking on touch devices */
