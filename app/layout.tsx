@@ -96,7 +96,7 @@ export default function RootLayout({
     <html lang="en" className={`${inter.className}`} suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/site.webmanifest" />
-        <link rel="preload" as="image" href="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/background_numv5r.avif" />
+        <link rel="preload" as="image" href="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/background_numv5r.avif" fetchPriority="high" />
         <WebsiteStructuredData />
         <OrganizationStructuredData />
         <script
