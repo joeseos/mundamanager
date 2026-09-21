@@ -1,6 +1,5 @@
 import { hasEnvVars } from "@/utils/supabase/check-env-vars";
 import "./globals.css";
-import BackgroundImage from '@/components/background-image';
 import { Inter } from 'next/font/google'
 import Link from 'next/link';
 import Image from 'next/image';
@@ -97,6 +96,7 @@ export default function RootLayout({
     <html lang="en" className={`${inter.className}`} suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/site.webmanifest" />
+        <link rel="preload" as="image" href="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/background_numv5r.avif" />
         <WebsiteStructuredData />
         <OrganizationStructuredData />
         <script
@@ -139,7 +139,6 @@ export default function RootLayout({
           storageKey="mundamanager-theme"
         >
           <QueryClientProviderWrapper>
-          <BackgroundImage />
           <header className="fixed top-0 left-0 right-0 bg-background border-b border-border shadow-md z-50 print:hidden">
           <div className="flex justify-between items-center h-14 px-2">
             <Link href="/" className="flex items-center">

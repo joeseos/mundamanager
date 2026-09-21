@@ -192,6 +192,10 @@ Enforcing `cursor: pointer` has the default value. */
     --ring: var(--light-ring) !important;
   }
 
+  body::before {
+    display: none;
+  }
+
   .print-reset {
     max-width: none !important;
     width: auto !important;
@@ -263,6 +267,19 @@ Enforcing `cursor: pointer` has the default value. */
 
 .dark .fighter-card-bg {
   background-image: url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/fighter-card-background-5-dark_web_lhh1dn.webp');
+}
+
+/* Full-viewport site background; the colour is the fallback if the image fails to load */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-color: #111827;
+  background-image: url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/background_numv5r.avif');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 /* Prevent hover effects from sticking on touch devices */
