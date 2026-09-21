@@ -34,6 +34,7 @@ export default async function CampaignBreadcrumb({
               <BreadcrumbLink asChild>
                 <Link 
                   href="/" 
+                  prefetch={false}
                   className="text-muted-foreground hover:text-primary flex items-center"
                   aria-label="Home"
                 >
@@ -51,6 +52,7 @@ export default async function CampaignBreadcrumb({
               <BreadcrumbLink asChild>
                 <Link 
                   href="/?tab=campaigns" 
+                  prefetch={false}
                   className="text-muted-foreground hover:text-primary"
                   aria-label="Navigate to Campaigns"
                 >

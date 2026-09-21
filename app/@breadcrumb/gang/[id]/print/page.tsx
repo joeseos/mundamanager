@@ -36,6 +36,7 @@ export default async function GangPrintRosterBreadcrumb({
               <BreadcrumbLink asChild>
                 <Link 
                   href="/" 
+                  prefetch={false}
                   className="text-muted-foreground hover:text-primary flex items-center"
                   aria-label="Home"
                 >
@@ -53,6 +54,7 @@ export default async function GangPrintRosterBreadcrumb({
               <BreadcrumbLink asChild>
                 <Link 
                   href={`/gang/${id}`} 
+                  prefetch={false}
                   className="text-muted-foreground hover:text-primary"
                   aria-label={`Navigate to ${gangData?.name || 'Gang'}`}
                 >
