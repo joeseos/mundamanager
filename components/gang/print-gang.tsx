@@ -440,7 +440,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
           </div>
           <div className="flex justify-end gap-2 mt-4">
             <Button variant="outline_cancel" asChild>
-              <Link href={`/gang/${gang.id}`}>Cancel</Link>
+              <Link href={`/gang/${gang.id}`} prefetch={false}>Cancel</Link>
             </Button>
             <Button
               onClick={handlePrint}

@@ -15,7 +15,7 @@ export default function GangForbidden() {
         the gang&apos;s owner and campaign arbitrators can view it.
       </p>
       <Button asChild>
-        <Link href="/">Return to the Homepage</Link>
+        <Link href="/" prefetch={false}>Return to the Homepage</Link>
       </Button>
     </div>
   );
