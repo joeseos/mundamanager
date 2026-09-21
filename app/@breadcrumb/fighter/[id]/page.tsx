@@ -42,6 +42,7 @@ export default async function FighterBreadcrumb({
               <BreadcrumbLink asChild>
                 <Link 
                   href="/" 
+                  prefetch={false}
                   className="text-muted-foreground hover:text-primary flex items-center"
                   aria-label="Home"
                 >
@@ -59,6 +60,7 @@ export default async function FighterBreadcrumb({
               <BreadcrumbLink asChild>
                 <Link 
                   href={`/gang/${fighterData?.gang_id}`} 
+                  prefetch={false}
                   className="text-muted-foreground hover:text-primary"
                   aria-label={`Navigate to ${gangName || 'Gang'}`}
                 >

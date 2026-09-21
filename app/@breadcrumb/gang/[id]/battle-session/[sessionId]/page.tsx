@@ -31,6 +31,7 @@ export function BattleSessionBreadcrumbLayout({
               <BreadcrumbLink asChild>
                 <Link
                   href="/"
+                  prefetch={false}
                   className="text-muted-foreground hover:text-primary flex items-center"
                   aria-label="Home"
                 >
@@ -48,6 +49,7 @@ export function BattleSessionBreadcrumbLayout({
                 <BreadcrumbLink asChild>
                   <Link
                     href={link.href}
+                    prefetch={false}
                     className="text-muted-foreground hover:text-primary"
                     aria-label={`Navigate to ${link.label}`}
                   >

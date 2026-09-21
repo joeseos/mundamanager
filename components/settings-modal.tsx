@@ -137,7 +137,7 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
         >
 
           <DropdownMenuItem asChild onClick={handleLinkClick}>
-            <Link href={`/user/${user.id}`} className="w-full cursor-pointer">
+            <Link href={`/user/${user.id}`} prefetch={false} className="w-full cursor-pointer">
               <div className="flex items-center gap-1">
                 {patreonTierId && (
                   <TbDiamondFilled 
@@ -154,7 +154,7 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
           <DropdownMenuSeparator />
 
           <DropdownMenuItem asChild onClick={handleLinkClick}>
-            <Link href="/account" className="w-full cursor-pointer flex items-center">
+            <Link href="/account" prefetch={false} className="w-full cursor-pointer flex items-center">
               <LuUser className="mr-2 h-4 w-4" />
               Account
               {notificationCount > 0 && (
@@ -168,21 +168,21 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
           <DropdownMenuSeparator />
 
           <DropdownMenuItem asChild onClick={handleLinkClick}>
-            <Link href="/?tab=gangs" onClick={createHomeTabHandler('gangs')} className="w-full cursor-pointer">
+            <Link href="/?tab=gangs" prefetch={false} onClick={createHomeTabHandler('gangs')} className="w-full cursor-pointer">
               <FaUsers className="mr-2 h-4 w-4" />
               Gangs
             </Link>
           </DropdownMenuItem>
 
           <DropdownMenuItem asChild onClick={handleLinkClick}>
-            <Link href="/?tab=campaigns" onClick={createHomeTabHandler('campaigns')} className="w-full cursor-pointer">
+            <Link href="/?tab=campaigns" prefetch={false} onClick={createHomeTabHandler('campaigns')} className="w-full cursor-pointer">
               <PiFlagBannerFoldBold className="mr-2 h-4 w-4" />
               Campaigns
             </Link>
           </DropdownMenuItem>
 
           <DropdownMenuItem asChild onClick={handleLinkClick}>
-            <Link href="/?tab=customassets" onClick={createHomeTabHandler('customassets')} className="w-full cursor-pointer">
+            <Link href="/?tab=customassets" prefetch={false} onClick={createHomeTabHandler('customassets')} className="w-full cursor-pointer">
               <MdOutlineColorLens className="mr-2 h-4 w-4" />
               Custom Assets
             </Link>
@@ -212,7 +212,7 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild onClick={handleLinkClick}>
-                <Link href="/admin" className="w-full cursor-pointer">
+                <Link href="/admin" prefetch={false} className="w-full cursor-pointer">
                   <LuSettings className="mr-2 h-4 w-4" />
                   Admin
                 </Link>
