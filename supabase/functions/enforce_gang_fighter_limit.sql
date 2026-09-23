@@ -2,6 +2,8 @@
 -- since the gang page loads all of them). Enforced here rather than in server
 -- actions because RLS allows direct inserts via the REST API.
 -- Raises SQLSTATE MM001 so callers can tell it apart from fighters' CHECK constraints.
+-- Known gap: utils/exotic-beasts.ts skips a beast whose insert fails, so at the cap
+-- beast-granting equipment is still bought but creates no beast.
 
 CREATE OR REPLACE FUNCTION public.enforce_gang_fighter_limit()
 RETURNS trigger
