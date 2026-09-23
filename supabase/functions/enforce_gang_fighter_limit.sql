@@ -1,4 +1,4 @@
--- Cap a gang at 100 fighter rows (dead, retired and exotic beasts included,
+-- Cap a gang at 50 fighter rows (dead, retired and exotic beasts included,
 -- since the gang page loads all of them). Enforced here rather than in server
 -- actions because RLS allows direct inserts via the REST API.
 -- Raises SQLSTATE MM001 so callers can tell it apart from fighters' CHECK constraints.
@@ -10,7 +10,7 @@ SECURITY DEFINER -- count every fighter in the gang, whatever the caller's RLS a
 SET search_path = public
 AS $$
 DECLARE
-  max_fighters constant integer := 100;
+  max_fighters constant integer := 50;
   current_count integer;
 BEGIN
   IF NEW.gang_id IS NULL
@@ -18,7 +18,7 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  -- Serialize concurrent inserts into the same gang so two requests can't both see 99
+  -- Serialize concurrent inserts into the same gang so two requests can't both see 49
   PERFORM pg_advisory_xact_lock(hashtextextended(NEW.gang_id::text, 0));
 
   SELECT count(*) INTO current_count
