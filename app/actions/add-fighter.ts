@@ -542,6 +542,11 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       .select()
       .single();
 
+    // Fighter cap from the enforce_gang_fighter_limit trigger
+    if (insertError?.code === 'MM001') {
+      return { success: false, error: insertError.message };
+    }
+
     if (insertError || !insertedFighter) {
       throw new Error(`Failed to insert fighter: ${insertError?.message}`);
     }
