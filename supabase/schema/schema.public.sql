@@ -1068,6 +1068,40 @@ $$;
 
 
 --
+-- Name: enforce_gang_fighter_limit(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.enforce_gang_fighter_limit() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  max_fighters constant integer := 50;
+  current_count integer;
+BEGIN
+  IF NEW.gang_id IS NULL
+     OR (TG_OP = 'UPDATE' AND NEW.gang_id IS NOT DISTINCT FROM OLD.gang_id) THEN
+    RETURN NEW;
+  END IF;
+
+  -- Serialize concurrent inserts into the same gang so two requests can't both see 49
+  PERFORM pg_advisory_xact_lock(hashtextextended(NEW.gang_id::text, 0));
+
+  SELECT count(*) INTO current_count
+  FROM public.fighters
+  WHERE gang_id = NEW.gang_id;
+
+  IF current_count >= max_fighters THEN
+    RAISE EXCEPTION 'Max % fighters are allowed', max_fighters
+      USING ERRCODE = 'MM001';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: enqueue_notification_email(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -9157,6 +9191,13 @@ CREATE TRIGGER custom_shared_set_edition BEFORE INSERT OR UPDATE ON public.custo
 
 
 --
+-- Name: fighters enforce_gang_fighter_limit; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER enforce_gang_fighter_limit BEFORE INSERT OR UPDATE OF gang_id ON public.fighters FOR EACH ROW EXECUTE FUNCTION public.enforce_gang_fighter_limit();
+
+
+--
 -- Name: gang_types gang_types_parent_must_be_root; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -12008,6 +12049,21 @@ CREATE POLICY "Gang owner, admin or arb can delete fighter ooa records" ON publi
 --
 
 CREATE POLICY "Gang owner, admin or arb can insert fighter ooa records" ON public.fighter_ooa_records FOR INSERT TO authenticated WITH CHECK ((private.is_admin() OR (causing_gang_id IN ( SELECT g.id
+   FROM public.gangs g
+  WHERE (g.user_id = auth.uid()))) OR (causing_gang_id IN ( SELECT cg.gang_id
+   FROM public.campaign_gangs cg
+  WHERE ((cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id))))));
+
+
+--
+-- Name: fighter_ooa_records Gang owner, admin or arb can update fighter ooa records; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Gang owner, admin or arb can update fighter ooa records" ON public.fighter_ooa_records FOR UPDATE TO authenticated USING ((private.is_admin() OR (causing_gang_id IN ( SELECT g.id
+   FROM public.gangs g
+  WHERE (g.user_id = auth.uid()))) OR (causing_gang_id IN ( SELECT cg.gang_id
+   FROM public.campaign_gangs cg
+  WHERE ((cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id)))))) WITH CHECK ((private.is_admin() OR (causing_gang_id IN ( SELECT g.id
    FROM public.gangs g
   WHERE (g.user_id = auth.uid()))) OR (causing_gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
