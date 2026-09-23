@@ -98,11 +98,6 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
   // N26 asset under N23 rules.
   const { editionSlug, setEditionSlug } = useHomeEdition();
 
-  // Scroll to top when component mounts
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, []);
-
   // Show error toast if user data failed to load
   useEffect(() => {
     if (error) {

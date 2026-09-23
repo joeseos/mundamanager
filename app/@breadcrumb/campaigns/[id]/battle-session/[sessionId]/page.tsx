@@ -1,5 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
-import { BattleSessionBreadcrumbLayout } from "@/app/@breadcrumb/gang/[id]/battle-session/[sessionId]/page";
+import { BreadcrumbBar } from "@/components/breadcrumb-bar";
 
 export default async function CampaignBattleSessionBreadcrumb({
   params,
@@ -19,12 +19,12 @@ export default async function CampaignBattleSessionBreadcrumb({
   ]);
 
   return (
-    <BattleSessionBreadcrumbLayout
-      parentLinks={[
-        { href: '/?tab=campaigns', label: 'Campaigns' },
-        { href: `/campaigns/${id}`, label: campaignData?.campaign_name || 'Campaign' },
+    <BreadcrumbBar
+      items={[
+        { label: 'Campaigns', href: '/?tab=campaigns' },
+        { label: campaignData?.campaign_name || 'Campaign', href: `/campaigns/${id}` },
+        { label: `Battle Sessions - ${session?.created_at ? new Date(session.created_at).toISOString().slice(0, 10) : 'Battle Session'}` },
       ]}
-      sessionDate={session?.created_at ? new Date(session.created_at).toISOString().slice(0, 10) : null}
     />
   );
 }

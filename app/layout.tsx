@@ -113,22 +113,6 @@ export default function RootLayout({
             `,
           }}
         />
-        {process.env.NODE_ENV === 'development' && (
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `
-                // Suppress Next.js scroll warnings for fixed breadcrumbs
-                const originalConsoleWarn = console.warn;
-                console.warn = function(...args) {
-                  if (args[0] && args[0].includes && args[0].includes('Skipping auto-scroll behavior')) {
-                    return;
-                  }
-                  originalConsoleWarn.apply(console, args);
-                };
-              `,
-            }}
-          />
-        )}
       </head>
       <body className="bg-background text-foreground" suppressHydrationWarning>
         <ClientThemeProvider
