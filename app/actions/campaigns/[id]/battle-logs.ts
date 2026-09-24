@@ -386,6 +386,10 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       ? participants.find((p) => p.gang_id !== existingBattle.challenger_gang_id)?.gang_id ?? null
       : existingBattle.challenged_gang_id;
     const opponentChanged = isOpenChallenge && challengedGangId !== existingBattle.challenged_gang_id;
+    // Otherwise the challenged gang could hand its challenge on to a third gang.
+    if (opponentChanged && !(await ownsGangOrArbitrates(supabase, user.id, campaignId, existingBattle.challenger_gang_id))) {
+      return { success: false as const, error: 'Only the challenging gang can change the opponent' };
+    }
 
     let nextStatus = params.status;
     if (opponentChanged && nextStatus !== 'played') {
