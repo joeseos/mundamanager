@@ -55,8 +55,16 @@ const EMAIL_CONFIG: Record<string, { defaultEnabled: boolean; subject: string; c
     subject: "{sender} wants to add your gang to a campaign",
     ctaPath: "/account",
   },
-  friend_request: { defaultEnabled: true, subject: "{sender} sent you a friend request" },
-  campaign_join_request: { defaultEnabled: true, subject: "{sender} wants to join your campaign" },
+  friend_request: {
+    defaultEnabled: true,
+    subject: "{sender} sent you a friend request",
+    ctaPath: "/account",
+  },
+  campaign_join_request: {
+    defaultEnabled: true,
+    subject: "{sender} wants to join your campaign",
+    ctaPath: "/account",
+  },
 };
 
 function isEmailEnabled(

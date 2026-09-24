@@ -59,6 +59,8 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
     supportsEmail: true,
     defaultEnabled: true,
     subject: '{sender} sent you a friend request',
+    // The notification has no link; accept/decline lives in the account notifications list.
+    ctaPath: '/account',
   },
   // Requests to join a campaign — every OWNER/ARBITRATOR is asked to accept/decline.
   campaign_join_request: {
@@ -66,6 +68,8 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
     supportsEmail: true,
     defaultEnabled: true,
     subject: '{sender} wants to join your campaign',
+    // Accept/decline lives in the account notifications list, not on the campaign page.
+    ctaPath: '/account',
   },
   // Not email-eligible (in-app only) — kept here so the type union is exhaustive.
   info: { label: 'Account & campaign updates', supportsEmail: false, defaultEnabled: false, subject: '' },
