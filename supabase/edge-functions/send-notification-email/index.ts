@@ -47,9 +47,14 @@ const MASTER_PREF_KEY = "all";
 // Mirror of the email-eligible subset of utils/notifications.ts. Kept in
 // sync deliberately — see the note in _email-layout.ts about the Deno/Next import split.
 // A `{sender}` token in a subject is replaced with the sender's username (see resolveSubject).
-const EMAIL_CONFIG: Record<string, { defaultEnabled: boolean; subject: string }> = {
+// `ctaPath` points the email button at an app path instead of notification.link.
+const EMAIL_CONFIG: Record<string, { defaultEnabled: boolean; subject: string; ctaPath?: string }> = {
   campaign_invite: { defaultEnabled: true, subject: "You've been invited to a campaign" },
-  gang_invite: { defaultEnabled: true, subject: "{sender} wants to add your gang to a campaign" },
+  gang_invite: {
+    defaultEnabled: true,
+    subject: "{sender} wants to add your gang to a campaign",
+    ctaPath: "/account",
+  },
   friend_request: { defaultEnabled: true, subject: "{sender} sent you a friend request" },
   campaign_join_request: { defaultEnabled: true, subject: "{sender} wants to join your campaign" },
 };
@@ -226,7 +231,7 @@ async function buildEmail(delivery: {
     subject,
     bodyHtml: notificationTextToHtml(notification.text),
     bodyText: notificationTextToPlain(notification.text),
-    ctaUrl: notification.link,
+    ctaUrl: cfg.ctaPath ? `${APP_URL}${cfg.ctaPath}` : notification.link,
     preferencesUrl: `${APP_URL}/account`,
     unsubscribeUrl: unsubscribePageUrl,
   });

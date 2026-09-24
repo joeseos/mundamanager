@@ -30,6 +30,11 @@ export interface NotificationEmailConfig {
   defaultEnabled: boolean;
   /** Email subject line for this category. `{sender}` is replaced with the sender's username. */
   subject: string;
+  /**
+   * App path for the email button, overriding the notification's `link`. Used when the
+   * notification is acted on elsewhere (e.g. accept/decline in the account notifications list).
+   */
+  ctaPath?: string;
 }
 
 export const notificationEmailConfig: Record<NotificationType, NotificationEmailConfig> = {
@@ -46,6 +51,8 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
     supportsEmail: true,
     defaultEnabled: true,
     subject: '{sender} wants to add your gang to a campaign',
+    // Accept/decline lives in the account notifications list, not on the campaign page.
+    ctaPath: '/account',
   },
   friend_request: {
     label: 'Friend requests',
