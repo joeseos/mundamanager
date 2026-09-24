@@ -11,6 +11,7 @@ import { injuryAggregationLabel } from "@/utils/injuryTarget";
 import WeaponTable from "./fighter-card-weapon-table";
 import { StatsTable, StatsType } from "../ui/fighter-card-stats-table";
 import { hasAlignment, hasSaveCharacteristic, hasTradePoints } from "@/types/edition";
+import { formatFighterSubtypeDisplay } from "@/utils/fighterSubtypeDisplay";
 import { MdCheckBoxOutlineBlank } from "react-icons/md";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
@@ -751,8 +752,8 @@ export default function PrintGang({ gang }: PrintGangProps) {
                        <div className="text-[9px] mt-[1px] flex items-center justify-between gap-2">
                          <div>
                            {[
-                             fighter.fighter_type,
-                             fighter.fighter_subtypes?.join(', '),
+                            fighter.fighter_type,
+                            formatFighterSubtypeDisplay(fighter.fighter_subtypes, fighter.edition_slug ?? edition_slug),
                              fighter.fighter_variant,
                              fighter.fighter_specialisation?.fighter_specialisation,
                            ].filter(Boolean).join(' • ')}

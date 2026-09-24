@@ -57,6 +57,7 @@ import {
 } from '@/app/actions/battle-sessions';
 import { addFighterInjury } from '@/app/actions/fighter-injury';
 import { createGangLog } from '@/app/actions/logs/gang-logs';
+import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { updateFighterXp } from '@/app/actions/edit-fighter';
 import FighterCard from '@/components/gang/fighter-card';
 import type { BattleSessionFull, BattleSessionParticipant, BattleSessionFighter, SessionCondition, SessionInjuryRecord } from '@/types/battle-session';
@@ -855,7 +856,7 @@ function FighterRow({
 
   const iconColor = activations >= 2 ? 'text-orange-500' : activations === 1 ? 'text-green-500' : 'text-muted-foreground/30';
   const fighterType = gangFighter?.fighter_type;
-  const fighterSubtypeDisplay = gangFighter?.fighter_subtypes?.join(', ');
+  const fighterSubtypeDisplay = formatFighterSubtypeDisplay(gangFighter?.fighter_subtypes, editionSlug);
   // Second row format: type (subtype)
   const fighterDetails = [
     fighterType,
@@ -1102,11 +1103,13 @@ function FighterRow({
 function BattleParticipationModal({
   crewFighters,
   gangFightersList,
+  editionSlug,
   onConfirm,
   onClose,
 }: {
   crewFighters: BattleSessionFighter[];
   gangFightersList: GangFighter[];
+  editionSlug?: string | null;
   onConfirm: (xpByFighterId: Record<string, number>) => void;
   onClose: () => void;
 }) {
@@ -1159,7 +1162,7 @@ function BattleParticipationModal({
     >
       <div className="space-y-3">
         {uniqueFighters.map((gf) => {
-          const subtypeDisplay = gf.fighter_subtypes?.join(', ');
+          const subtypeDisplay = formatFighterSubtypeDisplay(gf.fighter_subtypes, editionSlug);
           const details = [gf.fighter_type, subtypeDisplay ? `(${subtypeDisplay})` : ''].filter(Boolean).join(' ');
           return (
             <div key={gf.id} className="flex items-center justify-between">
@@ -1783,6 +1786,7 @@ export default function ParticipantCard({
             gangId={participant.gang_id}
             gangFighters={gangFighters}
             selectedFighters={selectedFighters}
+            editionSlug={session.edition_slug}
             loading={false}
             onClose={() => setShowCrewModal(false)}
             onConfirm={async (toAdd, toRemove, toUpdate) => {
@@ -1834,6 +1838,7 @@ export default function ParticipantCard({
           <BattleParticipationModal
             crewFighters={localFighters}
             gangFightersList={gangFightersList}
+            editionSlug={session.edition_slug}
             onClose={() => setShowParticipationModal(false)}
             onConfirm={(xpByFighterId) => {
               const entries = Object.entries(xpByFighterId);

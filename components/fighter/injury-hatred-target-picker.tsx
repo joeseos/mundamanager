@@ -52,7 +52,7 @@ export function InjuryHatredTargetPicker({
   gangStepValue,
   onGangStepChange,
 }: InjuryHatredTargetPickerProps) {
-  const { getFighterOptions } = useCampaignGangFighterOptions(candidateGangs);
+  const { getFighterOptions } = useCampaignGangFighterOptions(candidateGangs, editionSlug);
 
   // Gang types are global, so unlike the candidates they're fetched here. The
   // query is gated: this mounts on every injury add, but only a gang-type

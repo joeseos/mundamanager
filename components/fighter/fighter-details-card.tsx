@@ -8,6 +8,7 @@ import {
   hasSaveCharacteristic,
   initiativeAndMentalCharacteristicSuffix,
 } from '@/types/edition';
+import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { memo } from 'react';
 import { nextTierStartFor } from '@/utils/advancementRanks';
 import { calculateAdjustedStats } from '@/utils/effect-modifiers';
@@ -448,8 +449,9 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
     })
   }), [showsVehicleProfile, vehicleStats, vehicles, modifiedStats, xpDisplay, edition_slug, initiativeAndMentalSuffix]);
 
+  const subtypeLabel = formatFighterSubtypeDisplay(fighter_subtypes, edition_slug);
   const typeLine = [
-    `${type}${alliance_crew_name ? ` – ${alliance_crew_name}` : ''}${fighter_subtypes.length > 0 ? ` (${fighter_subtypes.join(', ')})` : ''}`,
+    `${type}${alliance_crew_name ? ` – ${alliance_crew_name}` : ''}${subtypeLabel ? ` (${subtypeLabel})` : ''}`,
     fighter_variant,
     specialisation?.fighter_specialisation,
   ].filter(Boolean).join(', ');
@@ -698,6 +700,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
         gangId={gangId}
         campaignId={campaignId}
         canEdit={canShowEditButtons}
+        editionSlug={edition_slug}
         onClose={() => setIsOoaHistoryModalOpen(false)}
       />
     </div>

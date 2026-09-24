@@ -32,6 +32,7 @@ import { GangImageEditModal } from './gang-image-edit-modal';
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { hasAlignment, hasTradePoints, hasVehicles } from '@/types/edition';
+import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 
 
 interface GangProps {
@@ -325,7 +326,7 @@ export default function Gang({
     const counts = new Map<string, { label: string; count: number; subtypes: string[] }>();
     for (const fighter of activeFighters) {
       const typeLabel = fighter.fighter_type || 'Unknown Type';
-      const subtypeLabel = fighter.fighter_subtypes?.join(', ') || 'Unknown Subtype';
+      const subtypeLabel = formatFighterSubtypeDisplay(fighter.fighter_subtypes, edition_slug) || 'Unknown Subtype';
       const key = `${typeLabel} (${subtypeLabel})`;
       const existing = counts.get(key);
       if (existing) {

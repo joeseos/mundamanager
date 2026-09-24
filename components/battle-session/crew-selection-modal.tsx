@@ -14,6 +14,7 @@ import { LuMinus, LuPlus } from 'react-icons/lu';
 import { countsTowardRating } from '@/utils/fighter-status';
 import { rollInRange } from '@/utils/dice';
 import { createGangLog, type CreateGangLogParams } from '@/app/actions/logs/gang-logs';
+import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 
 interface GangFighterOption {
   id: string;
@@ -38,8 +39,8 @@ function isBeast(f: GangFighterOption) {
   return f.fighter_subtypes?.some(c => c.toLowerCase() === 'exotic beast' || c.toLowerCase() === 'exotic beast specialist' || c.toLowerCase() === 'pet') || false;
 }
 
-function formatFighterDetails(f: GangFighterOption): string {
-  const subtypeDisplay = f.fighter_subtypes?.join(', ');
+function formatFighterDetails(f: GangFighterOption, editionSlug?: string | null): string {
+  const subtypeDisplay = formatFighterSubtypeDisplay(f.fighter_subtypes, editionSlug);
   return [
     f.fighter_type,
     subtypeDisplay ? `(${subtypeDisplay})` : '',
@@ -109,6 +110,7 @@ interface CrewSelectionModalProps {
   gangId: string;
   gangFighters: GangFighterOption[];
   selectedFighters: Map<string, string | undefined>;
+  editionSlug?: string | null;
   loading: boolean;
   onConfirm: (toAdd: FighterEntry[], toRemove: string[], toUpdate: FighterEntry[]) => Promise<boolean> | void;
   onClose: () => void;
@@ -118,6 +120,7 @@ export default function CrewSelectionModal({
   gangId,
   gangFighters,
   selectedFighters,
+  editionSlug,
   loading,
   onConfirm,
   onClose,
@@ -424,7 +427,7 @@ export default function CrewSelectionModal({
               ? selected.has(f.id) && entry.parentOwnerId != null && selected.get(entry.parentOwnerId) === entry.parentLoadoutId
               : selected.has(f.id) && selected.get(f.id) === f.loadout_id;
             const displayName = beast && f.owner_id ? `— ${f.fighter_name}` : f.fighter_name;
-            const fighterDetails = formatFighterDetails(f);
+            const fighterDetails = formatFighterDetails(f, editionSlug);
             const disabled = isDisabled(f);
             return (
               <label

@@ -8,7 +8,8 @@ import { toast } from 'sonner';
 import { LuTrash2, LuPlus } from "react-icons/lu";
 import { HiX } from "react-icons/hi";
 import Modal from '@/components/ui/modal';
-import { EditionSelect } from '@/components/edition-select';
+import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
+import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 
 type LineageType = 'legacy' | 'affiliation';
 
@@ -69,6 +70,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
   const [associatedFighterTypeId, setAssociatedFighterTypeId] = useState('');
   const [lineageType, setLineageType] = useState<LineageType | ''>('');
   const [editionId, setEditionId] = useState('');
+  const { data: editions = [] } = useEditions();
   const [fighterTypeAccess, setFighterTypeAccess] = useState<string[]>([]);
   
   
@@ -378,7 +380,10 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
     let displayName = fighterType.fighter_type;
     
     // Add fighter subtype in parentheses
-    const subtypeDisplay = fighterType.fighter_subtypes?.join(', ');
+    const subtypeDisplay = formatFighterSubtypeDisplay(
+      fighterType.fighter_subtypes,
+      editionSlugOf(editions, fighterType.edition_id ?? editionId),
+    );
     if (subtypeDisplay) {
       displayName += ` (${subtypeDisplay})`;
     }

@@ -1,5 +1,6 @@
 import { useMemo, type ReactNode } from 'react';
 import type { CampaignGangWithFighters } from '@/types/fighter-ooa-record';
+import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 
 export interface CampaignFighterComboboxOption {
   value: string;
@@ -16,10 +17,10 @@ export function buildFighterComboboxOption(fighter: {
   fighter_name?: string | null;
   fighter_type?: string | null;
   fighter_subtypes?: string[];
-}): CampaignFighterComboboxOption {
+}, editionSlug?: string | null): CampaignFighterComboboxOption {
   const displayName = fighter.fighter_name || 'Unnamed';
   const typePart = fighter.fighter_type?.trim() || '';
-  const subtypeDisplay = fighter.fighter_subtypes?.join(', ') || '';
+  const subtypeDisplay = formatFighterSubtypeDisplay(fighter.fighter_subtypes, editionSlug);
   const subtypePart = subtypeDisplay ? `(${subtypeDisplay})` : '';
   const details = [typePart, subtypePart].filter(Boolean).join(' ');
   const detailsSuffix = details ? ` \u2022 ${details}` : '';
@@ -44,16 +45,19 @@ export function buildFighterComboboxOption(fighter: {
  * one place. Gang options should be built at the call site with
  * {@link buildGangComboboxOption}.
  */
-export function useCampaignGangFighterOptions(campaignGangs: CampaignGangWithFighters[]) {
+export function useCampaignGangFighterOptions(
+  campaignGangs: CampaignGangWithFighters[],
+  editionSlug?: string | null,
+) {
   const getFighterOptions = useMemo(() => {
     return (selectedGangId?: string, crewOnly?: boolean): CampaignFighterComboboxOption[] => {
       const gang = campaignGangs.find((g) => g.gang_id === selectedGangId);
       if (!gang) return [];
       return gang.fighters
         .filter((f) => !crewOnly || f.fighter_subtypes?.includes('Crew'))
-        .map((f) => buildFighterComboboxOption(f));
+        .map((f) => buildFighterComboboxOption(f, editionSlug));
     };
-  }, [campaignGangs]);
+  }, [campaignGangs, editionSlug]);
 
   return { getFighterOptions };
 }

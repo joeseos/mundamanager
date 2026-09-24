@@ -34,6 +34,7 @@ import {
   sameEditionForDisplay,
 } from '@/types/edition';
 import { filterAllowedFighterSubtypes, toggleFighterSubtype } from '@/utils/fighter-subtype-picker';
+import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 
 interface CustomiseFightersProps {
   className?: string;
@@ -1643,7 +1644,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                   Fighter Subtype
                 </label>
                 <div className="w-full p-2 border rounded-md bg-muted">
-                  {viewModalData.fighter_subtypes?.join(', ')}
+                  {formatFighterSubtypeDisplay(viewModalData.fighter_subtypes, editionSlug)}
                 </div>
               </div>
             </div>

@@ -12,6 +12,7 @@ import { Session } from '@supabase/supabase-js';
 import { VehicleProps } from '@/types/vehicle';
 import { vehicleExclusiveCategories, vehicleCompatibleCategories } from '@/utils/vehicleEquipmentCategories';
 import { hasChemAlchemy } from '@/types/edition';
+import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import ChemAlchemyCreator from './chem-alchemy';
 import { createChemAlchemy } from '@/app/actions/chem-alchemy';
 import ItemModal from '@/components/equipment/equipment';
@@ -763,7 +764,7 @@ export default function GangInventory({
         if (fighter.starved) statusIcons.push(<TbMeatOff className="text-red-500 w-4 h-4" key="starved" />);
         if (fighter.recovery) statusIcons.push(<FaMedkit className="text-blue-500 w-4 h-4" key="recovery" />);
         if (fighter.captured) statusIcons.push(<GiHandcuffs className="text-red-600 w-4 h-4" key="captured" />);
-        const displayText = `${fighter.fighter_name} (${fighter.fighter_subtypes?.join(', ')}) - ${fighter.credits} credits`;
+        const displayText = `${fighter.fighter_name} (${formatFighterSubtypeDisplay(fighter.fighter_subtypes, editionSlug)}) - ${fighter.credits} credits`;
         options.push({
           value: fighter.id,
           displayValue: displayText,

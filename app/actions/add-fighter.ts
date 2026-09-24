@@ -462,9 +462,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     // Server-side archetype eligibility (UI check is not sufficient)
     let archetypeIdToPersist: string | null = null;
     if (params.selected_archetype_id) {
-      const fighterSubtypes = fighterSource.fighter_subtypes?.length
-        ? fighterSource.fighter_subtypes
-        : ['Custom'];
+      const fighterSubtypes = fighterSource.fighter_subtypes ?? [];
 
       const assignable = await assertArchetypeAssignable(supabase, {
         gangTypeId: gangData.gang_type_id,
@@ -489,7 +487,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       fighter_name: params.fighter_name.trimEnd(),
       gang_id: params.gang_id,
       fighter_type: effectiveFighterData.fighter_type,
-      fighter_subtypes: effectiveFighterData.fighter_subtypes?.length ? effectiveFighterData.fighter_subtypes : ['Custom'],
+      fighter_subtypes: effectiveFighterData.fighter_subtypes ?? [],
       free_skill: effectiveFighterData.free_skill || false,
       credits: ratingCost,
       movement: effectiveFighterData.movement,
@@ -1273,7 +1271,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         fighter_id: fighterId,
         fighter_name: insertedFighter.fighter_name,
         fighter_type: effectiveFighterData.fighter_type,
-        fighter_subtypes: effectiveFighterData.fighter_subtypes?.length ? effectiveFighterData.fighter_subtypes : ['Custom'],
+        fighter_subtypes: insertedFighter.fighter_subtypes ?? [],
         fighter_specialisation_id: fighterInsertData.fighter_specialisation_id,
         fighter_variant: effectiveFighterData.fighter_variant ?? null,
         free_skill: effectiveFighterData.free_skill || false,

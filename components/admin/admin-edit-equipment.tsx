@@ -16,6 +16,7 @@ import { GangOriginOptions, GangSubtypeOptions } from "./gang-scope-options";
 import { AdminFighterEffects } from "./admin-fighter-effects";
 import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
 import { hasLethalityStatline, hasTradePoints } from '@/types/edition';
+import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { isValidTradePoints } from '@/utils/campaigns/resources';
 import { WeaponProfileFields } from '@/components/ui/weapon-profile-fields';
 import { AdminTradingPost } from "./admin-trading-post";
@@ -43,12 +44,12 @@ const grantKey = (grant: FighterTypeGrant) =>
     .map(part => part ?? '')
     .join('|');
 
-const fighterTypeLabel = (ft: FighterType) => {
+const fighterTypeLabel = (ft: FighterType, editionSlug?: string | null) => {
   const suffix = [ft.fighter_variant, ft.fighter_specialisations?.specialisation_name]
     .filter(Boolean)
     .map(n => ` - ${n}`)
     .join('');
-  return `${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_subtypes?.join(', ')})${suffix}`;
+  return `${ft.gang_type} - ${ft.fighter_type} (${formatFighterSubtypeDisplay(ft.fighter_subtypes, editionSlug)})${suffix}`;
 };
 
 /** Blank grant options only when the target is found with a confirmed different edition. */
@@ -1752,7 +1753,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       ))
                       .map((ft) => (
                         <option key={ft.id} value={ft.id}>
-                          {fighterTypeLabel(ft)}
+                          {fighterTypeLabel(ft, editionSlugOf(editions, ft.edition_id))}
                         </option>
                       ))}
                   </select>
@@ -1779,7 +1780,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           key={grantKey(grant)}
                           className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                         >
-                          <span>{grant.excluded && 'Deny: '}{ft ? fighterTypeLabel(ft) : 'Any fighter type'}{scope && ` — ${scope}`}</span>
+                          <span>{grant.excluded && 'Deny: '}{ft ? fighterTypeLabel(ft, editionSlugOf(editions, ft.edition_id)) : 'Any fighter type'}{scope && ` — ${scope}`}</span>
                           <button
                             type="button"
                             onClick={() => setFighterTypeGrants(
@@ -1841,7 +1842,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             <option key="default" value="">Any Fighter Type</option>
                             {filteredFighterTypes.map((ft) => (
                               <option key={ft.id} value={ft.id}>
-                                {fighterTypeLabel(ft)}
+                                {fighterTypeLabel(ft, editionSlugOf(editions, ft.edition_id))}
                               </option>
                             ))}
                           </select>

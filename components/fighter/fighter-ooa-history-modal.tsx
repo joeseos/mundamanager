@@ -15,6 +15,7 @@ import { fetchFighterOoaRecords, fetchCampaignGangsAndFighters } from '@/utils/a
 import type { FighterOoaRecord } from '@/types/fighter-ooa-record';
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { useCampaignGangFighterOptions, buildFighterComboboxOption } from '@/utils/campaign-gang-fighter-options';
+import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { FaBookDead } from 'react-icons/fa';
 import { LuPencil, LuPlus, LuTrash2 } from 'react-icons/lu';
 import { toast } from 'sonner';
@@ -26,6 +27,7 @@ interface FighterOoaHistoryModalProps {
   gangId?: string;
   campaignId?: string;
   canEdit?: boolean;
+  editionSlug?: string | null;
   onClose: () => void;
 }
 
@@ -85,6 +87,7 @@ export function FighterOoaHistoryModal({
   gangId,
   campaignId,
   canEdit = false,
+  editionSlug,
   onClose,
 }: FighterOoaHistoryModalProps) {
   const queryClient = useQueryClient();
@@ -197,7 +200,7 @@ export function FighterOoaHistoryModal({
   };
 
   const { getFighterOptions: baseGetFighterOptions } =
-    useCampaignGangFighterOptions(campaignGangs);
+    useCampaignGangFighterOptions(campaignGangs, editionSlug);
 
   const editingRecord =
     editingId != null ? causedRecords.find((r) => r.id === editingId) ?? null : null;
@@ -246,7 +249,7 @@ export function FighterOoaHistoryModal({
         fighter_name: editingRecord.injured_fighter_name,
         fighter_type: editingRecord.injured_fighter_type,
         fighter_subtypes: editingRecord.injured_fighter_subtypes,
-      }),
+      }, editionSlug),
       ...options,
     ];
   };
@@ -498,8 +501,8 @@ export function FighterOoaHistoryModal({
                 {currentRecords.map((record) => {
                   const isEditing = !isSustained && editingId === record.id && !!editForm;
                   const crewOnly = (isEditing ? editForm!.eventType : record.event_type) === 'vehicle_wrecked';
-                  const causingSubtypes = record.causing_fighter_subtypes?.join(', ') || '';
-                  const injuredSubtypes = record.injured_fighter_subtypes?.join(', ') || '';
+                  const causingSubtypes = formatFighterSubtypeDisplay(record.causing_fighter_subtypes, editionSlug);
+                  const injuredSubtypes = formatFighterSubtypeDisplay(record.injured_fighter_subtypes, editionSlug);
 
                   return (
                     <li

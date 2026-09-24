@@ -12,6 +12,7 @@ import { applySpecialRulesModifiers, subtypeGrantsFromEffects } from '@/utils/ef
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { N26_PROSPECT_SPECIALISATIONS, hasN26SpecialistSubtype } from '@/utils/keepTypePromotionN26';
 import { allowsMultipleSubtypes, hasFighterSpecialisations, namedTypeKeepsSubtypes, omitsNamedTypeSubtypeSuffix } from '@/types/edition';
+import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import {
   getArchetypeCatalogSubtype,
   isArchetypeEligible,
@@ -435,7 +436,7 @@ export function EditFighterModal({
       .map(({ fighter: ft }) => {
         const displayName = omitsNamedTypeSubtypeSuffix(fighter.edition_slug)
           ? ft.fighter_type
-          : `${ft.fighter_type} (${ft.fighter_subtypes.join(', ')})`;
+          : `${ft.fighter_type} (${formatFighterSubtypeDisplay(ft.fighter_subtypes, fighter.edition_slug)})`;
         const gangSubtypeSuffix = (ft as any).is_gang_subtype ? ` - ${(ft as any).gang_subtype_name}` : '';
         return {
           value: ft.id,
@@ -1122,7 +1123,7 @@ export function EditFighterModal({
                   {!omitsNamedTypeSubtypeSuffix(fighter.edition_slug) && (
                     <>
                       {` `}
-                      {`(${fighter.fighter_subtypes?.join(', ') || 'Unknown Subtype'})`}
+                      {`(${formatFighterSubtypeDisplay(fighter.fighter_subtypes, fighter.edition_slug)})`}
                     </>
                   )}
                 </div>
@@ -1215,7 +1216,7 @@ export function EditFighterModal({
                 />
               )}
               <div className="mt-1 text-sm text-muted-foreground">
-                Current: {fighter.fighter_subtypes?.join(', ') || 'Unknown'}
+                Current: {formatFighterSubtypeDisplay(fighter.fighter_subtypes, fighter.edition_slug) || 'Unknown'}
               </div>
             </div>
 
@@ -1417,7 +1418,9 @@ export function EditFighterModal({
         onConfirm={handleConfirm}
         confirmDisabled={
           !formValues.name.trim() ||
-          (selectedFighterSubtypes.length === 0 && (fighter.fighter_subtypes?.length ?? 0) > 0)
+          (!allowsMultipleSubtypes(fighter.edition_slug) &&
+            selectedFighterSubtypes.length === 0 &&
+            (fighter.fighter_subtypes?.length ?? 0) > 0)
         }
       />
       
