@@ -11,6 +11,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Modal from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 import { acceptFriendRequest, declineFriendRequest } from '@/app/actions/friends';
 import { acceptGangInvite, declineGangInvite } from '@/app/actions/campaigns/[id]/campaign-gangs';
 import { acceptJoinRequest, declineJoinRequest } from '@/app/actions/campaigns/[id]/campaign-join-requests';
@@ -29,10 +30,12 @@ type Notification = {
 
 type NotificationActionResult = { success: boolean; error?: string };
 
+type NotificationResponse = 'accept' | 'decline';
+
 // An in-app Accept/Decline response to a notification. resolveArgs pulls the server-action
 // arguments out of the notification; returning null hides the buttons.
 type NotificationAction<Args> = {
-  label: string; // Used in error logs, e.g. 'gang invite'
+  label: string; // Used in error messages, e.g. 'gang invite'
   resolveArgs: (notification: Notification, userId: string) => Args | null;
   accept: (args: Args) => Promise<NotificationActionResult>;
   decline: (args: Args) => Promise<NotificationActionResult>;
@@ -99,11 +102,11 @@ const shouldShowLinkAttachment = (notification: Notification): notification is N
   !isActionableNotification(notification.type) && isSafeNotificationLink(notification.link);
 
 function NotificationActionButtons({
-  isProcessing,
+  pending,
   onAccept,
   onDecline,
 }: {
-  isProcessing: boolean;
+  pending: NotificationResponse | null; // The response in flight for this notification, if any
   onAccept: () => void;
   onDecline: () => void;
 }) {
@@ -114,26 +117,26 @@ function NotificationActionButtons({
           e.stopPropagation();
           onDecline();
         }}
-        disabled={isProcessing}
+        disabled={pending !== null}
         variant="outline_remove"
         size="sm"
         className="flex items-center gap-1"
       >
         <HiX className="h-3 w-3" />
-        {isProcessing ? 'Declining...' : 'Decline'}
+        {pending === 'decline' ? 'Declining...' : 'Decline'}
       </Button>
       <Button
         onClick={(e) => {
           e.stopPropagation();
           onAccept();
         }}
-        disabled={isProcessing}
+        disabled={pending !== null}
         variant="outline_accept"
         size="sm"
         className="flex items-center gap-1"
       >
         <LuCheck className="h-3 w-3" />
-        {isProcessing ? 'Accepting...' : 'Accept'}
+        {pending === 'accept' ? 'Accepting...' : 'Accept'}
       </Button>
     </div>
   );
@@ -142,7 +145,7 @@ function NotificationActionButtons({
 export default function NotificationsContent({ userId }: { userId: string }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notificationToDelete, setNotificationToDelete] = useState<string | null>(null);
-  const [processingRequest, setProcessingRequest] = useState<string | null>(null);
+  const [processingRequest, setProcessingRequest] = useState<{ id: string; response: NotificationResponse } | null>(null);
   const router = useRouter();
   const pathname = usePathname();
   const isProfilePage = pathname === '/account';
@@ -171,13 +174,14 @@ export default function NotificationsContent({ userId }: { userId: string }) {
   };
 
   // Handle accepting/declining an actionable notification, removing it from the list on success
-  const handleNotificationAction = async (notification: Notification, response: 'accept' | 'decline') => {
+  const handleNotificationAction = async (notification: Notification, response: NotificationResponse) => {
     const resolved = getNotificationAction(notification);
     if (!resolved) return;
 
     const { action, args } = resolved;
     const verb = response === 'accept' ? 'accepting' : 'declining';
-    setProcessingRequest(notification.id);
+    const failureMessage = `Failed to ${response} ${action.label}`;
+    setProcessingRequest({ id: notification.id, response });
     try {
       const result = await action[response](args);
       if (result.success) {
@@ -185,9 +189,11 @@ export default function NotificationsContent({ userId }: { userId: string }) {
         setNotifications(prev => prev.filter(n => n.id !== notification.id));
       } else {
         console.error(`Error ${verb} ${action.label}:`, result.error);
+        toast.error(result.error || failureMessage);
       }
     } catch (error) {
       console.error(`Error ${verb} ${action.label}:`, error);
+      toast.error(failureMessage);
     } finally {
       setProcessingRequest(null);
     }
@@ -371,7 +377,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                   </div>
                   {getNotificationAction(notification) && (
                     <NotificationActionButtons
-                      isProcessing={processingRequest === notification.id}
+                      pending={processingRequest?.id === notification.id ? processingRequest.response : null}
                       onAccept={() => handleNotificationAction(notification, 'accept')}
                       onDecline={() => handleNotificationAction(notification, 'decline')}
                     />
