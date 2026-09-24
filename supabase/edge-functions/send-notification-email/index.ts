@@ -46,11 +46,25 @@ const MASTER_PREF_KEY = "all";
 
 // Mirror of the email-eligible subset of utils/notifications.ts. Kept in
 // sync deliberately — see the note in _email-layout.ts about the Deno/Next import split.
-const EMAIL_CONFIG: Record<string, { defaultEnabled: boolean; subject: string }> = {
+// A `{sender}` token in a subject is replaced with the sender's username (see resolveSubject).
+// `ctaPath` points the email button at an app path instead of notification.link.
+const EMAIL_CONFIG: Record<string, { defaultEnabled: boolean; subject: string; ctaPath?: string }> = {
   campaign_invite: { defaultEnabled: true, subject: "You've been invited to a campaign" },
-  gang_invite: { defaultEnabled: true, subject: "Someone wants to add your gang to a campaign" },
-  friend_request: { defaultEnabled: true, subject: "You have a new friend request on Munda Manager" },
-  campaign_join_request: { defaultEnabled: true, subject: "Someone wants to join your campaign" },
+  gang_invite: {
+    defaultEnabled: true,
+    subject: "{sender} wants to add your gang to a campaign",
+    ctaPath: "/account",
+  },
+  friend_request: {
+    defaultEnabled: true,
+    subject: "{sender} sent you a friend request",
+    ctaPath: "/account",
+  },
+  campaign_join_request: {
+    defaultEnabled: true,
+    subject: "{sender} wants to join your campaign",
+    ctaPath: "/account",
+  },
 };
 
 function isEmailEnabled(
@@ -148,6 +162,23 @@ async function sendViaSes(input: {
   }
 }
 
+// Fill a `{sender}` token with the notification sender's username, falling back to
+// "Someone" (matching the notification text) when there is no sender or profile.
+// Usernames are constrained to [a-zA-Z0-9_-]{3,20}, so they are safe in a subject line.
+async function resolveSubject(template: string, senderId: string | null): Promise<string> {
+  if (!template.includes("{sender}")) return template;
+  let senderName = "Someone";
+  if (senderId) {
+    const { data: sender } = await supabase
+      .from("profiles")
+      .select("username")
+      .eq("id", senderId)
+      .maybeSingle();
+    if (sender?.username) senderName = sender.username;
+  }
+  return template.replaceAll("{sender}", () => senderName);
+}
+
 async function markStatus(id: string, fields: Record<string, unknown>) {
   await supabase
     .from("email_deliveries")
@@ -166,7 +197,7 @@ async function buildEmail(delivery: {
 > {
   const { data: notification } = await supabase
     .from("notifications")
-    .select("id, type, text, link")
+    .select("id, type, text, link, sender_id")
     .eq("id", delivery.notification_id)
     .maybeSingle();
 
@@ -202,18 +233,20 @@ async function buildEmail(delivery: {
   // RFC 8058 one-click (List-Unsubscribe-Post) target → the dynamic API route.
   const unsubscribePostUrl = `${APP_URL}/api/email/unsubscribe?token=${tokenParam}`;
 
+  const subject = await resolveSubject(cfg.subject, notification.sender_id);
+
   const { html, text } = emailLayout({
-    subject: cfg.subject,
+    subject,
     bodyHtml: notificationTextToHtml(notification.text),
     bodyText: notificationTextToPlain(notification.text),
-    ctaUrl: notification.link,
+    ctaUrl: cfg.ctaPath ? `${APP_URL}${cfg.ctaPath}` : notification.link,
     preferencesUrl: `${APP_URL}/account`,
     unsubscribeUrl: unsubscribePageUrl,
   });
 
   return {
     to: authUser.email,
-    subject: cfg.subject,
+    subject,
     html,
     text,
     unsubscribeUrl: unsubscribePostUrl,

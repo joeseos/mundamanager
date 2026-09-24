@@ -28,8 +28,13 @@ export interface NotificationEmailConfig {
   supportsEmail: boolean;
   /** Default email opt-in used when the user has no preference row for this category. */
   defaultEnabled: boolean;
-  /** Email subject line for this category. */
+  /** Email subject line for this category. `{sender}` is replaced with the sender's username. */
   subject: string;
+  /**
+   * App path for the email button, overriding the notification's `link`. Used when the
+   * notification is acted on elsewhere (e.g. accept/decline in the account notifications list).
+   */
+  ctaPath?: string;
 }
 
 export const notificationEmailConfig: Record<NotificationType, NotificationEmailConfig> = {
@@ -45,20 +50,26 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
     label: 'Gang campaign invitations',
     supportsEmail: true,
     defaultEnabled: true,
-    subject: 'Someone wants to add your gang to a campaign',
+    subject: '{sender} wants to add your gang to a campaign',
+    // Accept/decline lives in the account notifications list, not on the campaign page.
+    ctaPath: '/account',
   },
   friend_request: {
     label: 'Friend requests',
     supportsEmail: true,
     defaultEnabled: true,
-    subject: 'You have a new friend request on Munda Manager',
+    subject: '{sender} sent you a friend request',
+    // The notification has no link; accept/decline lives in the account notifications list.
+    ctaPath: '/account',
   },
   // Requests to join a campaign — every OWNER/ARBITRATOR is asked to accept/decline.
   campaign_join_request: {
     label: 'Campaign join requests',
     supportsEmail: true,
     defaultEnabled: true,
-    subject: 'Someone wants to join your campaign',
+    subject: '{sender} wants to join your campaign',
+    // Accept/decline lives in the account notifications list, not on the campaign page.
+    ctaPath: '/account',
   },
   // Not email-eligible (in-app only) — kept here so the type union is exhaustive.
   info: { label: 'Account & campaign updates', supportsEmail: false, defaultEnabled: false, subject: '' },
