@@ -168,7 +168,7 @@ async function resolveSubject(template: string, senderId: string | null): Promis
       .maybeSingle();
     if (sender?.username) senderName = sender.username;
   }
-  return template.replace("{sender}", senderName);
+  return template.replaceAll("{sender}", () => senderName);
 }
 
 async function markStatus(id: string, fields: Record<string, unknown>) {
