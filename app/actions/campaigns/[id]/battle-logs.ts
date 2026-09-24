@@ -378,6 +378,10 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     // not answered yet, so naming one (re)issues the challenge.
     const existingStatus = existingBattle.status as BattleStatus;
     const isOpenChallenge = !!existingBattle.challenger_gang_id && existingStatus !== 'played';
+    // The opponent is derived relative to the challenger, so the challenger must stay in.
+    if (isOpenChallenge && !participants.some((p) => p.gang_id === existingBattle.challenger_gang_id)) {
+      return { success: false as const, error: 'The challenging gang cannot be removed from its challenge' };
+    }
     const challengedGangId = isOpenChallenge
       ? participants.find((p) => p.gang_id !== existingBattle.challenger_gang_id)?.gang_id ?? null
       : existingBattle.challenged_gang_id;
