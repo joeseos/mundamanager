@@ -115,6 +115,7 @@ function mapFighterType(type: any): FighterType {
     starting_xp: type.starting_xp ?? null,
     is_vehicle: type.is_vehicle ?? false,
     is_associated_pet: type.is_associated_pet || false,
+    is_granted_with_fighter: type.is_granted_with_fighter || false,
     associated_pet_owner_id: type.associated_pet_owner_id || null,
   } as FighterType;
 }
@@ -998,7 +999,7 @@ export default function FighterAddModal({
         </div>
         {isAdditions && currentFighterType?.is_associated_pet && (
           <p className="text-amber-500 text-xs">
-            Pets associated with a Fighter, such as a Dramatis Personae, are added alongside them, which automatically creates a Fighter card for each pet. They are listed here to support greater flexibility and house rules.
+            {beastSubtypeName(editionSlug)}s associated with a Fighter, such as a Dramatis Personae, are added alongside them, which automatically creates a Fighter card for each {beastSubtypeName(editionSlug).toLowerCase()}. They are listed here to support greater flexibility and house rules.
           </p>
         )}
 

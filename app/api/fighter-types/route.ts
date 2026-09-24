@@ -92,6 +92,7 @@ function transformCustomFighter(cf: any) {
     delegation_cost: cf.delegation_cost ?? null,
     is_vehicle: cf.is_vehicle ?? false,
     is_associated_pet: false,
+    is_granted_with_fighter: false,
     associated_pet_owner_id: null
   };
 }
@@ -171,7 +172,21 @@ function untaggedAssociatedPets(rows: any[]) {
   return rows.map((row) => ({
     ...row,
     is_associated_pet: false,
+    is_granted_with_fighter: false,
     associated_pet_owner_id: null,
+  }));
+}
+
+function tagPetGrantFlags(
+  rows: any[],
+  grantedPetIds: Set<string>,
+  ownerByPet: Map<string, string>
+) {
+  return rows.map((row) => ({
+    ...row,
+    is_granted_with_fighter: grantedPetIds.has(row.id),
+    associated_pet_owner_id: ownerByPet.get(row.id) ?? null,
+    is_associated_pet: ownerByPet.has(row.id),
   }));
 }
 
@@ -199,11 +214,12 @@ async function fetchDramatisOwnerIds(
 }
 
 /**
- * Pets whose granting equipment is also a default on a dramatis personae
- * (Ozostium's Caryatid-Servitor on Ozostium, and the same pattern for N23
- * exotic beasts). The add-fighter modal warns that those companions are
- * created with their owner, lists them under Pets → Dramatis Personae, and
- * nests them under that owner in Hired Guns → Dramatis Personae.
+ * Pets whose granting equipment is a default on another fighter type. Any such
+ * pet is tagged `is_granted_with_fighter` (Pets → Generic excludes them).
+ * When that other fighter is a dramatis personae, also tag `is_associated_pet`
+ * (Ozostium's Caryatid-Servitor): the add-fighter modal warns that those
+ * companions are created with their owner, lists them under Pets → Dramatis
+ * Personae, and nests them under that owner in Hired Guns → Dramatis Personae.
  *
  * Computed from exotic_beasts + fighter_defaults — there is no column on
  * fighter_types. Read the small beasts table in full rather than `.in()` of
@@ -238,18 +254,31 @@ async function withAssociatedPetFlag(
     return untaggedAssociatedPets(rows);
   }
 
+  const grantedPetIds = new Set<string>();
+  for (const beast of beasts) {
+    if (!beast.fighter_type_id) continue;
+    const grantedWithOtherFighter = (defaults || []).some(
+      (row) =>
+        row.equipment_id === beast.equipment_id &&
+        row.fighter_type_id &&
+        row.fighter_type_id !== beast.fighter_type_id
+    );
+    if (grantedWithOtherFighter) grantedPetIds.add(beast.fighter_type_id);
+  }
+
   const ownerIds = [...new Set(
     (defaults || [])
       .map((row) => row.fighter_type_id)
       .filter((id): id is string => Boolean(id))
   )];
   if (ownerIds.length === 0) {
-    return untaggedAssociatedPets(rows);
+    return tagPetGrantFlags(rows, grantedPetIds, new Map());
   }
 
   const dramatisIds = await fetchDramatisOwnerIds(supabase, ownerIds);
   if (!dramatisIds) {
-    return untaggedAssociatedPets(rows);
+    // Still exclude granted pets from Pets Generic if dramatis lookup fails.
+    return tagPetGrantFlags(rows, grantedPetIds, new Map());
   }
   const catalogIds = new Set(rows.map((row) => row.id));
 
@@ -280,11 +309,7 @@ async function withAssociatedPetFlag(
     ownerByPet.set(beast.fighter_type_id, ownerId);
   }
 
-  return rows.map((row) => ({
-    ...row,
-    associated_pet_owner_id: ownerByPet.get(row.id) ?? null,
-    is_associated_pet: ownerByPet.has(row.id),
-  }));
+  return tagPetGrantFlags(rows, grantedPetIds, ownerByPet);
 }
 
 async function fighterTypesResponse(

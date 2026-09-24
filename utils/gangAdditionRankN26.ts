@@ -8,8 +8,9 @@
  * is matched against `fighter_types.gang_type` when the row is not an alliance
  * crew. A category uses one or the other — Loner is a fighter subtype, not a
  * Hired Guns membership test. Optional `subcategories` become the selectable
- * combobox values under a non-selectable parent header. Pets split Generic vs
- * Dramatis Personae by whether the pet is granted with a dramatis fighter.
+ * combobox values under a non-selectable parent header. Pets Generic is the
+ * Pet subtype minus pets whose equipment is defaulted on another fighter type.
+ * Pets Dramatis Personae is pets granted with a dramatis fighter.
  * Hired Guns uses the same labels for the fighter's own dramatis flag, and
  * also lists associated pets under Dramatis Personae even when the pet's
  * gang_type is not Hired Guns.
@@ -55,6 +56,7 @@ export type N26AdditionFighter = {
   gang_type?: string | null;
   is_dramatis_personae?: boolean | null;
   is_associated_pet?: boolean | null;
+  is_granted_with_fighter?: boolean | null;
 };
 
 type N26AdditionCategory = (typeof N26_ADDITION_CATEGORIES)[number];
@@ -129,9 +131,17 @@ function matchesSubcategory(
     return matchesSpecialSubcategory(type, subcategory);
   }
   if (!('subcategories' in category)) return true;
-  return !category.subcategories.some((sibling) =>
+  if (category.subcategories.some((sibling) =>
     matchesSpecialSubcategory(type, sibling)
-  );
+  )) {
+    return false;
+  }
+  // Pets Generic also drops companions granted with a non-dramatis fighter
+  // (Claim Jumper's Techmite Exovator). Those stay out of Pets Dramatis too.
+  if (category.value === 'pet') {
+    return !type.is_granted_with_fighter;
+  }
+  return true;
 }
 
 function findCategoryValue(categoryValue: string): {

@@ -100,6 +100,8 @@ export interface FighterType {
   is_vehicle?: boolean;
   /** True when this pet's equipment is defaulted on a dramatis personae. */
   is_associated_pet?: boolean;
+  /** True when this pet's equipment is defaulted on any other fighter type. */
+  is_granted_with_fighter?: boolean;
   /** The dramatis fighter type that grants this pet, when is_associated_pet. */
   associated_pet_owner_id?: string | null;
 }
