@@ -1862,7 +1862,7 @@ function formatPricingRuleFighterTypeLabel(
   multiProfileKeys: Set<string>,
   editionSlug?: string | null,
 ): string {
-  const fighterSubtype = formatFighterSubtypeDisplay(ft.fighter_subtypes, editionSlug) || 'Unknown';
+  const fighterSubtype = formatFighterSubtypeDisplay(ft.fighter_subtypes, editionSlug);
   const base = `${ft.fighter_type} (${fighterSubtype})`;
   if (!multiProfileKeys.has(getPricingRuleFighterTypeSubtypeKey(ft))) return base;
   if (!ft.specialisation?.specialisation_name) return base;

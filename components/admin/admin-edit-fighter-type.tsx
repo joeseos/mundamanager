@@ -19,6 +19,7 @@ import { FighterTypeGrant } from "@/types/fighter-type";
 import { EditionSelect, useEditions } from '@/components/edition-select';
 import { hasAlignment, hasSaveCharacteristic, allowsMultipleSubtypes, hasStartingXp, hasVehicles } from '@/types/edition';
 import { toggleFighterSubtype } from '@/utils/fighter-subtype-picker';
+import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import Modal from '@/components/ui/modal';
 
 interface FighterSpecialisation {
@@ -1381,7 +1382,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   </option>
                   {fighterTypeCombos.map((combo) => (
                     <option key={`${combo.type}-${combo.subtype}-${combo.gang_type_id}`} value={`${combo.type}|${combo.subtype}|${combo.gang_type_id}`}>
-                      {`${combo.type} (${combo.subtype || '*'})`}
+                      {`${combo.type} (${formatFighterSubtypeDisplay(combo.subtype ? combo.subtype.split(', ') : [], editionSlug)})`}
                     </option>
                   ))}
                 </select>

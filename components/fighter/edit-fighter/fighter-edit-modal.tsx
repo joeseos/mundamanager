@@ -1216,7 +1216,7 @@ export function EditFighterModal({
                 />
               )}
               <div className="mt-1 text-sm text-muted-foreground">
-                Current: {formatFighterSubtypeDisplay(fighter.fighter_subtypes, fighter.edition_slug) || 'Unknown'}
+                Current: {formatFighterSubtypeDisplay(fighter.fighter_subtypes, fighter.edition_slug)}
               </div>
             </div>
 

@@ -326,7 +326,7 @@ export default function Gang({
     const counts = new Map<string, { label: string; count: number; subtypes: string[] }>();
     for (const fighter of activeFighters) {
       const typeLabel = fighter.fighter_type || 'Unknown Type';
-      const subtypeLabel = formatFighterSubtypeDisplay(fighter.fighter_subtypes, edition_slug) || 'Unknown Subtype';
+      const subtypeLabel = formatFighterSubtypeDisplay(fighter.fighter_subtypes, edition_slug);
       const key = `${typeLabel} (${subtypeLabel})`;
       const existing = counts.get(key);
       if (existing) {
