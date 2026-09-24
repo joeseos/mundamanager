@@ -51,14 +51,14 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
     label: 'Friend requests',
     supportsEmail: true,
     defaultEnabled: true,
-    subject: 'You have a new friend request on Munda Manager',
+    subject: '{sender} sent you a friend request',
   },
   // Requests to join a campaign — every OWNER/ARBITRATOR is asked to accept/decline.
   campaign_join_request: {
     label: 'Campaign join requests',
     supportsEmail: true,
     defaultEnabled: true,
-    subject: 'Someone wants to join your campaign',
+    subject: '{sender} wants to join your campaign',
   },
   // Not email-eligible (in-app only) — kept here so the type union is exhaustive.
   info: { label: 'Account & campaign updates', supportsEmail: false, defaultEnabled: false, subject: '' },

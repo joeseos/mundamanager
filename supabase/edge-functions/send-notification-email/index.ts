@@ -50,8 +50,8 @@ const MASTER_PREF_KEY = "all";
 const EMAIL_CONFIG: Record<string, { defaultEnabled: boolean; subject: string }> = {
   campaign_invite: { defaultEnabled: true, subject: "You've been invited to a campaign" },
   gang_invite: { defaultEnabled: true, subject: "{sender} wants to add your gang to a campaign" },
-  friend_request: { defaultEnabled: true, subject: "You have a new friend request on Munda Manager" },
-  campaign_join_request: { defaultEnabled: true, subject: "Someone wants to join your campaign" },
+  friend_request: { defaultEnabled: true, subject: "{sender} sent you a friend request" },
+  campaign_join_request: { defaultEnabled: true, subject: "{sender} wants to join your campaign" },
 };
 
 function isEmailEnabled(
