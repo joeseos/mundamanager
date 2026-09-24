@@ -2250,7 +2250,7 @@ $$;
 -- Name: get_fighter_types_with_cost(uuid, uuid, boolean, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_fighter_types_with_cost(p_gang_type_id uuid DEFAULT NULL::uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid, p_is_gang_addition boolean DEFAULT NULL::boolean, p_gang_id uuid DEFAULT NULL::uuid) RETURNS TABLE(id uuid, fighter_type text, fighter_subtypes jsonb, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, save numeric, limitation numeric, alignment public.alignment, is_gang_addition boolean, alliance_id uuid, alliance_crew_name text, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, specialisation jsonb, fighter_variant text, available_legacies jsonb, free_skill boolean, delegation_cost numeric, is_dramatis_personae boolean, edition_slug text, starting_xp numeric, is_vehicle boolean, is_gang_subtype boolean, gang_subtype_name text)
+CREATE FUNCTION public.get_fighter_types_with_cost(p_gang_type_id uuid DEFAULT NULL::uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid, p_is_gang_addition boolean DEFAULT NULL::boolean, p_gang_id uuid DEFAULT NULL::uuid) RETURNS TABLE(id uuid, fighter_type text, fighter_subtypes jsonb, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, save numeric, limitation numeric, alignment public.alignment, is_gang_addition boolean, alliance_id uuid, alliance_crew_name text, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, specialisation jsonb, fighter_variant text, available_legacies jsonb, free_skill boolean, delegation_cost numeric, is_dramatis_personae boolean, edition_slug text, starting_xp numeric, is_vehicle boolean, is_gang_subtype boolean, gang_subtype_name text, is_granted_with_fighter boolean, is_associated_pet boolean, associated_pet_owner_id uuid)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -2294,7 +2294,8 @@ BEGIN
         LEFT JOIN gang_subtype_types gst ON gst.id = r.gang_subtype_id
         WHERE NOT r.excluded
         ORDER BY r.fighter_type_id, gst.subtype NULLS LAST
-    )
+    ),
+    base AS (
     SELECT
         ft.id,
         ft.fighter_type,
@@ -3159,7 +3160,33 @@ BEGIN
         )
         -- Outside the parens so a grant survives a deny, and reaches the hidden 'Subtype: <name>'
         -- pools the CASE above excludes.
-        OR g.fighter_type_id IS NOT NULL;
+        OR g.fighter_type_id IS NOT NULL
+    ),
+    -- One row per pet whose exotic_beasts equipment is default gear on another fighter type.
+    -- owner_id is set when one of those fighter types is a dramatis personae: prefer a gang
+    -- addition, then the lowest id, so the pick does not depend on scan order.
+    -- Only the gang-additions picker reads owner_id, and its result set is the gang additions,
+    -- so this matches "owner present in this result" without a second read of base.
+    pet_grants AS (
+        SELECT
+            eb.fighter_type_id AS pet_id,
+            (array_agg(fd.fighter_type_id ORDER BY owner.is_gang_addition DESC NULLS LAST, fd.fighter_type_id)
+                FILTER (WHERE owner.is_dramatis_personae))[1] AS owner_id
+        FROM exotic_beasts eb
+        JOIN fighter_defaults fd
+          ON fd.equipment_id = eb.equipment_id
+         AND fd.fighter_type_id IS DISTINCT FROM eb.fighter_type_id
+        JOIN fighter_types owner ON owner.id = fd.fighter_type_id
+        WHERE eb.fighter_type_id IS NOT NULL
+        GROUP BY eb.fighter_type_id
+    )
+    SELECT
+        base.*,
+        (pg.pet_id IS NOT NULL) AS is_granted_with_fighter,
+        (pg.owner_id IS NOT NULL) AS is_associated_pet,
+        pg.owner_id AS associated_pet_owner_id
+    FROM base
+    LEFT JOIN pet_grants pg ON pg.pet_id = base.id;
 END;
 $$;
 
