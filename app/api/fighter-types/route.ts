@@ -90,7 +90,10 @@ function transformCustomFighter(cf: any) {
     is_custom_fighter: true,
     free_skill: cf.free_skill || false,
     delegation_cost: cf.delegation_cost ?? null,
-    is_vehicle: cf.is_vehicle ?? false
+    is_vehicle: cf.is_vehicle ?? false,
+    is_associated_pet: false,
+    is_granted_with_fighter: false,
+    associated_pet_owner_id: null
   };
 }
 
@@ -163,6 +166,14 @@ function filterByIsVehicle(rows: any[], isVehicleParam: string | null) {
   if (isVehicleParam === null) return rows;
   const wantVehicles = isVehicleParam === 'true';
   return rows.filter((type: any) => Boolean(type.is_vehicle) === wantVehicles);
+}
+
+function fighterTypesResponse(
+  data: any[],
+  isVehicleParam: string | null
+) {
+  const filtered = filterByIsVehicle(data, isVehicleParam);
+  return NextResponse.json(withVariantGroups(filtered));
 }
 
 async function getGangEditionId(
@@ -275,7 +286,7 @@ export async function GET(request: Request) {
         data = mergeById(data, await getAvailableToAllFighterTypes(supabase, gangTypeId, customGangTypeId));
       }
 
-      return NextResponse.json(withVariantGroups(filterByIsVehicle(data, isVehicleParam)));
+      return fighterTypesResponse(data, isVehicleParam);
     }
 
     if (includeAllTypes) {
@@ -402,7 +413,7 @@ export async function GET(request: Request) {
       data = mergeById(data, await getAvailableToAllFighterTypes(supabase, gangTypeId, customGangTypeId));
     }
 
-    return NextResponse.json(withVariantGroups(filterByIsVehicle(data, isVehicleParam)));
+    return fighterTypesResponse(data, isVehicleParam);
   } catch (error) {
     console.error('Error fetching fighter types:', error);
     return NextResponse.json({ error: 'Error fetching fighter types' }, { status: 500 });

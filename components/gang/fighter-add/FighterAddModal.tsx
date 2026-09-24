@@ -8,7 +8,12 @@ import { FighterProps, Archetype } from '@/types/fighter';
 import { toast } from 'sonner';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { getGangAdditionRank, getGangAdditionSortRank } from '@/utils/gangAdditionRank';
-import { N26_ADDITION_CATEGORIES } from '@/utils/gangAdditionRankN26';
+import {
+  N26_ADDITION_CATEGORIES,
+  N26_HIRED_GUNS_DRAMATIS_CATEGORY,
+  isCategorisedGangAddition,
+  matchesN26AdditionCategory,
+} from '@/utils/gangAdditionRankN26';
 import { groupAlliancesByType } from '@/utils/allianceRank';
 import { bestRankedLabel } from '@/utils/rankLookup';
 import { fighterTypeRank } from '@/utils/fighterTypeRank';
@@ -45,35 +50,6 @@ type AllianceOption = {
   alliance_crew_name: string | null;
   edition_slug?: string | null;
 };
-
-function hasFighterSubtype(type: { fighter_subtypes?: string[] | null }, subtype: string): boolean {
-  return (type.fighter_subtypes ?? []).some(
-    (s) => s.toLowerCase().trim() === subtype.toLowerCase()
-  );
-}
-
-function matchesAdditionCategory(
-  type: { fighter_subtypes?: string[] | null; alliance_id?: string | null },
-  categoryValue: string
-): boolean {
-  if (categoryValue.startsWith('alliance:')) {
-    return type.alliance_id === categoryValue.slice('alliance:'.length);
-  }
-  if (categoryValue === 'misc') {
-    if (type.alliance_id) return false;
-    return !N26_ADDITION_CATEGORIES.some((c) => hasFighterSubtype(type, c.subtype));
-  }
-  const category = N26_ADDITION_CATEGORIES.find((c) => c.value === categoryValue);
-  return category ? hasFighterSubtype(type, category.subtype) : false;
-}
-
-function isCategorisedGangAddition(type: {
-  fighter_subtypes?: string[] | null;
-  alliance_id?: string | null;
-}): boolean {
-  if (type.alliance_id) return true;
-  return N26_ADDITION_CATEGORIES.some((c) => hasFighterSubtype(type, c.subtype));
-}
 
 interface FighterAddModalProps {
   catalog: FighterAddCatalog;
@@ -138,6 +114,9 @@ function mapFighterType(type: any): FighterType {
     is_dramatis_personae: type.is_dramatis_personae || false,
     starting_xp: type.starting_xp ?? null,
     is_vehicle: type.is_vehicle ?? false,
+    is_associated_pet: type.is_associated_pet || false,
+    is_granted_with_fighter: type.is_granted_with_fighter || false,
+    associated_pet_owner_id: type.associated_pet_owner_id || null,
   } as FighterType;
 }
 
@@ -238,7 +217,7 @@ export default function FighterAddModal({
   const filteredTypes = isAdditions && selectedSubtype
     ? fighterTypes.filter((type) =>
         isCategoryAdditions
-          ? matchesAdditionCategory(type, selectedSubtype)
+          ? matchesN26AdditionCategory(type, selectedSubtype)
           : type.alliance_id
             ? type.alliance_crew_name === selectedSubtype
             : type.fighter_subtypes?.includes(selectedSubtype)
@@ -622,20 +601,41 @@ export default function FighterAddModal({
     const options: Array<{ value: string; label: string | React.ReactNode; displayValue?: string; disabled?: boolean }> = [];
 
     for (const category of N26_ADDITION_CATEGORIES) {
-      const hasTypes = fighterTypes.some((type) => matchesAdditionCategory(type, category.value));
+      if ('subcategories' in category) {
+        const children = category.subcategories.filter((subcategory) =>
+          fighterTypes.some((type) => matchesN26AdditionCategory(type, subcategory.value))
+        );
+        if (children.length === 0) continue;
+        options.push({
+          value: `header-${category.value}`,
+          label: <span className="font-bold">{category.label}</span>,
+          displayValue: category.label,
+          disabled: true,
+        });
+        children.forEach((subcategory) => {
+          options.push({
+            value: subcategory.value,
+            label: <span className="ml-3">{subcategory.label}</span>,
+            displayValue: subcategory.label,
+          });
+        });
+        continue;
+      }
+
+      const hasTypes = fighterTypes.some((type) => matchesN26AdditionCategory(type, category.value));
       if (!hasTypes) continue;
       options.push({
         value: category.value,
-        label: category.label,
+        label: <span className="font-bold">{category.label}</span>,
         displayValue: category.label,
       });
     }
 
-    const hasMisc = fighterTypes.some((type) => matchesAdditionCategory(type, 'misc'));
+    const hasMisc = fighterTypes.some((type) => matchesN26AdditionCategory(type, 'misc'));
     if (hasMisc) {
       options.push({
         value: 'misc',
-        label: 'Misc.',
+        label: <span className="font-bold">Misc.</span>,
         displayValue: 'Misc.',
       });
     }
@@ -758,13 +758,60 @@ export default function FighterAddModal({
     const options: Array<{ value: string; label: string | React.ReactNode; displayValue?: string; disabled?: boolean }> = [];
 
     if (isAdditions) {
+      type AdditionTypeEntry = { fighter: FighterType; cost: number };
+      const allEntries = Array.from(typeSubtypeMap.values());
+      const nestAssociatedPets = selectedSubtype === N26_HIRED_GUNS_DRAMATIS_CATEGORY;
+      const ownerIds = new Set(allEntries.map(({ fighter }) => fighter.id));
+      const petsByOwner = new Map<string, AdditionTypeEntry[]>();
+      const nestedPetIds = new Set<string>();
+
+      if (nestAssociatedPets) {
+        allEntries.forEach((entry) => {
+          const ownerId = entry.fighter.associated_pet_owner_id;
+          if (
+            !entry.fighter.is_associated_pet ||
+            !ownerId ||
+            !ownerIds.has(ownerId)
+          ) {
+            return;
+          }
+          const pets = petsByOwner.get(ownerId) ?? [];
+          pets.push(entry);
+          petsByOwner.set(ownerId, pets);
+          nestedPetIds.add(entry.fighter.id);
+        });
+        petsByOwner.forEach((pets) => {
+          pets.sort((a, b) => a.fighter.fighter_type.localeCompare(b.fighter.fighter_type));
+        });
+      }
+
+      const topLevel = allEntries.filter(({ fighter }) => !nestedPetIds.has(fighter.id));
+
+      const additionTypeLabel = (
+        fighter: FighterType,
+        cost: number,
+        nested: boolean,
+        ownerUnknown = false
+      ) => {
+        const delegationCost = fighter.delegation_cost;
+        const costDisplay = delegationCost ? `${cost} / ${delegationCost} credits` : `${cost} credits`;
+        const displayName = `${fighter.limitation && fighter.limitation > 0 ? `0-${fighter.limitation} ` : ''}${fighter.fighter_type} - ${costDisplay}${ownerUnknown ? ' (owner unknown)' : ''}`;
+        return {
+          value: fighter.id,
+          label: nested
+            ? <span className="ml-6 italic text-neutral-400">{displayName}</span>
+            : <span className="ml-3">{displayName}</span>,
+          displayValue: displayName,
+        };
+      };
+
       // Group by alignment (Law Abiding / Outlaw / Unaligned)
-      const groupedByAlignment = Array.from(typeSubtypeMap.values()).reduce((groups, { fighter, cost }) => {
+      const groupedByAlignment = topLevel.reduce((groups, { fighter, cost }) => {
         const alignment = fighter.alignment?.toLowerCase() ?? 'unaligned';
         if (!groups[alignment]) groups[alignment] = [];
         groups[alignment].push({ fighter, cost });
         return groups;
-      }, {} as Record<string, Array<{ fighter: FighterType; cost: number }>>);
+      }, {} as Record<string, AdditionTypeEntry[]>);
 
       const alignmentOrder: Record<string, number> = { 'law abiding': 1, outlaw: 2, unaligned: 3 };
       const alignmentDisplayNames: Record<string, string> = { 'law abiding': 'Law Abiding', outlaw: 'Outlaw', unaligned: 'Unaligned' };
@@ -780,10 +827,11 @@ export default function FighterAddModal({
             disabled: true,
           });
           fighters.forEach(({ fighter, cost }) => {
-            const delegationCost = fighter.delegation_cost;
-            const costDisplay = delegationCost ? `${cost} / ${delegationCost} credits` : `${cost} credits`;
-            const displayName = `${fighter.limitation && fighter.limitation > 0 ? `0-${fighter.limitation} ` : ''}${fighter.fighter_type} - ${costDisplay}`;
-            options.push({ value: fighter.id, label: <span className="ml-3">{displayName}</span>, displayValue: displayName });
+            const ownerUnknown = nestAssociatedPets && Boolean(fighter.is_associated_pet);
+            options.push(additionTypeLabel(fighter, cost, ownerUnknown, ownerUnknown));
+            (petsByOwner.get(fighter.id) ?? []).forEach((pet) => {
+              options.push(additionTypeLabel(pet.fighter, pet.cost, true));
+            });
           });
         });
       return options;
@@ -903,9 +951,9 @@ export default function FighterAddModal({
             options={buildSubtypeOptions()}
           />
           {/* N23 navigates by raw subtype, N26 by category value. */}
-          {(selectedSubtype === 'Exotic Beast' || selectedSubtype === 'pet') && (
+          {(selectedSubtype === 'Exotic Beast' || selectedSubtype === 'pet' || selectedSubtype.startsWith('pet:')) && (
             <p className="text-amber-500 text-xs">
-              {beastSubtypeName(editionSlug)}s should be acquired by adding them as Equipment to a fighter, which automatically creates their Fighter card. They are listed here to allow flexibility and house rules.
+              {beastSubtypeName(editionSlug)}s should be acquired by adding them as Equipment to a fighter, which automatically creates their Fighter card. They are listed here to support greater flexibility and house rules.
             </p>
           )}
         </div>
@@ -949,6 +997,11 @@ export default function FighterAddModal({
             </div>
           </div>
         </div>
+        {isAdditions && currentFighterType?.is_associated_pet && (
+          <p className="text-amber-500 text-xs">
+            {beastSubtypeName(editionSlug)}s associated with a Fighter, such as a Dramatis Personae, are added alongside them, which automatically creates a Fighter card for each {beastSubtypeName(editionSlug).toLowerCase()}. They are listed here to support greater flexibility and house rules.
+          </p>
+        )}
 
         {/* Include All Fighter Types (roster catalog only) */}
         {!isAdditions && (
