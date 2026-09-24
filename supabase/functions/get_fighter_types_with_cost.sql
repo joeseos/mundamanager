@@ -971,46 +971,29 @@ BEGIN
         -- pools the CASE above excludes.
         OR g.fighter_type_id IS NOT NULL
     ),
-    -- Pets whose granting equipment is also a default on a different fighter type.
-    granted_pets AS (
-        SELECT DISTINCT eb.fighter_type_id AS pet_id
+    -- One row per pet whose exotic_beasts equipment is default gear on another fighter type.
+    -- owner_id is set when one of those fighter types is a dramatis personae: prefer a gang
+    -- addition, then the lowest id, so the pick does not depend on scan order.
+    pet_grants AS (
+        SELECT
+            eb.fighter_type_id AS pet_id,
+            (array_agg(fd.fighter_type_id ORDER BY owner.is_gang_addition DESC NULLS LAST, fd.fighter_type_id)
+                FILTER (WHERE owner.is_dramatis_personae))[1] AS owner_id
         FROM exotic_beasts eb
         JOIN fighter_defaults fd
           ON fd.equipment_id = eb.equipment_id
-         AND fd.fighter_type_id IS NOT NULL
          AND fd.fighter_type_id IS DISTINCT FROM eb.fighter_type_id
+        JOIN fighter_types owner ON owner.id = fd.fighter_type_id
         WHERE eb.fighter_type_id IS NOT NULL
-    ),
-    dramatis_owners AS (
-        SELECT DISTINCT eb.fighter_type_id AS pet_id, fd.fighter_type_id AS owner_id
-        FROM exotic_beasts eb
-        JOIN fighter_defaults fd
-          ON fd.equipment_id = eb.equipment_id
-         AND fd.fighter_type_id IS NOT NULL
-         AND fd.fighter_type_id IS DISTINCT FROM eb.fighter_type_id
-        JOIN fighter_types owner
-          ON owner.id = fd.fighter_type_id
-         AND owner.is_dramatis_personae
-        WHERE eb.fighter_type_id IS NOT NULL
-    ),
-    -- One dramatis owner wins outright. Several: prefer one present in this result
-    -- (the catalog), then the lowest id so the pick does not depend on scan order.
-    chosen_owner AS (
-        SELECT DISTINCT ON (d.pet_id)
-               d.pet_id,
-               d.owner_id
-        FROM dramatis_owners d
-        LEFT JOIN base catalog ON catalog.id = d.owner_id
-        ORDER BY d.pet_id, (catalog.id IS NOT NULL) DESC, d.owner_id
+        GROUP BY eb.fighter_type_id
     )
     SELECT
         base.*,
-        (gp.pet_id IS NOT NULL) AS is_granted_with_fighter,
-        (co.owner_id IS NOT NULL) AS is_associated_pet,
-        co.owner_id AS associated_pet_owner_id
+        (pg.pet_id IS NOT NULL) AS is_granted_with_fighter,
+        (pg.owner_id IS NOT NULL) AS is_associated_pet,
+        pg.owner_id AS associated_pet_owner_id
     FROM base
-    LEFT JOIN granted_pets gp ON gp.pet_id = base.id
-    LEFT JOIN chosen_owner co ON co.pet_id = base.id;
+    LEFT JOIN pet_grants pg ON pg.pet_id = base.id;
 END;
 $$;
 
