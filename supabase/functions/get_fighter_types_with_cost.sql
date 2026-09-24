@@ -974,6 +974,8 @@ BEGIN
     -- One row per pet whose exotic_beasts equipment is default gear on another fighter type.
     -- owner_id is set when one of those fighter types is a dramatis personae: prefer a gang
     -- addition, then the lowest id, so the pick does not depend on scan order.
+    -- Only the gang-additions picker reads owner_id, and its result set is the gang additions,
+    -- so this matches "owner present in this result" without a second read of base.
     pet_grants AS (
         SELECT
             eb.fighter_type_id AS pet_id,
