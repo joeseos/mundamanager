@@ -168,161 +168,12 @@ function filterByIsVehicle(rows: any[], isVehicleParam: string | null) {
   return rows.filter((type: any) => Boolean(type.is_vehicle) === wantVehicles);
 }
 
-function untaggedAssociatedPets(rows: any[]) {
-  return rows.map((row) => ({
-    ...row,
-    is_associated_pet: false,
-    is_granted_with_fighter: false,
-    associated_pet_owner_id: null,
-  }));
-}
-
-function tagPetGrantFlags(
-  rows: any[],
-  grantedPetIds: Set<string>,
-  ownerByPet: Map<string, string>
-) {
-  return rows.map((row) => ({
-    ...row,
-    is_granted_with_fighter: grantedPetIds.has(row.id),
-    associated_pet_owner_id: ownerByPet.get(row.id) ?? null,
-    is_associated_pet: ownerByPet.has(row.id),
-  }));
-}
-
-const DRAMATIS_OWNER_ID_CHUNK = 80;
-
-async function fetchDramatisOwnerIds(
-  supabase: SupabaseServerClient,
-  ownerIds: string[]
-): Promise<Set<string> | null> {
-  const dramatisIds = new Set<string>();
-  for (let i = 0; i < ownerIds.length; i += DRAMATIS_OWNER_ID_CHUNK) {
-    const chunk = ownerIds.slice(i, i + DRAMATIS_OWNER_ID_CHUNK);
-    const { data, error } = await supabase
-      .from('fighter_types')
-      .select('id')
-      .eq('is_dramatis_personae', true)
-      .in('id', chunk);
-    if (error) {
-      console.error('Error fetching associated pet owners:', error);
-      return null;
-    }
-    (data || []).forEach((row) => dramatisIds.add(row.id));
-  }
-  return dramatisIds;
-}
-
-/**
- * Pets whose granting equipment is a default on another fighter type. Any such
- * pet is tagged `is_granted_with_fighter` (Pets → Generic excludes them).
- * When that other fighter is a dramatis personae, also tag `is_associated_pet`
- * (Ozostium's Caryatid-Servitor): the add-fighter modal warns that those
- * companions are created with their owner, lists them under Pets → Dramatis
- * Personae, and nests them under that owner in Hired Guns → Dramatis Personae.
- *
- * Computed from exotic_beasts + fighter_defaults — there is no column on
- * fighter_types. Read the small beasts table in full rather than `.in()` of
- * every catalog id: gang additions are hundreds of UUIDs and that filter
- * overflows the PostgREST URL, which would stamp every row false.
- */
-async function withAssociatedPetFlag(
-  supabase: SupabaseServerClient,
-  rows: any[]
-) {
-  const { data: beasts, error: beastsError } = await supabase
-    .from('exotic_beasts')
-    .select('fighter_type_id, equipment_id');
-
-  if (beastsError || !beasts?.length) {
-    if (beastsError) console.error('Error fetching associated pets:', beastsError);
-    return untaggedAssociatedPets(rows);
-  }
-
-  const equipmentIds = [...new Set(beasts.map((beast) => beast.equipment_id).filter(Boolean))];
-  if (equipmentIds.length === 0) {
-    return untaggedAssociatedPets(rows);
-  }
-
-  const { data: defaults, error: defaultsError } = await supabase
-    .from('fighter_defaults')
-    .select('fighter_type_id, equipment_id')
-    .in('equipment_id', equipmentIds);
-
-  if (defaultsError) {
-    console.error('Error fetching associated pet defaults:', defaultsError);
-    return untaggedAssociatedPets(rows);
-  }
-
-  const grantedPetIds = new Set<string>();
-  for (const beast of beasts) {
-    if (!beast.fighter_type_id) continue;
-    const grantedWithOtherFighter = (defaults || []).some(
-      (row) =>
-        row.equipment_id === beast.equipment_id &&
-        row.fighter_type_id &&
-        row.fighter_type_id !== beast.fighter_type_id
-    );
-    if (grantedWithOtherFighter) grantedPetIds.add(beast.fighter_type_id);
-  }
-
-  const ownerIds = [...new Set(
-    (defaults || [])
-      .map((row) => row.fighter_type_id)
-      .filter((id): id is string => Boolean(id))
-  )];
-  if (ownerIds.length === 0) {
-    return tagPetGrantFlags(rows, grantedPetIds, new Map());
-  }
-
-  const dramatisIds = await fetchDramatisOwnerIds(supabase, ownerIds);
-  if (!dramatisIds) {
-    // Still exclude granted pets from Pets Generic if dramatis lookup fails.
-    return tagPetGrantFlags(rows, grantedPetIds, new Map());
-  }
-  const catalogIds = new Set(rows.map((row) => row.id));
-
-  const ownerByPet = new Map<string, string>();
-  for (const beast of beasts) {
-    if (!beast.fighter_type_id) continue;
-    const owners = [...new Set(
-      (defaults || [])
-        .filter((row) =>
-          row.equipment_id === beast.equipment_id &&
-          row.fighter_type_id &&
-          row.fighter_type_id !== beast.fighter_type_id &&
-          dramatisIds.has(row.fighter_type_id)
-        )
-        .map((row) => row.fighter_type_id as string)
-    )];
-    if (owners.length === 0) continue;
-    if (owners.length > 1) {
-      console.warn('Associated pet has multiple dramatis owners; picking one', {
-        pet_fighter_type_id: beast.fighter_type_id,
-        owner_ids: owners,
-      });
-    }
-    // Unique dramatis default wins; otherwise prefer an owner in this catalog.
-    const ownerId = owners.length === 1
-      ? owners[0]
-      : (owners.find((id) => catalogIds.has(id)) ?? owners[0]);
-    ownerByPet.set(beast.fighter_type_id, ownerId);
-  }
-
-  return tagPetGrantFlags(rows, grantedPetIds, ownerByPet);
-}
-
-async function fighterTypesResponse(
-  supabase: SupabaseServerClient,
+function fighterTypesResponse(
   data: any[],
-  isVehicleParam: string | null,
-  tagAssociatedPets: boolean
+  isVehicleParam: string | null
 ) {
   const filtered = filterByIsVehicle(data, isVehicleParam);
-  const tagged = tagAssociatedPets
-    ? await withAssociatedPetFlag(supabase, filtered)
-    : filtered;
-  return NextResponse.json(withVariantGroups(tagged));
+  return NextResponse.json(withVariantGroups(filtered));
 }
 
 async function getGangEditionId(
@@ -435,7 +286,7 @@ export async function GET(request: Request) {
         data = mergeById(data, await getAvailableToAllFighterTypes(supabase, gangTypeId, customGangTypeId));
       }
 
-      return fighterTypesResponse(supabase, data, isVehicleParam, isGangAddition);
+      return fighterTypesResponse(data, isVehicleParam);
     }
 
     if (includeAllTypes) {
@@ -562,7 +413,7 @@ export async function GET(request: Request) {
       data = mergeById(data, await getAvailableToAllFighterTypes(supabase, gangTypeId, customGangTypeId));
     }
 
-    return fighterTypesResponse(supabase, data, isVehicleParam, isGangAddition);
+    return fighterTypesResponse(data, isVehicleParam);
   } catch (error) {
     console.error('Error fetching fighter types:', error);
     return NextResponse.json({ error: 'Error fetching fighter types' }, { status: 500 });
