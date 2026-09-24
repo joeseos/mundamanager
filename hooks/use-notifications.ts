@@ -288,7 +288,8 @@ export function useFetchNotifications({
         method: 'DELETE',
       });
 
-      if (!response.ok) {
+      // 404 means it's already gone, e.g. a DB trigger removed it after the invite or request was answered
+      if (!response.ok && response.status !== 404) {
         throw new Error(`API request failed with status ${response.status}`);
       }
 
