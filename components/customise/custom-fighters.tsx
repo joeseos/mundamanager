@@ -34,6 +34,7 @@ import {
   sameEditionForDisplay,
 } from '@/types/edition';
 import { filterAllowedFighterSubtypes, toggleFighterSubtype } from '@/utils/fighter-subtype-picker';
+import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 
 interface CustomiseFightersProps {
   className?: string;
@@ -911,7 +912,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
 
   const handleSubmit = () => {
     // Validation
-    if (!selectedGangType || selectedFighterSubtypes.length === 0 || !fighterType || !cost) {
+    if (!selectedGangType || !fighterType || !cost || (!allowMultipleSubtypes && selectedFighterSubtypes.length === 0)) {
       toast.error('Please fill in all required fields');
       return false;
     }
@@ -1185,7 +1186,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
             {allowMultipleSubtypes && (
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Fighter Subtype *
+                  Fighter Subtype
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-2">
                   {fighterSubtypes.map((fighterSubtype) => (
@@ -1643,7 +1644,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                   Fighter Subtype
                 </label>
                 <div className="w-full p-2 border rounded-md bg-muted">
-                  {viewModalData.fighter_subtypes?.join(', ')}
+                  {formatFighterSubtypeDisplay(viewModalData.fighter_subtypes, editionSlug)}
                 </div>
               </div>
             </div>

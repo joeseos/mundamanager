@@ -5,6 +5,7 @@ import WeaponTable from './fighter-card-weapon-table';
 import { Equipment } from '@/types/equipment';
 import { FighterProps, FighterEffect, Vehicle, VehicleEquipment, FighterSkills } from '@/types/fighter';
 import { hasSaveCharacteristic } from '@/types/edition';
+import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { calculateAdjustedStats, applySpecialRulesModifiers } from '@/utils/effect-modifiers';
 import { countAdvancementsTaken, openAdvancementsFor } from '@/utils/advancementRanks';
 import { hasN26ProspectPromotionOccurred } from '@/utils/keepTypePromotionN26';
@@ -544,8 +545,9 @@ const FighterCard = memo(function FighterCard({
         ${isLoading ? 'cursor-default' : ''}
         ${dragListeners && dragAttributes ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''}`;
 
+  const subtypeLabel = formatFighterSubtypeDisplay(fighter_subtypes, edition_slug);
   const typeLine = [
-    `${type}${alliance_crew_name ? ` - ${alliance_crew_name}` : ''}${fighter_subtypes?.length ? ` (${fighter_subtypes.join(', ')})` : ''}`,
+    `${type}${alliance_crew_name ? ` - ${alliance_crew_name}` : ''}${subtypeLabel ? ` (${subtypeLabel})` : ''}`,
     fighter_variant,
     fighter_specialisation?.fighter_specialisation,
   ].filter(Boolean).join(', ');

@@ -107,6 +107,10 @@ const EDITION_CAPABILITIES = {
   /** A fighter may hold several subtypes at once */
   multipleFighterSubtypes:  { n23: false, n26: true  },
   /**
+   * Printed where a fighter's subtype list is shown, when that list is empty.
+   */
+  emptyFighterSubtypeLabel: { n23: '*', n26: '*' },
+  /**
    * Named-type picker options omit the parenthetical subtype list. N26 lists
    * subtypes on their own control, so "Ganger (Ganger, Specialist)" is redundant
    * there. When false, each option is "Type (Subtypes)".
@@ -303,6 +307,10 @@ export const initiativeAndMentalCharacteristicSuffix = (
 
 export const allowsMultipleSubtypes = (editionSlug?: string | null): boolean =>
   can('multipleFighterSubtypes', editionSlug);
+
+/** Stand-in for a fighter with no subtypes. `*` on every edition, including an unresolved slug. */
+export const emptyFighterSubtypeLabel = (editionSlug?: string | null): string =>
+  answerFor('emptyFighterSubtypeLabel', editionSlug) ?? '*';
 
 export const omitsNamedTypeSubtypeSuffix = (editionSlug?: string | null): boolean =>
   can('omitNamedTypeSubtypeSuffix', editionSlug);

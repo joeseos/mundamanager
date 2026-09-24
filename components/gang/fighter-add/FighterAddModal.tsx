@@ -18,6 +18,7 @@ import { groupAlliancesByType } from '@/utils/allianceRank';
 import { bestRankedLabel } from '@/utils/rankLookup';
 import { fighterTypeRank } from '@/utils/fighterTypeRank';
 import { beastSubtypeName, hasGangAdditionCategories, sameEditionForDisplay } from '@/types/edition';
+import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
 import { ImInfo } from 'react-icons/im';
@@ -862,7 +863,7 @@ export default function FighterAddModal({
           disabled: true,
         });
         fighters.forEach(({ fighter, cost }) => {
-          const displayName = `${fighter.fighter_type} (${fighter.fighter_subtypes?.join(', ')}) - ${cost} credits`;
+          const displayName = `${fighter.fighter_type} (${formatFighterSubtypeDisplay(fighter.fighter_subtypes, fighter.edition_slug ?? editionSlug)}) - ${cost} credits`;
           options.push({ value: fighter.id, label: <span className="ml-3">{displayName}</span>, displayValue: displayName });
         });
       });
@@ -886,7 +887,7 @@ export default function FighterAddModal({
     if (!hasMultipleGroups) {
       const fighters = (groupedByType[sortedGroups[0]] || []).sort(sortFighters);
       fighters.forEach(({ fighter, cost }) => {
-        options.push({ value: fighter.id, label: `${fighter.fighter_type} (${fighter.fighter_subtypes?.join(', ')}) - ${cost} credits` });
+        options.push({ value: fighter.id, label: `${fighter.fighter_type} (${formatFighterSubtypeDisplay(fighter.fighter_subtypes, fighter.edition_slug ?? editionSlug)}) - ${cost} credits` });
       });
       return options;
     }
@@ -900,7 +901,7 @@ export default function FighterAddModal({
         disabled: true,
       });
       fighters.forEach(({ fighter, cost }) => {
-        const displayName = `${fighter.fighter_type} (${fighter.fighter_subtypes?.join(', ')}) - ${cost} credits`;
+        const displayName = `${fighter.fighter_type} (${formatFighterSubtypeDisplay(fighter.fighter_subtypes, fighter.edition_slug ?? editionSlug)}) - ${cost} credits`;
         options.push({ value: fighter.id, label: <span className="ml-3">{displayName}</span>, displayValue: displayName });
       });
     });

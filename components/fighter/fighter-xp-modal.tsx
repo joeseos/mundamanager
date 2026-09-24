@@ -135,7 +135,7 @@ export function FighterXpModal({
     staleTime: 60_000,
   });
 
-  const { getFighterOptions } = useCampaignGangFighterOptions(campaignGangs);
+  const { getFighterOptions } = useCampaignGangFighterOptions(campaignGangs, editionSlug);
 
   const gangOptions = campaignGangs.map((g) =>
     buildGangComboboxOption({

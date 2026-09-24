@@ -41,6 +41,7 @@ import type { UserCampaign } from '@/types/campaign';
 import type { EquipmentListItem } from '@/types/equipment';
 import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
 import { hasTradePoints, sameEditionForDisplay } from '@/types/edition';
+import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 
 interface EquipmentPendingChanges {
   costOverride: number | null;
@@ -1858,9 +1859,10 @@ function buildMultiProfileKeys(fighterTypes: PricingRuleFighterType[]): Set<stri
 
 function formatPricingRuleFighterTypeLabel(
   ft: PricingRuleFighterType,
-  multiProfileKeys: Set<string>
+  multiProfileKeys: Set<string>,
+  editionSlug?: string | null,
 ): string {
-  const fighterSubtype = ft.fighter_subtypes.join(', ') || 'Unknown';
+  const fighterSubtype = formatFighterSubtypeDisplay(ft.fighter_subtypes, editionSlug);
   const base = `${ft.fighter_type} (${fighterSubtype})`;
   if (!multiProfileKeys.has(getPricingRuleFighterTypeSubtypeKey(ft))) return base;
   if (!ft.specialisation?.specialisation_name) return base;
@@ -1889,6 +1891,7 @@ function AddPricingRuleModal({
   const [adjustedCost, setAdjustedCost] = useState(
     initialRule?.adjusted_cost != null ? initialRule.adjusted_cost.toString() : ''
   );
+  const editionSlug = useTradingPostEdition();
 
   const { data: fighterTypes = [], isLoading: isFighterTypesLoading } = useQuery({
     queryKey: ['fighterTypes'],
@@ -1923,7 +1926,7 @@ function AddPricingRuleModal({
     const multiProfileKeys = buildMultiProfileKeys(scopedFighterTypes);
     return [...scopedFighterTypes]
       .map(ft => {
-        const label = formatPricingRuleFighterTypeLabel(ft, multiProfileKeys);
+        const label = formatPricingRuleFighterTypeLabel(ft, multiProfileKeys, editionSlug);
         return {
           value: ft.id,
           label,
@@ -1931,7 +1934,7 @@ function AddPricingRuleModal({
         };
       })
       .sort((a, b) => a.label.localeCompare(b.label));
-  }, [scopedFighterTypes]);
+  }, [scopedFighterTypes, editionSlug]);
 
   const selectedFighterTypeName = React.useMemo(() => {
     const ft =
@@ -1947,8 +1950,8 @@ function AddPricingRuleModal({
           : fighterTypes.filter(
               item => item.gang_type_id === gangTypeId || (fighterTypeId !== '' && item.id === fighterTypeId)
             );
-    return formatPricingRuleFighterTypeLabel(ft, buildMultiProfileKeys(scopeForLabel));
-  }, [scopedFighterTypes, fighterTypeId, fighterTypes, customFighterTypes, isCustomGangType, gangTypeId]);
+    return formatPricingRuleFighterTypeLabel(ft, buildMultiProfileKeys(scopeForLabel), editionSlug);
+  }, [scopedFighterTypes, fighterTypeId, fighterTypes, customFighterTypes, isCustomGangType, gangTypeId, editionSlug]);
 
   const scopeResetKey = `${gangTypeId}:${isCustomGangType}:${scopedFighterTypes.map(ft => ft.id).join(',')}:${isCustomGangType ? isCustomFighterTypesLoading : isFighterTypesLoading}`;
   const [prevScopeResetKey, setPrevScopeResetKey] = useState(scopeResetKey);

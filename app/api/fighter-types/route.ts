@@ -56,7 +56,7 @@ function transformCustomFighter(cf: any) {
   return {
     id: cf.id,
     fighter_type: cf.fighter_type,
-    fighter_subtypes: cf.fighter_subtypes || ['Custom'],
+    fighter_subtypes: cf.fighter_subtypes ?? [],
     gang_type: cf.gang_type,
     cost: cf.cost,
     gang_type_id: cf.gang_type_id,

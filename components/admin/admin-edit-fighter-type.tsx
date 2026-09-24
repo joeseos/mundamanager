@@ -19,6 +19,7 @@ import { FighterTypeGrant } from "@/types/fighter-type";
 import { EditionSelect, useEditions } from '@/components/edition-select';
 import { hasAlignment, hasSaveCharacteristic, allowsMultipleSubtypes, hasStartingXp, hasVehicles } from '@/types/edition';
 import { toggleFighterSubtype } from '@/utils/fighter-subtype-picker';
+import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import Modal from '@/components/ui/modal';
 
 interface FighterSpecialisation {
@@ -796,7 +797,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       // Parse the combo string to get type, subtype, and gang_type_id
       const [fighterType, fighterSubtype, gangTypeId] = comboString.split('|');
       
-      if (!fighterType || !fighterSubtype || !gangTypeId) {
+      // An empty subtype is valid for N26 (`Type||gangTypeId`). A missing segment is not.
+      if (!fighterType || fighterSubtype == null || !gangTypeId) {
         console.error('Invalid fighter type combo string:', comboString);
         return;
       }
@@ -969,10 +971,10 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         throw new Error('Missing required fields');
       }
 
-      // Nothing downstream rejects an empty array — the column defaults to '[]'
-      // and the API passes it straight through — so a subtypeless fighter type
-      // would silently reach the SQL functions that branch on subtype name.
-      if (selectedFighterSubtypes.length === 0) {
+      // N23 still needs a subtype: the column accepts '[]' and the API stores it,
+      // so a blank single-select would reach SQL that branches on the subtype name.
+      // N26 may leave the list empty.
+      if (!allowMultipleSubtypes && selectedFighterSubtypes.length === 0) {
         throw new Error('Please select at least one fighter subtype');
       }
 
@@ -1380,7 +1382,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   </option>
                   {fighterTypeCombos.map((combo) => (
                     <option key={`${combo.type}-${combo.subtype}-${combo.gang_type_id}`} value={`${combo.type}|${combo.subtype}|${combo.gang_type_id}`}>
-                      {`${combo.type} (${combo.subtype || "Unknown Subtype"})`}
+                      {`${combo.type} (${formatFighterSubtypeDisplay(combo.subtype ? combo.subtype.split(', ') : [], editionSlug)})`}
                     </option>
                   ))}
                 </select>
@@ -1492,7 +1494,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
               {allowMultipleSubtypes ? (
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-muted-foreground mb-1">
-                    Fighter Subtype *
+                    Fighter Subtype
                   </label>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-2">
                     {fighterSubtypesForDisplay.map((fighterSubtype) => (
@@ -2578,7 +2580,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!selectedSpecialisationId || selectedFighterSubtypes.length === 0 || isLoading}
+            disabled={!selectedSpecialisationId || (!allowMultipleSubtypes && selectedFighterSubtypes.length === 0) || isLoading}
             className="px-4 py-2 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
           >
             {isLoading ? 'Updating...' : 'Update Fighter Type'}

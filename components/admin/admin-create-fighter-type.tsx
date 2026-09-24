@@ -330,8 +330,8 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
     // Check if selected fighter subtype is Crew
     const isCrew = selectedFighterSubtypes.includes('Crew');
 
-    // Modify validation for Crew subtype
-    if (!selectedGangType || selectedFighterSubtypes.length === 0 || !fighterType) {
+    // N26 (multiple subtypes) may leave the list empty. N23 still needs one.
+    if (!selectedGangType || !fighterType || (!allowMultipleSubtypes && selectedFighterSubtypes.length === 0)) {
       toast.error("Please fill in all required fields");
       return false;
     }
@@ -506,7 +506,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
             {allowMultipleSubtypes && (
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Fighter Subtype *
+                  Fighter Subtype
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-2">
                   {fighterSubtypesForDisplay.map((fighterSubtype) => (
@@ -1226,7 +1226,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
             disabled={
               !baseCost ||
               !selectedGangType ||
-              selectedFighterSubtypes.length === 0 ||
+              (!allowMultipleSubtypes && selectedFighterSubtypes.length === 0) ||
               !fighterType ||
               !ballisticSkill ||
               !isCrew && (

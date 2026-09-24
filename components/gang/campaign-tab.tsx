@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Tooltip } from 'react-tooltip';
 import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
+import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { createClient } from "@/utils/supabase/client";
 import { Battle } from '@/types/campaign';
 import { getWinnerIds } from '@/utils/battle-winners';
@@ -824,7 +825,7 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
               {ooaBreakdown.map((fighter, index) => (
                 <div key={breakdownRowKey(fighter, index)} className="flex justify-between gap-3">
                   <span className="flex-1 truncate text-left">
-                    {fighter.fighter_name} - {fighter.fighter_type} ({fighter.fighter_subtypes?.join(', ')})
+                    {fighter.fighter_name} - {fighter.fighter_type} ({formatFighterSubtypeDisplay(fighter.fighter_subtypes, editionSlug)})
                   </span>
                   <span className="shrink-0 text-right">{fighter.kills}</span>
                 </div>
@@ -857,7 +858,7 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
               {deathsBreakdown.map((fighter, index) => (
                 <div key={breakdownRowKey(fighter, index)} className="flex justify-between gap-3">
                   <span className="flex-1 truncate text-left">
-                    {fighter.fighter_name} - {fighter.fighter_type} ({fighter.fighter_subtypes?.join(', ')})
+                    {fighter.fighter_name} - {fighter.fighter_type} ({formatFighterSubtypeDisplay(fighter.fighter_subtypes, editionSlug)})
                   </span>
                   <span className="shrink-0 text-right">1</span>
                 </div>

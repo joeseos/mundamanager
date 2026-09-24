@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { HiX } from "react-icons/hi";
 import { ImInfo } from "react-icons/im";
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
+import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import {
   hasChampionLeaderTypePromotion,
   hasGangerChampionKeepTypePromotion,
@@ -72,9 +73,12 @@ function sortPromotionFighterTypes(
   });
 }
 
-function formatPromotionFighterTypeLabel(ft: PromotionFighterType): string {
+function formatPromotionFighterTypeLabel(
+  ft: PromotionFighterType,
+  editionSlug?: string | null,
+): string {
   return [
-    `${ft.fighter_type} (${ft.fighter_subtypes.join(', ')})`,
+    `${ft.fighter_type} (${formatFighterSubtypeDisplay(ft.fighter_subtypes, editionSlug)})`,
     ft.fighter_variant,
     ft.specialisation?.specialisation_name,
   ].filter(Boolean).join(', ');
@@ -232,7 +236,7 @@ export function FighterPromotionModal({
   const fighterTypeComboboxOptions = useMemo(
     () =>
       displayTypes.map((ft) => {
-        const labelText = formatPromotionFighterTypeLabel(ft);
+        const labelText = formatPromotionFighterTypeLabel(ft, editionSlug);
         const optionSpecialisationId = ft.specialisation?.id ?? '';
         // Champion→Leader clears specialisation; do not mute Leaders for mismatch.
         const isDifferentSpecialisation =

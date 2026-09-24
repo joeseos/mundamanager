@@ -44,6 +44,7 @@ import {
   type N26AdvancementEntry
 } from '@/utils/dice';
 import { hasCumulativeXp } from '@/types/edition';
+import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { VENATOR_RANKS_INCOMPLETE_MESSAGE } from '@/utils/venatorSkillAccess';
 import {
   N26_CHAMPION_PROMOTION_SKILL_NAME,
@@ -2587,7 +2588,7 @@ export function AdvancementModal({
                       <p className="text-xs text-green-600 dark:text-green-400">
                         Promotion to{' '}
                         <strong>
-                          {gangerPendingPromotion.fighter_type} ({gangerPendingPromotion.fighter_subtypes.join(', ')})
+                          {gangerPendingPromotion.fighter_type} ({formatFighterSubtypeDisplay(gangerPendingPromotion.fighter_subtypes, editionSlug)})
                         </strong>{' '}
                         confirmed. Once the advancement is applied, this promotion cannot be undone.
                       </p>
@@ -2730,7 +2731,7 @@ export function AdvancementModal({
                   <p className="text-xs text-green-600 dark:text-green-400">
                     Promotion to{' '}
                     <strong>
-                      {championPendingPromotion.fighter_type} ({championPendingPromotion.fighter_subtypes.join(', ')})
+                      {championPendingPromotion.fighter_type} ({formatFighterSubtypeDisplay(championPendingPromotion.fighter_subtypes, editionSlug)})
                     </strong>{' '}
                     confirmed. Once the advancement is applied, this promotion cannot be undone.
                   </p>

@@ -146,15 +146,17 @@ async function validateFighterSubtypesForUpdate(
     Array.isArray(currentSubtypes) ? currentSubtypes : []
   );
 
-  // Mirror client confirmDisabled: do not allow wiping a non-empty subtype list
-  if (normalized.length === 0 && previous.length > 0) {
+  const editionSlug = await resolveFighterEditionSlug(supabase, fighterId);
+
+  // N23 cannot wipe a non-empty list. N26 may store [].
+  // allowsMultipleSubtypes(null) is false, so an unresolved edition keeps the
+  // legacy rule instead of accepting a blank list.
+  if (!allowsMultipleSubtypes(editionSlug) && normalized.length === 0 && previous.length > 0) {
     return {
       ok: false,
       error: 'At least one fighter subtype is required.',
     };
   }
-
-  const editionSlug = await resolveFighterEditionSlug(supabase, fighterId);
 
   // allowsMultipleSubtypes(null) is false, so an unresolved edition keeps the
   // legacy single-subtype rule instead of rejecting the save outright.
@@ -1514,9 +1516,8 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
         throw new Error('Gang not found');
       }
 
-      const effectiveSubtypes: string[] =
+      const fighterSubtypes: string[] =
         updateData.fighter_subtypes ?? fighter.fighter_subtypes ?? [];
-      const fighterSubtypes = effectiveSubtypes.length ? effectiveSubtypes : ['Custom'];
 
       const checkArchetypeAssignable = async (archetypeId: string) => {
         // undefined, not falsy: null is a resolved answer (legacy N23), not a cache miss
