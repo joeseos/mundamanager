@@ -267,6 +267,12 @@ async function withAssociatedPetFlag(
         .map((row) => row.fighter_type_id as string)
     )];
     if (owners.length === 0) continue;
+    if (owners.length > 1) {
+      console.warn('Associated pet has multiple dramatis owners; picking one', {
+        pet_fighter_type_id: beast.fighter_type_id,
+        owner_ids: owners,
+      });
+    }
     // Unique dramatis default wins; otherwise prefer an owner in this catalog.
     const ownerId = owners.length === 1
       ? owners[0]

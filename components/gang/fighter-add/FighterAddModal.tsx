@@ -786,10 +786,15 @@ export default function FighterAddModal({
 
       const topLevel = allEntries.filter(({ fighter }) => !nestedPetIds.has(fighter.id));
 
-      const additionTypeLabel = (fighter: FighterType, cost: number, nested: boolean) => {
+      const additionTypeLabel = (
+        fighter: FighterType,
+        cost: number,
+        nested: boolean,
+        ownerUnknown = false
+      ) => {
         const delegationCost = fighter.delegation_cost;
         const costDisplay = delegationCost ? `${cost} / ${delegationCost} credits` : `${cost} credits`;
-        const displayName = `${fighter.limitation && fighter.limitation > 0 ? `0-${fighter.limitation} ` : ''}${fighter.fighter_type} - ${costDisplay}`;
+        const displayName = `${fighter.limitation && fighter.limitation > 0 ? `0-${fighter.limitation} ` : ''}${fighter.fighter_type} - ${costDisplay}${ownerUnknown ? ' (owner unknown)' : ''}`;
         return {
           value: fighter.id,
           label: nested
@@ -821,7 +826,8 @@ export default function FighterAddModal({
             disabled: true,
           });
           fighters.forEach(({ fighter, cost }) => {
-            options.push(additionTypeLabel(fighter, cost, false));
+            const ownerUnknown = nestAssociatedPets && Boolean(fighter.is_associated_pet);
+            options.push(additionTypeLabel(fighter, cost, ownerUnknown, ownerUnknown));
             (petsByOwner.get(fighter.id) ?? []).forEach((pet) => {
               options.push(additionTypeLabel(pet.fighter, pet.cost, true));
             });

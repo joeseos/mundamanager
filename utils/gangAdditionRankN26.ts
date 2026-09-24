@@ -41,15 +41,13 @@ export const N26_ADDITION_CATEGORIES = [
 
 export const N26_HIRED_GUNS_DRAMATIS_CATEGORY = 'hired-guns:dramatis';
 
-export const gangAdditionRankN26: { [key: string]: number } = Object.fromEntries(
-  N26_ADDITION_CATEGORIES.flatMap((category, index) => {
-    const rank = index + 1;
-    const keys: string[] = [];
-    if ('subtype' in category) keys.push(category.subtype.toLowerCase());
-    if ('gangType' in category) keys.push(category.gangType.toLowerCase());
-    return keys.map((key) => [key, rank]);
-  })
-);
+/**
+ * Empty on purpose. N26 addition order is `N26_ADDITION_CATEGORIES` declaration
+ * order in the category combobox; this map is only read by N23 subtype grouping
+ * via getGangAdditionRank, which N26 never uses (hasGangAdditionCategories).
+ * Kept so GANG_ADDITION_RANK_BY_EDITION stays a complete Record<EditionSlug, …>.
+ */
+export const gangAdditionRankN26: { [key: string]: number } = {};
 
 export type N26AdditionFighter = {
   fighter_subtypes?: string[] | null;
@@ -121,10 +119,10 @@ function matchesSubcategory(
 ): boolean {
   const dramatisPersonae =
     'dramatisPersonae' in subcategory && subcategory.dramatisPersonae;
-  // Associated pets belong in Hired Guns → Dramatis even when their own
-  // gang_type is the pets pool, not Hired Guns.
+  // Skip the gang-type parent gate: associated pets belong in Hired Guns →
+  // Dramatis even when their own gang_type is the pets pool.
   if (dramatisPersonae) {
-    return isHiredGunsDramatis(type) || Boolean(type.is_associated_pet);
+    return matchesSpecialSubcategory(type, subcategory);
   }
   if (!matchesDefinedCategory(type, category)) return false;
   if (isSpecialSubcategory(subcategory)) {
