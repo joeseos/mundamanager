@@ -65,6 +65,7 @@ const EMAIL_CONFIG: Record<string, { defaultEnabled: boolean; subject: string; c
     subject: "{sender} wants to join your campaign",
     ctaPath: "/account",
   },
+  campaign_challenge: { defaultEnabled: true, subject: "Your gang has been challenged" },
 };
 
 function isEmailEnabled(
@@ -239,7 +240,10 @@ async function buildEmail(delivery: {
     subject,
     bodyHtml: notificationTextToHtml(notification.text),
     bodyText: notificationTextToPlain(notification.text),
-    ctaUrl: cfg.ctaPath ? `${APP_URL}${cfg.ctaPath}` : notification.link,
+    ctaUrl: cfg.ctaPath
+      ? `${APP_URL}${cfg.ctaPath}`
+      // In-app links may be app-relative; an email needs them absolute.
+      : notification.link?.startsWith("/") ? `${APP_URL}${notification.link}` : notification.link,
     preferencesUrl: `${APP_URL}/account`,
     unsubscribeUrl: unsubscribePageUrl,
   });

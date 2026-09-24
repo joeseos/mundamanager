@@ -340,6 +340,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
       case 'campaign_invite':
         return <LuUserPlus className="h-5 w-5 text-indigo-500" />;
       case 'battle_invite':
+      case 'campaign_challenge':
         return <LuSwords className="h-5 w-5 text-rose-500" />;
       case 'friend_request':
         return <LuUserPlus className="h-5 w-5 text-green-500" />;

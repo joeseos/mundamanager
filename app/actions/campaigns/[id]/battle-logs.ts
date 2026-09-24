@@ -11,7 +11,7 @@ import { getWinnerIds, getExplicitClaimerGangId, enrichWinners } from '@/utils/b
 import { normaliseParticipants, territoryClaimerFor, getAttackerDefenderIds } from '@/utils/battle-participants';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
-import type { BattleStatus } from '@/types/campaign';
+import { challengeAnswerStatuses, type BattleStatus } from '@/types/campaign';
 
 /**
  * Type definition for battle participant.
@@ -54,7 +54,11 @@ export interface BattleLogParams {
   territory_claimed_by_gang_id?: string | null;
   created_at?: string;
   cycle?: number | null;
-  /** Set to 'played' to convert an accepted challenge into its battle report. */
+  /**
+   * 'played' files a challenge's battle report; challenge_issued / accepted /
+   * declined are the challenged gang's answer, which only its owner or an
+   * arbitrator may change.
+   */
   status?: BattleStatus;
 }
 
@@ -309,6 +313,7 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
 export async function updateBattleLog(campaignId: string, battleId: string, params: BattleLogParams) {
   try {
     const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
 
     const {
       scenario,
@@ -334,7 +339,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     // caches when the winner list changes on an edit.
     const { data: existingBattle, error: checkError } = await supabase
       .from('campaign_battles')
-      .select('id, campaign_territory_id, winner_id, participants, status, challenger_gang_id')
+      .select('id, campaign_territory_id, winner_id, participants, status, challenger_gang_id, challenged_gang_id')
       .eq('id', battleId)
       .eq('campaign_id', campaignId)
       .single();
@@ -368,6 +373,33 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
 
     const legacyWinnerId: string | null =
       claimerGangId ?? effectiveWinnerIds[0] ?? null;
+
+    // A challenge names its opponent through this same form. A new opponent has
+    // not answered yet, so naming one (re)issues the challenge.
+    const existingStatus = existingBattle.status as BattleStatus;
+    const isOpenChallenge = !!existingBattle.challenger_gang_id && existingStatus !== 'played';
+    const challengedGangId = isOpenChallenge
+      ? participants.find((p) => p.gang_id !== existingBattle.challenger_gang_id)?.gang_id ?? null
+      : existingBattle.challenged_gang_id;
+    const opponentChanged = isOpenChallenge && challengedGangId !== existingBattle.challenged_gang_id;
+
+    let nextStatus = params.status;
+    if (opponentChanged && nextStatus !== 'played') {
+      nextStatus = challengedGangId ? 'challenge_issued' : 'challenge_pending';
+    }
+
+    // Any other status change is an answer. RLS lets any participant update
+    // the row, so who may answer, and from which state, is guarded here.
+    const answerChanged =
+      !opponentChanged && !!nextStatus && nextStatus !== 'played' && nextStatus !== existingStatus;
+    if (answerChanged) {
+      if (!challengeAnswerStatuses.includes(existingStatus) || !challengeAnswerStatuses.includes(nextStatus!)) {
+        return { success: false as const, error: 'This challenge cannot be answered' };
+      }
+      if (!(await ownsGangOrArbitrates(supabase, user.id, campaignId, existingBattle.challenged_gang_id))) {
+        return { success: false as const, error: 'Only the challenged gang can answer this challenge' };
+      }
+    }
 
     // Release old territory if it was removed or changed. Only a played battle
     // ever claimed its territory: on a challenge the territory is staked, not
@@ -417,15 +449,13 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       campaign_territory_id: newTerritoryId,
       cycle,
     };
-    if (params.status) {
-      updatePayload.status = params.status;
+    if (nextStatus) {
+      updatePayload.status = nextStatus;
     }
-    // A challenge names its opponent through the same edit form, so keep the
-    // dedicated column in step with the participants. It backs the accept and
-    // decline permission checks, which want an indexed lookup.
-    if (existingBattle.challenger_gang_id && existingBattle.status !== 'played') {
-      updatePayload.challenged_gang_id =
-        participants.find((p) => p.gang_id !== existingBattle.challenger_gang_id)?.gang_id ?? null;
+    // Kept in step with the participants: it backs the answer permission check,
+    // which wants an indexed lookup.
+    if (isOpenChallenge) {
+      updatePayload.challenged_gang_id = challengedGangId;
     }
     if (created_at) {
       updatePayload.created_at = created_at;
@@ -468,8 +498,8 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       legacyWinnerId
     );
 
-    // Log battle results for all participating gangs
-    if (campaign) {
+    // An unplayed challenge has no result to log.
+    if (campaign && (nextStatus ?? existingStatus) === 'played') {
       await logBattleParticipantResults(
         supabase,
         participants,
@@ -480,6 +510,51 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
         claimerGangId,
         claimerEnriched?.name ?? null
       );
+    }
+
+    const challengeIssued = opponentChanged && nextStatus === 'challenge_issued';
+    const challengeAnswered =
+      answerChanged && (nextStatus === 'challenge_accepted' || nextStatus === 'challenge_declined');
+    if (challengeIssued || challengeAnswered) {
+      // A failed notification must never fail the save.
+      try {
+        const [{ data: challengeGangs }, { data: stakedTerritory }] = await Promise.all([
+          supabase
+            .from('gangs')
+            .select('id, name, user_id')
+            .in('id', [existingBattle.challenger_gang_id, challengedGangId]),
+          challengeIssued && newTerritoryId
+            ? supabase.from('campaign_territories').select('territory_name').eq('id', newTerritoryId).maybeSingle()
+            : Promise.resolve({ data: null }),
+        ]);
+        const challenger = challengeGangs?.find((g) => g.id === existingBattle.challenger_gang_id);
+        const challenged = challengeGangs?.find((g) => g.id === challengedGangId);
+        const receiverId = challengeIssued ? challenged?.user_id : challenger?.user_id;
+        const campaignName = campaign?.campaign_name ?? 'Unknown';
+
+        if (challenger && challenged && receiverId && receiverId !== user.id) {
+          const details = [
+            scenario ? `Scenario: **${scenario}**` : null,
+            stakedTerritory?.territory_name ? `Territory: **${stakedTerritory.territory_name}**` : null,
+          ].filter(Boolean);
+          const text = challengeIssued
+            ? `**${challenger.name}** has challenged your gang **${challenged.name}** in the campaign **${campaignName}**.` +
+              (details.length ? `\n\n${details.join('\n')}` : '') +
+              `\n\nOpen the challenge in the campaign's battle logs to accept or decline it.`
+            : `**${challenged.name}** has ${nextStatus === 'challenge_accepted' ? 'accepted' : 'declined'} the challenge from **${challenger.name}** in the campaign **${campaignName}**.`;
+          const { error: notifyError } = await supabase.from('notifications').insert({
+            receiver_id: receiverId,
+            sender_id: user.id,
+            type: challengeIssued ? 'campaign_challenge' : 'info',
+            text,
+            link: `/campaigns/${campaignId}`,
+            dismissed: false,
+          });
+          if (notifyError) console.error('Error sending challenge notification:', notifyError);
+        }
+      } catch (notifyError) {
+        console.error('Error sending challenge notification:', notifyError);
+      }
     }
 
     // Transform the response to match the expected format
@@ -749,62 +824,6 @@ export async function generateChallengeRound(
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to open challenge round',
-    };
-  }
-}
-
-/**
- * Accept or decline an issued challenge. Declining moves no territory — the
- * arbitrator awards it with `assignGangToTerritory` if the group plays it that way.
- */
-export async function respondToChallenge(
-  campaignId: string,
-  battleId: string,
-  response: 'accepted' | 'declined'
-): Promise<{ success: boolean; error?: string; data?: { id: string; status: string; updated_at: string } }> {
-  try {
-    const supabase = await createClient();
-    const user = await getAuthenticatedUser(supabase);
-
-    const { data: battle, error: fetchError } = await supabase
-      .from('campaign_battles')
-      .select('id, status, challenged_gang_id')
-      .eq('id', battleId)
-      .eq('campaign_id', campaignId)
-      .single();
-
-    if (fetchError || !battle) return { success: false, error: 'Challenge not found' };
-    if (battle.status !== 'challenge_issued') {
-      return { success: false, error: 'This challenge has already been answered' };
-    }
-    if (!(await ownsGangOrArbitrates(supabase, user.id, campaignId, battle.challenged_gang_id))) {
-      return { success: false, error: 'Only the challenged gang can answer this challenge' };
-    }
-
-    // Zero rows matched is not an error, so a lost race or an RLS denial would
-    // otherwise report success while the row stayed put.
-    const { data: answered, error: updateError } = await supabase
-      .from('campaign_battles')
-      .update({
-        status: response === 'accepted' ? 'challenge_accepted' : 'challenge_declined',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', battleId)
-      .eq('status', 'challenge_issued')
-      .select('id, status, updated_at');
-
-    if (updateError) throw updateError;
-    if (!answered || answered.length === 0) {
-      return { success: false, error: 'This challenge has already been answered' };
-    }
-
-    invalidateCampaignBattles(campaignId);
-    return { success: true, data: answered[0] };
-  } catch (error) {
-    console.error('Error responding to challenge:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to answer challenge',
     };
   }
 }

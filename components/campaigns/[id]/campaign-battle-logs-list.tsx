@@ -19,7 +19,6 @@ import { useMutation } from '@tanstack/react-query';
 import { Battle, BattleParticipant, CampaignGang, Territory, Member } from '@/types/campaign';
 import { battleStatusColors, battleStatusLabels, battleStatusOf, isPlayedBattle } from '@/types/campaign';
 import CampaignChallengeRoundModal from '@/components/campaigns/[id]/campaign-challenge-round-modal';
-import { respondToChallenge } from '@/app/actions/campaigns/[id]/battle-logs';
 import { getWinnerIds } from '@/utils/battle-winners';
 import { Combobox } from "@/components/ui/combobox";
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
@@ -396,25 +395,6 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   };
 
   // TanStack Query mutation for deleting battles
-  const respondMutation = useMutation({
-    mutationFn: async ({ battleId, response }: { battleId: string; response: 'accepted' | 'declined' }) =>
-      respondToChallenge(campaignId, battleId, response),
-    onSuccess: (result) => {
-      if (!result.success) {
-        toast.error(result.error || 'Failed to answer challenge');
-        return;
-      }
-      toast.success('Challenge answered');
-      const answered = result.data;
-      if (answered) {
-        onBattlesChange(prev =>
-          prev.map(b => (b.id === answered.id ? { ...b, ...answered } as Battle : b))
-        );
-      }
-    },
-    onError: () => toast.error('Failed to answer challenge'),
-  });
-
   const deleteBattleMutation = useMutation({
     mutationFn: async (battleId: string) => {
       const result = await deleteBattleLog(campaignId, battleId);
@@ -1211,26 +1191,6 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                   {canUserEditBattle(battle) && (
                     <td className="p-1 md:p-2 align-top text-right">
                       <div className="flex flex-wrap justify-end gap-2">
-                        {battleStatusOf(battle) === 'challenge_issued' && ownsGang(battle.challenged_gang_id) && (
-                          <>
-                            <Button
-                              onClick={() => respondMutation.mutate({ battleId: battle.id, response: 'accepted' })}
-                              variant="outline_accept"
-                              size="sm"
-                              className="h-8"
-                            >
-                              Accept
-                            </Button>
-                            <Button
-                              onClick={() => respondMutation.mutate({ battleId: battle.id, response: 'declined' })}
-                              variant="outline_remove"
-                              size="sm"
-                              className="h-8"
-                            >
-                              Decline
-                            </Button>
-                          </>
-                        )}
                         <Button
                           onClick={() => handleEditBattle(battle)}
                           variant="outline"
@@ -1411,6 +1371,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         battles={battles}
         battleToEdit={selectedBattle}
         userRole={isAdmin ? 'ARBITRATOR' : 'MEMBER'}
+        canRespondToChallenge={isAdmin || ownsGang(selectedBattle?.challenged_gang_id)}
       />
 
       {/* Delete Confirmation Modal */}
