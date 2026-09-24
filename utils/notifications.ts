@@ -28,7 +28,7 @@ export interface NotificationEmailConfig {
   supportsEmail: boolean;
   /** Default email opt-in used when the user has no preference row for this category. */
   defaultEnabled: boolean;
-  /** Email subject line for this category. */
+  /** Email subject line for this category. `{sender}` is replaced with the sender's username. */
   subject: string;
 }
 
@@ -45,7 +45,7 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
     label: 'Gang campaign invitations',
     supportsEmail: true,
     defaultEnabled: true,
-    subject: 'Someone wants to add your gang to a campaign',
+    subject: '{sender} wants to add your gang to a campaign',
   },
   friend_request: {
     label: 'Friend requests',
