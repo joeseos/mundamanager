@@ -8,7 +8,7 @@ import { revalidateTag } from 'next/cache';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { countsTowardRating } from '@/utils/fighter-status';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
-import { updateGangFinancials, reverseGangFinancials } from '@/utils/gang-rating-and-wealth';
+import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { clearHardpointReference } from './vehicle-hardpoints';
 import { returnCostResource } from '@/utils/campaigns/resources';
 import type { CostResourcePayload } from '@/types/equipment';
@@ -247,26 +247,22 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       throw new Error(financialResult.error || 'Failed to update gang financials');
     }
 
-    // Pinned to where the item was read, so one moved since (e.g. to the stash) matches
-    // nothing rather than being deleted against a charge worked out for its old place.
-    // .select() so a delete that matched nothing (moved, already sold, or blocked by RLS)
-    // is caught: PostgREST reports that as success, not as an error.
-    let deleteQuery = supabase
+    const { error: deleteError } = await supabase
       .from('fighter_equipment')
       .delete()
       .eq('id', params.fighter_equipment_id);
-    deleteQuery = equipmentData.fighter_id
-      ? deleteQuery.eq('fighter_id', equipmentData.fighter_id)
-      : deleteQuery.eq('vehicle_id', equipmentData.vehicle_id);
-    const { data: deletedRows, error: deleteError } = await deleteQuery.select('id');
 
-    if (deleteError || !deletedRows?.length) {
-      // Nothing was removed, so undo the charge.
-      await reverseGangFinancials(supabase, gangId, financialResult,
-        `equipment ${params.fighter_equipment_id} was not deleted`);
-      throw new Error(deleteError
-        ? `Failed to delete equipment: ${deleteError.message}`
-        : 'Equipment could not be removed');
+    if (deleteError) {
+      // The item is still there, so undo the charge.
+      const reversal = await updateGangFinancials(supabase, {
+        gangId,
+        ratingDelta: -ratingDelta,
+        creditsDelta: -sellValue
+      });
+      if (!reversal.success) {
+        console.error(`Failed to reverse sale charge for gang ${gangId}:`, reversal.error);
+      }
+      throw new Error(`Failed to delete equipment: ${deleteError.message}`);
     }
 
     // After the cascade, so the survivor check sees only what remains

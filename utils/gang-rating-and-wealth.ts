@@ -215,55 +215,6 @@ export async function updateGangFinancials(
 }
 
 /**
- * Undoes a successful updateGangFinancials call, e.g. when the write it paid for then fails.
- *
- * Moves each value back by what that call actually changed (newValues - oldValues), not by
- * the deltas it was asked for: rating, wealth and the rest are clamped at 0, so a clamped
- * update applied less than requested, and replaying the requested deltas would overshoot.
- * Wealth isn't a direct input — updateGangFinancials derives it from rating, credits and
- * stash value — so the stash term is whatever makes the wealth change come out exact.
- *
- * Logs on failure, since the gang is then left holding the change being undone.
- *
- * @param applied - The result of the successful updateGangFinancials call to undo
- * @param context - What the reversal is for, for the log
- */
-export async function reverseGangFinancials(
-  supabase: SupabaseClient,
-  gangId: string,
-  applied: GangFinancialUpdateResult,
-  context: string
-): Promise<GangFinancialUpdateResult> {
-  const { oldValues, newValues } = applied;
-  // Only the no-op path returns without values, so there's nothing to undo.
-  if (!oldValues || !newValues) {
-    return { success: true };
-  }
-
-  const ratingDelta = oldValues.rating - newValues.rating;
-  const creditsDelta = oldValues.credits - newValues.credits;
-  const wealthDelta = oldValues.wealth - newValues.wealth;
-
-  const result = await updateGangFinancials(supabase, {
-    gangId,
-    ratingDelta,
-    creditsDelta,
-    tradePointsDelta: oldValues.trade_points - newValues.trade_points,
-    reputationDelta: oldValues.reputation - newValues.reputation,
-    stashValueDelta: wealthDelta - ratingDelta - creditsDelta
-  });
-
-  if (!result.success) {
-    console.error(`Failed to reverse gang financials for ${gangId} (${context}):`, result.error, {
-      oldValues,
-      newValues
-    });
-  }
-
-  return result;
-}
-
-/**
  * Convenience function for simple rating/wealth updates where delta applies equally to both.
  *
  * This is equivalent to calling updateGangFinancials with ratingDelta = delta.
