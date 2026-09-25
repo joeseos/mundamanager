@@ -78,6 +78,7 @@ function transformCustomFighter(cf: any) {
     save: cf.save ?? null,
     edition_slug: cf.edition_slug ?? null,
     limitation: null,
+    required: null,
     alignment: null,
     default_equipment: [],
     is_gang_addition: false,

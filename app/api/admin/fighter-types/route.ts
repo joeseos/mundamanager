@@ -103,6 +103,8 @@ export async function GET(request: Request) {
           is_dramatis_personae,
           alignment,
           delegation_cost,
+          limitation,
+          required,
           equipment_discounts:equipment_discounts(
             equipment_id,
             adjusted_cost
@@ -151,6 +153,8 @@ export async function GET(request: Request) {
           is_dramatis_personae,
           alignment,
           delegation_cost,
+          limitation,
+          required,
           equipment_discounts:equipment_discounts(
             equipment_id,
             adjusted_cost
@@ -310,6 +314,8 @@ export async function GET(request: Request) {
           is_dramatis_personae,
           alignment,
           delegation_cost,
+          limitation,
+          required,
           equipment_discounts:equipment_discounts(
             equipment_id,
             adjusted_cost
@@ -489,6 +495,8 @@ export async function GET(request: Request) {
         is_dramatis_personae,
         alignment,
         delegation_cost,
+        limitation,
+        required,
         equipment_discounts:equipment_discounts(
           equipment_id,
           adjusted_cost
@@ -652,6 +660,10 @@ export async function PATCH(request: Request) {
         is_dramatis_personae: data.is_dramatis_personae,
         alignment: data.alignment,
         delegation_cost: data.delegation_cost ?? null,
+        // Only when sent: limitation predates this screen, so a client that never loaded it
+        // must not wipe it.
+        ...(data.limitation !== undefined && { limitation: data.limitation }),
+        ...(data.required !== undefined && { required: data.required }),
         updated_at: data.updated_at
       })
       .eq('id', id);
@@ -1000,7 +1012,9 @@ export async function POST(request: Request) {
         is_vehicle: data.is_vehicle,
         is_dramatis_personae: data.is_dramatis_personae,
         alignment: data.alignment,
-        delegation_cost: data.delegation_cost ?? null
+        delegation_cost: data.delegation_cost ?? null,
+        limitation: data.limitation ?? null,
+        required: data.required ?? null
       })
       .select()
       .single();

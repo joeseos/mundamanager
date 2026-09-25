@@ -122,6 +122,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [fighterType, setFighterType] = useState('');
   const [baseCost, setBaseCost] = useState('');
   const [delegationCost, setDelegationCost] = useState('');
+  const [required, setRequired] = useState('');
+  const [limitation, setLimitation] = useState('');
   const [selectedFighterSubtypes, setSelectedFighterSubtypes] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedSpecialisationId, setSelectedSpecialisationId] = useState<string>('');
@@ -693,6 +695,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       setFighterType(data.fighter_type || '');
       setBaseCost(data.cost?.toString() || '0');
       setDelegationCost(data.delegation_cost?.toString() || '');
+      setRequired(data.required != null ? data.required.toString() : '');
+      setLimitation(data.limitation != null ? data.limitation.toString() : '');
       if (data.edition_id) {
         setEditionId(data.edition_id);
       }
@@ -1068,6 +1072,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         is_vehicle: isVehicle,
         alignment: showAlignment ? (alignment || null) : null,
         delegation_cost: delegationCost ? parseInt(delegationCost) : null,
+        required: required ? parseInt(required) : null,
+        limitation: limitation ? parseInt(limitation) : null,
         default_equipment: selectedEquipment,
         default_skills: selectedSkills,
         equipment_list: equipmentListSelections,
@@ -1511,10 +1517,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
               ) : null}
 
               {/* Base Cost, Alignment, Delegation Cost, Starting XP (+ single-select
-                  subtype). Always 2 columns: single-select editions show 4 items
-                  (subtype, base cost, alignment, delegation cost), multi-select
-                  editions show 4 items too (subtype moved above, but Starting XP
-                  fills the slot) -- either way the grid fills evenly. */}
+                  subtype), then Required and Limit as their own row. Always 2 columns:
+                  single-select editions show 4 items before the pair (subtype, base
+                  cost, alignment, delegation cost), multi-select editions show 4 too
+                  (subtype moved above, but Starting XP fills the slot) -- either way
+                  the grid fills evenly. */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 {!allowMultipleSubtypes && (
                   <div>
@@ -1600,6 +1607,40 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                     </p>
                   </div>
                 )}
+
+                <div>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    Required (min)
+                  </label>
+                  <Input
+                    type="number"
+                    value={required}
+                    onChange={(e) => setRequired(e.target.value)}
+                    placeholder="e.g. 3 for 3+"
+                    className="w-full"
+                    min="1"
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Blank means no minimum.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    Limit (max)
+                  </label>
+                  <Input
+                    type="number"
+                    value={limitation}
+                    onChange={(e) => setLimitation(e.target.value)}
+                    placeholder="e.g. 3 for 0-3"
+                    className="w-full"
+                    min="1"
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Blank means no limit.
+                  </p>
+                </div>
               </div>
 
               <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-2 md:gap-4">

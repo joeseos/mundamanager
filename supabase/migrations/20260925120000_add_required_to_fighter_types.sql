@@ -1,3 +1,17 @@
+-- Minimum number of fighters of this type a gang must field (N26 "Wyld Runner 3+"). The
+-- counterpart of limitation, which is the maximum ("0-3"). Both NULL means no count rule.
+ALTER TABLE public.fighter_types
+  ADD COLUMN IF NOT EXISTS required integer;
+
+ALTER TABLE public.fighter_types
+  ADD CONSTRAINT fighter_types_required_positive_chk
+    CHECK (required IS NULL OR required >= 1),
+  ADD CONSTRAINT fighter_types_required_within_limitation_chk
+    CHECK (required IS NULL OR limitation IS NULL OR required <= limitation);
+
+COMMENT ON COLUMN public.fighter_types.required IS
+  'Minimum number of this fighter type a gang must field, shown as "3+" (or "1-3" with limitation) in the add-fighter list. NULL means no minimum. Display only: nothing enforces it.';
+
 -- Drop previous versions. Every arg is defaulted, so leaving an older arity in place would make
 -- the PostgREST call ambiguous.
 DROP FUNCTION IF EXISTS get_fighter_types_with_cost(uuid, uuid, boolean, uuid);

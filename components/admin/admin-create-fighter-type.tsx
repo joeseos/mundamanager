@@ -55,6 +55,8 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   const [fighterType, setFighterType] = useState('');
   const [baseCost, setBaseCost] = useState('');
   const [delegationCost, setDelegationCost] = useState('');
+  const [required, setRequired] = useState('');
+  const [limitation, setLimitation] = useState('');
   const [startingXp, setStartingXp] = useState('');
   const [selectedGangType, setSelectedGangType] = useState('');
   const [editionId, setEditionId] = useState('');
@@ -378,6 +380,8 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         is_vehicle: isVehicle,
         alignment: showAlignment ? (alignment || null) : null,
         delegation_cost: delegationCost ? parseInt(delegationCost) : null,
+        required: required ? parseInt(required) : null,
+        limitation: limitation ? parseInt(limitation) : null,
         // Blank means N/A — a type that can never gain XP — and stores null.
         // Editions without the concept send an explicit 0 instead: the field is
         // hidden for them, and their fighters do gain XP, starting from none.
@@ -621,6 +625,42 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                   </p>
                 </div>
               )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
+                  Required (min)
+                </label>
+                <Input
+                  type="number"
+                  value={required}
+                  onChange={(e) => setRequired(e.target.value)}
+                  placeholder="e.g. 3 for 3+"
+                  className="w-full"
+                  min="1"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Blank means no minimum.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
+                  Limit (max)
+                </label>
+                <Input
+                  type="number"
+                  value={limitation}
+                  onChange={(e) => setLimitation(e.target.value)}
+                  placeholder="e.g. 3 for 0-3"
+                  className="w-full"
+                  min="1"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Blank means no limit.
+                </p>
+              </div>
             </div>
 
             <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-2 md:gap-4">

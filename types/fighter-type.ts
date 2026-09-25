@@ -73,7 +73,10 @@ export interface FighterType {
   attacks: number;
   save?: number | null;
   edition_slug?: string | null;
-  limitation?: number;
+  /** Most of this type a gang may field ("0-3"). null is no limit. */
+  limitation?: number | null;
+  /** Fewest of this type a gang must field ("3+"). null is no minimum. */
+  required?: number | null;
   alignment?: string;
   default_equipment: any[];
   is_gang_addition: boolean;
