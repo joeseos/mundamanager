@@ -11,11 +11,12 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Modal from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 import { acceptFriendRequest, declineFriendRequest } from '@/app/actions/friends';
 import { acceptGangInvite, declineGangInvite } from '@/app/actions/campaigns/[id]/campaign-gangs';
 import { acceptJoinRequest, declineJoinRequest } from '@/app/actions/campaigns/[id]/campaign-join-requests';
 import { LuTrash2 } from "react-icons/lu";
-import { notificationTextToHtml, type NotificationType, shouldShowNotificationLinkAttachment, resolveNotificationLink, getNotificationLinkLabel, getNotificationLinkDescription } from '@/utils/notifications';
+import { notificationTextToHtml, type NotificationType, isSafeNotificationLink, resolveNotificationLink, getNotificationLinkLabel, getNotificationLinkDescription } from '@/utils/notifications';
 
 type Notification = {
   id: string;
@@ -27,10 +28,124 @@ type Notification = {
   sender_id?: string; // Add sender_id for friend requests and gang invites
 };
 
+type NotificationActionResult = { success: boolean; error?: string };
+
+type NotificationResponse = 'accept' | 'decline';
+
+// An in-app Accept/Decline response to a notification. resolveArgs pulls the server-action
+// arguments out of the notification; returning null hides the buttons.
+type NotificationAction<Args> = {
+  label: string; // Used in error messages, e.g. 'gang invite'
+  resolveArgs: (notification: Notification, userId: string) => Args | null;
+  accept: (args: Args) => Promise<NotificationActionResult>;
+  decline: (args: Args) => Promise<NotificationActionResult>;
+};
+
+// Type-checks accept/decline against the entry's own resolveArgs, then widens the entry so
+// types with different argument shapes can share one registry.
+function defineNotificationAction<Args>(action: NotificationAction<Args>): NotificationAction<any> {
+  return action;
+}
+
+// Parse campaignId (last path segment) and optional gangId from a campaign notification link
+function parseCampaignLink(link: string | null): { campaignId: string; gangId: string | null } | null {
+  if (!link) return null;
+  try {
+    const url = new URL(link);
+    const pathParts = url.pathname.split('/');
+    const campaignId = pathParts[pathParts.length - 1];
+    if (campaignId) {
+      return { campaignId, gangId: url.searchParams.get('gangId') };
+    }
+  } catch {
+    // Invalid URL
+  }
+  return null;
+}
+
+// Notification types answered in-app with Accept/Decline. An entry here is all a new type needs:
+// it gets the buttons, and loses the delete button and link attachment.
+const notificationActions: Partial<Record<NotificationType, NotificationAction<any>>> = {
+  friend_request: defineNotificationAction({
+    label: 'friend request',
+    // sender_id is the requester; the current user is the addressee
+    resolveArgs: (notification, userId) =>
+      notification.sender_id ? { requesterId: notification.sender_id, addresseeId: userId } : null,
+    accept: ({ requesterId, addresseeId }) => acceptFriendRequest(requesterId, addresseeId),
+    decline: ({ requesterId, addresseeId }) => declineFriendRequest(requesterId, addresseeId),
+  }),
+  gang_invite: defineNotificationAction({
+    label: 'gang invite',
+    resolveArgs: (notification) => {
+      const params = parseCampaignLink(notification.link);
+      return params?.gangId ? { campaignId: params.campaignId, gangId: params.gangId } : null;
+    },
+    accept: acceptGangInvite,
+    decline: declineGangInvite,
+  }),
+  campaign_join_request: defineNotificationAction({
+    label: 'join request',
+    // sender_id is the requester
+    resolveArgs: (notification) => {
+      const params = parseCampaignLink(notification.link);
+      return params && notification.sender_id ? { campaignId: params.campaignId, userId: notification.sender_id } : null;
+    },
+    accept: acceptJoinRequest,
+    decline: declineJoinRequest,
+  }),
+};
+
+const isActionableNotification = (type: NotificationType) => notificationActions[type] !== undefined;
+
+// Actionable notifications' links only carry action args, so they never show as an attachment
+const shouldShowLinkAttachment = (notification: Notification): notification is Notification & { link: string } =>
+  !isActionableNotification(notification.type) && isSafeNotificationLink(notification.link);
+
+function NotificationActionButtons({
+  pending,
+  onAccept,
+  onDecline,
+}: {
+  pending: NotificationResponse | null; // The response in flight for this notification, if any
+  onAccept: () => void;
+  onDecline: () => void;
+}) {
+  return (
+    <div className="flex gap-2 items-center ml-2 self-center mt-2">
+      <Button
+        onClick={(e) => {
+          e.stopPropagation();
+          onDecline();
+        }}
+        disabled={pending !== null}
+        variant="outline_remove"
+        size="sm"
+        className="flex items-center gap-1"
+      >
+        <HiX className="h-3 w-3" />
+        {pending === 'decline' ? 'Declining...' : 'Decline'}
+      </Button>
+      <Button
+        onClick={(e) => {
+          e.stopPropagation();
+          onAccept();
+        }}
+        disabled={pending !== null}
+        variant="outline_accept"
+        size="sm"
+        className="flex items-center gap-1"
+      >
+        <LuCheck className="h-3 w-3" />
+        {pending === 'accept' ? 'Accepting...' : 'Accept'}
+      </Button>
+    </div>
+  );
+}
+
 export default function NotificationsContent({ userId }: { userId: string }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notificationToDelete, setNotificationToDelete] = useState<string | null>(null);
-  const [processingRequest, setProcessingRequest] = useState<string | null>(null);
+  const [processingRequest, setProcessingRequest] = useState<{ id: string; response: NotificationResponse } | null>(null);
   const router = useRouter();
   const pathname = usePathname();
   const isProfilePage = pathname === '/account';
@@ -51,158 +166,34 @@ export default function NotificationsContent({ userId }: { userId: string }) {
     isProfilePage,
   });
 
-  // Handle friend request acceptance
-  const handleAcceptFriendRequest = async (notificationId: string, senderId: string) => {
-    setProcessingRequest(notificationId);
-    try {
-      await acceptFriendRequest(senderId, userId);
-      await deleteNotification(notificationId);
-      setNotifications(prev => prev.filter(n => n.id !== notificationId));
-    } catch (error) {
-      console.error('Error accepting friend request:', error);
-    } finally {
-      setProcessingRequest(null);
-    }
+  // Resolve a notification's in-app action and its server-action args; null if either is missing
+  const getNotificationAction = (notification: Notification) => {
+    const action = notificationActions[notification.type];
+    const args = action?.resolveArgs(notification, userId);
+    return action && args != null ? { action, args } : null;
   };
 
-  // Handle friend request decline
-  const handleDeclineFriendRequest = async (notificationId: string, senderId: string) => {
-    setProcessingRequest(notificationId);
-    try {
-      await declineFriendRequest(senderId, userId);
-      await deleteNotification(notificationId);
-      setNotifications(prev => prev.filter(n => n.id !== notificationId));
-    } catch (error) {
-      console.error('Error declining friend request:', error);
-    } finally {
-      setProcessingRequest(null);
-    }
-  };
+  // Handle accepting/declining an actionable notification, removing it from the list on success
+  const handleNotificationAction = async (notification: Notification, response: NotificationResponse) => {
+    const resolved = getNotificationAction(notification);
+    if (!resolved) return;
 
-  // Parse campaignId and gangId from notification link
-  const parseGangInviteLink = (link: string | null): { campaignId: string; gangId: string } | null => {
-    if (!link) return null;
+    const { action, args } = resolved;
+    const verb = response === 'accept' ? 'accepting' : 'declining';
+    const failureMessage = `Failed to ${response} ${action.label}`;
+    setProcessingRequest({ id: notification.id, response });
     try {
-      const url = new URL(link);
-      const pathParts = url.pathname.split('/');
-      const campaignId = pathParts[pathParts.length - 1];
-      const gangId = url.searchParams.get('gangId');
-      if (campaignId && gangId) {
-        return { campaignId, gangId };
-      }
-    } catch {
-      // Invalid URL
-    }
-    return null;
-  };
-
-  // Handle gang invite acceptance
-  const handleAcceptGangInvite = async (notificationId: string, link: string | null) => {
-    const params = parseGangInviteLink(link);
-    if (!params) {
-      console.error('Invalid gang invite link');
-      return;
-    }
-
-    setProcessingRequest(notificationId);
-    try {
-      const result = await acceptGangInvite(params);
+      const result = await action[response](args);
       if (result.success) {
-        await deleteNotification(notificationId);
-        setNotifications(prev => prev.filter(n => n.id !== notificationId));
+        await deleteNotification(notification.id);
+        setNotifications(prev => prev.filter(n => n.id !== notification.id));
       } else {
-        console.error('Error accepting gang invite:', result.error);
+        console.error(`Error ${verb} ${action.label}:`, result.error);
+        toast.error(result.error || failureMessage);
       }
     } catch (error) {
-      console.error('Error accepting gang invite:', error);
-    } finally {
-      setProcessingRequest(null);
-    }
-  };
-
-  // Handle gang invite decline
-  const handleDeclineGangInvite = async (notificationId: string, link: string | null) => {
-    const params = parseGangInviteLink(link);
-    if (!params) {
-      console.error('Invalid gang invite link');
-      return;
-    }
-
-    setProcessingRequest(notificationId);
-    try {
-      const result = await declineGangInvite(params);
-      if (result.success) {
-        await deleteNotification(notificationId);
-        setNotifications(prev => prev.filter(n => n.id !== notificationId));
-      } else {
-        console.error('Error declining gang invite:', result.error);
-      }
-    } catch (error) {
-      console.error('Error declining gang invite:', error);
-    } finally {
-      setProcessingRequest(null);
-    }
-  };
-
-  // Parse campaignId from a join request notification link (last path segment)
-  const parseJoinRequestLink = (link: string | null): { campaignId: string } | null => {
-    if (!link) return null;
-    try {
-      const url = new URL(link);
-      const pathParts = url.pathname.split('/');
-      const campaignId = pathParts[pathParts.length - 1];
-      if (campaignId) {
-        return { campaignId };
-      }
-    } catch {
-      // Invalid URL
-    }
-    return null;
-  };
-
-  // Handle campaign join request acceptance (sender_id is the requester)
-  const handleAcceptJoinRequest = async (notificationId: string, link: string | null, senderId: string) => {
-    const params = parseJoinRequestLink(link);
-    if (!params) {
-      console.error('Invalid join request link');
-      return;
-    }
-
-    setProcessingRequest(notificationId);
-    try {
-      const result = await acceptJoinRequest({ campaignId: params.campaignId, userId: senderId });
-      if (result.success) {
-        await deleteNotification(notificationId);
-        setNotifications(prev => prev.filter(n => n.id !== notificationId));
-      } else {
-        console.error('Error accepting join request:', result.error);
-      }
-    } catch (error) {
-      console.error('Error accepting join request:', error);
-    } finally {
-      setProcessingRequest(null);
-    }
-  };
-
-  // Handle campaign join request decline
-  const handleDeclineJoinRequest = async (notificationId: string, link: string | null, senderId: string) => {
-    const params = parseJoinRequestLink(link);
-    if (!params) {
-      console.error('Invalid join request link');
-      return;
-    }
-
-    setProcessingRequest(notificationId);
-    try {
-      const result = await declineJoinRequest({ campaignId: params.campaignId, userId: senderId });
-      if (result.success) {
-        await deleteNotification(notificationId);
-        setNotifications(prev => prev.filter(n => n.id !== notificationId));
-      } else {
-        console.error('Error declining join request:', result.error);
-      }
-    } catch (error) {
-      console.error('Error declining join request:', error);
+      console.error(`Error ${verb} ${action.label}:`, error);
+      toast.error(failureMessage);
     } finally {
       setProcessingRequest(null);
     }
@@ -252,7 +243,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
   ) => {
     event.stopPropagation();
 
-    if (!shouldShowNotificationLinkAttachment(notification.type, notification.link)) {
+    if (!shouldShowLinkAttachment(notification)) {
       return;
     }
 
@@ -275,7 +266,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
   };
 
   const renderNotificationLinkAttachment = (notification: Notification) => {
-    if (!shouldShowNotificationLinkAttachment(notification.type, notification.link)) {
+    if (!shouldShowLinkAttachment(notification)) {
       return null;
     }
 
@@ -384,100 +375,14 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                       {timeAgo(notification.created_at)}
                     </p>
                   </div>
-                  {/* Friend Request Action Buttons */}
-                  {notification.type === 'friend_request' && notification.sender_id && (
-                    <div className="flex gap-2 items-center ml-2 self-center mt-2">
-                      <Button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeclineFriendRequest(notification.id, notification.sender_id!);
-                        }}
-                        disabled={processingRequest === notification.id}
-                        variant="outline_remove"
-                        size="sm"
-                        className="flex items-center gap-1"
-                      >
-                        <HiX className="h-3 w-3" />
-                        {processingRequest === notification.id ? 'Declining...' : 'Decline'}
-                      </Button>
-                      <Button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleAcceptFriendRequest(notification.id, notification.sender_id!);
-                        }}
-                        disabled={processingRequest === notification.id}
-                        variant="outline_accept"
-                        size="sm"
-                        className="flex items-center gap-1"
-                      >
-                        <LuCheck className="h-3 w-3" />
-                        {processingRequest === notification.id ? 'Accepting...' : 'Accept'}
-                      </Button>
-                    </div>
+                  {getNotificationAction(notification) && (
+                    <NotificationActionButtons
+                      pending={processingRequest?.id === notification.id ? processingRequest.response : null}
+                      onAccept={() => handleNotificationAction(notification, 'accept')}
+                      onDecline={() => handleNotificationAction(notification, 'decline')}
+                    />
                   )}
-                  {/* Gang Invite Action Buttons */}
-                  {notification.type === 'gang_invite' && notification.link && (
-                    <div className="flex gap-2 items-center ml-2 self-center mt-2">
-                      <Button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeclineGangInvite(notification.id, notification.link);
-                        }}
-                        disabled={processingRequest === notification.id}
-                        variant="outline_remove"
-                        size="sm"
-                        className="flex items-center gap-1"
-                      >
-                        <HiX className="h-3 w-3" />
-                        {processingRequest === notification.id ? 'Declining...' : 'Decline'}
-                      </Button>
-                      <Button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleAcceptGangInvite(notification.id, notification.link);
-                        }}
-                        disabled={processingRequest === notification.id}
-                        variant="outline_accept"
-                        size="sm"
-                        className="flex items-center gap-1"
-                      >
-                        <LuCheck className="h-3 w-3" />
-                        {processingRequest === notification.id ? 'Accepting...' : 'Accept'}
-                      </Button>
-                    </div>
-                  )}
-                  {/* Campaign Join Request Action Buttons */}
-                  {notification.type === 'campaign_join_request' && notification.link && notification.sender_id && (
-                    <div className="flex gap-2 items-center ml-2 self-center mt-2">
-                      <Button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeclineJoinRequest(notification.id, notification.link, notification.sender_id!);
-                        }}
-                        disabled={processingRequest === notification.id}
-                        variant="outline_remove"
-                        size="sm"
-                        className="flex items-center gap-1"
-                      >
-                        <HiX className="h-3 w-3" />
-                        {processingRequest === notification.id ? 'Declining...' : 'Decline'}
-                      </Button>
-                      <Button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleAcceptJoinRequest(notification.id, notification.link, notification.sender_id!);
-                        }}
-                        disabled={processingRequest === notification.id}
-                        variant="outline_accept"
-                        size="sm"
-                        className="flex items-center gap-1"
-                      >
-                        <LuCheck className="h-3 w-3" />
-                        {processingRequest === notification.id ? 'Accepting...' : 'Accept'}
-                      </Button>
-                    </div>
-                  )}
-                  {notification.type !== 'friend_request' && notification.type !== 'gang_invite' && notification.type !== 'campaign_join_request' && (
+                  {!isActionableNotification(notification.type) && (
                     <Button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -492,7 +397,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                     </Button>
                   )}
                 </div>
-                {shouldShowNotificationLinkAttachment(notification.type, notification.link) && (
+                {shouldShowLinkAttachment(notification) && (
                   <div className="mt-3 ml-8 border-t border-border/60 pt-3">
                     {renderNotificationLinkAttachment(notification)}
                   </div>
