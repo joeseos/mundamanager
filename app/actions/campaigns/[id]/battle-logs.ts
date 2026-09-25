@@ -470,14 +470,23 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     }
 
     // Update the battle record last — territory operations are already committed
-    const { data: battle, error: battleError } = await supabase
+    let battleUpdate = supabase
       .from('campaign_battles')
       .update(updatePayload)
-      .eq('id', battleId)
-      .select()
-      .single();
+      .eq('id', battleId);
+    // An answer only lands on the state it was checked against, so a concurrent answer can't also win.
+    if (answerChanged) {
+      battleUpdate = battleUpdate.eq('status', existingStatus);
+    }
+    const { data: battle, error: battleError } = await battleUpdate.select().maybeSingle();
 
     if (battleError) throw battleError;
+    if (!battle) {
+      return {
+        success: false as const,
+        error: answerChanged ? 'This challenge has already been answered' : 'Battle not found',
+      };
+    }
 
     // Fetch gang names needed for return enrichment and activity logging.
     const winnerNameLookupIds = Array.from(new Set(effectiveWinnerIds));
