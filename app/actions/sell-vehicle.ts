@@ -4,7 +4,7 @@ import { invalidateGang, invalidateFighter, invalidateGangFinancials } from '@/u
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 
-import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
+import { updateGangFinancials, reverseGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { countsTowardRating } from '@/utils/fighter-status';
 import { logVehicleAction } from './logs/vehicle-logs';
 
@@ -130,32 +130,26 @@ export async function sellVehicle(params: SellVehicleParams): Promise<SellVehicl
     }
 
     // One statement: the vehicle's effects and equipment go with it via ON DELETE CASCADE,
-    // so a failure can't leave it half-deleted. .select() so a delete that matched nothing
-    // (already sold, or blocked by RLS) is caught: PostgREST reports that as success.
-    const { data: deletedRows, error: deleteError } = await supabase
+    // so a failure can't leave it half-deleted. Pinned to the assignment read above, which
+    // decided between the rating and stash value deltas, so a vehicle assigned or unassigned
+    // since matches nothing. .select() so a delete that matched nothing (reassigned, already
+    // sold, or blocked by RLS) is caught: PostgREST reports that as success.
+    let deleteQuery = supabase
       .from('vehicles')
       .delete()
-      .eq('id', params.vehicleId)
-      .select('id');
+      .eq('id', params.vehicleId);
+    deleteQuery = vehicle.fighter_id
+      ? deleteQuery.eq('fighter_id', vehicle.fighter_id)
+      : deleteQuery.is('fighter_id', null);
+    const { data: deletedRows, error: deleteError } = await deleteQuery.select('id');
 
     if (deleteError || !deletedRows?.length) {
-      // Nothing was removed, so undo the charge with the exact opposite deltas.
-      const reversal = await updateGangFinancials(supabase, {
-        gangId,
-        ratingDelta: -ratingDelta,
-        creditsDelta: -sellValue,
-        stashValueDelta: -stashValueDelta
-      });
-      if (!reversal.success) {
-        console.error(
-          `Failed to reverse gang financials for ${gangId} after vehicle ${params.vehicleId} was not deleted:`,
-          reversal.error,
-          { ratingDelta, creditsDelta: sellValue, stashValueDelta }
-        );
-      }
+      // Nothing was removed, so undo the charge.
+      await reverseGangFinancials(supabase, gangId, financialResult,
+        `vehicle ${params.vehicleId} was not deleted`);
       throw new Error(deleteError
         ? `Failed to delete vehicle: ${deleteError.message}`
-        : 'Vehicle could not be removed; it may already have been sold');
+        : 'Vehicle could not be removed');
     }
 
     const updatedGangRating = financialResult.newValues?.rating;
