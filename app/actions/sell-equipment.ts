@@ -222,14 +222,56 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       }
     }
 
-    // Delete equipment and update gang credits
-    const { error: deleteError } = await supabase
+    // Compute rating delta: subtract purchase_cost and associated effects credits when applicable
+    // BUT only if the fighter is active (not killed, retired, enslaved, or captured)
+    // Inactive fighters are already excluded from rating calculations
+    let ratingDelta = 0;
+    if ((equipmentData.fighter_id || (equipmentData.vehicle_id && vehicleAssigned)) && fighterIsActive) {
+      ratingDelta -= (equipmentData.purchase_cost || 0);
+      const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
+      ratingDelta -= effectsCredits;
+      ratingDelta -= beastEquipmentCost;
+    }
+
+    // Charge before deleting. A negative-cost item (e.g. gene-smithing) sells for a negative
+    // value, so the gang can be unable to pay for the sale; that has to fail with the item
+    // still in place. A deleted item can't be put back — the delete cascades to its effects,
+    // granted equipment, loadout entries and exotic beasts — but this update can be reversed.
+    const financialResult = await updateGangFinancials(supabase, {
+      gangId,
+      ratingDelta,
+      creditsDelta: sellValue
+    });
+
+    if (!financialResult.success) {
+      throw new Error(financialResult.error || 'Failed to update gang financials');
+    }
+
+    // .select() so a delete that matched nothing (already sold, or blocked by RLS) is caught:
+    // PostgREST reports that as success, not as an error.
+    const { data: deletedRows, error: deleteError } = await supabase
       .from('fighter_equipment')
       .delete()
-      .eq('id', params.fighter_equipment_id);
+      .eq('id', params.fighter_equipment_id)
+      .select('id');
 
-    if (deleteError) {
-      throw new Error(`Failed to delete equipment: ${deleteError.message}`);
+    if (deleteError || !deletedRows?.length) {
+      // Nothing was removed, so undo the charge with the exact opposite deltas.
+      const reversal = await updateGangFinancials(supabase, {
+        gangId,
+        ratingDelta: -ratingDelta,
+        creditsDelta: -sellValue
+      });
+      if (!reversal.success) {
+        console.error(
+          `Failed to reverse gang financials for ${gangId} after equipment ${params.fighter_equipment_id} was not deleted:`,
+          reversal.error,
+          { ratingDelta, creditsDelta: sellValue }
+        );
+      }
+      throw new Error(deleteError
+        ? `Failed to delete equipment: ${deleteError.message}`
+        : 'Equipment could not be removed; it may already have been sold');
     }
 
     // After the cascade, so the survivor check sees only what remains
@@ -245,28 +287,6 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       } catch (resourceError) {
         return { success: false, error: 'Equipment removed but failed to return resource. Please contact support.' };
       }
-    }
-
-    // Compute rating delta: subtract purchase_cost and associated effects credits when applicable
-    // BUT only if the fighter is active (not killed, retired, enslaved, or captured)
-    // Inactive fighters are already excluded from rating calculations
-    let ratingDelta = 0;
-    if ((equipmentData.fighter_id || (equipmentData.vehicle_id && vehicleAssigned)) && fighterIsActive) {
-      ratingDelta -= (equipmentData.purchase_cost || 0);
-      const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
-      ratingDelta -= effectsCredits;
-      ratingDelta -= beastEquipmentCost;
-    }
-
-    // Update credits, rating and wealth using centralized helper
-    const financialResult = await updateGangFinancials(supabase, {
-      gangId,
-      ratingDelta,
-      creditsDelta: sellValue
-    });
-
-    if (!financialResult.success) {
-      throw new Error(financialResult.error || 'Failed to update gang financials');
     }
 
     // Log equipment sale AFTER rating is updated (so logs show correct rating)
