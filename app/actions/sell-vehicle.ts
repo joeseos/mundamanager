@@ -77,36 +77,6 @@ export async function sellVehicle(params: SellVehicleParams): Promise<SellVehicl
 
     const vehicleCost = baseCost + equipmentCost + effectsCost;
 
-    // Delete related records first to avoid foreign key constraint issues
-    // Effects reference equipment via FKs, so delete effects before equipment
-    const { error: effectsDeleteError } = await supabase
-      .from('fighter_effects')
-      .delete()
-      .eq('vehicle_id', params.vehicleId);
-
-    if (effectsDeleteError) {
-      throw new Error(`Failed to delete vehicle effects: ${effectsDeleteError.message}`);
-    }
-
-    const { error: equipmentDeleteError } = await supabase
-      .from('fighter_equipment')
-      .delete()
-      .eq('vehicle_id', params.vehicleId);
-
-    if (equipmentDeleteError) {
-      throw new Error(`Failed to delete vehicle equipment: ${equipmentDeleteError.message}`);
-    }
-
-    // Now delete the vehicle row
-    const { error: deleteError } = await supabase
-      .from('vehicles')
-      .delete()
-      .eq('id', params.vehicleId);
-
-    if (deleteError) {
-      throw new Error(`Failed to delete vehicle: ${deleteError.message}`);
-    }
-
     // Determine sell value (manual or default to base cost)
     const sellValue = params.manual_cost ?? baseCost ?? 0;
 
@@ -144,15 +114,48 @@ export async function sellVehicle(params: SellVehicleParams): Promise<SellVehicl
     // Update credits, rating and wealth using centralized helper
     // For unassigned: stashValueDelta = -vehicleCost (removes from stash value)
     // For assigned: ratingDelta handles the vehicle removal
+    // Charge before deleting. The sell value can be typed in by hand, so a negative one the
+    // gang can't pay for has to fail with the vehicle still in place; a deleted vehicle can't
+    // be put back, but this update can be reversed.
+    const stashValueDelta = !isAssigned ? -vehicleCost : 0;
     const financialResult = await updateGangFinancials(supabase, {
       gangId,
       ratingDelta,
       creditsDelta: sellValue,
-      stashValueDelta: !isAssigned ? -vehicleCost : 0
+      stashValueDelta
     });
 
     if (!financialResult.success) {
       throw new Error(financialResult.error || 'Failed to update gang financials');
+    }
+
+    // One statement: the vehicle's effects and equipment go with it via ON DELETE CASCADE,
+    // so a failure can't leave it half-deleted. .select() so a delete that matched nothing
+    // (already sold, or blocked by RLS) is caught: PostgREST reports that as success.
+    const { data: deletedRows, error: deleteError } = await supabase
+      .from('vehicles')
+      .delete()
+      .eq('id', params.vehicleId)
+      .select('id');
+
+    if (deleteError || !deletedRows?.length) {
+      // Nothing was removed, so undo the charge with the exact opposite deltas.
+      const reversal = await updateGangFinancials(supabase, {
+        gangId,
+        ratingDelta: -ratingDelta,
+        creditsDelta: -sellValue,
+        stashValueDelta: -stashValueDelta
+      });
+      if (!reversal.success) {
+        console.error(
+          `Failed to reverse gang financials for ${gangId} after vehicle ${params.vehicleId} was not deleted:`,
+          reversal.error,
+          { ratingDelta, creditsDelta: sellValue, stashValueDelta }
+        );
+      }
+      throw new Error(deleteError
+        ? `Failed to delete vehicle: ${deleteError.message}`
+        : 'Vehicle could not be removed; it may already have been sold');
     }
 
     const updatedGangRating = financialResult.newValues?.rating;
