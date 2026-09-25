@@ -5,18 +5,10 @@ import { createGangLog, GangLogActionResult } from "./gang-logs";
 
 // Campaign-specific logging functions
 
-interface GangJoinedCampaignLogParams {
+interface CampaignMembershipLogParams {
   gang_id: string;
-  gang_name: string;
-  campaign_name: string;
-  user_name: string;
-}
-
-interface GangLeftCampaignLogParams {
-  gang_id: string;
-  gang_name: string;
-  campaign_name: string;
-  user_name: string;
+  campaign_id: string;
+  actor_id: string | null;
 }
 
 interface BattleResultLogParams {
@@ -45,73 +37,58 @@ interface TerritoryLostLogParams {
   is_custom?: boolean;
 }
 
-export async function logGangJoinedCampaign(params: GangJoinedCampaignLogParams): Promise<GangLogActionResult> {
+async function logCampaignMembership(
+  params: CampaignMembershipLogParams,
+  action_type: 'campaign_joined' | 'campaign_left',
+  describe: (campaignName: string, userName: string) => string
+): Promise<GangLogActionResult> {
   try {
     const supabase = await createClient();
-    
-    const { data: gangData, error: gangError } = await supabase
-      .from('gangs')
-      .select('user_id')
-      .eq('id', params.gang_id)
-      .single();
-    
-    if (gangError || !gangData) {
-      console.error('Error fetching gang owner:', gangError);
+
+    const [
+      { data: gangData, error: gangError },
+      { data: campaignData, error: campaignError },
+      { data: actorData, error: actorError }
+    ] = await Promise.all([
+      supabase.from('gangs').select('user_id').eq('id', params.gang_id).single(),
+      supabase.from('campaigns').select('campaign_name').eq('id', params.campaign_id).single(),
+      params.actor_id
+        ? supabase.from('profiles').select('username').eq('id', params.actor_id).maybeSingle()
+        : Promise.resolve({ data: null as { username: string | null } | null, error: null })
+    ]);
+
+    if (actorError) console.error('Error fetching actor username:', actorError);
+    if (gangError || !gangData || campaignError || !campaignData) {
+      console.error('Error fetching gang or campaign for log:', gangError ?? campaignError);
       return {
         success: false,
-        error: 'Failed to fetch gang owner information'
+        error: 'Failed to fetch gang or campaign information'
       };
     }
-    
-    const description = `Gang joined campaign "${params.campaign_name}" (added by ${params.user_name})`;
+
     return await createGangLog({
       gang_id: params.gang_id,
       user_id: gangData.user_id,
-      action_type: 'campaign_joined',
-      description
+      action_type,
+      description: describe(campaignData.campaign_name, actorData?.username || 'Unknown User')
     });
-} catch (error) {
-    console.error('Error logging gang campaign join:', error);
+  } catch (error) {
+    console.error(`Error logging ${action_type}:`, error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to log campaign join'
+      error: error instanceof Error ? error.message : `Failed to log ${action_type}`
     };
   }
 }
 
-export async function logGangLeftCampaign(params: GangLeftCampaignLogParams): Promise<GangLogActionResult> {
-  try {
-    const supabase = await createClient();
-    
-    const { data: gangData, error: gangError } = await supabase
-      .from('gangs')
-      .select('user_id')
-      .eq('id', params.gang_id)
-      .single();
-    
-    if (gangError || !gangData) {
-      console.error('Error fetching gang owner:', gangError);
-      return {
-        success: false,
-        error: 'Failed to fetch gang owner information'
-      };
-    }
-    
-    const description = `Gang left campaign "${params.campaign_name}" (removed by ${params.user_name})`;
+export async function logGangJoinedCampaign(params: CampaignMembershipLogParams): Promise<GangLogActionResult> {
+  return logCampaignMembership(params, 'campaign_joined',
+    (campaignName, userName) => `Gang joined campaign "${campaignName}" (added by ${userName})`);
+}
 
-    return await createGangLog({
-      gang_id: params.gang_id,
-      user_id: gangData.user_id,
-      action_type: 'campaign_left',
-      description
-    });
-  } catch (error) {
-    console.error('Error logging gang campaign leave:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to log campaign leave'
-    };
-  }
+export async function logGangLeftCampaign(params: CampaignMembershipLogParams): Promise<GangLogActionResult> {
+  return logCampaignMembership(params, 'campaign_left',
+    (campaignName, userName) => `Gang left campaign "${campaignName}" (removed by ${userName})`);
 }
 
 export async function logBattleResult(params: BattleResultLogParams): Promise<GangLogActionResult> {

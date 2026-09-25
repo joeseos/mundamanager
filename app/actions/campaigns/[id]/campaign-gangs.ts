@@ -72,32 +72,11 @@ export async function acceptGangInvite(params: AcceptGangInviteParams) {
     }
 
     // Logged here, not at invite time: while PENDING only the gang owner passes the gang_logs policy.
-    try {
-      const [
-        { data: campaignData, error: campaignError },
-        { data: inviterData, error: inviterError }
-      ] = await Promise.all([
-        supabase.from('campaigns').select('campaign_name').eq('id', campaignId).maybeSingle(),
-        campaignGang.invited_by
-          ? supabase.from('profiles').select('username').eq('id', campaignGang.invited_by).maybeSingle()
-          : Promise.resolve({ data: null as { username: string | null } | null, error: null })
-      ]);
-
-      if (campaignError) console.error('Error fetching campaign data:', campaignError);
-      if (inviterError) console.error('Error fetching inviter data:', inviterError);
-
-      if (campaignData) {
-        await logGangJoinedCampaign({
-          gang_id: gangId,
-          gang_name: gangData.name,
-          campaign_name: campaignData.campaign_name,
-          user_name: inviterData?.username || 'Unknown User'
-        });
-      }
-    } catch (logError) {
-      console.error('Error logging gang joined campaign:', logError);
-      // Don't fail the main operation if logging fails
-    }
+    await logGangJoinedCampaign({
+      gang_id: gangId,
+      campaign_id: campaignId,
+      actor_id: campaignGang.invited_by
+    });
 
     // Invalidate caches
     invalidateCampaignGang(campaignId, gangId);

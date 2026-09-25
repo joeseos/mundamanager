@@ -5,6 +5,7 @@ import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
 
 import { logGangJoinedCampaign, logGangLeftCampaign } from "../../logs/gang-campaign-logs";
 import { getAuthenticatedUser } from '@/utils/auth';
+import { checkPermission, isArbitrator } from '@/utils/user-permissions';
 import { assertGangMatchesCampaignEdition } from './assert-gang-campaign-edition';
 
 export interface AddGangToCampaignParams {
@@ -153,33 +154,7 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
 
     // A PENDING invite isn't a join yet - acceptGangInvite logs it if the owner accepts.
     if (insertedStatus === 'ACCEPTED') {
-      try {
-        const [
-          { data: gangData, error: gangError },
-          { data: campaignData, error: campaignError },
-          { data: userData, error: userError }
-        ] = await Promise.all([
-          supabase.from('gangs').select('name').eq('id', gangId).maybeSingle(),
-          supabase.from('campaigns').select('campaign_name').eq('id', campaignId).maybeSingle(),
-          supabase.from('profiles').select('username').eq('id', userId).maybeSingle()
-        ]);
-
-        if (gangError) console.error('Error fetching gang data:', gangError);
-        if (campaignError) console.error('Error fetching campaign data:', campaignError);
-        if (userError) console.error('Error fetching user data:', userError);
-
-        if (gangData && campaignData && userData) {
-          await logGangJoinedCampaign({
-            gang_id: gangId,
-            gang_name: gangData.name,
-            campaign_name: campaignData.campaign_name,
-            user_name: userData.username || 'Unknown User'
-          });
-        }
-      } catch (logError) {
-        console.error('Error logging gang joined campaign:', logError);
-        // Don't fail the main operation if logging fails
-      }
+      await logGangJoinedCampaign({ gang_id: gangId, campaign_id: campaignId, actor_id: userId });
     }
 
     // Use granular campaign membership invalidation
@@ -318,51 +293,33 @@ export async function removeGangFromCampaign(params: RemoveGangParams) {
     const user = await getAuthenticatedUser(supabase);
     const { campaignId, gangId, memberId, memberIndex, campaignGangId } = params;
 
-    // First, update any territories controlled by this gang
-    const { error: territoryError } = await supabase
-      .from('campaign_territories')
-      .update({ gang_id: null })
-      .eq('campaign_id', campaignId)
-      .eq('gang_id', gangId);
-      
-    if (territoryError) throw territoryError;
+    // Mirror the campaign_gangs DELETE policy up front: the gang_logs INSERT policy is looser,
+    // so without this a denied removal would still log.
+    const [permission, { data: gangData, error: gangError }] = await Promise.all([
+      checkPermission(user.id, { campaignId }),
+      supabase.from('gangs').select('user_id').eq('id', gangId).single()
+    ]);
+
+    if (gangError) throw gangError;
+
+    const canRemove = isArbitrator(permission)
+      || (permission.campaign_role === 'MEMBER' && gangData.user_id === user.id);
+    if (!canRemove) {
+      return { success: false, error: 'You do not have permission to remove this gang' };
+    }
 
     // Log before the delete - for a non-owner the campaign_gangs row is what grants the insert.
-    const statusQuery = supabase.from('campaign_gangs').select('status');
+    const statusQuery = supabase.from('campaign_gangs').select('status')
+      .eq('campaign_id', campaignId)
+      .eq('gang_id', gangId);
     const { data: campaignGangRows, error: campaignGangError } = await (campaignGangId
       ? statusQuery.eq('id', campaignGangId)
-      : statusQuery.eq('campaign_id', campaignId).eq('gang_id', gangId).limit(1));
+      : statusQuery.limit(1));
 
     if (campaignGangError) console.error('Error fetching campaign gang status:', campaignGangError);
 
     if (campaignGangRows?.[0]?.status === 'ACCEPTED') {
-      try {
-        const [
-          { data: gangData, error: gangError },
-          { data: campaignData, error: campaignError },
-          { data: userData, error: userError }
-        ] = await Promise.all([
-          supabase.from('gangs').select('name').eq('id', gangId).maybeSingle(),
-          supabase.from('campaigns').select('campaign_name').eq('id', campaignId).maybeSingle(),
-          supabase.from('profiles').select('username').eq('id', user.id).maybeSingle()
-        ]);
-
-        if (gangError) console.error('Error fetching gang data:', gangError);
-        if (campaignError) console.error('Error fetching campaign data:', campaignError);
-        if (userError) console.error('Error fetching user data:', userError);
-
-        if (gangData && campaignData && userData) {
-          await logGangLeftCampaign({
-            gang_id: gangId,
-            gang_name: gangData.name,
-            campaign_name: campaignData.campaign_name,
-            user_name: userData.username || 'Unknown User'
-          });
-        }
-      } catch (logError) {
-        console.error('Error logging gang leave campaign:', logError);
-        // Don't fail the main operation if logging fails
-      }
+      await logGangLeftCampaign({ gang_id: gangId, campaign_id: campaignId, actor_id: user.id });
     }
 
     // Remove the gang from the campaign
@@ -373,6 +330,8 @@ export async function removeGangFromCampaign(params: RemoveGangParams) {
         .from('campaign_gangs')
         .delete()
         .eq('id', campaignGangId)
+        .eq('campaign_id', campaignId)
+        .eq('gang_id', gangId)
         .select('id');
 
       if (error) throw error;
@@ -424,22 +383,18 @@ export async function removeGangFromCampaign(params: RemoveGangParams) {
       };
     }
 
-    // Get gang owner for proper cache invalidation
-    const { data: gangData } = await supabase
-      .from('gangs')
-      .select('user_id')
-      .eq('id', gangId)
-      .single();
-    
-    // Use granular campaign membership invalidation
-    invalidateCampaignGang(campaignId, gangId);
-    invalidateUser(gangData?.user_id || 'unknown');
+    // After the delete, so a denied or lost removal leaves the gang's territories alone.
+    const { error: territoryError } = await supabase
+      .from('campaign_territories')
+      .update({ gang_id: null })
+      .eq('campaign_id', campaignId)
+      .eq('gang_id', gangId);
 
-    // Invalidate permission cache
-    if (gangData?.user_id) {
-      invalidatePermission(gangData.user_id, gangId);
-      invalidateUser(gangData.user_id);
-    }
+    if (territoryError) throw territoryError;
+
+    invalidateCampaignGang(campaignId, gangId);
+    invalidatePermission(gangData.user_id, gangId);
+    invalidateUser(gangData.user_id);
 
     return { success: true };
   } catch (error) {
