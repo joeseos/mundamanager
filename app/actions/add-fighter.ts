@@ -72,6 +72,7 @@ interface AddFighterResult {
     fighter_specialisation_id?: string | null;
     fighter_variant?: string | null;
     free_skill: boolean;
+    starting_xp: number | null;
     cost: number;
     rating_cost: number;
     total_cost: number;
@@ -1275,6 +1276,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         fighter_specialisation_id: fighterInsertData.fighter_specialisation_id,
         fighter_variant: effectiveFighterData.fighter_variant ?? null,
         free_skill: effectiveFighterData.free_skill || false,
+        starting_xp: insertedFighter.starting_xp ?? null,
         cost: fighterCost,
         rating_cost: ratingCost,
         total_cost: fighterCost,
