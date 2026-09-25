@@ -384,13 +384,14 @@ export async function removeGangFromCampaign(params: RemoveGangParams) {
     }
 
     // After the delete, so a denied or lost removal leaves the gang's territories alone.
+    // Don't throw: the gang is already out, and the caches below must still be invalidated.
     const { error: territoryError } = await supabase
       .from('campaign_territories')
       .update({ gang_id: null })
       .eq('campaign_id', campaignId)
       .eq('gang_id', gangId);
 
-    if (territoryError) throw territoryError;
+    if (territoryError) console.error('Error clearing territories for removed gang:', territoryError);
 
     invalidateCampaignGang(campaignId, gangId);
     invalidatePermission(gangData.user_id, gangId);
