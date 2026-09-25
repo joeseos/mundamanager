@@ -53,6 +53,13 @@ export const battleStatusColors: Record<BattleStatus, string> = {
   played: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
 };
 
+/** The challenged gang's answer, changeable until the battle is played. */
+export const challengeAnswerStatuses: BattleStatus[] = [
+  'challenge_issued',
+  'challenge_accepted',
+  'challenge_declined',
+];
+
 /** Rows cached before the status column existed have none; they are all played. */
 export function battleStatusOf(battle: Pick<Battle, 'status'>): BattleStatus {
   return battle.status ?? 'played';

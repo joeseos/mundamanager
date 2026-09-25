@@ -14,7 +14,7 @@ import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { createBattleLog, updateBattleLog, BattleLogParams } from "@/app/actions/campaigns/[id]/battle-logs";
 import { useMutation } from '@tanstack/react-query';
 import { Battle, BattleParticipant, BattleStatus, CampaignGang, Territory as BaseTerritory, Scenario } from '@/types/campaign';
-import { battleStatusOf } from '@/types/campaign';
+import { battleStatusOf, challengeAnswerStatuses } from '@/types/campaign';
 import { getClaimerGangId, getWinnerIds } from '@/utils/battle-winners';
 import { useWinnerSelection } from '@/hooks/use-winner-selection';
 import { sameEditionForDisplay } from '@/types/edition';
@@ -40,9 +40,17 @@ interface CampaignBattleLogModalProps {
   battles: Battle[];
   battleToEdit?: Battle | null;
   userRole?: 'OWNER' | 'ARBITRATOR' | 'MEMBER';
+  /** The challenged gang's owner (or an arbitrator) may accept or decline. */
+  canRespondToChallenge?: boolean;
 }
 
 const reportCharLimit = 4096;
+
+const challengeResponseOptions: { value: BattleStatus; label: string }[] = [
+  { value: 'challenge_issued', label: 'Awaiting response' },
+  { value: 'challenge_accepted', label: 'Accept' },
+  { value: 'challenge_declined', label: 'Decline' },
+];
 
 type GangRole = 'none' | 'attacker' | 'defender';
 
@@ -63,7 +71,8 @@ const CampaignBattleLogModal = ({
   onTerritoryUpdate,
   battles,
   battleToEdit = null,
-  userRole = 'MEMBER'
+  userRole = 'MEMBER',
+  canRespondToChallenge = false
 }: CampaignBattleLogModalProps) => {
   const [selectedScenario, setSelectedScenario] = useState('');
   const [customScenario, setCustomScenario] = useState('');
@@ -117,6 +126,17 @@ const CampaignBattleLogModal = ({
   const isUnplayedChallenge = !!battleToEdit && battleStatusOf(battleToEdit) !== 'played';
   const [battlePlayed, setBattlePlayed] = useState(false);
   const showResultFields = !isUnplayedChallenge || battlePlayed;
+  const [challengeResponse, setChallengeResponse] = useState<BattleStatus>('played');
+  // A new opponent has not answered yet, so the server re-issues the challenge.
+  const opponentUnchanged =
+    selectedGangs.find((g) => g.gangId !== battleToEdit?.challenger_gang_id)?.gangId ===
+    battleToEdit?.challenged_gang_id;
+  const showChallengeResponse =
+    canRespondToChallenge &&
+    !battlePlayed &&
+    opponentUnchanged &&
+    !!battleToEdit &&
+    challengeAnswerStatuses.includes(battleStatusOf(battleToEdit));
 
   // Helper to get gang name by ID - extracted to avoid duplication
   const getGangName = (gangId: string | null | undefined) => {
@@ -280,6 +300,7 @@ const CampaignBattleLogModal = ({
                 : null,
               territory_name: territoryName,
               cycle: battleData.cycle,
+              ...(battleData.status ? { status: battleData.status } : {}),
               updated_at: new Date().toISOString(),
               attacker: attackerP ? {
                 id: attackerP.gang_id,
@@ -400,6 +421,7 @@ const CampaignBattleLogModal = ({
   if (isOpen && battleToEdit && scenarios.length > 0 && battleToEdit.id !== populatedForBattle) {
     setPopulatedForBattle(battleToEdit.id);
     setBattlePlayed(battleStatusOf(battleToEdit) === 'played');
+    setChallengeResponse(battleStatusOf(battleToEdit));
 
     const matchingScenario = scenarios.find(s =>
       s.scenario_name === battleToEdit.scenario_name ||
@@ -676,6 +698,8 @@ const CampaignBattleLogModal = ({
     if (isUnplayedChallenge) {
       if (battlePlayed) {
         nextStatus = 'played';
+      } else if (showChallengeResponse && challengeResponse !== existingStatus) {
+        nextStatus = challengeResponse;
       } else if (existingStatus === 'challenge_pending' && selectedGangs.length >= 2) {
         nextStatus = 'challenge_issued';
       }
@@ -811,6 +835,20 @@ const CampaignBattleLogModal = ({
                 Tick this once the battle has been fought to record the result and
                 file the report. Leave it unticked to save the challenge.
               </p>
+            </div>
+          )}
+
+          {showChallengeResponse && (
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
+                Response to challenge
+              </label>
+              <Combobox
+                value={challengeResponse}
+                onValueChange={(value) => setChallengeResponse(value as BattleStatus)}
+                disabled={isLoadingBattleData}
+                options={challengeResponseOptions}
+              />
             </div>
           )}
 

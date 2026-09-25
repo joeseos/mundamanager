@@ -19,7 +19,8 @@ export type NotificationType =
   | 'friend_request'
   | 'battle_invite'
   | 'gang_invite'
-  | 'campaign_join_request';
+  | 'campaign_join_request'
+  | 'campaign_challenge';
 
 export interface NotificationEmailConfig {
   /** Human label shown on the preferences screen. */
@@ -70,6 +71,13 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
     subject: '{sender} wants to join your campaign',
     // Accept/decline lives in the account notifications list, not on the campaign page.
     ctaPath: '/account',
+  },
+  // A gang was challenged in a campaign battle; answered from the battle log's edit modal.
+  campaign_challenge: {
+    label: 'Campaign challenges',
+    supportsEmail: true,
+    defaultEnabled: true,
+    subject: 'Your gang has been challenged',
   },
   // Not email-eligible (in-app only) — kept here so the type union is exhaustive.
   info: { label: 'Account & campaign updates', supportsEmail: false, defaultEnabled: false, subject: '' },
