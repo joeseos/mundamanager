@@ -76,6 +76,7 @@ function transformCustomFighter(cf: any) {
     intelligence: cf.intelligence,
     attacks: cf.attacks,
     save: cf.save ?? null,
+    starting_xp: cf.starting_xp ?? null,
     edition_slug: cf.edition_slug ?? null,
     limitation: null,
     alignment: null,

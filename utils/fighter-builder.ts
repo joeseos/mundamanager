@@ -87,6 +87,7 @@ export interface AddFighterServerData {
   fighter_specialisation_id?: string | null;
   fighter_variant?: string | null;
   free_skill: boolean;
+  starting_xp: number | null;
   rating_cost?: number;
   cost: number;
   base_stats: FighterStats;
@@ -281,6 +282,7 @@ export function buildFighterFromServerData(
     intelligence: data.base_stats.intelligence,
     save: data.base_stats.save ?? null,
     xp: data.stats.xp,
+    starting_xp: data.starting_xp,
     kills: 0,
     weapons: buildWeaponsFromEquipment(data.equipment),
     wargear: buildWargearFromEquipment(data.equipment),
