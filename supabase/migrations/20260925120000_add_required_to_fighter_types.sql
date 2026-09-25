@@ -1,13 +1,8 @@
 -- Minimum number of fighters of this type a gang must field (N26 "Wyld Runner 3+"). The
 -- counterpart of limitation, which is the maximum ("0-3"). Both NULL means no count rule.
+-- numeric and unconstrained, like limitation.
 ALTER TABLE public.fighter_types
-  ADD COLUMN IF NOT EXISTS required integer;
-
-ALTER TABLE public.fighter_types
-  ADD CONSTRAINT fighter_types_required_positive_chk
-    CHECK (required IS NULL OR required >= 1),
-  ADD CONSTRAINT fighter_types_required_within_limitation_chk
-    CHECK (required IS NULL OR limitation IS NULL OR required <= limitation);
+  ADD COLUMN IF NOT EXISTS required numeric;
 
 COMMENT ON COLUMN public.fighter_types.required IS
   'Minimum number of this fighter type a gang must field, shown as "3+" (or "1-3" with limitation) in the add-fighter list. NULL means no minimum. Display only: nothing enforces it.';
@@ -50,7 +45,7 @@ RETURNS TABLE (
     attacks numeric,
     save numeric,
     limitation numeric,
-    required integer,
+    required numeric,
     alignment alignment,
     is_gang_addition boolean,
     alliance_id uuid,

@@ -36,7 +36,7 @@ RETURNS TABLE (
     attacks numeric,
     save numeric,
     limitation numeric,
-    required integer,
+    required numeric,
     alignment alignment,
     is_gang_addition boolean,
     alliance_id uuid,
