@@ -1507,6 +1507,18 @@ export async function applySelfUpgradesToEquipment(params: {
       return { success: false, error: 'Ownership mismatch' };
     }
 
+    // Equipment attached to a weapon (e.g. Enhance weapon) is linked to it by the
+    // anchor effect written at purchase. Route the upgrades to that weapon, otherwise
+    // they land on the accessory, which has no profile to modify.
+    const { data: anchorEffect } = await supabase
+      .from('fighter_effects')
+      .select('target_equipment_id')
+      .eq('fighter_equipment_id', params.fighter_equipment_id)
+      .not('target_equipment_id', 'is', null)
+      .limit(1)
+      .maybeSingle();
+    const targetEquipmentId: string | null = anchorEffect?.target_equipment_id ?? null;
+
     // Insert all effects
     const results: { effect_type_id: string; success: boolean; error?: string }[] = [];
 
@@ -1517,7 +1529,7 @@ export async function applySelfUpgradesToEquipment(params: {
           fighter_id: params.fighter_id,
           vehicle_id: null,
           fighter_equipment_id: params.fighter_equipment_id,
-          target_equipment_id: null,
+          target_equipment_id: targetEquipmentId,
           effect_type_id,
           user_id: user.id
         },
