@@ -7,7 +7,7 @@ import { ImInfo } from "react-icons/im";
 import { HiX } from "react-icons/hi";
 import { cn } from '@/app/lib/utils';
 import { useFetchNotifications } from '../../hooks/use-notifications';
-import { useRouter, usePathname } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Modal from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
@@ -146,7 +146,6 @@ export default function NotificationsContent({ userId }: { userId: string }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notificationToDelete, setNotificationToDelete] = useState<string | null>(null);
   const [processingRequest, setProcessingRequest] = useState<{ id: string; response: NotificationResponse } | null>(null);
-  const router = useRouter();
   const pathname = usePathname();
   const isProfilePage = pathname === '/account';
 
@@ -237,28 +236,13 @@ export default function NotificationsContent({ userId }: { userId: string }) {
   // Shared with the email worker via utils/notifications/render so both channels match.
   const renderNotificationText = (text: string) => notificationTextToHtml(text);
 
+  // The link navigates by itself (external links in a new tab), so this only
+  // marks the notification as read
   const handleNotificationLinkClick = (
     event: MouseEvent,
     notification: Notification
   ) => {
     event.stopPropagation();
-
-    if (!shouldShowLinkAttachment(notification)) {
-      return;
-    }
-
-    const resolved = resolveNotificationLink(notification.link);
-    if (!resolved) {
-      return;
-    }
-
-    const { href, isExternal } = resolved;
-
-    if (isExternal) {
-      window.open(href, '_blank', 'noopener,noreferrer');
-    } else {
-      router.push(href);
-    }
 
     if (!notification.dismissed) {
       dismissNotification(notification.id);
