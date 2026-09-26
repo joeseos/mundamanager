@@ -73,7 +73,8 @@ export interface FighterType {
   attacks: number;
   save?: number | null;
   edition_slug?: string | null;
-  limitation?: number;
+  limitation?: number | null;
+  required?: number | null;
   alignment?: string;
   default_equipment: any[];
   is_gang_addition: boolean;
