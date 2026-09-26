@@ -803,7 +803,7 @@ export function WeaponList({
           key={`${item.fighter_equipment_id}-effect-${effect.id}`}
           className="border-b bg-muted/20"
         >
-          <td className={isChild ? "py-1 pr-1 pl-5" : "px-1 py-1"}>
+          <td className="px-1 py-1">
             <span className="text-muted-foreground mr-1" style={{ position: 'relative', top: '-4px' }}>
               <TbCornerLeftUp className="inline" />
             </span>
