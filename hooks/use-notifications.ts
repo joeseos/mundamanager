@@ -30,11 +30,18 @@ const notificationStore = {
   countListeners: new Set<(count: number) => void>(),
   fetchPromise: null as Promise<void> | null,
   latestFetchId: 0,
+  // Deletes and dismissals saved from this tab. They are reapplied to every list
+  // the store receives, because a fetch that started before one of them would
+  // otherwise undo it.
+  deletedIds: new Set<string>(),
+  dismissedIds: new Set<string>(),
 
   // Update notifications and notify all listeners
   setNotifications(notifications: Notification[]) {
-    this.notifications = notifications;
-    this.unreadCount = notifications.filter(n => !n.dismissed).length;
+    this.notifications = notifications
+      .filter(n => !this.deletedIds.has(n.id))
+      .map(n => (this.dismissedIds.has(n.id) && !n.dismissed ? { ...n, dismissed: true } : n));
+    this.unreadCount = this.notifications.filter(n => !n.dismissed).length;
     this.notifyListeners();
     this.notifyCountListeners();
   },
@@ -308,11 +315,13 @@ export function useFetchNotifications({
       const { createClient } = await import('@/utils/supabase/client');
       const supabase = createClient();
 
-      await supabase
+      const { error } = await supabase
         .from('notifications')
         .update({ dismissed: true })
         .eq('id', id);
+      if (error) throw error;
 
+      notificationStore.dismissedIds.add(id);
       // Update the store to mark the notification as dismissed but keep it visible
       notificationStore.setNotifications(
         notificationStore.notifications.map(n => 
@@ -336,11 +345,13 @@ export function useFetchNotifications({
         .filter(n => !n.dismissed)
         .map(n => n.id);
 
-      await supabase
+      const { error } = await supabase
         .from('notifications')
         .update({ dismissed: true })
         .in('id', notificationIds);
+      if (error) throw error;
 
+      notificationIds.forEach(id => notificationStore.dismissedIds.add(id));
       // Update the store to mark all notifications as dismissed but keep them visible
       notificationStore.setNotifications(
         notificationStore.notifications.map(n => ({ ...n, dismissed: true }))
@@ -362,13 +373,11 @@ export function useFetchNotifications({
         throw new Error(`API request failed with status ${response.status}`);
       }
 
+      notificationStore.deletedIds.add(id);
       // Update the store immediately on success
       notificationStore.setNotifications(
         notificationStore.notifications.filter(n => n.id !== id)
       );
-      // The realtime subscription doesn't cover DELETE, so reload: otherwise a
-      // fetch that started before the delete can bring the notification back.
-      fetchNotifications();
     } catch (error) {
       console.error('Error deleting notification via API:', error);
       
@@ -377,21 +386,22 @@ export function useFetchNotifications({
         const { createClient } = await import('@/utils/supabase/client');
         const supabase = createClient();
 
-        await supabase
+        const { error: deleteError } = await supabase
           .from('notifications')
           .delete()
           .eq('id', id);
+        if (deleteError) throw deleteError;
 
+        notificationStore.deletedIds.add(id);
         // Update the store immediately
         notificationStore.setNotifications(
           notificationStore.notifications.filter(n => n.id !== id)
         );
-        fetchNotifications();
       } catch (fallbackError) {
         console.error('Fallback error deleting notification:', fallbackError);
       }
     }
-  }, [fetchNotifications]);
+  }, []);
 
   return {
     dismissNotification,
