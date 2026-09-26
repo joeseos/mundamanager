@@ -1,5 +1,6 @@
 'use server'
 
+import { randomUUID } from 'crypto';
 import { invalidateFighter } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
@@ -114,6 +115,7 @@ interface AddFighterResult {
       equipment_type: string;
       cost: number;
       weapon_profiles?: any[];
+      effect_names?: string[];
     }>;
     skills: Array<{
       skill_id: string;
@@ -187,7 +189,8 @@ async function applyEffectsForEquipmentOptimized(
   fighterEquipmentId: string,
   fighterId: string,
   userId: string,
-  includeCreditIncrease: boolean = false
+  includeCreditIncrease: boolean = false,
+  targetEquipmentId: string | null = null
 ): Promise<{ appliedEffects: any[], effectsCreditsIncrease: number }> {
   if (!effectTypes || effectTypes.length === 0) {
     return { appliedEffects: [], effectsCreditsIncrease: 0 };
@@ -203,6 +206,9 @@ async function applyEffectsForEquipmentOptimized(
       type_specific_data: effectType.type_specific_data,
       sort_order: effectType.sort_order ?? null,
       fighter_equipment_id: fighterEquipmentId,
+      // Only the equipment upgrade targets the weapon, as when an accessory is bought and
+      // attached. Its other effects stay on the fighter.
+      target_equipment_id: effectType.type_specific_data?.applies_to === 'equipment' ? targetEquipmentId : null,
       user_id: userId
     }));
 
@@ -602,9 +608,11 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     const { data: allDefaultsData } = await supabase
       .from('fighter_defaults')
       .select(`
+        id,
         skill_id,
         equipment_id,
         custom_equipment_id,
+        target_fighter_default_id,
         skills!skill_id(
           id,
           name
@@ -634,6 +642,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       .map(item => {
         if (item.equipment_id && item.equipment) {
           return {
+            default_id: item.id,
+            target_fighter_default_id: item.target_fighter_default_id,
             equipment_id: item.equipment_id,
             equipment: item.equipment,
             is_editable: (item.equipment as any)?.is_editable || false
@@ -654,6 +664,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
 
     // Prepare equipment insertions with deduplication
     const equipmentInserts: Array<{
+      id: string;
       fighter_id: string;
       equipment_id: string | null;
       custom_equipment_id?: string | null;
@@ -667,14 +678,30 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     // Track added equipment to prevent cross-source duplicates
     const addedEquipment = new Set<string>();
 
+    // Accessory fighter_equipment id -> the fighter_equipment id of the default weapon it is
+    // fitted to. Row ids are generated here so the link does not depend on the order the
+    // insert returns rows in.
+    const weaponByAccessory = new Map<string, string>();
+
     // Add default equipment from fighter_defaults table (highest priority)
     // Push directly to allow multiple copies of the same equipment
     if (fighterDefaultEquipmentData && fighterDefaultEquipmentData.length > 0) {
+      const fighterEquipmentIdByDefaultId = new Map<string, string>();
+      const accessoryTargets: Array<[string, string]> = [];
+
       fighterDefaultEquipmentData.forEach((defaultEquipment: any) => {
         const isCustomEquipment = defaultEquipment.equipment_id.startsWith('custom_');
+        const fighterEquipmentId = randomUUID();
+        if (defaultEquipment.default_id) {
+          fighterEquipmentIdByDefaultId.set(defaultEquipment.default_id, fighterEquipmentId);
+        }
+        if (defaultEquipment.target_fighter_default_id) {
+          accessoryTargets.push([fighterEquipmentId, defaultEquipment.target_fighter_default_id]);
+        }
         // Track for cross-source deduplication (prevents params.default_equipment from duplicating)
         addedEquipment.add(defaultEquipment.equipment_id);
         equipmentInserts.push({
+          id: fighterEquipmentId,
           fighter_id: fighterId,
           equipment_id: isCustomEquipment ? null : defaultEquipment.equipment_id,
           custom_equipment_id: isCustomEquipment ? defaultEquipment.equipment_id.replace('custom_', '') : null,
@@ -684,6 +711,11 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
           user_id: gangData.user_id,
           is_editable: defaultEquipment.is_editable || false
         });
+      });
+
+      accessoryTargets.forEach(([accessoryId, targetDefaultId]) => {
+        const weaponId = fighterEquipmentIdByDefaultId.get(targetDefaultId);
+        if (weaponId) weaponByAccessory.set(accessoryId, weaponId);
       });
     }
 
@@ -696,6 +728,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
           for (let i = 0; i < (defaultItem.quantity || 1); i++) {
             const isCustomEquipment = defaultItem.equipment_id.startsWith('custom_');
             equipmentInserts.push({
+              id: randomUUID(),
               fighter_id: fighterId,
               equipment_id: isCustomEquipment ? null : defaultItem.equipment_id,
               custom_equipment_id: isCustomEquipment ? defaultItem.equipment_id.replace('custom_', '') : null,
@@ -717,6 +750,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
           const isCustomEquipment = selectedItem.equipment_id.startsWith('custom_');
           // Don't deduplicate selected equipment - user explicitly chose these
           equipmentInserts.push({
+            id: randomUUID(),
             fighter_id: fighterId,
             equipment_id: isCustomEquipment ? null : selectedItem.equipment_id,
             custom_equipment_id: isCustomEquipment ? selectedItem.equipment_id.replace('custom_', '') : null,
@@ -818,6 +852,10 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     let allAppliedEffects: any[] = [];
     let totalEffectsCreditsIncrease = 0;
 
+    // Weapon fighter_equipment id -> names of the accessory upgrades fitted to it, so the new
+    // card shows them on the weapon as gang-data.ts does after a reload.
+    const effectNamesByWeapon = new Map<string, string[]>();
+
     for (const result of insertResults) {
       if (result.status === 'fulfilled') {
         const { type, result: queryResult } = result.value;
@@ -890,17 +928,29 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
 
                       if (effectsForThisEquipment.length > 0) {
                         try {
+                          const weaponId = weaponByAccessory.get(equipmentItem.id) ?? null;
                           const effectsResult = await applyEffectsForEquipmentOptimized(
                             supabase,
                             effectsForThisEquipment,
                             equipmentItem.id,
                             fighterId,
                             effectiveUserId,
-                            false // Don't include credit increase for fighter creation
+                            false, // Don't include credit increase for fighter creation
+                            weaponId
                           );
 
                           allAppliedEffects.push(...effectsResult.appliedEffects);
                           totalEffectsCreditsIncrease += effectsResult.effectsCreditsIncrease;
+
+                          if (weaponId) {
+                            const names = effectNamesByWeapon.get(weaponId) || [];
+                            effectsResult.appliedEffects
+                              .filter((effect: any) => effect.type_specific_data?.applies_to === 'equipment')
+                              .forEach((effect: any) => {
+                                if (!names.includes(effect.effect_name)) names.push(effect.effect_name);
+                              });
+                            if (names.length > 0) effectNamesByWeapon.set(weaponId, names);
+                          }
                         } catch (effectError) {
                           console.error('Error applying effects for equipment:', equipmentItem.equipment_id, effectError);
                         }
@@ -1015,7 +1065,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                   equipment_category: (item.equipment as any)?.equipment_category || (item.custom_equipment as any)?.equipment_category || 'unknown',
                   cost: item.purchase_cost,
                   weapon_profiles: itemWeaponProfiles,
-                  is_editable: item.is_editable || false
+                  is_editable: item.is_editable || false,
+                  effect_names: effectNamesByWeapon.get(item.id)
                 };
               });
 

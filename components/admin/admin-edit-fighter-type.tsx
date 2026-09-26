@@ -15,12 +15,13 @@ import { getSkillSetGroupLabel, getSkillSetRank } from "@/utils/skillSetRank";
 import { compareEquipmentCategories } from "@/utils/getEquipmentCategoryRank";
 import { AdminFighterEquipmentSelection, EquipmentSelection, guiToDataModel, dataModelToGui } from "@/components/admin/admin-fighter-equipment-selection";
 import { GangOriginOptions, GangSubtypeOptions } from "@/components/admin/gang-scope-options";
-import { FighterTypeGrant } from "@/types/fighter-type";
+import { DefaultEquipmentSlot, FighterTypeGrant } from "@/types/fighter-type";
 import { EditionSelect, useEditions } from '@/components/edition-select';
 import { hasAlignment, hasSaveCharacteristic, allowsMultipleSubtypes, hasStartingXp, hasVehicles } from '@/types/edition';
 import { toggleFighterSubtype } from '@/utils/fighter-subtype-picker';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import Modal from '@/components/ui/modal';
+import { AdminDefaultEquipment, keepDefaultEquipmentSlots } from '@/components/admin/admin-default-equipment';
 
 interface FighterSpecialisation {
   id: string;
@@ -151,7 +152,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [isVehicle, setIsVehicle] = useState(false);
   const [alignment, setAlignment] = useState<string>('');
   const [equipment, setEquipment] = useState<EquipmentWithId[]>([]);
-  const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
+  const [selectedEquipment, setSelectedEquipment] = useState<DefaultEquipmentSlot[]>([]);
   const [gangTypeFilter, setGangTypeFilter] = useState('');
   const [editionId, setEditionId] = useState('');
   const [skills, setSkills] = useState<Skill[]>([]);
@@ -523,7 +524,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         : equipment
       ).map(item => item.id)
     );
-    setSelectedEquipment(prev => prev.filter(id => equipmentIds.has(id)));
+    setSelectedEquipment(prev => keepDefaultEquipmentSlots(prev, slot => equipmentIds.has(slot.equipment_id)));
     setEquipmentListSelections(prev => prev.filter(id => equipmentIds.has(id)));
     setEquipmentDiscounts(prev => prev.filter(d => equipmentIds.has(d.equipment_id)));
     if (selectedAdjustedCostEquipment && !equipmentIds.has(selectedAdjustedCostEquipment)) {
@@ -2050,57 +2051,13 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Default Equipment
-                </label>
-                <select
-                  value=""
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (value) {
-                      setSelectedEquipment([...selectedEquipment, value]);
-                    }
-                    e.target.value = "";
-                  }}
-                  className="w-full p-2 border rounded-md"
-                  disabled={!selectedFighterTypeId}
-                >
-                  <option value="">Select equipment to add</option>
-                  {filteredEquipment
-                    .map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.equipment_name}
-                      </option>
-                    ))}
-                </select>
-
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {selectedEquipment.map((equipId, index) => {
-                    const item = equipment.find(e => e.id === equipId);
-                    if (!item) return null;
-
-                    return (
-                      <div
-                        key={`${item.id}-${index}`}
-                        className={`flex items-center gap-1 px-2 py-1 rounded-full text-sm ${
-                          selectedFighterTypeId ? 'bg-muted' : 'bg-muted'
-                        }`}
-                      >
-                        <span>{item.equipment_name}</span>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedEquipment(selectedEquipment.filter((_, i) => i !== index))}
-                          className="hover:text-red-500 focus:outline-hidden"
-                          disabled={!selectedFighterTypeId}
-                        >
-                          <HiX className="h-4 w-4" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+              <AdminDefaultEquipment
+                equipment={equipment}
+                options={filteredEquipment}
+                value={selectedEquipment}
+                onChange={setSelectedEquipment}
+                disabled={!selectedFighterTypeId}
+              />
 
               <div className="mt-2">
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
