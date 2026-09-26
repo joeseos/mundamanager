@@ -366,6 +366,9 @@ export function useFetchNotifications({
       notificationStore.setNotifications(
         notificationStore.notifications.filter(n => n.id !== id)
       );
+      // The realtime subscription doesn't cover DELETE, so reload: otherwise a
+      // fetch that started before the delete can bring the notification back.
+      fetchNotifications();
     } catch (error) {
       console.error('Error deleting notification via API:', error);
       
@@ -383,11 +386,12 @@ export function useFetchNotifications({
         notificationStore.setNotifications(
           notificationStore.notifications.filter(n => n.id !== id)
         );
+        fetchNotifications();
       } catch (fallbackError) {
         console.error('Fallback error deleting notification:', fallbackError);
       }
     }
-  }, []);
+  }, [fetchNotifications]);
 
   return {
     dismissNotification,
