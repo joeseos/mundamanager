@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef, type MouseEvent } from 'react';
+import { useState, useEffect, type MouseEvent } from 'react';
 import { LuOctagonX, LuUserPlus, LuTriangleAlert, LuSwords, LuLink2, LuArrowUpRight } from "react-icons/lu";
 import { LuCheck } from "react-icons/lu";
 import { ImInfo } from "react-icons/im";
 import { HiX } from "react-icons/hi";
 import { cn } from '@/app/lib/utils';
-import { useDeleteNotification, useMarkNotificationsRead, useNotifications } from '../../hooks/use-notifications';
+import { useDeleteNotification, useMarkNotificationsRead, useNotifications, type Notification } from '../../hooks/use-notifications';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Modal from '@/components/ui/modal';
@@ -17,16 +17,6 @@ import { acceptGangInvite, declineGangInvite } from '@/app/actions/campaigns/[id
 import { acceptJoinRequest, declineJoinRequest } from '@/app/actions/campaigns/[id]/campaign-join-requests';
 import { LuTrash2 } from "react-icons/lu";
 import { notificationTextToHtml, type NotificationType, isSafeNotificationLink, resolveNotificationLink, getNotificationLinkLabel, getNotificationLinkDescription } from '@/utils/notifications';
-
-type Notification = {
-  id: string;
-  text: string;
-  type: NotificationType;
-  created_at: string;
-  dismissed: boolean;
-  link: string | null;
-  sender_id?: string; // Add sender_id for friend requests and gang invites
-};
 
 type NotificationActionResult = { success: boolean; error?: string };
 
@@ -150,20 +140,25 @@ export default function NotificationsContent({ userId }: { userId: string }) {
   const isProfilePage = pathname === '/account';
 
   // Kept current by the header's realtime subscription (SettingsModal)
-  const { data: notifications = [], isFetchedAfterMount } = useNotifications(userId);
+  const { notifications, refetch } = useNotifications(userId);
   const { mutate: markRead } = useMarkNotificationsRead(userId);
-  const { mutate: deleteNotification, mutateAsync: deleteNotificationAsync } = useDeleteNotification(userId);
+  const { mutateAsync: deleteNotification } = useDeleteNotification(userId);
 
-  // Opening the account page marks its notifications as read, once its own
-  // fetch has loaded them
-  const markedReadOnOpen = useRef(false);
+  // Opening the account page fetches the list and marks what that fetch
+  // returned as read
   useEffect(() => {
-    if (!isProfilePage || !isFetchedAfterMount || markedReadOnOpen.current) return;
-    markedReadOnOpen.current = true;
+    if (!isProfilePage) return;
 
-    const unreadIds = notifications.filter(n => !n.dismissed).map(n => n.id);
-    if (unreadIds.length > 0) markRead(unreadIds);
-  }, [isProfilePage, isFetchedAfterMount, notifications, markRead]);
+    let active = true;
+    refetch({ cancelRefetch: false }).then(result => {
+      if (!active || result.status !== 'success') return;
+      const unreadIds = result.data.filter(n => !n.dismissed).map(n => n.id);
+      if (unreadIds.length > 0) markRead(unreadIds);
+    });
+    return () => {
+      active = false;
+    };
+  }, [isProfilePage, refetch, markRead]);
 
   // Resolve a notification's in-app action and its server-action args; null if either is missing
   const getNotificationAction = (notification: Notification) => {
@@ -184,7 +179,11 @@ export default function NotificationsContent({ userId }: { userId: string }) {
     try {
       const result = await action[response](args);
       if (result.success) {
-        deleteNotification(notification.id);
+        try {
+          await deleteNotification(notification.id);
+        } catch {
+          toast.error('Could not remove the notification');
+        }
       } else {
         console.error(`Error ${verb} ${action.label}:`, result.error);
         toast.error(result.error || failureMessage);
@@ -202,10 +201,9 @@ export default function NotificationsContent({ userId }: { userId: string }) {
     if (notificationToDelete === null) return false;
     
     try {
-      await deleteNotificationAsync(notificationToDelete);
+      await deleteNotification(notificationToDelete);
       return true;
-    } catch (error) {
-      console.error('Error deleting notification:', error);
+    } catch {
       toast.error('Failed to delete notification');
       return false;
     }
