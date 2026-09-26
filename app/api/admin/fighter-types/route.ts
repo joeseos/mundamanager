@@ -11,19 +11,22 @@ function isNonEmptyArray(value: unknown): boolean {
 }
 
 /**
- * fighter_defaults rows for a fighter type's default equipment. Ids are kept so an accessory's
- * target_fighter_default_id can point at a weapon in the same insert. A target outside this
- * save is dropped rather than failing the insert, which runs after the old defaults are deleted.
+ * fighter_defaults rows for a fighter type's default equipment. As in copy_custom_collection,
+ * every row gets a new id and an accessory's target_fighter_default_id is remapped to its
+ * weapon's new id. The ids sent by the admin screen only say which row a link points at: written
+ * as-is they could collide with existing rows after the old defaults are deleted. A target
+ * outside this save is dropped.
  */
 function buildEquipmentDefaults(items: DefaultEquipmentSlot[], fighterTypeId: string) {
-  const ids = new Set(items.map(item => item.id));
-  return items.map(item => {
+  const newIds = items.map(() => randomUUID());
+  const newIdByOldId = new Map(items.map((item, index) => [item.id, newIds[index]]));
+  return items.map((item, index) => {
     const target = item.target_fighter_default_id;
     return {
-      id: item.id || randomUUID(),
+      id: newIds[index],
       fighter_type_id: fighterTypeId,
       equipment_id: item.equipment_id,
-      target_fighter_default_id: target && target !== item.id && ids.has(target) ? target : null,
+      target_fighter_default_id: target && target !== item.id ? newIdByOldId.get(target) ?? null : null,
       skill_id: null
     };
   });
