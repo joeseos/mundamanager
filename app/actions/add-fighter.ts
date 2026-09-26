@@ -7,6 +7,7 @@ import { getAuthenticatedUser } from "@/utils/auth";
 import { syncFighter } from '@/utils/syncVenatorSkillOverrides';
 
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
+import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
 import { grantSkillsForEffects } from './equipment';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
@@ -852,9 +853,9 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     let allAppliedEffects: any[] = [];
     let totalEffectsCreditsIncrease = 0;
 
-    // Weapon fighter_equipment id -> names of the accessory upgrades fitted to it, so the new
-    // card shows them on the weapon as gang-data.ts does after a reload.
-    const effectNamesByWeapon = new Map<string, string[]>();
+    // Weapon fighter_equipment id -> the accessory upgrade effects fitted to it, so the new card
+    // shows their names and modified profiles on the weapon as gang-assembly.ts does after a reload.
+    const fittedEffectsByWeapon = new Map<string, any[]>();
 
     for (const result of insertResults) {
       if (result.status === 'fulfilled') {
@@ -943,13 +944,11 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                           totalEffectsCreditsIncrease += effectsResult.effectsCreditsIncrease;
 
                           if (weaponId) {
-                            const names = effectNamesByWeapon.get(weaponId) || [];
-                            effectsResult.appliedEffects
-                              .filter((effect: any) => effect.type_specific_data?.applies_to === 'equipment')
-                              .forEach((effect: any) => {
-                                if (!names.includes(effect.effect_name)) names.push(effect.effect_name);
-                              });
-                            if (names.length > 0) effectNamesByWeapon.set(weaponId, names);
+                            const fitted = effectsResult.appliedEffects
+                              .filter((effect: any) => effect.type_specific_data?.applies_to === 'equipment');
+                            if (fitted.length > 0) {
+                              fittedEffectsByWeapon.set(weaponId, [...(fittedEffectsByWeapon.get(weaponId) || []), ...fitted]);
+                            }
                           }
                         } catch (effectError) {
                           console.error('Error applying effects for equipment:', equipmentItem.equipment_id, effectError);
@@ -1056,6 +1055,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                   }
                 }
 
+                const fittedEffects = fittedEffectsByWeapon.get(item.id) || [];
+
                 return {
                   fighter_equipment_id: item.id,
                   equipment_id: item.equipment_id || undefined,
@@ -1064,9 +1065,11 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                   equipment_type: equipmentType || 'unknown',
                   equipment_category: (item.equipment as any)?.equipment_category || (item.custom_equipment as any)?.equipment_category || 'unknown',
                   cost: item.purchase_cost,
-                  weapon_profiles: itemWeaponProfiles,
+                  weapon_profiles: applyWeaponModifiers(itemWeaponProfiles, fittedEffects),
                   is_editable: item.is_editable || false,
-                  effect_names: effectNamesByWeapon.get(item.id)
+                  effect_names: fittedEffects.length > 0
+                    ? Array.from(new Set(fittedEffects.map((effect: any) => effect.effect_name as string)))
+                    : undefined
                 };
               });
 
