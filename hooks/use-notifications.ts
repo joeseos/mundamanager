@@ -148,15 +148,19 @@ export function useFetchNotifications({
           const { createClient } = await import('@/utils/supabase/client');
           const supabase = createClient();
           
-          await supabase
+          const { error } = await supabase
             .from('notifications')
             .update({ dismissed: true })
             .in('id', unreadIds);
-            
-            // Update the notifications to be marked as read for the UI
-            notifications.forEach(n => {
-              if (!n.dismissed) n.dismissed = true;
-            });
+
+          if (error) {
+            console.error('Error marking notifications as read:', error);
+          } else {
+            // setNotifications shows them as read from now on. Reapply to the
+            // current list too, in case a newer fetch has already replaced it.
+            unreadIds.forEach(id => notificationStore.dismissedIds.add(id));
+            notificationStore.setNotifications(notificationStore.notifications);
+          }
         }
       }
       
