@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
+import { useEffect } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { RealtimeChannel } from '@supabase/supabase-js';
+import { createClient } from '@/utils/supabase/client';
 import type { NotificationType } from '@/utils/notifications';
 
 // How long a tab can stay hidden before it drops its realtime channel. With no
@@ -12,7 +14,11 @@ const HIDDEN_UNSUBSCRIBE_DELAY_MS = 30_000;
 // How often to retry subscribing while the socket is still closing.
 const SOCKET_CLOSING_RETRY_MS = 250;
 
-type Notification = {
+// Change events come in bursts (marking several notifications as read sends one
+// UPDATE per row), so they are coalesced into one refetch.
+const CHANGE_REFETCH_DEBOUNCE_MS = 300;
+
+export type Notification = {
   id: string;
   text: string;
   type: NotificationType;
@@ -22,209 +28,154 @@ type Notification = {
   sender_id: string;
 };
 
-// Global notification store to ensure all components use the same notification data
-const notificationStore = {
-  notifications: [] as Notification[],
-  unreadCount: 0,
-  listeners: new Set<(notifications: Notification[]) => void>(),
-  countListeners: new Set<(count: number) => void>(),
-  fetchPromise: null as Promise<void> | null,
-  latestFetchId: 0,
-  // Deletes and dismissals saved from this tab. They are reapplied to every list
-  // the store receives, because a fetch that started before one of them would
-  // otherwise undo it.
-  deletedIds: new Set<string>(),
-  dismissedIds: new Set<string>(),
+export const notificationsQueryKey = (userId: string) => ['notifications', userId] as const;
 
-  // Update notifications and notify all listeners
-  setNotifications(notifications: Notification[]) {
-    this.notifications = notifications
-      .filter(n => !this.deletedIds.has(n.id))
-      .map(n => (this.dismissedIds.has(n.id) && !n.dismissed ? { ...n, dismissed: true } : n));
-    this.unreadCount = this.notifications.filter(n => !n.dismissed).length;
-    this.notifyListeners();
-    this.notifyCountListeners();
-  },
+// Counts list fetches, so a mutation can tell whether one started while its
+// write was in flight and may have read the rows from before it.
+let fetchesStarted = 0;
 
-  // Add a listener function
-  addListener(listener: (notifications: Notification[]) => void) {
-    this.listeners.add(listener);
-    // Immediately notify with current state
-    listener(this.notifications);
-  },
+async function fetchNotifications(userId: string, signal: AbortSignal): Promise<Notification[]> {
+  fetchesStarted++;
+  const { data, error } = await createClient()
+    .from('notifications')
+    .select('id, text, dismissed, type, created_at, link, sender_id')
+    .eq('receiver_id', userId)
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false })
+    .limit(20)
+    .abortSignal(signal);
 
-  // Add a count listener function
-  addCountListener(listener: (count: number) => void) {
-    this.countListeners.add(listener);
-    // Immediately notify with current count
-    listener(this.unreadCount);
-  },
+  if (error) throw error;
+  return data as Notification[];
+}
 
-  // Remove a listener function
-  removeListener(listener: (notifications: Notification[]) => void) {
-    this.listeners.delete(listener);
-  },
+const notificationsQueryOptions = (userId: string) => ({
+  queryKey: notificationsQueryKey(userId),
+  queryFn: ({ signal }: { signal: AbortSignal }) => fetchNotifications(userId, signal),
+  // Realtime keeps the list current while the header is subscribed; a fresh
+  // mount (page load, opening /account) still fetches.
+  staleTime: 0,
+});
 
-  // Remove a count listener function
-  removeCountListener(listener: (count: number) => void) {
-    this.countListeners.delete(listener);
-  },
+export function useNotifications(userId: string) {
+  return useQuery(notificationsQueryOptions(userId));
+}
 
-  // Notify all listeners with current notifications
-  notifyListeners() {
-    this.listeners.forEach(listener => {
-      listener(this.notifications);
-    });
-  },
+export function useUnreadNotificationCount(userId: string) {
+  const { data } = useQuery({
+    ...notificationsQueryOptions(userId),
+    select: (notifications: Notification[]) => notifications.filter(n => !n.dismissed).length,
+  });
+  return data ?? 0;
+}
 
-  // Notify all count listeners with current unread count
-  notifyCountListeners() {
-    this.countListeners.forEach(listener => {
-      listener(this.unreadCount);
-    });
-  },
+// Applies a change to the cached list straight away. Fetches still in flight
+// are cancelled, since they may have read the rows from before the change.
+// After the write, the list is refetched only if another fetch started while
+// the write was in flight; otherwise the optimistic list is already current.
+function useOptimisticNotificationsMutation<TVariables>(
+  userId: string,
+  write: (variables: TVariables) => Promise<void>,
+  apply: (notifications: Notification[], variables: TVariables) => Notification[]
+) {
+  const queryClient = useQueryClient();
+  const queryKey = notificationsQueryKey(userId);
 
-  // Deduplicated fetch method
-  async fetchNotifications(fetchFn: () => Promise<void>) {
-    // If a fetch is already in progress, return the existing promise
-    if (this.fetchPromise) {
-      return this.fetchPromise;
+  const refetchIfFetchedDuringWrite = (fetchesAtStart: number) => {
+    if (fetchesStarted !== fetchesAtStart) {
+      queryClient.invalidateQueries({ queryKey });
     }
+  };
 
-    // Start a new fetch and store the promise
-    this.fetchPromise = fetchFn().finally(() => {
-      // Clear the promise when done (success or error)
-      this.fetchPromise = null;
-    });
+  return useMutation({
+    mutationFn: write,
+    onMutate: async (variables: TVariables) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<Notification[]>(queryKey);
+      queryClient.setQueryData<Notification[]>(queryKey, old => old && apply(old, variables));
+      return { previous, fetchesAtStart: fetchesStarted };
+    },
+    onError: (error, _variables, context) => {
+      console.error('Error updating notifications:', error);
+      if (!context) return;
+      queryClient.setQueryData(queryKey, context.previous);
+      refetchIfFetchedDuringWrite(context.fetchesAtStart);
+    },
+    onSuccess: (_data, _variables, context) => {
+      if (context) refetchIfFetchedDuringWrite(context.fetchesAtStart);
+    },
+  });
+}
 
-    return this.fetchPromise;
-  }
-};
-
-export function useFetchNotifications({
-  onNotifications,
-  userId,
-  realtime,
-  onUnreadCountChange,
-  isProfilePage,
-}: {
-  onNotifications: (notifications: Notification[]) => unknown;
-  userId: string;
-  realtime: boolean;
-  onUnreadCountChange?: (count: number) => void;
-  isProfilePage?: boolean;
-}) {
-  const [initialFetched, setInitialFetched] = useState(false);
-
-  const fetchNotifications = useCallback(async () => {
-    // Fetches can overlap (a change event during a refetch), and only the most
-    // recently started one may update the store.
-    const fetchId = ++notificationStore.latestFetchId;
-
-    try {
-      const { createClient } = await import('@/utils/supabase/client');
-      const supabase = createClient();
-      const now = new Date().toISOString();
-
-      const { data } = await supabase
+export function useMarkNotificationsRead(userId: string) {
+  return useOptimisticNotificationsMutation<string[]>(
+    userId,
+    async ids => {
+      const { error } = await createClient()
         .from('notifications')
-        .select('id, text, dismissed, type, created_at, link, sender_id')
-        .eq('receiver_id', userId)
-        .gt('expires_at', now)
-        .order('created_at', { ascending: false })
-        .limit(20);
+        .update({ dismissed: true })
+        .in('id', ids);
+      if (error) throw error;
+    },
+    (notifications, ids) =>
+      notifications.map(n => (ids.includes(n.id) && !n.dismissed ? { ...n, dismissed: true } : n))
+  );
+}
 
-      const notifications = data as Notification[] || [];
-      
-      // If on profile page, auto-mark new notifications as read
-      if (isProfilePage) {
-        // Find unread notifications
-        const unreadIds = notifications
-          .filter(n => !n.dismissed)
-          .map(n => n.id);
-          
-        // Mark them as read in the database
-        if (unreadIds.length > 0) {
-          const { createClient } = await import('@/utils/supabase/client');
-          const supabase = createClient();
-          
-          const { error } = await supabase
-            .from('notifications')
-            .update({ dismissed: true })
-            .in('id', unreadIds);
-
-          if (error) {
-            console.error('Error marking notifications as read:', error);
-          } else {
-            // setNotifications shows them as read from now on. Reapply to the
-            // current list too, in case a newer fetch has already replaced it.
-            unreadIds.forEach(id => notificationStore.dismissedIds.add(id));
-            notificationStore.setNotifications(notificationStore.notifications);
-          }
+export function useDeleteNotification(userId: string) {
+  return useOptimisticNotificationsMutation<string>(
+    userId,
+    async id => {
+      const response = await fetch(`/api/notifications/${id}`, { method: 'DELETE' }).catch(
+        error => {
+          console.error('Error deleting notification via API:', error);
+          return null;
         }
+      );
+      if (response?.ok) return;
+      if (response) {
+        console.error(`Error deleting notification via API: status ${response.status}`);
       }
-      
-      if (fetchId !== notificationStore.latestFetchId) return;
-      notificationStore.setNotifications(notifications);
-    } catch (error) {
-      console.error('Error fetching notifications:', error);
-      if (fetchId !== notificationStore.latestFetchId) return;
-      notificationStore.setNotifications([]);
-    }
-  }, [userId, isProfilePage]);
 
-  // Register the onNotifications callback with the store
+      // Fallback to direct Supabase delete if the API fails
+      const { error } = await createClient().from('notifications').delete().eq('id', id);
+      if (error) throw error;
+    },
+    (notifications, id) => notifications.filter(n => n.id !== id)
+  );
+}
+
+// Keeps the notifications query current with a realtime subscription while the
+// tab is visible. A hidden tab drops it after a grace period and subscribes
+// again once visible.
+export function useNotificationsRealtime(userId: string) {
+  const queryClient = useQueryClient();
+
   useEffect(() => {
-    notificationStore.addListener(onNotifications);
-
-    return () => {
-      notificationStore.removeListener(onNotifications);
-    };
-  }, [onNotifications]);
-
-  // Register the onUnreadCountChange callback if provided
-  useEffect(() => {
-    if (onUnreadCountChange) {
-      notificationStore.addCountListener(onUnreadCountChange);
-      
-      return () => {
-        notificationStore.removeCountListener(onUnreadCountChange);
-      };
-    }
-  }, [onUnreadCountChange]);
-
-  // Fetch initial notifications
-  useEffect(() => {
-    const doInitialFetch = async () => {
-      await notificationStore.fetchNotifications(fetchNotifications);
-      setInitialFetched(true);
-    };
-
-    doInitialFetch();
-  }, [fetchNotifications]);
-
-  // Set up real-time subscription while the tab is visible. A hidden tab drops
-  // it after a grace period and subscribes again once visible.
-  useEffect(() => {
-    if (!initialFetched || !realtime) return;
+    const supabase = createClient();
+    const queryKey = notificationsQueryKey(userId);
 
     let cancelled = false;
-    let supabase: SupabaseClient | null = null;
     let channel: RealtimeChannel | null = null;
     let hideTimer: ReturnType<typeof setTimeout> | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let changeTimer: ReturnType<typeof setTimeout> | null = null;
     // Changes made while the channel was not joined are not replayed, so every
     // join refetches the list, except one straight after the initial fetch.
-    let refetchOnJoin = false;
+    // A tab opened in the background joins later, after that fetch has gone stale.
+    let refetchOnJoin = document.visibilityState !== 'visible';
+
+    const refetch = () => queryClient.invalidateQueries({ queryKey });
 
     // Every time a notification is inserted or updated
     // we'll refetch the whole list to ensure sync
     const handleNotificationChange = () => {
-      fetchNotifications();
+      if (changeTimer) clearTimeout(changeTimer);
+      changeTimer = setTimeout(refetch, CHANGE_REFETCH_DEBOUNCE_MS);
     };
 
     const subscribe = () => {
-      if (cancelled || !supabase || channel || document.visibilityState !== 'visible') return;
+      if (cancelled || channel || document.visibilityState !== 'visible') return;
 
       // Right after its last channel is removed the socket may still be
       // closing, and connect() is a no-op until it has closed.
@@ -260,7 +211,7 @@ export function useFetchNotifications({
           )
           .subscribe(status => {
             if (status !== 'SUBSCRIBED') return;
-            if (refetchOnJoin) fetchNotifications();
+            if (refetchOnJoin) refetch();
             refetchOnJoin = true;
           });
       } catch (error) {
@@ -269,7 +220,7 @@ export function useFetchNotifications({
     };
 
     const unsubscribe = () => {
-      if (!supabase || !channel) return;
+      if (!channel) return;
 
       supabase.removeChannel(channel);
       channel = null;
@@ -283,134 +234,23 @@ export function useFetchNotifications({
 
       if (document.visibilityState === 'hidden') {
         hideTimer = setTimeout(unsubscribe, HIDDEN_UNSUBSCRIBE_DELAY_MS);
-      } else if (supabase && !channel) {
+      } else if (!channel) {
         // Nothing refreshed the realtime token while the socket was closed, and
         // a join with an expired token is rejected.
         supabase.realtime.setAuth().then(subscribe, subscribe);
       }
     };
 
-    import('@/utils/supabase/client')
-      .then(({ createClient }) => {
-        if (cancelled) return;
-
-        supabase = createClient();
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-        // A tab opened in the background joins later, after the initial fetch has gone stale.
-        refetchOnJoin = document.visibilityState !== 'visible';
-        subscribe();
-      })
-      .catch(error => {
-        console.error('Error setting up realtime subscription:', error);
-      });
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    subscribe();
 
     return () => {
       cancelled = true;
       if (hideTimer) clearTimeout(hideTimer);
       if (retryTimer) clearTimeout(retryTimer);
+      if (changeTimer) clearTimeout(changeTimer);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       unsubscribe();
     };
-  }, [initialFetched, realtime, userId, fetchNotifications]);
-
-  // Public method for dismissing notifications
-  const dismissNotification = useCallback(async (id: string) => {
-    try {
-      const { createClient } = await import('@/utils/supabase/client');
-      const supabase = createClient();
-
-      const { error } = await supabase
-        .from('notifications')
-        .update({ dismissed: true })
-        .eq('id', id);
-      if (error) throw error;
-
-      notificationStore.dismissedIds.add(id);
-      // Update the store to mark the notification as dismissed but keep it visible
-      notificationStore.setNotifications(
-        notificationStore.notifications.map(n => 
-          n.id === id ? { ...n, dismissed: true } : n
-        )
-      );
-    } catch (error) {
-      console.error('Error dismissing notification:', error);
-    }
-  }, []);
-
-  // Public method for dismissing all notifications
-  const dismissAllNotifications = useCallback(async () => {
-    if (notificationStore.notifications.filter(n => !n.dismissed).length === 0) return;
-
-    try {
-      const { createClient } = await import('@/utils/supabase/client');
-      const supabase = createClient();
-
-      const notificationIds = notificationStore.notifications
-        .filter(n => !n.dismissed)
-        .map(n => n.id);
-
-      const { error } = await supabase
-        .from('notifications')
-        .update({ dismissed: true })
-        .in('id', notificationIds);
-      if (error) throw error;
-
-      notificationIds.forEach(id => notificationStore.dismissedIds.add(id));
-      // Update the store to mark all notifications as dismissed but keep them visible
-      notificationStore.setNotifications(
-        notificationStore.notifications.map(n => ({ ...n, dismissed: true }))
-      );
-    } catch (error) {
-      console.error('Error dismissing all notifications:', error);
-    }
-  }, []);
-
-  // Public method for deleting a notification
-  const deleteNotification = useCallback(async (id: string) => {
-    try {
-      // Use the API endpoint
-      const response = await fetch(`/api/notifications/${id}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        throw new Error(`API request failed with status ${response.status}`);
-      }
-
-      notificationStore.deletedIds.add(id);
-      // Update the store immediately on success
-      notificationStore.setNotifications(
-        notificationStore.notifications.filter(n => n.id !== id)
-      );
-    } catch (error) {
-      console.error('Error deleting notification via API:', error);
-      
-      // Fallback to direct Supabase delete if API fails
-      try {
-        const { createClient } = await import('@/utils/supabase/client');
-        const supabase = createClient();
-
-        const { error: deleteError } = await supabase
-          .from('notifications')
-          .delete()
-          .eq('id', id);
-        if (deleteError) throw deleteError;
-
-        notificationStore.deletedIds.add(id);
-        // Update the store immediately
-        notificationStore.setNotifications(
-          notificationStore.notifications.filter(n => n.id !== id)
-        );
-      } catch (fallbackError) {
-        console.error('Fallback error deleting notification:', fallbackError);
-      }
-    }
-  }, []);
-
-  return {
-    dismissNotification,
-    dismissAllNotifications,
-    deleteNotification,
-    getUnreadCount: () => notificationStore.unreadCount
-  };
+  }, [userId, queryClient]);
 }
