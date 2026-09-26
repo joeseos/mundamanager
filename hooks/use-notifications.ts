@@ -9,9 +9,8 @@ import type { NotificationType } from '@/utils/notifications';
 // counts towards the project's concurrent Realtime connection quota.
 const HIDDEN_UNSUBSCRIBE_DELAY_MS = 30_000;
 
-// Each subscription gets its own topic: removeChannel completes asynchronously,
-// and until then supabase.channel() would hand back the leaving channel.
-let channelSequence = 0;
+// How often to retry subscribing while the socket is still closing.
+const SOCKET_CLOSING_RETRY_MS = 250;
 
 type Notification = {
   id: string;
@@ -30,6 +29,7 @@ const notificationStore = {
   listeners: new Set<(notifications: Notification[]) => void>(),
   countListeners: new Set<(count: number) => void>(),
   fetchPromise: null as Promise<void> | null,
+  latestFetchId: 0,
 
   // Update notifications and notify all listeners
   setNotifications(notifications: Notification[]) {
@@ -110,6 +110,10 @@ export function useFetchNotifications({
   const [initialFetched, setInitialFetched] = useState(false);
 
   const fetchNotifications = useCallback(async () => {
+    // Fetches can overlap (a change event during a refetch), and only the most
+    // recently started one may update the store.
+    const fetchId = ++notificationStore.latestFetchId;
+
     try {
       const { createClient } = await import('@/utils/supabase/client');
       const supabase = createClient();
@@ -149,9 +153,11 @@ export function useFetchNotifications({
         }
       }
       
+      if (fetchId !== notificationStore.latestFetchId) return;
       notificationStore.setNotifications(notifications);
     } catch (error) {
       console.error('Error fetching notifications:', error);
+      if (fetchId !== notificationStore.latestFetchId) return;
       notificationStore.setNotifications([]);
     }
   }, [userId, isProfilePage]);
@@ -187,8 +193,7 @@ export function useFetchNotifications({
   }, [fetchNotifications]);
 
   // Set up real-time subscription while the tab is visible. A hidden tab drops
-  // it after a grace period and refetches once visible again, since changes
-  // made while it was unsubscribed are not replayed.
+  // it after a grace period and subscribes again once visible.
   useEffect(() => {
     if (!initialFetched || !realtime) return;
 
@@ -196,39 +201,60 @@ export function useFetchNotifications({
     let supabase: SupabaseClient | null = null;
     let channel: RealtimeChannel | null = null;
     let hideTimer: ReturnType<typeof setTimeout> | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    // Changes made while the channel was not joined are not replayed, so every
+    // join refetches the list, except one straight after the initial fetch.
+    let refetchOnJoin = false;
 
-    // Every time a notification changes (insert, update, delete)
+    // Every time a notification is inserted or updated
     // we'll refetch the whole list to ensure sync
     const handleNotificationChange = () => {
       fetchNotifications();
     };
 
     const subscribe = () => {
-      if (!supabase || channel) return;
+      if (cancelled || !supabase || channel || document.visibilityState !== 'visible') return;
 
-      channel = supabase
-        .channel(`notifications-changes-${++channelSequence}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'notifications',
-            filter: `receiver_id=eq.${userId}`,
-          },
-          handleNotificationChange
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'notifications',
-            filter: `receiver_id=eq.${userId}`,
-          },
-          handleNotificationChange
-        )
-        .subscribe();
+      // Right after its last channel is removed the socket may still be
+      // closing, and connect() is a no-op until it has closed.
+      if (supabase.realtime.isDisconnecting()) {
+        retryTimer = setTimeout(subscribe, SOCKET_CLOSING_RETRY_MS);
+        return;
+      }
+
+      try {
+        channel = supabase
+          // A fresh topic each time: removeChannel completes asynchronously, and
+          // until then channel() would return the leaving channel.
+          .channel(`notifications-changes-${Math.random().toString(36).slice(2)}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'notifications',
+              filter: `receiver_id=eq.${userId}`,
+            },
+            handleNotificationChange
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'notifications',
+              filter: `receiver_id=eq.${userId}`,
+            },
+            handleNotificationChange
+          )
+          .subscribe(status => {
+            if (status !== 'SUBSCRIBED') return;
+            if (refetchOnJoin) fetchNotifications();
+            refetchOnJoin = true;
+          });
+      } catch (error) {
+        console.error('Error setting up realtime subscription:', error);
+      }
     };
 
     const unsubscribe = () => {
@@ -246,9 +272,10 @@ export function useFetchNotifications({
 
       if (document.visibilityState === 'hidden') {
         hideTimer = setTimeout(unsubscribe, HIDDEN_UNSUBSCRIBE_DELAY_MS);
-      } else if (!channel) {
-        notificationStore.fetchNotifications(fetchNotifications);
-        subscribe();
+      } else if (supabase && !channel) {
+        // Nothing refreshed the realtime token while the socket was closed, and
+        // a join with an expired token is rejected.
+        supabase.realtime.setAuth().then(subscribe, subscribe);
       }
     };
 
@@ -257,10 +284,10 @@ export function useFetchNotifications({
         if (cancelled) return;
 
         supabase = createClient();
-        if (document.visibilityState === 'visible') {
-          subscribe();
-        }
         document.addEventListener('visibilitychange', handleVisibilityChange);
+        // A tab opened in the background joins later, after the initial fetch has gone stale.
+        refetchOnJoin = document.visibilityState !== 'visible';
+        subscribe();
       })
       .catch(error => {
         console.error('Error setting up realtime subscription:', error);
@@ -269,6 +296,7 @@ export function useFetchNotifications({
     return () => {
       cancelled = true;
       if (hideTimer) clearTimeout(hideTimer);
+      if (retryTimer) clearTimeout(retryTimer);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       unsubscribe();
     };
