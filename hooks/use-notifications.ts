@@ -1,7 +1,17 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 import type { NotificationType } from '@/utils/notifications';
+
+// How long a tab can stay hidden before it drops its realtime channel. With no
+// channels left the Supabase client closes the tab's WebSocket, which is what
+// counts towards the project's concurrent Realtime connection quota.
+const HIDDEN_UNSUBSCRIBE_DELAY_MS = 30_000;
+
+// Each subscription gets its own topic: removeChannel completes asynchronously,
+// and until then supabase.channel() would hand back the leaving channel.
+let channelSequence = 0;
 
 type Notification = {
   id: string;
@@ -176,59 +186,91 @@ export function useFetchNotifications({
     doInitialFetch();
   }, [fetchNotifications]);
 
-  // Set up real-time subscription
+  // Set up real-time subscription while the tab is visible. A hidden tab drops
+  // it after a grace period and refetches once visible again, since changes
+  // made while it was unsubscribed are not replayed.
   useEffect(() => {
     if (!initialFetched || !realtime) return;
 
-    const setupRealtimeSubscription = async () => {
-      try {
-        const { createClient } = await import('@/utils/supabase/client');
-        const supabase = createClient();
+    let cancelled = false;
+    let supabase: SupabaseClient | null = null;
+    let channel: RealtimeChannel | null = null;
+    let hideTimer: ReturnType<typeof setTimeout> | null = null;
 
-        // Every time a notification changes (insert, update, delete)
-        // we'll refetch the whole list to ensure sync
-        const handleNotificationChange = () => {
-          fetchNotifications();
-        };
+    // Every time a notification changes (insert, update, delete)
+    // we'll refetch the whole list to ensure sync
+    const handleNotificationChange = () => {
+      fetchNotifications();
+    };
 
-        const channel = supabase
-          .channel('notifications-changes')
-          .on(
-            'postgres_changes',
-            {
-              event: 'INSERT',
-              schema: 'public',
-              table: 'notifications',
-              filter: `receiver_id=eq.${userId}`,
-            },
-            handleNotificationChange
-          )
-          .on(
-            'postgres_changes',
-            {
-              event: 'UPDATE',
-              schema: 'public',
-              table: 'notifications',
-              filter: `receiver_id=eq.${userId}`,
-            },
-            handleNotificationChange
-          )
-          .subscribe();
+    const subscribe = () => {
+      if (!supabase || channel) return;
 
-        return () => {
-          supabase.removeChannel(channel);
-        };
-      } catch (error) {
-        console.error('Error setting up realtime subscription:', error);
-        return () => {};
+      channel = supabase
+        .channel(`notifications-changes-${++channelSequence}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'notifications',
+            filter: `receiver_id=eq.${userId}`,
+          },
+          handleNotificationChange
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'notifications',
+            filter: `receiver_id=eq.${userId}`,
+          },
+          handleNotificationChange
+        )
+        .subscribe();
+    };
+
+    const unsubscribe = () => {
+      if (!supabase || !channel) return;
+
+      supabase.removeChannel(channel);
+      channel = null;
+    };
+
+    const handleVisibilityChange = () => {
+      if (hideTimer) {
+        clearTimeout(hideTimer);
+        hideTimer = null;
+      }
+
+      if (document.visibilityState === 'hidden') {
+        hideTimer = setTimeout(unsubscribe, HIDDEN_UNSUBSCRIBE_DELAY_MS);
+      } else if (!channel) {
+        notificationStore.fetchNotifications(fetchNotifications);
+        subscribe();
       }
     };
 
-    const cleanup = setupRealtimeSubscription();
+    import('@/utils/supabase/client')
+      .then(({ createClient }) => {
+        if (cancelled) return;
+
+        supabase = createClient();
+        if (document.visibilityState === 'visible') {
+          subscribe();
+        }
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+      })
+      .catch(error => {
+        console.error('Error setting up realtime subscription:', error);
+      });
+
     return () => {
-      if (cleanup) {
-        cleanup.then(cleanupFn => cleanupFn && cleanupFn());
-      }
+      cancelled = true;
+      if (hideTimer) clearTimeout(hideTimer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      unsubscribe();
     };
   }, [initialFetched, realtime, userId, fetchNotifications]);
 
