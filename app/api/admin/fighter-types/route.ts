@@ -1,13 +1,38 @@
+import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
 import { fetchAllRows } from "@/utils/supabase/fetch-all-rows";
-import { FighterTypeGrant } from "@/types/fighter-type";
+import { DefaultEquipmentSlot, FighterTypeGrant } from "@/types/fighter-type";
 
 // Add type guard at the top of the file
 function isNonEmptyArray(value: unknown): boolean {
   return Array.isArray(value) && value.length > 0;
 }
+
+/**
+ * fighter_defaults rows for a fighter type's default equipment. As in copy_custom_collection,
+ * every row gets a new id and an accessory's target_fighter_default_id is remapped to its
+ * weapon's new id. The ids sent by the admin screen only say which row a link points at: written
+ * as-is they could collide with existing rows after the old defaults are deleted. A target
+ * outside this save is dropped.
+ */
+function buildEquipmentDefaults(items: DefaultEquipmentSlot[], fighterTypeId: string) {
+  const newIds = items.map(() => randomUUID());
+  const newIdByOldId = new Map(items.map((item, index) => [item.id, newIds[index]]));
+  return items.map((item, index) => {
+    const target = item.target_fighter_default_id;
+    return {
+      id: newIds[index],
+      fighter_type_id: fighterTypeId,
+      equipment_id: item.equipment_id,
+      target_fighter_default_id: target && target !== item.id ? newIdByOldId.get(target) ?? null : null,
+      skill_id: null
+    };
+  });
+}
+
+const DEFAULT_EQUIPMENT_COLUMNS = 'id, equipment_id, target_fighter_default_id';
 
 /**
  * The rows this screen owns: grants that apply to the fighter type
@@ -211,7 +236,7 @@ export async function GET(request: Request) {
       // Fetch default equipment
       const { data: defaultEquipment, error: equipmentError } = await supabase
         .from('fighter_defaults')
-        .select('equipment_id')
+        .select(DEFAULT_EQUIPMENT_COLUMNS)
         .eq('fighter_type_id', fighterType.id)
         .not('equipment_id', 'is', null);
 
@@ -257,7 +282,7 @@ export async function GET(request: Request) {
 
       const formattedFighterType = {
         ...fighterType,
-        default_equipment: defaultEquipment?.map(d => d.equipment_id) || [],
+        default_equipment: defaultEquipment || [],
         default_skills: defaultSkills?.map(d => d.skill_id) || [],
         equipment_list: equipmentList?.map(e => e.equipment_id) || [],
         equipment_discounts: fighterType.equipment_discounts?.map(d => ({
@@ -361,7 +386,7 @@ export async function GET(request: Request) {
             // Fetch default equipment
             const { data: defaultEquipment, error: equipmentError } = await supabase
               .from('fighter_defaults')
-              .select('equipment_id')
+              .select(DEFAULT_EQUIPMENT_COLUMNS)
               .eq('fighter_type_id', fighter.id)
               .not('equipment_id', 'is', null);
 
@@ -410,7 +435,7 @@ export async function GET(request: Request) {
 
             return {
               ...fighter,
-              default_equipment: defaultEquipment?.map(d => d.equipment_id) || [],
+              default_equipment: defaultEquipment || [],
               default_skills: defaultSkills?.map(d => d.skill_id) || [],
               equipment_list: equipmentList?.map(e => e.equipment_id) || [],
               equipment_discounts: fighter.equipment_discounts?.map((d: any) => ({
@@ -674,11 +699,7 @@ export async function PATCH(request: Request) {
 
     // Insert new equipment defaults
     if (data.default_equipment?.length > 0) {
-      const equipmentDefaults = data.default_equipment.map((equipmentId: string) => ({
-        fighter_type_id: id,
-        equipment_id: equipmentId,
-        skill_id: null
-      }));
+      const equipmentDefaults = buildEquipmentDefaults(data.default_equipment, id);
 
       const { error: insertEquipError } = await supabase
         .from('fighter_defaults')
@@ -1028,10 +1049,7 @@ export async function POST(request: Request) {
 
     // Handle default equipment if provided
     if (data.default_equipment && data.default_equipment.length > 0) {
-      const equipmentDefaults = data.default_equipment.map((equipmentId: string) => ({
-        fighter_type_id: newFighterType.id,
-        equipment_id: equipmentId
-      }));
+      const equipmentDefaults = buildEquipmentDefaults(data.default_equipment, newFighterType.id);
 
       const { error: equipmentError } = await supabase
         .from('fighter_defaults')

@@ -14,6 +14,8 @@ import { toggleFighterSubtype } from '@/utils/fighter-subtype-picker';
 import { getSkillSetGroupLabel, getSkillSetRank } from "@/utils/skillSetRank";
 import { compareEquipmentCategories } from "@/utils/getEquipmentCategoryRank";
 import Modal from '@/components/ui/modal';
+import { AdminDefaultEquipment, keepDefaultEquipmentSlots } from '@/components/admin/admin-default-equipment';
+import { DefaultEquipmentSlot } from '@/types/fighter-type';
 
 interface AdminCreateFighterTypeModalProps {
   onClose: () => void;
@@ -82,7 +84,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   const [isSpyrer, setIsSpyrer] = useState(false);
   const [isVehicle, setIsVehicle] = useState(false);
   const [alignment, setAlignment] = useState<string>('');
-  const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
+  const [selectedEquipment, setSelectedEquipment] = useState<DefaultEquipmentSlot[]>([]);
   const [selectedSkillType, setSelectedSkillType] = useState('');
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [loadedSkills, setLoadedSkills] = useState<Skill[]>([]);
@@ -263,7 +265,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         : equipment
       ).map(item => item.id)
     );
-    setSelectedEquipment(prev => prev.filter(id => equipmentIds.has(id)));
+    setSelectedEquipment(prev => keepDefaultEquipmentSlots(prev, slot => equipmentIds.has(slot.equipment_id)));
     setEquipmentListSelections(prev => prev.filter(id => equipmentIds.has(id)));
     setEquipmentDiscounts(prev => prev.filter(d => equipmentIds.has(d.equipment_id)));
     if (selectedAdjustedCostEquipment && !equipmentIds.has(selectedAdjustedCostEquipment)) {
@@ -827,55 +829,12 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-muted-foreground mb-1">
-                Default Equipment
-              </label>
-              <select
-                value=""
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (value && !selectedEquipment.includes(value)) {
-                    setSelectedEquipment([...selectedEquipment, value]);
-                  }
-                  // Reset the select to empty after selection
-                  e.target.value = "";
-                }}
-                className="w-full p-2 border rounded-md"
-              >
-                <option value="">Select equipment to add</option>
-                {filteredEquipment
-                  .filter(item => !selectedEquipment.includes(item.id))
-                  .map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.equipment_name}
-                    </option>
-                  ))}
-              </select>
-
-              <div className="mt-2 flex flex-wrap gap-2">
-                {selectedEquipment.map((equipId) => {
-                  const item = equipment.find(e => e.id === equipId);
-                  if (!item) return null;
-                  
-                  return (
-                    <div 
-                      key={item.id}
-                      className="flex items-center gap-1 bg-muted px-2 py-1 rounded-full text-sm"
-                    >
-                      <span>{item.equipment_name}</span>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedEquipment(selectedEquipment.filter(id => id !== item.id))}
-                        className="hover:text-red-500 focus:outline-hidden"
-                      >
-                          <HiX className="h-4 w-4" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+            <AdminDefaultEquipment
+              equipment={equipment}
+              options={filteredEquipment}
+              value={selectedEquipment}
+              onChange={setSelectedEquipment}
+            />
 
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
