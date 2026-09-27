@@ -1609,7 +1609,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       if (changesStartingXp && updateError.code === 'PGRST116') {
         return {
           success: false,
-          error: "This fighter's XP changed while you were editing. Reopen Edit Fighter and try again.",
+          error: "This fighter's XP changed at the same time. Reload the page and try again.",
         };
       }
       throw updateError;
