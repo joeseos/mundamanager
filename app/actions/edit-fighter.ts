@@ -1609,7 +1609,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       if (changesStartingXp && updateError.code === 'PGRST116') {
         return {
           success: false,
-          error: "This fighter's XP changed while you were editing. Reopen Edit Fighter and try again.",
+          error: "This fighter's XP changed at the same time. Reload the page and try again.",
         };
       }
       throw updateError;
@@ -1806,20 +1806,6 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
           newCredits: costAdjustmentFinancialResult?.newValues?.credits,
           newRating: costAdjustmentFinancialResult?.newValues?.rating,
           newWealth: costAdjustmentFinancialResult?.newValues?.wealth
-        });
-      }
-
-      if (changesStartingXp) {
-        await logFighterAction({
-          gang_id: fighter.gang_id,
-          fighter_id: params.fighter_id,
-          fighter_name: updatedFighter.fighter_name,
-          action_type: 'fighter_starting_xp_changed',
-          old_value: previousStartingXp ?? 'N/A',
-          new_value: updatedFighter.starting_xp,
-          old_xp: previousXp,
-          new_xp: updatedFighter.xp,
-          user_id: user.id
         });
       }
     } catch (logError) {
