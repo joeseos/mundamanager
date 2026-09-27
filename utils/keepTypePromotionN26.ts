@@ -13,6 +13,7 @@
  */
 
 import { hasFighterSpecialisations, hasProspectSpecialisationPromotion } from '@/types/edition';
+import { N26_UNDERHIVE_OUTCASTS_GANG_TYPE_ID } from '@/utils/archetypeEligibility';
 
 export const N26_PROSPECT_PROMOTION_CREDITS = 15;
 
@@ -316,6 +317,31 @@ export function buildN26ChampionLeaderDemotionSubtypes(currentSubtypes: string[]
   const next = currentSubtypes.filter((s) => s !== 'Leader');
   if (!next.includes('Champion')) next.push('Champion');
   return next;
+}
+
+// --- Outcast Leader ----------------------------------------------------------
+
+/** Starting XP of an Outcast Leader, as on the gang's own Leader profiles. */
+export const N26_OUTCAST_LEADER_STARTING_XP = 61;
+/** Starting XP of a pet that came with the new Outcast Leader's wargear. */
+export const N26_OUTCAST_LEADER_PET_STARTING_XP = 13;
+
+/**
+ * True when this fighter can be elevated to the gang's Outcast Leader. Any
+ * fighter can: the rules let an Outcast gang be led by a fighter from any list.
+ * Keyed on the owning gang's type, not the fighter type's, since the fighter is
+ * usually a Hired Gun or other addition. Vehicles are left out.
+ */
+export function canPromoteToN26OutcastLeader(args: {
+  owningGangTypeId?: string | null;
+  subtypes?: string[] | null;
+  isVehicle?: boolean;
+}): boolean {
+  return (
+    args.owningGangTypeId === N26_UNDERHIVE_OUTCASTS_GANG_TYPE_ID &&
+    !args.isVehicle &&
+    !(args.subtypes ?? []).includes('Leader')
+  );
 }
 
 /**
