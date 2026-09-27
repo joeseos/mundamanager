@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, type MouseEvent } from 'react';
+import { useState, type MouseEvent } from 'react';
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,7 +13,7 @@ import { User as SupabaseUser } from '@supabase/supabase-js';
 import { signOutAction } from "@/app/actions/auth";
 import { createClient } from "@/utils/supabase/client";
 import Link from 'next/link';
-import { useFetchNotifications } from '@/hooks/use-notifications';
+import { useNotificationsRealtime, useUnreadNotificationCount } from '@/hooks/use-notifications';
 import dynamic from 'next/dynamic';
 
 // Icons
@@ -45,28 +45,10 @@ interface SettingsModalProps {
 
 export default function SettingsModal({ user, isAdmin, username, patreonTierId, patreonTierTitle, patronStatus }: SettingsModalProps) {
   const [open, setOpen] = useState(false);
-  const [notificationCount, setNotificationCount] = useState(0);
+  const notificationCount = useUnreadNotificationCount(user.id);
 
-  // Notification handler for all notifications
-  const onNotifications = useCallback(
-    (newNotifications: any[]) => {
-      // No longer needed as we use onUnreadCountChange
-    },
-    []
-  );
-
-  // Handle unread count changes
-  const onUnreadCountChange = useCallback((count: number) => {
-    setNotificationCount(count);
-  }, []);
-
-  // Fetch notifications directly in this component
-  useFetchNotifications({
-    onNotifications,
-    userId: user.id,
-    realtime: true,
-    onUnreadCountChange,
-  });
+  // The header is on every page, so it keeps the notifications query current
+  useNotificationsRealtime(user.id);
 
   const handleLogout = async () => {
     setOpen(false);
