@@ -724,6 +724,7 @@ export function SkillsList({
                     {href ? (
                       <Link
                         href={href}
+                        prefetch={false}
                         className="truncate hover:text-muted-foreground transition-colors"
                         onClick={(e) => e.stopPropagation()}
                       >

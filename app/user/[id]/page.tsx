@@ -248,6 +248,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
                 <Link
                   key={gang.id}
                   href={`/gang/${gang.id}`}
+                  prefetch={false}
                   className="block p-2 border rounded-lg hover:bg-muted/50 transition-colors"
                 >
                   <div className="mb-1">
@@ -285,6 +286,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
                 <Link
                   key={campaign.id}
                   href={`/campaigns/${campaign.campaign_id}`}
+                  prefetch={false}
                   className="block p-2 border rounded-lg hover:bg-muted/50 transition-colors"
                 >
                   <div className="flex items-start justify-between">

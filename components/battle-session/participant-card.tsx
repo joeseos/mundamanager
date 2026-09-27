@@ -1675,7 +1675,7 @@ export default function ParticipantCard({
               <span className="flex items-center gap-1">
                 Player:
                 {participant.profile?.username ? (
-                  <Link href={`/user/${participant.user_id}`}>
+                  <Link href={`/user/${participant.user_id}`} prefetch={false}>
                     <Badge variant="outline" className="flex items-center gap-1 hover:bg-accent transition-colors">
                       {participant.profile.patreon_tier_id && (
                         <PatreonSupporterIcon

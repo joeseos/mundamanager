@@ -127,7 +127,7 @@ function SignInContent() {
           <p className="text-sm text-white mb-8 text-center">
             {/* Use &apos; so react/no-unescaped-entities does not fail next build. */}
             Don&apos;t have an account yet?{" "}
-            <Link className="text-white font-medium underline" href="/sign-up">
+            <Link className="text-white font-medium underline" href="/sign-up" prefetch={false}>
               Sign up
             </Link>
           </p>
@@ -192,6 +192,7 @@ function SignInContent() {
             )}
             <Link 
               href="/reset-password" 
+              prefetch={false}
               className="text-sm text-white underline self-end"
             >
               Forgot your password?

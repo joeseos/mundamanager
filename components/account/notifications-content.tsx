@@ -282,6 +282,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
     return (
       <Link
         href={href}
+        prefetch={false}
         className={attachmentClassName}
         onClick={() => handleNotificationLinkClick(notification)}
       >

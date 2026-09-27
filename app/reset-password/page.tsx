@@ -97,7 +97,7 @@ function ResetPasswordContent() {
                 Get help
               </a>
             </p>
-            <Link href="/sign-in" className="block text-sm text-white underline hover:underline">
+            <Link href="/sign-in" prefetch={false} className="block text-sm text-white underline hover:underline">
               Back to sign in
             </Link>
           </div>

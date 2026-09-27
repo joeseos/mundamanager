@@ -73,7 +73,7 @@ function SignUpContent() {
             <p className="text-lg mb-4">
               {message}
             </p>
-            <Link href="/sign-in" className="text-lg text-white hover:underline">
+            <Link href="/sign-in" prefetch={false} className="text-lg text-white hover:underline">
               Sign in here once verified
             </Link>
           </div>
@@ -148,7 +148,7 @@ function SignUpContent() {
           <h1 className="text-2xl font-medium text-white mb-2 text-center">Sign Up</h1>
           <p className="text-sm text-white mb-8 text-center">
             Already have an account?{" "}
-            <Link className="text-white font-medium underline" href="/sign-in">
+            <Link className="text-white font-medium underline" href="/sign-in" prefetch={false}>
               Sign in
             </Link>
           </p>

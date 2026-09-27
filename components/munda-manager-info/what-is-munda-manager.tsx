@@ -126,7 +126,7 @@ export default function WhatIsMundaManager({ userCount, gangCount, campaignCount
       <section className="bg-muted p-4 rounded-lg">
         <h2 className="text-lg font-semibold mb-2 text-red-800 dark:text-red-300">Ready to Get Started?</h2>
         <p className="text-red-800 dark:text-red-300 mb-3">
-          <Link href="/sign-up" className="text-red-400 dark:text-red-100 font-semibold underline hover:text-red-700 dark:hover:text-red-400">
+          <Link href="/sign-up" prefetch={false} className="text-red-400 dark:text-red-100 font-semibold underline hover:text-red-700 dark:hover:text-red-400">
             Sign up
           </Link>{" "}
           now and start managing your gangs and campaigns.
