@@ -116,6 +116,8 @@ export interface UpdateFighterDetailsParams {
   selected_archetype_id?: string | null;
   /** Recruitment XP. Current XP moves by the same amount, so XP earned in play is kept. */
   starting_xp?: number;
+  /** A starting skill is still to be chosen (shown as "Starting skill missing"). */
+  free_skill?: boolean;
   // New: optional stat adjustments to be applied as user effects
   stat_adjustments?: Record<string, number>;
 }
@@ -1491,6 +1493,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (params.note !== undefined) updateData.note = params.note;
     if (params.note_backstory !== undefined) updateData.note_backstory = params.note_backstory;
     if (params.fighter_gang_legacy_id !== undefined) updateData.fighter_gang_legacy_id = params.fighter_gang_legacy_id;
+    if (params.free_skill !== undefined) updateData.free_skill = params.free_skill;
 
     // Advancements are counted from Starting XP, so XP moves with it; see
     // xpAfterStartingXpChange.
@@ -1601,7 +1604,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     }
 
     const { data: updatedFighter, error: updateError } = await updateQuery
-      .select('id, fighter_name, label, kills, kill_count, cost_adjustment, fighter_subtypes, selected_archetype_id, xp, starting_xp')
+      .select('id, fighter_name, label, kills, kill_count, cost_adjustment, fighter_subtypes, selected_archetype_id, xp, starting_xp, free_skill')
       .single();
 
     if (updateError) {
