@@ -1433,6 +1433,7 @@ export default function FighterPage({
               gangId={fighterData.gang?.id || ''}
               gangTypeId={fighterData.fighter?.fighter_type?.gang_type_id}
               customGangTypeId={fighterData.fighter?.fighter_type?.custom_gang_type_id}
+              owningGangTypeId={fighterData.gang?.gang_type_id}
               is_spyrer={fighterData.fighter.is_spyrer}
               onClose={() => handleModalToggle('editFighter', false)}
               onEditMutate={(optimistic) => {
