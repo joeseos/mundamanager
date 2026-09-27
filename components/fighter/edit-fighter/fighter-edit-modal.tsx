@@ -11,7 +11,8 @@ import { toast } from 'sonner';
 import { applySpecialRulesModifiers, subtypeGrantsFromEffects } from '@/utils/effect-modifiers';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { N26_PROSPECT_SPECIALISATIONS, hasN26SpecialistSubtype } from '@/utils/keepTypePromotionN26';
-import { allowsMultipleSubtypes, hasFighterSpecialisations, namedTypeKeepsSubtypes, omitsNamedTypeSubtypeSuffix } from '@/types/edition';
+import { allowsMultipleSubtypes, hasFighterSpecialisations, hasStartingXp, namedTypeKeepsSubtypes, omitsNamedTypeSubtypeSuffix } from '@/types/edition';
+import { xpAfterStartingXpChange } from '@/utils/advancementRanks';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import {
   getArchetypeCatalogSubtype,
@@ -261,6 +262,21 @@ export function EditFighterModal({
 
   const allowMultipleSubtypes = allowsMultipleSubtypes(fighter.edition_slug);
 
+  // Blank keeps the current value: N/A is the type's call, not set from here.
+  // Seeded once, not in the init block below: that reruns when fighter types
+  // load and would wipe a value typed before then.
+  const [startingXpInput, setStartingXpInput] = useState(
+    fighter.starting_xp != null ? String(fighter.starting_xp) : ''
+  );
+  const showStartingXp = hasStartingXp(fighter.edition_slug);
+  const currentStartingXp = fighter.starting_xp ?? null;
+  const currentXp = fighter.xp ?? 0;
+  const nextStartingXp = startingXpInput.trim() === '' ? null : Number(startingXpInput);
+  const startingXpInvalid =
+    nextStartingXp !== null && (!Number.isInteger(nextStartingXp) || nextStartingXp < 0);
+  const startingXpChanged =
+    showStartingXp && nextStartingXp !== null && !startingXpInvalid && nextStartingXp !== currentStartingXp;
+
   // Fetch fighter subtypes for the subtype dropdown, scoped to the fighter's
   // edition: subtype_name is only unique within an edition, so an unscoped fetch
   // could resolve the wrong fighter_subtype_id (used for the archetype lookup)
@@ -500,6 +516,7 @@ export function EditFighterModal({
       fighter_variant?: string | null;
       fighter_gang_legacy_id?: string | null;
       selected_archetype_id?: string | null;
+      starting_xp?: number;
     }) => {
       const result = await updateFighterDetails({
         fighter_id: fighter.id,
@@ -518,6 +535,7 @@ export function EditFighterModal({
         fighter_variant: submit.fighter_variant,
         fighter_gang_legacy_id: submit.fighter_gang_legacy_id,
         selected_archetype_id: submit.selected_archetype_id,
+        starting_xp: submit.starting_xp,
         stat_adjustments: Object.keys(pendingStatAdjustments).length > 0 ? pendingStatAdjustments : undefined
       });
       if (!result.success) throw new Error(result.error || 'Failed to update fighter');
@@ -587,6 +605,12 @@ export function EditFighterModal({
               // Consumers read the embedded row, not the id.
               fighter_gang_legacy:
                 (availableLegacies.find(l => l.id === submit.fighter_gang_legacy_id) ?? null) as any,
+            }
+          : {}),
+        ...(submit.starting_xp !== undefined
+          ? {
+              starting_xp: submit.starting_xp,
+              xp: xpAfterStartingXpChange(currentXp, currentStartingXp, submit.starting_xp),
             }
           : {}),
         // Include optimistic effects overlay so UI updates instantly
@@ -944,6 +968,11 @@ export function EditFighterModal({
         submitData.fighter_gang_legacy_id = selectedGangLegacyId || null;
       }
 
+      // Sent only when changed: the server moves XP by the difference.
+      if (startingXpChanged) {
+        submitData.starting_xp = nextStartingXp;
+      }
+
       // Only include fighter type fields if we're actually updating the fighter type
       if (shouldUpdateFighterType && fighterTypeToUse) {
         if (!namedTypeKeepsSubtypes(fighter.edition_slug)) {
@@ -1220,6 +1249,32 @@ export function EditFighterModal({
               </div>
             </div>
 
+            {/* Starting XP - e.g. an Outcast made Leader; XP moves with it */}
+            {showStartingXp && (
+              <div>
+                <label htmlFor="starting_xp" className="block text-sm font-medium mb-1">
+                  Starting XP
+                </label>
+                <Input
+                  id="starting_xp"
+                  type="number"
+                  min={0}
+                  step={1}
+                  placeholder="N/A"
+                  value={startingXpInput}
+                  onChange={(e) => setStartingXpInput(e.target.value)}
+                  className="w-full"
+                />
+                <div className="mt-1 text-sm text-muted-foreground">
+                  {startingXpInvalid
+                    ? 'Enter a whole number of 0 or more.'
+                    : startingXpChanged
+                      ? `XP: ${currentXp} → ${xpAfterStartingXpChange(currentXp, currentStartingXp, nextStartingXp!)}. XP earned since recruitment is kept.`
+                      : `Current: ${currentStartingXp ?? 'N/A'}`}
+                </div>
+              </div>
+            )}
+
             {/* Specialisation - the fighter's own, never its type's */}
             {canHaveSpecialisation && (
               <div>
@@ -1418,6 +1473,7 @@ export function EditFighterModal({
         onConfirm={handleConfirm}
         confirmDisabled={
           !formValues.name.trim() ||
+          (showStartingXp && startingXpInvalid) ||
           (!allowsMultipleSubtypes(fighter.edition_slug) &&
             selectedFighterSubtypes.length === 0 &&
             (fighter.fighter_subtypes?.length ?? 0) > 0)

@@ -11,7 +11,7 @@ import { logFighterAction } from './logs/fighter-logs';
 import { countsTowardRating, hasKilledStatusFlag } from '@/utils/fighter-status';
 import { updateGangFinancials, updateGangRatingSimple, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 import { insertFighterOoaRecords } from './fighter-ooa-records';
-import { allowsMultipleSubtypes, namedTypeKeepsSubtypes } from '@/types/edition';
+import { allowsMultipleSubtypes, hasStartingXp, namedTypeKeepsSubtypes } from '@/types/edition';
 import { resolveFighterEditionSlug } from '@/utils/fighter-subtype-grants';
 import { shouldClearSpecialisationForSubtypes } from '@/utils/keepTypePromotionN26';
 import { assertArchetypeAssignable } from '@/utils/assertArchetypeAssignable';
@@ -20,6 +20,7 @@ import { syncFighter } from '@/utils/syncVenatorSkillOverrides';
 import { isVenatorGang } from '@/utils/venatorSkillAccess';
 import { gangEditionSlug } from '@/types/edition';
 import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
+import { xpAfterStartingXpChange } from '@/utils/advancementRanks';
 
 async function getKilledStatusEffects(supabase: any, fighterId: string) {
   const { data: effects, error } = await supabase
@@ -113,6 +114,8 @@ export interface UpdateFighterDetailsParams {
   note_backstory?: string;
   fighter_gang_legacy_id?: string | null;
   selected_archetype_id?: string | null;
+  /** Recruitment XP. Current XP moves by the same amount, so XP earned in play is kept. */
+  starting_xp?: number;
   // New: optional stat adjustments to be applied as user effects
   stat_adjustments?: Record<string, number>;
 }
@@ -1387,7 +1390,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     // Get fighter data (RLS will handle permissions)
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, user_id, cost_adjustment, kills, kill_count, killed, retired, enslaved, captured, fighter_name, fighter_subtypes, selected_archetype_id, fighter_pet_id')
+      .select('id, gang_id, user_id, cost_adjustment, kills, kill_count, killed, retired, enslaved, captured, fighter_name, fighter_subtypes, selected_archetype_id, fighter_pet_id, xp, starting_xp')
       .eq('id', params.fighter_id)
       .single();
 
@@ -1489,6 +1492,28 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (params.note_backstory !== undefined) updateData.note_backstory = params.note_backstory;
     if (params.fighter_gang_legacy_id !== undefined) updateData.fighter_gang_legacy_id = params.fighter_gang_legacy_id;
 
+    // Advancements are counted from Starting XP, so XP moves with it; see
+    // xpAfterStartingXpChange.
+    const previousStartingXp: number | null = fighter.starting_xp ?? null;
+    const previousXp: number = fighter.xp ?? 0;
+    const changesStartingXp =
+      params.starting_xp !== undefined && params.starting_xp !== previousStartingXp;
+
+    if (changesStartingXp) {
+      const startingXp = params.starting_xp!;
+      if (!Number.isInteger(startingXp) || startingXp < 0) {
+        return { success: false, error: 'Starting XP must be a whole number of 0 or more.' };
+      }
+      if (resolvedEditionSlug === undefined) {
+        resolvedEditionSlug = await resolveFighterEditionSlug(supabase, params.fighter_id);
+      }
+      if (!hasStartingXp(resolvedEditionSlug)) {
+        return { success: false, error: 'This edition has no Starting XP.' };
+      }
+      updateData.starting_xp = startingXp;
+      updateData.xp = xpAfterStartingXpChange(previousXp, previousStartingXp, startingXp);
+    }
+
     // Archetype: reject illegal assigns; clear when subtypes invalidate the current one
     const previousArchetypeId: string | null = fighter.selected_archetype_id ?? null;
     let clearedArchetype = false;
@@ -1563,7 +1588,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       .from('fighters')
       .update(updateData)
       .eq('id', params.fighter_id)
-      .select('id, fighter_name, label, kills, kill_count, cost_adjustment, fighter_subtypes, selected_archetype_id')
+      .select('id, fighter_name, label, kills, kill_count, cost_adjustment, fighter_subtypes, selected_archetype_id, xp, starting_xp')
       .single();
 
     if (updateError) throw updateError;
@@ -1759,6 +1784,20 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
           newCredits: costAdjustmentFinancialResult?.newValues?.credits,
           newRating: costAdjustmentFinancialResult?.newValues?.rating,
           newWealth: costAdjustmentFinancialResult?.newValues?.wealth
+        });
+      }
+
+      if (changesStartingXp) {
+        await logFighterAction({
+          gang_id: fighter.gang_id,
+          fighter_id: params.fighter_id,
+          fighter_name: updatedFighter.fighter_name,
+          action_type: 'fighter_starting_xp_changed',
+          old_value: previousStartingXp ?? 'N/A',
+          new_value: updatedFighter.starting_xp,
+          old_xp: previousXp,
+          new_xp: updatedFighter.xp,
+          user_id: user.id
         });
       }
     } catch (logError) {
