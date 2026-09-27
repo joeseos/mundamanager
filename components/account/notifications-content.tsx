@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, type MouseEvent } from 'react';
+import { useState, useEffect } from 'react';
 import { LuOctagonX, LuUserPlus, LuTriangleAlert, LuSwords, LuLink2, LuArrowUpRight } from "react-icons/lu";
 import { LuCheck } from "react-icons/lu";
 import { ImInfo } from "react-icons/im";
@@ -103,10 +103,7 @@ function NotificationActionButtons({
   return (
     <div className="flex gap-2 items-center ml-2 self-center mt-2">
       <Button
-        onClick={(e) => {
-          e.stopPropagation();
-          onDecline();
-        }}
+        onClick={onDecline}
         disabled={pending !== null}
         variant="outline_remove"
         size="sm"
@@ -116,10 +113,7 @@ function NotificationActionButtons({
         {pending === 'decline' ? 'Declining...' : 'Decline'}
       </Button>
       <Button
-        onClick={(e) => {
-          e.stopPropagation();
-          onAccept();
-        }}
+        onClick={onAccept}
         disabled={pending !== null}
         variant="outline_accept"
         size="sm"
@@ -235,12 +229,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
 
   // The link navigates by itself (external links in a new tab), so this only
   // marks the notification as read
-  const handleNotificationLinkClick = (
-    event: MouseEvent,
-    notification: Notification
-  ) => {
-    event.stopPropagation();
-
+  const handleNotificationLinkClick = (notification: Notification) => {
     if (!notification.dismissed) {
       markRead([notification.id]);
     }
@@ -283,7 +272,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
           target="_blank"
           rel="noopener noreferrer"
           className={attachmentClassName}
-          onClick={(event) => handleNotificationLinkClick(event, notification)}
+          onClick={() => handleNotificationLinkClick(notification)}
         >
           {attachmentContent}
         </a>
@@ -294,7 +283,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
       <Link
         href={href}
         className={attachmentClassName}
-        onClick={(event) => handleNotificationLinkClick(event, notification)}
+        onClick={() => handleNotificationLinkClick(notification)}
       >
         {attachmentContent}
       </Link>
@@ -366,10 +355,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                   )}
                   {!isActionableNotification(notification.type) && (
                     <Button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setNotificationToDelete(notification.id);
-                      }}
+                      onClick={() => setNotificationToDelete(notification.id)}
                       variant="ghost"
                       size="icon"
                       className="ml-2 shrink-0 text-gray-400 hover:text-red-500 hover:bg-transparent"
