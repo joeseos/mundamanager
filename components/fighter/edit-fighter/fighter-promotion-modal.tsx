@@ -208,14 +208,9 @@ export function FighterPromotionModal({
     [currentSubtypes, currentSubtype]
   );
 
-  // Outcast Leader takes the same subtype rebuild as Champion→Leader. It starts
-  // checked for a Loner, whose rules are written for it, or when the fighter
-  // has no other promotion (e.g. a Brute).
-  const hasRegularPromotion =
-    isSimplifiedPath || isN26ChampionLeaderPromotion || Boolean(targetSubtype);
-  const outcastLeaderByDefault =
-    Boolean(outcastLeader) && (resolvedSubtypes.includes('Loner') || !hasRegularPromotion);
-  const [promoteToOutcastLeader, setPromoteToOutcastLeader] = useState(outcastLeaderByDefault);
+  // Outcast Leader takes the same subtype rebuild as Champion→Leader. Opt-in:
+  // the checkbox starts unchecked for every fighter.
+  const [promoteToOutcastLeader, setPromoteToOutcastLeader] = useState(false);
   const isOutcastLeaderPath = Boolean(outcastLeader) && promoteToOutcastLeader;
   const outcastLeaderRemovedSubtypes = resolvedSubtypes.filter(
     (subtype) => !n26ChampionLeaderSubtypes.includes(subtype)
@@ -301,9 +296,8 @@ export function FighterPromotionModal({
   // Reset state on each open, pre-select the first eligible type
   const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
   if (isOpen && !prevIsOpen) {
-    setPromoteToOutcastLeader(outcastLeaderByDefault);
-    // An Outcast Leader keeps its rules, as the simplified paths do.
-    if (isSimplifiedPath || outcastLeaderByDefault) {
+    setPromoteToOutcastLeader(false);
+    if (isSimplifiedPath) {
       setSelectedTypeId('');
       setSelectedSpecialisationId('');
       setIncludeAllGangFighterTypes(false);
