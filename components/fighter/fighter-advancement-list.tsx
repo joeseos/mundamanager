@@ -212,7 +212,6 @@ interface AdvancementsListProps {
   /** The owning gang's type; gangTypeId is the fighter type's. Gates Outcast Leader. */
   owningGangTypeId?: string;
   isVehicle?: boolean;
-  fighterFreeSkill?: boolean;
   fighterSpecialRules?: string[];
   fighterTypeName?: string;
   fighterTypeId?: string;
@@ -229,7 +228,6 @@ interface AdvancementsListProps {
     promoted_from_prospect?: boolean;
     xp?: number;
     starting_xp?: number | null;
-    free_skill?: boolean;
   }) => void;
 }
 
@@ -3062,7 +3060,6 @@ export function AdvancementsList({
   customGangTypeId = '',
   owningGangTypeId = '',
   isVehicle = false,
-  fighterFreeSkill = false,
   fighterSpecialRules = [],
   fighterTypeName = '',
   fighterTypeId = '',
@@ -3194,9 +3191,7 @@ export function AdvancementsList({
         special_rules: fighterSpecialRules,
         promoted_from_prospect: promotedFromProspect,
         ...currentPromotionSpecialisation,
-        ...(isOutcastLeader
-          ? { xp: fighterXp, starting_xp: fighterStartingXp, free_skill: fighterFreeSkill }
-          : {}),
+        ...(isOutcastLeader ? { xp: fighterXp, starting_xp: fighterStartingXp } : {}),
       };
       const previousSkills = { ...skills };
       const creditsIncrease =
@@ -3286,15 +3281,11 @@ export function AdvancementsList({
       if (promotion.kind === 'n26_outcast_leader') {
         // Settle the optimistic XP on what the server wrote.
         const { fighter: promoted, warning } = result as {
-          fighter?: { xp: number; starting_xp?: number | null; free_skill?: boolean };
+          fighter?: { xp: number; starting_xp?: number | null };
           warning?: string;
         };
         if (promoted) {
-          onFighterDetailsUpdate?.({
-            xp: promoted.xp,
-            starting_xp: promoted.starting_xp ?? null,
-            free_skill: promoted.free_skill,
-          });
+          onFighterDetailsUpdate?.({ xp: promoted.xp, starting_xp: promoted.starting_xp ?? null });
         }
         if (warning) {
           toast.error(warning);

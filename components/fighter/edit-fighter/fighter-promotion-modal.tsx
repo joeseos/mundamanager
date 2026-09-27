@@ -100,8 +100,6 @@ export type FighterPromotionResult = {
   promoted_from_prospect?: boolean;
   /** Outcast Leader: the new Starting XP. */
   starting_xp?: number;
-  /** Outcast Leader: a free starting skill is owed. */
-  free_skill?: boolean;
 };
 
 function promotionSpecialisationFields(
@@ -372,7 +370,6 @@ export function FighterPromotionModal({
         fighter_subtypes: n26ChampionLeaderSubtypes,
         special_rules: newSpecialRules,
         starting_xp: N26_OUTCAST_LEADER_STARTING_XP,
-        free_skill: true,
       });
       return;
     }
@@ -496,8 +493,7 @@ export function FighterPromotionModal({
                   Pets from this fighter&apos;s wargear start with{' '}
                   <strong>{N26_OUTCAST_LEADER_PET_STARTING_XP}</strong> XP
                 </li>
-                <li>Gets a free starting skill to choose</li>
-                <li>Existing skills, equipment and rating are unchanged</li>
+                <li>Skills, equipment and rating are unchanged</li>
               </ul>
             </div>
           ) : isN26ProspectPromotion ? (

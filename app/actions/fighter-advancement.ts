@@ -177,7 +177,6 @@ export interface AdvancementResult {
     id: string;
     xp: number;
     starting_xp?: number | null;
-    free_skill?: boolean;
   };
   advancement?: {
     credits_increase: number;
@@ -1218,8 +1217,7 @@ export async function applyN26ChampionLeaderPromotion(
  * The fighter keeps its type, skills, equipment and cost. Leader replaces
  * Champion/Ganger/Prospect and Loner goes (the Champion→Leader rebuild),
  * Starting XP becomes 61, and pets linked through the fighter's wargear start
- * on 13. No skill is granted, but a free starting skill is owed, as on the
- * Outcast Leader profiles. Starting XP goes through updateFighterDetails,
+ * on 13. No skill is granted. Starting XP goes through updateFighterDetails,
  * which moves XP with it and logs the change.
  */
 export async function applyN26OutcastLeaderPromotion(
@@ -1265,7 +1263,6 @@ export async function applyN26OutcastLeaderPromotion(
         params.special_rules ??
         (Array.isArray(before.special_rules) ? before.special_rules : []),
       starting_xp: N26_OUTCAST_LEADER_STARTING_XP,
-      free_skill: true,
     });
 
     if (!promotionResult.success) {
@@ -1306,12 +1303,7 @@ export async function applyN26OutcastLeaderPromotion(
       success: true,
       warning: warnings.length > 0 ? warnings.join(' ') : undefined,
       fighter: promoted
-        ? {
-            id: promoted.id,
-            xp: promoted.xp,
-            starting_xp: promoted.starting_xp,
-            free_skill: promoted.free_skill,
-          }
+        ? { id: promoted.id, xp: promoted.xp, starting_xp: promoted.starting_xp }
         : undefined,
     };
   } catch (error) {

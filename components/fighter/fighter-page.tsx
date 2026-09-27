@@ -939,7 +939,6 @@ export default function FighterPage({
             customGangTypeId={fighterData.fighter?.fighter_type?.custom_gang_type_id || ''}
             owningGangTypeId={fighterData.gang?.gang_type_id || ''}
             isVehicle={isVehicle}
-            fighterFreeSkill={fighterData.fighter?.free_skill ?? false}
             fighterSpecialRules={fighterData.fighter?.special_rules || []}
             fighterTypeName={fighterData.fighter?.fighter_type?.fighter_type || ''}
             fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
@@ -957,7 +956,6 @@ export default function FighterPage({
                       promoted_from_prospect: patch.promoted_from_prospect ?? prev.fighter.promoted_from_prospect,
                       xp: patch.xp ?? prev.fighter.xp,
                       starting_xp: patch.starting_xp !== undefined ? patch.starting_xp : prev.fighter.starting_xp,
-                      free_skill: patch.free_skill ?? prev.fighter.free_skill,
                       fighter_type:
                         patch.fighter_type !== undefined && patch.fighter_type_id !== undefined
                           ? {
