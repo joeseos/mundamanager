@@ -1808,20 +1808,6 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
           newWealth: costAdjustmentFinancialResult?.newValues?.wealth
         });
       }
-
-      if (changesStartingXp) {
-        await logFighterAction({
-          gang_id: fighter.gang_id,
-          fighter_id: params.fighter_id,
-          fighter_name: updatedFighter.fighter_name,
-          action_type: 'fighter_starting_xp_changed',
-          old_value: previousStartingXp ?? 'N/A',
-          new_value: updatedFighter.starting_xp,
-          old_xp: previousXp,
-          new_xp: updatedFighter.xp,
-          user_id: user.id
-        });
-      }
     } catch (logError) {
       console.error('Failed to log fighter details changes:', logError);
     }

@@ -1218,7 +1218,7 @@ export async function applyN26ChampionLeaderPromotion(
  * Champion/Ganger/Prospect and Loner goes (the Champion→Leader rebuild),
  * Starting XP becomes 61, and pets linked through the fighter's wargear start
  * on 13. No skill is granted. Starting XP goes through updateFighterDetails,
- * which moves XP with it and logs the change.
+ * which moves XP with it.
  *
  * Meant for gang creation, when nothing has been earned yet. Promoted later,
  * a fighter keeps its earned XP but may lose unspent Advancements, since the
