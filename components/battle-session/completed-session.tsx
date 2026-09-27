@@ -132,6 +132,7 @@ export default function CompletedSession({
             {p.user_id === userId && (
               <Link
                 href={`/gang/${p.gang_id}`}
+                prefetch={false}
                 className="mt-2 inline-block text-sm text-blue-600 hover:underline dark:text-blue-400"
               >
                 View Gang
@@ -145,6 +146,7 @@ export default function CompletedSession({
       <div className="flex justify-center gap-4">
         <Link
           href={`/gang/${session.participants.find((p) => p.user_id === userId)?.gang_id || ''}`}
+          prefetch={false}
           className="rounded-lg border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100 dark:border-neutral-600 dark:hover:bg-neutral-800"
         >
           Back to Gang
@@ -152,6 +154,7 @@ export default function CompletedSession({
         {session.campaign_id && (
           <Link
             href={`/campaigns/${session.campaign_id}`}
+            prefetch={false}
             className="rounded-lg border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100 dark:border-neutral-600 dark:hover:bg-neutral-800"
           >
             View Campaign

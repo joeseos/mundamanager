@@ -66,7 +66,7 @@ export default function UnsubscribeClient() {
     return (
       <div className="space-y-4">
         <p className="text-sm">{state.message}</p>
-        <Link href="/account" className="text-sm text-primary underline">
+        <Link href="/account" prefetch={false} className="text-sm text-primary underline">
           Manage email preferences
         </Link>
       </div>
@@ -77,7 +77,7 @@ export default function UnsubscribeClient() {
     return (
       <div className="space-y-4">
         <p className="text-sm">{state.message}</p>
-        <Link href="/account" className="text-sm text-primary underline">
+        <Link href="/account" prefetch={false} className="text-sm text-primary underline">
           Manage email preferences
         </Link>
       </div>

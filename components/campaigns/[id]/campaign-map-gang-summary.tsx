@@ -93,6 +93,7 @@ export default function CampaignMapGangSummary({ territories, allGangs }: Campai
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted" style={{ color: gang.gang_colour }}>
                 <Link
                   href={`/gang/${gang.id}`}
+                  prefetch={false}
                   className="hover:text-muted-foreground transition-colors"
                 >
                   {gang.name}
