@@ -244,6 +244,8 @@ const EDITION_CAPABILITIES = {
   venatorSkillAccess:       { n23: false, n26: true  },
   /** A Spyrer's Rig Glitches can send them into Recovery, so they get the Recovery toggle. */
   spyrerRecovery:           { n23: false, n26: true  },
+  /** Spyrers spend kills on Power Boosts for their hunting rig. */
+  spyrerPowerBoosts:        { n23: true,  n26: false },
 } as const satisfies Record<string, Record<EditionSlug, unknown>>;
 
 type EditionCapability = keyof typeof EDITION_CAPABILITIES;
@@ -439,6 +441,9 @@ export const hasVenatorSkillAccess = (editionSlug: string | null | undefined): b
 
 export const hasSpyrerRecovery = (editionSlug?: string | null): boolean =>
   can('spyrerRecovery', editionSlug);
+
+export const hasSpyrerPowerBoosts = (editionSlug?: string | null): boolean =>
+  can('spyrerPowerBoosts', editionSlug);
 
 export interface Edition {
   id: string;
