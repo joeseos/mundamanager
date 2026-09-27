@@ -326,19 +326,24 @@ export const N26_OUTCAST_LEADER_STARTING_XP = 61;
 /** Starting XP of a pet that came with the new Outcast Leader's wargear. */
 export const N26_OUTCAST_LEADER_PET_STARTING_XP = 13;
 
+/** The N26 Hired Guns gang type: the only fighter types that can become Outcast Leader. */
+export const N26_HIRED_GUNS_GANG_TYPE_ID = '38d29f27-ac44-4167-ac90-f95f0cc9a301';
+
 /**
- * True when this fighter can be elevated to the gang's Outcast Leader. Any
- * fighter can: the rules let an Outcast gang be led by a fighter from any list.
- * Keyed on the owning gang's type, not the fighter type's, since the fighter is
- * usually a Hired Gun or other addition. Vehicles are left out.
+ * True when this fighter can be elevated to the gang's Outcast Leader: a Hired
+ * Gun (its fighter type's gang type) in an N26 Outcast gang (the owning gang's
+ * type), not yet a Leader. The gang's own fighters promote to a Leader type
+ * instead. Vehicles are left out.
  */
 export function canPromoteToN26OutcastLeader(args: {
   owningGangTypeId?: string | null;
+  fighterTypeGangTypeId?: string | null;
   subtypes?: string[] | null;
   isVehicle?: boolean;
 }): boolean {
   return (
     args.owningGangTypeId === N26_UNDERHIVE_OUTCASTS_GANG_TYPE_ID &&
+    args.fighterTypeGangTypeId === N26_HIRED_GUNS_GANG_TYPE_ID &&
     !args.isVehicle &&
     !(args.subtypes ?? []).includes('Leader')
   );

@@ -3076,9 +3076,11 @@ export function AdvancementsList({
   // cost to list and nothing to refund when one is undone.
   const isCumulativeXp = hasCumulativeXp(editionSlug);
 
-  // Any fighter in an N26 Outcast gang can be elevated to its Leader.
+  // A Hired Gun in an N26 Outcast gang can be elevated to its Leader.
+  // gangTypeId is the fighter type's gang type.
   const canPromoteToOutcastLeader = canPromoteToN26OutcastLeader({
     owningGangTypeId,
+    fighterTypeGangTypeId: gangTypeId,
     subtypes: fighterSubtypes,
     isVehicle,
   });

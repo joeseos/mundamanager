@@ -1212,7 +1212,7 @@ export async function applyN26ChampionLeaderPromotion(
 }
 
 /**
- * N26-only: elevate any fighter in an Outcast gang to its Outcast Leader.
+ * N26-only: elevate a Hired Gun in an Outcast gang to its Outcast Leader.
  *
  * The fighter keeps its type, skills, equipment and cost. Leader replaces
  * Champion/Ganger/Prospect and Loner goes (the Champion→Leader rebuild),
@@ -1233,7 +1233,12 @@ export async function applyN26OutcastLeaderPromotion(
 
     const { data: before, error: beforeError } = await supabase
       .from('fighters')
-      .select('id, fighter_subtypes, special_rules, is_vehicle, gangs!gang_id ( gang_type_id )')
+      .select(`
+        id, fighter_subtypes, special_rules, is_vehicle,
+        gangs!gang_id ( gang_type_id ),
+        fighter_types:fighter_type_id ( gang_type_id ),
+        custom_fighter_types:custom_fighter_type_id ( gang_type_id )
+      `)
       .eq('id', params.fighter_id)
       .single();
 
@@ -1247,15 +1252,20 @@ export async function applyN26OutcastLeaderPromotion(
     if (currentSubtypes.includes('Leader')) {
       return { success: false, error: 'This fighter is already a Leader' };
     }
-    const owningGangTypeId = (before.gangs as { gang_type_id?: string | null } | null)?.gang_type_id;
+    type GangTypeRef = { gang_type_id?: string | null } | null;
+    const owningGangTypeId = (before.gangs as GangTypeRef)?.gang_type_id;
+    const fighterTypeGangTypeId =
+      (before.fighter_types as GangTypeRef)?.gang_type_id ??
+      (before.custom_fighter_types as GangTypeRef)?.gang_type_id;
     if (!canPromoteToN26OutcastLeader({
       owningGangTypeId,
+      fighterTypeGangTypeId,
       subtypes: currentSubtypes,
       isVehicle: before.is_vehicle,
     })) {
       return {
         success: false,
-        error: 'Outcast Leader promotion is only available to fighters in an N26 Outcast gang',
+        error: 'Outcast Leader promotion is only available to Hired Guns in an N26 Outcast gang',
       };
     }
 

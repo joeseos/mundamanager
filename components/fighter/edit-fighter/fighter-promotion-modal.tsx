@@ -133,8 +133,9 @@ interface FighterPromotionModalProps {
   /** When true, shows guidance to use Add Advancement for XP-based promotion. */
   showXpPromotionHint?: boolean;
   /**
-   * Set when the fighter can be elevated to Outcast Leader (N26 Outcast gang,
-   * not yet a Leader); shows the checkbox. Its XP drives the preview.
+   * Set when the fighter can be elevated to Outcast Leader (a Hired Gun in an
+   * N26 Outcast gang, not yet a Leader); shows the checkbox. Its XP drives the
+   * preview.
    */
   outcastLeader?: {
     currentXp: number;
