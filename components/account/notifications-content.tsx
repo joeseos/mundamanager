@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect, type MouseEvent } from 'react';
+import { useState, useEffect } from 'react';
 import { LuOctagonX, LuUserPlus, LuTriangleAlert, LuSwords, LuLink2, LuArrowUpRight } from "react-icons/lu";
 import { LuCheck } from "react-icons/lu";
 import { ImInfo } from "react-icons/im";
 import { HiX } from "react-icons/hi";
 import { cn } from '@/app/lib/utils';
 import { useDeleteNotification, useMarkNotificationsRead, useNotifications, type Notification } from '../../hooks/use-notifications';
-import { useRouter, usePathname } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Modal from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
@@ -103,10 +103,7 @@ function NotificationActionButtons({
   return (
     <div className="flex gap-2 items-center ml-2 self-center mt-2">
       <Button
-        onClick={(e) => {
-          e.stopPropagation();
-          onDecline();
-        }}
+        onClick={onDecline}
         disabled={pending !== null}
         variant="outline_remove"
         size="sm"
@@ -116,10 +113,7 @@ function NotificationActionButtons({
         {pending === 'decline' ? 'Declining...' : 'Decline'}
       </Button>
       <Button
-        onClick={(e) => {
-          e.stopPropagation();
-          onAccept();
-        }}
+        onClick={onAccept}
         disabled={pending !== null}
         variant="outline_accept"
         size="sm"
@@ -135,7 +129,6 @@ function NotificationActionButtons({
 export default function NotificationsContent({ userId }: { userId: string }) {
   const [notificationToDelete, setNotificationToDelete] = useState<string | null>(null);
   const [processingRequest, setProcessingRequest] = useState<{ id: string; response: NotificationResponse } | null>(null);
-  const router = useRouter();
   const pathname = usePathname();
   const isProfilePage = pathname === '/account';
 
@@ -234,29 +227,9 @@ export default function NotificationsContent({ userId }: { userId: string }) {
   // Shared with the email worker via utils/notifications/render so both channels match.
   const renderNotificationText = (text: string) => notificationTextToHtml(text);
 
-  const handleNotificationLinkClick = (
-    event: MouseEvent,
-    notification: Notification
-  ) => {
-    event.stopPropagation();
-
-    if (!shouldShowLinkAttachment(notification)) {
-      return;
-    }
-
-    const resolved = resolveNotificationLink(notification.link);
-    if (!resolved) {
-      return;
-    }
-
-    const { href, isExternal } = resolved;
-
-    if (isExternal) {
-      window.open(href, '_blank', 'noopener,noreferrer');
-    } else {
-      router.push(href);
-    }
-
+  // The link navigates by itself (external links in a new tab), so this only
+  // marks the notification as read
+  const handleNotificationLinkClick = (notification: Notification) => {
     if (!notification.dismissed) {
       markRead([notification.id]);
     }
@@ -299,7 +272,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
           target="_blank"
           rel="noopener noreferrer"
           className={attachmentClassName}
-          onClick={(event) => handleNotificationLinkClick(event, notification)}
+          onClick={() => handleNotificationLinkClick(notification)}
         >
           {attachmentContent}
         </a>
@@ -310,7 +283,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
       <Link
         href={href}
         className={attachmentClassName}
-        onClick={(event) => handleNotificationLinkClick(event, notification)}
+        onClick={() => handleNotificationLinkClick(notification)}
       >
         {attachmentContent}
       </Link>
@@ -382,10 +355,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                   )}
                   {!isActionableNotification(notification.type) && (
                     <Button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setNotificationToDelete(notification.id);
-                      }}
+                      onClick={() => setNotificationToDelete(notification.id)}
                       variant="ghost"
                       size="icon"
                       className="ml-2 shrink-0 text-gray-400 hover:text-red-500 hover:bg-transparent"
