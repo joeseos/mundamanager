@@ -25,7 +25,8 @@ export type Notification = {
   created_at: string;
   dismissed: boolean;
   link: string | null;
-  sender_id: string;
+  // Null when no user sent it, e.g. admin notifications
+  sender_id: string | null;
 };
 
 export const notificationsQueryKey = (userId: string) => ['notifications', userId] as const;
