@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo } from 'react';
+import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { createClient } from '@/utils/supabase/client';
 import type { NotificationType } from '@/utils/notifications';
@@ -29,13 +29,12 @@ export type Notification = {
 };
 
 export const notificationsQueryKey = (userId: string) => ['notifications', userId] as const;
+const deleteMutationKey = (userId: string) => ['notifications', userId, 'delete'] as const;
+const markReadMutationKey = (userId: string) => ['notifications', userId, 'mark-read'] as const;
 
-// Counts list fetches, so a mutation can tell whether one started while its
-// write was in flight and may have read the rows from before it.
-let fetchesStarted = 0;
+const NO_NOTIFICATIONS: Notification[] = [];
 
 async function fetchNotifications(userId: string, signal: AbortSignal): Promise<Notification[]> {
-  fetchesStarted++;
   const { data, error } = await createClient()
     .from('notifications')
     .select('id, text, dismissed, type, created_at, link, sender_id')
@@ -49,67 +48,75 @@ async function fetchNotifications(userId: string, signal: AbortSignal): Promise<
   return data as Notification[];
 }
 
-const notificationsQueryOptions = (userId: string) => ({
-  queryKey: notificationsQueryKey(userId),
-  queryFn: ({ signal }: { signal: AbortSignal }) => fetchNotifications(userId, signal),
-  // Realtime keeps the list current while the header is subscribed; a fresh
-  // mount (page load, opening /account) still fetches.
-  staleTime: 0,
-});
-
+// The notifications as the user should see them: the cached list with the
+// deletes and mark-as-reads that are still being written applied on top.
+// Keeping pending changes out of the cache means a fetch that lands mid-write
+// can't undo them, and a write that fails simply drops out.
 export function useNotifications(userId: string) {
-  return useQuery(notificationsQueryOptions(userId));
+  const { data, refetch } = useQuery({
+    queryKey: notificationsQueryKey(userId),
+    queryFn: ({ signal }) => fetchNotifications(userId, signal),
+  });
+  const pendingDeletes = useMutationState({
+    filters: { mutationKey: deleteMutationKey(userId), status: 'pending' },
+    select: mutation => mutation.state.variables as string,
+  });
+  const pendingReads = useMutationState({
+    filters: { mutationKey: markReadMutationKey(userId), status: 'pending' },
+    select: mutation => mutation.state.variables as string[],
+  });
+
+  const notifications = useMemo(() => {
+    if (!data) return NO_NOTIFICATIONS;
+    if (pendingDeletes.length === 0 && pendingReads.length === 0) return data;
+
+    const deleted = new Set(pendingDeletes);
+    const read = new Set(pendingReads.flat());
+    return data
+      .filter(n => !deleted.has(n.id))
+      .map(n => (read.has(n.id) && !n.dismissed ? { ...n, dismissed: true } : n));
+  }, [data, pendingDeletes, pendingReads]);
+
+  return { notifications, refetch };
 }
 
 export function useUnreadNotificationCount(userId: string) {
-  const { data } = useQuery({
-    ...notificationsQueryOptions(userId),
-    select: (notifications: Notification[]) => notifications.filter(n => !n.dismissed).length,
-  });
-  return data ?? 0;
+  const { notifications } = useNotifications(userId);
+  return useMemo(() => notifications.filter(n => !n.dismissed).length, [notifications]);
 }
 
-// Applies a change to the cached list straight away. Fetches still in flight
-// are cancelled, since they may have read the rows from before the change.
-// After the write, the list is refetched only if another fetch started while
-// the write was in flight; otherwise the optimistic list is already current.
-function useOptimisticNotificationsMutation<TVariables>(
+// A write that useNotifications shows straight away while it is pending. Once
+// it succeeds, the cached list is updated to match. A fetch still running at
+// that point may have read the rows from before the write and would overwrite
+// that, so it is restarted.
+function useNotificationsMutation<TVariables>(
   userId: string,
+  mutationKey: readonly unknown[],
   write: (variables: TVariables) => Promise<void>,
   apply: (notifications: Notification[], variables: TVariables) => Notification[]
 ) {
   const queryClient = useQueryClient();
   const queryKey = notificationsQueryKey(userId);
 
-  const refetchIfFetchedDuringWrite = (fetchesAtStart: number) => {
-    if (fetchesStarted !== fetchesAtStart) {
-      queryClient.invalidateQueries({ queryKey });
-    }
-  };
-
   return useMutation({
+    mutationKey,
     mutationFn: write,
-    onMutate: async (variables: TVariables) => {
-      await queryClient.cancelQueries({ queryKey });
-      const previous = queryClient.getQueryData<Notification[]>(queryKey);
+    onSuccess: (_data, variables) => {
       queryClient.setQueryData<Notification[]>(queryKey, old => old && apply(old, variables));
-      return { previous, fetchesAtStart: fetchesStarted };
+      if (queryClient.isFetching({ queryKey }) > 0) {
+        queryClient.invalidateQueries({ queryKey });
+      }
     },
-    onError: (error, _variables, context) => {
+    onError: error => {
       console.error('Error updating notifications:', error);
-      if (!context) return;
-      queryClient.setQueryData(queryKey, context.previous);
-      refetchIfFetchedDuringWrite(context.fetchesAtStart);
-    },
-    onSuccess: (_data, _variables, context) => {
-      if (context) refetchIfFetchedDuringWrite(context.fetchesAtStart);
     },
   });
 }
 
 export function useMarkNotificationsRead(userId: string) {
-  return useOptimisticNotificationsMutation<string[]>(
+  return useNotificationsMutation<string[]>(
     userId,
+    markReadMutationKey(userId),
     async ids => {
       const { error } = await createClient()
         .from('notifications')
@@ -123,8 +130,9 @@ export function useMarkNotificationsRead(userId: string) {
 }
 
 export function useDeleteNotification(userId: string) {
-  return useOptimisticNotificationsMutation<string>(
+  return useNotificationsMutation<string>(
     userId,
+    deleteMutationKey(userId),
     async id => {
       const response = await fetch(`/api/notifications/${id}`, { method: 'DELETE' }).catch(
         error => {
@@ -132,7 +140,8 @@ export function useDeleteNotification(userId: string) {
           return null;
         }
       );
-      if (response?.ok) return;
+      // A 404 means it is already gone, e.g. removed by the server action that answered it
+      if (response?.ok || response?.status === 404) return;
       if (response) {
         console.error(`Error deleting notification via API: status ${response.status}`);
       }
