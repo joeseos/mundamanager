@@ -1584,14 +1584,36 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     }
 
     // Update fighter
-    const { data: updatedFighter, error: updateError } = await supabase
+    let updateQuery = supabase
       .from('fighters')
       .update(updateData)
-      .eq('id', params.fighter_id)
+      .eq('id', params.fighter_id);
+
+    // The new XP was computed from the values read above. Write only while they
+    // still hold, so an XP award saved in the meantime is not overwritten.
+    if (changesStartingXp) {
+      updateQuery = fighter.xp == null
+        ? updateQuery.is('xp', null)
+        : updateQuery.eq('xp', fighter.xp);
+      updateQuery = previousStartingXp == null
+        ? updateQuery.is('starting_xp', null)
+        : updateQuery.eq('starting_xp', previousStartingXp);
+    }
+
+    const { data: updatedFighter, error: updateError } = await updateQuery
       .select('id, fighter_name, label, kills, kill_count, cost_adjustment, fighter_subtypes, selected_archetype_id, xp, starting_xp')
       .single();
 
-    if (updateError) throw updateError;
+    if (updateError) {
+      // PGRST116: no row matched, so XP or Starting XP changed since the read
+      if (changesStartingXp && updateError.code === 'PGRST116') {
+        return {
+          success: false,
+          error: "This fighter's XP changed while you were editing. Reopen Edit Fighter and try again.",
+        };
+      }
+      throw updateError;
+    }
 
     // Keep skill-access overrides in sync with the persisted archetype (server-derived, not client-supplied)
     const ARCHETYPE_SKILL_ACCESS_WARNING =

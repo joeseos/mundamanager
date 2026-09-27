@@ -12,7 +12,7 @@ import { applySpecialRulesModifiers, subtypeGrantsFromEffects } from '@/utils/ef
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { N26_PROSPECT_SPECIALISATIONS, hasN26SpecialistSubtype } from '@/utils/keepTypePromotionN26';
 import { allowsMultipleSubtypes, hasFighterSpecialisations, hasStartingXp, namedTypeKeepsSubtypes, omitsNamedTypeSubtypeSuffix } from '@/types/edition';
-import { xpAfterStartingXpChange } from '@/utils/advancementRanks';
+import { advancementsEarnedFor, xpAfterStartingXpChange } from '@/utils/advancementRanks';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import {
   getArchetypeCatalogSubtype,
@@ -262,9 +262,9 @@ export function EditFighterModal({
 
   const allowMultipleSubtypes = allowsMultipleSubtypes(fighter.edition_slug);
 
-  // Blank keeps the current value: N/A is the type's call, not set from here.
-  // Seeded once, not in the init block below: that reruns when fighter types
-  // load and would wipe a value typed before then.
+  // Blank keeps the current value, which the placeholder shows: N/A is the
+  // type's call, not set from here. Seeded once, not in the init block below:
+  // that reruns when fighter types load and would wipe a value typed before then.
   const [startingXpInput, setStartingXpInput] = useState(
     fighter.starting_xp != null ? String(fighter.starting_xp) : ''
   );
@@ -276,6 +276,19 @@ export function EditFighterModal({
     nextStartingXp !== null && (!Number.isInteger(nextStartingXp) || nextStartingXp < 0);
   const startingXpChanged =
     showStartingXp && nextStartingXp !== null && !startingXpInvalid && nextStartingXp !== currentStartingXp;
+
+  // Tiers widen as XP rises, so the same earned XP can be worth fewer
+  // Advancements above a higher baseline. The preview says so when it happens.
+  const startingXpPreview = (() => {
+    if (startingXpInvalid) return 'Enter a whole number of 0 or more.';
+    if (!startingXpChanged) return `Current: ${currentStartingXp ?? 'N/A'}`;
+    const nextXp = xpAfterStartingXpChange(currentXp, currentStartingXp, nextStartingXp!);
+    const earnedBefore = advancementsEarnedFor(fighter.edition_slug, currentStartingXp, currentXp);
+    const earnedAfter = advancementsEarnedFor(fighter.edition_slug, nextStartingXp, nextXp);
+    return earnedBefore === earnedAfter
+      ? `XP: ${currentXp} → ${nextXp}. XP earned since recruitment is kept.`
+      : `XP: ${currentXp} → ${nextXp}. Advancements earned: ${earnedBefore} → ${earnedAfter}.`;
+  })();
 
   // Fetch fighter subtypes for the subtype dropdown, scoped to the fighter's
   // edition: subtype_name is only unique within an edition, so an unscoped fetch
@@ -1260,17 +1273,13 @@ export function EditFighterModal({
                   type="number"
                   min={0}
                   step={1}
-                  placeholder="N/A"
+                  placeholder={currentStartingXp != null ? String(currentStartingXp) : 'N/A'}
                   value={startingXpInput}
                   onChange={(e) => setStartingXpInput(e.target.value)}
                   className="w-full"
                 />
                 <div className="mt-1 text-sm text-muted-foreground">
-                  {startingXpInvalid
-                    ? 'Enter a whole number of 0 or more.'
-                    : startingXpChanged
-                      ? `XP: ${currentXp} → ${xpAfterStartingXpChange(currentXp, currentStartingXp, nextStartingXp!)}. XP earned since recruitment is kept.`
-                      : `Current: ${currentStartingXp ?? 'N/A'}`}
+                  {startingXpPreview}
                 </div>
               </div>
             )}
