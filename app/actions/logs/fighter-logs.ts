@@ -10,7 +10,7 @@ export interface FighterLogParams {
   fighter_id: string;
   fighter_name: string;
   action_type: 'fighter_added' | 'fighter_removed' | 'fighter_killed' | 'fighter_resurrected' | 'fighter_retired' | 'fighter_unretired' | 'fighter_enslaved' |
-              'fighter_xp_changed' | 'fighter_total_xp_changed' | 'fighter_OOA_changed' | 'fighter_kills_changed' | 'fighter_kill_count_changed' | 'fighter_cost_adjusted' |
+              'fighter_xp_changed' | 'fighter_total_xp_changed' | 'fighter_starting_xp_changed' | 'fighter_OOA_changed' | 'fighter_kills_changed' | 'fighter_kill_count_changed' | 'fighter_cost_adjusted' |
               'fighter_rescued' | 'fighter_starved' | 'fighter_fed' | 'fighter_captured' | 'fighter_released' | 'fighter_copied' |
               'rig_glitches_cleared_downtime';
   user_id?: string;
@@ -27,6 +27,9 @@ export interface FighterLogParams {
   /** OOA/kills values for combined XP+OOA log line */
   old_ooa?: number;
   new_ooa?: number;
+  /** XP moved alongside another change (Starting XP edits shift it) */
+  old_xp?: number;
+  new_xp?: number;
   /** Gang's edition, for descriptions whose wording the edition renames. */
   edition_slug?: string | null;
   oldCredits?: number;
@@ -117,6 +120,9 @@ export async function logFighterAction(params: FighterLogParams): Promise<GangLo
       }
       case 'fighter_total_xp_changed':
         description = `Fighter "${params.fighter_name}" total XP changed from ${params.old_value || 0} to ${params.new_value || 0}`;
+        break;
+      case 'fighter_starting_xp_changed':
+        description = `Fighter "${params.fighter_name}" Starting XP has been set to ${params.new_value}\nStarting XP: ${params.old_value} → ${params.new_value} | XP: ${params.old_xp ?? 0} → ${params.new_xp ?? 0}`;
         break;
       case 'fighter_kills_changed':
       case 'fighter_OOA_changed': {
