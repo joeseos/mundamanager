@@ -8,7 +8,7 @@ import { Combobox } from '@/components/ui/combobox';
 import Modal from '@/components/ui/modal';
 import { Badge } from '@/components/ui/badge';
 import { GrCycle } from 'react-icons/gr';
-import { LuMinus, LuPlus, LuWalletCards, LuWrench } from 'react-icons/lu';
+import { LuMinus, LuPlus, LuWalletCards } from 'react-icons/lu';
 import { FighterProps } from '@/types/fighter';
 import type { FighterEffect } from '@/types/fighter-effect';
 import { UserPermissions } from '@/types/user-permissions';
@@ -671,11 +671,10 @@ export default function PostCycleActions({
                     <Button
                       variant="outline"
                       size="sm"
-                      className="w-full gap-2"
+                      className="w-full"
                       onClick={() => fighterCardModals?.openVehicleDamageModal(fighter.id)}
                       disabled={!canEdit || !fighterCardModals}
                     >
-                      <LuWrench className="h-4 w-4" />
                       Repair Lasting Damage
                     </Button>
                   )}
