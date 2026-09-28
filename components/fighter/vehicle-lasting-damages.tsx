@@ -38,7 +38,7 @@ interface VehicleDamagesListProps {
   initialOpenAddModal?: boolean;
   /** When true, render only the add form (no list). Use when opening directly from gang card menu. */
   addFormOnly?: boolean;
-  /** When addFormOnly, called when user cancels or after successful add (closes parent modal). */
+  /** Closes the parent modal: after a successful add or repair, and on cancel when addFormOnly. */
   onRequestClose?: () => void;
   onDamageUpdate: (updatedDamages: FighterEffect[]) => void;
   /** Fighter-scoped damages only; an N23 damage sits on the vehicle and never touches the fighter. */
@@ -304,7 +304,7 @@ export function VehicleDamagesList({
       setSelectedHatredGangId('');
       setSelectedCapturingGangId('');
       setIsAddModalOpen(false);
-      if (addFormOnly) onRequestClose?.();
+      onRequestClose?.();
     },
     onError: (error, variables, context) => {
       // Rollback optimistic update
@@ -433,6 +433,7 @@ export function VehicleDamagesList({
       setRepairPercent(0);
       setSelectedRepairIds([]);
       setRepairType("Superficial Damage")
+      onRequestClose?.();
     },
     onError: (error, variables, context) => {
       // Rollback optimistic updates

@@ -327,10 +327,16 @@ export default function PostCycleActions({
     [fighters]
   );
 
+  // A fighter who can no longer act (e.g. sent to Recovery meanwhile) keeps no action.
+  const activeRows = useMemo(
+    () => new Map(Object.entries(rows).filter(([fighterId]) => actorIds.has(fighterId))),
+    [rows, actorIds]
+  );
+
   /** Patient id -> the fighter taking them to the Doc. */
   const doctorVisits = useMemo(() => {
     const visits = new Map<string, string>();
-    for (const [fighterId, row] of Object.entries(rows)) {
+    for (const [fighterId, row] of activeRows) {
       if (
         (row.action === 'medical_escort' || row.action === 'fit_bionics') &&
         row.targetFighterId
@@ -339,16 +345,18 @@ export default function PostCycleActions({
       }
     }
     return visits;
-  }, [rows]);
+  }, [activeRows]);
 
   const assignments = useMemo(
     () =>
-      Object.entries(rows)
+      [...activeRows]
         .map(([fighterId, row]) => toAssignment(fighterId, row))
         .filter((a): a is PostCycleAssignment => a !== null),
-    [rows]
+    [activeRows]
   );
-  const incompleteCount = Object.values(rows).filter((row) => missingPick(row) !== null).length;
+  const incompleteCount = [...activeRows.values()].filter(
+    (row) => missingPick(row) !== null
+  ).length;
 
   const issues = useMemo(
     () =>
@@ -430,7 +438,7 @@ export default function PostCycleActions({
         const reason =
           escortId && escortId !== performerId
             ? `with ${fighterById.get(escortId)?.fighter_name ?? 'another fighter'}`
-            : rows[f.id]
+            : activeRows.has(f.id)
               ? 'has an action'
               : null;
         return {
@@ -724,7 +732,7 @@ export default function PostCycleActions({
           // Cards another row claimed; the insert would silently drop a duplicate.
           reservedCardIds={
             new Set(
-              Object.entries(rows)
+              [...activeRows]
                 .filter(([fighterId]) => fighterId !== tacticsPickerFighterId)
                 .flatMap(([, other]) => other.tacticsCards.map((card) => card.id))
             )
