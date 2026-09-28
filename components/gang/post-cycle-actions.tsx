@@ -74,14 +74,14 @@ const emptyRow = (action: PostCycleActionId): RowState => ({
 
 /**
  * What a half-filled row still needs, or null once it is a full assignment.
- * '' means incomplete with no hint, where the row's own button already says so.
+ * '' means incomplete with no hint, where the row's own control already says so.
  */
 function missingPick(row: RowState): string | null {
   switch (row.action) {
     case 'medical_escort':
       return row.targetFighterId ? null : 'Choose who to escort.';
     case 'fit_bionics':
-      if (!row.targetFighterId) return 'Choose who gets the bionics.';
+      if (!row.targetFighterId) return '';
       return row.injuryIds.length > 0 ? null : 'Tick at least one injury to remove.';
     case 'develop_tactics':
       return row.tacticsCards.length > 0 ? null : '';
