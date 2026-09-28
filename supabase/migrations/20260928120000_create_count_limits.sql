@@ -22,8 +22,8 @@ CREATE TABLE public.count_limits (
     gang_origin_id  uuid        REFERENCES public.gang_origins(id) ON DELETE CASCADE,
     gang_subtype_id uuid        REFERENCES public.gang_subtype_types(id) ON DELETE CASCADE,
 
-    min_count       numeric,
-    max_count       numeric
+    min_count       integer,
+    max_count       integer
 );
 
 COMMENT ON COLUMN public.count_limits.fighter_type_id IS
@@ -73,7 +73,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.count_limits
 
 -- Today's limits as rules for every gang, so the Add Fighter list shows what it did before.
 INSERT INTO public.count_limits (fighter_type_id, max_count)
-SELECT id, limitation
+SELECT id, limitation::integer
 FROM public.fighter_types
 WHERE limitation IS NOT NULL;
 
@@ -126,8 +126,8 @@ RETURNS TABLE (
     attacks numeric,
     save numeric,
     -- From count_limits: the most specific rule matching the gang. NULL is no rule.
-    min_count numeric,
-    max_count numeric,
+    min_count integer,
+    max_count integer,
     alignment alignment,
     is_gang_addition boolean,
     alliance_id uuid,

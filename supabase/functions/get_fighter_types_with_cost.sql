@@ -37,8 +37,8 @@ RETURNS TABLE (
     attacks numeric,
     save numeric,
     -- From count_limits: the most specific rule matching the gang. NULL is no rule.
-    min_count numeric,
-    max_count numeric,
+    min_count integer,
+    max_count integer,
     alignment alignment,
     is_gang_addition boolean,
     alliance_id uuid,
