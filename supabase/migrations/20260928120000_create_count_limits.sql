@@ -84,9 +84,6 @@ SELECT id, 3
 FROM public.fighter_types
 WHERE id = '35aa846b-3023-4326-ae19-b138d486db11';
 
-COMMENT ON COLUMN public.fighter_types.limitation IS
-  'Superseded by count_limits and no longer read. Kept until that has run in production; to be dropped.';
-
 -- Drop previous versions. Every arg is defaulted, so leaving an older arity in place would make
 -- the PostgREST call ambiguous.
 DROP FUNCTION IF EXISTS get_fighter_types_with_cost(uuid, uuid, boolean, uuid);
