@@ -1,3 +1,5 @@
+import type { FighterTypeCountLimit } from '@/types/fighter-type';
+
 /**
  * EquipmentGrantOption - a single option in an equipment grants configuration
  */
@@ -98,6 +100,11 @@ export interface Weapon {
   hardpoint_operated_by?: 'crew' | 'passenger';
 }
 
+/** A count_limits rule on an equipment item, as the admin editor holds it. */
+export interface EquipmentCountLimit extends FighterTypeCountLimit {
+  for_fighter_type_id: string | null;
+}
+
 export interface Equipment {
   fighter_equipment_id: string;
   fighter_weapon_id?: string;
@@ -135,6 +142,8 @@ export interface Equipment {
   cost_type_resource_id?: string | null;
   cost_campaign_resource_id?: string | null;
   banned?: boolean;
+  min_count?: number | null;
+  max_count?: number | null;
   is_consumable?: boolean;
   // Cost breakdown for Exotic Beast equipment (base + advancements + equipment)
   beast_cost_breakdown?: {
