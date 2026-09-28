@@ -143,7 +143,7 @@ export const MEDICAL_ESCORT_MAX_USEFUL_STEPS = (() => {
   return steps;
 })();
 
-/** The fighter fields these rules read, so the server can pass plain rows. */
+/** The fighter fields these rules read, shared by FighterProps and GangFighter. */
 export interface PostCycleFighter {
   id: string;
   fighter_name: string;

@@ -2,12 +2,13 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
+import { hasGangTacticsCards, hasPostCycleActions } from '@/types/edition';
+import { getEditionIdBySlug } from '@/utils/editions';
 import {
-  gangEditionJoin,
-  gangEditionSlug,
-  hasGangTacticsCards,
-  hasPostCycleActions,
-} from '@/types/edition';
+  getGangCore,
+  getGangFightersList,
+  getGangTacticsCards,
+} from '@/app/lib/shared/gang-data';
 import { invalidateFighter } from '@/utils/cache-tags';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { addFighterInjury, deleteFighterInjury } from './fighter-injury';
@@ -24,7 +25,6 @@ import {
   postCycleTotalCredits,
   validatePostCycleAssignments,
   type PostCycleAssignment,
-  type PostCycleFighter,
 } from '@/utils/postCycleActions';
 import {
   medicalEscortStabilisedRoll,
@@ -79,57 +79,6 @@ export interface ApplyPostCycleActionsResult {
 
 const INJURY_CATEGORY = 'injuries';
 
-async function loadPostCycleFighters(
-  supabase: any,
-  gangId: string,
-  fighterIds: string[]
-): Promise<PostCycleFighter[]> {
-  const { data: fighters, error: fightersError } = await supabase
-    .from('fighters')
-    .select(
-      'id, fighter_name, fighter_subtypes, is_vehicle, killed, retired, enslaved, captured, recovery'
-    )
-    .eq('gang_id', gangId)
-    .in('id', fighterIds);
-
-  if (fightersError) throw new Error(fightersError.message || 'Failed to load fighters');
-  if (!fighters?.length) throw new Error('No matching fighters found in this gang');
-
-  const { data: effects, error: effectsError } = await supabase
-    .from('fighter_effects')
-    .select(
-      `
-      id,
-      fighter_id,
-      effect_name,
-      fighter_effect_type:fighter_effect_type_id (
-        fighter_effect_category:fighter_effect_category_id ( category_name )
-      )
-    `
-    )
-    .in(
-      'fighter_id',
-      fighters.map((f: any) => f.id)
-    );
-
-  if (effectsError) throw new Error(effectsError.message || 'Failed to load fighter effects');
-
-  const effectsByFighter = new Map<string, PostCycleFighter['effects']>();
-  for (const effect of effects || []) {
-    const category =
-      effect.fighter_effect_type?.fighter_effect_category?.category_name || 'uncategorized';
-    const bucket = effectsByFighter.get(effect.fighter_id) ?? {};
-    (bucket[category] ??= []).push(effect as any);
-    effectsByFighter.set(effect.fighter_id, bucket);
-  }
-
-  return fighters.map((fighter: any) => ({
-    ...fighter,
-    fighter_subtypes: fighter.fighter_subtypes ?? [],
-    effects: effectsByFighter.get(fighter.id) ?? {},
-  }));
-}
-
 /** Injury names repeat across editions, hence the edition id. */
 async function findInjuryTypeId(
   supabase: any,
@@ -167,25 +116,13 @@ export async function applyPostCycleActions(
       return { success: false, error: 'No Post-cycle Actions selected', results };
     }
 
-    const { data: gang, error: gangError } = await supabase
-      .from('gangs')
-      .select(
-        `
-        id, credits,
-        gang_types!gang_type_id ( editions:edition_id ( id, slug ) ),
-        custom_gang_type_edition:custom_gang_types!custom_gang_type_id ( editions:edition_id ( id, slug ) )
-      `
-      )
-      .eq('id', gangId)
-      .single();
-
-    if (gangError || !gang) {
+    const gang = await getGangCore(gangId, supabase);
+    if (!gang) {
       return { success: false, error: 'Gang not found', results };
     }
 
-    const editionSlug = gangEditionSlug(gang);
-    const editionId = gangEditionJoin(gang)?.id ?? null;
-    if (!hasPostCycleActions(editionSlug)) {
+    const editionSlug = gang.edition_slug;
+    if (!editionSlug || !hasPostCycleActions(editionSlug)) {
       return {
         success: false,
         error: 'Post-cycle Actions are only available for Necromunda (2026) gangs',
@@ -193,34 +130,16 @@ export async function applyPostCycleActions(
       };
     }
 
-    const involvedIds = Array.from(
-      new Set(
-        assignments.flatMap((assignment) =>
-          assignment.action === 'medical_escort' || assignment.action === 'fit_bionics'
-            ? [assignment.fighterId, assignment.targetFighterId]
-            : [assignment.fighterId]
-        )
-      )
-    );
-
-    const fighters = await loadPostCycleFighters(supabase, gangId, involvedIds);
+    const [fighters, ownedTacticsCards, editionId] = await Promise.all([
+      getGangFightersList(gangId, supabase, { gangEditionSlug: editionSlug }),
+      getGangTacticsCards(gangId, supabase),
+      getEditionIdBySlug(editionSlug),
+    ]);
     const byId = new Map(fighters.map((f) => [f.id, f]));
-
-    // Not getGangTacticsCards: that is cached, and this write needs current rows.
-    let ownedTacticsCardIds = new Set<string>();
-    if (assignments.some((a) => a.action === 'develop_tactics')) {
-      const { data: ownedCards } = await supabase
-        .from('gang_tactics_cards')
-        .select('tactics_cards_id')
-        .eq('gang_id', gangId);
-      ownedTacticsCardIds = new Set(
-        (ownedCards ?? []).map((row: any) => row.tactics_cards_id)
-      );
-    }
 
     const issues = validatePostCycleAssignments(fighters, assignments, {
       tacticsCardsAvailable: hasGangTacticsCards(editionSlug),
-      ownedTacticsCardIds,
+      ownedTacticsCardIds: new Set(ownedTacticsCards.map((card) => card.tactics_cards_id)),
     });
     if (issues.length > 0) {
       return { success: false, error: issues.map((i) => i.message).join(' '), results };
@@ -429,7 +348,7 @@ export async function applyPostCycleActions(
           let failure: string | undefined;
 
           for (const injuryId of assignment.injuryIds) {
-            const injury = (target!.effects?.[INJURY_CATEGORY] ?? []).find(
+            const injury = (target!.effects?.injuries ?? []).find(
               (e) => e.id === injuryId
             );
             const removed = await deleteFighterInjury({
