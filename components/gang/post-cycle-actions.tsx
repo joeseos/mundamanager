@@ -385,8 +385,7 @@ export default function PostCycleActions({
   }, [issues, actorIds]);
 
   const totalCost = -postCycleTotalCredits(assignments);
-  const creditsAfter = gangCredits - totalCost;
-  const canAfford = creditsAfter >= 0;
+  const canAfford = gangCredits >= totalCost;
   const workTerritoryCount = assignments.filter((a) => a.action === 'work_territory').length;
 
   const blockedReason =
@@ -524,9 +523,14 @@ export default function PostCycleActions({
 
   return (
     <div className="mt-8">
-      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-        <GrCycle className="h-5 w-5" />
-        Post-Cycle Actions
+      <h3 className="text-lg font-semibold mb-4 flex items-center justify-between flex-wrap gap-2">
+        <span className="flex items-center gap-2">
+          <GrCycle className="h-5 w-5" />
+          Post-Cycle Actions
+        </span>
+        <span className="text-xs font-normal text-muted-foreground">
+          {assignments.length} of {actors.length} assigned
+        </span>
       </h3>
 
       <div className="rounded-md border">
@@ -708,33 +712,7 @@ export default function PostCycleActions({
         </ul>
       )}
 
-      <div className="mt-4 space-y-3">
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Assigned</span>
-            <span className="font-semibold">
-              {assignments.length} of {actors.length}
-              {workTerritoryCount > 0 && (
-                <span className="font-normal text-muted-foreground">
-                  {' '}
-                  ({workTerritoryCount}/{WORK_TERRITORY_MAX_FIGHTERS} working Territory)
-                </span>
-              )}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">
-              {totalCost >= 0 ? 'Total cost' : 'Total gained'}
-            </span>
-            <span className="font-semibold">{Math.abs(totalCost)} credits</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Credits after</span>
-            <span className={`font-semibold ${canAfford ? '' : 'text-red-500'}`}>
-              {creditsAfter}
-            </span>
-          </div>
-        </div>
+      <div className="mt-4 space-y-2">
         <Button
           className="w-full"
           onClick={() => setIsConfirming(true)}
