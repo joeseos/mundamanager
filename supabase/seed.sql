@@ -342,7 +342,7 @@ ON CONFLICT (id) DO NOTHING;
 -- ============================================================================
 -- 15. WEAPON PROFILES
 -- ============================================================================
-INSERT INTO public.weapon_profiles (id, weapon_id, profile_name, range_short, range_long, acc_short, acc_long, strength, ap, damage, ammo, traits, sort_order, created_at) VALUES
+INSERT INTO public.weapon_profiles (id, equipment_id, profile_name, range_short, range_long, acc_short, acc_long, strength, ap, damage, ammo, traits, sort_order, created_at) VALUES
 ('a7777777-7777-7777-7777-888888888888', 'a7777777-7777-7777-7777-777777777777', 'Standard', '8"', '24"', '+1', '-', '3', '-', '1', '4+', 'Rapid Fire (1)', 1, now()),
 ('b8888888-8888-8888-8888-999999999999', 'b8888888-8888-8888-8888-888888888888', 'Standard', '8"', '24"', '+1', '-', '3', '-', '1', '2+', 'Plentiful', 1, now()),
 ('e7777777-7777-7777-7777-aaaaaaaaaaaa', 'e7777777-7777-7777-7777-777777777777', 'Standard', '12"', '24"', '+1', '-', '4', '-1', '2', '4+', 'Rapid Fire (1)', 1, now()),
@@ -356,7 +356,7 @@ ON CONFLICT (id) DO NOTHING;
 -- N26 profiles. The statline is SR / LR / Str / AP / Lethality / Traits, so acc_short,
 -- acc_long, damage and ammo are not rendered -- but they are NOT NULL with no default,
 -- hence the '-' placeholders. Anything the N23 columns would have carried goes in traits.
-INSERT INTO public.weapon_profiles (id, weapon_id, profile_name, range_short, range_long, acc_short, acc_long, strength, ap, damage, ammo, lethality, traits, sort_order, created_at) VALUES
+INSERT INTO public.weapon_profiles (id, equipment_id, profile_name, range_short, range_long, acc_short, acc_long, strength, ap, damage, ammo, lethality, traits, sort_order, created_at) VALUES
 ('26030000-0000-0000-0000-000000000001', '26020000-0000-0000-0000-000000000001', 'Lasgun', '8"', '24"', '-', '-', '3', '-', '-', '-', '5+', 'Plentiful', 1, now()),
 ('26030000-0000-0000-0000-000000000002', '26020000-0000-0000-0000-000000000002', 'Autogun', '8"', '24"', '-', '-', '3', '-', '-', '-', '5+', 'Rapid Fire (1)', 1, now()),
 ('26030000-0000-0000-0000-000000000003', '26020000-0000-0000-0000-000000000003', 'Stub gun', '6"', '12"', '-', '-', '3', '-', '-', '-', '6+', 'Sidearm', 1, now()),

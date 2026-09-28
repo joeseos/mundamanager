@@ -306,7 +306,7 @@ async function addDefaultEquipmentToBeast(
   equipment_type: string; 
   cost: number; 
   weapon_profiles?: Array<{
-    weapon_id: string;
+    equipment_id: string;
     profile_name: string;
     range_short: string;
     range_long: string;
@@ -369,7 +369,7 @@ async function addDefaultEquipmentToBeast(
         const { data: profilesData } = await supabase
           .from('weapon_profiles')
           .select('*')
-          .in('weapon_id', weaponIds);
+          .in('equipment_id', weaponIds);
         weaponProfiles = profilesData || [];
       }
 
@@ -380,7 +380,7 @@ async function addDefaultEquipmentToBeast(
         equipment_name: (item.equipment as any)?.equipment_name || '',
         equipment_type: (item.equipment as any)?.equipment_type || '',
         cost: 0,
-        weapon_profiles: weaponProfiles.filter((wp: any) => wp.weapon_id === item.equipment_id)
+        weapon_profiles: weaponProfiles.filter((wp: any) => wp.equipment_id === item.equipment_id)
       }));
     }
     

@@ -281,14 +281,15 @@ export const getGangTacticsCards = async (gangId: string, supabase: any): Promis
 export const getGangPositioning = async (gangId: string, supabase: any): Promise<Record<string, any> | null> => {
   return unstable_cache(
     async () => {
+      // maybeSingle: a just-deleted gang re-renders from a stale gang-core entry
       const { data, error } = await supabase
         .from('gangs')
         .select('positioning')
         .eq('id', gangId)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
-      return data.positioning || null;
+      return data?.positioning || null;
     },
     [`gang-positioning-v2-${gangId}`],
     {
@@ -945,7 +946,7 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
           is_consumable,
           weapon_profiles (
             id,
-            weapon_id,
+            equipment_id,
             weapon_group_id,
             profile_name,
             range_short,
