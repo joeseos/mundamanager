@@ -26,16 +26,6 @@ import { useDndSensorsConfig, dragSurfaceProps } from '@/hooks/use-dnd-sensors';
 import { buildGroupedSkillSetComboboxOptions } from '@/utils/skillSetComboboxOptions';
 import { LuGripVertical, LuX } from 'react-icons/lu';
 
-// unstable_rethrow only throws Next's own navigation signals, such as a server action's redirect
-function isNextNavigation(error: unknown): boolean {
-  try {
-    unstable_rethrow(error);
-    return false;
-  } catch {
-    return true;
-  }
-}
-
 interface GangUpdates {
   name?: string;
   alignment?: string;
@@ -541,13 +531,10 @@ export default function GangEditModal({
 
       // deleteGang redirects home on success, so it only returns on failure
       const result = await deleteGang(gangId);
-      throw new Error(result.error);
+      toast.error("Error", { description: result.error });
     } catch (error) {
-      // The success redirect rejects the call above; Next navigates home by itself
-      if (isNextNavigation(error)) {
-        toast.success('Gang successfully deleted');
-        return;
-      }
+      // Let Next handle the success redirect
+      unstable_rethrow(error);
 
       console.error('Error deleting gang:', error);
 
