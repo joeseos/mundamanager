@@ -704,12 +704,6 @@ export default function PostCycleActions({
                     </>
                   )}
 
-                  {row?.action === 'visit_trading_post' && (
-                    <p className="text-xs text-muted-foreground">
-                      Logged only. Buy anything the gang finds from the Stash tab.
-                    </p>
-                  )}
-
                   {hint && <p className="text-xs text-amber-600">{hint}</p>}
                   {rowIssues.map((message) => (
                     <p key={message} className="text-xs text-red-600">
