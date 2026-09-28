@@ -47,7 +47,7 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   medical_escort: {
     id: 'medical_escort',
     label: 'Medical Escort',
-    summary: `${MEDICAL_ESCORT_COST}cr + D6`,
+    summary: `${MEDICAL_ESCORT_COST} credits + D6`,
     description:
       `Escort a Critically Injured gang member to the Doc for ${MEDICAL_ESCORT_COST} credits. ` +
       `Roll a D6: 1 the fighter dies, 2-3 stabilised with a Lasting Injury, 4+ full recovery. ` +
@@ -58,7 +58,7 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   fit_bionics: {
     id: 'fit_bionics',
     label: 'Fit Bionics',
-    summary: `${FIT_BIONICS_COST_PER_INJURY}cr per injury`,
+    summary: `${FIT_BIONICS_COST_PER_INJURY} credits per injury`,
     description:
       `Take another fighter to the Doc for bionics. ${FIT_BIONICS_COST_PER_INJURY} credits ` +
       `removes one Lasting Injury; multiple instances of the same injury must each be ` +
@@ -86,7 +86,7 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   work_territory: {
     id: 'work_territory',
     label: 'Work Territory',
-    summary: `+${WORK_TERRITORY_INCOME}cr`,
+    summary: `+${WORK_TERRITORY_INCOME} credits`,
     description:
       `Work a Territory for ${WORK_TERRITORY_INCOME} credits added to the gang's Stash. ` +
       `At most ${WORK_TERRITORY_MAX_FIGHTERS} fighters may do this per Post-cycle Sequence.`,

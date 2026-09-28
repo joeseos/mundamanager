@@ -17,6 +17,7 @@ import TacticsCardPickerModal from '@/components/gang/tactics-card-picker-modal'
 import { useFighterCardModals } from '@/components/gang/fighter-card-modals-context';
 import type { GangTacticsCard, TacticsCard } from '@/types/tactics-card';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
+import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { countsTowardRating } from '@/utils/fighter-status';
 import {
   FIT_BIONICS_COST_PER_INJURY,
@@ -196,7 +197,7 @@ function EffectChecklist({
             disabled={disabled}
           />
           <span className="flex-1 min-w-0 truncate">{effect.effect_name}</span>
-          <span className="text-xs text-muted-foreground">{costEach}cr</span>
+          <span className="text-xs text-muted-foreground">{costEach} credits</span>
         </label>
       ))}
     </div>
@@ -231,7 +232,7 @@ function MedicalEscortOptions({
               &quot;Good Stuff&quot;
               <span className="text-muted-foreground">
                 {' '}
-                · {MEDICAL_ESCORT_GOOD_STUFF_STEP}cr per +1
+                - {MEDICAL_ESCORT_GOOD_STUFF_STEP} credits per +1
               </span>
             </span>
             <div className="flex items-center gap-1 shrink-0">
@@ -262,7 +263,7 @@ function MedicalEscortOptions({
             On the D6:{' '}
             {oddsParts.map((part, index) => (
               <span key={part.label}>
-                {index > 0 && ' · '}
+                {index > 0 && ', '}
                 <span className={part.tone}>
                   {part.count}/6 {part.label}
                 </span>
@@ -464,8 +465,7 @@ export default function PostCycleActions({
           value: f.id,
           label: reason ? (
             <span className="text-muted-foreground">
-              {f.fighter_name}
-              <span className="ml-2 text-xs">{reason}</span>
+              {f.fighter_name} - {reason}
             </span>
           ) : (
             f.fighter_name
@@ -601,10 +601,10 @@ export default function PostCycleActions({
                   <div className="min-w-0">
                     <div className="font-medium truncate">{fighter.fighter_name}</div>
                     <div className="text-xs text-muted-foreground truncate">
-                      {fighter.fighter_type}
-                      {fighter.fighter_subtypes?.length
-                        ? ` — ${fighter.fighter_subtypes.join(', ')}`
-                        : ''}
+                      {`${fighter.fighter_type} (${formatFighterSubtypeDisplay(
+                        fighter.fighter_subtypes,
+                        editionSlug
+                      )})`}
                     </div>
                   </div>
                   <CreditsDelta delta={delta} className="sm:hidden" />
@@ -627,10 +627,7 @@ export default function PostCycleActions({
                               title={option.description}
                               className={reason ? 'text-muted-foreground' : undefined}
                             >
-                              {option.label}
-                              <span className="ml-2 text-xs text-muted-foreground">
-                                {reason ?? option.summary}
-                              </span>
+                              {option.label} - {reason ?? option.summary}
                             </span>
                           ),
                           displayValue: option.label,
@@ -773,7 +770,7 @@ export default function PostCycleActions({
               {workTerritoryCount > 0 && (
                 <span className="font-normal text-muted-foreground">
                   {' '}
-                  · {workTerritoryCount}/{WORK_TERRITORY_MAX_FIGHTERS} working Territory
+                  ({workTerritoryCount}/{WORK_TERRITORY_MAX_FIGHTERS} working Territory)
                 </span>
               )}
             </span>
