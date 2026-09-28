@@ -1398,7 +1398,7 @@ $$;
 -- Name: get_equipment_detailed_data(uuid, text, uuid, boolean, boolean, uuid, uuid, uuid, uuid[], uuid[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NULL::uuid, equipment_category text DEFAULT NULL::text, fighter_type_id uuid DEFAULT NULL::uuid, fighter_type_equipment boolean DEFAULT NULL::boolean, equipment_tradingpost boolean DEFAULT NULL::boolean, fighter_id uuid DEFAULT NULL::uuid, only_equipment_id uuid DEFAULT NULL::uuid, gang_id uuid DEFAULT NULL::uuid, campaign_trading_post_type_ids uuid[] DEFAULT NULL::uuid[], campaign_custom_trading_post_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(id uuid, equipment_name text, availability text, base_cost numeric, adjusted_cost numeric, trade_points text, equipment_category text, equipment_type text, created_at timestamp with time zone, fighter_type_equipment boolean, equipment_tradingpost boolean, is_custom boolean, weapon_profiles jsonb, vehicle_upgrade_slot text, grants_equipment jsonb, is_editable boolean, trading_post_names text[], cost_resource_name text, cost_resource_amount numeric, cost_type_resource_id uuid, cost_campaign_resource_id uuid, banned boolean)
+CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NULL::uuid, equipment_category text DEFAULT NULL::text, fighter_type_id uuid DEFAULT NULL::uuid, fighter_type_equipment boolean DEFAULT NULL::boolean, equipment_tradingpost boolean DEFAULT NULL::boolean, fighter_id uuid DEFAULT NULL::uuid, only_equipment_id uuid DEFAULT NULL::uuid, gang_id uuid DEFAULT NULL::uuid, campaign_trading_post_type_ids uuid[] DEFAULT NULL::uuid[], campaign_custom_trading_post_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(id uuid, equipment_name text, availability text, base_cost numeric, adjusted_cost numeric, trade_points text, equipment_category text, equipment_type text, created_at timestamp with time zone, fighter_type_equipment boolean, equipment_tradingpost boolean, is_custom boolean, weapon_profiles jsonb, vehicle_upgrade_slot text, grants_equipment jsonb, is_editable boolean, trading_post_names text[], cost_resource_name text, cost_resource_amount numeric, cost_type_resource_id uuid, cost_campaign_resource_id uuid, banned boolean, min_count integer, max_count integer)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $_$
@@ -1678,7 +1678,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
                     'traits', wp.traits,
                     'sort_order', wp.sort_order
                 ) ORDER BY COALESCE(wp.sort_order, 999), wp.profile_name
-            ) FROM weapon_profiles wp WHERE wp.weapon_id = e.id),
+            ) FROM weapon_profiles wp WHERE wp.equipment_id = e.id),
             '[]'::jsonb
         ) AS weapon_profiles,
 
@@ -1744,7 +1744,10 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         cto.cost_type_resource_id,
         cto.cost_campaign_resource_id,
 
-        COALESCE(cto.banned, false) AS banned
+        COALESCE(cto.banned, false) AS banned,
+
+        lim.min_count,
+        lim.max_count
 
     FROM equipment e
     CROSS JOIN gang_data gd
@@ -1839,6 +1842,26 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
     LEFT JOIN custom_tp_override cto ON cto.equipment_id = e.id
     LEFT JOIN campaign_type_resources ctr_res ON ctr_res.id = cto.cost_type_resource_id
     LEFT JOIN campaign_resources cr_res ON cr_res.id = cto.cost_campaign_resource_id
+
+    -- Count limit: the most specific matching rule wins, id breaking ties. A pet without
+    -- rules of its own uses its fighter type's.
+    LEFT JOIN LATERAL (
+        SELECT cl.min_count, cl.max_count
+        FROM count_limits cl
+        WHERE (cl.equipment_id = e.id
+               OR cl.fighter_type_id IN (SELECT eb.fighter_type_id FROM exotic_beasts eb WHERE eb.equipment_id = e.id))
+          AND (cl.for_fighter_type_id IS NULL OR cl.for_fighter_type_id = $3)
+          AND (cl.gang_type_id    IS NULL OR cl.gang_type_id   = $1)
+          AND (cl.gang_origin_id  IS NULL OR cl.gang_origin_id = gd.gang_origin_id)
+          AND (cl.gang_subtype_id IS NULL OR gd.gang_subtypes ? cl.gang_subtype_id::text)
+        ORDER BY (cl.equipment_id IS NOT NULL) DESC,
+                 (cl.for_fighter_type_id IS NOT NULL) DESC,
+                 (cl.gang_subtype_id IS NOT NULL) DESC,
+                 (cl.gang_origin_id  IS NOT NULL) DESC,
+                 (cl.gang_type_id    IS NOT NULL) DESC,
+                 cl.id
+        LIMIT 1
+    ) lim ON true
 
     WHERE
         -- Early filters (equipment category + specific ID)
@@ -1948,7 +1971,9 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         END AS cost_resource_amount,
         custom_tp.cost_type_resource_id,
         custom_tp.cost_campaign_resource_id,
-        COALESCE(custom_tp.banned, false) AS banned
+        COALESCE(custom_tp.banned, false) AS banned,
+        NULL::integer AS min_count,
+        NULL::integer AS max_count
     FROM custom_equipment ce
     CROSS JOIN gang_data gd
     LEFT JOIN (
@@ -2250,7 +2275,7 @@ $$;
 -- Name: get_fighter_types_with_cost(uuid, uuid, boolean, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_fighter_types_with_cost(p_gang_type_id uuid DEFAULT NULL::uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid, p_is_gang_addition boolean DEFAULT NULL::boolean, p_gang_id uuid DEFAULT NULL::uuid) RETURNS TABLE(id uuid, fighter_type text, fighter_subtypes jsonb, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, save numeric, limitation numeric, required numeric, alignment public.alignment, is_gang_addition boolean, alliance_id uuid, alliance_crew_name text, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, specialisation jsonb, fighter_variant text, available_legacies jsonb, free_skill boolean, delegation_cost numeric, is_dramatis_personae boolean, edition_slug text, starting_xp numeric, is_vehicle boolean, is_gang_subtype boolean, gang_subtype_name text, is_granted_with_fighter boolean, is_associated_pet boolean, associated_pet_owner_id uuid)
+CREATE FUNCTION public.get_fighter_types_with_cost(p_gang_type_id uuid DEFAULT NULL::uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid, p_is_gang_addition boolean DEFAULT NULL::boolean, p_gang_id uuid DEFAULT NULL::uuid) RETURNS TABLE(id uuid, fighter_type text, fighter_subtypes jsonb, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, save numeric, min_count integer, max_count integer, alignment public.alignment, is_gang_addition boolean, alliance_id uuid, alliance_crew_name text, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, specialisation jsonb, fighter_variant text, available_legacies jsonb, free_skill boolean, delegation_cost numeric, is_dramatis_personae boolean, edition_slug text, starting_xp numeric, is_vehicle boolean, is_gang_subtype boolean, gang_subtype_name text, is_granted_with_fighter boolean, is_associated_pet boolean, associated_pet_owner_id uuid)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -2281,6 +2306,9 @@ BEGIN
         SELECT a.fighter_type_id, a.fighter_subtype, a.excluded, a.gang_subtype_id
         FROM fighter_type_availability a
         WHERE v_has_gang
+          -- Gang additions are one pool for every gang: the gang is passed for its count limits,
+          -- not to grant or deny.
+          AND p_is_gang_addition IS NOT TRUE
           AND (a.gang_subtype_id IS NULL OR v_gang_subtypes ? a.gang_subtype_id::text)
           AND (a.gang_origin_id  IS NULL OR a.gang_origin_id = v_gang_origin_id)
           AND (a.gang_type_id    IS NULL OR a.gang_type_id  = v_gang_type_id)
@@ -2318,8 +2346,8 @@ BEGIN
         ft.intelligence,
         ft.attacks,
         ft.save,
-        ft.limitation,
-        ft.required,
+        lim.min_count,
+        lim.max_count,
         ft.alignment,
         ft.is_gang_addition,
         ft.alliance_id,
@@ -3128,6 +3156,22 @@ BEGIN
     LEFT JOIN fighter_specialisations fspec ON fspec.id = ft.fighter_specialisation_id
     LEFT JOIN editions ed ON ed.id = ft.edition_id
     LEFT JOIN granted g ON g.fighter_type_id = ft.id
+    -- The most specific rule wins whole: gang subtype, then origin, then gang type, then a rule
+    -- for every gang. Without a gang only the every-gang rules can match. Two equally specific
+    -- rules can both match (a gang with two subtypes); id breaks the tie so the pick is stable.
+    LEFT JOIN LATERAL (
+        SELECT cl.min_count, cl.max_count
+        FROM count_limits cl
+        WHERE cl.fighter_type_id = ft.id
+          AND (cl.gang_type_id    IS NULL OR cl.gang_type_id   = v_gang_type_id)
+          AND (cl.gang_origin_id  IS NULL OR cl.gang_origin_id = v_gang_origin_id)
+          AND (cl.gang_subtype_id IS NULL OR v_gang_subtypes ? cl.gang_subtype_id::text)
+        ORDER BY (cl.gang_subtype_id IS NOT NULL) DESC,
+                 (cl.gang_origin_id  IS NOT NULL) DESC,
+                 (cl.gang_type_id    IS NOT NULL) DESC,
+                 cl.id
+        LIMIT 1
+    ) lim ON true
     WHERE
         (
             CASE
@@ -3486,12 +3530,12 @@ BEGIN
        GROUP BY fe.fighter_id
    ),
    weapon_profiles_deduplicated AS (
-       SELECT DISTINCT wp.id, wp.weapon_id, wp.profile_name, wp.range_short, wp.range_long, 
+       SELECT DISTINCT wp.id, wp.equipment_id, wp.profile_name, wp.range_short, wp.range_long, 
                       wp.acc_short, wp.acc_long, wp.strength, wp.ap, wp.damage, wp.ammo, 
                       wp.traits, wp.weapon_group_id, wp.sort_order,
                       fe.id AS fe_id, fe.is_master_crafted
        FROM weapon_profiles wp
-       JOIN fighter_equipment fe ON fe.equipment_id = wp.weapon_id
+       JOIN fighter_equipment fe ON fe.equipment_id = wp.equipment_id
        WHERE (fe.fighter_id IN (SELECT f_id FROM fighter_ids)
           OR fe.vehicle_id IN (
              SELECT v.id FROM vehicles v 
@@ -3502,7 +3546,7 @@ BEGIN
    weapon_profiles_grouped AS (
        SELECT 
            wpd.fe_id,
-           wpd.weapon_id as equipment_id,
+           wpd.equipment_id,
            json_agg(
                json_build_object(
                    'id', wpd.id,
@@ -3523,7 +3567,7 @@ BEGIN
                ORDER BY wpd.sort_order NULLS LAST, wpd.profile_name
            ) as profiles
        FROM weapon_profiles_deduplicated wpd
-       GROUP BY wpd.fe_id, wpd.weapon_id
+       GROUP BY wpd.fe_id, wpd.equipment_id
    ),
    custom_weapon_profiles_grouped AS (
        SELECT 
@@ -4828,6 +4872,81 @@ COMMENT ON COLUMN public.campaigns.status IS 'Campaign status: Active or Closed.
 
 
 --
+-- Name: count_limits; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.count_limits (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    fighter_type_id uuid,
+    gang_type_id uuid,
+    gang_origin_id uuid,
+    gang_subtype_id uuid,
+    min_count integer,
+    max_count integer,
+    equipment_id uuid,
+    for_fighter_type_id uuid
+);
+
+
+--
+-- Name: COLUMN count_limits.fighter_type_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.count_limits.fighter_type_id IS 'The fighter type being limited ("0-1 Stimmer"). Set this or equipment_id.';
+
+
+--
+-- Name: COLUMN count_limits.gang_type_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.count_limits.gang_type_id IS 'Restricts the rule to gangs of this gang type. NULL applies regardless of gang type.';
+
+
+--
+-- Name: COLUMN count_limits.gang_origin_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.count_limits.gang_origin_id IS 'Restricts the rule to gangs with this origin. NULL applies regardless of origin.';
+
+
+--
+-- Name: COLUMN count_limits.gang_subtype_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.count_limits.gang_subtype_id IS 'Restricts the rule to gangs holding this subtype. NULL applies regardless of subtype.';
+
+
+--
+-- Name: COLUMN count_limits.min_count; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.count_limits.min_count IS 'Fewest allowed, shown as "2+". NULL is no minimum.';
+
+
+--
+-- Name: COLUMN count_limits.max_count; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.count_limits.max_count IS 'Most allowed, shown as "0-1". NULL is no maximum.';
+
+
+--
+-- Name: COLUMN count_limits.equipment_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.count_limits.equipment_id IS 'The equipment being limited ("0-1 Grapnel launcher"). Set this or fighter_type_id.';
+
+
+--
+-- Name: COLUMN count_limits.for_fighter_type_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.count_limits.for_fighter_type_id IS 'Equipment rules only: restricts the rule to fighters of this type. NULL applies to any fighter.';
+
+
+--
 -- Name: custom_collections; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5851,8 +5970,7 @@ CREATE TABLE public.fighter_types (
     fighter_subtypes jsonb DEFAULT '[]'::jsonb NOT NULL,
     starting_xp numeric,
     is_vehicle boolean DEFAULT false NOT NULL,
-    fighter_variant text,
-    required numeric
+    fighter_variant text
 );
 
 
@@ -5875,13 +5993,6 @@ COMMENT ON COLUMN public.fighter_types.starting_xp IS 'XP a fighter of this type
 --
 
 COMMENT ON COLUMN public.fighter_types.fighter_variant IS 'Type variant label (Bonecrusher, Natborn). Distinguishes sibling rows of the same fighter_type. Not a specialisation -- that is the Specialist pick, on fighter_specialisation_id.';
-
-
---
--- Name: COLUMN fighter_types.required; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.fighter_types.required IS 'Minimum number of this fighter type a gang must field, shown as "3+" (or "1-3" with limitation) in the add-fighter list. NULL means no minimum. Display only: nothing enforces it.';
 
 
 --
@@ -6528,7 +6639,7 @@ CREATE TABLE public.vehicles (
 --
 
 CREATE TABLE public.weapon_profiles (
-    weapon_id uuid DEFAULT gen_random_uuid() NOT NULL,
+    equipment_id uuid NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     profile_name text,
     range_short text NOT NULL,
@@ -6792,6 +6903,14 @@ ALTER TABLE ONLY public.campaign_types
 
 ALTER TABLE ONLY public.campaigns
     ADD CONSTRAINT campaigns_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: count_limits count_limits_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.count_limits
+    ADD CONSTRAINT count_limits_pkey PRIMARY KEY (id);
 
 
 --
@@ -7784,6 +7903,20 @@ CREATE INDEX campaigns_discord_guild_id_idx ON public.campaigns USING btree (dis
 --
 
 CREATE INDEX campaigns_status_idx ON public.campaigns USING btree (status);
+
+
+--
+-- Name: count_limits_equipment_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX count_limits_equipment_id_idx ON public.count_limits USING btree (equipment_id);
+
+
+--
+-- Name: count_limits_fighter_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX count_limits_fighter_type_id_idx ON public.count_limits USING btree (fighter_type_id);
 
 
 --
@@ -9194,17 +9327,17 @@ CREATE INDEX weapon_profiles_created_at_idx ON public.weapon_profiles USING btre
 
 
 --
+-- Name: weapon_profiles_equipment_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX weapon_profiles_equipment_id_idx ON public.weapon_profiles USING btree (equipment_id);
+
+
+--
 -- Name: weapon_profiles_weapon_group_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX weapon_profiles_weapon_group_id_idx ON public.weapon_profiles USING btree (weapon_group_id);
-
-
---
--- Name: weapon_profiles_weapon_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX weapon_profiles_weapon_id_idx ON public.weapon_profiles USING btree (weapon_id);
 
 
 --
@@ -9679,6 +9812,54 @@ ALTER TABLE ONLY public.campaigns
 
 ALTER TABLE ONLY public.campaigns
     ADD CONSTRAINT campaigns_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id);
+
+
+--
+-- Name: count_limits count_limits_equipment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.count_limits
+    ADD CONSTRAINT count_limits_equipment_id_fkey FOREIGN KEY (equipment_id) REFERENCES public.equipment(id) ON DELETE CASCADE;
+
+
+--
+-- Name: count_limits count_limits_fighter_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.count_limits
+    ADD CONSTRAINT count_limits_fighter_type_id_fkey FOREIGN KEY (fighter_type_id) REFERENCES public.fighter_types(id) ON DELETE CASCADE;
+
+
+--
+-- Name: count_limits count_limits_for_fighter_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.count_limits
+    ADD CONSTRAINT count_limits_for_fighter_type_id_fkey FOREIGN KEY (for_fighter_type_id) REFERENCES public.fighter_types(id) ON DELETE CASCADE;
+
+
+--
+-- Name: count_limits count_limits_gang_origin_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.count_limits
+    ADD CONSTRAINT count_limits_gang_origin_id_fkey FOREIGN KEY (gang_origin_id) REFERENCES public.gang_origins(id) ON DELETE CASCADE;
+
+
+--
+-- Name: count_limits count_limits_gang_subtype_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.count_limits
+    ADD CONSTRAINT count_limits_gang_subtype_id_fkey FOREIGN KEY (gang_subtype_id) REFERENCES public.gang_subtype_types(id) ON DELETE CASCADE;
+
+
+--
+-- Name: count_limits count_limits_gang_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.count_limits
+    ADD CONSTRAINT count_limits_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(gang_type_id) ON DELETE CASCADE;
 
 
 --
@@ -11186,11 +11367,11 @@ ALTER TABLE ONLY public.vehicles
 
 
 --
--- Name: weapon_profiles weapon_profiles_weapon_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: weapon_profiles weapon_profiles_equipment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.weapon_profiles
-    ADD CONSTRAINT weapon_profiles_weapon_id_fkey FOREIGN KEY (weapon_id) REFERENCES public.equipment(id) ON DELETE CASCADE;
+    ADD CONSTRAINT weapon_profiles_equipment_id_fkey FOREIGN KEY (equipment_id) REFERENCES public.equipment(id) ON DELETE CASCADE;
 
 
 --
@@ -11452,6 +11633,13 @@ CREATE POLICY "Allow authenticated users to view campaign_types" ON public.campa
 --
 
 CREATE POLICY "Allow authenticated users to view campaigns" ON public.campaigns FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: count_limits Allow authenticated users to view count_limits; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view count_limits" ON public.count_limits FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -13747,6 +13935,33 @@ ALTER TABLE public.campaign_types ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.campaigns ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: count_limits; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.count_limits ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: count_limits count_limits_admin_delete_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY count_limits_admin_delete_policy ON public.count_limits FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: count_limits count_limits_admin_insert_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY count_limits_admin_insert_policy ON public.count_limits FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: count_limits count_limits_admin_update_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY count_limits_admin_update_policy ON public.count_limits FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
 
 --
 -- Name: custom_collections; Type: ROW SECURITY; Schema: public; Owner: -
