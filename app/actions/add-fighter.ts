@@ -436,12 +436,9 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
 
     // Note: Authorization is enforced by RLS policies on fighters table
 
-    // The RPC has already applied the gang's adjusted cost; custom fighters have none
-    const adjustedBaseCost = effectiveFighterData.cost;
-
-    // Calculate costs
-    const fighterCost = params.cost ?? adjustedBaseCost;
-    const baseCost = adjustedBaseCost;
+    // Calculate costs. The RPC has already applied the gang's adjusted cost; custom fighters have none.
+    const baseCost = effectiveFighterData.cost;
+    const fighterCost = params.cost ?? baseCost;
     
     // Calculate equipment cost from selected equipment
     const totalEquipmentCost = params.selected_equipment?.reduce((sum, item) => 

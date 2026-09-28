@@ -17,7 +17,7 @@ CREATE OR REPLACE FUNCTION get_fighter_types_with_cost(
     p_gang_id uuid DEFAULT NULL,
     -- Looks up this one fighter type, for adding it to a gang. The pickers' filters (the
     -- p_is_gang_addition pool, availability rules) are skipped: the fighter was already picked
-    -- from one of them, and the caller cannot tell which. Cost and count limits still apply.
+    -- from one of them, and the caller cannot tell which. Cost and count limits are still resolved.
     p_fighter_type_id uuid DEFAULT NULL
 )
 RETURNS TABLE (
@@ -104,6 +104,16 @@ BEGIN
           AND (a.gang_subtype_id IS NULL OR v_gang_subtypes ? a.gang_subtype_id::text)
           AND (a.gang_origin_id  IS NULL OR a.gang_origin_id = v_gang_origin_id)
           AND (a.gang_type_id    IS NULL OR a.gang_type_id  = v_gang_type_id)
+    ),
+    -- One cost row per fighter type, the affiliation's own over the gang type's, so a fighter type
+    -- with both is not listed twice.
+    gang_cost AS (
+        SELECT DISTINCT ON (c.fighter_type_id)
+               c.fighter_type_id, c.gang_affiliation_id, c.adjusted_cost
+        FROM fighter_type_gang_cost c
+        WHERE c.gang_type_id = p_gang_type_id
+          AND (c.gang_affiliation_id IS NULL OR c.gang_affiliation_id = p_gang_affiliation_id)
+        ORDER BY c.fighter_type_id, (c.gang_affiliation_id IS NOT NULL) DESC, c.id
     ),
     granted AS (
         -- DISTINCT ON so two subtypes granting the same fighter yield one row, not a duplicate.
@@ -942,17 +952,7 @@ BEGIN
         (g.subtype_name IS NOT NULL) AS is_gang_subtype,
         g.subtype_name AS gang_subtype_name
     FROM fighter_types ft
-    -- One cost row per fighter type, the affiliation's own over the gang type's, so a fighter type
-    -- with both is not listed twice.
-    LEFT JOIN LATERAL (
-        SELECT c.fighter_type_id, c.gang_affiliation_id, c.adjusted_cost
-        FROM fighter_type_gang_cost c
-        WHERE c.fighter_type_id = ft.id
-          AND c.gang_type_id = p_gang_type_id
-          AND (c.gang_affiliation_id IS NULL OR c.gang_affiliation_id = p_gang_affiliation_id)
-        ORDER BY (c.gang_affiliation_id IS NOT NULL) DESC, c.id
-        LIMIT 1
-    ) ftgc ON true
+    LEFT JOIN gang_cost ftgc ON ftgc.fighter_type_id = ft.id
     LEFT JOIN fighter_specialisations fspec ON fspec.id = ft.fighter_specialisation_id
     LEFT JOIN editions ed ON ed.id = ft.edition_id
     LEFT JOIN granted g ON g.fighter_type_id = ft.id
@@ -972,8 +972,9 @@ BEGIN
                  cl.id
         LIMIT 1
     ) lim ON true
-    WHERE
-        CASE WHEN p_fighter_type_id IS NOT NULL THEN ft.id = p_fighter_type_id ELSE
+    -- Kept as its own conjunct on ft alone, so a lookup filters fighter_types before the joins.
+    WHERE (p_fighter_type_id IS NULL OR ft.id = p_fighter_type_id)
+      AND (p_fighter_type_id IS NOT NULL OR
         (
             CASE
                 -- Gang additions: cross-gang pool, filtered only by the flag
@@ -1007,7 +1008,7 @@ BEGIN
         -- Outside the parens so a grant survives a deny, and reaches the hidden 'Subtype: <name>'
         -- pools the CASE above excludes.
         OR g.fighter_type_id IS NOT NULL
-        END
+      )
     ),
     -- One row per pet whose exotic_beasts equipment is default gear on another fighter type.
     -- owner_id is set when one of those fighter types is a dramatis personae: prefer a gang
