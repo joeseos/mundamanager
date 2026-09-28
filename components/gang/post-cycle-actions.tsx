@@ -534,7 +534,7 @@ export default function PostCycleActions({
 
   return (
     <div className="mt-8">
-      <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
         <h3 className="text-lg font-semibold flex items-center gap-2">
           <GrCycle className="h-5 w-5" />
           Post-Cycle Actions
@@ -545,10 +545,6 @@ export default function PostCycleActions({
           </Button>
         )}
       </div>
-      <p className="text-sm text-muted-foreground mb-4">
-        Each fighter may take one action between battles, then the whole sequence is
-        resolved at once. Fighters in Recovery, captured or dead sit it out.
-      </p>
 
       <div className="rounded-md border">
         <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_20rem_4rem] gap-4 px-4 py-2 bg-muted border-b rounded-t-md text-sm font-medium">
