@@ -1,3 +1,11 @@
+-- get_fighter_types_with_cost: add p_fighter_type_id, a single-row lookup for addFighterToGang,
+-- which read fighter_types and fighter_type_gang_cost itself and so missed affiliation costs.
+--
+-- The fighter_type_gang_cost join now takes one row per fighter type (the affiliation's own over
+-- the gang type's), so a fighter type with both is no longer returned twice.
+--
+-- Adds a fifth defaulted parameter: existing callers, which pass named arguments, are unchanged.
+
 -- Drop previous versions. Every arg is defaulted, so leaving an older arity in place would make
 -- the PostgREST call ambiguous.
 DROP FUNCTION IF EXISTS get_fighter_types_with_cost(uuid, uuid, boolean, uuid, uuid);

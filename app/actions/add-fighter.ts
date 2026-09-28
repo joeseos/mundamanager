@@ -335,6 +335,18 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     // Use current user's id
     const effectiveUserId = user.id;
 
+    // Started now so it runs alongside the custom fighter lookup; the fighter type lookup needs it.
+    // Promise.resolve sends the query, which a Supabase builder only does once awaited.
+    const gangPromise = Promise.resolve(supabase
+      .from('gangs')
+      .select(`
+        id, credits, user_id, gang_type, gang_type_id, custom_gang_type_id, gang_affiliation_id,
+        gang_types!gang_type_id ( editions:edition_id ( slug ) ),
+        custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
+      `)
+      .eq('id', params.gang_id)
+      .single());
+
     // Check if this is a custom fighter type first (owned by user OR shared to their campaigns)
     let customFighterData = null;
 
@@ -380,65 +392,52 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       }
     }
 
-    // Get fighter type data and gang data in parallel
-    const [fighterTypeResult, gangResult] = await Promise.all([
-      customFighterData ?
-        Promise.resolve({ data: null, error: null }) : // Skip regular fighter type lookup for custom fighters
-        supabase
-          .from('fighter_types')
-          .select('*, editions:edition_id ( slug )')
-          .eq('id', params.fighter_type_id)
-          .single(),
-      supabase
-        .from('gangs')
-        .select(`
-          id, credits, user_id, gang_type, gang_type_id, custom_gang_type_id,
-          gang_types!gang_type_id ( editions:edition_id ( slug ) ),
-          custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
-        `)
-        .eq('id', params.gang_id)
-        .single()
-    ]);
-
-    const { data: fighterTypeData, error: fighterTypeError } = fighterTypeResult;
-    const { data: gangData, error: gangError } = gangResult;
-
-    // For custom fighters, use custom fighter data; for regular fighters, use fighter type data
-    const isCustomFighter = !!customFighterData;
-    const effectiveFighterData = isCustomFighter ? customFighterData : fighterTypeData;
-
-    if (!isCustomFighter && (fighterTypeError || !fighterTypeData)) {
-      throw new Error(`Fighter type not found: ${fighterTypeError?.message || 'No data returned'}`);
-    }
-
-    if (isCustomFighter && !customFighterData) {
-      throw new Error('Custom fighter type not found or not owned by user');
-    }
+    const { data: gangData, error: gangError } = await gangPromise;
 
     if (gangError || !gangData) {
       throw new Error('Gang not found');
     }
 
+    // Regular fighter types come from the RPC behind the Add Fighter list, so the cost is the one
+    // the list showed: the gang type's adjusted cost, or its affiliation's.
+    let fighterTypeData: any = null;
+    if (!customFighterData) {
+      const { data, error } = await supabase
+        .rpc('get_fighter_types_with_cost', {
+          p_gang_type_id: gangData.gang_type_id,
+          p_gang_affiliation_id: gangData.gang_affiliation_id,
+          p_gang_id: params.gang_id,
+          p_fighter_type_id: params.fighter_type_id
+        })
+        .maybeSingle();
+
+      if (error || !data) {
+        throw new Error(`Fighter type not found: ${error?.message || 'No data returned'}`);
+      }
+      // The RPC casts the jsonb[] column to text[], leaving each rule JSON-encoded ('"Gang
+      // Fighter"'); parse them back to the values the column holds.
+      const rpcRow: any = data;
+      fighterTypeData = {
+        ...rpcRow,
+        special_rules: Array.isArray(rpcRow.special_rules)
+          ? rpcRow.special_rules.map((rule: string) => JSON.parse(rule))
+          : rpcRow.special_rules
+      };
+    }
+
+    // For custom fighters, use custom fighter data; for regular fighters, use fighter type data
+    const isCustomFighter = !!customFighterData;
+    const effectiveFighterData = isCustomFighter ? customFighterData : fighterTypeData;
+
     const fighterSource = effectiveFighterData as FighterTypeSource;
     const editionSlug =
-      editionSlugFromJoin(fighterSource.editions) ?? gangEditionSlug(gangData);
+      (isCustomFighter ? editionSlugFromJoin(fighterSource.editions) : fighterTypeData.edition_slug) ??
+      gangEditionSlug(gangData);
 
     // Note: Authorization is enforced by RLS policies on fighters table
 
-    // Check for adjusted cost based on gang type (only for regular fighters)
-    let adjustedBaseCost = effectiveFighterData.cost;
-
-    if (!isCustomFighter && gangData.gang_type_id) {
-      const { data: adjustedCostData } = await supabase
-        .from('fighter_type_gang_cost')
-        .select('adjusted_cost')
-        .eq('fighter_type_id', params.fighter_type_id)
-        .eq('gang_type_id', gangData.gang_type_id)
-        .maybeSingle();
-
-      // Use adjusted cost if available, otherwise use the original cost
-      adjustedBaseCost = adjustedCostData?.adjusted_cost ?? fighterTypeData.cost;
-    }
+    // The RPC has already applied the gang's adjusted cost; custom fighters have none
+    const adjustedBaseCost = effectiveFighterData.cost;
 
     // Calculate costs
     const fighterCost = params.cost ?? adjustedBaseCost;
@@ -525,7 +524,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       fighterInsertData.fighter_specialisation_id = null;
     } else {
       fighterInsertData.fighter_type_id = params.fighter_type_id;
-      fighterInsertData.fighter_specialisation_id = fighterTypeData.fighter_specialisation_id;
+      fighterInsertData.fighter_specialisation_id = fighterTypeData.specialisation?.id ?? null;
       fighterInsertData.custom_fighter_type_id = null;
     }
 
