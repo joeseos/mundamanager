@@ -73,7 +73,8 @@ export interface FighterType {
   attacks: number;
   save?: number | null;
   edition_slug?: string | null;
-  limitation?: number;
+  min_count?: number | null;
+  max_count?: number | null;
   alignment?: string;
   default_equipment: any[];
   is_gang_addition: boolean;
@@ -126,4 +127,16 @@ export interface FighterTypeGrant {
   gang_origin_id: string | null;
   gang_subtype_id: string | null;
   excluded: boolean;
+}
+
+/**
+ * A count_limits rule on a fighter type, as the admin editor holds it: the min/max count for gangs
+ * matching its scope. Every scope column null applies to every gang.
+ */
+export interface FighterTypeCountLimit {
+  gang_type_id: string | null;
+  gang_origin_id: string | null;
+  gang_subtype_id: string | null;
+  min_count: number | null;
+  max_count: number | null;
 }
