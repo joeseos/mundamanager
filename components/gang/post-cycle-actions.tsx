@@ -8,12 +8,13 @@ import { Combobox } from '@/components/ui/combobox';
 import Modal from '@/components/ui/modal';
 import { Badge } from '@/components/ui/badge';
 import { GrCycle } from 'react-icons/gr';
-import { LuMinus, LuPlus, LuWalletCards } from 'react-icons/lu';
+import { LuMinus, LuPlus, LuWalletCards, LuWrench } from 'react-icons/lu';
 import { FighterProps } from '@/types/fighter';
 import type { FighterEffect } from '@/types/fighter-effect';
 import { UserPermissions } from '@/types/user-permissions';
 import { hasGangTacticsCards } from '@/types/edition';
 import TacticsCardPickerModal from '@/components/gang/tactics-card-picker-modal';
+import { useFighterCardModals } from '@/components/gang/fighter-card-modals-context';
 import type { GangTacticsCard, TacticsCard } from '@/types/tactics-card';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import {
@@ -23,10 +24,8 @@ import {
   POST_CYCLE_ACTIONS,
   WORK_TERRITORY_MAX_FIGHTERS,
   assignmentCreditsDelta,
-  chopShopCostPerDamage,
   eligiblePostCycleActions,
   hasCriticalInjury,
-  lastingDamagesOf,
   medicalEscortOdds,
   postCycleTotalCredits,
   removableLastingInjuriesOf,
@@ -61,7 +60,6 @@ interface RowState {
   goodStuffSteps: number;
   declineToPay: boolean;
   injuryIds: string[];
-  damageIds: string[];
   tacticsCards: TacticsCard[];
 }
 
@@ -70,7 +68,6 @@ const emptyRow = (action: PostCycleActionId): RowState => ({
   goodStuffSteps: 0,
   declineToPay: false,
   injuryIds: [],
-  damageIds: [],
   tacticsCards: [],
 });
 
@@ -82,8 +79,6 @@ function missingPick(row: RowState): string | null {
     case 'fit_bionics':
       if (!row.targetFighterId) return 'Choose who gets the bionics.';
       return row.injuryIds.length > 0 ? null : 'Tick at least one injury to remove.';
-    case 'visit_chop_shop':
-      return row.damageIds.length > 0 ? null : 'Tick at least one damage to repair.';
     case 'develop_tactics':
       return row.tacticsCards.length > 0 ? null : 'Choose at least one Gang Tactic.';
     default:
@@ -109,8 +104,6 @@ function toAssignment(fighterId: string, row: RowState): PostCycleAssignment | n
         targetFighterId: row.targetFighterId!,
         injuryIds: row.injuryIds,
       };
-    case 'visit_chop_shop':
-      return { fighterId, action: 'visit_chop_shop', damageIds: row.damageIds };
     case 'develop_tactics':
       return {
         fighterId,
@@ -133,17 +126,14 @@ function applyChange(fighter: FighterProps, change: PostCycleFighterChange): Fig
   const next: FighterProps = { ...fighter };
 
   if (change.removedEffectIds?.length || change.addedInjury) {
-    const bucket = change.removedFrom ?? 'injuries';
-    const existing = next.effects?.[bucket] ?? [];
     const removed = new Set(change.removedEffectIds ?? []);
-    const kept = existing.filter((effect) => !removed.has(effect.id));
+    const kept = (next.effects?.injuries ?? []).filter((effect) => !removed.has(effect.id));
 
     next.effects = {
       ...next.effects,
-      [bucket]:
-        change.addedInjury && bucket === 'injuries'
-          ? [...kept, change.addedInjury as (typeof kept)[number]]
-          : kept,
+      injuries: change.addedInjury
+        ? [...kept, change.addedInjury as (typeof kept)[number]]
+        : kept,
     };
   }
 
@@ -321,6 +311,7 @@ export default function PostCycleActions({
   } | null>(null);
 
   const canEdit = userPermissions?.canEdit ?? false;
+  const fighterCardModals = useFighterCardModals();
   const availability = useMemo(
     () => ({ tacticsCardsAvailable: hasGangTacticsCards(editionSlug) }),
     [editionSlug]
@@ -446,8 +437,6 @@ export default function PostCycleActions({
           : 'No Critical Injuries';
       case 'fit_bionics':
         return injuredFighters.some((f) => f.id !== fighter.id) ? null : 'No Lasting Injuries';
-      case 'visit_chop_shop':
-        return lastingDamagesOf(fighter).length > 0 ? null : 'No Lasting Damage';
       case 'work_territory':
         return workTerritoryCount >= WORK_TERRITORY_MAX_FIGHTERS &&
           rows[fighter.id]?.action !== 'work_territory'
@@ -505,11 +494,6 @@ export default function PostCycleActions({
           ? effectNames(removableLastingInjuriesOf(target), assignment.injuryIds)
           : '';
         return `${label} → ${target?.fighter_name}: ${names}`;
-      }
-      case 'visit_chop_shop': {
-        const vehicle = fighterById.get(assignment.fighterId);
-        const names = vehicle ? effectNames(lastingDamagesOf(vehicle), assignment.damageIds) : '';
-        return `${label}: ${names}`;
       }
       case 'develop_tactics': {
         const names = rows[assignment.fighterId]?.tacticsCards.map((card) => card.name) ?? [];
@@ -748,14 +732,16 @@ export default function PostCycleActions({
                   )}
 
                   {row?.action === 'visit_chop_shop' && (
-                    <EffectChecklist
-                      effects={lastingDamagesOf(fighter)}
-                      selected={row.damageIds}
-                      costEach={chopShopCostPerDamage()}
-                      onChange={(damageIds) => setRow(fighter.id, { damageIds })}
-                      disabled={!canEdit}
-                      emptyText="No Lasting Damage to repair."
-                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full gap-2"
+                      onClick={() => fighterCardModals?.openVehicleDamageModal(fighter.id)}
+                      disabled={!canEdit || !fighterCardModals}
+                    >
+                      <LuWrench className="h-4 w-4" />
+                      Repair Lasting Damage
+                    </Button>
                   )}
 
                   {row?.action === 'develop_tactics' && (

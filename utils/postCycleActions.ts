@@ -4,12 +4,7 @@
  */
 
 import type { FighterEffect } from '@/types/fighter-effect';
-import {
-  resolveMedicalEscort,
-  vehicleRepairModelFor,
-  type MedicalEscortOutcome,
-} from '@/utils/dice';
-import { EDITION_N26 } from '@/types/edition';
+import { resolveMedicalEscort, type MedicalEscortOutcome } from '@/utils/dice';
 
 export type PostCycleActionId =
   | 'medical_escort'
@@ -43,11 +38,6 @@ export const TRAIN_XP = 2;
 
 /** Must match the seeded N26 effect_name exactly. */
 export const CRITICAL_INJURY_EFFECT_NAME = 'Critical Injury';
-
-export function chopShopCostPerDamage(): number {
-  const model = vehicleRepairModelFor(EDITION_N26);
-  return model?.kind === 'per-damage' ? model.costPerDamage : 0;
-}
 
 const LEADER_CHAMPION = ['leader', 'champion'] as const;
 const LEADER_CHAMPION_GANGER_PROSPECT = ['leader', 'champion', 'ganger', 'prospect'] as const;
@@ -86,11 +76,10 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   visit_chop_shop: {
     id: 'visit_chop_shop',
     label: 'Visit Chop Shop',
-    summary: `${chopShopCostPerDamage()}cr per damage`,
+    summary: 'Logged only',
     description:
-      `Repair the vehicle's Lasting Damage at ${chopShopCostPerDamage()} credits each ` +
-      `(Critical Damage included). Multiple instances of the same damage must each be ` +
-      `removed separately.`,
+      'Take the vehicle to the Chop Shop. Repairs are made, and paid for, from its ' +
+      'Lasting Damage list.',
     performer: { kind: 'vehicle' },
   },
   work_territory: {
@@ -166,7 +155,6 @@ export interface PostCycleFighter {
   recovery?: boolean;
   effects?: {
     injuries?: FighterEffect[];
-    'lasting damages'?: FighterEffect[];
     [key: string]: FighterEffect[] | undefined;
   };
 }
@@ -228,10 +216,6 @@ export const criticalInjuriesOf = (fighter: PostCycleFighter): FighterEffect[] =
 export const removableLastingInjuriesOf = (fighter: PostCycleFighter): FighterEffect[] =>
   injuriesOf(fighter).filter((e) => e.effect_name !== CRITICAL_INJURY_EFFECT_NAME);
 
-/** On N26 the vehicle is the fighter, so its damage sits in the fighter's effects. */
-export const lastingDamagesOf = (fighter: PostCycleFighter): FighterEffect[] =>
-  fighter.effects?.['lasting damages'] ?? [];
-
 export const hasCriticalInjury = (fighter: PostCycleFighter): boolean =>
   criticalInjuriesOf(fighter).length > 0;
 
@@ -251,20 +235,15 @@ export type PostCycleAssignment =
     }
   | {
       fighterId: string;
-      action: 'visit_chop_shop';
-      damageIds: string[];
-    }
-  | {
-      fighterId: string;
       action: 'develop_tactics';
       tacticsCardIds: string[];
     }
   | {
       fighterId: string;
-      action: 'visit_trading_post' | 'work_territory' | 'train';
+      action: 'visit_chop_shop' | 'visit_trading_post' | 'work_territory' | 'train';
     };
 
-/** Negative spends. Includes Chop Shop, which repairVehicleDamage bills itself. */
+/** Negative spends. */
 export function assignmentCreditsDelta(assignment: PostCycleAssignment): number {
   switch (assignment.action) {
     case 'medical_escort':
@@ -274,8 +253,6 @@ export function assignmentCreditsDelta(assignment: PostCycleAssignment): number 
             assignment.goodStuffSteps * MEDICAL_ESCORT_GOOD_STUFF_STEP);
     case 'fit_bionics':
       return -(assignment.injuryIds.length * FIT_BIONICS_COST_PER_INJURY);
-    case 'visit_chop_shop':
-      return -(assignment.damageIds.length * chopShopCostPerDamage());
     case 'work_territory':
       return WORK_TERRITORY_INCOME;
     default:
@@ -470,18 +447,6 @@ export function validatePostCycleAssignments(
             continue;
           }
           claimedTacticsCards.set(cardId, label);
-        }
-        break;
-      }
-
-      case 'visit_chop_shop': {
-        for (const message of selectedEffectIssues(
-          assignment.damageIds,
-          lastingDamagesOf(performer),
-          label,
-          'Lasting Damage'
-        )) {
-          issues.push({ fighterId: assignment.fighterId, message });
         }
         break;
       }

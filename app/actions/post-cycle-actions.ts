@@ -11,7 +11,6 @@ import {
 import { invalidateFighter } from '@/utils/cache-tags';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { addFighterInjury, deleteFighterInjury } from './fighter-injury';
-import { repairVehicleDamage } from './remove-vehicle-damage';
 import { editFighterStatus, updateFighterXp } from './edit-fighter';
 import { logPostCycleAction } from './logs/gang-post-cycle-logs';
 import { addGangTacticsCards } from './gang-tactics-cards';
@@ -43,7 +42,6 @@ export interface ApplyPostCycleActionsParams {
 export interface PostCycleFighterChange {
   fighterId: string;
   removedEffectIds?: string[];
-  removedFrom?: 'injuries' | 'lasting damages';
   addedInjury?: {
     id: string;
     effect_name: string;
@@ -80,7 +78,6 @@ export interface ApplyPostCycleActionsResult {
 }
 
 const INJURY_CATEGORY = 'injuries';
-const LASTING_DAMAGE_CATEGORY = 'lasting damages';
 
 async function loadPostCycleFighters(
   supabase: any,
@@ -393,7 +390,6 @@ export async function applyPostCycleActions(
                 {
                   fighterId: target!.id,
                   removedEffectIds: criticalInjury ? [criticalInjury.id] : [],
-                  removedFrom: 'injuries',
                   recovery: true,
                 },
               ],
@@ -419,7 +415,6 @@ export async function applyPostCycleActions(
               {
                 fighterId: target!.id,
                 removedEffectIds: criticalInjury ? [criticalInjury.id] : [],
-                removedFrom: 'injuries',
                 addedInjury: applied.injury,
                 recovery: applied.success ? applied.recovery_status ?? true : undefined,
               },
@@ -458,50 +453,16 @@ export async function applyPostCycleActions(
             creditsDelta: -(removedIds.length * FIT_BIONICS_COST_PER_INJURY),
             changes:
               removedIds.length > 0
-                ? [{ fighterId: target!.id, removedEffectIds: removedIds, removedFrom: 'injuries' }]
+                ? [{ fighterId: target!.id, removedEffectIds: removedIds }]
                 : undefined,
             failed: Boolean(failure),
           });
           break;
         }
 
-        case 'visit_chop_shop': {
-          const damages = performer.effects?.[LASTING_DAMAGE_CATEGORY] ?? [];
-          const repairedNames = assignment.damageIds.map(
-            (id) => damages.find((d) => d.id === id)?.effect_name ?? 'Lasting Damage'
-          );
-
-          const repairCost = -assignmentCreditsDelta(assignment);
-
-          // On N26 the vehicle is the fighter, hence vehicleId null.
-          const repaired = await repairVehicleDamage({
-            damageIds: assignment.damageIds,
-            repairCost,
-            vehicleId: null,
-            fighterId: performer.id,
-            gangId,
-          });
-
-          results.push({
-            ...base,
-            outcome: repaired.success
-              ? `Repaired ${repairedNames.join(', ')} at the Chop Shop.`
-              : `Chop Shop repair failed: ${repaired.error}`,
-            // Already billed by repairVehicleDamage.
-            creditsDelta: repaired.success ? -repairCost : 0,
-            changes: repaired.success
-              ? [
-                  {
-                    fighterId: performer.id,
-                    removedEffectIds: assignment.damageIds,
-                    removedFrom: 'lasting damages' as const,
-                  },
-                ]
-              : undefined,
-            failed: !repaired.success,
-          });
+        case 'visit_chop_shop':
+          results.push({ ...base, outcome: 'Visited the Chop Shop.', creditsDelta: 0 });
           break;
-        }
 
         case 'train': {
           const trained = await updateFighterXp({
@@ -563,10 +524,8 @@ export async function applyPostCycleActions(
       }
     }
 
-    // Billed from outcomes rather than the plan; Chop Shop has billed itself.
-    const settledDelta = results
-      .filter((result) => result.action !== 'visit_chop_shop')
-      .reduce((sum, result) => sum + result.creditsDelta, 0);
+    // Billed from outcomes rather than the plan.
+    const settledDelta = results.reduce((sum, result) => sum + result.creditsDelta, 0);
 
     if (settledDelta !== 0) {
       const financialResult = await updateGangFinancials(supabase, {
