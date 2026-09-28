@@ -8,7 +8,7 @@ import { Combobox } from '@/components/ui/combobox';
 import Modal from '@/components/ui/modal';
 import { Badge } from '@/components/ui/badge';
 import { GrCycle } from 'react-icons/gr';
-import { LuMinus, LuPlus, LuWalletCards } from 'react-icons/lu';
+import { LuMinus, LuPlus } from 'react-icons/lu';
 import { FighterProps } from '@/types/fighter';
 import type { FighterEffect } from '@/types/fighter-effect';
 import { UserPermissions } from '@/types/user-permissions';
@@ -667,11 +667,10 @@ export default function PostCycleActions({
                       <Button
                         variant="outline"
                         size="sm"
-                        className="w-full gap-2"
+                        className="w-full"
                         onClick={() => setTacticsPickerFighterId(fighter.id)}
                         disabled={!canEdit}
                       >
-                        <LuWalletCards className="h-4 w-4" />
                         {row.tacticsCards.length > 0 ? 'Change Gang Tactics' : 'Choose Gang Tactics'}
                       </Button>
                       {row.tacticsCards.length > 0 && (
