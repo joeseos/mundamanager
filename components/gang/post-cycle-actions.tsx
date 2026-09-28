@@ -49,9 +49,7 @@ interface PostCycleActionsProps {
   onTacticsCardsUpdate?: (cards: GangTacticsCard[]) => void;
   userPermissions?: UserPermissions;
   onFighterUpdate?: (fighter: FighterProps, skipRatingUpdate?: boolean) => void;
-  onGangCreditsUpdate?: (credits: number) => void;
-  onGangRatingUpdate?: (rating: number) => void;
-  onGangWealthUpdate?: (wealth: number) => void;
+  onGangFinancialsUpdate?: (financials: { credits: number; rating: number; wealth: number }) => void;
 }
 
 /** A row may be half-filled, so it is not yet a PostCycleAssignment. */
@@ -298,9 +296,7 @@ export default function PostCycleActions({
   onTacticsCardsUpdate,
   userPermissions,
   onFighterUpdate,
-  onGangCreditsUpdate,
-  onGangRatingUpdate,
-  onGangWealthUpdate,
+  onGangFinancialsUpdate,
 }: PostCycleActionsProps) {
   const [rows, setRows] = useState<Record<string, RowState>>({});
   const [tacticsPickerFighterId, setTacticsPickerFighterId] = useState<string | null>(null);
@@ -506,11 +502,7 @@ export default function PostCycleActions({
         onTacticsCardsUpdate(Array.from(byId.values()));
       }
 
-      if (result.gang) {
-        onGangCreditsUpdate?.(result.gang.credits);
-        onGangRatingUpdate?.(result.gang.rating);
-        onGangWealthUpdate?.(result.gang.wealth);
-      }
+      if (result.gang) onGangFinancialsUpdate?.(result.gang);
 
       if (applied.length > 0) {
         setRows((prev) => {

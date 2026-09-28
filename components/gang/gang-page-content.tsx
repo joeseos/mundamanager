@@ -149,6 +149,21 @@ export default function GangPageContent({
     }));
   }, []);
 
+  const handleGangFinancialsUpdate = useCallback(
+    (financials: { credits: number; rating: number; wealth: number }) => {
+      setGangData((prev: GangDataState) => ({
+        ...prev,
+        processedData: {
+          ...prev.processedData,
+          credits: financials.credits,
+          rating: financials.rating,
+          wealth: financials.wealth,
+        },
+      }));
+    },
+    []
+  );
+
   const handleGangTradePointsUpdate = useCallback((newTradePoints: number) => {
     setGangData((prev: GangDataState) => ({
       ...prev,
@@ -720,9 +735,7 @@ export default function GangPageContent({
               onTacticsCardsUpdate={handleTacticsCardsUpdate}
               userPermissions={userPermissions}
               onFighterUpdate={handleFighterUpdate}
-              onGangCreditsUpdate={handleGangCreditsUpdate}
-              onGangRatingUpdate={handleGangRatingUpdate}
-              onGangWealthUpdate={handleGangWealthUpdate}
+              onGangFinancialsUpdate={handleGangFinancialsUpdate}
             />
           )}
         </div>
@@ -951,17 +964,7 @@ export default function GangPageContent({
                   },
                 }));
               }}
-              onGangFinancialsUpdate={(financials) => {
-                setGangData(prev => ({
-                  ...prev,
-                  processedData: {
-                    ...prev.processedData,
-                    credits: financials.credits,
-                    rating: financials.rating,
-                    wealth: financials.wealth,
-                  },
-                }));
-              }}
+              onGangFinancialsUpdate={handleGangFinancialsUpdate}
             />
           </Modal>
         );

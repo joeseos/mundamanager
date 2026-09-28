@@ -110,8 +110,7 @@ async function loadPostCycleFighters(
     .in(
       'fighter_id',
       fighters.map((f: any) => f.id)
-    )
-    .is('vehicle_id', null);
+    );
 
   if (effectsError) throw new Error(effectsError.message || 'Failed to load fighter effects');
 
@@ -172,7 +171,7 @@ export async function applyPostCycleActions(
       .from('gangs')
       .select(
         `
-        id, credits, rating, wealth,
+        id, credits,
         gang_types!gang_type_id ( editions:edition_id ( id, slug ) ),
         custom_gang_type_edition:custom_gang_types!custom_gang_type_id ( editions:edition_id ( id, slug ) )
       `
@@ -363,18 +362,18 @@ export async function applyPostCycleActions(
           }
 
           if (escortResult === 'Full Recovery') {
-            const { error: recoveryError } = await supabase
-              .from('fighters')
-              .update({ recovery: true, updated_at: new Date().toISOString() })
-              .eq('id', target!.id);
+            // 'recover' toggles, so only a fighter not already in Recovery is sent.
+            const recovered = target!.recovery
+              ? null
+              : await editFighterStatus({ fighter_id: target!.id, action: 'recover' });
 
-            if (recoveryError) {
+            if (recovered && !recovered.success) {
               results.push({
                 ...base,
                 roll,
                 outcome:
                   `Full Recovery rolled and the Critical Injury was cleared, but ` +
-                  `sending ${target!.fighter_name} into Recovery failed: ${recoveryError.message}`,
+                  `sending ${target!.fighter_name} into Recovery failed: ${recovered.error}`,
                 creditsDelta: escortCost,
                 failed: true,
               });
@@ -524,36 +523,20 @@ export async function applyPostCycleActions(
       }
     }
 
-    // Billed from outcomes rather than the plan.
-    const settledDelta = results.reduce((sum, result) => sum + result.creditsDelta, 0);
+    // Billed from outcomes rather than the plan. Called even at zero, since it
+    // also returns the rating and wealth the helpers above moved.
+    const financials = await updateGangFinancials(supabase, {
+      gangId,
+      creditsDelta: results.reduce((sum, result) => sum + result.creditsDelta, 0),
+    });
 
-    if (settledDelta !== 0) {
-      const financialResult = await updateGangFinancials(supabase, {
-        gangId,
-        creditsDelta: settledDelta,
-      });
-
-      if (!financialResult.success) {
-        return {
-          success: false,
-          error: financialResult.error || 'Failed to update gang credits',
-          results,
-        };
-      }
+    if (!financials.success) {
+      return {
+        success: false,
+        error: financials.error || 'Failed to update gang credits',
+        results,
+      };
     }
-
-    // The helpers above moved rating and wealth, so re-read.
-    const { data: finalGang } = await supabase
-      .from('gangs')
-      .select('credits, rating, wealth')
-      .eq('id', gangId)
-      .single();
-
-    const after = {
-      credits: finalGang?.credits ?? startingCredits,
-      rating: finalGang?.rating ?? gang.rating ?? 0,
-      wealth: finalGang?.wealth ?? gang.wealth ?? 0,
-    };
 
     for (const result of results) {
       // A failure is still logged if part of it landed, e.g. a partial Fit Bionics.
@@ -594,7 +577,7 @@ export async function applyPostCycleActions(
           ? `${failures.length} of ${results.length} Post-cycle Actions could not be applied.`
           : undefined,
       results,
-      gang: after,
+      gang: financials.newValues,
     };
   } catch (error) {
     console.error('Error applying Post-cycle Actions:', error);
