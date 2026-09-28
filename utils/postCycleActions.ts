@@ -12,7 +12,11 @@
  */
 
 import type { FighterEffect } from '@/types/fighter-effect';
-import { vehicleRepairModelFor } from '@/utils/dice';
+import {
+  resolveMedicalEscort,
+  vehicleRepairModelFor,
+  type MedicalEscortOutcome,
+} from '@/utils/dice';
 import { EDITION_N26 } from '@/types/edition';
 
 // =============================================================================
@@ -42,6 +46,8 @@ type Performer =
 export interface PostCycleActionDefinition {
   id: PostCycleActionId;
   label: string;
+  /** A few words on what it costs or earns, shown beside the option. */
+  summary: string;
   /** Rules text, shown as the option's tooltip. */
   description: string;
   performer: Performer;
@@ -79,6 +85,7 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   medical_escort: {
     id: 'medical_escort',
     label: 'Medical Escort',
+    summary: `${MEDICAL_ESCORT_COST}cr + D6`,
     description:
       `Escort a Critically Injured gang member to the Doc for ${MEDICAL_ESCORT_COST} credits. ` +
       `Roll a D6: 1 the fighter dies, 2-3 stabilised with a Lasting Injury, 4+ full recovery. ` +
@@ -89,6 +96,7 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   fit_bionics: {
     id: 'fit_bionics',
     label: 'Fit Bionics',
+    summary: `${FIT_BIONICS_COST_PER_INJURY}cr per injury`,
     description:
       `Take another fighter to the Doc for bionics. ${FIT_BIONICS_COST_PER_INJURY} credits ` +
       `removes one Lasting Injury; multiple instances of the same injury must each be ` +
@@ -98,6 +106,7 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   develop_tactics: {
     id: 'develop_tactics',
     label: 'Develop Tactics',
+    summary: 'New Gang Tactics',
     description:
       'Generate new Gang Tactics and add them to the Gang Roster. Roll a D66 or ' +
       'pick from the edition\'s catalogue; the cards are added when the sequence resolves.',
@@ -106,6 +115,7 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   visit_chop_shop: {
     id: 'visit_chop_shop',
     label: 'Visit Chop Shop',
+    summary: `${chopShopCostPerDamage()}cr per damage`,
     description:
       `Repair the vehicle's Lasting Damage at ${chopShopCostPerDamage()} credits each ` +
       `(Critical Damage included). Multiple instances of the same damage must each be ` +
@@ -115,6 +125,7 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   work_territory: {
     id: 'work_territory',
     label: 'Work Territory',
+    summary: `+${WORK_TERRITORY_INCOME}cr`,
     description:
       `Work a Territory for ${WORK_TERRITORY_INCOME} credits added to the gang's Stash. ` +
       `At most ${WORK_TERRITORY_MAX_FIGHTERS} fighters may do this per Post-cycle Sequence.`,
@@ -123,6 +134,7 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   visit_trading_post: {
     id: 'visit_trading_post',
     label: 'Visit Trading Post',
+    summary: 'Logged only',
     description:
       'Visit the Trading Post to see what the gang can find. Buy the equipment itself from ' +
       'the Stash tab.',
@@ -131,6 +143,7 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   train: {
     id: 'train',
     label: 'Train',
+    summary: `+${TRAIN_XP} XP`,
     description: `Practise for the battles ahead. The model earns ${TRAIN_XP} XP.`,
     performer: { kind: 'any' },
   },
@@ -146,6 +159,41 @@ export const POST_CYCLE_ACTION_ORDER: PostCycleActionId[] = [
   'visit_trading_post',
   'train',
 ];
+
+// =============================================================================
+// Medical Escort odds
+// =============================================================================
+
+/**
+ * How many of the six D6 faces land on each outcome after `goodStuffSteps`.
+ * Drives the odds shown while the player decides how much to spend.
+ */
+export function medicalEscortOdds(
+  goodStuffSteps: number
+): Record<MedicalEscortOutcome, number> {
+  const odds: Record<MedicalEscortOutcome, number> = {
+    Complications: 0,
+    Stabilised: 0,
+    'Full Recovery': 0,
+  };
+  for (let face = 1; face <= 6; face++) {
+    const outcome = resolveMedicalEscort(face + goodStuffSteps);
+    if (outcome) odds[outcome] += 1;
+  }
+  return odds;
+}
+
+/**
+ * The fewest Good Stuff steps that make Full Recovery certain. The rules set no
+ * cap, but every step past this one is credits spent for nothing, so the form
+ * stops here.
+ */
+export const MEDICAL_ESCORT_MAX_USEFUL_STEPS = (() => {
+  let steps = 0;
+  // Bounded in case the table ever stops making Full Recovery reachable.
+  while (steps < 6 && medicalEscortOdds(steps)['Full Recovery'] < 6) steps += 1;
+  return steps;
+})();
 
 // =============================================================================
 // Fighter shape

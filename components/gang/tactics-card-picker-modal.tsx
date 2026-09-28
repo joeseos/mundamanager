@@ -30,8 +30,11 @@ export interface TacticsCardPickerModalProps {
    */
   reservedCardIds?: Set<string>;
   initialSelectedIds?: string[];
-  /** Return false to keep the modal open, matching Modal's onConfirm contract. */
-  onConfirm: (cardIds: string[]) => Promise<boolean> | boolean;
+  /**
+   * Receives the chosen ids and their catalogue rows. Return false to keep the
+   * modal open, matching Modal's onConfirm contract.
+   */
+  onConfirm: (cardIds: string[], cards: TacticsCard[]) => Promise<boolean> | boolean;
   onClose: () => void;
   title?: string;
   helper?: string;
@@ -254,7 +257,12 @@ export default function TacticsCardPickerModal({
         </div>
       }
       onClose={onClose}
-      onConfirm={() => onConfirm(Array.from(selectedCardIds))}
+      onConfirm={() =>
+        onConfirm(
+          Array.from(selectedCardIds),
+          packs.flatMap(pack => pack.cards).filter(card => selectedCardIds.has(card.id))
+        )
+      }
       confirmText={confirmText}
       confirmDisabled={selectedCardIds.size === 0 || confirmDisabled}
       width="lg"
