@@ -708,7 +708,7 @@ export default function PostCycleActions({
         </ul>
       )}
 
-      <div className="border-t mt-4 pt-4 space-y-3">
+      <div className="mt-4 space-y-3">
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Assigned</span>
