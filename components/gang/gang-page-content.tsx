@@ -710,8 +710,6 @@ export default function GangPageContent({
             campaigns={gangData.processedData.campaigns || []}
             editionSlug={gangData.processedData.edition_slug}
           />
-          {/* The Post-cycle Sequence is an N26 rule and only means anything to a
-              gang that is actually playing a campaign. */}
           {hasPostCycleActions(gangData.processedData.edition_slug) && gangCampaigns.length > 0 && (
             <PostCycleActions
               gangId={gangId}

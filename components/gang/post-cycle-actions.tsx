@@ -1,17 +1,5 @@
 'use client';
 
-/**
- * The N26 Post-cycle Sequence panel, shown on the gang page's Campaign tab.
- *
- * The player assigns one Post-cycle Action per fighter, then resolves the whole
- * sequence at once, server-side. Nothing is persisted between visits — the
- * assignments live in component state until they are resolved.
- *
- * Every rule (who may perform what, what it costs, the cross-fighter caps) comes
- * from utils/postCycleActions.ts, which the server action re-runs on its own
- * reads. This component builds the form and reports the outcome.
- */
-
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -57,7 +45,6 @@ interface PostCycleActionsProps {
   editionSlug?: string | null;
   fighters: FighterProps[];
   gangCredits: number;
-  /** The gang's current Gang Tactics, so Develop Tactics cannot re-add one. */
   tacticsCards?: GangTacticsCard[];
   onTacticsCardsUpdate?: (cards: GangTacticsCard[]) => void;
   userPermissions?: UserPermissions;
@@ -67,11 +54,7 @@ interface PostCycleActionsProps {
   onGangWealthUpdate?: (wealth: number) => void;
 }
 
-/**
- * Per-row form state. Kept separate from PostCycleAssignment so a half-filled
- * row (an action chosen but no target yet) is representable without being a
- * valid assignment.
- */
+/** A row may be half-filled, so it is not yet a PostCycleAssignment. */
 interface RowState {
   action: PostCycleActionId;
   targetFighterId?: string;
@@ -79,7 +62,6 @@ interface RowState {
   declineToPay: boolean;
   injuryIds: string[];
   damageIds: string[];
-  /** Catalogue rows rather than ids, so the row can name what was picked. */
   tacticsCards: TacticsCard[];
 }
 
@@ -146,14 +128,7 @@ const formatCredits = (delta: number) =>
 const plural = (count: number, one: string, many = `${one}s`) =>
   `${count} ${count === 1 ? one : many}`;
 
-/**
- * Apply one server-reported change to a fighter.
- *
- * The gang page holds its fighters in `useState`, so a `router.refresh()` would
- * not reach them — the server hands back exactly what it altered and this
- * replays it. Rating and wealth are deliberately not touched here: they come
- * back authoritative on the response, so the caller passes `skipRatingUpdate`.
- */
+/** The gang page keeps fighters in state, so server changes are replayed onto them. */
 function applyChange(fighter: FighterProps, change: PostCycleFighterChange): FighterProps {
   const next: FighterProps = { ...fighter };
 
@@ -193,7 +168,6 @@ function CreditsDelta({ delta, className = '' }: { delta: number; className?: st
   );
 }
 
-/** Inline checklist for the effect rows Fit Bionics and Chop Shop pick from. */
 function EffectChecklist({
   effects,
   selected,
@@ -240,7 +214,6 @@ function EffectChecklist({
   );
 }
 
-/** The Doc's fee: extra "Good Stuff" with the odds it buys, or refusing to pay. */
 function MedicalEscortOptions({
   row,
   targetName,
@@ -358,7 +331,6 @@ export default function PostCycleActions({
   );
   const fighterById = useMemo(() => new Map(fighters.map((f) => [f.id, f])), [fighters]);
 
-  // Fighters that could take at least one action, Leaders and Champions first.
   const actors = useMemo(
     () =>
       fighters
@@ -411,8 +383,7 @@ export default function PostCycleActions({
     [fighters, assignments, availability, ownedTacticsCardIds]
   );
 
-  // Each issue is shown on the row it concerns. One about a fighter without a
-  // row — a patient in Recovery, or the gang as a whole — goes under the list.
+  // Issues about a fighter without a row (a patient in Recovery) go under the list.
   const { issuesByFighter, sheetIssues } = useMemo(() => {
     const byFighter = new Map<string, string[]>();
     const rest: string[] = [];
@@ -443,7 +414,6 @@ export default function PostCycleActions({
           ? 'The gang cannot afford these actions.'
           : null;
 
-  // Patients are out of the running, and so is anyone already assigned.
   const unassigned = actors.filter((f) => !rows[f.id] && !doctorVisits.has(f.id));
 
   const setRow = (fighterId: string, next: Partial<RowState>) =>
@@ -458,7 +428,6 @@ export default function PostCycleActions({
         const { [fighterId]: _removed, ...rest } = prev;
         return rest;
       }
-      // Changing the action clears the previous action's picks.
       return { ...prev, [fighterId]: emptyRow(value as PostCycleActionId) };
     });
 
@@ -469,7 +438,6 @@ export default function PostCycleActions({
       return next;
     });
 
-  /** Why an action cannot be picked for this fighter right now, if it cannot. */
   const unavailableReason = (fighter: FighterProps, actionId: PostCycleActionId) => {
     switch (actionId) {
       case 'medical_escort':
@@ -490,10 +458,6 @@ export default function PostCycleActions({
     }
   };
 
-  /**
-   * Doc patients for one performer. A fighter already going with someone else,
-   * or taking an action of their own, is listed but cannot be picked.
-   */
   const patientOptions = (performerId: string, candidates: FighterProps[]) =>
     candidates
       .filter((f) => f.id !== performerId)
@@ -564,8 +528,7 @@ export default function PostCycleActions({
       const result = await applyPostCycleActions({ gangId, assignments });
       const applied = result.results;
 
-      // Replay exactly what the server changed onto the gang page's own fighter
-      // state. `skipRatingUpdate` because the authoritative rating arrives below.
+      // skipRatingUpdate: the authoritative rating arrives below.
       const patched = new Map<string, FighterProps>();
       for (const outcome of applied) {
         for (const change of outcome.changes ?? []) {
@@ -577,8 +540,6 @@ export default function PostCycleActions({
         onFighterUpdate?.(fighter, true);
       }
 
-      // Newly added Gang Tactics live on the page, not on a fighter, so they are
-      // merged separately. addGangTacticsCards returns only rows it inserted.
       const addedCards = applied.flatMap((r) => r.addedTacticsCards ?? []);
       if (addedCards.length > 0 && onTacticsCardsUpdate) {
         const byId = new Map((tacticsCards ?? []).map((card) => [card.id, card]));
@@ -586,15 +547,12 @@ export default function PostCycleActions({
         onTacticsCardsUpdate(Array.from(byId.values()));
       }
 
-      // The gang numbers come back authoritative — several of these actions move
-      // rating and wealth as well as credits, so nothing is guessed client-side.
       if (result.gang) {
         onGangCreditsUpdate?.(result.gang.credits);
         onGangRatingUpdate?.(result.gang.rating);
         onGangWealthUpdate?.(result.gang.wealth);
       }
 
-      // Rows that landed are done; failed ones stay so the player can see them.
       if (applied.length > 0) {
         setRows((prev) => {
           const next = { ...prev };
@@ -611,8 +569,7 @@ export default function PostCycleActions({
         return applied.length > 0;
       }
 
-      // Dice rolled on the server cannot be read off the page afterwards, so a
-      // sequence with a roll ends on the report. The rest shows on the roster.
+      // Server-side rolls aren't visible anywhere else, so they get the report.
       if (applied.some((outcome) => outcome.roll)) {
         setReport({ outcomes: applied, partial: false });
       } else {
@@ -714,7 +671,6 @@ export default function PostCycleActions({
                         const reason = unavailableReason(fighter, option.id);
                         return {
                           value: option.id,
-                          // The rules text rides along as a hover title.
                           label: (
                             <span
                               title={option.description}
@@ -894,14 +850,11 @@ export default function PostCycleActions({
         )}
       </div>
 
-      {/* Gang Tactics picker — the same modal the Gang Tactics list uses, but it
-          only records the choice; the cards are added when the sequence resolves. */}
       {tacticsPickerFighterId && tacticsPickerRow && (
         <TacticsCardPickerModal
           gangId={gangId}
           ownedCardIds={ownedTacticsCardIds}
-          // Cards another row has already claimed. Without this two fighters
-          // could pick the same card and the insert would silently drop one.
+          // Cards another row claimed; the insert would silently drop a duplicate.
           reservedCardIds={
             new Set(
               Object.entries(rows)

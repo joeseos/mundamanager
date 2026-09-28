@@ -246,11 +246,7 @@ const EDITION_CAPABILITIES = {
   spyrerRecovery:           { n23: false, n26: true  },
   /** Spyrers spend kills on Power Boosts for their hunting rig. */
   spyrerPowerBoosts:        { n23: true,  n26: false },
-  /**
-   * The Post-cycle Sequence: between battles each model may perform one
-   * Post-cycle Action (Medical Escort, Fit Bionics, Work Territory, Train, …).
-   * The catalog and its rules live in utils/postCycleActions.ts.
-   */
+  /** Each model may take one Post-cycle Action between battles (utils/postCycleActions.ts). */
   postCycleActions:         { n23: false, n26: true  },
 } as const satisfies Record<string, Record<EditionSlug, unknown>>;
 

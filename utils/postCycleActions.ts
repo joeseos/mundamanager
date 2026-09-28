@@ -1,14 +1,6 @@
 /**
- * The N26 Post-cycle Sequence.
- *
- * Between battles each model in the gang may perform one Post-cycle Action.
- * This module owns the catalog, the eligibility rules and the costs, so neither
- * the UI (components/gang/post-cycle-actions.tsx) nor the server action
- * (app/actions/post-cycle-actions.ts) restates them — the client uses them to
- * build and pre-validate the form, and the server re-runs the same checks
- * against freshly read rows before applying anything.
- *
- * Gated by `hasPostCycleActions` in types/edition.ts, not by comparing slugs.
+ * N26 Post-cycle Sequence rules, shared by the form and the server action. The
+ * server re-runs validatePostCycleAssignments on its own reads before applying.
  */
 
 import type { FighterEffect } from '@/types/fighter-effect';
@@ -19,10 +11,6 @@ import {
 } from '@/utils/dice';
 import { EDITION_N26 } from '@/types/edition';
 
-// =============================================================================
-// Catalog
-// =============================================================================
-
 export type PostCycleActionId =
   | 'medical_escort'
   | 'fit_bionics'
@@ -32,12 +20,7 @@ export type PostCycleActionId =
   | 'visit_trading_post'
   | 'train';
 
-/**
- * Who may perform an action. Matched against `fighters.fighter_subtypes`, which
- * on N26 carries 'Leader' / 'Champion' / 'Ganger' / 'Prospect' (see
- * utils/fighterSubtypeRankN26.ts) — except `vehicle`, which is the
- * `fighters.is_vehicle` flag, since N26 vehicles are fighters in their own right.
- */
+/** Subtypes match fighters.fighter_subtypes; `vehicle` means fighters.is_vehicle. */
 type Performer =
   | { kind: 'subtypes'; subtypes: readonly string[] }
   | { kind: 'vehicle' }
@@ -46,33 +29,21 @@ type Performer =
 export interface PostCycleActionDefinition {
   id: PostCycleActionId;
   label: string;
-  /** A few words on what it costs or earns, shown beside the option. */
   summary: string;
-  /** Rules text, shown as the option's tooltip. */
   description: string;
   performer: Performer;
 }
 
 export const MEDICAL_ESCORT_COST = 30;
-/** "I'll Use the Good Stuff": every extra 50 credits adds +1 to the D6. */
 export const MEDICAL_ESCORT_GOOD_STUFF_STEP = 50;
 export const FIT_BIONICS_COST_PER_INJURY = 50;
 export const WORK_TERRITORY_INCOME = 15;
 export const WORK_TERRITORY_MAX_FIGHTERS = 5;
 export const TRAIN_XP = 2;
 
-/**
- * A Critical Injury kills the fighter if untreated, so it is the only thing
- * Medical Escort can target — and the one thing Fit Bionics cannot remove.
- * Must match the seeded effect_name exactly (see
- * supabase/migrations/20260806160000_seed_n26_lasting_injuries.sql).
- */
+/** Must match the seeded N26 effect_name exactly. */
 export const CRITICAL_INJURY_EFFECT_NAME = 'Critical Injury';
 
-/**
- * Chop Shop charges the same per-damage rate as the N26 repair rules, so it
- * reads the figure from the edition's repair model rather than restating 50.
- */
 export function chopShopCostPerDamage(): number {
   const model = vehicleRepairModelFor(EDITION_N26);
   return model?.kind === 'per-damage' ? model.costPerDamage : 0;
@@ -149,7 +120,6 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   },
 };
 
-/** Display order: the actions with real consequences first, Train last. */
 export const POST_CYCLE_ACTION_ORDER: PostCycleActionId[] = [
   'medical_escort',
   'fit_bionics',
@@ -160,14 +130,7 @@ export const POST_CYCLE_ACTION_ORDER: PostCycleActionId[] = [
   'train',
 ];
 
-// =============================================================================
-// Medical Escort odds
-// =============================================================================
-
-/**
- * How many of the six D6 faces land on each outcome after `goodStuffSteps`.
- * Drives the odds shown while the player decides how much to spend.
- */
+/** How many of the six D6 faces land on each outcome after the Good Stuff bonus. */
 export function medicalEscortOdds(
   goodStuffSteps: number
 ): Record<MedicalEscortOutcome, number> {
@@ -183,27 +146,14 @@ export function medicalEscortOdds(
   return odds;
 }
 
-/**
- * The fewest Good Stuff steps that make Full Recovery certain. The rules set no
- * cap, but every step past this one is credits spent for nothing, so the form
- * stops here.
- */
+/** Past this many steps Full Recovery is already certain, so more buys nothing. */
 export const MEDICAL_ESCORT_MAX_USEFUL_STEPS = (() => {
   let steps = 0;
-  // Bounded in case the table ever stops making Full Recovery reachable.
   while (steps < 6 && medicalEscortOdds(steps)['Full Recovery'] < 6) steps += 1;
   return steps;
 })();
 
-// =============================================================================
-// Fighter shape
-// =============================================================================
-
-/**
- * The slice of a fighter this module reads. Structural rather than importing
- * FighterProps, so the server action can pass rows built straight from the
- * database without assembling a full fighter.
- */
+/** The fighter fields these rules read, so the server can pass plain rows. */
 export interface PostCycleFighter {
   id: string;
   fighter_name: string;
@@ -221,16 +171,7 @@ export interface PostCycleFighter {
   };
 }
 
-// =============================================================================
-// Eligibility
-// =============================================================================
-
-/**
- * A fighter must be on their feet to spend a Post-cycle Action. Recovery counts
- * as unavailable: the fighter is out of play for the cycle. Being *targeted* by
- * Medical Escort or Fit Bionics is not performing, so targets are not filtered
- * by this — a Critically Injured fighter is always in Recovery.
- */
+/** Performers only: a Doc patient is always in Recovery, so targets skip this. */
 export function canActInPostCycle(fighter: PostCycleFighter): boolean {
   return (
     !fighter.killed &&
@@ -246,17 +187,10 @@ function hasSubtype(fighter: PostCycleFighter, subtypes: readonly string[]): boo
   return subtypes.some((wanted) => owned.includes(wanted));
 }
 
-/**
- * What the gang's edition offers. Develop Tactics needs somewhere to put the
- * card, and `hasGangTacticsCards` is a separate capability row from
- * `hasPostCycleActions` by design — one row per decision — so an edition with
- * Post-cycle Actions is not assumed to have a tactics catalogue.
- */
 export interface PostCycleAvailability {
   tacticsCardsAvailable: boolean;
 }
 
-/** Whether this fighter's role and status allow this action at all. */
 export function canPerformPostCycleAction(
   fighter: PostCycleFighter,
   actionId: PostCycleActionId,
@@ -272,12 +206,10 @@ export function canPerformPostCycleAction(
     case 'vehicle':
       return fighter.is_vehicle === true;
     case 'subtypes':
-      // A vehicle is a model, not a ganger — it never fills a crew role.
       return !fighter.is_vehicle && hasSubtype(fighter, performer.subtypes);
   }
 }
 
-/** Every action this fighter could take, in display order. */
 export function eligiblePostCycleActions(
   fighter: PostCycleFighter,
   availability: PostCycleAvailability
@@ -287,67 +219,44 @@ export function eligiblePostCycleActions(
   ).map((id) => POST_CYCLE_ACTIONS[id]);
 }
 
-// =============================================================================
-// Effect row selectors
-// =============================================================================
-
 const injuriesOf = (fighter: PostCycleFighter): FighterEffect[] =>
   fighter.effects?.injuries ?? [];
 
-/** The rows Medical Escort can treat. */
 export const criticalInjuriesOf = (fighter: PostCycleFighter): FighterEffect[] =>
   injuriesOf(fighter).filter((e) => e.effect_name === CRITICAL_INJURY_EFFECT_NAME);
 
-/** The rows Fit Bionics can remove — every Lasting Injury except a Critical one. */
 export const removableLastingInjuriesOf = (fighter: PostCycleFighter): FighterEffect[] =>
   injuriesOf(fighter).filter((e) => e.effect_name !== CRITICAL_INJURY_EFFECT_NAME);
 
-/**
- * The rows the Chop Shop can repair. On N26 the vehicle IS the fighter, so its
- * Lasting Damage sits in the fighter's own effects rather than on a `vehicles` row.
- */
+/** On N26 the vehicle is the fighter, so its damage sits in the fighter's effects. */
 export const lastingDamagesOf = (fighter: PostCycleFighter): FighterEffect[] =>
   fighter.effects?.['lasting damages'] ?? [];
 
 export const hasCriticalInjury = (fighter: PostCycleFighter): boolean =>
   criticalInjuriesOf(fighter).length > 0;
 
-// =============================================================================
-// Assignments
-// =============================================================================
-
-/**
- * One fighter's chosen action. A discriminated union so an assignment cannot
- * carry the wrong extras — a Train row has no target, a Fit Bionics row cannot
- * omit its injury ids.
- */
 export type PostCycleAssignment =
   | {
       fighterId: string;
       action: 'medical_escort';
       targetFighterId: string;
-      /** Extra 50-credit steps bought for the Doc; each adds +1 to the D6. */
       goodStuffSteps: number;
-      /** Refuse to pay: no roll is made and the fighter dies. */
       declineToPay?: boolean;
     }
   | {
       fighterId: string;
       action: 'fit_bionics';
       targetFighterId: string;
-      /** fighter_effects ids to remove; one charge each. */
       injuryIds: string[];
     }
   | {
       fighterId: string;
       action: 'visit_chop_shop';
-      /** fighter_effects ids on the performing vehicle. */
       damageIds: string[];
     }
   | {
       fighterId: string;
       action: 'develop_tactics';
-      /** `tactics_cards.id`s to add to the roster when the sequence resolves. */
       tacticsCardIds: string[];
     }
   | {
@@ -355,11 +264,7 @@ export type PostCycleAssignment =
       action: 'visit_trading_post' | 'work_territory' | 'train';
     };
 
-/**
- * Net credits for one assignment: negative spends, positive earns. Chop Shop is
- * included, so a caller that delegates the repair to `repairVehicleDamage` must
- * exclude it when settling the rest, or the gang pays twice.
- */
+/** Negative spends. Includes Chop Shop, which repairVehicleDamage bills itself. */
 export function assignmentCreditsDelta(assignment: PostCycleAssignment): number {
   switch (assignment.action) {
     case 'medical_escort':
@@ -378,13 +283,7 @@ export function assignmentCreditsDelta(assignment: PostCycleAssignment): number 
   }
 }
 
-/**
- * What the whole sequence is planned to cost, negative for a net spend.
- *
- * Planned, not actual: this drives the form's running total and the server's
- * affordability check, both of which must reason about what is being attempted.
- * Billing is settled separately from the outcomes each action reports.
- */
+/** The planned total. The server bills from what each action actually did. */
 export function postCycleTotalCredits(assignments: PostCycleAssignment[]): number {
   return assignments.reduce(
     (sum, assignment) => sum + assignmentCreditsDelta(assignment),
@@ -392,15 +291,6 @@ export function postCycleTotalCredits(assignments: PostCycleAssignment[]): numbe
   );
 }
 
-// =============================================================================
-// Validation
-// =============================================================================
-
-/**
- * The three checks every "pick some of this fighter's effect rows" action needs.
- * Shared by Fit Bionics and Visit Chop Shop, which differ only in which rows
- * they draw from and what those rows are called.
- */
 function selectedEffectIssues(
   selectedIds: string[],
   available: FighterEffect[],
@@ -426,31 +316,14 @@ function selectedEffectIssues(
 }
 
 export interface PostCycleValidationIssue {
-  /** The fighter the message is about, where it is about one. */
   fighterId?: string;
   message: string;
 }
 
-/**
- * Gang-level state the cross-fighter rules need beyond the fighters themselves.
- *
- * Extends PostCycleAvailability so the per-action eligibility check gets the
- * same flags the caller used to build the form. Every field is required: a
- * missing availability flag would read as "this edition cannot do it" and
- * silently reject a legitimate action.
- */
 export interface PostCycleValidationContext extends PostCycleAvailability {
-  /** `tactics_cards.id`s the gang already holds, so Develop Tactics cannot re-add one. */
   ownedTacticsCardIds: Set<string>;
 }
 
-/**
- * Every cross-fighter rule, in one place so the form and the server agree.
- *
- * The client calls this to disable Resolve and flag rows; the server calls it
- * again on freshly read rows, because the assignment list arrives from the
- * browser and is not trusted.
- */
 export function validatePostCycleAssignments(
   fighters: PostCycleFighter[],
   assignments: PostCycleAssignment[],
@@ -459,12 +332,9 @@ export function validatePostCycleAssignments(
   const issues: PostCycleValidationIssue[] = [];
   const byId = new Map(fighters.map((f) => [f.id, f]));
   const ownedTacticsCardIds = context.ownedTacticsCardIds;
-  /** Catalogue id -> the fighter that claimed it, to catch two rows picking one card. */
   const claimedTacticsCards = new Map<string, string>();
 
   const seenPerformers = new Set<string>();
-  // Counted, not just tracked: two performers escorting the same patient must be
-  // rejected, and set membership cannot tell one from two.
   const medicalEscortTargets = new Map<string, number>();
   const fitBionicsTargets = new Map<string, number>();
   const countTarget = (targets: Map<string, number>, id: string) =>
@@ -588,8 +458,7 @@ export function validatePostCycleAssignments(
             continue;
           }
 
-          // The insert ignores duplicates, so without this the second fighter
-          // would be told they added a card that was never inserted.
+          // The insert ignores duplicates, so a second claim would silently add nothing.
           const claimedBy = claimedTacticsCards.get(cardId);
           if (claimedBy && claimedBy !== assignment.fighterId) {
             issues.push({
@@ -627,13 +496,7 @@ export function validatePostCycleAssignments(
     });
   }
 
-  // "The targeted Fighter cannot perform any Post-cycle Actions themselves and a
-  // Fighter cannot be targeted by both the Medical Escort and Fit Bionics
-  // Post-cycle Actions in the same Post-cycle Sequence."
-  // One trip to the Doc per patient. Without this two Medical Escorts could both
-  // resolve against the same fighter, and the second would act on a snapshot the
-  // first has already invalidated — including toggling a just-killed fighter
-  // back to alive.
+  // One trip to the Doc per patient, and a patient takes no action of their own.
   for (const [targets, label] of [
     [medicalEscortTargets, 'Medical Escort'],
     [fitBionicsTargets, 'Fit Bionics'],

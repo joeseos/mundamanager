@@ -108,8 +108,7 @@ export const LOG_TYPE_LABELS: Record<string, string> = {
   'tactics_card_added': 'Gang Tactic added',
   'tactics_card_removed': 'Gang Tactic removed',
 
-  // Post-cycle Actions (N26). Written by app/actions/logs/gang-post-cycle-logs.ts,
-  // which maps each PostCycleActionId to one of these.
+  // Post-cycle Actions (N26)
   'post_cycle_medical_escort': 'Medical Escort',
   'post_cycle_fit_bionics': 'Fit Bionics',
   'post_cycle_develop_tactics': 'Develop Tactics',

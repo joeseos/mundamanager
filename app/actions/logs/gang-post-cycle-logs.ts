@@ -4,17 +4,7 @@ import { createGangLog, GangLogActionResult } from "./gang-logs";
 import { formatRollOutcomeLine } from "@/utils/dice";
 import { POST_CYCLE_ACTIONS, type PostCycleActionId } from "@/utils/postCycleActions";
 
-/**
- * One `action_type` per Post-cycle Action rather than a single shared one, so
- * the log modal's Action Type filter can single out "every Medical Escort this
- * gang has run" — the same granularity equipment and vehicle damage already
- * log at.
- *
- * Typed `Record<PostCycleActionId, string>`, so adding an action to the catalog
- * is a compile error here until it states its log type. Every value below also
- * needs a label in LOG_TYPE_LABELS (utils/log-types.ts), or the UI falls back to
- * showing the raw snake_case string.
- */
+/** One type per action so the log can be filtered by it; each needs a LOG_TYPE_LABELS entry. */
 const POST_CYCLE_LOG_ACTION_TYPES: Record<PostCycleActionId, string> = {
   medical_escort: 'post_cycle_medical_escort',
   fit_bionics: 'post_cycle_fit_bionics',
@@ -27,34 +17,19 @@ const POST_CYCLE_LOG_ACTION_TYPES: Record<PostCycleActionId, string> = {
 
 export interface PostCycleActionLogParams {
   gang_id: string;
-  /** The fighter that spent the action. */
   fighter_id: string;
   fighter_name: string;
   action: PostCycleActionId;
-  /** The fighter acted upon, for Medical Escort and Fit Bionics. */
   target_fighter_name?: string;
-  /**
-   * What actually happened — the roll outcome, the injuries removed, the XP
-   * gained. One sentence, already phrased for a reader.
-   */
   outcome?: string;
-  /** The D6 (or D66) behind the outcome, rendered as `Roll 5 (5): …`. */
   roll_total?: number;
   roll_dice?: number[];
   roll_label?: string;
-  /** Net credits for this action alone: negative spent, positive earned. */
   credits_delta?: number;
   user_id?: string;
 }
 
-/**
- * One entry per fighter that acted, typed by which action they took.
- *
- * The helpers this composes with (deleteFighterInjury, updateFighterXp,
- * repairVehicleDamage) each write their own granular log too, so this line
- * deliberately records the *decision* — who spent their action on what — rather
- * than restating every row that changed.
- */
+/** Records who spent their action on what; the helpers log the row changes themselves. */
 export async function logPostCycleAction(
   params: PostCycleActionLogParams
 ): Promise<GangLogActionResult> {

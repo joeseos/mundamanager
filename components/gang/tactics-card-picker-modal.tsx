@@ -1,14 +1,6 @@
 'use client';
 
-/**
- * The "pick some Gang Tactics" modal: a pack selector, a D66 roller over the
- * active pack and a checkbox list of its cards.
- *
- * Shared by the Gang Tactics list and the Post-cycle Actions panel. It only
- * *chooses* cards — `onConfirm` decides what that means, so one caller saves
- * immediately and the other stashes the ids until the whole Post-cycle Sequence
- * resolves.
- */
+/** Chooses Gang Tactics; the caller decides what confirming means. */
 
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -21,19 +13,11 @@ import { verifyAndLogRolledTacticsCard } from '@/app/actions/gang-tactics-cards'
 
 export interface TacticsCardPickerModalProps {
   gangId: string;
-  /** Catalogue ids the gang already holds. Disabled, marked "Already added". */
   ownedCardIds: Set<string>;
-  /**
-   * Ids another row of the same batch has already claimed. Disabled, marked
-   * "Picked this sequence". Kept separate from owned so the two reasons a card
-   * is unavailable read differently.
-   */
+  /** Claimed by another row of the same batch. */
   reservedCardIds?: Set<string>;
   initialSelectedIds?: string[];
-  /**
-   * Receives the chosen ids and their catalogue rows. Return false to keep the
-   * modal open, matching Modal's onConfirm contract.
-   */
+  /** Return false to keep the modal open. */
   onConfirm: (cardIds: string[], cards: TacticsCard[]) => Promise<boolean> | boolean;
   onClose: () => void;
   title?: string;
@@ -59,20 +43,18 @@ export default function TacticsCardPickerModal({
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(
     () => new Set(initialSelectedIds ?? [])
   );
-  /** undefined until the user picks a pack: follow the initial selection until then. */
+  // undefined until a pack is picked, so the initial selection's pack shows.
   const [selectedPackId, setSelectedPackId] = useState<string | null | undefined>(undefined);
   const [rollLogCooldown, setRollLogCooldown] = useState(false);
 
   const reserved = reservedCardIds ?? EMPTY_IDS;
 
-  /** Unavailable for either reason — what the roller must never land on. */
   const unavailableCardIds = useMemo(
     () => new Set<string>([...ownedCardIds, ...reserved]),
     [ownedCardIds, reserved]
   );
 
-  // The modal is only mounted while open, so mounting is what triggers the
-  // fetch. Every pack arrives with its cards, so switching pack is local.
+  // Every pack arrives with its cards, so switching pack is local.
   const {
     data: packs = [],
     isLoading: isLoadingPacks,
@@ -90,7 +72,6 @@ export default function TacticsCardPickerModal({
 
   const corePack = packs.find(pack => pack.is_core);
   const selectablePacks = packs.filter(pack => !pack.is_core);
-  // Reopening with cards already chosen shows the pack they came from.
   const initialPack = packs.find(pack =>
     pack.cards.some(card => initialSelectedIds?.includes(card.id))
   );

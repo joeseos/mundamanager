@@ -39,20 +39,11 @@ export interface ApplyPostCycleActionsParams {
   assignments: PostCycleAssignment[];
 }
 
-/**
- * A precise description of what changed on one fighter, so the gang page can
- * patch its client state instead of asking the player to reload.
- *
- * The gang page copies its server payload into `useState` once, so
- * `router.refresh()` alone would not update the fighter cards — the changes have
- * to be handed back explicitly.
- */
+/** What changed on one fighter; the gang page keeps fighters in state and patches them. */
 export interface PostCycleFighterChange {
   fighterId: string;
-  /** Effect rows that were deleted, and which bucket they came out of. */
   removedEffectIds?: string[];
   removedFrom?: 'injuries' | 'lasting damages';
-  /** A Lasting Injury applied by a Stabilised Medical Escort result. */
   addedInjury?: {
     id: string;
     effect_name: string;
@@ -66,48 +57,31 @@ export interface PostCycleFighterChange {
   xpDelta?: number;
 }
 
-/** What one assignment actually did, so the UI can report each roll. */
 export interface PostCycleActionOutcome {
   fighterId: string;
   fighterName: string;
   action: PostCycleAssignment['action'];
   targetFighterId?: string;
   targetFighterName?: string;
-  /** Human-readable result, the same sentence written to the gang log. */
   outcome: string;
-  /** Medical Escort only: the modified D6 and, on a Stabilised result, the D66. */
   roll?: { total: number; dice: number[]; label?: string };
-  /**
-   * Credits this action actually moved, negative for spend. Derived from what
-   * happened rather than from what was requested, so a failed or partial action
-   * is not billed in full.
-   */
+  /** What actually moved, so a failed or partial action is not billed in full. */
   creditsDelta: number;
-  /** Cards a Develop Tactics action put on the roster, for the page's own list. */
   addedTacticsCards?: GangTacticsCard[];
-  /** Per-fighter edits the caller should apply to its own state. */
   changes?: PostCycleFighterChange[];
-  /** True when the action failed; `outcome` then carries the reason. */
   failed?: boolean;
 }
 
 export interface ApplyPostCycleActionsResult {
   success: boolean;
   error?: string;
-  /** Populated even on a partial failure — see the atomicity note below. */
   results: PostCycleActionOutcome[];
   gang?: { credits: number; rating: number; wealth: number };
 }
 
-/** The effect categories this action reads. */
 const INJURY_CATEGORY = 'injuries';
 const LASTING_DAMAGE_CATEGORY = 'lasting damages';
 
-/**
- * Read the fighters named by the assignments, with just enough of their effects
- * to re-validate the request. Deliberately a fresh read: the assignment list
- * comes from the browser and the rows it was built from may be stale.
- */
 async function loadPostCycleFighters(
   supabase: any,
   gangId: string,
@@ -160,10 +134,7 @@ async function loadPostCycleFighters(
   }));
 }
 
-/**
- * The `fighter_effect_types` row for an injury name in the gang's edition.
- * Names repeat across editions, so the edition id is part of the lookup.
- */
+/** Injury names repeat across editions, hence the edition id. */
 async function findInjuryTypeId(
   supabase: any,
   effectName: string,
@@ -183,18 +154,8 @@ async function findInjuryTypeId(
 }
 
 /**
- * Resolve a whole Post-cycle Sequence: apply every fighter's chosen action, move
- * the gang's credits once, and log what each fighter did.
- *
- * NOT ATOMIC. Each action is applied through the existing per-fighter helpers
- * (deleteFighterInjury, addFighterInjury, repairVehicleDamage, updateFighterXp,
- * editFighterStatus) so that rating, wealth and cache invalidation stay in one
- * place — but that means a failure partway through leaves earlier actions
- * applied. The same trade-off `clearRigGlitchesDowntime` and
- * `repairVehicleDamage` already accept. `results` is returned either way, so the
- * caller can report exactly what landed rather than guessing.
- *
- * Authorization is RLS, matching every other mutation under app/actions.
+ * Not atomic: each action goes through the existing per-fighter helpers, so a
+ * failure partway leaves earlier actions applied. `results` reports what landed.
  */
 export async function applyPostCycleActions(
   params: ApplyPostCycleActionsParams
@@ -209,8 +170,6 @@ export async function applyPostCycleActions(
     if (!assignments?.length) {
       return { success: false, error: 'No Post-cycle Actions selected', results };
     }
-
-    // ---- Gang, edition and the fighters involved -----------------------------
 
     const { data: gang, error: gangError } = await supabase
       .from('gangs')
@@ -251,10 +210,7 @@ export async function applyPostCycleActions(
     const fighters = await loadPostCycleFighters(supabase, gangId, involvedIds);
     const byId = new Map(fighters.map((f) => [f.id, f]));
 
-    // ---- Re-validate against the rows we just read ---------------------------
-
-    // Read directly rather than through getGangTacticsCards: that one is
-    // unstable_cache'd, and this is a write path that must see current rows.
+    // Not getGangTacticsCards: that is cached, and this write needs current rows.
     let ownedTacticsCardIds = new Set<string>();
     if (assignments.some((a) => a.action === 'develop_tactics')) {
       const { data: ownedCards } = await supabase
@@ -274,8 +230,6 @@ export async function applyPostCycleActions(
       return { success: false, error: issues.map((i) => i.message).join(' '), results };
     }
 
-    // ---- Affordability -------------------------------------------------------
-
     const totalCost = -postCycleTotalCredits(assignments);
     const startingCredits = gang.credits ?? 0;
 
@@ -286,8 +240,6 @@ export async function applyPostCycleActions(
         results,
       };
     }
-
-    // ---- Apply ---------------------------------------------------------------
 
     const touchedFighterIds = new Set<string>();
 
@@ -310,30 +262,21 @@ export async function applyPostCycleActions(
       if (target) touchedFighterIds.add(target.id);
 
       switch (assignment.action) {
-        // -- Medical Escort ---------------------------------------------------
         case 'medical_escort': {
           const criticalInjury = criticalInjuriesOf(target!)[0];
           const escortCost = assignmentCreditsDelta(assignment);
 
-          /**
-           * editFighterStatus('kill') is a TOGGLE, so calling it on a fighter
-           * that is already dead would resurrect them. Validation only proves
-           * the target has a Critical Injury, which does not by itself rule out
-           * a separate killing effect, so the state is checked here too.
-           */
+          // editFighterStatus('kill') toggles, so it must never run on a dead fighter.
           const killTarget = async (): Promise<{ ok: boolean; error?: string }> => {
             if (target!.killed) return { ok: true };
             const killed = await editFighterStatus({
               fighter_id: target!.id,
               action: 'kill',
             });
-            // Keep the snapshot honest for anything later in this same loop, so
-            // a second toggle can never resurrect who we just killed.
             if (killed.success) target!.killed = true;
             return { ok: killed.success, error: killed.error };
           };
 
-          // Refusing to pay skips the roll entirely: the fighter dies.
           if (assignment.declineToPay) {
             const killed = await killTarget();
             results.push({
@@ -372,8 +315,6 @@ export async function applyPostCycleActions(
               outcome: killed.ok
                 ? `Complications: ${target!.fighter_name} died on the table.`
                 : `Complications rolled, but applying the death failed: ${killed.error}`,
-              // The Doc was paid and the dice rolled, so a Complications result
-              // is billed. A failure to write it back is not.
               creditsDelta: killed.ok ? escortCost : 0,
               changes: killed.ok ? [{ fighterId: target!.id, killed: true }] : undefined,
               failed: !killed.ok,
@@ -381,13 +322,8 @@ export async function applyPostCycleActions(
             break;
           }
 
-          /**
-           * Resolve the Stabilised injury BEFORE touching anything. Deleting the
-           * Critical Injury first and only then discovering the edition has no
-           * row for the rolled injury would leave the fighter healed for free —
-           * which is exactly what happens on N26 'Eye Injury', whose row is
-           * missing from fighter_effect_types.
-           */
+          // Find the Stabilised injury before deleting anything, or a missing injury
+          // row (N26 'Eye Injury') would leave the fighter healed for free.
           const stabilised =
             escortResult === 'Stabilised' ? medicalEscortStabilisedRoll() : null;
           const injuryEntry = stabilised
@@ -412,7 +348,6 @@ export async function applyPostCycleActions(
             break;
           }
 
-          // Both surviving outcomes clear the Critical Injury first.
           if (criticalInjury) {
             const removed = await deleteFighterInjury({
               fighter_id: target!.id,
@@ -478,7 +413,7 @@ export async function applyPostCycleActions(
             outcome: applied.success
               ? `Stabilised: ${target!.fighter_name} suffers ${injuryEntry!.name}.`
               : `Stabilised, but applying ${injuryEntry!.name} failed: ${applied.error}`,
-            // The Critical Injury is already gone either way, so the visit is billed.
+            // The Critical Injury is gone either way, so the visit is billed.
             creditsDelta: escortCost,
             changes: [
               {
@@ -494,7 +429,6 @@ export async function applyPostCycleActions(
           break;
         }
 
-        // -- Fit Bionics ------------------------------------------------------
         case 'fit_bionics': {
           const removedNames: string[] = [];
           const removedIds: string[] = [];
@@ -521,7 +455,6 @@ export async function applyPostCycleActions(
             outcome: failure
               ? `Removed ${removedNames.length} of ${assignment.injuryIds.length} Lasting Injuries before failing: ${failure}`
               : `Fitted bionics, removing ${removedNames.join(', ')} from ${target!.fighter_name}.`,
-            // Billed per injury actually removed, not per injury requested.
             creditsDelta: -(removedIds.length * FIT_BIONICS_COST_PER_INJURY),
             changes:
               removedIds.length > 0
@@ -532,7 +465,6 @@ export async function applyPostCycleActions(
           break;
         }
 
-        // -- Visit Chop Shop --------------------------------------------------
         case 'visit_chop_shop': {
           const damages = performer.effects?.[LASTING_DAMAGE_CATEGORY] ?? [];
           const repairedNames = assignment.damageIds.map(
@@ -541,7 +473,7 @@ export async function applyPostCycleActions(
 
           const repairCost = -assignmentCreditsDelta(assignment);
 
-          // The N26 flat-rate path: the vehicle IS the fighter, hence vehicleId null.
+          // On N26 the vehicle is the fighter, hence vehicleId null.
           const repaired = await repairVehicleDamage({
             damageIds: assignment.damageIds,
             repairCost,
@@ -555,7 +487,7 @@ export async function applyPostCycleActions(
             outcome: repaired.success
               ? `Repaired ${repairedNames.join(', ')} at the Chop Shop.`
               : `Chop Shop repair failed: ${repaired.error}`,
-            // Settled inside repairVehicleDamage, so excluded from the aggregate below.
+            // Already billed by repairVehicleDamage.
             creditsDelta: repaired.success ? -repairCost : 0,
             changes: repaired.success
               ? [
@@ -571,7 +503,6 @@ export async function applyPostCycleActions(
           break;
         }
 
-        // -- Train ------------------------------------------------------------
         case 'train': {
           const trained = await updateFighterXp({
             fighter_id: performer.id,
@@ -592,7 +523,6 @@ export async function applyPostCycleActions(
           break;
         }
 
-        // -- Credits-only and log-only actions --------------------------------
         case 'work_territory':
           results.push({
             ...base,
@@ -602,9 +532,7 @@ export async function applyPostCycleActions(
           break;
 
         case 'develop_tactics': {
-          // Reuses the tactics action wholesale: it re-validates the ids against
-          // the edition's catalogue, writes its own tactics_card_added logs and
-          // invalidates the tactics cache.
+          // Re-validates the ids, logs and busts the tactics cache itself.
           const addedCards = await addGangTacticsCards({
             gangId,
             tacticsCardIds: assignment.tacticsCardIds,
@@ -635,12 +563,7 @@ export async function applyPostCycleActions(
       }
     }
 
-    // ---- Settle the credits that were not delegated --------------------------
-
-    // Billed from the outcomes, not from the planned total: an action that
-    // failed, or a Fit Bionics that removed two of the three injuries it was
-    // asked to, must not be charged for what it did not do. Chop Shop is
-    // excluded because repairVehicleDamage already took its payment.
+    // Billed from outcomes rather than the plan; Chop Shop has billed itself.
     const settledDelta = results
       .filter((result) => result.action !== 'visit_chop_shop')
       .reduce((sum, result) => sum + result.creditsDelta, 0);
@@ -660,8 +583,7 @@ export async function applyPostCycleActions(
       }
     }
 
-    // Re-read rather than trusting the pre-write snapshot: the per-fighter
-    // helpers above moved rating and wealth behind our back.
+    // The helpers above moved rating and wealth, so re-read.
     const { data: finalGang } = await supabase
       .from('gangs')
       .select('credits, rating, wealth')
@@ -674,12 +596,8 @@ export async function applyPostCycleActions(
       wealth: finalGang?.wealth ?? gang.wealth ?? 0,
     };
 
-    // ---- Log -----------------------------------------------------------------
-
     for (const result of results) {
-      // A failed action is still logged when part of it landed (a partial Fit
-      // Bionics, a Medical Escort billed after the Critical Injury was cleared),
-      // so the log accounts for every credit and effect that moved.
+      // A failure is still logged if part of it landed, e.g. a partial Fit Bionics.
       const landed =
         !result.failed || result.creditsDelta !== 0 || (result.changes?.length ?? 0) > 0;
       if (!landed) continue;
@@ -702,8 +620,6 @@ export async function applyPostCycleActions(
         console.error('Failed to log Post-cycle Action:', logError);
       }
     }
-
-    // ---- Cache ---------------------------------------------------------------
 
     // updateGangFinancials already busted the gang's financial tags.
     for (const fighterId of touchedFighterIds) {
