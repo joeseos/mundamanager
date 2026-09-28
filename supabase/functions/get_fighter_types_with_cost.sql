@@ -105,16 +105,6 @@ BEGIN
           AND (a.gang_origin_id  IS NULL OR a.gang_origin_id = v_gang_origin_id)
           AND (a.gang_type_id    IS NULL OR a.gang_type_id  = v_gang_type_id)
     ),
-    -- One cost row per fighter type, the affiliation's own over the gang type's, so a fighter type
-    -- with both is not listed twice.
-    gang_cost AS (
-        SELECT DISTINCT ON (c.fighter_type_id)
-               c.fighter_type_id, c.gang_affiliation_id, c.adjusted_cost
-        FROM fighter_type_gang_cost c
-        WHERE c.gang_type_id = p_gang_type_id
-          AND (c.gang_affiliation_id IS NULL OR c.gang_affiliation_id = p_gang_affiliation_id)
-        ORDER BY c.fighter_type_id, (c.gang_affiliation_id IS NOT NULL) DESC, c.id
-    ),
     granted AS (
         -- DISTINCT ON so two subtypes granting the same fighter yield one row, not a duplicate.
         SELECT DISTINCT ON (r.fighter_type_id)
@@ -952,7 +942,17 @@ BEGIN
         (g.subtype_name IS NOT NULL) AS is_gang_subtype,
         g.subtype_name AS gang_subtype_name
     FROM fighter_types ft
-    LEFT JOIN gang_cost ftgc ON ftgc.fighter_type_id = ft.id
+    -- One cost row per fighter type, the affiliation's own over the gang type's, so a fighter type
+    -- with both is not listed twice.
+    LEFT JOIN LATERAL (
+        SELECT c.fighter_type_id, c.gang_affiliation_id, c.adjusted_cost
+        FROM fighter_type_gang_cost c
+        WHERE c.fighter_type_id = ft.id
+          AND c.gang_type_id = p_gang_type_id
+          AND (c.gang_affiliation_id IS NULL OR c.gang_affiliation_id = p_gang_affiliation_id)
+        ORDER BY (c.gang_affiliation_id IS NOT NULL) DESC, c.id
+        LIMIT 1
+    ) ftgc ON true
     LEFT JOIN fighter_specialisations fspec ON fspec.id = ft.fighter_specialisation_id
     LEFT JOIN editions ed ON ed.id = ft.edition_id
     LEFT JOIN granted g ON g.fighter_type_id = ft.id
