@@ -420,10 +420,20 @@ ON CONFLICT (id) DO NOTHING;
 -- Hired Guns (Dramatis Personae / Bounty Hunters)
 -- is_gang_addition = true is what surfaces her in every gang's "Gang Additions" tab:
 -- get_fighter_types_with_cost filters gang additions on that flag alone and ignores
--- gang_type_id. Needs four columns the house rows above don't use.
-INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, fighter_subtypes, free_skill, is_gang_addition, special_rules, limitation, alignment, is_dramatis_personae, edition_id, created_at, starting_xp) VALUES
-('7eaf0b51-6e82-4b8d-861c-e870927f665e', '6145eb6e-84a6-4fbd-b1d3-87348505db42', 'Hired Guns', 'Arbelesta Raen Catallus', 250, 5, 6, 2, 3, 3, 2, 3, 7, 7, 6, 6, 1, '["Bounty Hunter"]', false, true, ARRAY['"Unique Partnership"', '"Bounty Hunter"', '"Slotted"']::jsonb[], 1, 'Law Abiding', true, '00000000-0000-0000-0000-000000000023', now(), 0)
+-- gang_type_id. Needs three columns the house rows above don't use.
+INSERT INTO public.fighter_types (id, gang_type_id, gang_type, fighter_type, cost, movement, weapon_skill, ballistic_skill, strength, toughness, wounds, initiative, leadership, cool, willpower, intelligence, attacks, fighter_subtypes, free_skill, is_gang_addition, special_rules, alignment, is_dramatis_personae, edition_id, created_at, starting_xp) VALUES
+('7eaf0b51-6e82-4b8d-861c-e870927f665e', '6145eb6e-84a6-4fbd-b1d3-87348505db42', 'Hired Guns', 'Arbelesta Raen Catallus', 250, 5, 6, 2, 3, 3, 2, 3, 7, 7, 6, 6, 1, '["Bounty Hunter"]', false, true, ARRAY['"Unique Partnership"', '"Bounty Hunter"', '"Slotted"']::jsonb[], 'Law Abiding', true, '00000000-0000-0000-0000-000000000023', now(), 0)
 ON CONFLICT (id) DO NOTHING;
+
+-- She is 0-1. Guarded because count_limits only reaches the schema snapshot once
+-- 20260928120000 is live; until then a local reset would fail on the insert.
+DO $$
+BEGIN
+  IF to_regclass('public.count_limits') IS NOT NULL THEN
+    INSERT INTO public.count_limits (fighter_type_id, max_count)
+    VALUES ('7eaf0b51-6e82-4b8d-861c-e870927f665e', 1);
+  END IF;
+END $$;
 
 -- House Escher (N26)
 -- Four columns the N23 rows above do not use: save (an N26-only characteristic),

@@ -78,7 +78,8 @@ function transformCustomFighter(cf: any) {
     save: cf.save ?? null,
     starting_xp: cf.starting_xp ?? null,
     edition_slug: cf.edition_slug ?? null,
-    limitation: null,
+    min_count: null,
+    max_count: null,
     alignment: null,
     default_equipment: [],
     is_gang_addition: false,
@@ -345,11 +346,14 @@ export async function GET(request: Request) {
         data = [...data, ...customData];
       }
     } else if (isGangAddition) {
-      // Use get_fighter_types_with_cost for gang additions (same as server action)
+      // Use get_fighter_types_with_cost for gang additions (same as server action).
+      // p_gang_id only resolves this gang's count limits here; the additions pool is the same
+      // for every gang.
       const { data: result, error } = await supabase.rpc('get_fighter_types_with_cost', {
         p_gang_type_id: gangTypeId,
         p_gang_affiliation_id: gangAffiliationId || null,
-        p_is_gang_addition: true
+        p_is_gang_addition: true,
+        p_gang_id: gangId
       });
       
       if (error) {

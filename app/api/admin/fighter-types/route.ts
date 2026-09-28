@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
 import { fetchAllRows } from "@/utils/supabase/fetch-all-rows";
-import { FighterTypeGrant } from "@/types/fighter-type";
+import { FighterTypeCountLimit, FighterTypeGrant } from "@/types/fighter-type";
 
 // Add type guard at the top of the file
 function isNonEmptyArray(value: unknown): boolean {
@@ -154,6 +154,13 @@ export async function GET(request: Request) {
           equipment_discounts:equipment_discounts(
             equipment_id,
             adjusted_cost
+          ),
+          count_limits!count_limits_fighter_type_id_fkey(
+            gang_type_id,
+            gang_origin_id,
+            gang_subtype_id,
+            min_count,
+            max_count
           )
         `)
         .eq('id', id)
@@ -267,7 +274,8 @@ export async function GET(request: Request) {
         equipment_selection: equipmentSelection?.equipment_selection || null,
         gang_type_costs: gangTypeCosts || [],
         skill_access: skillAccess || [],
-        availability: availability || []
+        availability: availability || [],
+        count_limits: fighterType.count_limits || []
       };
 
       return NextResponse.json(formattedFighterType);
@@ -890,6 +898,40 @@ export async function PATCH(request: Request) {
         if (insertError) {
           console.error('Error inserting availability rules:', insertError);
           throw insertError;
+        }
+      }
+    }
+
+    // Only when sent: a client whose rules never loaded sends none, and must not wipe them.
+    if (Array.isArray(data.count_limits)) {
+      const { error: deleteCountLimitsError } = await supabase
+        .from('count_limits')
+        .delete()
+        .eq('fighter_type_id', id);
+
+      if (deleteCountLimitsError) {
+        console.error('Error deleting existing count limits:', deleteCountLimitsError);
+        throw deleteCountLimitsError;
+      }
+
+      if (data.count_limits.length > 0) {
+        const countLimitRecords = (data.count_limits as FighterTypeCountLimit[]).map(row => ({
+          fighter_type_id: id,
+          gang_type_id: row.gang_type_id ?? null,
+          gang_origin_id: row.gang_origin_id ?? null,
+          gang_subtype_id: row.gang_subtype_id ?? null,
+          min_count: row.min_count ?? null,
+          max_count: row.max_count ?? null,
+          updated_at: new Date().toISOString()
+        }));
+
+        const { error: insertCountLimitsError } = await supabase
+          .from('count_limits')
+          .insert(countLimitRecords);
+
+        if (insertCountLimitsError) {
+          console.error('Error inserting count limits:', insertCountLimitsError);
+          throw insertCountLimitsError;
         }
       }
     }

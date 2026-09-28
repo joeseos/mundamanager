@@ -96,7 +96,8 @@ function mapFighterType(type: any): FighterType {
     attacks: type.attacks,
     save: type.save ?? null,
     edition_slug: type.edition_slug ?? null,
-    limitation: type.limitation,
+    min_count: type.min_count ?? null,
+    max_count: type.max_count ?? null,
     alignment: type.alignment,
     default_equipment: type.default_equipment || [],
     is_gang_addition: type.is_gang_addition || false,
@@ -119,6 +120,16 @@ function mapFighterType(type: any): FighterType {
     is_granted_with_fighter: type.is_granted_with_fighter || false,
     associated_pet_owner_id: type.associated_pet_owner_id || null,
   } as FighterType;
+}
+
+/** The rulebook's count in front of the name: "0-1 Stimmer", "2+ Forge-Born", or "1-3". */
+function fighterTypeCountPrefix(fighter: FighterType): string {
+  const min = fighter.min_count && fighter.min_count > 0 ? fighter.min_count : null;
+  const max = fighter.max_count && fighter.max_count > 0 ? fighter.max_count : null;
+  if (min && max) return `${min}-${max} `;
+  if (min) return `${min}+ `;
+  if (max) return `0-${max} `;
+  return '';
 }
 
 export default function FighterAddModal({
@@ -796,7 +807,7 @@ export default function FighterAddModal({
       ) => {
         const delegationCost = fighter.delegation_cost;
         const costDisplay = delegationCost ? `${cost} / ${delegationCost} credits` : `${cost} credits`;
-        const displayName = `${fighter.limitation && fighter.limitation > 0 ? `0-${fighter.limitation} ` : ''}${fighter.fighter_type} - ${costDisplay}${ownerUnknown ? ' (owner unknown)' : ''}`;
+        const displayName = `${fighterTypeCountPrefix(fighter)}${fighter.fighter_type} - ${costDisplay}${ownerUnknown ? ' (owner unknown)' : ''}`;
         return {
           value: fighter.id,
           label: nested
@@ -846,6 +857,9 @@ export default function FighterAddModal({
       return a.fighter.fighter_type.localeCompare(b.fighter.fighter_type);
     };
 
+    const typeOptionLabel = (fighter: FighterType, cost: number) =>
+      `${fighterTypeCountPrefix(fighter)}${fighter.fighter_type} (${formatFighterSubtypeDisplay(fighter.fighter_subtypes, fighter.edition_slug ?? editionSlug)}) - ${cost} credits`;
+
     if (includeAllFighterTypes) {
       const groupedByGangType = Array.from(typeSubtypeMap.values()).reduce((groups, { fighter, cost }) => {
         const gangTypeName = fighter.gang_type || 'Unknown';
@@ -863,7 +877,7 @@ export default function FighterAddModal({
           disabled: true,
         });
         fighters.forEach(({ fighter, cost }) => {
-          const displayName = `${fighter.fighter_type} (${formatFighterSubtypeDisplay(fighter.fighter_subtypes, fighter.edition_slug ?? editionSlug)}) - ${cost} credits`;
+          const displayName = typeOptionLabel(fighter, cost);
           options.push({ value: fighter.id, label: <span className="ml-3">{displayName}</span>, displayValue: displayName });
         });
       });
@@ -887,7 +901,7 @@ export default function FighterAddModal({
     if (!hasMultipleGroups) {
       const fighters = (groupedByType[sortedGroups[0]] || []).sort(sortFighters);
       fighters.forEach(({ fighter, cost }) => {
-        options.push({ value: fighter.id, label: `${fighter.fighter_type} (${formatFighterSubtypeDisplay(fighter.fighter_subtypes, fighter.edition_slug ?? editionSlug)}) - ${cost} credits` });
+        options.push({ value: fighter.id, label: typeOptionLabel(fighter, cost) });
       });
       return options;
     }
@@ -901,7 +915,7 @@ export default function FighterAddModal({
         disabled: true,
       });
       fighters.forEach(({ fighter, cost }) => {
-        const displayName = `${fighter.fighter_type} (${formatFighterSubtypeDisplay(fighter.fighter_subtypes, fighter.edition_slug ?? editionSlug)}) - ${cost} credits`;
+        const displayName = typeOptionLabel(fighter, cost);
         options.push({ value: fighter.id, label: <span className="ml-3">{displayName}</span>, displayValue: displayName });
       });
     });
