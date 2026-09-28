@@ -209,11 +209,14 @@ function MedicalEscortOptions({
 }) {
   const steps = row.goodStuffSteps;
   const odds = medicalEscortOdds(steps);
-  const oddsParts = [
-    { count: odds.Complications, label: 'dies', tone: 'text-red-600' },
-    { count: odds.Stabilised, label: 'Lasting Injury', tone: 'text-amber-600' },
-    { count: odds['Full Recovery'], label: 'full recovery', tone: 'text-green-600' },
-  ].filter((part) => part.count > 0);
+  const oddsText = [
+    { count: odds.Complications, label: 'dies' },
+    { count: odds.Stabilised, label: 'Lasting Injury' },
+    { count: odds['Full Recovery'], label: 'full recovery' },
+  ]
+    .filter((part) => part.count > 0)
+    .map((part) => `${part.count}/6 ${part.label}`)
+    .join(', ');
 
   return (
     <div className="rounded-md border px-3 py-2 space-y-2 text-xs">
@@ -252,15 +255,7 @@ function MedicalEscortOptions({
             </div>
           </div>
           <p className="text-muted-foreground">
-            On the D6:{' '}
-            {oddsParts.map((part, index) => (
-              <span key={part.label}>
-                {index > 0 && ', '}
-                <span className={part.tone}>
-                  {part.count}/6 {part.label}
-                </span>
-              </span>
-            ))}
+            On the D6: {oddsText}
           </p>
         </>
       )}
