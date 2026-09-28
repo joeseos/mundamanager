@@ -541,7 +541,7 @@ export default function GangEditModal({
 
       // deleteGang redirects home on success, so it only returns on failure
       const result = await deleteGang(gangId);
-      throw new Error(result.error || 'Failed to delete gang');
+      throw new Error(result.error);
     } catch (error) {
       // The success redirect rejects the call above; Next navigates home by itself
       if (isNextNavigation(error)) {
