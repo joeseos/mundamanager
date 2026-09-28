@@ -285,10 +285,11 @@ export const getGangPositioning = async (gangId: string, supabase: any): Promise
         .from('gangs')
         .select('positioning')
         .eq('id', gangId)
-        .single();
+        // maybeSingle: a just-deleted gang re-renders from a stale gang-core entry
+        .maybeSingle();
 
       if (error) throw error;
-      return data.positioning || null;
+      return data?.positioning || null;
     },
     [`gang-positioning-v2-${gangId}`],
     {
