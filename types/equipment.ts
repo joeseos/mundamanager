@@ -1,5 +1,3 @@
-import type { FighterTypeCountLimit } from '@/types/fighter-type';
-
 /**
  * EquipmentGrantOption - a single option in an equipment grants configuration
  */
@@ -98,11 +96,6 @@ export interface Weapon {
   hardpoint_location?: string;
   hardpoint_arcs?: string[];
   hardpoint_operated_by?: 'crew' | 'passenger';
-}
-
-/** A count_limits rule on an equipment item, as the admin editor holds it. */
-export interface EquipmentCountLimit extends FighterTypeCountLimit {
-  for_fighter_type_id: string | null;
 }
 
 export interface Equipment {

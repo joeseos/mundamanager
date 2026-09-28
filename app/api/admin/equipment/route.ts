@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
-import { WeaponProfileInput, EquipmentAvailability, EquipmentCountLimit, EquipmentOriginAvailability, EquipmentSubtypeAvailability, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
-import { FighterTypeGrant } from "@/types/fighter-type";
+import { WeaponProfileInput, EquipmentAvailability, EquipmentOriginAvailability, EquipmentSubtypeAvailability, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
+import { CountLimit, FighterTypeGrant } from "@/types/fighter-type";
 import {
   FighterEffectType,
   FighterEffectTypeModifier,
@@ -954,7 +954,7 @@ export async function PATCH(request: Request) {
       }
 
       if (count_limits.length > 0) {
-        const countLimitRecords = (count_limits as EquipmentCountLimit[]).map(row => ({
+        const countLimitRecords = (count_limits as CountLimit[]).map(row => ({
           equipment_id: id,
           gang_type_id: row.gang_type_id ?? null,
           gang_origin_id: row.gang_origin_id ?? null,

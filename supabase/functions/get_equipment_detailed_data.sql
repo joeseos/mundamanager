@@ -498,7 +498,7 @@ AS $$
         SELECT cl.min_count, cl.max_count
         FROM count_limits cl
         WHERE (cl.equipment_id = e.id
-               OR cl.fighter_type_id = (SELECT eb.fighter_type_id FROM exotic_beasts eb WHERE eb.equipment_id = e.id LIMIT 1))
+               OR cl.fighter_type_id IN (SELECT eb.fighter_type_id FROM exotic_beasts eb WHERE eb.equipment_id = e.id))
           AND (cl.for_fighter_type_id IS NULL OR cl.for_fighter_type_id = $3)
           AND (cl.gang_type_id    IS NULL OR cl.gang_type_id   = $1)
           AND (cl.gang_origin_id  IS NULL OR cl.gang_origin_id = gd.gang_origin_id)
