@@ -115,9 +115,6 @@ function toAssignment(fighterId: string, row: RowState): PostCycleAssignment | n
   }
 }
 
-const formatCredits = (delta: number) =>
-  delta === 0 ? '—' : delta > 0 ? `+${delta}` : `${delta}`;
-
 const plural = (count: number, one: string, many = `${one}s`) =>
   `${count} ${count === 1 ? one : many}`;
 
@@ -145,15 +142,10 @@ function applyChange(fighter: FighterProps, change: PostCycleFighterChange): Fig
 }
 
 function CreditsDelta({ delta, className = '' }: { delta: number; className?: string }) {
-  const tone =
-    delta > 0
-      ? 'text-green-600 font-medium'
-      : delta < 0
-        ? 'text-red-600 font-medium'
-        : 'text-muted-foreground';
+  if (delta === 0) return null;
   return (
-    <span className={`text-sm tabular-nums whitespace-nowrap ${tone} ${className}`}>
-      {formatCredits(delta)}
+    <span className={`text-sm tabular-nums whitespace-nowrap ${className}`}>
+      {delta > 0 ? `+${delta}` : delta}
     </span>
   );
 }
