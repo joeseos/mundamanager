@@ -5,6 +5,7 @@
 
 import type { FighterEffect } from '@/types/fighter-effect';
 import { resolveMedicalEscort, type MedicalEscortOutcome } from '@/utils/dice';
+import { countsTowardRating } from '@/utils/fighter-status';
 
 export type PostCycleActionId =
   | 'medical_escort'
@@ -161,13 +162,7 @@ export interface PostCycleFighter {
 
 /** Performers only: a Doc patient is always in Recovery, so targets skip this. */
 export function canActInPostCycle(fighter: PostCycleFighter): boolean {
-  return (
-    !fighter.killed &&
-    !fighter.retired &&
-    !fighter.enslaved &&
-    !fighter.captured &&
-    !fighter.recovery
-  );
+  return countsTowardRating(fighter) && !fighter.recovery;
 }
 
 function hasSubtype(fighter: PostCycleFighter, subtypes: readonly string[]): boolean {
@@ -312,10 +307,8 @@ export function validatePostCycleAssignments(
   const claimedTacticsCards = new Map<string, string>();
 
   const seenPerformers = new Set<string>();
-  const medicalEscortTargets = new Map<string, number>();
-  const fitBionicsTargets = new Map<string, number>();
-  const countTarget = (targets: Map<string, number>, id: string) =>
-    targets.set(id, (targets.get(id) ?? 0) + 1);
+  /** Patient id -> how many Medical Escort or Fit Bionics actions target them. */
+  const doctorVisits = new Map<string, number>();
   let workTerritoryCount = 0;
 
   for (const assignment of assignments) {
@@ -351,20 +344,28 @@ export function validatePostCycleAssignments(
         workTerritoryCount += 1;
         break;
 
-      case 'medical_escort': {
+      case 'medical_escort':
+      case 'fit_bionics': {
         const target = byId.get(assignment.targetFighterId);
-        if (!target) {
+        if (!target || target.id === performer.id || !countsTowardRating(target)) {
           issues.push({
             fighterId: assignment.fighterId,
-            message: `${label}'s Medical Escort target is not part of this gang.`,
+            message: `${label} cannot take that fighter to the Doc.`,
           });
           break;
         }
-        if (target.id === performer.id) {
-          issues.push({
-            fighterId: assignment.fighterId,
-            message: `${label} cannot escort themselves.`,
-          });
+        doctorVisits.set(target.id, (doctorVisits.get(target.id) ?? 0) + 1);
+
+        if (assignment.action === 'fit_bionics') {
+          for (const message of selectedEffectIssues(
+            assignment.injuryIds,
+            removableLastingInjuriesOf(target),
+            target.fighter_name,
+            'removable Lasting Injury'
+          )) {
+            issues.push({ fighterId: assignment.fighterId, message });
+          }
+          break;
         }
         if (!hasCriticalInjury(target)) {
           issues.push({
@@ -378,34 +379,6 @@ export function validatePostCycleAssignments(
             message: `${label}'s extra supplies must be a whole number of steps.`,
           });
         }
-        countTarget(medicalEscortTargets, target.id);
-        break;
-      }
-
-      case 'fit_bionics': {
-        const target = byId.get(assignment.targetFighterId);
-        if (!target) {
-          issues.push({
-            fighterId: assignment.fighterId,
-            message: `${label}'s Fit Bionics target is not part of this gang.`,
-          });
-          break;
-        }
-        if (target.id === performer.id) {
-          issues.push({
-            fighterId: assignment.fighterId,
-            message: `${label} cannot fit their own bionics.`,
-          });
-        }
-        for (const message of selectedEffectIssues(
-          assignment.injuryIds,
-          removableLastingInjuriesOf(target),
-          target.fighter_name,
-          'removable Lasting Injury'
-        )) {
-          issues.push({ fighterId: assignment.fighterId, message });
-        }
-        countTarget(fitBionicsTargets, target.id);
         break;
       }
 
@@ -462,40 +435,18 @@ export function validatePostCycleAssignments(
   }
 
   // One trip to the Doc per patient, and a patient takes no action of their own.
-  for (const [targets, label] of [
-    [medicalEscortTargets, 'Medical Escort'],
-    [fitBionicsTargets, 'Fit Bionics'],
-  ] as const) {
-    for (const [targetId, count] of targets) {
-      if (count > 1) {
-        issues.push({
-          fighterId: targetId,
-          message:
-            `${byId.get(targetId)?.fighter_name ?? 'A fighter'} is targeted by ${count} ` +
-            `${label} actions. Only one fighter may take them to the Doc.`,
-        });
-      }
-    }
-  }
-
-  for (const targetId of [...medicalEscortTargets.keys(), ...fitBionicsTargets.keys()]) {
-    if (seenPerformers.has(targetId)) {
+  for (const [patientId, count] of doctorVisits) {
+    const name = byId.get(patientId)?.fighter_name ?? 'A fighter';
+    if (count > 1) {
       issues.push({
-        fighterId: targetId,
-        message:
-          `${byId.get(targetId)?.fighter_name ?? 'A fighter'} is being taken to the Doc ` +
-          `and cannot perform a Post-cycle Action.`,
+        fighterId: patientId,
+        message: `${name} can only be taken to the Doc once per Post-cycle Sequence.`,
       });
     }
-  }
-
-  for (const targetId of medicalEscortTargets.keys()) {
-    if (fitBionicsTargets.has(targetId)) {
+    if (seenPerformers.has(patientId)) {
       issues.push({
-        fighterId: targetId,
-        message:
-          `${byId.get(targetId)?.fighter_name ?? 'A fighter'} cannot be targeted by both ` +
-          `Medical Escort and Fit Bionics in the same Post-cycle Sequence.`,
+        fighterId: patientId,
+        message: `${name} is being taken to the Doc and cannot perform a Post-cycle Action.`,
       });
     }
   }

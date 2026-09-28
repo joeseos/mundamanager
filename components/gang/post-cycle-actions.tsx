@@ -17,6 +17,7 @@ import TacticsCardPickerModal from '@/components/gang/tactics-card-picker-modal'
 import { useFighterCardModals } from '@/components/gang/fighter-card-modals-context';
 import type { GangTacticsCard, TacticsCard } from '@/types/tactics-card';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
+import { countsTowardRating } from '@/utils/fighter-status';
 import {
   FIT_BIONICS_COST_PER_INJURY,
   MEDICAL_ESCORT_GOOD_STUFF_STEP,
@@ -336,9 +337,14 @@ export default function PostCycleActions({
   );
   const actorIds = useMemo(() => new Set(actors.map((f) => f.id)), [actors]);
 
-  const criticallyInjured = useMemo(() => fighters.filter(hasCriticalInjury), [fighters]);
+  // Dead, retired, captured or enslaved fighters cannot be taken to the Doc.
+  const criticallyInjured = useMemo(
+    () => fighters.filter((f) => countsTowardRating(f) && hasCriticalInjury(f)),
+    [fighters]
+  );
   const injuredFighters = useMemo(
-    () => fighters.filter((f) => removableLastingInjuriesOf(f).length > 0),
+    () =>
+      fighters.filter((f) => countsTowardRating(f) && removableLastingInjuriesOf(f).length > 0),
     [fighters]
   );
 
@@ -472,37 +478,6 @@ export default function PostCycleActions({
           disabled: reason !== null,
         };
       });
-
-  const effectNames = (effects: FighterEffect[], ids: string[]) =>
-    effects
-      .filter((effect) => ids.includes(effect.id))
-      .map((effect) => effect.effect_name)
-      .join(', ');
-
-  const describeAssignment = (assignment: PostCycleAssignment): string => {
-    const { label, summary } = POST_CYCLE_ACTIONS[assignment.action];
-    switch (assignment.action) {
-      case 'medical_escort': {
-        const target = fighterById.get(assignment.targetFighterId)?.fighter_name;
-        return assignment.declineToPay
-          ? `${label} → ${target}: refusing to pay, ${target} dies`
-          : `${label} → ${target}: +${assignment.goodStuffSteps} to the roll`;
-      }
-      case 'fit_bionics': {
-        const target = fighterById.get(assignment.targetFighterId);
-        const names = target
-          ? effectNames(removableLastingInjuriesOf(target), assignment.injuryIds)
-          : '';
-        return `${label} → ${target?.fighter_name}: ${names}`;
-      }
-      case 'develop_tactics': {
-        const names = rows[assignment.fighterId]?.tacticsCards.map((card) => card.name) ?? [];
-        return `${label}: ${names.join(', ')}`;
-      }
-      default:
-        return `${label} (${summary})`;
-    }
-  };
 
   const handleApply = async (): Promise<boolean> => {
     if (isApplying) return false;
@@ -866,39 +841,16 @@ export default function PostCycleActions({
       {isConfirming && (
         <Modal
           title="Resolve Post-Cycle Sequence"
-          helper={`${plural(assignments.length, 'action')} — ${Math.abs(totalCost)} credits ${
-            totalCost >= 0 ? 'spent' : 'gained'
-          }`}
           onClose={() => setIsConfirming(false)}
           onConfirm={handleApply}
           confirmText={isApplying ? 'Resolving…' : 'Resolve'}
           confirmDisabled={isApplying}
-          width="lg"
         >
-          <div className="space-y-2">
-            {assignments.map((assignment) => (
-              <div
-                key={assignment.fighterId}
-                className="flex items-start justify-between gap-3 p-2 bg-muted rounded-md"
-              >
-                <div className="min-w-0">
-                  <div className="font-medium">
-                    {fighterById.get(assignment.fighterId)?.fighter_name}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {describeAssignment(assignment)}
-                  </div>
-                </div>
-                <CreditsDelta delta={assignmentCreditsDelta(assignment)} className="shrink-0" />
-              </div>
-            ))}
-            {assignments.some((a) => a.action === 'medical_escort' && !a.declineToPay) && (
-              <p className="text-xs text-muted-foreground pt-2">
-                Medical Escort is rolled when the sequence resolves, and the result is
-                shown straight after.
-              </p>
-            )}
-          </div>
+          <p>
+            Resolve {plural(assignments.length, 'Post-cycle Action')}? The gang{' '}
+            {totalCost >= 0 ? 'spends' : 'gains'} {Math.abs(totalCost)} credits. This cannot
+            be undone.
+          </p>
         </Modal>
       )}
 
