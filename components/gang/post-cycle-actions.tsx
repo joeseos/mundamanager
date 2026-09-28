@@ -72,26 +72,22 @@ const emptyRow = (action: PostCycleActionId): RowState => ({
   tacticsCards: [],
 });
 
-/**
- * What a half-filled row still needs, or null once it is a full assignment.
- * '' means incomplete with no hint, where the row's own control already says so.
- */
-function missingPick(row: RowState): string | null {
+/** Whether a row still lacks a pick its action needs. */
+function isIncomplete(row: RowState): boolean {
   switch (row.action) {
     case 'medical_escort':
-      return row.targetFighterId ? null : 'Choose who to escort.';
+      return !row.targetFighterId;
     case 'fit_bionics':
-      if (!row.targetFighterId) return '';
-      return row.injuryIds.length > 0 ? null : 'Tick at least one injury to remove.';
+      return !row.targetFighterId || row.injuryIds.length === 0;
     case 'develop_tactics':
-      return row.tacticsCards.length > 0 ? null : '';
+      return row.tacticsCards.length === 0;
     default:
-      return null;
+      return false;
   }
 }
 
 function toAssignment(fighterId: string, row: RowState): PostCycleAssignment | null {
-  if (missingPick(row) !== null) return null;
+  if (isIncomplete(row)) return null;
   switch (row.action) {
     case 'medical_escort':
       return {
@@ -354,9 +350,7 @@ export default function PostCycleActions({
         .filter((a): a is PostCycleAssignment => a !== null),
     [activeRows]
   );
-  const incompleteCount = [...activeRows.values()].filter(
-    (row) => missingPick(row) !== null
-  ).length;
+  const incompleteCount = [...activeRows.values()].filter(isIncomplete).length;
 
   const issues = useMemo(
     () =>
@@ -558,7 +552,6 @@ export default function PostCycleActions({
             const row = rows[fighter.id];
             const assignment = row ? toAssignment(fighter.id, row) : null;
             const effect = effectOf(assignment, row);
-            const hint = row ? missingPick(row) : null;
             const rowIssues = issuesByFighter.get(fighter.id) ?? [];
             const escortId = doctorVisits.get(fighter.id);
             const target = row?.targetFighterId
@@ -691,7 +684,6 @@ export default function PostCycleActions({
                     </Button>
                   )}
 
-                  {hint && <p className="text-xs text-amber-600">{hint}</p>}
                   {rowIssues.map((message) => (
                     <p key={message} className="text-xs text-red-600">
                       {message}
