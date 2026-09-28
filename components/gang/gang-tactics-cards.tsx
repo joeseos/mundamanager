@@ -202,6 +202,7 @@ export default function GangTacticsCards({
         <TacticsCardPickerModal
           gangId={gangId}
           ownedCardIds={ownedCardIds}
+          helper="Pick the tactics cards this gang holds."
           onConfirm={handleAdd}
           onClose={() => setIsAddModalOpen(false)}
           confirmDisabled={isSubmitting}

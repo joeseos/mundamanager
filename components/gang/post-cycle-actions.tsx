@@ -71,7 +71,10 @@ const emptyRow = (action: PostCycleActionId): RowState => ({
   tacticsCards: [],
 });
 
-/** What a half-filled row still needs, or null once it is a full assignment. */
+/**
+ * What a half-filled row still needs, or null once it is a full assignment.
+ * '' means incomplete with no hint, where the row's own button already says so.
+ */
 function missingPick(row: RowState): string | null {
   switch (row.action) {
     case 'medical_escort':
@@ -80,14 +83,14 @@ function missingPick(row: RowState): string | null {
       if (!row.targetFighterId) return 'Choose who gets the bionics.';
       return row.injuryIds.length > 0 ? null : 'Tick at least one injury to remove.';
     case 'develop_tactics':
-      return row.tacticsCards.length > 0 ? null : 'Choose at least one Gang Tactic.';
+      return row.tacticsCards.length > 0 ? null : '';
     default:
       return null;
   }
 }
 
 function toAssignment(fighterId: string, row: RowState): PostCycleAssignment | null {
-  if (missingPick(row)) return null;
+  if (missingPick(row) !== null) return null;
   switch (row.action) {
     case 'medical_escort':
       return {
@@ -353,7 +356,7 @@ export default function PostCycleActions({
         .filter((a): a is PostCycleAssignment => a !== null),
     [rows]
   );
-  const incompleteCount = Object.values(rows).filter((row) => missingPick(row)).length;
+  const incompleteCount = Object.values(rows).filter((row) => missingPick(row) !== null).length;
 
   const issues = useMemo(
     () =>
@@ -759,9 +762,6 @@ export default function PostCycleActions({
           }
           initialSelectedIds={tacticsPickerRow.tacticsCards.map((card) => card.id)}
           title="Develop Tactics"
-          helper={`${
-            fighterById.get(tacticsPickerFighterId)?.fighter_name ?? ''
-          } — added to the roster when the sequence resolves.`}
           confirmText="Done"
           onConfirm={(_cardIds, cards) => {
             setRow(tacticsPickerFighterId, { tacticsCards: cards });

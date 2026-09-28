@@ -36,7 +36,7 @@ export default function TacticsCardPickerModal({
   onConfirm,
   onClose,
   title = 'Add Gang Tactics',
-  helper = 'Pick the tactics cards this gang holds.',
+  helper,
   confirmText = 'Add',
   confirmDisabled = false
 }: TacticsCardPickerModalProps) {
