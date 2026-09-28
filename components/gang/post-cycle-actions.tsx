@@ -521,17 +521,10 @@ export default function PostCycleActions({
 
   return (
     <div className="mt-8">
-      <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
-        <h3 className="text-lg font-semibold flex items-center gap-2">
-          <GrCycle className="h-5 w-5" />
-          Post-Cycle Actions
-        </h3>
-        {canEdit && Object.keys(rows).length > 0 && (
-          <Button variant="ghost" size="sm" className="h-8" onClick={() => setRows({})}>
-            Clear
-          </Button>
-        )}
-      </div>
+      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+        <GrCycle className="h-5 w-5" />
+        Post-Cycle Actions
+      </h3>
 
       <div className="rounded-md border">
         <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_20rem_4rem] gap-4 px-4 py-2 bg-muted border-b rounded-t-md text-sm font-medium">
