@@ -218,9 +218,6 @@ export function EditFighterModal({
   
   // State for showing the stats modal
   const [showStatsModal, setShowStatsModal] = useState(false);
-  
-  // State for tracking if stats are being saved
-  const [isSavingStats, setIsSavingStats] = useState(false);
 
   // Add state for temporary selected fighter type - pre-select current type
   const [selectedFighterTypeId, setSelectedFighterTypeId] = useState<string>((fighter.fighter_type as any)?.fighter_type_id || (fighter as any).fighter_type_id || '');
@@ -1495,7 +1492,6 @@ export function EditFighterModal({
           onClose={() => setShowStatsModal(false)} 
           fighter={currentFighter}
           onUpdateStats={handleUpdateStats}
-          isSaving={isSavingStats}
         />
       )}
 
