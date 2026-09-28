@@ -59,10 +59,9 @@ export interface PostCycleActionOutcome {
   fighterId: string;
   fighterName: string;
   action: PostCycleAssignment['action'];
-  targetFighterId?: string;
-  targetFighterName?: string;
+  /** What happened beyond the action's name, ending on the credits it moved. */
   outcome: string;
-  roll?: { total: number; dice: number[]; label?: string };
+  roll?: { total: number; dice: number[] };
   /** What actually moved, so a failed or partial action is not billed in full. */
   creditsDelta: number;
   addedTacticsCards?: GangTacticsCard[];
@@ -169,8 +168,6 @@ export async function applyPostCycleActions(
         fighterId: performer.id,
         fighterName: performer.fighter_name,
         action: assignment.action,
-        targetFighterId: target?.id,
-        targetFighterName: target?.fighter_name,
       };
 
       touchedFighterIds.add(performer.id);
@@ -197,7 +194,7 @@ export async function applyPostCycleActions(
             results.push({
               ...base,
               outcome: killed.ok
-                ? `The gang declined to pay, so ${target!.fighter_name} died of their wounds.`
+                ? `The gang refused to pay, so ${target!.fighter_name} died.`
                 : `Failed to apply the death of ${target!.fighter_name}: ${killed.error}`,
               creditsDelta: 0,
               changes: killed.ok ? [{ fighterId: target!.id, killed: true }] : undefined,
@@ -209,7 +206,7 @@ export async function applyPostCycleActions(
           const raw = rollD6();
           const total = raw + assignment.goodStuffSteps;
           const escortResult = resolveMedicalEscort(total);
-          const roll = { total, dice: [raw], label: escortResult };
+          const roll = { total, dice: [raw] };
 
           if (!escortResult) {
             results.push({
@@ -252,7 +249,7 @@ export async function applyPostCycleActions(
           if (stabilised && !injuryTypeId) {
             results.push({
               ...base,
-              roll: { ...stabilised, label: injuryEntry?.name ?? 'Stabilised' },
+              roll: stabilised,
               outcome:
                 `Stabilised, but the Lasting Injury "${injuryEntry?.name ?? 'unknown'}" ` +
                 `is not set up for this edition. Nothing was changed or charged — ` +
@@ -323,7 +320,7 @@ export async function applyPostCycleActions(
 
           results.push({
             ...base,
-            roll: { ...stabilised!, label: injuryEntry!.name },
+            roll: stabilised!,
             outcome: applied.success
               ? `Stabilised: ${target!.fighter_name} suffers ${injuryEntry!.name}.`
               : `Stabilised, but applying ${injuryEntry!.name} failed: ${applied.error}`,
@@ -366,8 +363,8 @@ export async function applyPostCycleActions(
           results.push({
             ...base,
             outcome: failure
-              ? `Removed ${removedNames.length} of ${assignment.injuryIds.length} Lasting Injuries before failing: ${failure}`
-              : `Fitted bionics, removing ${removedNames.join(', ')} from ${target!.fighter_name}.`,
+              ? `Removed ${removedNames.length} of ${assignment.injuryIds.length} Lasting Injuries from ${target!.fighter_name} before failing: ${failure}`
+              : `Removed ${removedNames.join(', ')} from ${target!.fighter_name}.`,
             creditsDelta: -(removedIds.length * FIT_BIONICS_COST_PER_INJURY),
             changes:
               removedIds.length > 0
@@ -379,7 +376,8 @@ export async function applyPostCycleActions(
         }
 
         case 'visit_chop_shop':
-          results.push({ ...base, outcome: 'Visited the Chop Shop.', creditsDelta: 0 });
+        case 'visit_trading_post':
+          results.push({ ...base, outcome: '', creditsDelta: 0 });
           break;
 
         case 'train': {
@@ -391,7 +389,7 @@ export async function applyPostCycleActions(
           results.push({
             ...base,
             outcome: trained.success
-              ? `Trained for ${TRAIN_XP} XP.`
+              ? `Gained ${TRAIN_XP} XP.`
               : `Failed to award XP: ${trained.error}`,
             creditsDelta: 0,
             changes: trained.success
@@ -405,7 +403,7 @@ export async function applyPostCycleActions(
         case 'work_territory':
           results.push({
             ...base,
-            outcome: `Worked a Territory for ${WORK_TERRITORY_INCOME} credits.`,
+            outcome: '',
             creditsDelta: WORK_TERRITORY_INCOME,
           });
           break;
@@ -422,7 +420,7 @@ export async function applyPostCycleActions(
           results.push({
             ...base,
             outcome: addedCards.success
-              ? `Developed new Gang Tactics: ${names.join(', ')}.`
+              ? `Added ${names.join(', ')}.`
               : `Failed to add the Gang Tactics: ${addedCards.error}`,
             creditsDelta: 0,
             addedTacticsCards: addedCards.data,
@@ -430,16 +428,16 @@ export async function applyPostCycleActions(
           });
           break;
         }
-
-        case 'visit_trading_post':
-          results.push({
-            ...base,
-            outcome:
-              'Visited the Trading Post. Buy any equipment found from the Stash tab.',
-            creditsDelta: 0,
-          });
-          break;
       }
+    }
+
+    for (const result of results) {
+      if (result.creditsDelta === 0) continue;
+      const credits =
+        result.creditsDelta > 0
+          ? `Gained ${result.creditsDelta} credits.`
+          : `Cost ${-result.creditsDelta} credits.`;
+      result.outcome = result.outcome ? `${result.outcome} ${credits}` : credits;
     }
 
     // Billed from outcomes rather than the plan. Called even at zero, since it
@@ -469,12 +467,9 @@ export async function applyPostCycleActions(
           fighter_id: result.fighterId,
           fighter_name: result.fighterName,
           action: result.action,
-          target_fighter_name: result.targetFighterName,
           outcome: result.outcome,
           roll_total: result.roll?.total,
           roll_dice: result.roll?.dice,
-          roll_label: result.roll?.label,
-          credits_delta: result.creditsDelta === 0 ? undefined : result.creditsDelta,
           user_id: user.id,
         });
       } catch (logError) {

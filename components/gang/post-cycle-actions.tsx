@@ -795,7 +795,9 @@ export default function PostCycleActions({
                   )}
                   {outcome.failed && <Badge variant="destructive">Failed</Badge>}
                 </div>
-                <p className="text-sm text-muted-foreground mt-1">{outcome.outcome}</p>
+                {outcome.outcome && (
+                  <p className="text-sm text-muted-foreground mt-1">{outcome.outcome}</p>
+                )}
               </div>
             ))}
           </div>

@@ -20,12 +20,9 @@ export interface PostCycleActionLogParams {
   fighter_id: string;
   fighter_name: string;
   action: PostCycleActionId;
-  target_fighter_name?: string;
   outcome?: string;
   roll_total?: number;
   roll_dice?: number[];
-  roll_label?: string;
-  credits_delta?: number;
   user_id?: string;
 }
 
@@ -36,34 +33,17 @@ export async function logPostCycleAction(
   const definition = POST_CYCLE_ACTIONS[params.action];
 
   const parts: string[] = [
-    `Fighter "${params.fighter_name}" performed the ${definition.label} Post-cycle Action`,
+    `Fighter "${params.fighter_name}" performed the ${definition.label} Post-cycle Action.`,
   ];
-
-  if (params.target_fighter_name) {
-    parts.push(` targeting "${params.target_fighter_name}"`);
-  }
-  parts.push('.');
 
   if (params.roll_total !== undefined) {
     parts.push(
-      ` ${formatRollOutcomeLine(
-        params.roll_total,
-        params.roll_dice ?? [params.roll_total],
-        params.roll_label
-      )}.`
+      ` ${formatRollOutcomeLine(params.roll_total, params.roll_dice ?? [params.roll_total])}.`
     );
   }
 
   if (params.outcome) {
     parts.push(` ${params.outcome}`);
-  }
-
-  if (params.credits_delta) {
-    parts.push(
-      params.credits_delta > 0
-        ? ` Gained ${params.credits_delta} credits.`
-        : ` Cost ${Math.abs(params.credits_delta)} credits.`
-    );
   }
 
   return createGangLog({
