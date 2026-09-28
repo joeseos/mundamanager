@@ -715,8 +715,11 @@ export default function GangPageContent({
           {hasPostCycleActions(gangData.processedData.edition_slug) && gangCampaigns.length > 0 && (
             <PostCycleActions
               gangId={gangId}
+              editionSlug={gangData.processedData.edition_slug}
               fighters={gangData.processedData.fighters}
               gangCredits={gangData.processedData.credits}
+              tacticsCards={gangData.processedData.tacticsCards || []}
+              onTacticsCardsUpdate={handleTacticsCardsUpdate}
               userPermissions={userPermissions}
               onFighterUpdate={handleFighterUpdate}
               onGangCreditsUpdate={handleGangCreditsUpdate}
