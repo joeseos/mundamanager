@@ -1,3 +1,102 @@
+-- Minimum and maximum counts ("2+", "0-1") for fighter types, and later equipment, per gang.
+--
+-- Replaces fighter_types.limitation as what the Add Fighter list reads. A number on the fighter
+-- type row cannot differ between the gangs that share that row -- gang additions are one pool
+-- for every gang -- so the counts move to rules scoped like fighter_type_availability's.
+--
+-- Display only: nothing enforces these counts. No CHECK constraints for the same reason; a bad
+-- count is a data problem, not something to reject.
+--
+-- get_fighter_types_with_cost reads this table: the most specific rule matching the gang wins.
+
+CREATE TABLE public.count_limits (
+    id                  uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at          timestamptz NOT NULL DEFAULT now(),
+    updated_at          timestamptz,
+
+    -- what is limited: set one of these
+    fighter_type_id     uuid        REFERENCES public.fighter_types(id) ON DELETE CASCADE,
+    equipment_id        uuid        REFERENCES public.equipment(id) ON DELETE CASCADE,
+
+    -- which gangs: every non-NULL axis must match; all NULL applies to every gang
+    gang_type_id        uuid        REFERENCES public.gang_types(gang_type_id) ON DELETE CASCADE,
+    gang_origin_id      uuid        REFERENCES public.gang_origins(id) ON DELETE CASCADE,
+    gang_subtype_id     uuid        REFERENCES public.gang_subtype_types(id) ON DELETE CASCADE,
+    for_fighter_type_id uuid        REFERENCES public.fighter_types(id) ON DELETE CASCADE,
+
+    count_per           text        NOT NULL DEFAULT 'gang',
+    min_count           numeric,
+    max_count           numeric
+);
+
+COMMENT ON COLUMN public.count_limits.fighter_type_id IS
+  'The fighter type being limited ("0-1 Stimmer"). Set this or equipment_id.';
+COMMENT ON COLUMN public.count_limits.equipment_id IS
+  'The equipment being limited. Set this or fighter_type_id. Not read yet.';
+COMMENT ON COLUMN public.count_limits.gang_type_id IS
+  'Restricts the rule to gangs of this gang type. NULL applies regardless of gang type.';
+COMMENT ON COLUMN public.count_limits.gang_origin_id IS
+  'Restricts the rule to gangs with this origin. NULL applies regardless of origin.';
+COMMENT ON COLUMN public.count_limits.gang_subtype_id IS
+  'Restricts the rule to gangs holding this subtype. NULL applies regardless of subtype.';
+COMMENT ON COLUMN public.count_limits.for_fighter_type_id IS
+  'Equipment rules only: restricts the rule to fighters of this type. NULL applies to any fighter.';
+COMMENT ON COLUMN public.count_limits.count_per IS
+  '''gang'' counts across the whole gang; ''fighter'' counts on each fighter (equipment only).';
+COMMENT ON COLUMN public.count_limits.min_count IS
+  'Fewest allowed, shown as "2+". NULL is no minimum.';
+COMMENT ON COLUMN public.count_limits.max_count IS
+  'Most allowed, shown as "0-1". NULL is no maximum.';
+
+CREATE INDEX count_limits_fighter_type_id_idx ON public.count_limits (fighter_type_id);
+CREATE INDEX count_limits_equipment_id_idx ON public.count_limits (equipment_id);
+
+ALTER TABLE public.count_limits ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow authenticated users to view count_limits"
+    ON public.count_limits
+    FOR SELECT
+    TO authenticated
+    USING (true);
+
+CREATE POLICY count_limits_admin_insert_policy
+    ON public.count_limits
+    FOR INSERT
+    TO authenticated
+    WITH CHECK ((SELECT private.is_admin()));
+
+CREATE POLICY count_limits_admin_update_policy
+    ON public.count_limits
+    FOR UPDATE
+    TO authenticated
+    USING ((SELECT private.is_admin()))
+    WITH CHECK ((SELECT private.is_admin()));
+
+CREATE POLICY count_limits_admin_delete_policy
+    ON public.count_limits
+    FOR DELETE
+    TO authenticated
+    USING ((SELECT private.is_admin()));
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.count_limits
+    TO authenticated, service_role;
+
+-- Today's limits as rules for every gang, so the Add Fighter list shows what it did before.
+INSERT INTO public.count_limits (fighter_type_id, max_count)
+SELECT id, limitation
+FROM public.fighter_types
+WHERE limitation IS NOT NULL;
+
+-- The Wyld Hunt's Wyld Runners are 3+. Held briefly in a fighter_types.required column that has
+-- since been dropped; the row is the Wyld Hunt's own, so a rule for every gang is enough.
+INSERT INTO public.count_limits (fighter_type_id, min_count)
+SELECT id, 3
+FROM public.fighter_types
+WHERE id = '35aa846b-3023-4326-ae19-b138d486db11';
+
+COMMENT ON COLUMN public.fighter_types.limitation IS
+  'Superseded by count_limits and no longer read. Kept until that has run in production; to be dropped.';
+
 -- Drop previous versions. Every arg is defaulted, so leaving an older arity in place would make
 -- the PostgREST call ambiguous.
 DROP FUNCTION IF EXISTS get_fighter_types_with_cost(uuid, uuid, boolean, uuid);
