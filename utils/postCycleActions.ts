@@ -26,7 +26,6 @@ export interface PostCycleActionDefinition {
   id: PostCycleActionId;
   label: string;
   summary: string;
-  description: string;
   performer: Performer;
 }
 
@@ -48,64 +47,42 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
     id: 'medical_escort',
     label: 'Medical Escort',
     summary: `${MEDICAL_ESCORT_COST} credits + D6`,
-    description:
-      `Escort a Critically Injured gang member to the Doc for ${MEDICAL_ESCORT_COST} credits. ` +
-      `Roll a D6: 1 the fighter dies, 2-3 stabilised with a Lasting Injury, 4+ full recovery. ` +
-      `Every extra ${MEDICAL_ESCORT_GOOD_STUFF_STEP} credits adds +1 to the roll. ` +
-      `Decline to pay and the fighter dies with no roll.`,
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
   },
   fit_bionics: {
     id: 'fit_bionics',
     label: 'Fit Bionics',
     summary: `${FIT_BIONICS_COST_PER_INJURY} credits per injury`,
-    description:
-      `Take another fighter to the Doc for bionics. ${FIT_BIONICS_COST_PER_INJURY} credits ` +
-      `removes one Lasting Injury; multiple instances of the same injury must each be ` +
-      `removed separately. A Critical Injury cannot be removed this way.`,
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
   },
   develop_tactics: {
     id: 'develop_tactics',
     label: 'Develop Tactics',
     summary: 'New Gang Tactics',
-    description:
-      'Generate new Gang Tactics and add them to the Gang Roster. Roll a D66 or ' +
-      'pick from the edition\'s catalogue; the cards are added when the sequence resolves.',
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
   },
   visit_chop_shop: {
     id: 'visit_chop_shop',
     label: 'Visit Chop Shop',
     summary: 'Logged only',
-    description:
-      'Take the vehicle to the Chop Shop. Repairs are made, and paid for, from its ' +
-      'Lasting Damage list.',
     performer: { kind: 'vehicle' },
   },
   work_territory: {
     id: 'work_territory',
     label: 'Work Territory',
     summary: `+${WORK_TERRITORY_INCOME} credits`,
-    description:
-      `Work a Territory for ${WORK_TERRITORY_INCOME} credits added to the gang's Stash. ` +
-      `At most ${WORK_TERRITORY_MAX_FIGHTERS} fighters may do this per Post-cycle Sequence.`,
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION_GANGER_PROSPECT },
   },
   visit_trading_post: {
     id: 'visit_trading_post',
     label: 'Visit Trading Post',
     summary: 'Logged only',
-    description:
-      'Visit the Trading Post to see what the gang can find. Buy the equipment itself from ' +
-      'the Stash tab.',
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
   },
   train: {
     id: 'train',
     label: 'Train',
     summary: `+${TRAIN_XP} XP`,
-    description: `Practise for the battles ahead. The model earns ${TRAIN_XP} XP.`,
     performer: { kind: 'any' },
   },
 };

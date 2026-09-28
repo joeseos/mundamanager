@@ -588,10 +588,7 @@ export default function PostCycleActions({
                         return {
                           value: option.id,
                           label: (
-                            <span
-                              title={option.description}
-                              className={reason ? 'text-muted-foreground' : undefined}
-                            >
+                            <span className={reason ? 'text-muted-foreground' : undefined}>
                               {option.label} - {reason ?? option.summary}
                             </span>
                           ),
