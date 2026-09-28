@@ -1,10 +1,15 @@
 'use server';
 
-import { invalidateCampaignGang, invalidateUser, invalidatePermission, invalidateGangCount } from '@/utils/cache-tags';
+import { redirect } from 'next/navigation';
+import { invalidateCampaignGang, invalidateGang, invalidateUser, invalidatePermission, invalidateGangCount } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 
-export async function deleteGang(gangId: string) {
+/**
+ * Deletes a gang and redirects home, so it only returns on failure. Redirecting
+ * here stops Next from re-rendering the deleted gang's page in the response.
+ */
+export async function deleteGang(gangId: string): Promise<{ success: false; error: string }> {
   console.log('[deleteGang] Starting:', gangId);
 
   try {
@@ -13,28 +18,19 @@ export async function deleteGang(gangId: string) {
     // Authenticate user
     await getAuthenticatedUser(supabase);
 
-    // Get gang information to verify ownership
-    const { data: gang, error: gangError } = await supabase
-      .from('gangs')
-      .select('id, user_id')
-      .eq('id', gangId)
-      .single();
-
-    if (gangError || !gang) {
-      throw new Error('Gang not found');
-    }
-
     // Fetch campaign associations BEFORE delete (in case of CASCADE)
     const { data: campaigns } = await supabase
       .from('campaign_gangs')
       .select('campaign_id, user_id')
       .eq('gang_id', gangId);
 
-    // Delete the gang
-    const { error: deleteError } = await supabase
+    // RLS lets only the owner or an admin delete, and a blocked delete is not an
+    // error: it matches 0 rows. Returning the row tells the two apart.
+    const { data: deletedRows, error: deleteError } = await supabase
       .from('gangs')
       .delete()
-      .eq('id', gangId);
+      .eq('id', gangId)
+      .select('user_id');
 
     // Handle delete error inline - don't throw
     if (deleteError) {
@@ -42,6 +38,14 @@ export async function deleteGang(gangId: string) {
       return {
         success: false,
         error: deleteError.message || 'Database error during delete'
+      };
+    }
+
+    const gang = deletedRows?.[0];
+    if (!gang) {
+      return {
+        success: false,
+        error: 'Gang not found, or you do not have permission to delete it'
       };
     }
 
@@ -91,13 +95,14 @@ export async function deleteGang(gangId: string) {
       console.error('Error cleaning up gang images:', storageError);
     }
 
+    // Invalidate the gang's own entries so its URL 404s instead of serving cached data
+    invalidateGang(gangId);
+
     // Invalidate user's gang cache
-    invalidateUser(gang.user_id);
     invalidateUser(gang.user_id);
 
     // Invalidate gang permissions cache
     invalidatePermission(gang.user_id, gangId);
-    invalidateUser(gang.user_id);
 
     // Invalidate campaign membership caches if gang was in any campaigns (fetched before delete)
     if (campaigns && campaigns.length > 0) {
@@ -111,7 +116,6 @@ export async function deleteGang(gangId: string) {
     invalidateGangCount();
 
     console.log('[deleteGang] Success:', gangId);
-    return { success: true };
   } catch (error) {
     console.error('[deleteGang] Caught error:', error);
     return {
@@ -119,4 +123,7 @@ export async function deleteGang(gangId: string) {
       error: error instanceof Error ? error.message : 'An error occurred'
     };
   }
+
+  // Outside the try: redirect() works by throwing
+  redirect('/');
 }

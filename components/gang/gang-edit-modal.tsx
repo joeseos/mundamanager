@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { unstable_rethrow } from 'next/navigation';
 import { Input } from '../ui/input';
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -25,6 +25,16 @@ import { CSS } from '@dnd-kit/utilities';
 import { useDndSensorsConfig, dragSurfaceProps } from '@/hooks/use-dnd-sensors';
 import { buildGroupedSkillSetComboboxOptions } from '@/utils/skillSetComboboxOptions';
 import { LuGripVertical, LuX } from 'react-icons/lu';
+
+// unstable_rethrow only throws Next's own navigation signals, such as a server action's redirect
+function isNextNavigation(error: unknown): boolean {
+  try {
+    unstable_rethrow(error);
+    return false;
+  } catch {
+    return true;
+  }
+}
 
 interface GangUpdates {
   name?: string;
@@ -193,8 +203,6 @@ export default function GangEditModal({
   isAdmin = false,
   onSave
 }: GangEditModalProps) {
-  const router = useRouter();
-
   const editionAvailableSubtypes = availableSubtypes.filter(subtype =>
     sameEditionForDisplay(subtype.edition_slug, editionSlug)
   );
@@ -531,16 +539,16 @@ export default function GangEditModal({
     try {
       setIsDeleting(true);
 
+      // deleteGang redirects home on success, so it only returns on failure
       const result = await deleteGang(gangId);
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to delete gang');
+      throw new Error(result.error || 'Failed to delete gang');
+    } catch (error) {
+      // The success redirect rejects the call above; Next navigates home by itself
+      if (isNextNavigation(error)) {
+        toast.success('Gang successfully deleted');
+        return;
       }
 
-      toast.success("Gang successfully deleted. You'll be automatically redirected to the home page in a few seconds.");
-
-      router.push('/');
-    } catch (error) {
       console.error('Error deleting gang:', error);
 
       const message = error instanceof Error
