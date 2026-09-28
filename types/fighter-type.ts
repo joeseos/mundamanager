@@ -19,6 +19,16 @@ export interface DefaultEquipment {
   is_editable?: boolean;
 }
 
+/**
+ * One fighter_defaults equipment row as the admin fighter type screens edit it. New rows get
+ * a client-side id so an accessory can target a weapon added in the same save.
+ */
+export interface DefaultEquipmentSlot {
+  id: string;
+  equipment_id: string;
+  target_fighter_default_id: string | null;
+}
+
 export interface WeaponsSelection {
   default?: DefaultEquipment[];
   options?: EquipmentOption[];
