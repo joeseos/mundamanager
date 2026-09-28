@@ -320,12 +320,12 @@ BEGIN
        GROUP BY fe.fighter_id
    ),
    weapon_profiles_deduplicated AS (
-       SELECT DISTINCT wp.id, wp.weapon_id, wp.profile_name, wp.range_short, wp.range_long, 
+       SELECT DISTINCT wp.id, wp.equipment_id, wp.profile_name, wp.range_short, wp.range_long, 
                       wp.acc_short, wp.acc_long, wp.strength, wp.ap, wp.damage, wp.ammo, 
                       wp.traits, wp.weapon_group_id, wp.sort_order,
                       fe.id AS fe_id, fe.is_master_crafted
        FROM weapon_profiles wp
-       JOIN fighter_equipment fe ON fe.equipment_id = wp.weapon_id
+       JOIN fighter_equipment fe ON fe.equipment_id = wp.equipment_id
        WHERE (fe.fighter_id IN (SELECT f_id FROM fighter_ids)
           OR fe.vehicle_id IN (
              SELECT v.id FROM vehicles v 
@@ -336,7 +336,7 @@ BEGIN
    weapon_profiles_grouped AS (
        SELECT 
            wpd.fe_id,
-           wpd.weapon_id as equipment_id,
+           wpd.equipment_id,
            json_agg(
                json_build_object(
                    'id', wpd.id,
@@ -357,7 +357,7 @@ BEGIN
                ORDER BY wpd.sort_order NULLS LAST, wpd.profile_name
            ) as profiles
        FROM weapon_profiles_deduplicated wpd
-       GROUP BY wpd.fe_id, wpd.weapon_id
+       GROUP BY wpd.fe_id, wpd.equipment_id
    ),
    custom_weapon_profiles_grouped AS (
        SELECT 

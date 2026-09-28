@@ -932,7 +932,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                 const { data: profilesData } = await supabase
                   .from('weapon_profiles')
                   .select('*')
-                  .in('weapon_id', regularWeaponIds);
+                  .in('equipment_id', regularWeaponIds);
                 weaponProfiles = profilesData || [];
               }
 
@@ -1001,7 +1001,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                     );
                   } else {
                     itemWeaponProfiles = weaponProfiles.filter(
-                      (wp: any) => wp.weapon_id === item.equipment_id
+                      (wp: any) => wp.equipment_id === item.equipment_id
                     );
                   }
                 }
@@ -1127,7 +1127,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                             const { data: grantedProfilesData } = await supabase
                               .from('weapon_profiles')
                               .select('*')
-                              .in('weapon_id', grantedWeaponIds);
+                              .in('equipment_id', grantedWeaponIds);
                             grantedWeaponProfiles = grantedProfilesData || [];
                           }
 
@@ -1135,7 +1135,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                           const grantedMapped = insertedGrantedEquipment.map((item: any) => {
                             const equipmentType = (item.equipment as any)?.equipment_type;
                             const itemWeaponProfiles = equipmentType === 'weapon'
-                              ? grantedWeaponProfiles.filter((wp: any) => wp.weapon_id === item.equipment_id)
+                              ? grantedWeaponProfiles.filter((wp: any) => wp.equipment_id === item.equipment_id)
                               : [];
 
                             return {

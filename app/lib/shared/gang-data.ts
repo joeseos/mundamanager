@@ -946,7 +946,7 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
           is_consumable,
           weapon_profiles (
             id,
-            weapon_id,
+            equipment_id,
             weapon_group_id,
             profile_name,
             range_short,

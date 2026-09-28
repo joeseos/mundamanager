@@ -324,7 +324,7 @@ AS $$
                     'traits', wp.traits,
                     'sort_order', wp.sort_order
                 ) ORDER BY COALESCE(wp.sort_order, 999), wp.profile_name
-            ) FROM weapon_profiles wp WHERE wp.weapon_id = e.id),
+            ) FROM weapon_profiles wp WHERE wp.equipment_id = e.id),
             '[]'::jsonb
         ) AS weapon_profiles,
 
