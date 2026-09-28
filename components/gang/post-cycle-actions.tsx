@@ -24,6 +24,7 @@ import {
   MEDICAL_ESCORT_GOOD_STUFF_STEP,
   MEDICAL_ESCORT_MAX_USEFUL_STEPS,
   POST_CYCLE_ACTIONS,
+  TRAIN_XP,
   WORK_TERRITORY_MAX_FIGHTERS,
   assignmentCreditsDelta,
   eligiblePostCycleActions,
@@ -142,15 +143,6 @@ function applyChange(fighter: FighterProps, change: PostCycleFighterChange): Fig
   if (change.xpDelta) next.xp = (next.xp ?? 0) + change.xpDelta;
 
   return next;
-}
-
-function CreditsDelta({ delta, className = '' }: { delta: number; className?: string }) {
-  if (delta === 0) return null;
-  return (
-    <span className={`whitespace-nowrap ${className}`}>
-      {delta > 0 ? `+${delta}` : delta}
-    </span>
-  );
 }
 
 function EffectChecklist({
@@ -455,6 +447,20 @@ export default function PostCycleActions({
         };
       });
 
+  /** What a row will do on resolving, as far as it is known beforehand. */
+  const effectOf = (assignment: PostCycleAssignment | null, row?: RowState) => {
+    if (!assignment) return null;
+    if (assignment.action === 'train') return `+${TRAIN_XP} XP`;
+    if (assignment.action === 'develop_tactics') {
+      return row?.tacticsCards.map((card) => card.name).join(', ') ?? null;
+    }
+    if (assignment.action === 'medical_escort' && assignment.declineToPay) {
+      return `${fighterById.get(assignment.targetFighterId)?.fighter_name} dies`;
+    }
+    const delta = assignmentCreditsDelta(assignment);
+    return delta === 0 ? null : `${delta > 0 ? '+' : ''}${delta} credits`;
+  };
+
   const handleApply = async (): Promise<boolean> => {
     if (isApplying) return false;
     setIsApplying(true);
@@ -534,16 +540,16 @@ export default function PostCycleActions({
       </h3>
 
       <div className="rounded-md border">
-        <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_20rem_4rem] gap-4 px-4 py-2 bg-muted border-b rounded-t-md text-sm font-medium">
+        <div className="hidden md:grid md:grid-cols-[minmax(0,1fr)_20rem_10rem] gap-4 px-4 py-2 bg-muted border-b rounded-t-md text-sm font-medium">
           <span>Fighter</span>
           <span>Action</span>
-          <span className="text-right">Credits</span>
+          <span>Effect</span>
         </div>
         <ul>
           {actors.map((fighter) => {
             const row = rows[fighter.id];
             const assignment = row ? toAssignment(fighter.id, row) : null;
-            const delta = assignment ? assignmentCreditsDelta(assignment) : 0;
+            const effect = effectOf(assignment, row);
             const hint = row ? missingPick(row) : null;
             const rowIssues = issuesByFighter.get(fighter.id) ?? [];
             const escortId = doctorVisits.get(fighter.id);
@@ -554,9 +560,9 @@ export default function PostCycleActions({
             return (
               <li
                 key={fighter.id}
-                className="border-b last:border-0 px-4 py-3 sm:grid sm:grid-cols-[minmax(0,1fr)_20rem_4rem] sm:gap-4 sm:items-start"
+                className="border-b last:border-0 px-4 py-3 md:grid md:grid-cols-[minmax(0,1fr)_20rem_10rem] md:gap-4 md:items-start"
               >
-                <div className="flex items-start justify-between gap-3 mb-2 sm:mb-0 sm:pt-2 min-w-0">
+                <div className="flex items-start justify-between gap-3 mb-2 md:mb-0 md:pt-2 min-w-0">
                   <div className="min-w-0">
                     <div className="font-medium truncate">{fighter.fighter_name}</div>
                     <div className="text-xs text-muted-foreground truncate">
@@ -566,12 +572,12 @@ export default function PostCycleActions({
                       )})`}
                     </div>
                   </div>
-                  <CreditsDelta delta={delta} className="sm:hidden" />
+                  {effect && <span className="md:hidden max-w-[50%] text-right">{effect}</span>}
                 </div>
 
                 <div className="space-y-2 min-w-0">
                   {escortId && !row ? (
-                    <p className="text-sm text-muted-foreground sm:pt-2">
+                    <p className="text-sm text-muted-foreground md:pt-2">
                       Going to the Doc with {fighterById.get(escortId)?.fighter_name}, so
                       takes no action.
                     </p>
@@ -667,26 +673,15 @@ export default function PostCycleActions({
                   )}
 
                   {row?.action === 'develop_tactics' && (
-                    <>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full"
-                        onClick={() => setTacticsPickerFighterId(fighter.id)}
-                        disabled={!canEdit}
-                      >
-                        {row.tacticsCards.length > 0 ? 'Change Gang Tactics' : 'Choose Gang Tactics'}
-                      </Button>
-                      {row.tacticsCards.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {row.tacticsCards.map((card) => (
-                            <Badge key={card.id} variant="outline" className="font-normal">
-                              {card.name}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                    </>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => setTacticsPickerFighterId(fighter.id)}
+                      disabled={!canEdit}
+                    >
+                      {row.tacticsCards.length > 0 ? 'Change Gang Tactics' : 'Choose Gang Tactics'}
+                    </Button>
                   )}
 
                   {hint && <p className="text-xs text-amber-600">{hint}</p>}
@@ -697,7 +692,7 @@ export default function PostCycleActions({
                   ))}
                 </div>
 
-                <CreditsDelta delta={delta} className="hidden sm:block text-right sm:pt-2" />
+                <span className="hidden md:block md:pt-2">{effect}</span>
               </li>
             );
           })}
