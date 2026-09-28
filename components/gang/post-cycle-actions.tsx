@@ -408,8 +408,6 @@ export default function PostCycleActions({
           ? 'The gang cannot afford these actions.'
           : null;
 
-  const unassigned = actors.filter((f) => !rows[f.id] && !doctorVisits.has(f.id));
-
   const setRow = (fighterId: string, next: Partial<RowState>) =>
     setRows((prev) => {
       const current = prev[fighterId];
@@ -423,13 +421,6 @@ export default function PostCycleActions({
         return rest;
       }
       return { ...prev, [fighterId]: emptyRow(value as PostCycleActionId) };
-    });
-
-  const trainTheRest = () =>
-    setRows((prev) => {
-      const next = { ...prev };
-      for (const fighter of unassigned) next[fighter.id] = emptyRow('train');
-      return next;
     });
 
   const unavailableReason = (fighter: FighterProps, actionId: PostCycleActionId) => {
@@ -548,25 +539,10 @@ export default function PostCycleActions({
           <GrCycle className="h-5 w-5" />
           Post-Cycle Actions
         </h3>
-        {canEdit && (
-          <div className="flex items-center gap-2">
-            {unassigned.length > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8"
-                onClick={trainTheRest}
-                title="Give every fighter without an action the Train action"
-              >
-                Train the rest
-              </Button>
-            )}
-            {Object.keys(rows).length > 0 && (
-              <Button variant="ghost" size="sm" className="h-8" onClick={() => setRows({})}>
-                Clear
-              </Button>
-            )}
-          </div>
+        {canEdit && Object.keys(rows).length > 0 && (
+          <Button variant="ghost" size="sm" className="h-8" onClick={() => setRows({})}>
+            Clear
+          </Button>
         )}
       </div>
       <p className="text-sm text-muted-foreground mb-4">
