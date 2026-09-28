@@ -1,8 +1,4 @@
--- Count limits for equipment ("0-1 Grapnel launcher"), in the same count_limits table as fighter
--- types. A rule limits either a fighter type or an equipment item; an equipment rule can also be
--- scoped to fighters of one type. Display only, like the fighter type limits.
---
--- get_equipment_detailed_data reads it: the most specific rule matching the gang and fighter wins.
+-- Count limits for equipment, in the same count_limits table as fighter types. Display only.
 
 ALTER TABLE public.count_limits
     ADD COLUMN equipment_id        uuid REFERENCES public.equipment(id) ON DELETE CASCADE,
@@ -61,7 +57,7 @@ RETURNS TABLE (
     cost_type_resource_id uuid,
     cost_campaign_resource_id uuid,
     banned boolean,
-    -- From count_limits: the most specific rule matching the gang and fighter. NULL is no rule.
+    -- From count_limits; NULL is no limit
     min_count integer,
     max_count integer
 )
@@ -511,10 +507,8 @@ AS $$
     LEFT JOIN campaign_type_resources ctr_res ON ctr_res.id = cto.cost_type_resource_id
     LEFT JOIN campaign_resources cr_res ON cr_res.id = cto.cost_campaign_resource_id
 
-    -- Count limit ("0-1"). The item's own rules come first; a pet's equipment falls back to its
-    -- beast's fighter type rules, so a pet limited in Add Fighter shows the same here. Within
-    -- those, the most specific rule wins whole: fighter type, gang subtype, origin, gang type,
-    -- then every gang, as in get_fighter_types_with_cost; id breaks a tie.
+    -- Count limit: the most specific matching rule wins, id breaking ties. A pet without
+    -- rules of its own uses its fighter type's.
     LEFT JOIN LATERAL (
         SELECT cl.min_count, cl.max_count
         FROM count_limits cl
@@ -642,7 +636,6 @@ AS $$
         custom_tp.cost_type_resource_id,
         custom_tp.cost_campaign_resource_id,
         COALESCE(custom_tp.banned, false) AS banned,
-        -- Custom equipment has no count limits.
         NULL::integer AS min_count,
         NULL::integer AS max_count
     FROM custom_equipment ce
