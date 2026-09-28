@@ -281,11 +281,11 @@ export const getGangTacticsCards = async (gangId: string, supabase: any): Promis
 export const getGangPositioning = async (gangId: string, supabase: any): Promise<Record<string, any> | null> => {
   return unstable_cache(
     async () => {
+      // maybeSingle: a just-deleted gang re-renders from a stale gang-core entry
       const { data, error } = await supabase
         .from('gangs')
         .select('positioning')
         .eq('id', gangId)
-        // maybeSingle: a just-deleted gang re-renders from a stale gang-core entry
         .maybeSingle();
 
       if (error) throw error;
