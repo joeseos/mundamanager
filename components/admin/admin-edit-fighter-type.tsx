@@ -14,8 +14,8 @@ import { Equipment } from '@/types/equipment';
 import { getSkillSetGroupLabel, getSkillSetRank } from "@/utils/skillSetRank";
 import { compareEquipmentCategories } from "@/utils/getEquipmentCategoryRank";
 import { AdminFighterEquipmentSelection, EquipmentSelection, guiToDataModel, dataModelToGui } from "@/components/admin/admin-fighter-equipment-selection";
-import { GangScope, GangScopeSelects, formatGangScope, gangScopeKey } from "@/components/admin/gang-scope-options";
-import { FighterTypeCountLimit, FighterTypeGrant } from "@/types/fighter-type";
+import { CountLimitsEditor, GangScope, GangScopeSelects, formatGangScope, gangScopeKey } from "@/components/admin/gang-scope-options";
+import { CountLimit, FighterTypeGrant } from "@/types/fighter-type";
 import { EditionSelect, useEditions } from '@/components/edition-select';
 import { hasAlignment, hasSaveCharacteristic, allowsMultipleSubtypes, hasStartingXp, hasVehicles } from '@/types/edition';
 import { toggleFighterSubtype } from '@/utils/fighter-subtype-picker';
@@ -192,13 +192,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [ruleExcluded, setRuleExcluded] = useState(false);
 
   // null until loaded, like availability, so a failed load leaves the stored limits alone.
-  const [countLimits, setCountLimits] = useState<FighterTypeCountLimit[] | null>(null);
-  const [showCountLimitDialog, setShowCountLimitDialog] = useState(false);
-  const [limitGangType, setLimitGangType] = useState('');
-  const [limitGangOrigin, setLimitGangOrigin] = useState('');
-  const [limitGangSubtype, setLimitGangSubtype] = useState('');
-  const [limitMin, setLimitMin] = useState('');
-  const [limitMax, setLimitMax] = useState('');
+  const [countLimits, setCountLimits] = useState<CountLimit[] | null>(null);
   
   // Add at the top of the AdminEditFighterTypeModal component, after other state declarations
   const [skillAccess, setSkillAccess] = useState<{
@@ -1223,33 +1217,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
     setAvailability(prev => [...(prev ?? []), rule]);
     closeAvailabilityDialog();
-  };
-
-  const closeCountLimitDialog = () => {
-    setShowCountLimitDialog(false);
-    setLimitGangType('');
-    setLimitGangOrigin('');
-    setLimitGangSubtype('');
-    setLimitMin('');
-    setLimitMax('');
-  };
-
-  const handleAddCountLimit = () => {
-    const limit: FighterTypeCountLimit = {
-      gang_type_id: limitGangType || null,
-      gang_origin_id: limitGangOrigin || null,
-      gang_subtype_id: limitGangSubtype || null,
-      min_count: limitMin ? parseInt(limitMin) : null,
-      max_count: limitMax ? parseInt(limitMax) : null
-    };
-
-    if ((countLimits ?? []).some(l => gangScopeKey(l) === gangScopeKey(limit))) {
-      toast.error('That gang scope already has a limit');
-      return false;
-    }
-
-    setCountLimits(prev => [...(prev ?? []), limit]);
-    closeCountLimitDialog();
   };
 
   const handleAddGangCost = () => {
@@ -2554,102 +2521,15 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 )}
               </div>
 
-              {/* Count Limits — count_limits min/max, shown as "2+" or "0-1" in Add Fighter */}
-              <div className="col-span-3">
-                <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Count Limits
-                </label>
-                <Button
-                  onClick={() => setShowCountLimitDialog(true)}
-                  variant="outline"
-                  size="sm"
-                  className="mb-2"
-                  // Not before the limits load: adding to an unloaded list would save it over them
-                  disabled={!selectedFighterTypeId || countLimits === null}
-                >
-                  Add Limit
-                </Button>
-                {!selectedFighterTypeId && (
-                  <p className="text-sm text-muted-foreground mb-2">
-                    Select a fighter type to add count limits
-                  </p>
-                )}
-
-                {(countLimits ?? []).length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {(countLimits ?? []).map((limit) => {
-                      const scope = formatGangScope(limit, gangScopeLists) || 'Every gang';
-                      const counts = [
-                        limit.min_count != null ? `Min ${limit.min_count}` : null,
-                        limit.max_count != null ? `Max ${limit.max_count}` : null
-                      ].filter(Boolean).join(', ');
-
-                      return (
-                        <div
-                          key={gangScopeKey(limit)}
-                          className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
-                        >
-                          <span>{counts} — {scope}</span>
-                          <button
-                            type="button"
-                            onClick={() => setCountLimits(prev =>
-                              (prev ?? []).filter(l => gangScopeKey(l) !== gangScopeKey(limit))
-                            )}
-                            className="hover:text-red-500 focus:outline-hidden"
-                          >
-                            <HiX className="h-4 w-4" />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {showCountLimitDialog && (
-                  <Modal
-                    title="Count Limit"
-                    helper="How many of this fighter type a gang may have. Leave the gang fields on Any for every gang; the most specific matching limit wins."
-                    onClose={closeCountLimitDialog}
-                    onConfirm={handleAddCountLimit}
-                    confirmText="Save Limit"
-                    confirmDisabled={!limitMin && !limitMax}
-                    width="sm"
-                  >
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Min</label>
-                          <Input
-                            type="number"
-                            value={limitMin}
-                            onChange={(e) => setLimitMin(e.target.value)}
-                            placeholder="e.g. 2 for 2+"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Max</label>
-                          <Input
-                            type="number"
-                            value={limitMax}
-                            onChange={(e) => setLimitMax(e.target.value)}
-                            placeholder="e.g. 1 for 0-1"
-                          />
-                        </div>
-                      </div>
-
-                      <GangScopeSelects
-                        {...gangScopeSelectLists}
-                        gangTypeId={limitGangType}
-                        onGangTypeChange={setLimitGangType}
-                        gangOriginId={limitGangOrigin}
-                        onGangOriginChange={setLimitGangOrigin}
-                        gangSubtypeId={limitGangSubtype}
-                        onGangSubtypeChange={setLimitGangSubtype}
-                      />
-                    </div>
-                  </Modal>
-                )}
-              </div>
+              <CountLimitsEditor
+                limits={countLimits}
+                onChange={setCountLimits}
+                disabled={!selectedFighterTypeId}
+                disabledHint="Select a fighter type to add count limits"
+                helper="How many of this fighter type a gang may have. Leave the gang fields on Any for every gang; the most specific matching limit wins."
+                labelLists={gangScopeLists}
+                selectLists={gangScopeSelectLists}
+              />
 
               <div className="col-span-3">
                 <label className="block text-sm font-medium text-muted-foreground mb-1">

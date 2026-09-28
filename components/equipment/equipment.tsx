@@ -18,6 +18,7 @@ import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
 import { hasEquipmentSuperCategories, hasTradePoints } from '@/types/edition';
 import { isExclusiveTradePoints, parseTradePointsCost } from '@/utils/campaigns/resources';
 import { compareEquipmentCategories } from '@/utils/getEquipmentCategoryRank';
+import { countLimitPrefix } from '@/utils/countLimitPrefix';
 import {
   getEquipmentCategoryDisplayNameN26,
   getEquipmentSuperCategoryN26,
@@ -84,6 +85,8 @@ interface RawEquipmentData {
   cost_type_resource_id?: string | null;
   cost_campaign_resource_id?: string | null;
   banned?: boolean;
+  min_count?: number | null;
+  max_count?: number | null;
 }
 
 interface Category {
@@ -915,8 +918,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                     <div className="flex items-center gap-2 flex-wrap">
                                       <span className="text-sm font-medium">
                                         {item.equipment_type === 'vehicle_upgrade' && item.vehicle_upgrade_slot
-                                          ? `${item.vehicle_upgrade_slot}: ${item.equipment_name}`
-                                          : item.equipment_name}
+                                          ? `${item.vehicle_upgrade_slot}: ${countLimitPrefix(item)}${item.equipment_name}`
+                                          : `${countLimitPrefix(item)}${item.equipment_name}`}
                                       </span>
                                       {item.banned && (
                                         <Badge variant="destructive" className="px-1 text-[0.6rem]">

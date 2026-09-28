@@ -1,3 +1,18 @@
+-- Count limits for equipment, in the same count_limits table as fighter types. Display only.
+
+ALTER TABLE public.count_limits
+    ADD COLUMN equipment_id        uuid REFERENCES public.equipment(id) ON DELETE CASCADE,
+    ADD COLUMN for_fighter_type_id uuid REFERENCES public.fighter_types(id) ON DELETE CASCADE;
+
+COMMENT ON COLUMN public.count_limits.fighter_type_id IS
+  'The fighter type being limited ("0-1 Stimmer"). Set this or equipment_id.';
+COMMENT ON COLUMN public.count_limits.equipment_id IS
+  'The equipment being limited ("0-1 Grapnel launcher"). Set this or fighter_type_id.';
+COMMENT ON COLUMN public.count_limits.for_fighter_type_id IS
+  'Equipment rules only: restricts the rule to fighters of this type. NULL applies to any fighter.';
+
+CREATE INDEX count_limits_equipment_id_idx ON public.count_limits (equipment_id);
+
 DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid, text, uuid, boolean);
 DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid, text, uuid, boolean, boolean);
 DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid);

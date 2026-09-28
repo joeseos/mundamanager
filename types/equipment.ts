@@ -135,6 +135,8 @@ export interface Equipment {
   cost_type_resource_id?: string | null;
   cost_campaign_resource_id?: string | null;
   banned?: boolean;
+  min_count?: number | null;
+  max_count?: number | null;
   is_consumable?: boolean;
   // Cost breakdown for Exotic Beast equipment (base + advancements + equipment)
   beast_cost_breakdown?: {

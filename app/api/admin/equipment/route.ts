@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
 import { WeaponProfileInput, EquipmentAvailability, EquipmentOriginAvailability, EquipmentSubtypeAvailability, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
-import { FighterTypeGrant } from "@/types/fighter-type";
+import { CountLimit, FighterTypeGrant } from "@/types/fighter-type";
 import {
   FighterEffectType,
   FighterEffectTypeModifier,
@@ -56,7 +56,17 @@ export async function GET(request: Request) {
       // Fetch equipment details
       const { data: equipment, error } = await supabase
         .from('equipment')
-        .select('*')
+        .select(`
+          *,
+          count_limits!count_limits_equipment_id_fkey(
+            gang_type_id,
+            gang_origin_id,
+            gang_subtype_id,
+            for_fighter_type_id,
+            min_count,
+            max_count
+          )
+        `)
         .eq('id', id)
         .single();
 
@@ -641,7 +651,8 @@ export async function PATCH(request: Request) {
       equipment_subtype_availabilities,
       fighter_effects,
       grants_equipment,
-      edition_id
+      edition_id,
+      count_limits
     } = data;
 
     const normalizedTradePoints = normalizeAdminTradePoints(trade_points);
@@ -926,6 +937,41 @@ export async function PATCH(request: Request) {
           if (insertError) {
             console.warn('Error inserting gang subtype availabilities into equipment_availability:', insertError);
           }
+        }
+      }
+    }
+
+    // Only when sent: a client whose limits never loaded sends none, and must not wipe them.
+    if (Array.isArray(count_limits)) {
+      const { error: deleteCountLimitsError } = await supabase
+        .from('count_limits')
+        .delete()
+        .eq('equipment_id', id);
+
+      if (deleteCountLimitsError) {
+        console.error('Error deleting existing count limits:', deleteCountLimitsError);
+        throw deleteCountLimitsError;
+      }
+
+      if (count_limits.length > 0) {
+        const countLimitRecords = (count_limits as CountLimit[]).map(row => ({
+          equipment_id: id,
+          gang_type_id: row.gang_type_id ?? null,
+          gang_origin_id: row.gang_origin_id ?? null,
+          gang_subtype_id: row.gang_subtype_id ?? null,
+          for_fighter_type_id: row.for_fighter_type_id ?? null,
+          min_count: row.min_count ?? null,
+          max_count: row.max_count ?? null,
+          updated_at: new Date().toISOString()
+        }));
+
+        const { error: insertCountLimitsError } = await supabase
+          .from('count_limits')
+          .insert(countLimitRecords);
+
+        if (insertCountLimitsError) {
+          console.error('Error inserting count limits:', insertCountLimitsError);
+          throw insertCountLimitsError;
         }
       }
     }
