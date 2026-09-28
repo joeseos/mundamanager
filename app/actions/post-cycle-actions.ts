@@ -2,8 +2,12 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { getEditionIdBySlug } from '@/utils/editions';
-import { gangEditionSlug, hasGangTacticsCards, EDITION_N26 } from '@/types/edition';
+import {
+  gangEditionJoin,
+  gangEditionSlug,
+  hasGangTacticsCards,
+  hasPostCycleActions,
+} from '@/types/edition';
 import { invalidateFighter } from '@/utils/cache-tags';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { addFighterInjury, deleteFighterInjury } from './fighter-injury';
@@ -14,11 +18,9 @@ import { addGangTacticsCards } from './gang-tactics-cards';
 import type { GangTacticsCard } from '@/types/tactics-card';
 import {
   FIT_BIONICS_COST_PER_INJURY,
-  MEDICAL_ESCORT_COST,
-  MEDICAL_ESCORT_GOOD_STUFF_STEP,
   TRAIN_XP,
   WORK_TERRITORY_INCOME,
-  chopShopCostPerDamage,
+  assignmentCreditsDelta,
   criticalInjuriesOf,
   postCycleTotalCredits,
   validatePostCycleAssignments,
@@ -114,7 +116,7 @@ async function loadPostCycleFighters(
   const { data: fighters, error: fightersError } = await supabase
     .from('fighters')
     .select(
-      'id, fighter_name, fighter_type, fighter_subtypes, is_vehicle, killed, retired, enslaved, captured, recovery'
+      'id, fighter_name, fighter_subtypes, is_vehicle, killed, retired, enslaved, captured, recovery'
     )
     .eq('gang_id', gangId)
     .in('id', fighterIds);
@@ -129,7 +131,6 @@ async function loadPostCycleFighters(
       id,
       fighter_id,
       effect_name,
-      type_specific_data,
       fighter_effect_type:fighter_effect_type_id (
         fighter_effect_category:fighter_effect_category_id ( category_name )
       )
@@ -216,8 +217,8 @@ export async function applyPostCycleActions(
       .select(
         `
         id, credits, rating, wealth,
-        gang_types!gang_type_id ( editions:edition_id ( slug ) ),
-        custom_gang_type_edition:custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
+        gang_types!gang_type_id ( editions:edition_id ( id, slug ) ),
+        custom_gang_type_edition:custom_gang_types!custom_gang_type_id ( editions:edition_id ( id, slug ) )
       `
       )
       .eq('id', gangId)
@@ -228,7 +229,8 @@ export async function applyPostCycleActions(
     }
 
     const editionSlug = gangEditionSlug(gang);
-    if (editionSlug !== EDITION_N26) {
+    const editionId = gangEditionJoin(gang)?.id ?? null;
+    if (!hasPostCycleActions(editionSlug)) {
       return {
         success: false,
         error: 'Post-cycle Actions are only available for Necromunda (2026) gangs',
@@ -287,7 +289,6 @@ export async function applyPostCycleActions(
 
     // ---- Apply ---------------------------------------------------------------
 
-    const editionId = await getEditionIdBySlug(EDITION_N26);
     const touchedFighterIds = new Set<string>();
 
     for (const assignment of assignments) {
@@ -312,10 +313,7 @@ export async function applyPostCycleActions(
         // -- Medical Escort ---------------------------------------------------
         case 'medical_escort': {
           const criticalInjury = criticalInjuriesOf(target!)[0];
-          const escortCost = assignment.declineToPay
-            ? 0
-            : -(MEDICAL_ESCORT_COST +
-                assignment.goodStuffSteps * MEDICAL_ESCORT_GOOD_STUFF_STEP);
+          const escortCost = assignmentCreditsDelta(assignment);
 
           /**
            * editFighterStatus('kill') is a TOGGLE, so calling it on a fighter
@@ -393,7 +391,7 @@ export async function applyPostCycleActions(
           const stabilised =
             escortResult === 'Stabilised' ? medicalEscortStabilisedRoll() : null;
           const injuryEntry = stabilised
-            ? resolveInjuryFor(stabilised.total, EDITION_N26)
+            ? resolveInjuryFor(stabilised.total, editionSlug)
             : undefined;
           const injuryTypeId =
             injuryEntry && editionId
@@ -488,7 +486,7 @@ export async function applyPostCycleActions(
                 removedEffectIds: criticalInjury ? [criticalInjury.id] : [],
                 removedFrom: 'injuries',
                 addedInjury: applied.injury,
-                recovery: applied.recovery_status ?? true,
+                recovery: applied.success ? applied.recovery_status ?? true : undefined,
               },
             ],
             failed: !applied.success,
@@ -525,13 +523,10 @@ export async function applyPostCycleActions(
               : `Fitted bionics, removing ${removedNames.join(', ')} from ${target!.fighter_name}.`,
             // Billed per injury actually removed, not per injury requested.
             creditsDelta: -(removedIds.length * FIT_BIONICS_COST_PER_INJURY),
-            changes: [
-              {
-                fighterId: target!.id,
-                removedEffectIds: removedIds,
-                removedFrom: 'injuries',
-              },
-            ],
+            changes:
+              removedIds.length > 0
+                ? [{ fighterId: target!.id, removedEffectIds: removedIds, removedFrom: 'injuries' }]
+                : undefined,
             failed: Boolean(failure),
           });
           break;
@@ -544,10 +539,12 @@ export async function applyPostCycleActions(
             (id) => damages.find((d) => d.id === id)?.effect_name ?? 'Lasting Damage'
           );
 
+          const repairCost = -assignmentCreditsDelta(assignment);
+
           // The N26 flat-rate path: the vehicle IS the fighter, hence vehicleId null.
           const repaired = await repairVehicleDamage({
             damageIds: assignment.damageIds,
-            repairCost: assignment.damageIds.length * chopShopCostPerDamage(),
+            repairCost,
             vehicleId: null,
             fighterId: performer.id,
             gangId,
@@ -559,9 +556,7 @@ export async function applyPostCycleActions(
               ? `Repaired ${repairedNames.join(', ')} at the Chop Shop.`
               : `Chop Shop repair failed: ${repaired.error}`,
             // Settled inside repairVehicleDamage, so excluded from the aggregate below.
-            creditsDelta: repaired.success
-              ? -(assignment.damageIds.length * chopShopCostPerDamage())
-              : 0,
+            creditsDelta: repaired.success ? -repairCost : 0,
             changes: repaired.success
               ? [
                   {
@@ -682,7 +677,12 @@ export async function applyPostCycleActions(
     // ---- Log -----------------------------------------------------------------
 
     for (const result of results) {
-      if (result.failed) continue;
+      // A failed action is still logged when part of it landed (a partial Fit
+      // Bionics, a Medical Escort billed after the Critical Injury was cleared),
+      // so the log accounts for every credit and effect that moved.
+      const landed =
+        !result.failed || result.creditsDelta !== 0 || (result.changes?.length ?? 0) > 0;
+      if (!landed) continue;
 
       try {
         await logPostCycleAction({

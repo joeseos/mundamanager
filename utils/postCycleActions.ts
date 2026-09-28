@@ -159,7 +159,6 @@ export const POST_CYCLE_ACTION_ORDER: PostCycleActionId[] = [
 export interface PostCycleFighter {
   id: string;
   fighter_name: string;
-  fighter_type?: string;
   fighter_subtypes?: string[] | null;
   is_vehicle?: boolean;
   killed?: boolean;
@@ -311,8 +310,7 @@ export type PostCycleAssignment =
 /**
  * Net credits for one assignment: negative spends, positive earns. Chop Shop is
  * included, so a caller that delegates the repair to `repairVehicleDamage` must
- * exclude it from the aggregate rather than paying twice — see
- * `postCycleCreditsBreakdown`.
+ * exclude it when settling the rest, or the gang pays twice.
  */
 export function assignmentCreditsDelta(assignment: PostCycleAssignment): number {
   switch (assignment.action) {
@@ -331,7 +329,6 @@ export function assignmentCreditsDelta(assignment: PostCycleAssignment): number 
       return 0;
   }
 }
-
 
 /**
  * What the whole sequence is planned to cost, negative for a net spend.
@@ -387,27 +384,25 @@ export interface PostCycleValidationIssue {
 }
 
 /**
- * Every cross-fighter rule, in one place so the form and the server agree.
- *
- * The client calls this to disable Confirm and grey out options; the server
- * calls it again on freshly read rows, because the assignment list arrives from
- * the browser and is not trusted.
- */
-/**
  * Gang-level state the cross-fighter rules need beyond the fighters themselves.
  *
- * Extends PostCycleAvailability rather than sitting beside it so the per-action
- * eligibility check below gets the same flags the caller used to build the form.
- * Every field is required, and the parameter has no default: a missing
- * availability flag reads as "this edition cannot do it" and would silently
- * reject a legitimate action, which is exactly how Develop Tactics shipped
- * broken. Requiring them makes that a compile error at each call site instead.
+ * Extends PostCycleAvailability so the per-action eligibility check gets the
+ * same flags the caller used to build the form. Every field is required: a
+ * missing availability flag would read as "this edition cannot do it" and
+ * silently reject a legitimate action.
  */
 export interface PostCycleValidationContext extends PostCycleAvailability {
   /** `tactics_cards.id`s the gang already holds, so Develop Tactics cannot re-add one. */
   ownedTacticsCardIds: Set<string>;
 }
 
+/**
+ * Every cross-fighter rule, in one place so the form and the server agree.
+ *
+ * The client calls this to disable Resolve and flag rows; the server calls it
+ * again on freshly read rows, because the assignment list arrives from the
+ * browser and is not trusted.
+ */
 export function validatePostCycleAssignments(
   fighters: PostCycleFighter[],
   assignments: PostCycleAssignment[],
