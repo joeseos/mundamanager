@@ -147,7 +147,7 @@ function applyChange(fighter: FighterProps, change: PostCycleFighterChange): Fig
 function CreditsDelta({ delta, className = '' }: { delta: number; className?: string }) {
   if (delta === 0) return null;
   return (
-    <span className={`text-sm tabular-nums whitespace-nowrap ${className}`}>
+    <span className={`whitespace-nowrap ${className}`}>
       {delta > 0 ? `+${delta}` : delta}
     </span>
   );
@@ -244,7 +244,7 @@ function MedicalEscortOptions({
               >
                 <LuMinus className="h-3 w-3" />
               </Button>
-              <span className="w-7 text-center tabular-nums">+{steps}</span>
+              <span className="w-7 text-center">+{steps}</span>
               <Button
                 variant="outline"
                 size="icon"
