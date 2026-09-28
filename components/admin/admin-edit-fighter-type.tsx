@@ -14,8 +14,8 @@ import { Equipment } from '@/types/equipment';
 import { getSkillSetGroupLabel, getSkillSetRank } from "@/utils/skillSetRank";
 import { compareEquipmentCategories } from "@/utils/getEquipmentCategoryRank";
 import { AdminFighterEquipmentSelection, EquipmentSelection, guiToDataModel, dataModelToGui } from "@/components/admin/admin-fighter-equipment-selection";
-import { GangOriginOptions, GangSubtypeOptions } from "@/components/admin/gang-scope-options";
-import { FighterTypeGrant } from "@/types/fighter-type";
+import { GangScope, GangScopeSelects, formatGangScope, gangScopeKey } from "@/components/admin/gang-scope-options";
+import { FighterTypeCountLimit, FighterTypeGrant } from "@/types/fighter-type";
 import { EditionSelect, useEditions } from '@/components/edition-select';
 import { hasAlignment, hasSaveCharacteristic, allowsMultipleSubtypes, hasStartingXp, hasVehicles } from '@/types/edition';
 import { toggleFighterSubtype } from '@/utils/fighter-subtype-picker';
@@ -108,9 +108,7 @@ interface GangAffiliation {
 // Omits excluded, as fighter_type_availability_scope_uidx does, so a grant and a deny for one
 // scope collide.
 const availabilityKey = (rule: FighterTypeGrant) =>
-  [rule.fighter_type_id, rule.fighter_subtype, rule.gang_type_id, rule.gang_origin_id, rule.gang_subtype_id]
-    .map(part => part ?? '')
-    .join('|');
+  `${rule.fighter_type_id ?? ''}|${rule.fighter_subtype ?? ''}|${gangScopeKey(rule)}`;
 
 export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighterTypeModalProps) {
   const queryClient = useQueryClient();
@@ -192,6 +190,15 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [ruleGangOrigin, setRuleGangOrigin] = useState('');
   const [ruleGangSubtype, setRuleGangSubtype] = useState('');
   const [ruleExcluded, setRuleExcluded] = useState(false);
+
+  // null until loaded, like availability, so a failed load leaves the stored limits alone.
+  const [countLimits, setCountLimits] = useState<FighterTypeCountLimit[] | null>(null);
+  const [showCountLimitDialog, setShowCountLimitDialog] = useState(false);
+  const [limitGangType, setLimitGangType] = useState('');
+  const [limitGangOrigin, setLimitGangOrigin] = useState('');
+  const [limitGangSubtype, setLimitGangSubtype] = useState('');
+  const [limitMin, setLimitMin] = useState('');
+  const [limitMax, setLimitMax] = useState('');
   
   // Add at the top of the AdminEditFighterTypeModal component, after other state declarations
   const [skillAccess, setSkillAccess] = useState<{
@@ -394,6 +401,15 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     [gangSubtypeList, editionId]
   );
 
+  // Every edition's names label a saved rule; a rule dialog offers only this edition's.
+  const gangScopeLists = { gangTypes, origins: gangOriginList, subtypes: gangSubtypeList };
+  const gangScopeSelectLists = {
+    gangTypes: filteredGangTypes,
+    origins: filteredGangOrigins,
+    subtypes: filteredGangSubtypes,
+    editionSlug,
+  };
+
   const filteredGangAffiliations = useMemo(
     () => editionId ? gangAffiliations.filter(a => a.edition_id === editionId) : gangAffiliations,
     [gangAffiliations, editionId]
@@ -496,14 +512,15 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         const row = id ? list.find(candidate => candidate.id === id) : null;
         return !!row && row.edition_id !== newEditionId;
       };
-      setAvailability(prev => prev?.filter(rule => !(
+      const fromAnotherEditionScope = (rule: GangScope) =>
         fromAnotherEdition(gangOriginList, rule.gang_origin_id)
         || fromAnotherEdition(gangSubtypeList, rule.gang_subtype_id)
         || fromAnotherEdition(
           gangTypes.map(type => ({ id: type.gang_type_id, edition_id: type.edition_id })),
           rule.gang_type_id
-        )
-      )) ?? null);
+        );
+      setAvailability(prev => prev?.filter(rule => !fromAnotherEditionScope(rule)) ?? null);
+      setCountLimits(prev => prev?.filter(limit => !fromAnotherEditionScope(limit)) ?? null);
     }
 
     if (newEditionId && gangTypeFilter) {
@@ -513,6 +530,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         setSelectedFighterTypeId('');
         setSelectedSpecialisationId('');
         setAvailability(null);
+        setCountLimits(null);
         setSavedFighterSubtypes([]);
       }
     }
@@ -736,6 +754,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       }
 
       setAvailability(Array.isArray(data.availability) ? data.availability : null);
+      setCountLimits(Array.isArray(data.count_limits) ? data.count_limits : null);
 
       setVariantName(data.fighter_variant || '');
       if (variantNameInputRef.current) variantNameInputRef.current.value = data.fighter_variant || '';
@@ -781,6 +800,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     // Cleared here, not just on load: a failed detail fetch would otherwise leave the previous
     // fighter type's rules in state and save them against this one.
     setAvailability(null);
+    setCountLimits(null);
     setSavedFighterSubtypes([]);
     setAvailableSpecialisations([]);
     setVariantName('');
@@ -1075,6 +1095,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         equipment_selection: guiToDataModel(equipmentSelection),
         gang_type_costs: gangTypeCosts, // Add gang-specific costs
         ...(availability ? { availability: availabilityRules } : {}),
+        ...(countLimits ? { count_limits: countLimits } : {}),
         updated_at: new Date().toISOString(),
         skill_access: skillAccess
       };
@@ -1202,6 +1223,33 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
     setAvailability(prev => [...(prev ?? []), rule]);
     closeAvailabilityDialog();
+  };
+
+  const closeCountLimitDialog = () => {
+    setShowCountLimitDialog(false);
+    setLimitGangType('');
+    setLimitGangOrigin('');
+    setLimitGangSubtype('');
+    setLimitMin('');
+    setLimitMax('');
+  };
+
+  const handleAddCountLimit = () => {
+    const limit: FighterTypeCountLimit = {
+      gang_type_id: limitGangType || null,
+      gang_origin_id: limitGangOrigin || null,
+      gang_subtype_id: limitGangSubtype || null,
+      min_count: limitMin ? parseInt(limitMin) : null,
+      max_count: limitMax ? parseInt(limitMax) : null
+    };
+
+    if ((countLimits ?? []).some(l => gangScopeKey(l) === gangScopeKey(limit))) {
+      toast.error('That gang scope already has a limit');
+      return false;
+    }
+
+    setCountLimits(prev => [...(prev ?? []), limit]);
+    closeCountLimitDialog();
   };
 
   const handleAddGangCost = () => {
@@ -1349,6 +1397,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   setSelectedFighterTypeId('');
                   setSelectedSpecialisationId('');
                   setAvailability(null);
+                  setCountLimits(null);
                   setSavedFighterSubtypes([]);
                 }}
                 className="w-full p-2 border rounded-md"
@@ -2388,18 +2437,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 {availabilityRules.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {availabilityRules.map((rule) => {
-                      const scope = [
-                        rule.gang_type_id
-                          ? `Gang type: ${filteredGangTypes.find(g => g.gang_type_id === rule.gang_type_id)?.gang_type
-                              ?? gangTypes.find(g => g.gang_type_id === rule.gang_type_id)?.gang_type ?? '…'}`
-                          : null,
-                        rule.gang_origin_id
-                          ? `Origin: ${gangOriginList.find(o => o.id === rule.gang_origin_id)?.origin_name ?? '…'}`
-                          : null,
-                        rule.gang_subtype_id
-                          ? `Gang subtype: ${gangSubtypeList.find(s => s.id === rule.gang_subtype_id)?.subtype ?? '…'}`
-                          : null
-                      ].filter(Boolean).join(', ');
+                      const scope = formatGangScope(rule, gangScopeLists);
                       const target = rule.fighter_subtype
                         ? `Deny '${rule.fighter_subtype}'`
                         : rule.excluded ? 'Deny' : 'Grant';
@@ -2485,45 +2523,15 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                         </div>
                       )}
 
-                      <div>
-                        <label className="block text-sm font-medium mb-1">Gang Type</label>
-                        <select
-                          value={ruleGangType}
-                          onChange={(e) => setRuleGangType(e.target.value)}
-                          className="w-full p-2 border rounded-md"
-                        >
-                          <option value="">Any Gang Type</option>
-                          {filteredGangTypes.map((gangType) => (
-                            <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
-                              {gangType.gang_type}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium mb-1">Gang Origin</label>
-                        <select
-                          value={ruleGangOrigin}
-                          onChange={(e) => setRuleGangOrigin(e.target.value)}
-                          className="w-full p-2 border rounded-md"
-                        >
-                          <option value="">Any Gang Origin</option>
-                          <GangOriginOptions origins={filteredGangOrigins} />
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium mb-1">Gang Subtype</label>
-                        <select
-                          value={ruleGangSubtype}
-                          onChange={(e) => setRuleGangSubtype(e.target.value)}
-                          className="w-full p-2 border rounded-md"
-                        >
-                          <option value="">Any Gang Subtype</option>
-                          <GangSubtypeOptions subtypes={filteredGangSubtypes} editionSlug={editionSlug} />
-                        </select>
-                      </div>
+                      <GangScopeSelects
+                        {...gangScopeSelectLists}
+                        gangTypeId={ruleGangType}
+                        onGangTypeChange={setRuleGangType}
+                        gangOriginId={ruleGangOrigin}
+                        onGangOriginChange={setRuleGangOrigin}
+                        gangSubtypeId={ruleGangSubtype}
+                        onGangSubtypeChange={setRuleGangSubtype}
+                      />
 
                       <label className="flex items-start space-x-2">
                         <Checkbox
@@ -2541,6 +2549,103 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                           </p>
                         </div>
                       </label>
+                    </div>
+                  </Modal>
+                )}
+              </div>
+
+              {/* Count Limits — count_limits min/max, shown as "2+" or "0-1" in Add Fighter */}
+              <div className="col-span-3">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
+                  Count Limits
+                </label>
+                <Button
+                  onClick={() => setShowCountLimitDialog(true)}
+                  variant="outline"
+                  size="sm"
+                  className="mb-2"
+                  // Not before the limits load: adding to an unloaded list would save it over them
+                  disabled={!selectedFighterTypeId || countLimits === null}
+                >
+                  Add Limit
+                </Button>
+                {!selectedFighterTypeId && (
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Select a fighter type to add count limits
+                  </p>
+                )}
+
+                {(countLimits ?? []).length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {(countLimits ?? []).map((limit) => {
+                      const scope = formatGangScope(limit, gangScopeLists) || 'Every gang';
+                      const counts = [
+                        limit.min_count != null ? `Min ${limit.min_count}` : null,
+                        limit.max_count != null ? `Max ${limit.max_count}` : null
+                      ].filter(Boolean).join(', ');
+
+                      return (
+                        <div
+                          key={gangScopeKey(limit)}
+                          className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
+                        >
+                          <span>{counts} — {scope}</span>
+                          <button
+                            type="button"
+                            onClick={() => setCountLimits(prev =>
+                              (prev ?? []).filter(l => gangScopeKey(l) !== gangScopeKey(limit))
+                            )}
+                            className="hover:text-red-500 focus:outline-hidden"
+                          >
+                            <HiX className="h-4 w-4" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {showCountLimitDialog && (
+                  <Modal
+                    title="Count Limit"
+                    helper="How many of this fighter type a gang may have. Leave the gang fields on Any for every gang; the most specific matching limit wins."
+                    onClose={closeCountLimitDialog}
+                    onConfirm={handleAddCountLimit}
+                    confirmText="Save Limit"
+                    confirmDisabled={!limitMin && !limitMax}
+                    width="sm"
+                  >
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Min</label>
+                          <Input
+                            type="number"
+                            value={limitMin}
+                            onChange={(e) => setLimitMin(e.target.value)}
+                            placeholder="e.g. 2 for 2+"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Max</label>
+                          <Input
+                            type="number"
+                            value={limitMax}
+                            onChange={(e) => setLimitMax(e.target.value)}
+                            placeholder="e.g. 1 for 0-1"
+                          />
+                        </div>
+                      </div>
+
+                      <GangScopeSelects
+                        {...gangScopeSelectLists}
+                        gangTypeId={limitGangType}
+                        onGangTypeChange={setLimitGangType}
+                        gangOriginId={limitGangOrigin}
+                        onGangOriginChange={setLimitGangOrigin}
+                        gangSubtypeId={limitGangSubtype}
+                        onGangSubtypeChange={setLimitGangSubtype}
+                      />
                     </div>
                   </Modal>
                 )}

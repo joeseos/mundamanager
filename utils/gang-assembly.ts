@@ -22,7 +22,7 @@ export function groupBy<T extends Record<string, any>>(array: T[], key: string):
   }, {});
 }
 
-type RawWeaponProfile = WeaponProfile & { weapon_id: string };
+type RawWeaponProfile = WeaponProfile & { equipment_id: string };
 type RawCustomWeaponProfile = WeaponProfile & { custom_equipment_id: string };
 
 const sortProfiles = (profiles: WeaponProfile[]) =>
@@ -48,9 +48,9 @@ function buildProfileMaps(equipmentRows: any[]) {
       for (const p of (item.equipment.weapon_profiles || []) as RawWeaponProfile[]) {
         if (seenStdIds.has(p.id)) continue;
         seenStdIds.add(p.id);
-        if (!standardProfilesMap.has(p.weapon_id)) standardProfilesMap.set(p.weapon_id, []);
-        standardProfilesMap.get(p.weapon_id)!.push(p);
-        if (p.weapon_group_id && p.weapon_group_id !== p.weapon_id) {
+        if (!standardProfilesMap.has(p.equipment_id)) standardProfilesMap.set(p.equipment_id, []);
+        standardProfilesMap.get(p.equipment_id)!.push(p);
+        if (p.weapon_group_id && p.weapon_group_id !== p.equipment_id) {
           if (!standardAmmoByParentWeapon.has(p.weapon_group_id)) standardAmmoByParentWeapon.set(p.weapon_group_id, []);
           standardAmmoByParentWeapon.get(p.weapon_group_id)!.push(p);
         }
@@ -375,7 +375,7 @@ export function assembleGangFighters(
 
               // Get ammo profiles ONLY if THIS fighter owns the ammo and (when loadout active) ammo is in loadout
               const standardAmmo = (standardAmmoByParentWeapon.get(item.equipment_id) || [])
-                .filter((p: any) => fighterStandardIds.has(p.weapon_id) && (loadoutEquipmentIds === null || loadoutEquipmentIds.has(p.weapon_id)));
+                .filter((p: any) => fighterStandardIds.has(p.equipment_id) && (loadoutEquipmentIds === null || loadoutEquipmentIds.has(p.equipment_id)));
               const customAmmo = (customAmmoByParentWeapon.get(item.equipment_id) || [])
                 .filter((p: any) => fighterCustomIds.has(p.custom_equipment_id) && (loadoutEquipmentIds === null || loadoutEquipmentIds.has(p.custom_equipment_id)));
 
@@ -399,7 +399,7 @@ export function assembleGangFighters(
               const customAmmo = (customAmmoByParentWeapon.get(item.custom_equipment_id) || [])
                 .filter((p: any) => fighterCustomIds.has(p.custom_equipment_id) && (loadoutEquipmentIds === null || loadoutEquipmentIds.has(p.custom_equipment_id)));
               const standardAmmo = (standardAmmoByParentWeapon.get(item.custom_equipment_id) || [])
-                .filter((p: any) => fighterStandardIds.has(p.weapon_id) && (loadoutEquipmentIds === null || loadoutEquipmentIds.has(p.weapon_id)));
+                .filter((p: any) => fighterStandardIds.has(p.equipment_id) && (loadoutEquipmentIds === null || loadoutEquipmentIds.has(p.equipment_id)));
 
               // Combine and deduplicate
               const seenIds = new Set<string>();
@@ -492,7 +492,7 @@ export function assembleGangFighters(
               if (item.equipment_id) {
                 const baseProfiles = vehicleStandardProfilesMap.get(item.equipment_id) || [];
                 const standardAmmo = (vehicleStandardAmmoByParent.get(item.equipment_id) || [])
-                  .filter((p: any) => vehicleStandardIds.has(p.weapon_id));
+                  .filter((p: any) => vehicleStandardIds.has(p.equipment_id));
                 const customAmmo = (vehicleCustomAmmoByParent.get(item.equipment_id) || [])
                   .filter((p: any) => vehicleCustomIds.has(p.custom_equipment_id));
 
@@ -509,7 +509,7 @@ export function assembleGangFighters(
                 const customAmmo = (vehicleCustomAmmoByParent.get(item.custom_equipment_id) || [])
                   .filter((p: any) => vehicleCustomIds.has(p.custom_equipment_id));
                 const standardAmmo = (vehicleStandardAmmoByParent.get(item.custom_equipment_id) || [])
-                  .filter((p: any) => vehicleStandardIds.has(p.weapon_id));
+                  .filter((p: any) => vehicleStandardIds.has(p.equipment_id));
 
                 const seenIds = new Set<string>();
                 weaponProfiles = [...baseProfiles, ...customAmmo, ...standardAmmo]
@@ -998,10 +998,10 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
   stdProfiles.sort(byProfileOrder);
   const standardProfilesMap = new Map<string, any[]>();
   stdProfiles.forEach((profile: any) => {
-    if (!standardProfilesMap.has(profile.weapon_id)) standardProfilesMap.set(profile.weapon_id, []);
-    standardProfilesMap.get(profile.weapon_id)!.push(profile);
-    if (profile.weapon_group_id && profile.weapon_group_id !== profile.weapon_id
-        && ownedStandardIds.has(profile.weapon_id)) {
+    if (!standardProfilesMap.has(profile.equipment_id)) standardProfilesMap.set(profile.equipment_id, []);
+    standardProfilesMap.get(profile.equipment_id)!.push(profile);
+    if (profile.weapon_group_id && profile.weapon_group_id !== profile.equipment_id
+        && ownedStandardIds.has(profile.equipment_id)) {
       if (!standardProfilesMap.has(profile.weapon_group_id)) standardProfilesMap.set(profile.weapon_group_id, []);
       standardProfilesMap.get(profile.weapon_group_id)!.push(profile);
     }
@@ -1167,11 +1167,11 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
       const vStdBase = new Map<string, any[]>();
       const vStdAmmo = new Map<string, any[]>();
       vStd.forEach((profile: any) => {
-        if (profile.weapon_id) {
-          if (!vStdBase.has(profile.weapon_id)) vStdBase.set(profile.weapon_id, []);
-          vStdBase.get(profile.weapon_id)!.push(profile);
+        if (profile.equipment_id) {
+          if (!vStdBase.has(profile.equipment_id)) vStdBase.set(profile.equipment_id, []);
+          vStdBase.get(profile.equipment_id)!.push(profile);
         }
-        if (profile.weapon_group_id && profile.weapon_group_id !== profile.weapon_id) {
+        if (profile.weapon_group_id && profile.weapon_group_id !== profile.equipment_id) {
           if (!vStdAmmo.has(profile.weapon_group_id)) vStdAmmo.set(profile.weapon_group_id, []);
           vStdAmmo.get(profile.weapon_group_id)!.push(profile);
         }
@@ -1197,7 +1197,7 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
           if (item.equipment_id) {
             const baseProfiles = vStdBase.get(item.equipment_id) || [];
             const standardAmmo = (vStdAmmo.get(item.equipment_id) || [])
-              .filter((p: any) => vehicleStandardIds.has(p.weapon_id));
+              .filter((p: any) => vehicleStandardIds.has(p.equipment_id));
             const customAmmo = (vCustAmmo.get(item.equipment_id) || [])
               .filter((p: any) => vehicleCustomIds.has(p.custom_equipment_id));
             const seenIds = new Set<string>();
@@ -1216,7 +1216,7 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
             const customAmmo = (vCustAmmo.get(item.custom_equipment_id) || [])
               .filter((p: any) => vehicleCustomIds.has(p.custom_equipment_id));
             const standardAmmo = (vStdAmmo.get(item.custom_equipment_id) || [])
-              .filter((p: any) => vehicleStandardIds.has(p.weapon_id));
+              .filter((p: any) => vehicleStandardIds.has(p.equipment_id));
             const seenIds = new Set<string>();
             weaponProfiles = [...baseProfiles, ...customAmmo, ...standardAmmo]
               .filter((p: any) => {

@@ -32,7 +32,7 @@ import { FaMedkit } from "react-icons/fa";
 import { GiHandcuffs } from "react-icons/gi";
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { sortFightersByPositioning } from '@/utils/fighter-positioning';
-import { hasCumulativeXp } from '@/types/edition';
+import { hasCumulativeXp, hasSpyrerPowerBoosts } from '@/types/edition';
 import { nextTierStartFor, openAdvancementsFor } from '@/utils/advancementRanks';
 import { hasN26ProspectPromotionOccurred } from '@/utils/keepTypePromotionN26';
 
@@ -1023,7 +1023,7 @@ export default function FighterPage({
             }}
           />
 
-          {fighterData.fighter?.is_spyrer && (
+          {fighterData.fighter?.is_spyrer && hasSpyrerPowerBoosts(editionSlug) && (
             <PowerBoostsList
               fighterId={fighterData.fighter.id}
               powerBoosts={fighterData.fighter?.effects?.['power-boosts'] || []}

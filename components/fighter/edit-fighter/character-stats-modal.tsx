@@ -5,6 +5,7 @@ import {
   initiativeAndMentalCharacteristicSuffix,
 } from '@/types/edition';
 import { Button } from "@/components/ui/button";
+import Modal from "@/components/ui/modal";
 import { LuPlus } from "react-icons/lu";
 import { LuMinus } from "react-icons/lu";
 
@@ -22,14 +23,12 @@ interface CharacterStatsModalProps {
   onClose: () => void;
   fighter: Fighter;
   onUpdateStats: (stats: Record<string, number>) => void;
-  isSaving?: boolean;
 }
 
 export function CharacterStatsModal({
   onClose,
   fighter,
-  onUpdateStats,
-  isSaving = false
+  onUpdateStats
 }: CharacterStatsModalProps) {
   const initiativeAndMentalSuffix = initiativeAndMentalCharacteristicSuffix(fighter.edition_slug);
 
@@ -195,76 +194,55 @@ export function CharacterStatsModal({
       if (adjustment !== 0) updatedStats[propName] = adjustment;
     }
     onUpdateStats(updatedStats); // emit draft only (no server call)
-    onClose();
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-[100]">
-      <div className="fixed inset-0 bg-black/50 dark:bg-neutral-700/50" onClick={isSaving ? undefined : onClose}></div>
-      <div className="bg-card rounded-lg max-w-[700px] w-full shadow-xl relative z-[101]">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-xl md:text-2xl font-bold">Adjust Characteristics</h2>
-          <button
-            onClick={onClose}
-            className="text-muted-foreground hover:text-muted-foreground text-xl"
-            disabled={isSaving}
-          >
-            ×
-          </button>
-        </div>
-
-        <div className="p-4">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-            {displayStats.map((stat) => {
-              return (
-                <div key={stat.key} className="border rounded-lg p-2">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-sm md:text-xl font-bold">{stat.key}</h3>
-                    <span className="text-xs text-muted-foreground">{stat.name}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-10 w-10 rounded-md"
-                      onClick={() => handleDecrease(stat.key)}
-                      disabled={isSaving}
-                    >
-                      <LuMinus className="h-4 w-4" />
-                    </Button>
-                    <div className="flex flex-col items-center">
-                      {/* Display TOTAL value as the large, primary value */}
-                      <span className="text-sm md:text-xl font-bold">
-                        {getAdjustedTotal(stat.key)}
-                      </span>
-                      {/* Display BASE value without the adjustment */}
-                      <span className="text-xs text-muted-foreground">
-                        Base: {getBaseDisplay(stat.key)}
-                      </span>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-10 w-10 rounded-md"
-                      onClick={() => handleIncrease(stat.key)}
-                      disabled={isSaving}
-                    >
-                      <LuPlus className="h-4 w-4" />
-                    </Button>
-                  </div>
+    <Modal
+      title="Adjust Characteristics"
+      width="2xl"
+      onClose={onClose}
+      onConfirm={handleSave}
+    >
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+        {displayStats.map((stat) => {
+          return (
+            <div key={stat.key} className="border rounded-lg p-2">
+              <div className="flex justify-between items-center">
+                <h3 className="text-sm md:text-xl font-bold">{stat.key}</h3>
+                <span className="text-xs text-muted-foreground">{stat.name}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10 rounded-md"
+                  onClick={() => handleDecrease(stat.key)}
+                >
+                  <LuMinus className="h-4 w-4" />
+                </Button>
+                <div className="flex flex-col items-center">
+                  {/* Display TOTAL value as the large, primary value */}
+                  <span className="text-sm md:text-xl font-bold">
+                    {getAdjustedTotal(stat.key)}
+                  </span>
+                  {/* Display BASE value without the adjustment */}
+                  <span className="text-xs text-muted-foreground">
+                    Base: {getBaseDisplay(stat.key)}
+                  </span>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="flex justify-end p-4 border-t gap-2">
-          <Button variant="outline" onClick={onClose} disabled={isSaving}>Cancel</Button>
-          <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? "Saving..." : "Confirm"}
-          </Button>
-        </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10 rounded-md"
+                  onClick={() => handleIncrease(stat.key)}
+                >
+                  <LuPlus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          );
+        })}
       </div>
-    </div>
+    </Modal>
   );
 }

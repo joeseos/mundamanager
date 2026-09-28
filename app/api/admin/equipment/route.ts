@@ -312,7 +312,7 @@ export async function GET(request: Request) {
           const { data: profiles, error: profilesError } = await supabase
             .from('weapon_profiles')
             .select('*')
-            .eq('weapon_id', id)
+            .eq('equipment_id', id)
             .order('sort_order');
 
           if (profilesError) {
@@ -515,7 +515,7 @@ export async function POST(request: Request) {
       const weaponId = equipment.id;
       const cleanedWeaponProfiles = weapon_profiles.map((profile: WeaponProfileInput) => ({
         ...profile,
-        weapon_id: weaponId,
+        equipment_id: weaponId,
         profile_name: profile.profile_name.trimEnd(),
         // Set weapon_group_id to either the selected weapon's ID or this weapon's ID
         weapon_group_id: profile.weapon_group_id || weaponId,
@@ -678,7 +678,7 @@ export async function PATCH(request: Request) {
       const { error: deleteError } = await supabase
         .from('weapon_profiles')
         .delete()
-        .eq('weapon_id', id);
+        .eq('equipment_id', id);
 
       if (deleteError) throw deleteError;
 
@@ -688,7 +688,7 @@ export async function PATCH(request: Request) {
           .from('weapon_profiles')
           .insert(
             weapon_profiles.map((profile: WeaponProfileInput) => ({
-              weapon_id: id,
+              equipment_id: id,
               profile_name: profile.profile_name.trimEnd(),
               range_short: profile.range_short,
               range_long: profile.range_long,
