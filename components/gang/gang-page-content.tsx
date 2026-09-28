@@ -439,6 +439,7 @@ export default function GangPageContent({
   const [injuryModalOpenAddOnMount, setInjuryModalOpenAddOnMount] = useState(false);
   const [vehicleModalFighter, setVehicleModalFighter] = useState<FighterProps | null>(null);
   const [vehicleModalOpenAddOnMount, setVehicleModalOpenAddOnMount] = useState(false);
+  const [vehicleModalRepairOnly, setVehicleModalRepairOnly] = useState(false);
   const [rescueModalFighter, setRescueModalFighter] = useState<FighterProps | null>(null);
   const [resurrectModalFighter, setResurrectModalFighter] = useState<FighterProps | null>(null);
   const [isResurrectSubmitting, setIsResurrectSubmitting] = useState(false);
@@ -463,12 +464,13 @@ export default function GangPageContent({
     setInjuryModalOpenAddOnMount(options?.openAddModal ?? false);
   }, [gangData.processedData.fighters]);
 
-  const openVehicleDamageModal = useCallback((fighterId: string, options?: { openAddModal?: boolean }) => {
+  const openVehicleDamageModal = useCallback((fighterId: string, options?: { openAddModal?: boolean; repairOnly?: boolean }) => {
     const fighter = gangData.processedData.fighters.find(f => f.id === fighterId) || null;
     // Either an attached vehicle (N23) or a vehicle that is itself the fighter (N26)
     if (fighter && ((fighter.vehicles && fighter.vehicles.length > 0) || fighter.is_vehicle)) {
       setVehicleModalFighter(fighter);
       setVehicleModalOpenAddOnMount(options?.openAddModal ?? false);
+      setVehicleModalRepairOnly(options?.repairOnly ?? false);
     }
   }, [gangData.processedData.fighters]);
 
@@ -991,6 +993,7 @@ export default function GangPageContent({
             <VehicleDamagesList
               initialOpenAddModal={vehicleModalOpenAddOnMount}
               addFormOnly={vehicleModalOpenAddOnMount}
+              repairOnly={vehicleModalRepairOnly}
               onRequestClose={() => {
                 setVehicleModalFighter(null);
                 setVehicleModalOpenAddOnMount(false);

@@ -38,6 +38,8 @@ interface VehicleDamagesListProps {
   initialOpenAddModal?: boolean;
   /** When true, render only the add form (no list). Use when opening directly from gang card menu. */
   addFormOnly?: boolean;
+  /** When true, hide the Add button so the list only repairs (Post-cycle Visit Chop Shop). */
+  repairOnly?: boolean;
   /** Closes the parent modal: after a successful add or repair, and on cancel when addFormOnly. */
   onRequestClose?: () => void;
   onDamageUpdate: (updatedDamages: FighterEffect[]) => void;
@@ -69,6 +71,7 @@ export function VehicleDamagesList({
   damages = [],
   initialOpenAddModal = false,
   addFormOnly = false,
+  repairOnly = false,
   onRequestClose,
   onDamageUpdate,
   onFighterStatusUpdate,
@@ -918,13 +921,15 @@ export function VehicleDamagesList({
             >
               Repair
             </Button>
-            <Button
-              onClick={handleOpenModal}
-              className="bg-neutral-900 hover:bg-gray-800 text-white"
-              disabled={!userPermissions.canEdit || !hasDamageTable}
-            >
-              Add
-            </Button>
+            {!repairOnly && (
+              <Button
+                onClick={handleOpenModal}
+                className="bg-neutral-900 hover:bg-gray-800 text-white"
+                disabled={!userPermissions.canEdit || !hasDamageTable}
+              >
+                Add
+              </Button>
+            )}
           </div>
         </div>
 

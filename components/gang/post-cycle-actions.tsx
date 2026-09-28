@@ -670,7 +670,9 @@ export default function PostCycleActions({
                       variant="outline"
                       size="sm"
                       className="w-full"
-                      onClick={() => fighterCardModals?.openVehicleDamageModal(fighter.id)}
+                      onClick={() =>
+                        fighterCardModals?.openVehicleDamageModal(fighter.id, { repairOnly: true })
+                      }
                       disabled={!canEdit || !fighterCardModals}
                     >
                       Repair Lasting Damage
