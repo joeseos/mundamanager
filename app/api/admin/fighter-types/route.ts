@@ -154,6 +154,13 @@ export async function GET(request: Request) {
           equipment_discounts:equipment_discounts(
             equipment_id,
             adjusted_cost
+          ),
+          count_limits!count_limits_fighter_type_id_fkey(
+            gang_type_id,
+            gang_origin_id,
+            gang_subtype_id,
+            min_count,
+            max_count
           )
         `)
         .eq('id', id)
@@ -194,17 +201,6 @@ export async function GET(request: Request) {
       if (availabilityError) {
         console.error('Error fetching fighter type availability:', availabilityError);
         throw availabilityError;
-      }
-
-      // Fetch count limits
-      const { data: countLimits, error: countLimitsError } = await supabase
-        .from('count_limits')
-        .select('gang_type_id, gang_origin_id, gang_subtype_id, min_count, max_count')
-        .eq('fighter_type_id', fighterType.id);
-
-      if (countLimitsError) {
-        console.error('Error fetching count limits:', countLimitsError);
-        throw countLimitsError;
       }
 
       // Fetch equipment selection
@@ -279,7 +275,7 @@ export async function GET(request: Request) {
         gang_type_costs: gangTypeCosts || [],
         skill_access: skillAccess || [],
         availability: availability || [],
-        count_limits: countLimits || []
+        count_limits: fighterType.count_limits || []
       };
 
       return NextResponse.json(formattedFighterType);

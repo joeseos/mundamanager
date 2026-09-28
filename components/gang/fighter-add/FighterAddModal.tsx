@@ -857,6 +857,9 @@ export default function FighterAddModal({
       return a.fighter.fighter_type.localeCompare(b.fighter.fighter_type);
     };
 
+    const typeOptionLabel = (fighter: FighterType, cost: number) =>
+      `${fighterTypeCountPrefix(fighter)}${fighter.fighter_type} (${formatFighterSubtypeDisplay(fighter.fighter_subtypes, fighter.edition_slug ?? editionSlug)}) - ${cost} credits`;
+
     if (includeAllFighterTypes) {
       const groupedByGangType = Array.from(typeSubtypeMap.values()).reduce((groups, { fighter, cost }) => {
         const gangTypeName = fighter.gang_type || 'Unknown';
@@ -874,7 +877,7 @@ export default function FighterAddModal({
           disabled: true,
         });
         fighters.forEach(({ fighter, cost }) => {
-          const displayName = `${fighterTypeCountPrefix(fighter)}${fighter.fighter_type} (${formatFighterSubtypeDisplay(fighter.fighter_subtypes, fighter.edition_slug ?? editionSlug)}) - ${cost} credits`;
+          const displayName = typeOptionLabel(fighter, cost);
           options.push({ value: fighter.id, label: <span className="ml-3">{displayName}</span>, displayValue: displayName });
         });
       });
@@ -898,7 +901,7 @@ export default function FighterAddModal({
     if (!hasMultipleGroups) {
       const fighters = (groupedByType[sortedGroups[0]] || []).sort(sortFighters);
       fighters.forEach(({ fighter, cost }) => {
-        options.push({ value: fighter.id, label: `${fighterTypeCountPrefix(fighter)}${fighter.fighter_type} (${formatFighterSubtypeDisplay(fighter.fighter_subtypes, fighter.edition_slug ?? editionSlug)}) - ${cost} credits` });
+        options.push({ value: fighter.id, label: typeOptionLabel(fighter, cost) });
       });
       return options;
     }
@@ -912,7 +915,7 @@ export default function FighterAddModal({
         disabled: true,
       });
       fighters.forEach(({ fighter, cost }) => {
-        const displayName = `${fighterTypeCountPrefix(fighter)}${fighter.fighter_type} (${formatFighterSubtypeDisplay(fighter.fighter_subtypes, fighter.edition_slug ?? editionSlug)}) - ${cost} credits`;
+        const displayName = typeOptionLabel(fighter, cost);
         options.push({ value: fighter.id, label: <span className="ml-3">{displayName}</span>, displayValue: displayName });
       });
     });

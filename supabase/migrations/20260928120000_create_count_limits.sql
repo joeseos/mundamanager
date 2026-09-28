@@ -1,8 +1,9 @@
--- Minimum and maximum counts ("2+", "0-1") for fighter types, and later equipment, per gang.
+-- Minimum and maximum counts ("2+", "0-1") for fighter types, per gang.
 --
 -- Replaces fighter_types.limitation as what the Add Fighter list reads. A number on the fighter
 -- type row cannot differ between the gangs that share that row -- gang additions are one pool
 -- for every gang -- so the counts move to rules scoped like fighter_type_availability's.
+-- Equipment limits will reuse this table, adding their columns when they are built.
 --
 -- Display only: nothing enforces these counts. No CHECK constraints for the same reason; a bad
 -- count is a data problem, not something to reject.
@@ -10,46 +11,35 @@
 -- get_fighter_types_with_cost reads this table: the most specific rule matching the gang wins.
 
 CREATE TABLE public.count_limits (
-    id                  uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-    created_at          timestamptz NOT NULL DEFAULT now(),
-    updated_at          timestamptz,
+    id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at      timestamptz NOT NULL DEFAULT now(),
+    updated_at      timestamptz,
 
-    -- what is limited: set one of these
-    fighter_type_id     uuid        REFERENCES public.fighter_types(id) ON DELETE CASCADE,
-    equipment_id        uuid        REFERENCES public.equipment(id) ON DELETE CASCADE,
+    fighter_type_id uuid        REFERENCES public.fighter_types(id) ON DELETE CASCADE,
 
     -- which gangs: every non-NULL axis must match; all NULL applies to every gang
-    gang_type_id        uuid        REFERENCES public.gang_types(gang_type_id) ON DELETE CASCADE,
-    gang_origin_id      uuid        REFERENCES public.gang_origins(id) ON DELETE CASCADE,
-    gang_subtype_id     uuid        REFERENCES public.gang_subtype_types(id) ON DELETE CASCADE,
-    for_fighter_type_id uuid        REFERENCES public.fighter_types(id) ON DELETE CASCADE,
+    gang_type_id    uuid        REFERENCES public.gang_types(gang_type_id) ON DELETE CASCADE,
+    gang_origin_id  uuid        REFERENCES public.gang_origins(id) ON DELETE CASCADE,
+    gang_subtype_id uuid        REFERENCES public.gang_subtype_types(id) ON DELETE CASCADE,
 
-    count_per           text        NOT NULL DEFAULT 'gang',
-    min_count           numeric,
-    max_count           numeric
+    min_count       numeric,
+    max_count       numeric
 );
 
 COMMENT ON COLUMN public.count_limits.fighter_type_id IS
-  'The fighter type being limited ("0-1 Stimmer"). Set this or equipment_id.';
-COMMENT ON COLUMN public.count_limits.equipment_id IS
-  'The equipment being limited. Set this or fighter_type_id. Not read yet.';
+  'The fighter type being limited ("0-1 Stimmer").';
 COMMENT ON COLUMN public.count_limits.gang_type_id IS
   'Restricts the rule to gangs of this gang type. NULL applies regardless of gang type.';
 COMMENT ON COLUMN public.count_limits.gang_origin_id IS
   'Restricts the rule to gangs with this origin. NULL applies regardless of origin.';
 COMMENT ON COLUMN public.count_limits.gang_subtype_id IS
   'Restricts the rule to gangs holding this subtype. NULL applies regardless of subtype.';
-COMMENT ON COLUMN public.count_limits.for_fighter_type_id IS
-  'Equipment rules only: restricts the rule to fighters of this type. NULL applies to any fighter.';
-COMMENT ON COLUMN public.count_limits.count_per IS
-  '''gang'' counts across the whole gang; ''fighter'' counts on each fighter (equipment only).';
 COMMENT ON COLUMN public.count_limits.min_count IS
   'Fewest allowed, shown as "2+". NULL is no minimum.';
 COMMENT ON COLUMN public.count_limits.max_count IS
   'Most allowed, shown as "0-1". NULL is no maximum.';
 
 CREATE INDEX count_limits_fighter_type_id_idx ON public.count_limits (fighter_type_id);
-CREATE INDEX count_limits_equipment_id_idx ON public.count_limits (equipment_id);
 
 ALTER TABLE public.count_limits ENABLE ROW LEVEL SECURITY;
 
@@ -1043,19 +1033,19 @@ BEGIN
     LEFT JOIN editions ed ON ed.id = ft.edition_id
     LEFT JOIN granted g ON g.fighter_type_id = ft.id
     -- The most specific rule wins whole: gang subtype, then origin, then gang type, then a rule
-    -- for every gang. Without a gang only the every-gang rules can match.
+    -- for every gang. Without a gang only the every-gang rules can match. Two equally specific
+    -- rules can both match (a gang with two subtypes); id breaks the tie so the pick is stable.
     LEFT JOIN LATERAL (
         SELECT cl.min_count, cl.max_count
         FROM count_limits cl
         WHERE cl.fighter_type_id = ft.id
-          AND cl.count_per = 'gang'
           AND (cl.gang_type_id    IS NULL OR cl.gang_type_id   = v_gang_type_id)
           AND (cl.gang_origin_id  IS NULL OR cl.gang_origin_id = v_gang_origin_id)
           AND (cl.gang_subtype_id IS NULL OR v_gang_subtypes ? cl.gang_subtype_id::text)
         ORDER BY (cl.gang_subtype_id IS NOT NULL) DESC,
                  (cl.gang_origin_id  IS NOT NULL) DESC,
                  (cl.gang_type_id    IS NOT NULL) DESC,
-                 cl.created_at
+                 cl.id
         LIMIT 1
     ) lim ON true
     WHERE

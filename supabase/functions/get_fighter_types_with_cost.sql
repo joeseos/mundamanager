@@ -944,19 +944,19 @@ BEGIN
     LEFT JOIN editions ed ON ed.id = ft.edition_id
     LEFT JOIN granted g ON g.fighter_type_id = ft.id
     -- The most specific rule wins whole: gang subtype, then origin, then gang type, then a rule
-    -- for every gang. Without a gang only the every-gang rules can match.
+    -- for every gang. Without a gang only the every-gang rules can match. Two equally specific
+    -- rules can both match (a gang with two subtypes); id breaks the tie so the pick is stable.
     LEFT JOIN LATERAL (
         SELECT cl.min_count, cl.max_count
         FROM count_limits cl
         WHERE cl.fighter_type_id = ft.id
-          AND cl.count_per = 'gang'
           AND (cl.gang_type_id    IS NULL OR cl.gang_type_id   = v_gang_type_id)
           AND (cl.gang_origin_id  IS NULL OR cl.gang_origin_id = v_gang_origin_id)
           AND (cl.gang_subtype_id IS NULL OR v_gang_subtypes ? cl.gang_subtype_id::text)
         ORDER BY (cl.gang_subtype_id IS NOT NULL) DESC,
                  (cl.gang_origin_id  IS NOT NULL) DESC,
                  (cl.gang_type_id    IS NOT NULL) DESC,
-                 cl.created_at
+                 cl.id
         LIMIT 1
     ) lim ON true
     WHERE
