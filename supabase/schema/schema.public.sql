@@ -8347,6 +8347,13 @@ CREATE INDEX fighter_skills_fighter_injury_id_idx ON public.fighter_skills USING
 
 
 --
+-- Name: fighter_skills_skill_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_skills_skill_id_idx ON public.fighter_skills USING btree (skill_id);
+
+
+--
 -- Name: fighter_specialisations_specialisation_name_idx; Type: INDEX; Schema: public; Owner: -
 --
 
