@@ -304,12 +304,14 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
           o.fighter_id = fighterIdMap.get(item.fighter_id) || null;
           o.vehicle_id = null;
           o.gang_stash = false;
+          // Skill-granted equipment goes with its skill; without it, leave the item behind
           if (item.fighter_skill_id) {
             const mapped = skillIdMap.get(item.fighter_skill_id);
             if (!mapped) {
               console.warn(`Skill ID remap miss: fighter_skill_id ${item.fighter_skill_id} not found in map`);
+              continue;
             }
-            o.fighter_skill_id = mapped || null;
+            o.fighter_skill_id = mapped;
           }
           const { data: inserted, error: feInsertError } = await supabase
             .from('fighter_equipment')

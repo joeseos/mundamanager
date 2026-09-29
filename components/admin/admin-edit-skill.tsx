@@ -189,9 +189,9 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
   });
 
   const { data: allEquipment = [] } = useQuery<Array<{id: string, equipment_name: string, edition_id?: string | null}>>({
-    queryKey: ['admin-all-equipment'],
+    queryKey: ['admin-equipment-slim'],
     queryFn: async () => {
-      const response = await fetch('/api/admin/equipment');
+      const response = await fetch('/api/admin/equipment?slim=true');
       if (!response.ok) throw new Error('Failed to fetch equipment');
       return response.json();
     },

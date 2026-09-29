@@ -44,6 +44,8 @@ export async function GET(request: Request) {
   const equipment_category = searchParams.get('equipment_category');
   const equipment_type = searchParams.get('equipment_type');
   const id = searchParams.get('id');
+  // Dropdowns only need id, name and edition
+  const slim = searchParams.get('slim') === 'true';
 
   // Check admin authorization
   const isAdmin = await checkAdmin(supabase);
@@ -437,7 +439,7 @@ export async function GET(request: Request) {
       const data = await fetchAllRows((from, to) => {
         let query = supabase
           .from('equipment')
-          .select('*')
+          .select(slim ? 'id, equipment_name, edition_id' : '*')
           .order('equipment_name')
           .order('id')
           .range(from, to);

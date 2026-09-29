@@ -623,7 +623,7 @@ async function addSkillAdvancementInternal(
             .single();
 
           if (grantedEquip) {
-            await supabase
+            const { error: grantError } = await supabase
               .from('fighter_equipment')
               .insert({
                 gang_id: fighter.gang_id,
@@ -634,7 +634,12 @@ async function addSkillAdvancementInternal(
                 fighter_skill_id: insertedSkill.id,
                 user_id: fighter.user_id
               });
-            grantedEquipmentNames.push(grantedEquip.equipment_name);
+
+            if (grantError) {
+              console.error('Failed to insert skill-granted equipment:', grantError);
+            } else {
+              grantedEquipmentNames.push(grantedEquip.equipment_name);
+            }
           }
         }
       }
