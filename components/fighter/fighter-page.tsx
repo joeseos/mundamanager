@@ -222,6 +222,8 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
       is_consumable: item.is_consumable,
       cost_resource_name: item.cost_resource?.name ?? null,
       cost_resource_amount: item.cost_resource?.amount ?? null,
+      fighter_skill_id: item.fighter_skill_id ?? null,
+      granted_by_skill_name: item.granted_by_skill_name,
       beast_cost_breakdown: isBeastEquipment ? {
         base: item.purchase_cost,
         advancements: advancementsBeastCost,

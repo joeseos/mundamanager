@@ -1024,6 +1024,14 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
     customProfilesMap.get(profile.custom_equipment_id)!.push(profile);
   });
 
+  // Skill names for "granted by" on skill-granted equipment (fighter_skill_id)
+  const skillNameById = new Map<string, string>();
+  bundle.skills.forEach((s: any) => {
+    if (s.fighter_id !== fighterId) return;
+    const name = (s.skill as any)?.name || (s.custom_skill as any)?.skill_name;
+    if (name) skillNameById.set(s.id, name);
+  });
+
   const equipment = myEquipment.map((item: any) => {
     const equipmentType = (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type;
     let weaponProfiles: any[] = [];
@@ -1068,7 +1076,9 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
       effect_names: effectNames.length > 0 ? effectNames : undefined,
       loadout_ids: loadoutIds.length > 0 ? loadoutIds : undefined,
       is_consumable: (item.equipment as any)?.is_consumable ?? (item.custom_equipment as any)?.is_consumable ?? false,
-      cost_resource: item.cost_resource ?? null
+      cost_resource: item.cost_resource ?? null,
+      fighter_skill_id: item.fighter_skill_id ?? null,
+      granted_by_skill_name: item.fighter_skill_id ? skillNameById.get(item.fighter_skill_id) : undefined
     };
   });
 

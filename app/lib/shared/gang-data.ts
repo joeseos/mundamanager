@@ -939,6 +939,7 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
         is_master_crafted,
         is_editable,
         cost_resource,
+        fighter_skill_id,
         equipment:equipment_id (
           equipment_name,
           equipment_type,

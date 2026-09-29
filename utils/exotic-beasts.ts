@@ -2,6 +2,7 @@ import 'server-only';
 
 import { createClient } from "@/utils/supabase/server";
 import { invalidateFighter } from '@/utils/cache-tags';
+import { grantEquipmentForSkills, type SkillGrantedEquipment } from '@/utils/skill-granted-equipment';
 
 /**
  * A beast's cost rolls up into its owner, so changing a beast invalidates the
@@ -203,8 +204,9 @@ export async function createExoticBeastsForEquipment(
       // Add default equipment for the beast
       const equipment = await addDefaultEquipmentToBeast(supabase, newFighter.id, beastConfig.fighter_type_id, params.userId, params.gangId);
 
-      // Get default skills for the beast
-      const skills = await addDefaultSkillsToBeast(supabase, newFighter.id, beastConfig.fighter_type_id, params.userId);
+      // Get default skills for the beast, plus any equipment those skills grant
+      const { skills, grantedEquipment } = await addDefaultSkillsToBeast(supabase, newFighter.id, beastConfig.fighter_type_id, params.userId, params.gangId);
+      equipment.push(...grantedEquipment);
 
       // Create ownership record
       const { data: ownershipRecord, error: ownershipError } = await supabase
@@ -399,14 +401,19 @@ async function addDefaultEquipmentToBeast(
  * @param beastFighterId - ID of the beast fighter to add skills to
  * @param fighterTypeId - Fighter type ID to get default skills for
  * @param userId - User ID for the skill records
- * @returns Promise containing array of created skill data
+ * @param gangId - Gang ID for equipment the skills grant
+ * @returns Promise containing the created skills and the equipment they granted
  */
 async function addDefaultSkillsToBeast(
   supabase: any,
   beastFighterId: string,
   fighterTypeId: string,
-  userId: string
-): Promise<Array<{ skill_id: string; skill_name: string }>> {
+  userId: string,
+  gangId: string
+): Promise<{
+  skills: Array<{ skill_id: string; skill_name: string }>;
+  grantedEquipment: SkillGrantedEquipment[];
+}> {
   try {
     // Get default skills for the beast type
     const { data: defaultSkillsData } = await supabase
@@ -430,9 +437,20 @@ async function addDefaultSkillsToBeast(
         user_id: userId
       }));
 
-      await supabase
+      const { data: insertedSkills } = await supabase
         .from('fighter_skills')
-        .insert(skillInserts);
+        .insert(skillInserts)
+        .select('id, skill_id');
+
+      const grantedEquipment = await grantEquipmentForSkills(supabase, {
+        fighterId: beastFighterId,
+        gangId,
+        userId,
+        skills: (insertedSkills || []).map((skill: { id: string; skill_id: string }) => ({
+          fighter_skill_id: skill.id,
+          skill_id: skill.skill_id
+        }))
+      });
 
       // Return the skills data we just created
       const skillsToReturn = defaultSkillsData.map((skill: { skill_id: string; skills?: { name?: string }; name?: string }) => ({
@@ -440,13 +458,13 @@ async function addDefaultSkillsToBeast(
         skill_name: skill.skills?.name || skill.name || 'Unknown Skill'
       }));
       
-      return skillsToReturn;
+      return { skills: skillsToReturn, grantedEquipment };
     }
     
-    return [];
+    return { skills: [], grantedEquipment: [] };
   } catch (error) {
     console.error('Error adding default skills to beast:', error);
     // Don't throw - this is not critical enough to fail the entire beast creation
-    return [];
+    return { skills: [], grantedEquipment: [] };
   }
 }

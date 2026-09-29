@@ -6,6 +6,7 @@ import { getAuthenticatedUser } from "@/utils/auth";
 import { syncFighter } from '@/utils/syncVenatorSkillOverrides';
 
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
+import { grantEquipmentForSkills } from '@/utils/skill-granted-equipment';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
 import { grantSkillsForEffects } from './equipment';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
@@ -780,6 +781,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
             .from('fighter_skills')
             .insert(skillInserts)
             .select(`
+              id,
               skill_id,
               skills!skill_id(
                 id,
@@ -1184,6 +1186,25 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
 
     if (gangUpdateError) {
       throw new Error(`Failed to update gang: ${gangUpdateError.message}`);
+    }
+
+    // Equipment the default skills come with (skills.grants_equipment). Free, so
+    // no rating change; deleted with the skill.
+    if (insertedSkills.length > 0) {
+      const skillGrantedEquipment = await grantEquipmentForSkills(supabase, {
+        fighterId,
+        gangId: params.gang_id,
+        userId: gangData.user_id,
+        skills: insertedSkills.map((skill: any) => ({
+          fighter_skill_id: skill.id,
+          skill_id: skill.skill_id
+        }))
+      });
+
+      equipmentWithProfiles = [
+        ...equipmentWithProfiles,
+        ...skillGrantedEquipment.map(item => ({ ...item, custom_equipment_id: undefined, is_editable: false }))
+      ];
     }
 
     // Update gang credits, rating and wealth using centralized helper

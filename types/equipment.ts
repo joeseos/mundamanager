@@ -119,6 +119,8 @@ export interface Equipment {
   target_equipment_id?: string | null; // For equipment-to-equipment upgrades
   effect_names?: string[]; // Names of effects that target this equipment
   granted_by_equipment_id?: string | null; // ID of parent equipment that granted this item
+  fighter_skill_id?: string | null; // fighter_skills row that granted this item; cannot be sold or stashed
+  granted_by_skill_name?: string; // Name of that skill, shown in place of sell/stash
   grants_equipment?: EquipmentGrants | null;
 
   master_crafted?: boolean;

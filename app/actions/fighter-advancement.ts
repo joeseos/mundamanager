@@ -36,7 +36,9 @@ import {
   logRolledGangerAdvancement,
   logRolledSkillAdvancement
 } from './logs/gang-fighter-logs';
+import { logEquipmentAction } from './logs/equipment-logs';
 import type { GangLogActionResult } from './logs/gang-logs';
+import { grantEquipmentForSkills } from '@/utils/skill-granted-equipment';
 import { updateFighterDetails } from './edit-fighter';
 import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 
@@ -519,6 +521,14 @@ async function addSkillAdvancementInternal(
       }
     }
 
+    // Equipment the skill comes with (skills.grants_equipment), deleted with the skill
+    const grantedEquipment = await grantEquipmentForSkills(supabase, {
+      fighterId: params.fighter_id,
+      gangId: fighter.gang_id,
+      userId: fighter.user_id,
+      skills: [{ fighter_skill_id: insertedSkill.id, skill_id: insertedSkill.skill_id }]
+    });
+
     // Update fighter's XP and conditionally set free_skill to false
     const updateData: any = {
       xp: spendsXp ? fighter.xp - params.xp_cost : fighter.xp,
@@ -632,6 +642,17 @@ async function addSkillAdvancementInternal(
         : {}),
       ...(!isAdvance && !ratingOnly && creditsIncrease > 0 ? { credits_deducted: creditsIncrease } : {})
     });
+
+    for (const item of grantedEquipment) {
+      await logEquipmentAction({
+        gang_id: fighter.gang_id,
+        fighter_id: params.fighter_id,
+        equipment_name: item.equipment_name,
+        purchase_cost: 0,
+        action_type: 'granted',
+        user_id: user.id
+      });
+    }
 
     // Invalidate cache for fighter advancement
     invalidateFighter(params.fighter_id, fighter.gang_id);

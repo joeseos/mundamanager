@@ -247,8 +247,46 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
       }
     }
 
-    // 6) Copy fighter equipment (build equipment ID map for effect FK remapping)
     const oldFighterIds = Array.from(fighterIdMap.keys());
+
+    // 6) Copy fighter skills (before equipment: the skill ID map relinks
+    // fighter_skill_id on skill-granted equipment and on effects)
+    const skillIdMap = new Map<string, string>();
+    if (oldFighterIds.length > 0) {
+      const { data: skills, error: skillsError } = await supabase
+        .from('fighter_skills')
+        .select('*')
+        .in('fighter_id', oldFighterIds);
+      if (skillsError) {
+        await cleanupOnError(new Error(`Failed to load fighter skills: ${skillsError.message}`));
+      }
+      if (skills && skills.length > 0) {
+        const inserts = skills.map((item: any) => {
+          const o: any = { ...item };
+          delete o.id;
+          // no gang_id column on fighter_skills
+          o.user_id = user.id;
+          o.fighter_id = fighterIdMap.get(item.fighter_id) || null;
+          // Remap custom_skill_id to the duplicated custom skill
+          if (o.custom_skill_id && customSkillIdMap.has(o.custom_skill_id)) {
+            o.custom_skill_id = customSkillIdMap.get(o.custom_skill_id);
+          }
+          return o;
+        });
+        const { data: insertedSkills, error: insertSkillsError } = await supabase
+          .from('fighter_skills')
+          .insert(inserts)
+          .select('id');
+        if (insertSkillsError) {
+          await cleanupOnError(new Error(`Failed to insert fighter skills: ${insertSkillsError.message}`));
+        }
+        skills.forEach((item: any, i: number) => {
+          if (insertedSkills?.[i]?.id) skillIdMap.set(item.id, insertedSkills[i].id);
+        });
+      }
+    }
+
+    // 6.5) Copy fighter equipment (build equipment ID map for effect FK remapping)
     if (oldFighterIds.length > 0) {
       const { data: fighterEquip, error: feError } = await supabase
         .from('fighter_equipment')
@@ -266,6 +304,13 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
           o.fighter_id = fighterIdMap.get(item.fighter_id) || null;
           o.vehicle_id = null;
           o.gang_stash = false;
+          if (item.fighter_skill_id) {
+            const mapped = skillIdMap.get(item.fighter_skill_id);
+            if (!mapped) {
+              console.warn(`Skill ID remap miss: fighter_skill_id ${item.fighter_skill_id} not found in map`);
+            }
+            o.fighter_skill_id = mapped || null;
+          }
           const { data: inserted, error: feInsertError } = await supabase
             .from('fighter_equipment')
             .insert(o)
@@ -358,42 +403,6 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
             await cleanupOnError(new Error(`Failed to link copied beast: ${linkError.message}`));
           }
         }
-      }
-    }
-
-    // 8) Copy fighter skills
-    const skillIdMap = new Map<string, string>();
-    if (oldFighterIds.length > 0) {
-      const { data: skills, error: skillsError } = await supabase
-        .from('fighter_skills')
-        .select('*')
-        .in('fighter_id', oldFighterIds);
-      if (skillsError) {
-        await cleanupOnError(new Error(`Failed to load fighter skills: ${skillsError.message}`));
-      }
-      if (skills && skills.length > 0) {
-        const inserts = skills.map((item: any) => {
-          const o: any = { ...item };
-          delete o.id;
-          // no gang_id column on fighter_skills
-          o.user_id = user.id;
-          o.fighter_id = fighterIdMap.get(item.fighter_id) || null;
-          // Remap custom_skill_id to the duplicated custom skill
-          if (o.custom_skill_id && customSkillIdMap.has(o.custom_skill_id)) {
-            o.custom_skill_id = customSkillIdMap.get(o.custom_skill_id);
-          }
-          return o;
-        });
-        const { data: insertedSkills, error: insertSkillsError } = await supabase
-          .from('fighter_skills')
-          .insert(inserts)
-          .select('id');
-        if (insertSkillsError) {
-          await cleanupOnError(new Error(`Failed to insert fighter skills: ${insertSkillsError.message}`));
-        }
-        skills.forEach((item: any, i: number) => {
-          if (insertedSkills?.[i]?.id) skillIdMap.set(item.id, insertedSkills[i].id);
-        });
       }
     }
 

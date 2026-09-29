@@ -9,6 +9,8 @@ import { getSkillSetGroupLabel, getSkillSetRank } from "@/utils/skillSetRank";
 import { gangOriginRank } from "@/utils/gangOriginRank";
 import { AdminFighterEffects } from './admin-fighter-effects';
 import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
+import { HiX } from "react-icons/hi";
+import type { EquipmentGrants } from '@/types/equipment';
 
 enum OperationType {
   POST = 'POST',
@@ -20,8 +22,12 @@ interface Skill {
   id: string;
   name: string;
   gang_origin_id: string | null;
+  grants_equipment?: EquipmentGrants | null;
   effects?: any[];
 }
+
+const grantedIdsOf = (skill?: Skill) =>
+  skill?.grants_equipment?.options?.map(opt => opt.equipment_id) ?? [];
 
 // Helper function to save skill effects and modifiers
 const saveSkillEffects = async (skillId: string, effects: any[], skillNameList: Skill[]) => {
@@ -156,6 +162,8 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
   const [skillEffects, setSkillEffects] = useState<any[]>([]);
   const [skillsCategoryId, setSkillsCategoryId] = useState('');
   const [effectCategories, setEffectCategories] = useState<any[]>([]);
+  // Equipment the skill comes with (skills.grants_equipment, fixed and free)
+  const [grantedEquipmentIds, setGrantedEquipmentIds] = useState<string[]>([]);
   const { data: editions = [] } = useEditions();
   const editionSlug = editionSlugOf(editions, editionId);
   const skillSetRank = getSkillSetRank(editionSlug);
@@ -180,6 +188,21 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: allEquipment = [] } = useQuery<Array<{id: string, equipment_name: string, edition_id?: string | null}>>({
+    queryKey: ['admin-all-equipment'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/equipment');
+      if (!response.ok) throw new Error('Failed to fetch equipment');
+      return response.json();
+    },
+    enabled: !!skillId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const grantableEquipment = (editionId
+    ? allEquipment.filter(e => e.edition_id === editionId)
+    : allEquipment
+  ).slice().sort((a, b) => a.equipment_name.localeCompare(b.equipment_name));
 
   // Edition is the top-level filter: only skill sets of the chosen edition are
   // offered for editing, and the saved skill set keeps that edition
@@ -209,6 +232,7 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
     if (skillId) {
       const selectedSkill = skillNameList.find(s => s.id === skillId);
       setSkillEffects(selectedSkill?.effects ?? []);
+      setGrantedEquipmentIds(grantedIdsOf(selectedSkill));
     }
   }
 
@@ -246,6 +270,7 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
         id: skill.id,
         name: skill.skill_name,
         gang_origin_id: skill.gang_origin_id,
+        grants_equipment: skill.grants_equipment ?? null,
         effects: skill.effects || []
       })));
 
@@ -255,6 +280,7 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
         if (selectedSkill?.effects) {
           setSkillEffects(selectedSkill.effects);
         }
+        setGrantedEquipmentIds(grantedIdsOf(selectedSkill));
       }
     } catch (error) {
       console.error('Error fetching skills:', error);
@@ -356,6 +382,12 @@ const handleSubmitSkill = async (operation: OperationType) => {
           name: skillName,
           id: skillId,
           gang_origin_id: gangOrigin || null,
+          grants_equipment: {
+            selection_type: 'fixed',
+            options: grantedEquipmentIds
+              .filter(Boolean)
+              .map(equipment_id => ({ equipment_id, additional_cost: 0 }))
+          },
         });
         break;
       case OperationType.DELETE:
@@ -570,6 +602,67 @@ const handleSubmitSkill = async (operation: OperationType) => {
                     // They will be persisted when the skill itself is saved/updated
                   }}
                 />
+              </div>
+            )}
+
+            {/* Granted Equipment Section */}
+            {skillId && (
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium">
+                    Grants Equipment
+                  </label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setGrantedEquipmentIds([...grantedEquipmentIds, ''])}
+                  >
+                    Add Equipment
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Given free with this skill and removed with it. It cannot be sold or moved to the stash.
+                </p>
+                {grantedEquipmentIds.length === 0 && (
+                  <p className="text-sm text-muted-foreground italic">No equipment granted.</p>
+                )}
+                <div className="space-y-2">
+                  {grantedEquipmentIds.map((equipmentId, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <select
+                        value={equipmentId}
+                        onChange={(e) => {
+                          const next = [...grantedEquipmentIds];
+                          next[index] = e.target.value;
+                          setGrantedEquipmentIds(next);
+                        }}
+                        className="flex-1 min-w-0 p-2 border rounded-md"
+                      >
+                        <option value="">Select equipment...</option>
+                        {/* Keep a saved item visible even if the edition filter would hide it */}
+                        {equipmentId && !grantableEquipment.some(e => e.id === equipmentId) && (
+                          <option value={equipmentId}>
+                            {allEquipment.find(e => e.id === equipmentId)?.equipment_name ?? equipmentId}
+                          </option>
+                        )}
+                        {grantableEquipment.map((equip) => (
+                          <option key={equip.id} value={equip.id}>
+                            {equip.equipment_name}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setGrantedEquipmentIds(grantedEquipmentIds.filter((_, i) => i !== index))}
+                        className="hover:text-red-500 focus:outline-hidden p-1"
+                        title="Remove"
+                      >
+                        <HiX className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
