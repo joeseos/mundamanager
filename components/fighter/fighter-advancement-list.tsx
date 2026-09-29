@@ -10,7 +10,7 @@ import { createClient } from '@/utils/supabase/client';
 import { buildGroupedSkillSetComboboxOptions } from '@/utils/skillSetComboboxOptions';
 import { hasWyrdFighterSubtype, isWyrdPowerSkillSet } from '@/utils/skillSetRank';
 import { characteristicRank } from "@/utils/characteristicRank";
-import { countAdvancementsTaken, openAdvancementsFor } from "@/utils/advancementRanks";
+import { countAdvancementsTaken, openAdvancementsFor, xpAfterStartingXpChange } from "@/utils/advancementRanks";
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -21,6 +21,7 @@ import {
   applyN26ProspectPromotion,
   applyN26GangerChampionPromotion,
   applyN26ChampionLeaderPromotion,
+  applyN26OutcastLeaderPromotion,
   deleteAdvancement,
   verifyAndLogRolledGangerAdvancementRoll,
   verifyAndLogRolledSkillAdvancementRoll
@@ -49,6 +50,7 @@ import { VENATOR_RANKS_INCOMPLETE_MESSAGE } from '@/utils/venatorSkillAccess';
 import {
   N26_CHAMPION_PROMOTION_SKILL_NAME,
   N26_PROSPECT_PROMOTION_CREDITS,
+  canPromoteToN26OutcastLeader,
   getN26ProspectSpecialisation,
   hasN26ProspectPromotionOccurred,
 } from '@/utils/keepTypePromotionN26';
@@ -207,6 +209,9 @@ interface AdvancementsListProps {
   venatorRanksIncomplete?: boolean;
   gangTypeId?: string;
   customGangTypeId?: string;
+  /** The owning gang's type; gangTypeId is the fighter type's. Gates Outcast Leader. */
+  owningGangTypeId?: string;
+  isVehicle?: boolean;
   fighterSpecialRules?: string[];
   fighterTypeName?: string;
   fighterTypeId?: string;
@@ -221,6 +226,8 @@ interface AdvancementsListProps {
     fighter_specialisation_id?: string | null;
     special_rules?: string[];
     promoted_from_prospect?: boolean;
+    xp?: number;
+    starting_xp?: number | null;
   }) => void;
 }
 
@@ -3051,6 +3058,8 @@ export function AdvancementsList({
   venatorRanksIncomplete,
   gangTypeId = '',
   customGangTypeId = '',
+  owningGangTypeId = '',
+  isVehicle = false,
   fighterSpecialRules = [],
   fighterTypeName = '',
   fighterTypeId = '',
@@ -3067,7 +3076,18 @@ export function AdvancementsList({
   // cost to list and nothing to refund when one is undone.
   const isCumulativeXp = hasCumulativeXp(editionSlug);
 
-  const showPromoteButton = fighterSubtypes.some(c => ['Ganger', 'Juve', 'Prospect', 'Champion', 'Specialist', 'Exotic Beast', 'Exotic Beast Specialist'].includes(c));
+  // A Hired Gun in an N26 Outcast gang can be elevated to its Leader.
+  // gangTypeId is the fighter type's gang type.
+  const canPromoteToOutcastLeader = canPromoteToN26OutcastLeader({
+    owningGangTypeId,
+    fighterTypeGangTypeId: gangTypeId,
+    subtypes: fighterSubtypes,
+    isVehicle,
+  });
+
+  const showPromoteButton =
+    canPromoteToOutcastLeader ||
+    fighterSubtypes.some(c => ['Ganger', 'Juve', 'Prospect', 'Champion', 'Specialist', 'Exotic Beast', 'Exotic Beast Specialist'].includes(c));
 
   const { data: preFetchedFighterTypes = [] } = useQuery({
     queryKey: ['fighter-types-edit', gangId, gangTypeId, customGangTypeId, false],
@@ -3124,6 +3144,17 @@ export function AdvancementsList({
         return result;
       }
 
+      if (promotion.kind === 'n26_outcast_leader') {
+        const result = await applyN26OutcastLeaderPromotion({
+          fighter_id: fighterId,
+          special_rules: promotion.special_rules,
+        });
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to promote fighter');
+        }
+        return result;
+      }
+
       if (promotion.kind === 'n26_champion_leader') {
         if (!promotion.fighter_type_id) {
           throw new Error('A Leader fighter type is required');
@@ -3154,6 +3185,7 @@ export function AdvancementsList({
       return result;
     },
     onMutate: async (promotion) => {
+      const isOutcastLeader = promotion.kind === 'n26_outcast_leader';
       const previousPatch = {
         fighter_subtypes: fighterSubtypes,
         fighter_type: fighterTypeName,
@@ -3161,6 +3193,7 @@ export function AdvancementsList({
         special_rules: fighterSpecialRules,
         promoted_from_prospect: promotedFromProspect,
         ...currentPromotionSpecialisation,
+        ...(isOutcastLeader ? { xp: fighterXp, starting_xp: fighterStartingXp } : {}),
       };
       const previousSkills = { ...skills };
       const creditsIncrease =
@@ -3174,7 +3207,15 @@ export function AdvancementsList({
             ? N26_CHAMPION_PROMOTION_SKILL_NAME
             : undefined;
 
-      onFighterDetailsUpdate?.(promotion);
+      // Outcast Leader moves XP with Starting XP, as the server does.
+      onFighterDetailsUpdate?.(
+        isOutcastLeader && promotion.starting_xp !== undefined
+          ? {
+              ...promotion,
+              xp: xpAfterStartingXpChange(fighterXp, fighterStartingXp, promotion.starting_xp),
+            }
+          : promotion
+      );
 
       // Grant is not an Advancement (is_advance: false) — lands in Skills.
       // Champion→Leader skips optimistic grant when Inspiring is already present.
@@ -3238,6 +3279,21 @@ export function AdvancementsList({
         });
       }
       setIsStandalonePromotionOpen(false);
+
+      if (promotion.kind === 'n26_outcast_leader') {
+        // Settle the optimistic XP on what the server wrote.
+        const { fighter: promoted, warning } = result as {
+          fighter?: { xp: number; starting_xp?: number | null };
+          warning?: string;
+        };
+        if (promoted) {
+          onFighterDetailsUpdate?.({ xp: promoted.xp, starting_xp: promoted.starting_xp ?? null });
+        }
+        if (warning) {
+          toast.error(warning);
+          return;
+        }
+      }
       toast.success('Fighter promoted successfully');
     },
     onError: (error, _promotion, context) => {
@@ -3580,6 +3636,11 @@ export function AdvancementsList({
         isOpen={isStandalonePromotionOpen}
         onClose={() => setIsStandalonePromotionOpen(false)}
         showXpPromotionHint
+        outcastLeader={
+          canPromoteToOutcastLeader
+            ? { currentXp: fighterXp, currentStartingXp: fighterStartingXp }
+            : undefined
+        }
         onPromoted={(data) => {
           standalonePromotionMutation.mutate(data);
         }}

@@ -15,9 +15,12 @@ import {
 import {
   N26_CHAMPION_PROMOTION_SKILL_ID,
   N26_CHAMPION_PROMOTION_SKILL_NAME,
+  N26_OUTCAST_LEADER_PET_STARTING_XP,
+  N26_OUTCAST_LEADER_STARTING_XP,
   N26_PROSPECT_PROMOTION_CREDITS,
   buildN26ChampionLeaderDemotionSubtypes,
   buildN26ChampionLeaderPromotionSubtypes,
+  canPromoteToN26OutcastLeader,
   buildN26GangerChampionDemotionSubtypes,
   buildN26GangerChampionPromotionSubtypes,
   buildN26ProspectDemotionSubtypes,
@@ -154,6 +157,11 @@ export interface N26ChampionLeaderPromotionParams {
   special_rules?: string[];
 }
 
+export interface N26OutcastLeaderPromotionParams {
+  fighter_id: string;
+  special_rules?: string[];
+}
+
 export interface DeleteAdvancementParams {
   fighter_id: string;
   advancement_id: string;
@@ -163,9 +171,12 @@ export interface DeleteAdvancementParams {
 export interface AdvancementResult {
   success: boolean;
   error?: string;
+  /** Partial-success note (e.g. promoted, but a pet's Starting XP was not set) */
+  warning?: string;
   fighter?: {
     id: string;
     xp: number;
+    starting_xp?: number | null;
   };
   advancement?: {
     credits_increase: number;
@@ -1193,6 +1204,124 @@ export async function applyN26ChampionLeaderPromotion(
     });
   } catch (error) {
     console.error('Error applying N26 Champion→Leader promotion:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
+  }
+}
+
+/**
+ * N26-only: elevate a Hired Gun in an Outcast gang to its Outcast Leader.
+ *
+ * The fighter keeps its type, skills, equipment and cost. Leader replaces
+ * Champion/Ganger/Prospect and Loner goes (the Champion→Leader rebuild),
+ * Starting XP becomes 61, and pets linked through the fighter's wargear start
+ * on 13. No skill is granted. Starting XP goes through updateFighterDetails,
+ * which moves XP with it.
+ *
+ * Meant for gang creation, when nothing has been earned yet. Promoted later,
+ * a fighter keeps its earned XP but may lose unspent Advancements, since the
+ * ranks above 61 are wider; that is accepted rather than compensated for.
+ */
+export async function applyN26OutcastLeaderPromotion(
+  params: N26OutcastLeaderPromotionParams
+): Promise<AdvancementResult> {
+  try {
+    const supabase = await createClient();
+    await getAuthenticatedUser(supabase);
+
+    const { data: before, error: beforeError } = await supabase
+      .from('fighters')
+      .select(`
+        id, fighter_subtypes, special_rules, is_vehicle,
+        gangs!gang_id ( gang_type_id ),
+        fighter_types:fighter_type_id ( gang_type_id ),
+        custom_fighter_types:custom_fighter_type_id ( gang_type_id )
+      `)
+      .eq('id', params.fighter_id)
+      .single();
+
+    if (beforeError || !before) {
+      return { success: false, error: 'Fighter not found' };
+    }
+
+    const currentSubtypes: string[] = Array.isArray(before.fighter_subtypes)
+      ? before.fighter_subtypes
+      : [];
+    if (currentSubtypes.includes('Leader')) {
+      return { success: false, error: 'This fighter is already a Leader' };
+    }
+    type GangTypeRef = { gang_type_id?: string | null } | null;
+    const owningGangTypeId = (before.gangs as GangTypeRef)?.gang_type_id;
+    const fighterTypeGangTypeId =
+      (before.fighter_types as GangTypeRef)?.gang_type_id ??
+      (before.custom_fighter_types as GangTypeRef)?.gang_type_id;
+    if (!canPromoteToN26OutcastLeader({
+      owningGangTypeId,
+      fighterTypeGangTypeId,
+      subtypes: currentSubtypes,
+      isVehicle: before.is_vehicle,
+    })) {
+      return {
+        success: false,
+        error: 'Outcast Leader promotion is only available to Hired Guns in an N26 Outcast gang',
+      };
+    }
+
+    const promotionResult = await updateFighterDetails({
+      fighter_id: params.fighter_id,
+      // Always rebuild subtypes server-side — never trust client-supplied lists.
+      fighter_subtypes: buildN26ChampionLeaderPromotionSubtypes(currentSubtypes),
+      special_rules:
+        params.special_rules ??
+        (Array.isArray(before.special_rules) ? before.special_rules : []),
+      starting_xp: N26_OUTCAST_LEADER_STARTING_XP,
+    });
+
+    if (!promotionResult.success) {
+      return { success: false, error: promotionResult.error || 'Failed to promote fighter' };
+    }
+
+    const warnings: string[] = promotionResult.warning ? [promotionResult.warning] : [];
+
+    // A pet from the fighter's wargear is linked to it as owner.
+    const { data: petLinks, error: petLinksError } = await supabase
+      .from('fighter_exotic_beasts')
+      .select('fighter_pet_id')
+      .eq('fighter_owner_id', params.fighter_id);
+
+    if (petLinksError) {
+      warnings.push(
+        `Promoted, but this fighter's pets could not be loaded, so their Starting XP was not set to ${N26_OUTCAST_LEADER_PET_STARTING_XP}.`
+      );
+    } else {
+      let failedPets = 0;
+      for (const link of petLinks ?? []) {
+        if (!link.fighter_pet_id) continue;
+        const petResult = await updateFighterDetails({
+          fighter_id: link.fighter_pet_id,
+          starting_xp: N26_OUTCAST_LEADER_PET_STARTING_XP,
+        });
+        if (!petResult.success) failedPets++;
+      }
+      if (failedPets > 0) {
+        warnings.push(
+          `Promoted, but Starting XP ${N26_OUTCAST_LEADER_PET_STARTING_XP} could not be set on ${failedPets} pet${failedPets === 1 ? '' : 's'}.`
+        );
+      }
+    }
+
+    const promoted = promotionResult.data?.fighter;
+    return {
+      success: true,
+      warning: warnings.length > 0 ? warnings.join(' ') : undefined,
+      fighter: promoted
+        ? { id: promoted.id, xp: promoted.xp, starting_xp: promoted.starting_xp }
+        : undefined,
+    };
+  } catch (error) {
+    console.error('Error applying N26 Outcast Leader promotion:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
