@@ -11,14 +11,9 @@
 -- Deleting the skill deletes the item (ON DELETE CASCADE), as
 -- granted_by_equipment_id does for equipment granted by equipment.
 --
--- Then N26 Headbutt is set to grant the Headbutt weapon, and fighters that
--- already have it are backfilled:
---   a. Free Headbutt weapons players added by hand (same fighter, not stashed,
---      not on a vehicle) are linked to the skill instead of getting a
---      duplicate, one weapon per skill row. At the time of writing 22 of 26;
---      the other 4 are on fighters without the N26 skill and stay as they are.
---   b. Every other fighter with the skill gets the weapon (1,068). Free, so
---      gang rating and wealth are unchanged.
+-- Then N26 Headbutt is set to grant the Headbutt weapon. Fighters that already
+-- have the skill are not backfilled: only skills added from now on (advancement,
+-- starting skill or recruit) grant the weapon.
 --
 -- Re-runnable.
 
@@ -68,54 +63,5 @@ WHERE s.name = 'Headbutt'
   AND eq.equipment_type = 'weapon'
   AND eq.edition_id = ed.id
   AND s.grants_equipment IS NULL;
-
--- a. Link hand-added weapons to the skill, pairing them one to one per fighter
-WITH headbutt AS (
-  SELECT s.id AS skill_id, (s.grants_equipment->'options'->0->>'equipment_id')::uuid AS equipment_id
-  FROM public.skills s
-  JOIN public.skill_types st ON st.id = s.skill_type_id
-  JOIN public.editions ed ON ed.id = st.edition_id
-  WHERE s.name = 'Headbutt' AND ed.slug = 'n26'
-), unlinked_skill AS (
-  SELECT fs.id AS fighter_skill_id, fs.fighter_id,
-         row_number() OVER (PARTITION BY fs.fighter_id ORDER BY fs.created_at, fs.id) AS rn
-  FROM public.fighter_skills fs
-  JOIN headbutt h ON h.skill_id = fs.skill_id
-  WHERE NOT EXISTS (SELECT 1 FROM public.fighter_equipment fe WHERE fe.fighter_skill_id = fs.id)
-), loose_weapon AS (
-  SELECT fe.id, fe.fighter_id,
-         row_number() OVER (PARTITION BY fe.fighter_id ORDER BY fe.created_at, fe.id) AS rn
-  FROM public.fighter_equipment fe
-  JOIN headbutt h ON h.equipment_id = fe.equipment_id
-  WHERE fe.fighter_skill_id IS NULL
-    AND fe.granted_by_equipment_id IS NULL
-    AND fe.vehicle_id IS NULL
-    AND COALESCE(fe.gang_stash, false) = false
-    AND COALESCE(fe.purchase_cost, 0) = 0
-)
-UPDATE public.fighter_equipment fe
-SET fighter_skill_id = us.fighter_skill_id,
-    updated_at = now()
-FROM loose_weapon lw
-JOIN unlinked_skill us ON us.fighter_id = lw.fighter_id AND us.rn = lw.rn
-WHERE fe.id = lw.id;
-
--- b. Give the weapon to everyone else with the skill
-WITH headbutt AS (
-  SELECT s.id AS skill_id, (s.grants_equipment->'options'->0->>'equipment_id')::uuid AS equipment_id
-  FROM public.skills s
-  JOIN public.skill_types st ON st.id = s.skill_type_id
-  JOIN public.editions ed ON ed.id = st.edition_id
-  WHERE s.name = 'Headbutt' AND ed.slug = 'n26'
-)
-INSERT INTO public.fighter_equipment (
-  fighter_id, gang_id, equipment_id, original_cost, purchase_cost, fighter_skill_id, user_id
-)
-SELECT fs.fighter_id, f.gang_id, eq.id, COALESCE(eq.cost, 0), 0, fs.id, f.user_id
-FROM public.fighter_skills fs
-JOIN headbutt h ON h.skill_id = fs.skill_id
-JOIN public.fighters f ON f.id = fs.fighter_id
-JOIN public.equipment eq ON eq.id = h.equipment_id
-WHERE NOT EXISTS (SELECT 1 FROM public.fighter_equipment fe WHERE fe.fighter_skill_id = fs.id);
 
 COMMIT;
