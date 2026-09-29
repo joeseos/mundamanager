@@ -32,40 +32,19 @@ COMMENT ON COLUMN public.skills.grants_equipment IS
   '"options": [{"equipment_id": "...", "additional_cost": 0}]}. Same shape as '
   'equipment.grants_equipment; only fixed grants are used. Null = grants nothing.';
 
--- Reuse the unused fighter_effect_equipment_id column rather than adding one.
--- Checked before renaming: no rows set, no constraint, index, view, function,
--- policy or trigger references it, and no app code uses it by name.
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = 'fighter_equipment'
-      AND column_name = 'fighter_effect_equipment_id'
-  ) THEN
-    ALTER TABLE public.fighter_equipment
-      RENAME COLUMN fighter_effect_equipment_id TO fighter_skill_id;
-  END IF;
-END $$;
-
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'fighter_equipment_fighter_skill_id_fkey'
-      AND conrelid = 'public.fighter_equipment'::regclass
-  ) THEN
-    ALTER TABLE public.fighter_equipment
-      ADD CONSTRAINT fighter_equipment_fighter_skill_id_fkey
-      FOREIGN KEY (fighter_skill_id) REFERENCES public.fighter_skills(id) ON DELETE CASCADE;
-  END IF;
-END $$;
+-- New column with inline REFERENCES, as 20260214100000 added
+-- fighter_effects.fighter_skill_id: Postgres skips the FK check on a new column
+-- with no default, so this does not scan fighter_equipment.
+ALTER TABLE public.fighter_equipment
+  ADD COLUMN IF NOT EXISTS fighter_skill_id uuid REFERENCES public.fighter_skills(id) ON DELETE CASCADE;
 
 COMMENT ON COLUMN public.fighter_equipment.fighter_skill_id IS
   'fighter_skills row that granted this item. Deleted with the skill; cannot be '
   'sold or moved to the stash. Null = not granted by a skill.';
 
--- Partial: almost every row is null
-CREATE INDEX IF NOT EXISTS idx_fighter_equipment_fighter_skill_id
+-- Partial, as in 20260814140000: almost every row is null, and deleting a
+-- fighter_skills row looks up its equipment through this index
+CREATE INDEX IF NOT EXISTS fighter_equipment_fighter_skill_id_idx
   ON public.fighter_equipment (fighter_skill_id)
   WHERE fighter_skill_id IS NOT NULL;
 
