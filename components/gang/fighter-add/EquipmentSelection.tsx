@@ -24,7 +24,7 @@ interface EquipmentSelectionProps {
  * Shared starting-equipment picker for the fighter-add flows. Renders four
  * selection patterns driven by each category's `select_type` / `replacement_mode`:
  *  - optional + flexible → checkboxes with per-slot accounting
- *  - optional + strict   → radios that replace all slots
+ *  - optional + strict   → radios that replace the whole default group with one item
  *  - single / optional_single → radios (with a "Keep Default" option)
  *  - multiple → checkboxes
  */
@@ -253,7 +253,7 @@ export function EquipmentSelection({
                             const prevOption = (categoryData.options || []).find((o: any) => `${categoryId}-${o.id}` === strictSelectedId);
                             if (prevOption) {
                               setFighterCost((prevCost) =>
-                                String(parseInt(prevCost || '0') - (prevOption.cost || 0) * totalSlots)
+                                String(parseInt(prevCost || '0') - (prevOption.cost || 0))
                               );
                             }
                           }
@@ -367,7 +367,7 @@ export function EquipmentSelection({
                               const prevOption = strictSelectedId
                                 ? (categoryData.options || []).find((o: any) => `${categoryId}-${o.id}` === strictSelectedId)
                                 : undefined;
-                              const prevCostPerUnit = prevOption?.cost || 0;
+                              const prevOptionCost = prevOption?.cost || 0;
 
                               setSelectedEquipmentIds((prev) => {
                                 const currentCategoryOptions = categoryData.options || [];
@@ -390,19 +390,19 @@ export function EquipmentSelection({
                                 return [...filtered, {
                                   equipment_id: option.id,
                                   cost: optionCost,
-                                  quantity: totalSlots,
+                                  quantity: 1,
                                   is_editable: option.is_editable || false,
                                 }];
                               });
 
                               setFighterCost((prevCost) =>
-                                String(parseInt(prevCost || '0') - (prevCostPerUnit * totalSlots) + (optionCost * totalSlots))
+                                String(parseInt(prevCost || '0') - prevOptionCost + optionCost)
                               );
                             }}
                           />
                           <label htmlFor={uniqueOptionId} className="text-sm">
-                            {totalSlots}x {option.equipment_name || 'Loading...'}
-                            {` ${option.cost * totalSlots >= 0 ? '+' : ''}${option.cost * totalSlots} credits`}
+                            1x {option.equipment_name || 'Loading...'}
+                            {` ${option.cost >= 0 ? '+' : ''}${option.cost} credits`}
                           </label>
                         </div>
                       );
