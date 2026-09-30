@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { getUserIdFromClaims } from "@/utils/auth";
 import { CUSTOM_SHARED_COLUMNS, isCustomSharedItemType } from "@/types/custom-shared";
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Lists the ids of the campaigns a custom asset is shared to.
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   const type = searchParams.get('type');
   const id = searchParams.get('id');
 
-  if (!type || !isCustomSharedItemType(type) || !id || !UUID_PATTERN.test(id)) {
+  if (!type || !isCustomSharedItemType(type) || !id || !UUID_RE.test(id)) {
     return NextResponse.json(
       { error: "A valid type and id are required" },
       { status: 400 }
