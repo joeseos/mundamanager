@@ -215,6 +215,8 @@ const EDITION_CAPABILITIES = {
   championLeaderTypePromotion: { n23: false, n26: true },
   /** The battle's scenario is rolled for on a D6 against the edition's numbered scenarios. */
   scenarioD6Roll: { n23: false, n26: true },
+  /** A battle crew is rated by its selected fighters' value; when false, by the gang's rating. */
+  crewRating:               { n23: true,  n26: false },
   /** Fighters can catch fire — the Blaze condition token in a battle session. */
   blazeCondition:           { n23: true,  n26: false },
   /** Fighters can be intoxicated — the Intoxicated condition token in a battle session. */
@@ -396,6 +398,10 @@ export const hasChampionLeaderTypePromotion = (
 
 export const hasScenarioD6Roll = (editionSlug?: string | null): boolean =>
   can('scenarioD6Roll', editionSlug);
+
+/** A missing slug is a legacy N23 gang, so it keeps crew rating. */
+export const usesCrewRating = (editionSlug?: string | null): boolean =>
+  answerFor('crewRating', editionSlug) ?? EDITION_CAPABILITIES.crewRating.n23;
 
 export const hasBlazeCondition = (editionSlug?: string | null): boolean =>
   can('blazeCondition', editionSlug);

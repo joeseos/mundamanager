@@ -61,7 +61,7 @@ import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { updateFighterXp } from '@/app/actions/edit-fighter';
 import FighterCard from '@/components/gang/fighter-card';
 import type { BattleSessionFull, BattleSessionParticipant, BattleSessionFighter, SessionCondition, SessionInjuryRecord } from '@/types/battle-session';
-import { beastSubtypeName, hasFleshWoundCondition, hasN26CompositeBattleMarkers } from '@/types/edition';
+import { beastSubtypeName, hasFleshWoundCondition, hasN26CompositeBattleMarkers, usesCrewRating } from '@/types/edition';
 
 const DUAL_ACTIVATION_RULES = ['Spyre Hunter', 'Aranthian Beauty Plating'];
 const hasDualActivation = (rules?: string[]) =>
@@ -1690,7 +1690,11 @@ export default function ParticipantCard({
                   ' Unknown'
                 )}
               </span>
-              <span>Crew Rating: {crewRating}</span>
+              <span>
+                {usesCrewRating(session.edition_slug)
+                  ? `Crew Rating: ${crewRating}`
+                  : `Gang Rating: ${participant.gang?.rating ?? 0}`}
+              </span>
               {(() => {
                 const exoticBeastCount = localFighters.filter((f) => {
                   const gf = gangFightersList.find((gf) => gf.id === f.fighter_id);
