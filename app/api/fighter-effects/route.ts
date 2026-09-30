@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { getUserIdFromClaims } from "@/utils/auth";
-import type { EffectCategoryName } from '@/types/fighter-effect';
-
-// Categories whose full list of effect types can be fetched with ?category=
-const LISTABLE_CATEGORIES: readonly EffectCategoryName[] = ['power-boosts'];
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -21,13 +17,10 @@ export async function GET(request: NextRequest) {
     const powerBoostTypeId = searchParams.get('powerBoostTypeId');
     const category = searchParams.get('category');
 
-    // Every effect type in a category, with its modifiers, in one query.
-    // The category embed is empty: it only filters by category_name.
+    // Every effect type in a category (by category_name, e.g. 'power-boosts'),
+    // with its modifiers, in one query. The category embed is empty: it only
+    // filters. An unknown category returns an empty list.
     if (category) {
-      if (!LISTABLE_CATEGORIES.includes(category as EffectCategoryName)) {
-        return NextResponse.json({ error: 'Unsupported category' }, { status: 400 });
-      }
-
       const { data, error } = await supabase
         .from('fighter_effect_types')
         .select(`
