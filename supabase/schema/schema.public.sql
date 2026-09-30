@@ -5556,7 +5556,8 @@ CREATE TABLE public.fighter_equipment (
     loadout_id integer,
     is_editable boolean DEFAULT false,
     granted_by_equipment_id uuid,
-    cost_resource jsonb
+    cost_resource jsonb,
+    fighter_skill_id uuid
 );
 
 
@@ -5565,6 +5566,13 @@ CREATE TABLE public.fighter_equipment (
 --
 
 COMMENT ON COLUMN public.fighter_equipment.cost_resource IS 'Resource used to pay, e.g. {"name": "Exploration Points", "amount": 3}. Null = credits.';
+
+
+--
+-- Name: COLUMN fighter_equipment.fighter_skill_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighter_equipment.fighter_skill_id IS 'fighter_skills row that granted this item. Deleted with the skill; cannot be sold or moved to the stash. Null = not granted by a skill.';
 
 
 --
@@ -6448,8 +6456,16 @@ CREATE TABLE public.skills (
     updated_at timestamp with time zone,
     name text,
     skill_type_id uuid,
-    gang_origin_id uuid
+    gang_origin_id uuid,
+    grants_equipment jsonb
 );
+
+
+--
+-- Name: COLUMN skills.grants_equipment; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.skills.grants_equipment IS 'Equipment a fighter receives with this skill, e.g. {"selection_type": "fixed", "options": [{"equipment_id": "...", "additional_cost": 0}]}. Same shape as equipment.grants_equipment; only fixed grants are used. Null = grants nothing.';
 
 
 --
@@ -8239,6 +8255,13 @@ CREATE INDEX fighter_equipment_custom_equipment_id_idx ON public.fighter_equipme
 --
 
 CREATE INDEX fighter_equipment_equipment_id_idx ON public.fighter_equipment USING btree (equipment_id);
+
+
+--
+-- Name: fighter_equipment_fighter_skill_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_equipment_fighter_skill_id_idx ON public.fighter_equipment USING btree (fighter_skill_id) WHERE (fighter_skill_id IS NOT NULL);
 
 
 --
@@ -10491,6 +10514,14 @@ ALTER TABLE ONLY public.fighter_equipment
 
 ALTER TABLE ONLY public.fighter_equipment
     ADD CONSTRAINT fighter_equipment_fighter_id_fkey FOREIGN KEY (fighter_id) REFERENCES public.fighters(id) ON DELETE CASCADE;
+
+
+--
+-- Name: fighter_equipment fighter_equipment_fighter_skill_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_equipment
+    ADD CONSTRAINT fighter_equipment_fighter_skill_id_fkey FOREIGN KEY (fighter_skill_id) REFERENCES public.fighter_skills(id) ON DELETE CASCADE;
 
 
 --
