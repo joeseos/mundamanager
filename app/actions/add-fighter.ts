@@ -15,6 +15,7 @@ import { assertArchetypeAssignable } from '@/utils/assertArchetypeAssignable';
 import { editionSlugFromJoin, gangEditionSlug, type EditionJoin } from '@/types/edition';
 import { isVenatorGang } from '@/utils/venatorSkillAccess';
 import { shouldClearSpecialisationForSubtypes } from '@/utils/keepTypePromotionN26';
+import type { EquipmentGrants } from '@/types/equipment';
 
 interface SelectedEquipment {
   equipment_id: string;
@@ -662,6 +663,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       gang_id: string;
       user_id: string;
       is_editable?: boolean;
+      fighter_skill_id?: string;
     }> = [];
 
     // Track added equipment to prevent cross-source duplicates
@@ -730,7 +732,67 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       });
     }
 
-    // Execute equipment and skills insertion in parallel
+    // Insert skills before equipment: equipment a skill comes with
+    // (skills.grants_equipment) links to the new fighter_skills row
+    let insertedSkills: any[] = [];
+    if (fighterDefaultsData && fighterDefaultsData.length > 0) {
+      const skillInserts = fighterDefaultsData.map(skill => ({
+        fighter_id: fighterId,
+        skill_id: skill.skill_id,
+        user_id: gangData.user_id
+      }));
+
+      const { data: skillsData, error: skillsError } = await supabase
+        .from('fighter_skills')
+        .insert(skillInserts)
+        .select(`
+          id,
+          skill_id,
+          skills!skill_id(
+            id,
+            name,
+            grants_equipment
+          )
+        `);
+
+      if (skillsError) {
+        console.warn(`Failed to insert skills: ${skillsError.message}`);
+      } else {
+        insertedSkills = skillsData || [];
+      }
+    }
+
+    // Granted equipment is free and deleted with its skill. Only fixed grants:
+    // there is no step to choose options when recruiting.
+    const skillGrants = insertedSkills.flatMap((skill: any) => {
+      const grantsConfig = (skill.skills as any)?.grants_equipment as EquipmentGrants | null;
+      return grantsConfig?.selection_type === 'fixed'
+        ? grantsConfig.options.map(option => ({ fighter_skill_id: skill.id, equipment_id: option.equipment_id }))
+        : [];
+    });
+
+    if (skillGrants.length > 0) {
+      const { data: grantedEquipment } = await supabase
+        .from('equipment')
+        .select('id, cost')
+        .in('id', skillGrants.map(grant => grant.equipment_id));
+
+      for (const grant of skillGrants) {
+        const equipment = grantedEquipment?.find(e => e.id === grant.equipment_id);
+        if (!equipment) continue;
+        equipmentInserts.push({
+          fighter_id: fighterId,
+          equipment_id: equipment.id,
+          original_cost: equipment.cost || 0,
+          purchase_cost: 0,
+          gang_id: params.gang_id,
+          user_id: gangData.user_id,
+          fighter_skill_id: grant.fighter_skill_id
+        });
+      }
+    }
+
+    // Execute equipment insertion and gang update in parallel
     const insertPromises: Promise<any>[] = [];
 
     // Add equipment insertion promise
@@ -766,30 +828,6 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       );
     }
 
-    // Add skills insertion promise
-    if (fighterDefaultsData && fighterDefaultsData.length > 0) {
-      const skillInserts = fighterDefaultsData.map(skill => ({
-        fighter_id: fighterId,
-        skill_id: skill.skill_id,
-        user_id: gangData.user_id
-      }));
-
-      insertPromises.push(
-        Promise.resolve(
-          supabase
-            .from('fighter_skills')
-            .insert(skillInserts)
-            .select(`
-              skill_id,
-              skills!skill_id(
-                id,
-                name
-              )
-            `)
-        ).then(result => ({ type: 'skills' as const, result }))
-      );
-    }
-
     // Update last_updated (credits will be updated via updateGangFinancials)
     insertPromises.push(
       Promise.resolve(
@@ -807,7 +845,6 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
 
     // Process results with type information
     let equipmentWithProfiles: any[] = [];
-    let insertedSkills: any[] = [];
     let gangUpdateError: any = null;
 
     // Collect exotic beast data for cache invalidation after main fighter processing
@@ -1160,14 +1197,6 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
               }
             } else if (queryResult.error) {
               console.warn(`Failed to insert equipment: ${queryResult.error.message}`);
-            }
-            break;
-            
-          case 'skills':
-            if (queryResult.data) {
-              insertedSkills = queryResult.data;
-            } else if (queryResult.error) {
-              console.warn(`Failed to insert skills: ${queryResult.error.message}`);
             }
             break;
             

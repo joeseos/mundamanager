@@ -720,7 +720,12 @@ export function WeaponList({
               <LuSquarePen className="h-4 w-4" />
             </Button>
           )}
-          {!item.core_equipment && (
+          {item.fighter_skill_id ? (
+            // Comes with a skill: removed by deleting the skill, never sold or stashed
+            <span className="text-muted-foreground text-sm italic whitespace-nowrap">
+              {item.granted_by_skill_name || 'Skill'}
+            </span>
+          ) : !item.core_equipment && (
             <>
               {item.is_consumable && (
                 <Button

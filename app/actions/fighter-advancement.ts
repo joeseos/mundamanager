@@ -36,9 +36,11 @@ import {
   logRolledGangerAdvancement,
   logRolledSkillAdvancement
 } from './logs/gang-fighter-logs';
+import { logEquipmentAction } from './logs/equipment-logs';
 import type { GangLogActionResult } from './logs/gang-logs';
 import { updateFighterDetails } from './edit-fighter';
 import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
+import type { EquipmentGrants } from '@/types/equipment';
 
 // A fighter's edition comes from its gang's (custom) gang type.
 const GANG_EDITION_EMBED = `
@@ -598,15 +600,49 @@ async function addSkillAdvancementInternal(
     // If this is a beast fighter, also invalidate owner's cache
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase, fighter.fighter_pet_id ?? null);
 
-    // Get skill name for logging
+    // Get skill name for logging, and any equipment the skill comes with
     let skillName = 'Unknown Skill';
+    const grantedEquipmentNames: string[] = [];
     if (params.skill_id) {
       const { data: skillData } = await supabase
         .from('skills')
-        .select('name')
+        .select('name, grants_equipment')
         .eq('id', params.skill_id)
         .single();
       skillName = skillData?.name || skillName;
+
+      // Granted equipment is free and linked to the skill (fighter_skill_id), so
+      // deleting the skill deletes it. Only fixed grants: nothing to choose here.
+      const grantsConfig = skillData?.grants_equipment as EquipmentGrants | null;
+      if (grantsConfig?.selection_type === 'fixed') {
+        for (const option of grantsConfig.options) {
+          const { data: grantedEquip } = await supabase
+            .from('equipment')
+            .select('id, equipment_name, cost')
+            .eq('id', option.equipment_id)
+            .single();
+
+          if (grantedEquip) {
+            const { error: grantError } = await supabase
+              .from('fighter_equipment')
+              .insert({
+                gang_id: fighter.gang_id,
+                fighter_id: params.fighter_id,
+                equipment_id: grantedEquip.id,
+                original_cost: grantedEquip.cost,
+                purchase_cost: 0,
+                fighter_skill_id: insertedSkill.id,
+                user_id: fighter.user_id
+              });
+
+            if (grantError) {
+              console.error('Failed to insert skill-granted equipment:', grantError);
+            } else {
+              grantedEquipmentNames.push(grantedEquip.equipment_name);
+            }
+          }
+        }
+      }
     } else if (params.custom_skill_id) {
       const { data: customSkillData } = await supabase
         .from('custom_skills')
@@ -632,6 +668,17 @@ async function addSkillAdvancementInternal(
         : {}),
       ...(!isAdvance && !ratingOnly && creditsIncrease > 0 ? { credits_deducted: creditsIncrease } : {})
     });
+
+    for (const equipmentName of grantedEquipmentNames) {
+      await logEquipmentAction({
+        gang_id: fighter.gang_id,
+        fighter_id: params.fighter_id,
+        equipment_name: equipmentName,
+        purchase_cost: 0,
+        action_type: 'granted',
+        user_id: user.id
+      });
+    }
 
     // Invalidate cache for fighter advancement
     invalidateFighter(params.fighter_id, fighter.gang_id);

@@ -1024,6 +1024,12 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
     customProfilesMap.get(profile.custom_equipment_id)!.push(profile);
   });
 
+  // This fighter's skills: names label skill-granted equipment (fighter_skill_id)
+  // and feed the Skills section below
+  const mySkills = bundle.skills.filter((s: any) => s.fighter_id === fighterId);
+  const skillNameOf = (s: any): string | undefined => (s.skill as any)?.name || (s.custom_skill as any)?.skill_name;
+  const skillNameById = new Map<string, string | undefined>(mySkills.map((s: any) => [s.id, skillNameOf(s)]));
+
   const equipment = myEquipment.map((item: any) => {
     const equipmentType = (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type;
     let weaponProfiles: any[] = [];
@@ -1068,14 +1074,16 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
       effect_names: effectNames.length > 0 ? effectNames : undefined,
       loadout_ids: loadoutIds.length > 0 ? loadoutIds : undefined,
       is_consumable: (item.equipment as any)?.is_consumable ?? (item.custom_equipment as any)?.is_consumable ?? false,
-      cost_resource: item.cost_resource ?? null
+      cost_resource: item.cost_resource ?? null,
+      fighter_skill_id: item.fighter_skill_id ?? null,
+      granted_by_skill_name: item.fighter_skill_id ? skillNameById.get(item.fighter_skill_id) : undefined
     };
   });
 
   // ---- Skills (previous getFighterSkills semantics) ----
   const skills: Record<string, any> = {};
-  bundle.skills.filter((s: any) => s.fighter_id === fighterId).forEach((skillData: any) => {
-    const skillName = (skillData.skill as any)?.name || (skillData.custom_skill as any)?.skill_name;
+  mySkills.forEach((skillData: any) => {
+    const skillName = skillNameOf(skillData);
     if (skillName) {
       const fe = skillData.fighter_effect_skills?.fighter_effects;
       const injuryName = fe?.effect_name;
