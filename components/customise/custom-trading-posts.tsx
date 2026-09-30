@@ -1236,7 +1236,7 @@ function EditEquipmentModal({
   const { data: availableResources = [] } = useQuery<ResourceOption[]>({
     queryKey: ['tpAvailableResources', tradingPostId],
     queryFn: async () => {
-      const sharedRes = await fetch(`/api/custom-trading-posts/${tradingPostId}/shared-campaigns`);
+      const sharedRes = await fetch(`/api/custom-shared?type=tradingPost&id=${encodeURIComponent(tradingPostId)}`);
       const sharedIds: string[] = sharedRes.ok ? await sharedRes.json() : [];
 
       const reputationOption: ResourceOption = { id: 'reputation', name: 'Reputation', type: 'reputation' };
