@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
 import type { BattleSessionFull } from '@/types/battle-session';
 import type { Scenario } from '@/types/campaign';
-import { sameEditionForDisplay, usesCrewRating } from '@/types/edition';
+import { sameEditionForDisplay, hasCrewRating } from '@/types/edition';
 import type { GangFighter } from '@/types/gang';
 
 interface ActiveSessionProps {
@@ -155,7 +155,7 @@ export default function ActiveSession({
   const isPostBattle = session.status === 'post_battle';
   const battleActive = session.status === 'active';
 
-  const crewRated = usesCrewRating(session.edition_slug);
+  const crewRated = hasCrewRating(session.edition_slug);
   const ratings = session.participants.map((p) => {
     if (!crewRated) return p.gang?.rating ?? 0;
     const gfList = gangFightersMap[p.gang_id] || [];

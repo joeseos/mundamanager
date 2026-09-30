@@ -61,7 +61,7 @@ import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { updateFighterXp } from '@/app/actions/edit-fighter';
 import FighterCard from '@/components/gang/fighter-card';
 import type { BattleSessionFull, BattleSessionParticipant, BattleSessionFighter, SessionCondition, SessionInjuryRecord } from '@/types/battle-session';
-import { beastSubtypeName, hasFleshWoundCondition, hasN26CompositeBattleMarkers, usesCrewRating } from '@/types/edition';
+import { beastSubtypeName, hasFleshWoundCondition, hasN26CompositeBattleMarkers, hasCrewRating } from '@/types/edition';
 
 const DUAL_ACTIVATION_RULES = ['Spyre Hunter', 'Aranthian Beauty Plating'];
 const hasDualActivation = (rules?: string[]) =>
@@ -1691,7 +1691,7 @@ export default function ParticipantCard({
                 )}
               </span>
               <span>
-                {usesCrewRating(session.edition_slug)
+                {hasCrewRating(session.edition_slug)
                   ? `Crew Rating: ${crewRating}`
                   : `Gang Rating: ${participant.gang?.rating ?? 0}`}
               </span>

@@ -399,9 +399,8 @@ export const hasChampionLeaderTypePromotion = (
 export const hasScenarioD6Roll = (editionSlug?: string | null): boolean =>
   can('scenarioD6Roll', editionSlug);
 
-/** A missing slug is a legacy N23 gang, so it keeps crew rating. */
-export const usesCrewRating = (editionSlug?: string | null): boolean =>
-  answerFor('crewRating', editionSlug) ?? EDITION_CAPABILITIES.crewRating.n23;
+export const hasCrewRating = (editionSlug?: string | null): boolean =>
+  can('crewRating', editionSlug);
 
 export const hasBlazeCondition = (editionSlug?: string | null): boolean =>
   can('blazeCondition', editionSlug);
