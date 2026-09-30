@@ -42,6 +42,7 @@ import type { EquipmentListItem } from '@/types/equipment';
 import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
 import { hasTradePoints, sameEditionForDisplay } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
+import type { CustomSharedItemType } from '@/types/custom-shared';
 
 interface EquipmentPendingChanges {
   costOverride: number | null;
@@ -1236,7 +1237,7 @@ function EditEquipmentModal({
   const { data: availableResources = [] } = useQuery<ResourceOption[]>({
     queryKey: ['tpAvailableResources', tradingPostId],
     queryFn: async () => {
-      const sharedRes = await fetch(`/api/custom-shared?type=tradingPost&id=${encodeURIComponent(tradingPostId)}`);
+      const sharedRes = await fetch(`/api/custom-shared?${new URLSearchParams({ type: 'tradingPost' satisfies CustomSharedItemType, id: tradingPostId })}`);
       const sharedIds: string[] = sharedRes.ok ? await sharedRes.json() : [];
 
       const reputationOption: ResourceOption = { id: 'reputation', name: 'Reputation', type: 'reputation' };

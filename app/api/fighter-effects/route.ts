@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { getUserIdFromClaims } from "@/utils/auth";
+import type { EffectCategoryName } from '@/types/fighter-effect';
+
+// Categories whose full list of effect types can be fetched with ?category=
+const LISTABLE_CATEGORIES: readonly EffectCategoryName[] = ['power-boosts'];
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -17,19 +21,27 @@ export async function GET(request: NextRequest) {
     const powerBoostTypeId = searchParams.get('powerBoostTypeId');
     const category = searchParams.get('category');
 
-    // Every effect type in a category (by category_name, e.g. 'power-boosts')
+    // Every effect type in a category, with its modifiers, in one query.
+    // The category embed is empty: it only filters by category_name.
     if (category) {
+      if (!LISTABLE_CATEGORIES.includes(category as EffectCategoryName)) {
+        return NextResponse.json({ error: 'Unsupported category' }, { status: 400 });
+      }
+
       const { data, error } = await supabase
         .from('fighter_effect_types')
         .select(`
           *,
-          fighter_effect_categories!inner(id, category_name),
+          fighter_effect_categories!inner(),
           modifiers:fighter_effect_type_modifiers(*)
         `)
         .eq('fighter_effect_categories.category_name', category)
         .order('effect_name', { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching fighter effect types by category:', error);
+        return NextResponse.json({ error: 'Failed to fetch fighter effect types' }, { status: 500 });
+      }
       return NextResponse.json(data ?? []);
     }
 
