@@ -107,6 +107,8 @@ export default function TermsPage() {
                   <li className="text-muted-foreground">Interfere with or disrupt the Service or servers connected to the Service</li>
                   <li className="text-muted-foreground">Use the Service to transmit any malicious code or harmful content</li>
                   <li className="text-muted-foreground">Impersonate any person or entity or misrepresent your affiliation with any person or entity</li>
+                  <li className="text-muted-foreground">Access or collect data from the Service using bots, scripts or scrapers, or by calling its database or backend directly. Automated access is only allowed through the options on our <Link href="/api-access" className="underline hover:text-red-800">API Access</Link> page</li>
+                  <li className="text-muted-foreground">Copy the Service&apos;s data in bulk, for example to build your own dataset or another tool</li>
                 </ul>
               </section>
 
