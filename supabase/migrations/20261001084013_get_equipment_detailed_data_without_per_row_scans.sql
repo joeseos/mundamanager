@@ -1,13 +1,20 @@
-DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid, text, uuid, boolean);
-DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid, text, uuid, boolean, boolean);
-DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid);
-DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid);
-DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid,boolean);
-DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid,boolean,uuid[]);
-DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid,boolean,uuid[],uuid[]);
-DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid,uuid[],uuid[]);
+-- get_equipment_detailed_data read ~460 MB of buffers per call to return a few
+-- hundred rows, all from tables under 6 MB:
+--
+--   * The fighter_type_equipment join ran once per equipment row and fetched
+--     every fighter type's rows for that item before filtering, which is the
+--     whole table on every call. fte_match now applies the join condition
+--     once.
+--   * The custom equipment branch read every user's custom_equipment and
+--     probed custom_shared for each row before filtering to the caller's own,
+--     campaign-shared and custom Trading Post items. custom_candidates now
+--     gathers those ids through their indexes first.
+--
+-- Output is unchanged. Same signature and return type, so CREATE OR REPLACE
+-- keeps the existing grants; they are restated below to match
+-- supabase/functions/get_equipment_detailed_data.sql. Body matches that file.
 
-CREATE OR REPLACE FUNCTION get_equipment_detailed_data(
+CREATE OR REPLACE FUNCTION public.get_equipment_detailed_data(
     gang_type_id uuid DEFAULT NULL,          -- $1
     equipment_category text DEFAULT NULL,     -- $2
     fighter_type_id uuid DEFAULT NULL,        -- $3
