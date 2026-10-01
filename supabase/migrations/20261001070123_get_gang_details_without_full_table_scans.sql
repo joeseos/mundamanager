@@ -48,8 +48,9 @@ BEGIN
        WHERE f.gang_id = p_gang_id
    ),
    -- Two indexed lookups joined by UNION, not one OR: with an OR the planner
-   -- cannot estimate the vehicle count and walks whole vehicle_id indexes on
-   -- fighter_equipment, fighter_effects and fighter_effect_modifiers.
+   -- cannot estimate the vehicle count, so it walks whole vehicle_id indexes on
+   -- fighter_equipment and fighter_effects, and sequentially scans
+   -- fighter_effect_modifiers for the vehicles' effects.
    vehicle_ids AS (
        SELECT v.id AS v_id
        FROM vehicles v
