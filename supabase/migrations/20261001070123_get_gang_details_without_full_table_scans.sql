@@ -1,8 +1,14 @@
--- This Code is obsolete. Do not use it or update it.
--- We now use the library app/lib/shared/gang-data.ts to get the gang details.
--- This code is kept here for compatibility with the Rule Snatcher Tool.
-
-DROP FUNCTION IF EXISTS public.get_gang_details(uuid);
+-- get_gang_details read the whole of fighter_equipment on every call.
+--
+-- Its weapon profile CTEs filtered with "fighter_id IN (...) OR vehicle_id IN
+-- (...)", which Postgres can only answer with a sequential scan (2.3M rows),
+-- and the vehicle lookups' "gang_id = ... OR fighter_id IN (...)" made the
+-- planner walk whole vehicle_id indexes. Each OR is now two indexed lookups
+-- joined by UNION. Output is unchanged.
+--
+-- Same signature and return type, so CREATE OR REPLACE keeps the existing
+-- grants; they are restated below to match supabase/functions/get_gang_details.sql.
+-- Body matches that file.
 
 CREATE OR REPLACE FUNCTION public.get_gang_details(p_gang_id uuid)
 RETURNS TABLE(
