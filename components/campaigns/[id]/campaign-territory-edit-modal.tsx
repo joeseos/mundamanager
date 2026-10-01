@@ -7,8 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Combobox } from "@/components/ui/combobox"
-import { ImInfo } from "react-icons/im"
-import { Tooltip } from 'react-tooltip';
+import { InfoTooltip } from '@/components/ui/info-tooltip'
 import {
   TERRITORY_PLAYING_CARD_NONE,
   TERRITORY_PLAYING_CARD_CUSTOM,
@@ -310,13 +309,9 @@ export default function TerritoryEditModal({
         <label className="flex justify-between items-center text-sm font-medium text-muted-foreground mb-1">
           <div className="flex items-center space-x-2">
             <span>Description</span>
-            <span
-              className="relative cursor-pointer text-muted-foreground hover:text-foreground"
-              data-tooltip-id="territory-description-tooltip"
-              data-tooltip-content="The territory description is shown as a tooltip in the campaign territories list so participants can read notes about this territory."
-            >
-              <ImInfo />
-            </span>
+            <InfoTooltip>
+              The territory description is shown as a tooltip in the campaign territories list so participants can read notes about this territory.
+            </InfoTooltip>
           </div>
           <span className={`text-sm ${isDescriptionOverLimit ? 'text-red-500' : 'text-muted-foreground'}`}>
             {description.length}/{TERRITORY_DESCRIPTION_CHAR_LIMIT} characters
@@ -343,17 +338,6 @@ export default function TerritoryEditModal({
         confirmText="Update Territory"
         confirmDisabled={!hasChanged || isUpdating || isDescriptionOverLimit || isNameMissing}
         width="2xl"
-      />
-      <Tooltip
-        id="territory-description-tooltip"
-        place="top"
-        className="bg-neutral-900! text-white! text-xs! z-[2000]!"
-        delayHide={100}
-        clickable={true}
-        style={{
-          padding: '6px',
-          maxWidth: '20rem'
-        }}
       />
     </>
   );

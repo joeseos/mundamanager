@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useId, createContext, useContext } from 'react';
+import React, { useState, useEffect, createContext, useContext } from 'react';
 import { List, ListColumn, ListAction } from '@/components/ui/list';
 import Modal from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
@@ -12,8 +12,8 @@ import { Combobox } from '@/components/ui/combobox';
 import { Checkbox } from '@/components/ui/checkbox';
 import { LuEye, LuSquarePen, LuTrash2 } from 'react-icons/lu';
 import { FiShare2 } from 'react-icons/fi';
-import { ImInfo } from 'react-icons/im';
 import { BiSolidNotepad } from 'react-icons/bi';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { Tooltip } from 'react-tooltip';
 import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import { ShareCustomTradingPostModal } from '@/components/customise/custom-shared';
@@ -778,7 +778,6 @@ function EquipmentItemsSection({
   const isEditable = !!(onAddEquipment || onRemoveEquipment || onEquipmentOverrideChange);
   const hidesAvailability = hasTradePoints(useTradingPostEdition());
   const [isAddEquipOpen, setIsAddEquipOpen] = useState(false);
-  const tooltipId = useId();
   const [editOverridesItem, setEditOverridesItem] = useState<CustomTPEquipment | null>(null);
 
   const { data: equipmentItems = [], isLoading: isLoadingItems, error: equipmentError } = useQuery({
@@ -840,12 +839,16 @@ function EquipmentItemsSection({
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <h4 className="text-lg font-semibold">Equipment Items</h4>
-            <span
-              className="relative cursor-pointer text-muted-foreground hover:text-foreground"
-              data-tooltip-id={tooltipId}
-            >
-              <ImInfo />
-            </span>
+            <InfoTooltip>
+              <div className="space-y-2">
+                <p>
+                  To override the default cost or availability of an item from the official Trading Posts, add the equipment first, then click the edit icon next to its row.
+                </p>
+                <p>
+                  Custom rules can also be set per <strong>gang</strong>, <strong>alignment</strong>, <strong>gang subtype</strong>, or <strong>allegiance</strong> to apply a dedicated cost or availability for specific groups.
+                </p>
+              </div>
+            </InfoTooltip>
           </div>
           {isEditable && (
             <Button onClick={() => setIsAddEquipOpen(true)}>
@@ -934,27 +937,6 @@ function EquipmentItemsSection({
           tradingPostId={tradingPostId}
         />
       )}
-
-      <Tooltip
-        id={tooltipId}
-        place="top"
-        className="bg-neutral-900! text-white! text-xs! z-[2000]!"
-        delayHide={100}
-        clickable={true}
-        style={{
-          padding: '6px',
-          maxWidth: '20rem'
-        }}
-      >
-        <div>
-          <p>
-            To override the default cost or availability of an item from the official Trading Posts, add the equipment first, then click the edit icon next to its row.
-          </p>
-          <p className="mt-2">
-            Custom rules can also be set per <strong>gang</strong>, <strong>alignment</strong>, <strong>gang subtype</strong>, or <strong>allegiance</strong> to apply a dedicated cost or availability for specific groups.
-          </p>
-        </div>
-      </Tooltip>
 
     </>
   );

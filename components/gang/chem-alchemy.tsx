@@ -4,7 +4,7 @@ import { useState } from "react"
 import Modal from "../ui/modal"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ImInfo } from "react-icons/im"
+import { InfoTooltip } from '@/components/ui/info-tooltip'
 import { rollD6 } from "@/utils/dice"
 
 type ChemType = "stimm" | "gaseous" | "toxic"
@@ -348,12 +348,9 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, hasAp
           >
             Use Listed Cost for Rating
           </label>
-          <div className="relative group">
-            <ImInfo />
-            <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
-              When enabled, the elixir&apos;s rating is calculated using its listed cost, even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
-            </div>
-          </div>
+          <InfoTooltip>
+            When enabled, the elixir&apos;s rating is calculated using its listed cost, even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
+          </InfoTooltip>
         </div>
 
       </div>

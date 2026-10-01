@@ -6,7 +6,7 @@ import { VehicleProps } from '@/types/vehicle';
 import { FighterProps } from '@/types/fighter';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
-import { ImInfo } from "react-icons/im";
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { vehicleTypeRank } from "@/utils/vehicleTypeRank";
 import { addGangVehicle } from '@/app/actions/add-gang-vehicle';
 import { assignVehicleToFighter } from '@/app/actions/assign-vehicle-to-fighter';
@@ -385,12 +385,9 @@ export default function AddVehicle({
               >
                 Use Listed Cost for Rating
               </label>
-              <div className="relative group">
-                <ImInfo />
-                <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
-                  When enabled, the vehicle&apos;s rating is calculated using its listed cost (from the vehicle list), even if you paid a different amount. This listed cost will be used when the vehicle is assigned to a crew. Disable this if you want the rating to reflect the price actually paid.
-                </div>
-              </div>
+              <InfoTooltip>
+                When enabled, the vehicle&apos;s rating is calculated using its listed cost (from the vehicle list), even if you paid a different amount. This listed cost will be used when the vehicle is assigned to a crew. Disable this if you want the rating to reflect the price actually paid.
+              </InfoTooltip>
             </div>
           </div>
 

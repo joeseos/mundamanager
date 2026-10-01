@@ -7,8 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox";
 import { getCampaignRank } from '@/utils/campaigns/campaignRank';
 import { addTerritoryToCampaign, createCustomCampaignTerritory } from "@/app/actions/campaigns/[id]/campaign-territories";
-import { ImInfo } from "react-icons/im";
-import { Tooltip } from 'react-tooltip';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 import type { CampaignType, CampaignTerritoryRow } from '@/types/campaign';
 import { sameEditionForDisplay } from '@/types/edition';
 import { TERRITORY_NAME_CHAR_LIMIT } from '@/utils/campaigns/territory-name';
@@ -187,13 +186,9 @@ export default function TerritoryList({
       <div>
         <h3 className="text-sm font-medium flex items-center space-x-2 text-muted-foreground mb-2">
             <span>Campaign Type Territories</span>
-          <span
-            className="relative cursor-pointer text-muted-foreground hover:text-foreground"
-            data-tooltip-id="territories-types-tooltip"
-            data-tooltip-content="Select the campaign types that you want to add territories for."
-          >
-            <ImInfo />
-          </span>
+          <InfoTooltip>
+            Select the campaign types that you want to add territories for.
+          </InfoTooltip>
         </h3>
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -310,17 +305,6 @@ export default function TerritoryList({
         </div>
       )}
       
-      <Tooltip
-        id="territories-types-tooltip"
-        place="top"
-        className="bg-neutral-900! text-white! text-xs! z-[2000]!"
-        delayHide={100}
-        clickable={true}
-        style={{
-          padding: '6px',
-          maxWidth: '20rem'
-        }}
-      />
     </div>
   );
 }

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { Checkbox } from "@/components/ui/checkbox";
 import { HiX } from "react-icons/hi";
-import { ImInfo } from "react-icons/im";
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import {
@@ -490,12 +490,9 @@ export function FighterPromotionModal({
                   >
                     Include all Gang Fighter Types
                   </label>
-                  <div className="relative group">
-                    <ImInfo tabIndex={0} className="outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded-sm" />
-                    <div className="absolute bottom-full mb-2 hidden group-hover:block group-focus-within:block bg-black text-white text-xs p-2 rounded-sm w-64 -left-36 z-50">
-                      When enabled, all Fighter Types available to this gang will be shown, not just those normally eligible for promotion.
-                    </div>
-                  </div>
+                  <InfoTooltip>
+                    When enabled, all Fighter Types available to this gang will be shown, not just those normally eligible for promotion.
+                  </InfoTooltip>
                 </div>
               </div>
 
