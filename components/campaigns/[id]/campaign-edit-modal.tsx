@@ -362,7 +362,7 @@ export default function CampaignEditModal({
                 }))}
               />
               <span className="text-sm font-medium">Allow join requests</span>
-              <InfoTooltip>
+              <InfoTooltip ariaLabel="About join requests">
                 When enabled, any logged-in user can request to join this campaign from the campaign page. Campaign owners and arbitrators receive a notification to accept or decline each request.
               </InfoTooltip>
             </label>
@@ -371,7 +371,7 @@ export default function CampaignEditModal({
             <div>
               <h3 className="text-sm font-medium flex items-center space-x-2">
                 <span>Resources</span>
-                  <InfoTooltip>
+                  <InfoTooltip ariaLabel="About resources">
                     Resources are campaign-specific currencies that gangs can accumulate. Predefined resources come from the campaign type (e.g., Exploration Points for Underhells, Meat and Scavenging Rolls for Uprising). Campaign owners and arbitrators can also add custom resources.
                   </InfoTooltip>
               </h3>
@@ -406,7 +406,7 @@ export default function CampaignEditModal({
               <label className="flex items-center justify-between text-sm font-medium">
                 <div className="flex items-center space-x-2">
                   <span>Authorised Trading Posts</span>
-                  <InfoTooltip>
+                  <InfoTooltip ariaLabel="About authorised trading posts">
                     Only selected Trading Posts are available for gangs taking part in this campaign when buying equipment. However, this does not prevent players to access the Unrestricted list options.
                   </InfoTooltip>
                 </div>
@@ -481,7 +481,7 @@ export default function CampaignEditModal({
             <div>
               <h3 className="text-sm font-medium flex items-center space-x-2">
                 <span>Allegiances</span>
-                  <InfoTooltip>
+                  <InfoTooltip ariaLabel="About allegiances">
                     <div className="space-y-2">
                       <p>
                         Allegiances represent which side or faction a gang chooses to align with in a campaign. Some campaigns feature opposed forces (such as Imperial House vs House Aranthus, or Order vs Chaos), and while gangs may start Unaligned, they will eventually need to choose a side as the campaign progresses.
@@ -525,7 +525,7 @@ export default function CampaignEditModal({
               <div>
                 <h3 className="text-sm font-medium flex items-center space-x-2">
                   <span>Discord Bot</span>
-                  <InfoTooltip>
+                  <InfoTooltip ariaLabel="About the Discord bot">
                     Connect a Discord bot to automatically post battle reports to a channel in your Discord server.
                   </InfoTooltip>
                 </h3>
@@ -581,7 +581,7 @@ export default function CampaignEditModal({
               <label className="flex justify-between items-center text-sm font-medium mb-1">
                 <div className="flex items-center space-x-2">
                   <span>Description</span>
-                  <InfoTooltip>
+                  <InfoTooltip ariaLabel="About the campaign description">
                     The campaign description is displayed on the campaign page, providing information about the campaign to all participants. This description appears below the campaign header and is visible to all members of the campaign.
                   </InfoTooltip>
                 </div>

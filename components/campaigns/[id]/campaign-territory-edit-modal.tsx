@@ -309,7 +309,7 @@ export default function TerritoryEditModal({
         <label className="flex justify-between items-center text-sm font-medium text-muted-foreground mb-1">
           <div className="flex items-center space-x-2">
             <span>Description</span>
-            <InfoTooltip>
+            <InfoTooltip ariaLabel="About the territory description">
               The territory description is shown as a tooltip in the campaign territories list so participants can read notes about this territory.
             </InfoTooltip>
           </div>

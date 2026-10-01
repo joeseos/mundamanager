@@ -996,7 +996,7 @@ export default function FighterAddModal({
           <label htmlFor="include-custom-fighters" className="text-sm font-medium text-muted-foreground cursor-pointer">
             Include Custom {noun} Types
           </label>
-          <InfoTooltip>
+          <InfoTooltip ariaLabel={`About custom ${noun.toLowerCase()} types`}>
             When enabled, your custom {noun.toLowerCase()} types will be included in the {noun.toLowerCase()} type dropdown. Only custom {noun.toLowerCase()}s matching this gang type will be shown.
           </InfoTooltip>
         </div>
@@ -1024,7 +1024,7 @@ export default function FighterAddModal({
             <label htmlFor="include-all-fighter-types" className="text-sm font-medium text-muted-foreground cursor-pointer">
               Include all {noun} Types
             </label>
-            <InfoTooltip>
+            <InfoTooltip ariaLabel={`About showing all ${noun.toLowerCase()} types`}>
               When enabled, {noun.toLowerCase()} types from all gangs will be shown.{!isVehicles && ' Gang additions are found in the "Gang Additions" menu.'}
             </InfoTooltip>
           </div>
@@ -1139,7 +1139,7 @@ export default function FighterAddModal({
           <label htmlFor="use-base-cost-for-rating" className="text-sm font-medium text-muted-foreground cursor-pointer">
             Use Listed Cost for Rating
           </label>
-          <InfoTooltip>
+          <InfoTooltip ariaLabel={`About listed cost for ${noun.toLowerCase()} rating`}>
             When enabled, the {noun.toLowerCase()}&apos;s rating is calculated using their listed cost, even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
           </InfoTooltip>
         </div>

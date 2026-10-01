@@ -186,7 +186,7 @@ export default function TerritoryList({
       <div>
         <h3 className="text-sm font-medium flex items-center space-x-2 text-muted-foreground mb-2">
             <span>Campaign Type Territories</span>
-          <InfoTooltip>
+          <InfoTooltip ariaLabel="About campaign type territories">
             Select the campaign types that you want to add territories for.
           </InfoTooltip>
         </h3>

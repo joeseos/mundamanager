@@ -274,7 +274,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
               <label className="flex items-center justify-between text-sm font-medium">
                 <div className="flex items-center space-x-2">
                   <span>Authorised Trading Posts</span>
-                  <InfoTooltip>
+                  <InfoTooltip ariaLabel="About authorised trading posts">
                     Only selected Trading Posts are available for gangs taking part in this campaign when buying equipment. However, this does not prevent players to access the Unrestricted list options.
                   </InfoTooltip>
                 </div>

@@ -562,7 +562,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
               >
                 Use Listed Cost for Rating
               </label>
-              <InfoTooltip>
+              <InfoTooltip ariaLabel="About listed cost for rating">
                 When enabled, the Fighter Rating is calculated using the item&apos;s listed cost (from the fighter&apos;s Equipment List or the Trading Post), even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
               </InfoTooltip>
             </div>

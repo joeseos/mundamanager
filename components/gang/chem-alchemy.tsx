@@ -348,7 +348,7 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, hasAp
           >
             Use Listed Cost for Rating
           </label>
-          <InfoTooltip>
+          <InfoTooltip ariaLabel="About listed cost for elixir rating">
             When enabled, the elixir&apos;s rating is calculated using its listed cost, even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
           </InfoTooltip>
         </div>

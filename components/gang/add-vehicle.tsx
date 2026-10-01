@@ -385,7 +385,7 @@ export default function AddVehicle({
               >
                 Use Listed Cost for Rating
               </label>
-              <InfoTooltip>
+              <InfoTooltip ariaLabel="About listed cost for vehicle rating">
                 When enabled, the vehicle&apos;s rating is calculated using its listed cost (from the vehicle list), even if you paid a different amount. This listed cost will be used when the vehicle is assigned to a crew. Disable this if you want the rating to reflect the price actually paid.
               </InfoTooltip>
             </div>

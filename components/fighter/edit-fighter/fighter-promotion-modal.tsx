@@ -490,7 +490,7 @@ export function FighterPromotionModal({
                   >
                     Include all Gang Fighter Types
                   </label>
-                  <InfoTooltip>
+                  <InfoTooltip ariaLabel="About including all gang fighter types">
                     When enabled, all Fighter Types available to this gang will be shown, not just those normally eligible for promotion.
                   </InfoTooltip>
                 </div>

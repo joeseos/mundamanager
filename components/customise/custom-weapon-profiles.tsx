@@ -89,7 +89,7 @@ const ProfileCard = memo(({ profile, index, isFirst, isLast, usesLethality, onUp
             <label className="block text-xs font-medium text-muted-foreground">
               Profile Name *
             </label>
-            <InfoTooltip>
+            <InfoTooltip ariaLabel="About the profile name">
               This name will be displayed on the fighter card next to the weapon stats. If the weapon has only one profile, it&apos;s suggested to name it the same as the weapon name. For multiple profiles, use descriptive names like &quot;- gas shells&quot; or &quot;- shatter shells&quot;.
             </InfoTooltip>
           </div>
@@ -237,7 +237,7 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
             <label className="block text-xs font-medium text-muted-foreground">
               Target Weapon
             </label>
-            <InfoTooltip>
+            <InfoTooltip ariaLabel="About the target weapon">
               Attach all profiles to an existing weapon. Use this for ammunition — the profiles will appear under the selected weapon when both are equipped on a fighter.
             </InfoTooltip>
           </div>

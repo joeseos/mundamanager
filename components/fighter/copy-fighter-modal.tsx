@@ -161,7 +161,7 @@ export default function CopyFighterModal({
             <label htmlFor="copyAsExperienced" className="text-sm font-medium text-muted-foreground cursor-pointer">
               Copy as experienced fighter
             </label>
-            <InfoTooltip>
+            <InfoTooltip ariaLabel="About copying as an experienced fighter">
               Includes XP, advancements, and lasting injuries
             </InfoTooltip>
           </div>
@@ -202,7 +202,7 @@ export default function CopyFighterModal({
                 <label htmlFor="copyVehicles" className="text-sm font-medium text-muted-foreground cursor-pointer">
                   Copy assigned vehicle{vehicles!.length > 1 ? 's' : ''} ({vehicles!.map(v => v.vehicle_name).join(', ')} - {totalVehicleCost} credits)
                 </label>
-                <InfoTooltip>
+                <InfoTooltip ariaLabel="About copying assigned vehicles">
                   Includes vehicle base cost and all equipment
                 </InfoTooltip>
               </div>

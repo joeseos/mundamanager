@@ -839,7 +839,7 @@ function EquipmentItemsSection({
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <h4 className="text-lg font-semibold">Equipment Items</h4>
-            <InfoTooltip>
+            <InfoTooltip ariaLabel="About equipment item overrides">
               <div className="space-y-2">
                 <p>
                   To override the default cost or availability of an item from the official Trading Posts, add the equipment first, then click the edit icon next to its row.
