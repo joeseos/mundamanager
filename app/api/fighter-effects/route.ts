@@ -15,12 +15,34 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const equipmentId = searchParams.get('equipmentId');
     const powerBoostTypeId = searchParams.get('powerBoostTypeId');
+    const category = searchParams.get('category');
+
+    // Every effect type in a category (by category_name, e.g. 'power-boosts'),
+    // with its modifiers, in one query. The category embed is empty: it only
+    // filters. An unknown category returns an empty list.
+    if (category) {
+      const { data, error } = await supabase
+        .from('fighter_effect_types')
+        .select(`
+          *,
+          fighter_effect_categories!inner(),
+          modifiers:fighter_effect_type_modifiers(*)
+        `)
+        .eq('fighter_effect_categories.category_name', category)
+        .order('effect_name', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching fighter effect types by category:', error);
+        return NextResponse.json({ error: 'Failed to fetch fighter effect types' }, { status: 500 });
+      }
+      return NextResponse.json(data ?? []);
+    }
 
     console.log('GET request params:', { equipmentId, powerBoostTypeId });
 
-    // This route supports both equipment and power boost filtering
+    // This route supports equipment, power boost and category filtering
     if (!equipmentId && !powerBoostTypeId) {
-      return NextResponse.json({ error: 'Equipment ID or Power Boost Type ID is required' }, { status: 400 });
+      return NextResponse.json({ error: 'Equipment ID, Power Boost Type ID or category is required' }, { status: 400 });
     }
 
     const filterField = equipmentId ? 'equipment_id' : 'power_boost_type_id';
