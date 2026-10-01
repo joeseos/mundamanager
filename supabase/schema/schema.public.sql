@@ -1602,6 +1602,65 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
           AND $10 IS NOT NULL AND array_length($10, 1) > 0
           AND ctpe.custom_trading_post_id = ANY($10)
         GROUP BY ctpe.equipment_id
+    ),
+
+    -- =======================================================================
+    -- 7. FIGHTER TYPE EQUIPMENT ROWS THAT CAN MATCH THIS REQUEST
+    --    The main query's join condition, evaluated once. Joined per
+    --    equipment row instead, it fetched every fighter type's rows for each
+    --    item, which is the whole table on every call.
+    -- =======================================================================
+    fte_match AS MATERIALIZED (
+        SELECT fte.id, fte.equipment_id, fte.fighter_type_id, fte.vehicle_type_id
+        FROM fighter_type_equipment fte
+        CROSS JOIN gang_data gd
+        WHERE (fte.fighter_type_id = $3
+               OR fte.vehicle_type_id = $3
+               OR (gd.legacy_ft_id IS NOT NULL
+                   AND (fte.fighter_type_id = gd.legacy_ft_id OR fte.vehicle_type_id = gd.legacy_ft_id)
+                   AND $4 = true)
+               OR (gd.affiliation_ft_id IS NOT NULL
+                   AND (fte.fighter_type_id = gd.affiliation_ft_id OR fte.vehicle_type_id = gd.affiliation_ft_id))
+               -- A subtype rule spanning every gang names no fighter of its own.
+               -- fighter_subtype must be set, or an all-NULL row matches everything.
+               OR (fte.fighter_type_id IS NULL
+                   AND fte.vehicle_type_id IS NULL
+                   AND fte.custom_fighter_type_id IS NULL
+                   AND fte.fighter_subtype IS NOT NULL))
+          AND (fte.gang_origin_id IS NULL OR fte.gang_origin_id = gd.gang_origin_id)
+          AND (fte.gang_subtype_id IS NULL OR gd.gang_subtypes ? fte.gang_subtype_id::text)
+          AND (fte.gang_type_id IS NULL OR fte.gang_type_id = $1)
+          AND (fte.fighter_subtype IS NULL OR gd.fighter_subtypes ? fte.fighter_subtype)
+          -- Grants only: this join sets is_fighter_list, so a deny matching here would grant.
+          AND NOT fte.excluded
+    ),
+
+    -- =======================================================================
+    -- 8. CUSTOM EQUIPMENT THE CALLER CAN SEE
+    --    The same three sources the custom branch filters on, gathered through
+    --    their indexes so the branch no longer reads every user's custom
+    --    equipment.
+    -- =======================================================================
+    custom_candidates AS MATERIALIZED (
+        SELECT ce.id
+        FROM custom_equipment ce
+        WHERE ce.user_id = auth.uid()
+
+        UNION
+
+        SELECT cs.custom_equipment_id
+        FROM custom_shared cs
+        JOIN campaign_gangs cg ON cg.campaign_id = cs.campaign_id
+        WHERE cg.gang_id = $8
+          AND cs.custom_equipment_id IS NOT NULL
+
+        UNION
+
+        SELECT ctpe.custom_equipment_id
+        FROM custom_trading_post_equipment ctpe
+        WHERE ctpe.custom_equipment_id IS NOT NULL
+          AND $10 IS NOT NULL AND array_length($10, 1) > 0
+          AND ctpe.custom_trading_post_id = ANY($10)
     )
 
     -- =======================================================================
@@ -1764,28 +1823,8 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         AND ea_origin.gang_origin_id IS NOT NULL
         AND ea_origin.gang_origin_id = gd.gang_origin_id
 
-    -- Fighter type equipment
-    LEFT JOIN fighter_type_equipment fte
-        ON e.id = fte.equipment_id
-        AND (fte.fighter_type_id = $3
-             OR fte.vehicle_type_id = $3
-             OR (gd.legacy_ft_id IS NOT NULL
-                 AND (fte.fighter_type_id = gd.legacy_ft_id OR fte.vehicle_type_id = gd.legacy_ft_id)
-                 AND $4 = true)
-             OR (gd.affiliation_ft_id IS NOT NULL
-                 AND (fte.fighter_type_id = gd.affiliation_ft_id OR fte.vehicle_type_id = gd.affiliation_ft_id))
-             -- A subtype rule spanning every gang names no fighter of its own.
-             -- fighter_subtype must be set, or an all-NULL row matches everything.
-             OR (fte.fighter_type_id IS NULL
-                 AND fte.vehicle_type_id IS NULL
-                 AND fte.custom_fighter_type_id IS NULL
-                 AND fte.fighter_subtype IS NOT NULL))
-        AND (fte.gang_origin_id IS NULL OR fte.gang_origin_id = gd.gang_origin_id)
-        AND (fte.gang_subtype_id IS NULL OR gd.gang_subtypes ? fte.gang_subtype_id::text)
-        AND (fte.gang_type_id IS NULL OR fte.gang_type_id = $1)
-        AND (fte.fighter_subtype IS NULL OR gd.fighter_subtypes ? fte.fighter_subtype)
-        -- Grants only: this join sets is_fighter_list, so a deny matching here would grant.
-        AND NOT fte.excluded
+    -- Fighter type equipment (rows already filtered in fte_match)
+    LEFT JOIN fte_match fte ON fte.equipment_id = e.id
 
     -- Is this system equipment on the current custom fighter type's equipment list?
     -- ($3 is a custom_fighter_types.id when the fighter is a custom fighter.)
@@ -1974,7 +2013,8 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         COALESCE(custom_tp.banned, false) AS banned,
         NULL::integer AS min_count,
         NULL::integer AS max_count
-    FROM custom_equipment ce
+    FROM custom_candidates cc
+    JOIN custom_equipment ce ON ce.id = cc.id
     CROSS JOIN gang_data gd
     LEFT JOIN (
         SELECT cs.custom_equipment_id
@@ -3251,10 +3291,29 @@ BEGIN
        FROM fighters f
        WHERE f.gang_id = p_gang_id
    ),
+   -- Two indexed lookups joined by UNION, not one OR: with an OR the planner
+   -- cannot estimate the vehicle count, so it walks whole vehicle_id indexes on
+   -- fighter_equipment and fighter_effects, and sequentially scans
+   -- fighter_effect_modifiers for the vehicles' effects.
    vehicle_ids AS (
        SELECT v.id AS v_id
        FROM vehicles v
-       WHERE v.gang_id = p_gang_id OR v.fighter_id IN (SELECT f_id FROM fighter_ids)
+       WHERE v.gang_id = p_gang_id
+       UNION
+       SELECT v.id
+       FROM vehicles v
+       WHERE v.fighter_id IN (SELECT f_id FROM fighter_ids)
+   ),
+   -- Every fighter_equipment row of the gang's fighters and vehicles. An OR of
+   -- fighter_id and vehicle_id forces a sequential scan of the whole table.
+   gang_equipment_ids AS (
+       SELECT fe.id AS fe_id
+       FROM fighter_equipment fe
+       WHERE fe.fighter_id IN (SELECT f_id FROM fighter_ids)
+       UNION
+       SELECT fe.id
+       FROM fighter_equipment fe
+       WHERE fe.vehicle_id IN (SELECT v_id FROM vehicle_ids)
    ),
    gang_fighters AS (
        SELECT
@@ -3536,11 +3595,7 @@ BEGIN
                       fe.id AS fe_id, fe.is_master_crafted
        FROM weapon_profiles wp
        JOIN fighter_equipment fe ON fe.equipment_id = wp.equipment_id
-       WHERE (fe.fighter_id IN (SELECT f_id FROM fighter_ids)
-          OR fe.vehicle_id IN (
-             SELECT v.id FROM vehicles v 
-             WHERE v.gang_id = p_gang_id OR v.fighter_id IN (SELECT f_id FROM fighter_ids)
-          ))
+       WHERE fe.id IN (SELECT fe_id FROM gang_equipment_ids)
        AND fe.equipment_id IS NOT NULL
    ),
    weapon_profiles_grouped AS (
@@ -3595,11 +3650,7 @@ BEGIN
        FROM fighter_equipment fe
        JOIN custom_weapon_profiles cwp ON (cwp.custom_equipment_id = fe.custom_equipment_id OR cwp.weapon_group_id = fe.custom_equipment_id)
        WHERE fe.custom_equipment_id IS NOT NULL
-       AND (fe.fighter_id IN (SELECT f_id FROM fighter_ids)
-          OR fe.vehicle_id IN (
-             SELECT v.id FROM vehicles v 
-             WHERE v.gang_id = p_gang_id OR v.fighter_id IN (SELECT f_id FROM fighter_ids)
-          ))
+       AND fe.id IN (SELECT fe_id FROM gang_equipment_ids)
        GROUP BY fe.id, fe.custom_equipment_id
    ),
    fighter_equipment_details AS (
@@ -3637,12 +3688,7 @@ BEGIN
            COALESCE(SUM(ve.purchase_cost), 0)::numeric as total_equipment_cost
        FROM fighter_equipment ve
        WHERE ve.vehicle_id IS NOT NULL
-       AND ve.vehicle_id IN (
-           SELECT v.id 
-           FROM vehicles v 
-           WHERE v.gang_id = p_gang_id 
-              OR v.fighter_id IN (SELECT f_id FROM fighter_ids)
-       )
+       AND ve.vehicle_id IN (SELECT v_id FROM vehicle_ids)
        GROUP BY ve.vehicle_id
    ),
    vehicle_equipment_details AS (
@@ -3671,12 +3717,7 @@ BEGIN
        LEFT JOIN equipment e ON e.id = ve.equipment_id
        LEFT JOIN custom_equipment ce ON ce.id = ve.custom_equipment_id
        WHERE ve.vehicle_id IS NOT NULL
-       AND ve.vehicle_id IN (
-           SELECT v.id 
-           FROM vehicles v 
-           WHERE v.gang_id = p_gang_id 
-              OR v.fighter_id IN (SELECT f_id FROM fighter_ids)
-       )
+       AND ve.vehicle_id IN (SELECT v_id FROM vehicle_ids)
        AND (ve.equipment_id IS NOT NULL OR ve.custom_equipment_id IS NOT NULL)
        GROUP BY ve.vehicle_id
    ),
@@ -3713,7 +3754,7 @@ BEGIN
        LEFT JOIN vehicle_equipment_details vep ON vep.vehicle_id = v.id
        LEFT JOIN vehicle_effects ve ON ve.vehicle_id = v.id
        LEFT JOIN vehicle_effects_credits vec2 ON vec2.vehicle_id = v.id
-       WHERE (v.fighter_id IN (SELECT f_id FROM fighter_ids) OR v.gang_id = p_gang_id)
+       WHERE v.id IN (SELECT v_id FROM vehicle_ids)
    ),
    gang_owned_vehicles AS (
        SELECT 
