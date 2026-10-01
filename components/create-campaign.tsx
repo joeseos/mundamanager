@@ -10,8 +10,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { SubmitButton } from "./submit-button"
 import { tradingPostRank } from "@/utils/tradingPostRank"
 import { getCampaignRank } from '@/utils/campaigns/campaignRank'
-import { ImInfo } from "react-icons/im"
-import { Tooltip } from 'react-tooltip';
+import { InfoTooltip } from '@/components/ui/info-tooltip'
 import React from "react"
 import type { CampaignType } from '@/types/campaign'
 import { EditionToggle } from '@/components/home/edition-toggle'
@@ -275,13 +274,9 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
               <label className="flex items-center justify-between text-sm font-medium">
                 <div className="flex items-center space-x-2">
                   <span>Authorised Trading Posts</span>
-                  <span
-                    className="relative cursor-pointer text-muted-foreground hover:text-foreground"
-                    data-tooltip-id="trading-posts-tooltip"
-                    data-tooltip-content="Only selected Trading Posts are available for gangs taking part in this campaign when buying equipment. However, this does not prevent players to access the Unrestricted list options."
-                  >
-                    <ImInfo />
-                  </span>
+                  <InfoTooltip ariaLabel="About authorised trading posts">
+                    Only selected Trading Posts are available for gangs taking part in this campaign when buying equipment. However, this does not prevent players to access the Unrestricted list options.
+                  </InfoTooltip>
                 </div>
                 <span className="text-xs text-muted-foreground">
                   {selectedTradingPosts.length} selected
@@ -350,17 +345,6 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
           </SubmitButton>
         </div>
       </div>
-      <Tooltip
-        id="trading-posts-tooltip"
-        place="top"
-        className="bg-neutral-900! text-white! text-xs! z-[2000]!"
-        delayHide={100}
-        clickable={true}
-        style={{
-          padding: '6px',
-          maxWidth: '20rem'
-        }}
-      />
     </div>
   )
 }

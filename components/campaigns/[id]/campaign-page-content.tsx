@@ -17,7 +17,7 @@ import { FiCamera, FiShare2 } from "react-icons/fi";
 import { MdFactory } from "react-icons/md";
 import { LuSwords, LuTrophy, LuCodeXml, LuLogs } from "react-icons/lu";
 import { FaBook } from "react-icons/fa";
-import { ImInfo } from "react-icons/im";
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 import CampaignTerritoryList from "@/components/campaigns/[id]/campaign-territory-list";
 import CampaignCaptivesList from "@/components/campaigns/[id]/campaign-captives-list";
 import CampaignAddTerritoryModal from "@/components/campaigns/[id]/campaign-add-territory-modal";
@@ -737,14 +737,16 @@ export default function CampaignPageContent({
             <div className="mb-8">
               <div className="flex items-center gap-2 mb-4">
                 <h2 className="text-xl md:text-2xl font-bold">Gangs & Players</h2>
-                <div className="relative group">
-                  <ImInfo className="text-muted-foreground cursor-help" />
-                  <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
-                    To add a gang, first add its owner as a player. You can then select from their available gangs. Repeat the process to add more gangs from the same player.
-                    <br /><br />
-                    You can also change the role of a player from Member to Arbitrator by clicking on their role icon.
+                <InfoTooltip ariaLabel="How to add gangs and change player roles">
+                  <div className="space-y-2">
+                    <p>
+                      To add a gang, first add its owner as a player. You can then select from their available gangs. Repeat the process to add more gangs from the same player.
+                    </p>
+                    <p>
+                      You can also change the role of a player from Member to Arbitrator by clicking on their role icon.
+                    </p>
                   </div>
-                </div>
+                </InfoTooltip>
               </div>
               {safePermissions.canManageMembers && (
                 <MemberSearchBar

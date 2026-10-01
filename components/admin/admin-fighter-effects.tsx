@@ -6,11 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { toast } from 'sonner';
-import { ImInfo } from "react-icons/im";
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { HiX } from "react-icons/hi";
 import Modal from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
-import { Tooltip } from 'react-tooltip';
 import { 
   FighterEffectType, 
   FighterEffectTypeModifier, 
@@ -1168,10 +1167,18 @@ export function AdminFighterEffects({
             <div>
               <label className="block text-sm font-medium mb-1 flex items-center gap-1">
                 Operation *
-                <ImInfo
-                  className="h-4 w-4 text-muted-foreground cursor-help"
-                  data-tooltip-id="operation-tooltip"
-                />
+                <InfoTooltip ariaLabel="How Add and Set operations work">
+                  <div>
+                    <div className="mb-2">
+                      <strong>Add:</strong> Adds to the base value<br />
+                      <span className="text-xs">(e.g., +1 to strength)</span>
+                    </div>
+                    <div>
+                      <strong>Set:</strong> Overrides the base value completely<br />
+                      <span className="text-xs">(e.g., set strength to 5)</span>
+                    </div>
+                  </div>
+                </InfoTooltip>
               </label>
               <select
                 value={newModifierOperation}
@@ -1205,22 +1212,6 @@ export function AdminFighterEffects({
         </Modal>
       )}
 
-      <Tooltip
-        id="operation-tooltip"
-        place="top"
-        style={{ maxWidth: '300px', zIndex: 9999 }}
-      >
-        <div className="text-sm">
-          <div className="mb-2">
-            <strong>Add:</strong> Adds to the base value<br />
-            <span className="text-xs">(e.g., +1 to strength)</span>
-          </div>
-          <div>
-            <strong>Set:</strong> Overrides the base value completely<br />
-            <span className="text-xs">(e.g., set strength to 5)</span>
-          </div>
-        </div>
-      </Tooltip>
     </>
   );
 }
