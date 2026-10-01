@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
 import type { BattleSessionFull } from '@/types/battle-session';
 import type { Scenario } from '@/types/campaign';
-import { sameEditionForDisplay } from '@/types/edition';
+import { sameEditionForDisplay, hasCrewRating } from '@/types/edition';
 import type { GangFighter } from '@/types/gang';
 
 interface ActiveSessionProps {
@@ -155,7 +155,9 @@ export default function ActiveSession({
   const isPostBattle = session.status === 'post_battle';
   const battleActive = session.status === 'active';
 
+  const crewRated = hasCrewRating(session.edition_slug);
   const ratings = session.participants.map((p) => {
+    if (!crewRated) return p.gang?.rating ?? 0;
     const gfList = gangFightersMap[p.gang_id] || [];
     return (p.fighters ?? []).reduce((sum, f) => {
       const match = gfList.find(
@@ -318,7 +320,7 @@ export default function ActiveSession({
         <div className="space-y-4">
           <h2 className="text-xl md:text-2xl font-bold">
             Gangs
-            {session.participants.length >= 2 && ratingDiff > 0 && (
+            {session.participants.length >= 2 && (ratingDiff > 0 || !crewRated) && (
               <span className="ml-2 text-sm font-normal text-neutral-500 dark:text-neutral-400">
                 (Rating Difference: {ratingDiff})
               </span>
