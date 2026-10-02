@@ -1,13 +1,175 @@
-DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid, text, uuid, boolean);
-DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid, text, uuid, boolean, boolean);
-DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid);
-DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid);
-DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid,boolean);
-DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid,boolean,uuid[]);
-DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid,boolean,uuid[],uuid[]);
-DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid,uuid[],uuid[]);
+-- get_equipment_detailed_data worked out two display fields for every equipment row on
+-- every call, although neither depends on the gang or fighter asking:
+--
+--   * vehicle_upgrade_slot: three EXISTS probes of fighter_effect_types and their
+--     modifiers per vehicle upgrade.
+--   * grants_equipment: each option's equipment_name, looked up from equipment.
+--
+-- Both are now stored on equipment and kept up to date by refresh_equipment_derived_fields
+-- (supabase/functions/refresh_equipment_derived_fields.sql), which runs when the equipment,
+-- an item it grants, or its fighter effect types and modifiers are saved. The function then
+-- reads the stored columns.
+--
+-- Output is unchanged except for one thing: grant options now come back in the order they
+-- are stored. Before, their order depended on how the planner joined them to equipment.
+--
+-- Apply this migration BEFORE supabase/functions/refresh_equipment_derived_fields.sql and
+-- supabase/functions/get_equipment_detailed_data.sql are deployed; both need the columns.
+-- The function bodies below match those files.
 
-CREATE OR REPLACE FUNCTION get_equipment_detailed_data(
+ALTER TABLE public.equipment
+    ADD COLUMN IF NOT EXISTS vehicle_upgrade_slot text
+        CHECK (vehicle_upgrade_slot IN ('Body', 'Drive', 'Engine')),
+    ADD COLUMN IF NOT EXISTS grants_equipment_resolved jsonb;
+
+COMMENT ON COLUMN public.equipment.vehicle_upgrade_slot IS
+  'Body, Drive or Engine for a vehicle upgrade, from its fighter effect types'' slot modifiers. '
+  'Maintained by refresh_equipment_derived_fields; do not write directly.';
+
+COMMENT ON COLUMN public.equipment.grants_equipment_resolved IS
+  'grants_equipment with each option''s equipment_name filled in. '
+  'Maintained by refresh_equipment_derived_fields; do not write directly.';
+
+CREATE OR REPLACE FUNCTION public.refresh_equipment_derived_fields()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+DECLARE
+  v_ids             uuid[] := '{}';
+  v_self            uuid;
+  v_name_changed    boolean;
+  v_old_equipment   text;
+  v_new_equipment   text;
+  v_effect_type_ids uuid[] := '{}';
+BEGIN
+  IF TG_TABLE_NAME = 'equipment' THEN
+    IF TG_OP = 'DELETE' THEN
+      v_self := OLD.id;
+    ELSE
+      v_self := NEW.id;
+      v_ids := ARRAY[NEW.id];
+    END IF;
+
+    IF TG_OP = 'UPDATE' THEN
+      v_name_changed := NEW.equipment_name IS DISTINCT FROM OLD.equipment_name;
+    ELSE
+      v_name_changed := true;
+    END IF;
+
+    -- Items that grant this one carry its name.
+    IF v_name_changed THEN
+      v_ids := v_ids || ARRAY(
+        SELECT g.id
+        FROM equipment g
+        WHERE jsonb_typeof(g.grants_equipment->'options') = 'array'
+          AND EXISTS (
+            SELECT 1
+            FROM jsonb_array_elements(g.grants_equipment->'options') opt
+            WHERE lower(opt->>'equipment_id') = v_self::text
+          )
+      );
+    END IF;
+
+  ELSIF TG_TABLE_NAME = 'fighter_effect_types' THEN
+    IF TG_OP <> 'INSERT' THEN
+      v_old_equipment := OLD.type_specific_data->>'equipment_id';
+    END IF;
+    IF TG_OP <> 'DELETE' THEN
+      v_new_equipment := NEW.type_specific_data->>'equipment_id';
+    END IF;
+
+    v_ids := ARRAY(
+      SELECT e.id
+      FROM equipment e
+      WHERE e.id::text = v_old_equipment OR e.id::text = v_new_equipment
+    );
+
+  ELSE -- fighter_effect_type_modifiers
+    IF TG_OP <> 'INSERT' THEN
+      v_effect_type_ids := v_effect_type_ids || OLD.fighter_effect_type_id;
+    END IF;
+    IF TG_OP <> 'DELETE' THEN
+      v_effect_type_ids := v_effect_type_ids || NEW.fighter_effect_type_id;
+    END IF;
+
+    v_ids := ARRAY(
+      SELECT e.id
+      FROM fighter_effect_types fet
+      JOIN equipment e ON e.id::text = fet.type_specific_data->>'equipment_id'
+      WHERE fet.id = ANY(v_effect_type_ids)
+    );
+  END IF;
+
+  IF cardinality(v_ids) > 0 THEN
+    UPDATE equipment e
+    SET
+      vehicle_upgrade_slot = CASE
+        WHEN e.equipment_type = 'vehicle_upgrade' THEN (
+          SELECT CASE
+            WHEN bool_or(m.stat_name = 'body_slots')   THEN 'Body'
+            WHEN bool_or(m.stat_name = 'drive_slots')  THEN 'Drive'
+            WHEN bool_or(m.stat_name = 'engine_slots') THEN 'Engine'
+          END
+          FROM fighter_effect_types fet
+          JOIN fighter_effect_type_modifiers m ON m.fighter_effect_type_id = fet.id
+          WHERE fet.type_specific_data->>'equipment_id' = e.id::text
+            AND m.stat_name IN ('body_slots', 'drive_slots', 'engine_slots')
+            AND m.default_numeric_value > 0
+        )
+      END,
+      grants_equipment_resolved = CASE
+        WHEN e.grants_equipment IS NOT NULL AND e.grants_equipment->'options' IS NOT NULL THEN
+          jsonb_set(
+            e.grants_equipment,
+            '{options}',
+            COALESCE(
+              (SELECT jsonb_agg(
+                        opt.value || jsonb_build_object('equipment_name', COALESCE(eq.equipment_name, 'Unknown'))
+                        ORDER BY opt.ordinality
+                      )
+               FROM jsonb_array_elements(e.grants_equipment->'options') WITH ORDINALITY AS opt(value, ordinality)
+               LEFT JOIN equipment eq ON eq.id = (opt.value->>'equipment_id')::uuid),
+              '[]'::jsonb
+            )
+          )
+        ELSE e.grants_equipment
+      END
+    WHERE e.id = ANY(v_ids);
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.refresh_equipment_derived_fields() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.refresh_equipment_derived_fields() FROM anon, authenticated;
+
+DROP TRIGGER IF EXISTS refresh_equipment_derived_fields ON public.equipment;
+CREATE TRIGGER refresh_equipment_derived_fields
+  AFTER INSERT OR DELETE OR UPDATE OF equipment_type, grants_equipment, equipment_name
+  ON public.equipment
+  FOR EACH ROW
+  EXECUTE FUNCTION public.refresh_equipment_derived_fields();
+
+DROP TRIGGER IF EXISTS refresh_equipment_derived_fields ON public.fighter_effect_types;
+CREATE TRIGGER refresh_equipment_derived_fields
+  AFTER INSERT OR DELETE OR UPDATE OF type_specific_data
+  ON public.fighter_effect_types
+  FOR EACH ROW
+  EXECUTE FUNCTION public.refresh_equipment_derived_fields();
+
+DROP TRIGGER IF EXISTS refresh_equipment_derived_fields ON public.fighter_effect_type_modifiers;
+CREATE TRIGGER refresh_equipment_derived_fields
+  AFTER INSERT OR DELETE OR UPDATE OF fighter_effect_type_id, stat_name, default_numeric_value
+  ON public.fighter_effect_type_modifiers
+  FOR EACH ROW
+  EXECUTE FUNCTION public.refresh_equipment_derived_fields();
+
+-- Backfill through the trigger, so existing rows get exactly what a save would give them.
+UPDATE public.equipment SET equipment_type = equipment_type;
+
+CREATE OR REPLACE FUNCTION public.get_equipment_detailed_data(
     gang_type_id uuid DEFAULT NULL,          -- $1
     equipment_category text DEFAULT NULL,     -- $2
     fighter_type_id uuid DEFAULT NULL,        -- $3
