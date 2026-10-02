@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Proposed. Phase 0 is done, and D1–D6 are answered by what is served today. D7 is still open. |
+| Status | Decisions agreed 2026-10-02: D1–D6 keep what is served today, D5 uses option (a), D7 uses a comparison script, and Phase 1 is skipped. Awaiting review of this document before Phase 2. |
 | Date | 2026-10-01 |
 | Scope | `components/equipment/equipment.tsx`, `buyEquipmentForFighter`, `public.get_equipment_detailed_data` |
 
@@ -418,7 +418,7 @@ There are two ways to deliver it. Either is never per open:
 | (a) Vercel route | Under `/api/`. Verifies the JWT locally, builds once per version through the Next data cache, and returns `Cache-Control: private, max-age=31536000, immutable`. | Once per user per version, roughly 1.2k–2.1k a day at today's traffic | Closest to the original design (inferred) |
 | (b) Supabase GET | Parts stored per version in a table and read through a `STABLE` function over PostgREST `GET`, with the same header set through `response.headers`. | None | Needs a build step the first time a version is requested. The gateway passing the header through is unverified. |
 
-This choice is only needed before Phase 4.
+**Chosen (2026-10-02):** option (a), the Vercel route.
 
 ### D6. The Unrestricted tab
 
@@ -434,16 +434,18 @@ This choice is only needed before Phase 4.
 
 **So:** keep exactly that.
 
-### D7. Where shadow-mode differences go
+### D7. How to check the new code against the old
 
 There is nothing to copy. Nothing collects client-side logs today: there is no logging
-package in `package.json` and no log table or action (verified). This is the one
-decision still open. My suggestion is a sampled insert into a Supabase table through an
-RPC, which adds no Vercel invocations.
+package in `package.json` and no log table or action (verified). Shadow mode in the
+browser would need new client code and a log table, both thrown away in Phase 8.
+
+**Chosen (2026-10-02):** no browser shadow mode. Phase 7 becomes a comparison script run
+against production, kept light on the database. The load limits are in the phase plan.
 
 ## Decision (proposed)
 
-The target design stands, with the D1–D6 answers applied:
+The target design stands, with the D1–D7 answers applied:
 
 - **Offers per channel.** Each item gets one offer per channel: `fighter_list`,
   `trading_post` and `custom_tp:<id>`. Each offer has its own price, Trade Points,
@@ -466,8 +468,11 @@ The target design stands, with the D1–D6 answers applied:
   triggers on every table the snapshot reads. The admin PATCH bumps it many times per
   save, which is acceptable: only the last version is requested again.
 - **Snapshot delivery.** One SQL function returns the version and the data from the
-  same statement. It is served by option (a) or (b) under D5. A request for a stale
-  version gets a `no-store` redirect to the current one.
+  same statement. A Vercel route under `/api/` serves it (D5 option (a)):
+  - It verifies the JWT locally.
+  - It builds each version once through the Next data cache.
+  - It responds with `Cache-Control: private, max-age=31536000, immutable`.
+  - A request for a stale version gets a `no-store` redirect to the current one.
 - **Overlay RPC.** It derives all context from `gang_id` server-side and checks the
   caller can edit the gang. It returns the current `catalogue_version` and:
   - the viewer's, campaign-shared and campaign-custom-Trading-Post custom items (D3),
@@ -494,21 +499,11 @@ One PR per phase; stop after each. Database phases add a migration under
 `supabase/migrations/` and update the matching file under `supabase/functions/`. Nothing
 is applied to production without asking first.
 
-1. **One call for both tabs.**
-   - **What it no longer does.** With D1, this phase changes no price; the 60 vs 70
-     difference is what is served today. What is left is the refetch when switching to
-     the Trading Post tab: 838 of about 10.5k calls in the 22.6-hour window, plus
-     every switch while in a campaign.
-   - **How.** The combined call adds list-mode columns, computed exactly as the
-     list-only call computes them, so without the campaign Trading Post parameters.
-     The Fighter's List tab then reads those columns and stays identical.
-   - **Cost.** Every Fighter's List open would then return the union of list and
-     Trading Post rows, which is a larger response for the roughly 91% of opens that
-     never switch tab (838 combined against 9,312 list calls; inferred). Phase 8
-     removes tab refetches anyway, so **consider skipping this phase**.
-   - **If kept:** wrap the function file in `BEGIN`/`COMMIT` around the `DROP` (finding
-     7). Make the app accept both row shapes while the two deploys race. The
-     Unrestricted tab and the Legacy switch keep their own fetches.
+1. **Skipped (2026-10-02): one call for both tabs.**
+   - With D1 it would change no price. It would only save the refetch when switching
+     to the Trading Post tab: 838 of about 10.5k calls in the 22.6-hour window.
+   - The cost: every Fighter's List open would return more rows. Phase 8 removes tab
+     refetches anyway.
 2. **Compute derived fields at save time.** Vehicle slot and grant option names are
    currently worked out on every read (`get_equipment_detailed_data.sql:394-437`).
    Option names also change when a granted item is renamed, so that rename must update
@@ -517,7 +512,8 @@ is applied to production without asking first.
    and statement-level triggers on every table the snapshot reads. That includes
    `fighter_effect_types`, `fighter_effect_type_modifiers`, `gang_types`,
    `exotic_beasts`, `weapon_profiles`, the Trading Post tables and `count_limits`.
-4. **Snapshot function, delivery and compact encoding.** Use D5 option (a) or (b).
+4. **Snapshot function, delivery and compact encoding.** Use D5 option (a), the Vercel
+   route under `/api/`.
    Report the compressed size of the core file and of the largest gang-type file.
    Confirm that per-edition partitioning still loses nothing (finding 2).
 5. **Overlay RPC**, as described above.
@@ -533,8 +529,27 @@ is applied to production without asking first.
    - **Extra cases.** Add fighters whose type, legacy or affiliation comes from another
      gang type (finding 1). Add a gang in a campaign with no listed Trading Posts, and a
      PENDING one (D4).
-7. **Shadow mode.** The modal computes both versions and records any differences, sent
-   wherever D7 decides. The UI does not change.
+7. **Compare old and new on production data (D7).** This replaces browser shadow mode.
+   - **What it is.** A script run from a developer machine, not shipped in the app. For
+     a sample of real gangs and fighters it calls the live RPC and the new resolver with
+     the same inputs, and lists every difference. The UI does not change.
+   - **It must not load the database noticeably:**
+     - **Few calls.** Fighters with identical inputs are grouped, and the RPC is called
+       once per group, not per fighter. The inputs are gang type, fighter type, origin,
+       subtypes, legacy, affiliation, campaign Trading Posts and tab. The resolver side
+       loads the snapshot once per run; the overlay is one small call per gang.
+     - **One call at a time**, at least 4 seconds apart, so at most 900 an hour. A
+       normal busy hour of the app today is about 1,000 calls (20:00 UTC).
+     - **Quiet hours only**, 05:00–09:00 UTC, when the app makes 390–650 calls an hour
+       (verified: edge logs for the 24 hours to 2026-10-01 20:00 UTC).
+     - **Read-only and time-boxed.** Each call runs in a read-only transaction with a
+       5-second statement timeout.
+     - **Backs off.** It pauses after a call slower than 2 seconds, and stops after
+       three in a row or on any error.
+     - **Capped and resumable.** At most 3,000 calls per run. Progress is saved
+       locally, so the next run continues where this one stopped.
+   - **Custom equipment** depends on `auth.uid()`, so each gang's calls run as its
+     owner, as #2183's equivalence test did.
 8. **Switch over.** Switch the modal, then the buy action (as D2 describes), then retire
    the RPC once nothing calls it.
 
@@ -544,7 +559,8 @@ is applied to production without asking first.
   Tab toggles and the Legacy switch become local. The snapshot is fetched once per user
   per catalogue version (D5).
 - **Shared, testable resolution.** Price and availability rules are resolved in
-  TypeScript, shared by the modal and the buy action, and covered by golden tests.
+  TypeScript, shared by the modal and the buy action. They are covered by golden tests
+  and by a throttled comparison against production.
 - **No visible change.** No value a user sees changes. The buy action only adds
   server-side checks that reject requests the UI cannot make.
 - **Today's quirks are kept on purpose:** the 60 vs 70 split, Trade Points discounts on
