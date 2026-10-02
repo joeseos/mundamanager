@@ -2,8 +2,14 @@ import 'server-only';
 
 import { NextResponse } from 'next/server';
 import { unstable_cache } from 'next/cache';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { createServiceRoleClient } from '@/utils/supabase/server';
-import type { EquipmentCatalogueCore, EquipmentCatalogueGangType } from '@/types/equipment-catalogue';
+import { buildCatalogueIndex, catalogueFilesFor, type CatalogueIndex } from '@/utils/equipment/resolve';
+import type {
+  EquipmentCatalogueCore,
+  EquipmentCatalogueGangType,
+  EquipmentOverlay,
+} from '@/types/equipment-catalogue';
 
 /**
  * Serves the Equipment modal's catalogue snapshot at
@@ -14,6 +20,9 @@ import type { EquipmentCatalogueCore, EquipmentCatalogueGangType } from '@/types
  * nothing about any user in it, so it is served to anyone. Everything that varies is in the
  * path, as some CDNs leave query strings out of their cache keys. A request for any other
  * version is redirected, uncached, to the current one.
+ *
+ * The buy action reads the same files, and the gang's overlay, through getEquipmentOverlay and
+ * loadCatalogueIndex, to resolve the listed price on the server.
  */
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -70,6 +79,51 @@ export const getCatalogueFile = unstable_cache(
   ['equipment-catalogue-v1'],
   { revalidate: false }
 );
+
+/**
+ * The gang's overlay, read with the caller's own client: get_equipment_overlay applies the same
+ * permission check and finds the same custom equipment as when the modal reads it.
+ */
+export async function getEquipmentOverlay(
+  supabase: SupabaseClient,
+  gangId: string,
+  fighterId: string | null
+): Promise<EquipmentOverlay> {
+  const { data, error } = await supabase.rpc('get_equipment_overlay', {
+    p_gang_id: gangId,
+    p_fighter_id: fighterId,
+  });
+  if (error || !data) {
+    throw new Error(`get_equipment_overlay failed: ${error?.message ?? 'no data'}`);
+  }
+  return data as EquipmentOverlay;
+}
+
+/**
+ * The catalogue index for the files an overlay names. Files of different versions cannot be
+ * mixed, so if the catalogue changed after the overlay was read, every file moves to the newer
+ * version, as in the modal.
+ */
+export async function loadCatalogueIndex(overlay: EquipmentOverlay): Promise<CatalogueIndex> {
+  const { coreEditions, ruleFiles } = catalogueFilesFor(overlay);
+  let version = overlay.version;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const [cores, rules] = await Promise.all([
+        Promise.all(coreEditions.map((edition) => getCatalogueFile(version, edition, null))),
+        Promise.all(ruleFiles.map(([edition, gangType]) => getCatalogueFile(version, edition, gangType))),
+      ]);
+      if (cores.includes(null) || rules.includes(null)) {
+        throw new Error('An equipment catalogue file was not found');
+      }
+      return buildCatalogueIndex(cores as EquipmentCatalogueCore[], rules as EquipmentCatalogueGangType[]);
+    } catch (error) {
+      if (!(error instanceof CatalogueVersionMoved)) throw error;
+      version = error.current;
+    }
+  }
+  throw new Error('The equipment catalogue is being updated. Please try again.');
+}
 
 function catalogueUrl(version: number, edition: string, gangType: string | null): string {
   return `/api/equipment/catalogue/${version}/${edition}${gangType ? `/${gangType}` : ''}`;

@@ -154,6 +154,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
     isStashMode,
     fighterCredits,
     campaignGangId,
+    equipmentListType,
+    includeLegacy,
     onEquipmentBought,
     onPurchaseRequest,
     closePurchaseModal: () => setBuyModalData(null),
