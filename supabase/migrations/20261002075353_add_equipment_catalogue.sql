@@ -481,12 +481,13 @@ BEGIN
     WITH
     gang AS (
       SELECT g.id, g.gang_type_id, g.custom_gang_type_id, g.gang_origin_id, g.gang_subtypes,
-             g.alignment, g.gang_affiliation_id,
+             g.alignment, g.gang_affiliation_id, ga.fighter_type_id AS affiliation_fighter_type_id,
              COALESCE(gt.edition_id, cgt.edition_id) AS edition_id,
              gt.trading_post_type_id AS own_trading_post_id
       FROM gangs g
       LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
       LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
+      LEFT JOIN gang_affiliation ga ON ga.id = g.gang_affiliation_id
       WHERE g.id = p_gang_id
     ),
     -- No gang has two campaign rows. Should one ever, the earliest is used every time.
@@ -619,11 +620,14 @@ BEGIN
         UNION ALL
         SELECT fr.legacy_fighter_type_id FROM fighter fr
         UNION ALL
-        SELECT ga.fighter_type_id FROM gang g JOIN gang_affiliation ga ON ga.id = g.gang_affiliation_id
+        SELECT g.affiliation_fighter_type_id FROM gang g
       ) t
       JOIN fighter_types ft ON ft.id = t.id
       JOIN gang_types gt ON gt.gang_type_id = ft.gang_type_id
     ),
+    -- Official items the gang can reach outside its fighters' own lists: Trading Post stock,
+    -- a custom list, gang-wide list rules (no fighter type) and rarity rows for its origin or
+    -- subtypes, which also put an item on a list.
     reachable AS (
       SELECT tpe.equipment_id AS id
       FROM trading_post_equipment tpe
@@ -632,6 +636,24 @@ BEGIN
       SELECT s.item_id FROM stock s WHERE s.official
       UNION
       SELECT l.item_id FROM custom_list l WHERE l.official
+      UNION
+      SELECT fte.equipment_id
+      FROM fighter_type_equipment fte
+      CROSS JOIN gang g
+      WHERE fte.fighter_type_id IS NULL
+        AND fte.vehicle_type_id IS NULL
+        AND fte.custom_fighter_type_id IS NULL
+        AND fte.fighter_subtype IS NOT NULL
+        AND NOT fte.excluded
+        AND (fte.gang_type_id IS NULL OR fte.gang_type_id = g.gang_type_id)
+        AND (fte.gang_origin_id IS NULL OR fte.gang_origin_id = g.gang_origin_id)
+        AND (fte.gang_subtype_id IS NULL OR g.gang_subtypes ? fte.gang_subtype_id::text)
+      UNION
+      SELECT ea.equipment_id
+      FROM equipment_availability ea
+      CROSS JOIN gang g
+      WHERE (ea.gang_origin_id IS NOT NULL AND ea.gang_origin_id = g.gang_origin_id)
+         OR (ea.gang_subtype_id IS NOT NULL AND g.gang_subtypes ? ea.gang_subtype_id::text)
     )
     SELECT jsonb_build_object(
       'format', 1,
@@ -644,7 +666,8 @@ BEGIN
         'origin', g.gang_origin_id,
         'subtypes', COALESCE(g.gang_subtypes, '[]'::jsonb),
         'alignment', g.alignment,
-        'affiliation', g.gang_affiliation_id
+        'affiliation', g.gang_affiliation_id,
+        'affiliationFighterType', g.affiliation_fighter_type_id
       ),
       'ruleFiles', (
         SELECT COALESCE(jsonb_agg(jsonb_build_array(rf.edition_id, rf.gang_type_id) ORDER BY rf.edition_id, rf.gang_type_id), '[]'::jsonb)
@@ -665,7 +688,7 @@ BEGIN
           'id', fr.id,
           'fighterType', fr.fighter_type_id,
           'customFighterType', fr.custom_fighter_type_id,
-          'subtypes', COALESCE(fr.fighter_subtypes, '[]'::jsonb),
+          'subtypes', fr.fighter_subtypes,
           'typeSubtypes', COALESCE(fr.type_subtypes, '[]'::jsonb),
           'legacyFighterType', fr.legacy_fighter_type_id,
           'list', (SELECT COALESCE(jsonb_agg(l.item_id ORDER BY l.item_id), '[]'::jsonb) FROM custom_list l)

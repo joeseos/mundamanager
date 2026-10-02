@@ -6,20 +6,21 @@
 -- reads itself, and returns:
 --
 --   version         the current catalogue_version
---   gang            gang type, custom gang type, edition, origin, gang subtypes, alignment and
---                   affiliation
+--   gang            gang type, custom gang type, edition, origin, gang subtypes, alignment,
+--                   affiliation and the affiliation's fighter type
 --   ruleFiles       the gang type files ([edition, gang type]) holding the equipment lists of
 --                   the fighter's type, its legacy's type and the gang's affiliation's type
 --   otherEditions   editions besides the gang's whose core files hold items the gang can reach:
---                   through its campaign's Trading Posts, a custom fighter's equipment list or
---                   a rule file of another edition
+--                   through its campaign's Trading Posts, a custom fighter's equipment list,
+--                   gang-wide list rules or rarity rows that match it, or a rule file of another
+--                   edition. None does on production today, other than through Trading Posts
 --   tradingPosts    the official Trading Posts the Trading Post tab sells from: the campaign's
 --                   list when the gang has a campaign row, whatever its status (its own gang
 --                   type's post only if listed), else its gang type's own post
---   fighter         p_fighter_id's fighter type (official, else custom), its own subtypes, its
---                   type's subtypes, its legacy's fighter type and its custom fighter type's
---                   equipment list. null without p_fighter_id or when the fighter is in another
---                   gang
+--   fighter         p_fighter_id's fighter type (official, else custom), its own subtypes (null
+--                   when unset, as get_equipment_detailed_data then uses its type's), its type's
+--                   subtypes, its legacy's fighter type and its custom fighter type's equipment
+--                   list. null without p_fighter_id or when the fighter is in another gang
 --   customItems     custom equipment of the gang's edition the viewer can see: their own, any
 --                   shared with the gang's campaign, and any the campaign's custom Trading
 --                   Posts stock. tpOnly marks the last kind, which only the Trading Post tab
@@ -87,12 +88,13 @@ BEGIN
     WITH
     gang AS (
       SELECT g.id, g.gang_type_id, g.custom_gang_type_id, g.gang_origin_id, g.gang_subtypes,
-             g.alignment, g.gang_affiliation_id,
+             g.alignment, g.gang_affiliation_id, ga.fighter_type_id AS affiliation_fighter_type_id,
              COALESCE(gt.edition_id, cgt.edition_id) AS edition_id,
              gt.trading_post_type_id AS own_trading_post_id
       FROM gangs g
       LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
       LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
+      LEFT JOIN gang_affiliation ga ON ga.id = g.gang_affiliation_id
       WHERE g.id = p_gang_id
     ),
     -- No gang has two campaign rows. Should one ever, the earliest is used every time.
@@ -225,11 +227,14 @@ BEGIN
         UNION ALL
         SELECT fr.legacy_fighter_type_id FROM fighter fr
         UNION ALL
-        SELECT ga.fighter_type_id FROM gang g JOIN gang_affiliation ga ON ga.id = g.gang_affiliation_id
+        SELECT g.affiliation_fighter_type_id FROM gang g
       ) t
       JOIN fighter_types ft ON ft.id = t.id
       JOIN gang_types gt ON gt.gang_type_id = ft.gang_type_id
     ),
+    -- Official items the gang can reach outside its fighters' own lists: Trading Post stock,
+    -- a custom list, gang-wide list rules (no fighter type) and rarity rows for its origin or
+    -- subtypes, which also put an item on a list.
     reachable AS (
       SELECT tpe.equipment_id AS id
       FROM trading_post_equipment tpe
@@ -238,6 +243,24 @@ BEGIN
       SELECT s.item_id FROM stock s WHERE s.official
       UNION
       SELECT l.item_id FROM custom_list l WHERE l.official
+      UNION
+      SELECT fte.equipment_id
+      FROM fighter_type_equipment fte
+      CROSS JOIN gang g
+      WHERE fte.fighter_type_id IS NULL
+        AND fte.vehicle_type_id IS NULL
+        AND fte.custom_fighter_type_id IS NULL
+        AND fte.fighter_subtype IS NOT NULL
+        AND NOT fte.excluded
+        AND (fte.gang_type_id IS NULL OR fte.gang_type_id = g.gang_type_id)
+        AND (fte.gang_origin_id IS NULL OR fte.gang_origin_id = g.gang_origin_id)
+        AND (fte.gang_subtype_id IS NULL OR g.gang_subtypes ? fte.gang_subtype_id::text)
+      UNION
+      SELECT ea.equipment_id
+      FROM equipment_availability ea
+      CROSS JOIN gang g
+      WHERE (ea.gang_origin_id IS NOT NULL AND ea.gang_origin_id = g.gang_origin_id)
+         OR (ea.gang_subtype_id IS NOT NULL AND g.gang_subtypes ? ea.gang_subtype_id::text)
     )
     SELECT jsonb_build_object(
       'format', 1,
@@ -250,7 +273,8 @@ BEGIN
         'origin', g.gang_origin_id,
         'subtypes', COALESCE(g.gang_subtypes, '[]'::jsonb),
         'alignment', g.alignment,
-        'affiliation', g.gang_affiliation_id
+        'affiliation', g.gang_affiliation_id,
+        'affiliationFighterType', g.affiliation_fighter_type_id
       ),
       'ruleFiles', (
         SELECT COALESCE(jsonb_agg(jsonb_build_array(rf.edition_id, rf.gang_type_id) ORDER BY rf.edition_id, rf.gang_type_id), '[]'::jsonb)
@@ -271,7 +295,7 @@ BEGIN
           'id', fr.id,
           'fighterType', fr.fighter_type_id,
           'customFighterType', fr.custom_fighter_type_id,
-          'subtypes', COALESCE(fr.fighter_subtypes, '[]'::jsonb),
+          'subtypes', fr.fighter_subtypes,
           'typeSubtypes', COALESCE(fr.type_subtypes, '[]'::jsonb),
           'legacyFighterType', fr.legacy_fighter_type_id,
           'list', (SELECT COALESCE(jsonb_agg(l.item_id ORDER BY l.item_id), '[]'::jsonb) FROM custom_list l)

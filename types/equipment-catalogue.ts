@@ -194,6 +194,7 @@ export interface EquipmentOverlay {
     subtypes: string[];
     alignment: 'Outlaw' | 'Law Abiding' | 'Unaligned' | null;
     affiliation: string | null;
+    affiliationFighterType: string | null;
   };
   /** [edition, gang type] files holding the fighter's, its legacy's and the affiliation's lists. */
   ruleFiles: [edition: string, gangType: string][];
@@ -207,7 +208,8 @@ export interface EquipmentOverlay {
     fighterType: string | null;
     /** Only for a fighter without an official type. */
     customFighterType: string | null;
-    subtypes: string[];
+    /** null when unset, in which case its type's subtypes apply. */
+    subtypes: string[] | null;
     typeSubtypes: string[];
     legacyFighterType: string | null;
     /** Official and custom items on the custom fighter type's equipment list. */
