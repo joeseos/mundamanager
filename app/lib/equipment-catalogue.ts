@@ -15,8 +15,8 @@ import type { EquipmentCatalogueCore, EquipmentCatalogueGangType } from '@/types
  * current one. Each version is built once (Next data cache) whoever asks first.
  */
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const VERSION = /^\d{1,18}$/;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const VERSION_RE = /^\d{1,18}$/;
 
 const IMMUTABLE = 'private, max-age=31536000, immutable';
 const NO_STORE = 'no-store';
@@ -98,7 +98,7 @@ export async function serveEquipmentCatalogue(
     return errorResponse('Unauthorized', 401);
   }
 
-  if (!VERSION.test(version) || !UUID.test(edition) || (gangType !== null && !UUID.test(gangType))) {
+  if (!VERSION_RE.test(version) || !UUID_RE.test(edition) || (gangType !== null && !UUID_RE.test(gangType))) {
     return errorResponse('Not found', 404);
   }
 
