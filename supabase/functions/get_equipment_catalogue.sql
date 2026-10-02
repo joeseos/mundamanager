@@ -1,6 +1,6 @@
--- The Equipment modal's catalogue snapshot (docs/adr/0001-equipment-modal-data.md, phase 4),
--- built from equipment_rules. Returns the current catalogue_version and the file's data from
--- the same statement, so the two always belong together.
+-- The Equipment modal's catalogue snapshot, built from equipment_rules. Returns the current
+-- catalogue_version and the file's data from the same statement, so the two always belong
+-- together.
 --
 --   p_gang_type_id NULL  the edition's core file: items, profiles, grants, vehicle slots,
 --                        Trading Post stock, rarity, discounts, count limits, legacy and
@@ -25,7 +25,7 @@
 DO $$
 BEGIN
   IF to_regclass('public.equipment_rules') IS NULL OR to_regclass('public.catalogue_version') IS NULL THEN
-    RAISE EXCEPTION 'Apply migrations 20261002072753_add_catalogue_version.sql and 20261002075353_add_equipment_catalogue.sql first';
+    RAISE EXCEPTION 'Apply migration 20261002075353_add_equipment_catalogue.sql first';
   END IF;
 END $$;
 

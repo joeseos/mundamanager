@@ -11,14 +11,14 @@
 --
 -- A table the snapshot starts reading needs adding to the list below.
 --
--- DEPLOY ORDER: apply migration 20261002072753_add_catalogue_version.sql (which creates
+-- DEPLOY ORDER: apply migration 20261002075353_add_equipment_catalogue.sql (which creates
 -- catalogue_version) BEFORE this file is deployed. The guard below stops the deploy
 -- otherwise, rather than install triggers that would fail every catalogue write.
 
 DO $$
 BEGIN
   IF to_regclass('public.catalogue_version') IS NULL THEN
-    RAISE EXCEPTION 'Apply migration 20261002072753_add_catalogue_version.sql first';
+    RAISE EXCEPTION 'Apply migration 20261002075353_add_equipment_catalogue.sql first';
   END IF;
 END $$;
 

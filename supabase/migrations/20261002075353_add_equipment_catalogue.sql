@@ -1,14 +1,97 @@
--- The Equipment modal's catalogue snapshot (docs/adr/0001-equipment-modal-data.md, phase 4).
+-- The Equipment modal's catalogue snapshot: a version number that moves with the equipment
+-- catalogue, one view over the equipment rule tables, and the function that builds the
+-- snapshot files from them.
 --
---   * equipment_rules: one view over the five rule tables (list, availability, discount,
---     Trading Post stock, count limit), in one shape: kind, scope columns, specificity, value.
+--   * catalogue_version: one row holding a number. bump_catalogue_version raises it once
+--     per statement that changes one of the 16 tables the snapshot is built from.
+--   * equipment_rules: the five rule tables (list, availability, discount, Trading Post
+--     stock, count limit) in one shape: kind, scope columns, specificity and value.
 --   * get_equipment_catalogue(edition, gang type): builds one snapshot file and returns it
 --     with the catalogue_version it was built at, from the same statement.
 --
--- Nothing calls either yet; the catalogue route uses them through the service role.
--- Needs 20261002072753_add_catalogue_version.sql applied first. Apply this migration BEFORE
--- supabase/functions/get_equipment_catalogue.sql is deployed; the function below matches
--- that file.
+-- The catalogue route (/api/equipment-catalogue) calls the function through the service
+-- role; nothing else uses any of this yet.
+--
+-- Apply this migration BEFORE supabase/functions/bump_catalogue_version.sql and
+-- supabase/functions/get_equipment_catalogue.sql are deployed. The function and trigger
+-- statements below match those files.
+
+CREATE TABLE IF NOT EXISTS public.catalogue_version (
+    id         boolean PRIMARY KEY DEFAULT true CHECK (id),
+    version    bigint NOT NULL DEFAULT 1,
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE public.catalogue_version IS
+  'One row. version goes up on every statement that changes an equipment catalogue table '
+  '(see bump_catalogue_version). Read-only for everyone else.';
+
+INSERT INTO public.catalogue_version (id) VALUES (true) ON CONFLICT (id) DO NOTHING;
+
+ALTER TABLE public.catalogue_version ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow authenticated users to view catalogue_version"
+    ON public.catalogue_version
+    FOR SELECT
+    TO authenticated
+    USING (true);
+
+-- No write policies: only bump_catalogue_version (SECURITY DEFINER) changes the row.
+REVOKE ALL ON public.catalogue_version FROM anon, authenticated;
+GRANT SELECT ON public.catalogue_version TO authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.bump_catalogue_version()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  UPDATE public.catalogue_version
+  SET version = version + 1,
+      updated_at = now()
+  WHERE id;
+
+  RETURN NULL;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.bump_catalogue_version() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.bump_catalogue_version() FROM anon, authenticated;
+
+DO $$
+DECLARE
+  t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY[
+    'count_limits',
+    'equipment',
+    'equipment_availability',
+    'equipment_discounts',
+    'exotic_beasts',
+    'fighter_effect_type_modifiers',
+    'fighter_effect_types',
+    'fighter_gang_legacy',
+    'fighter_type_equipment',
+    'fighter_types',
+    'gang_affiliation',
+    'gang_types',
+    'trading_post_equipment',
+    'trading_post_types',
+    'vehicle_types',
+    'weapon_profiles'
+  ]
+  LOOP
+    EXECUTE format('DROP TRIGGER IF EXISTS bump_catalogue_version ON public.%I', t);
+    EXECUTE format(
+      'CREATE TRIGGER bump_catalogue_version
+         AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON public.%I
+         FOR EACH STATEMENT
+         EXECUTE FUNCTION public.bump_catalogue_version()',
+      t
+    );
+  END LOOP;
+END $$;
 
 -- Every equipment rule the Equipment modal resolves, in one shape: what kind of rule it is,
 -- which item it is about, the scope it applies in (each scope column NULL = any), and its

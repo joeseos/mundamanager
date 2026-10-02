@@ -7,8 +7,8 @@ import { getUserIdFromClaims } from '@/utils/auth';
 import type { EquipmentCatalogueCore, EquipmentCatalogueGangType } from '@/types/equipment-catalogue';
 
 /**
- * Serves the Equipment modal's catalogue snapshot (docs/adr/0001-equipment-modal-data.md,
- * phase 4) at /api/equipment-catalogue/{version}/{edition}[/{gangType}].
+ * Serves the Equipment modal's catalogue snapshot at
+ * /api/equipment-catalogue/{version}/{edition}[/{gangType}].
  *
  * A file never changes once built for a version, so the browser may keep it for good. The
  * version is in the URL, and a request for any other version is redirected, uncached, to the

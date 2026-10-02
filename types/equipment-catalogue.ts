@@ -1,9 +1,8 @@
 import type { EquipmentGrants } from '@/types/equipment';
 
 /**
- * The Equipment modal's catalogue snapshot (docs/adr/0001-equipment-modal-data.md, phase 4),
- * built by get_equipment_catalogue (supabase/functions/get_equipment_catalogue.sql) and
- * served by app/api/equipment-catalogue.
+ * The Equipment modal's catalogue snapshot, built by get_equipment_catalogue
+ * (supabase/functions/get_equipment_catalogue.sql) and served by app/api/equipment-catalogue.
  *
  * Rows are positional tuples to keep the files small:
  * - items are referred to by their position in the core file's `items`, ordered by id, so a
