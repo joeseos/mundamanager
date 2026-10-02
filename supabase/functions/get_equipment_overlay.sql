@@ -8,8 +8,11 @@
 --   version         the current catalogue_version
 --   gang            gang type, custom gang type, edition, origin, gang subtypes, alignment and
 --                   affiliation
+--   ruleFiles       the gang type files ([edition, gang type]) holding the equipment lists of
+--                   the fighter's type, its legacy's type and the gang's affiliation's type
 --   otherEditions   editions besides the gang's whose core files hold items the gang can reach:
---                   through its campaign's Trading Posts, or a custom fighter's equipment list
+--                   through its campaign's Trading Posts, a custom fighter's equipment list or
+--                   a rule file of another edition
 --   tradingPosts    the official Trading Posts the Trading Post tab sells from: the campaign's
 --                   list when the gang has a campaign row, whatever its status (its own gang
 --                   type's post only if listed), else its gang type's own post
@@ -21,17 +24,20 @@
 --                   shared with the gang's campaign, and any the campaign's custom Trading
 --                   Posts stock. tpOnly marks the last kind, which only the Trading Post tab
 --                   shows
---   customTpOffers  for each item the campaign's custom Trading Posts stock, official or custom:
---                   the cost and rarity overrides, the price set for this gang, the resource
---                   cost, the ban and the posts' names. They apply on the Trading Post tab only
+--   customTpStock   one row per item per campaign custom Trading Post that stocks it, official
+--                   or custom, with that post's terms for this gang: cost and rarity overrides,
+--                   the lowest price set for the gang's gang type, custom gang type or origin,
+--                   the rarity set for its scope, the resource cost and the ban. Which post's
+--                   terms win is the resolver's to decide. They apply on the Trading Post tab
+--                   only
 --
 -- Only the gang's owner, an admin, or an owner or arbitrator of a campaign the gang has been
 -- accepted into may call it: the rule behind canEdit (utils/user-permissions.ts), which every
 -- way of opening the modal already requires.
 --
 -- Encoding (types/equipment-catalogue.ts has the same layout as TypeScript types): ids are
--- uuids; customItems and customTpOffers rows are positional arrays, with null for an absent
--- value and 0/1 for booleans.
+-- uuids; ruleFiles, customItems and customTpStock rows are positional arrays, with null for an
+-- absent value and 0/1 for booleans.
 --
 -- DEPLOY ORDER: apply migration 20261002075353_add_equipment_catalogue.sql (which creates
 -- catalogue_version) BEFORE this file is deployed. The guard below stops the deploy otherwise.
@@ -113,53 +119,55 @@ BEGIN
       SELECT DISTINCT t.id::uuid AS id
       FROM campaign c, jsonb_array_elements_text(c.custom_trading_posts) AS t(id)
     ),
-    -- The custom Trading Posts' stock with this gang's price and rarity rows, joined as
-    -- get_equipment_detailed_data's custom_tp_override and custom_tp do. A stock row names
-    -- exactly one item, official or custom (chk_equipment_exclusive).
+    -- One row per stock row of the campaign's custom Trading Posts, with this gang's price and
+    -- rarity rows matched as get_equipment_detailed_data's custom_tp_override and custom_tp
+    -- match them. Price rows set for a fighter type are not used. Should two rarity rows match
+    -- one stock row (none does), the first by id is used. A stock row names exactly one item,
+    -- official or custom (chk_equipment_exclusive).
     stock AS (
-      SELECT COALESCE(ctpe.equipment_id, ctpe.custom_equipment_id) AS item_id,
+      SELECT ctpe.id,
+             COALESCE(ctpe.equipment_id, ctpe.custom_equipment_id) AS item_id,
              ctpe.equipment_id IS NOT NULL AS official,
-             ctpe.cost_override, ctpe.cost_type_resource_id, ctpe.cost_campaign_resource_id,
-             ctpe.cost_resource_amount, ctpe.cost_reputation, ctpe.availability_override,
-             ctpe.sort_order, ctpe.created_at, ctpe.banned,
-             ctp.custom_trading_post_name,
-             p.adjusted_cost,
-             a.availability
+             ctp.id AS post_id,
+             ctp.custom_trading_post_name AS post_name,
+             ctpe.cost_override,
+             (SELECT MIN(p.adjusted_cost)
+              FROM custom_trading_post_pricing p
+              WHERE p.custom_trading_post_equipment_id = ctpe.id
+                AND (p.gang_type_id IS NULL OR p.gang_type_id = gd.gang_type_id)
+                AND (p.custom_gang_type_id IS NULL OR p.custom_gang_type_id = gd.custom_gang_type_id)
+                AND (p.gang_origin_id IS NULL OR p.gang_origin_id = gd.gang_origin_id)
+                AND p.fighter_type_id IS NULL) AS adjusted_cost,
+             COALESCE(
+               (SELECT a.availability
+                FROM custom_trading_post_availability a
+                WHERE a.custom_trading_post_equipment_id = ctpe.id
+                  AND a.availability IS NOT NULL
+                  AND (a.gang_type_id IS NULL OR a.gang_type_id = gd.gang_type_id)
+                  AND (a.custom_gang_type_id IS NULL OR a.custom_gang_type_id = gd.custom_gang_type_id)
+                  AND (a.gang_origin_id IS NULL OR a.gang_origin_id = gd.gang_origin_id)
+                  AND (a.gang_subtype_id IS NULL OR gd.gang_subtypes ? a.gang_subtype_id::text)
+                  AND (a.campaign_type_allegiance_id IS NULL OR a.campaign_type_allegiance_id = cmp.campaign_type_allegiance_id)
+                  AND (a.alignment IS NULL OR a.alignment = gd.alignment)
+                ORDER BY a.id
+                LIMIT 1),
+               ctpe.availability_override
+             ) AS availability,
+             ctpe.cost_type_resource_id,
+             ctpe.cost_campaign_resource_id,
+             COALESCE(ctr.resource_name, cr.resource_name) AS resource_name,
+             ctpe.cost_resource_amount,
+             ctpe.cost_reputation,
+             ctpe.banned,
+             ctpe.sort_order,
+             ctpe.created_at
       FROM custom_trading_post_equipment ctpe
       JOIN custom_posts cp ON cp.id = ctpe.custom_trading_post_id
       JOIN custom_trading_posts ctp ON ctp.id = ctpe.custom_trading_post_id
       CROSS JOIN gang gd
       CROSS JOIN campaign cmp
-      LEFT JOIN custom_trading_post_pricing p
-          ON p.custom_trading_post_equipment_id = ctpe.id
-          AND (p.gang_type_id IS NULL OR p.gang_type_id = gd.gang_type_id)
-          AND (p.custom_gang_type_id IS NULL OR p.custom_gang_type_id = gd.custom_gang_type_id)
-          AND (p.gang_origin_id IS NULL OR p.gang_origin_id = gd.gang_origin_id)
-          AND (p.fighter_type_id IS NULL)
-      LEFT JOIN custom_trading_post_availability a
-          ON a.custom_trading_post_equipment_id = ctpe.id
-          AND (a.gang_type_id IS NULL OR a.gang_type_id = gd.gang_type_id)
-          AND (a.custom_gang_type_id IS NULL OR a.custom_gang_type_id = gd.custom_gang_type_id)
-          AND (a.gang_origin_id IS NULL OR a.gang_origin_id = gd.gang_origin_id)
-          AND (a.gang_subtype_id IS NULL OR gd.gang_subtypes ? a.gang_subtype_id::text)
-          AND (a.campaign_type_allegiance_id IS NULL OR a.campaign_type_allegiance_id = cmp.campaign_type_allegiance_id)
-          AND (a.alignment IS NULL OR a.alignment = gd.alignment)
-    ),
-    offers AS (
-      SELECT
-        s.item_id,
-        bool_or(s.official) AS official,
-        MIN(s.cost_override) FILTER (WHERE s.cost_override IS NOT NULL) AS cost_override,
-        (array_agg(s.cost_type_resource_id ORDER BY s.cost_override NULLS LAST, COALESCE(s.sort_order, 999), s.created_at) FILTER (WHERE s.cost_type_resource_id IS NOT NULL))[1] AS cost_type_resource_id,
-        (array_agg(s.cost_campaign_resource_id ORDER BY s.cost_override NULLS LAST, COALESCE(s.sort_order, 999), s.created_at) FILTER (WHERE s.cost_campaign_resource_id IS NOT NULL))[1] AS cost_campaign_resource_id,
-        (array_agg(s.cost_resource_amount ORDER BY s.cost_override NULLS LAST, COALESCE(s.sort_order, 999), s.created_at) FILTER (WHERE s.cost_resource_amount IS NOT NULL))[1] AS cost_resource_amount,
-        (array_agg(s.cost_reputation ORDER BY s.cost_override NULLS LAST, COALESCE(s.sort_order, 999), s.created_at) FILTER (WHERE s.cost_reputation))[1] AS cost_reputation,
-        (array_agg(COALESCE(s.availability, s.availability_override) ORDER BY s.cost_override NULLS LAST, COALESCE(s.sort_order, 999), s.created_at) FILTER (WHERE COALESCE(s.availability, s.availability_override) IS NOT NULL))[1] AS availability_override,
-        MIN(s.adjusted_cost) FILTER (WHERE s.adjusted_cost IS NOT NULL) AS adjusted_cost,
-        bool_or(s.banned) AS banned,
-        array_agg(DISTINCT s.custom_trading_post_name) FILTER (WHERE s.custom_trading_post_name IS NOT NULL) AS names
-      FROM stock s
-      GROUP BY s.item_id
+      LEFT JOIN campaign_type_resources ctr ON ctr.id = ctpe.cost_type_resource_id
+      LEFT JOIN campaign_resources cr ON cr.id = ctpe.cost_campaign_resource_id
     ),
     custom_sources AS (
       SELECT ce.id, true AS listed
@@ -172,9 +180,9 @@ BEGIN
       WHERE cg.gang_id = p_gang_id
         AND cs.custom_equipment_id IS NOT NULL
       UNION ALL
-      SELECT o.item_id, false
-      FROM offers o
-      WHERE NOT o.official
+      SELECT s.item_id, false
+      FROM stock s
+      WHERE NOT s.official
     ),
     custom_items AS (
       SELECT ce.id, ce.equipment_name, ce.equipment_category, ce.equipment_type, ce.cost,
@@ -208,12 +216,26 @@ BEGIN
       JOIN fighter fr ON fr.custom_fighter_type_id = cfte.custom_fighter_type_id
       WHERE COALESCE(cfte.equipment_id, cfte.custom_equipment_id) IS NOT NULL
     ),
+    -- Fighter types whose equipment lists can apply: the fighter's own, its legacy's and the
+    -- gang's affiliation's. Each list lives in the file of the gang type owning that type.
+    rule_files AS (
+      SELECT DISTINCT gt.edition_id, gt.gang_type_id
+      FROM (
+        SELECT fr.fighter_type_id AS id FROM fighter fr
+        UNION ALL
+        SELECT fr.legacy_fighter_type_id FROM fighter fr
+        UNION ALL
+        SELECT ga.fighter_type_id FROM gang g JOIN gang_affiliation ga ON ga.id = g.gang_affiliation_id
+      ) t
+      JOIN fighter_types ft ON ft.id = t.id
+      JOIN gang_types gt ON gt.gang_type_id = ft.gang_type_id
+    ),
     reachable AS (
       SELECT tpe.equipment_id AS id
       FROM trading_post_equipment tpe
       JOIN official_posts op ON op.id = tpe.trading_post_type_id
       UNION
-      SELECT o.item_id FROM offers o WHERE o.official
+      SELECT s.item_id FROM stock s WHERE s.official
       UNION
       SELECT l.item_id FROM custom_list l WHERE l.official
     )
@@ -230,11 +252,18 @@ BEGIN
         'alignment', g.alignment,
         'affiliation', g.gang_affiliation_id
       ),
+      'ruleFiles', (
+        SELECT COALESCE(jsonb_agg(jsonb_build_array(rf.edition_id, rf.gang_type_id) ORDER BY rf.edition_id, rf.gang_type_id), '[]'::jsonb)
+        FROM rule_files rf
+      ),
       'otherEditions', (
-        SELECT COALESCE(jsonb_agg(DISTINCT e.edition_id), '[]'::jsonb)
-        FROM reachable r
-        JOIN equipment e ON e.id = r.id
-        WHERE e.edition_id IS DISTINCT FROM g.edition_id
+        SELECT COALESCE(jsonb_agg(DISTINCT x.edition_id), '[]'::jsonb)
+        FROM (
+          SELECT e.edition_id FROM reachable r JOIN equipment e ON e.id = r.id
+          UNION
+          SELECT rf.edition_id FROM rule_files rf
+        ) x
+        WHERE x.edition_id IS DISTINCT FROM g.edition_id
       ),
       'tradingPosts', (SELECT COALESCE(jsonb_agg(t.id ORDER BY t.id), '[]'::jsonb) FROM official_posts t),
       'fighter', (
@@ -267,28 +296,20 @@ BEGIN
         FROM custom_items ci
       ),
 
-      -- [item, cost override, adjusted cost, rarity override, paid with a resource (0/1),
-      --  resource name, resource amount, campaign type resource, campaign resource,
-      --  banned (0/1), custom Trading Post names]
-      'customTpOffers', (
+      -- [item, post, post name, cost override, adjusted cost, rarity, campaign type resource,
+      --  campaign resource, resource name, resource amount, Reputation (0/1), banned (0/1),
+      --  sort order, created at]
+      'customTpStock', (
         SELECT COALESCE(jsonb_agg(jsonb_build_array(
-          o.item_id, o.cost_override, o.adjusted_cost, o.availability_override,
-          CASE WHEN o.cost_type_resource_id IS NOT NULL
-                 OR o.cost_campaign_resource_id IS NOT NULL
-                 OR o.cost_reputation THEN 1 ELSE 0 END,
-          CASE WHEN o.cost_reputation THEN 'Reputation'
-               ELSE COALESCE(ctr.resource_name, cr.resource_name) END,
-          CASE WHEN o.cost_type_resource_id IS NOT NULL
-                 OR o.cost_campaign_resource_id IS NOT NULL
-                 OR o.cost_reputation THEN o.cost_resource_amount END,
-          o.cost_type_resource_id, o.cost_campaign_resource_id,
-          CASE WHEN o.banned THEN 1 ELSE 0 END,
-          COALESCE(to_jsonb(o.names), '[]'::jsonb)
-        ) ORDER BY o.item_id), '[]'::jsonb)
-        FROM offers o
-        LEFT JOIN campaign_type_resources ctr ON ctr.id = o.cost_type_resource_id
-        LEFT JOIN campaign_resources cr ON cr.id = o.cost_campaign_resource_id
-        WHERE o.official OR o.item_id IN (SELECT ci.id FROM custom_items ci)
+          s.item_id, s.post_id, s.post_name, s.cost_override, s.adjusted_cost, s.availability,
+          s.cost_type_resource_id, s.cost_campaign_resource_id, s.resource_name, s.cost_resource_amount,
+          CASE WHEN s.cost_reputation THEN 1 ELSE 0 END,
+          CASE WHEN s.banned THEN 1 ELSE 0 END,
+          s.sort_order,
+          to_char(s.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
+        ) ORDER BY s.item_id, s.post_id, s.id), '[]'::jsonb)
+        FROM stock s
+        WHERE s.official OR s.item_id IN (SELECT ci.id FROM custom_items ci)
       )
     )
     FROM gang g

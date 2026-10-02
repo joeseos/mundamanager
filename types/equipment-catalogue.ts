@@ -156,22 +156,29 @@ export type OverlayCustomItem = [
   tpOnly: CatalogueFlag,
 ];
 
-/** The campaign's custom Trading Posts' terms for one item, official or custom. Trading Post tab only. */
-export type OverlayCustomTpOffer = [
+/**
+ * One campaign custom Trading Post's terms for one item it stocks, official or custom, as they
+ * apply to this gang. Trading Post tab only.
+ */
+export type OverlayCustomTpStock = [
   item: string,
+  post: string,
+  postName: string | null,
   costOverride: number | null,
-  /** The price set for this gang's gang type, custom gang type or origin. */
+  /** The lowest price set for this gang's gang type, custom gang type or origin. */
   adjustedCost: number | null,
+  /** The rarity set for this gang's scope, else the post's rarity override. */
   availability: string | null,
-  /** Paid with a campaign resource or Reputation, in which case the item's own cost is shown. */
-  paidWithResource: CatalogueFlag,
-  resourceName: string | null,
-  resourceAmount: number | null,
   campaignTypeResource: string | null,
   campaignResource: string | null,
+  /** The name of this row's campaign type resource or campaign resource. */
+  resourceName: string | null,
+  resourceAmount: number | null,
+  reputation: CatalogueFlag,
   banned: CatalogueFlag,
-  /** The stocking custom Trading Posts' names, sorted. */
-  tradingPosts: string[],
+  sortOrder: number | null,
+  /** UTC, ISO 8601 with microseconds, so it sorts as text. */
+  createdAt: string,
 ];
 
 export interface EquipmentOverlay {
@@ -188,7 +195,9 @@ export interface EquipmentOverlay {
     alignment: 'Outlaw' | 'Law Abiding' | 'Unaligned' | null;
     affiliation: string | null;
   };
-  /** Editions besides the gang's whose core files hold items the gang can reach. */
+  /** [edition, gang type] files holding the fighter's, its legacy's and the affiliation's lists. */
+  ruleFiles: [edition: string, gangType: string][];
+  /** Editions besides the gang's whose core files the modal needs. */
   otherEditions: string[];
   /** The official Trading Posts the Trading Post tab sells from. */
   tradingPosts: string[];
@@ -205,5 +214,5 @@ export interface EquipmentOverlay {
     list: string[];
   } | null;
   customItems: OverlayCustomItem[];
-  customTpOffers: OverlayCustomTpOffer[];
+  customTpStock: OverlayCustomTpStock[];
 }
