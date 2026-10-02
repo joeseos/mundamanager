@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Decisions agreed 2026-10-02: D1–D6 keep what is served today, D5 uses option (a), D7 uses a comparison script, and Phases 1 and 2 are skipped. Phase 3 is done; next is Phase 4. All phases go in #2186. |
+| Status | Decisions agreed 2026-10-02: D1–D6 keep what is served today, D5 uses option (a), D7 uses a comparison script, and Phases 1 and 2 are skipped. Phases 3 and 4 are done; next is Phase 5. All phases go in #2186. |
 | Date | 2026-10-01 |
 | Scope | `components/equipment/equipment.tsx`, `buyEquipmentForFighter`, `public.get_equipment_detailed_data` |
 
@@ -533,14 +533,50 @@ migration under `supabase/migrations/` and update the matching file under
      shows only when the change commits.
    - **Rules view moved.** The `equipment_rules` view is now part of Phase 4: nothing uses
      it before the snapshot, whose needs decide its shape.
-4. **Rules view, snapshot function, delivery and compact encoding.** Add the
-   `equipment_rules` view the snapshot is built from. Add a version trigger to any further
-   table the snapshot reads. Use D5 option (a), the Vercel route under `/api/`. The snapshot function works out each vehicle upgrade's slot and
-   each grant option's equipment name while it builds, as the RPC does today
-   (`get_equipment_detailed_data.sql:394-437`). The slot only exists for N23
-   `vehicle_upgrade` items (finding 10). Store grant options in their stored order.
-   Report the compressed size of the core file and of the largest gang-type file.
-   Confirm that per-edition partitioning still loses nothing (finding 2).
+4. **Rules view, snapshot function, delivery and compact encoding.** Done.
+   - **`equipment_rules` view.** One row per rule from the five rule tables, in one shape:
+     kind, scope columns, `specificity` and value columns. `specificity` reproduces the
+     RPC's precedence for rarity and count limits. A count limit set on a beast's fighter
+     type appears once per item granting that beast.
+   - **`get_equipment_catalogue(edition, gang type)`.** Returns the version and one file
+     from the same statement. It is service-role only.
+     - It works out vehicle slots and grant option names while building, with options in
+       stored order.
+     - It leaves out `created_at` and `is_editable`, which the modal never reads. The buy
+       action reads `is_editable` itself.
+     - It keeps profile ids, because the tooltip dedupes by them.
+   - **The route.** `GET /api/equipment-catalogue/{version}/{edition}[/{gangType}]`
+     (`app/lib/equipment-catalogue.ts`):
+     - Signed-in users only.
+     - One small `catalogue_version` read per request. Any other version gets a `no-store`
+       307 to the current one.
+     - Each version is built once through `unstable_cache`, then sent with
+       `Cache-Control: private, max-age=31536000, immutable`.
+     - If the catalogue moves during a build, the request is redirected and the build is
+       not cached.
+   - **Format.** `types/equipment-catalogue.ts` defines it. Items are positions in the core
+     file's `items` (ordered by id); every other id is a position in the file's own `refs`;
+     rows are positional arrays.
+   - **Sizes on production data** (verified: the builder run read-only on production):
+
+     | File | Raw | Contents |
+     |---|---|---|
+     | N23 core | 329 KB | 1,024 items (profiles 116 KB), 1,024 vehicle and subtype list rules, 593 discounts, 123 rarity, 511 stock, 13 count limits |
+     | N26 core | 143 KB | 511 items (profiles 65 KB), 31 list rules, 47 discounts, 25 rarity, 116 stock |
+     | Largest gang type file (Hired Guns, N23) | 58 KB | 1,510 rules |
+     | All 59 gang type files | 796 KB | 20,529 rules |
+
+     The earlier untrimmed estimate was about 1.9 MB per edition.
+   - **Compressed sizes are estimates,** since production data cannot be copied here to
+     gzip:
+     - N23 core 80–95 KB, N26 core 40–45 KB, Hired Guns file 7–10 KB with gzip.
+     - About 2,100 and 1,100 ids barely compress; the rest is repetitive text.
+     - Brotli would be smaller still. Measure the first real response after deploy.
+   - **Per-edition split.** Nothing is lost: every rule count matches its source table.
+     Rules that point at another edition's item are left out; there are none today.
+   - **Data note.** 21 `equipment_availability` rows tie N26 items to the N23 House Escher
+     or House Goliath gang type: 18 exclusive, 3 not. The exclusive ones have no effect
+     today, as none of those items is Trading Post stock. A list went to the data admins.
 5. **Overlay RPC**, as described above.
 6. **Resolver with golden tests.**
    - **Shapes.** Generate fixtures from the live RPC using the list-only, Trading
