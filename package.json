@@ -6,7 +6,6 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "node --test utils/equipment/resolve.test.mjs",
     "clean": "next clean"
   },
   "dependencies": {

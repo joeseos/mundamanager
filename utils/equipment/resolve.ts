@@ -3,8 +3,7 @@
  * (get_equipment_catalogue) and the gang's overlay (get_equipment_overlay), exactly as
  * get_equipment_detailed_data does in SQL. The modal and the buy action both use it.
  *
- * Pure: no React, Supabase or Next imports, and only type imports, so its tests run under
- * plain Node.
+ * Pure: no React, Supabase or Next imports, so the browser and the server run the same code.
  *
  * Each item gets one offer per tab that shows it (fighter's list, Trading Post,
  * Unrestricted), each a row shaped as the RPC returns it. The modal switches tabs without
