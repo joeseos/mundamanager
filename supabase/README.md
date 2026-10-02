@@ -61,3 +61,4 @@ Syncing of those files is not automatic. If you update a function on Supabase, m
 | enqueue_notification_email   | notifications      | Queues an outbound email for a new notification |
 | handle_new_user              | auth.users         | Creates a profiles row on signup (`on_auth_user_created`) |
 | gang_types_parent_must_be_root | gang_types       | Keeps parent_gang_type_id one level deep (parent must be a root) |
+| bump_catalogue_version       | 16 equipment catalogue tables (listed in the file) | Bumps catalogue_version.version once per statement that changes the catalogue |
