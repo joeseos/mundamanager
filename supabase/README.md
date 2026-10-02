@@ -40,7 +40,7 @@ Syncing of those files is not automatic. If you update a function on Supabase, m
 | copy_custom_collection                   | p_collection_id uuid                                                                                         | uuid | Invoker |
 | get_available_skills               | fighter_id uuid                                                                                        | jsonb | Definer |
 | get_equipment_catalogue           | p_edition_id uuid, p_gang_type_id uuid DEFAULT NULL (service role only; used by /api/equipment/catalogue) | TABLE(version bigint, data jsonb) | Invoker |
-| get_equipment_overlay              | p_gang_id uuid, p_fighter_id uuid DEFAULT NULL (callers who can edit the gang; the Equipment modal's per-gang data) | jsonb | Invoker |
+| get_equipment_overlay              | p_gang_id uuid, p_fighter_id uuid DEFAULT NULL (callers who can edit the gang; the Equipment modal's and buy action's per-gang data) | jsonb | Invoker |
 | get_equipment_with_discounts       | gang_type_id uuid DEFAULT NULL, equipment_category text DEFAULT NULL, fighter_type_id uuid DEFAULT NULL | TABLE(...) | Definer |
 | get_fighter_available_advancements | fighter_id uuid                                                                                        | jsonb | Definer |
 | get_fighter_types_with_cost        | p_gang_type_id uuid DEFAULT NULL, p_gang_affiliation_id uuid DEFAULT NULL, p_is_gang_addition boolean DEFAULT NULL | TABLE(...) | Definer |
