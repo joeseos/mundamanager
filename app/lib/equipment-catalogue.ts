@@ -38,6 +38,13 @@ export class CatalogueVersionMoved extends Error {
   }
 }
 
+/** No file exists for that edition and gang type. Thrown, not returned, so it is never cached. */
+export class CatalogueFileNotFound extends Error {
+  constructor() {
+    super('Equipment catalogue file not found');
+  }
+}
+
 export type CatalogueFile = EquipmentCatalogueCore | EquipmentCatalogueGangType;
 
 export async function getCurrentCatalogueVersion(): Promise<number> {
@@ -53,12 +60,31 @@ export async function getCurrentCatalogueVersion(): Promise<number> {
   return Number(data.version);
 }
 
+const RECENT_VERSION_MS = 5000;
+let recentVersion: { version: number; readAt: number } | null = null;
+
+/**
+ * The current version as read in the last few seconds by this server instance, so a burst of
+ * uncached file requests reads the database once. It can trail the database by that long, so a
+ * version above it (atLeast) is checked in the database: the overlay may have read it after a
+ * change.
+ */
+async function getRecentCatalogueVersion(atLeast: number): Promise<number> {
+  if (recentVersion && recentVersion.version >= atLeast && Date.now() - recentVersion.readAt < RECENT_VERSION_MS) {
+    return recentVersion.version;
+  }
+  const version = await getCurrentCatalogueVersion();
+  recentVersion = { version, readAt: Date.now() };
+  return version;
+}
+
 /**
  * Built once per version, edition and gang type. Throws rather than return a file of another
- * version, because unstable_cache keeps whatever it is given.
+ * version, or nothing for an unknown edition or gang type, because unstable_cache keeps
+ * whatever it is given.
  */
 export const getCatalogueFile = unstable_cache(
-  async (version: number, edition: string, gangType: string | null): Promise<CatalogueFile | null> => {
+  async (version: number, edition: string, gangType: string | null): Promise<CatalogueFile> => {
     const supabase = createServiceRoleClient();
     const { data, error } = await supabase.rpc('get_equipment_catalogue', {
       p_edition_id: edition,
@@ -70,7 +96,7 @@ export const getCatalogueFile = unstable_cache(
     }
 
     const row = (data as { version: number; data: CatalogueFile }[] | null)?.[0];
-    if (!row) return null;
+    if (!row) throw new CatalogueFileNotFound();
     if (Number(row.version) !== version) {
       throw new CatalogueVersionMoved(Number(row.version));
     }
@@ -113,9 +139,6 @@ export async function loadCatalogueIndex(overlay: EquipmentOverlay): Promise<Cat
         Promise.all(coreEditions.map((edition) => getCatalogueFile(version, edition, null))),
         Promise.all(ruleFiles.map(([edition, gangType]) => getCatalogueFile(version, edition, gangType))),
       ]);
-      if (cores.includes(null) || rules.includes(null)) {
-        throw new Error('An equipment catalogue file was not found');
-      }
       return buildCatalogueIndex(cores as EquipmentCatalogueCore[], rules as EquipmentCatalogueGangType[]);
     } catch (error) {
       if (!(error instanceof CatalogueVersionMoved)) throw error;
@@ -156,20 +179,20 @@ export async function serveEquipmentCatalogue(requestUrl: string, path: string[]
   const gangType = rawGangType?.toLowerCase() ?? null;
 
   try {
-    const current = await getCurrentCatalogueVersion();
-    if (Number(version) !== current) {
+    const requested = Number(version);
+    const current = await getRecentCatalogueVersion(requested);
+    if (requested !== current) {
       return redirectToVersion(requestUrl, current, edition, gangType);
     }
 
     const file = await getCatalogueFile(current, edition, gangType);
-    if (!file) {
-      return errorResponse('Not found', 404);
-    }
-
     return NextResponse.json(file, { headers: { 'Cache-Control': IMMUTABLE } });
   } catch (error) {
     if (error instanceof CatalogueVersionMoved) {
       return redirectToVersion(requestUrl, error.current, edition, gangType);
+    }
+    if (error instanceof CatalogueFileNotFound) {
+      return errorResponse('Not found', 404);
     }
     console.error('Error serving equipment catalogue:', error);
     return errorResponse('Error loading equipment catalogue', 500);
