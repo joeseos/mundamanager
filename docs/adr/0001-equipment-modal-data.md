@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Decisions agreed 2026-10-02: D1–D6 keep what is served today, D5 uses option (a), D7 uses a comparison script, and Phase 1 is skipped. Awaiting review of this document before Phase 2. |
+| Status | Decisions agreed 2026-10-02: D1–D6 keep what is served today, D5 uses option (a), D7 uses a comparison script, and Phases 1 and 2 are skipped. Next is Phase 3. |
 | Date | 2026-10-01 |
 | Scope | `components/equipment/equipment.tsx`, `buyEquipmentForFighter`, `public.get_equipment_detailed_data` |
 
@@ -512,17 +512,23 @@ is applied to production without asking first.
      to the Trading Post tab: 838 of about 10.5k calls in the 22.6-hour window.
    - The cost: every Fighter's List open would return more rows. Phase 8 removes tab
      refetches anyway.
-2. **Compute derived fields at save time.** Vehicle slot and grant option names are
-   currently worked out on every read (`get_equipment_detailed_data.sql:394-437`).
-   Option names also change when a granted item is renamed, so that rename must update
-   them too. The vehicle slot only exists for N23 `vehicle_upgrade` items today
-   (finding 10).
+2. **Skipped (2026-10-02): compute derived fields at save time.**
+   - **Why skipped.** Working out the vehicle slot and grant option names for all 1,535
+     items takes about 7 ms on production (verified: `EXPLAIN ANALYZE`). A modal call
+     returns only part of the catalogue, against an RPC average of 160–200 ms, so
+     storing them would save a few milliseconds per call at most.
+   - **The cost it avoids.** A migration, two stored columns and triggers on three
+     tables. It was built and tested, then dropped unmerged.
+   - **Instead,** Phase 4 works them out while building the snapshot.
 3. **Rules view, version table and triggers.** Add `equipment_rules`, `catalogue_version`,
    and statement-level triggers on every table the snapshot reads. That includes
    `fighter_effect_types`, `fighter_effect_type_modifiers`, `gang_types`,
    `exotic_beasts`, `weapon_profiles`, the Trading Post tables and `count_limits`.
 4. **Snapshot function, delivery and compact encoding.** Use D5 option (a), the Vercel
-   route under `/api/`.
+   route under `/api/`. The snapshot function works out each vehicle upgrade's slot and
+   each grant option's equipment name while it builds, as the RPC does today
+   (`get_equipment_detailed_data.sql:394-437`). The slot only exists for N23
+   `vehicle_upgrade` items (finding 10). Store grant options in their stored order.
    Report the compressed size of the core file and of the largest gang-type file.
    Confirm that per-edition partitioning still loses nothing (finding 2).
 5. **Overlay RPC**, as described above.
