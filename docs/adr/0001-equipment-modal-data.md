@@ -36,7 +36,7 @@ The proposal is to replace the per-open call with:
 | ~8.7k fighter's-list only, ~780 combined, 16 with custom Trading Post ids | 8,657 fighter's list without `fighter_id` (9,312 including the variants), 838 combined, 28 with custom Trading Post ids. The brief left out two more shapes: **214 Unrestricted** (no flags) and **105 Trading Post only**. Full table under question 1. | verified: `pg_stat_statements` |
 | `only_equipment_id` and `equipment_category` never appear | Confirmed. No recorded shape includes them, and no app code sends them. | verified: `pg_stat_statements`, `equipment.tsx:285-325` |
 | Combat shotgun costs 60 list-only and 70 combined | Confirmed for a House Goliath Bruiser: list-only 60, list + Trading Post 70, Unrestricted 60. | verified: query calling the live RPC with `only_equipment_id` |
-| 1,055 `fighter_type_equipment` rows not tied to a fighter type | These are 1,023 vehicle-type rows plus 32 gang-wide subtype rules. No rows use `custom_fighter_type_id`. There are 25 deny rows. | verified: query |
+| 1,055 `fighter_type_equipment` rows not tied to a fighter type | These are 1,023 vehicle-type rows (all N23; see finding 10) plus 32 gang-wide subtype rules. No rows use `custom_fighter_type_id`. There are 25 deny rows. | verified: query |
 
 ## Phase 0 findings
 
@@ -52,7 +52,7 @@ production counts:
 | Trading Post, fighter | `fighter_type_id`, `fighter_type_equipment=true`, `equipment_tradingpost=true` (the **combined** call) | 426 + 108 with `fighter_id` | `equipment.tsx:300-305` |
 | Same, gang in a campaign | plus `campaign_trading_post_type_ids` | 257 + 22 with `fighter_id` + 8 for custom gang types | `equipment.tsx:310-313` |
 | Same, campaign has custom Trading Posts | plus `campaign_custom_trading_post_ids` | 17 | `equipment.tsx:314-316` |
-| Trading Post, stash, vehicle or custom fighter | `equipment_tradingpost=true` only (vehicles also send `fighter_type_id`) | 15 stash, 75 stash in a campaign, 11 with custom Trading Posts, 4 vehicle | `equipment.tsx:306-309` |
+| Trading Post, stash or N23 vehicle | `equipment_tradingpost=true` only (N23 vehicles also send `fighter_type_id`, which holds their vehicle type id) | 15 stash, 75 stash in a campaign, 11 with custom Trading Posts, 4 N23 vehicle | `equipment.tsx:306-309` |
 | Unrestricted | no flags | 187 fighter, 12 with `fighter_id`, 7 custom gang type, 8 stash | `equipment.tsx:296-317` (neither flag set) |
 
 All counts: verified, `pg_stat_statements`, grouped by the parameter list PostgREST
@@ -279,6 +279,24 @@ Where things can come from:
 9. **React Query's default `gcTime` is 10 minutes** (`app/providers/query-client-provider.tsx:15-16`).
    A snapshot query needs its own `gcTime`. Otherwise reopening after 10 idle minutes
    refetches it, cheaply, from the browser's HTTP cache.
+10. **There are two kinds of vehicle, and only N23's is a "vehicle" to this code.**
+    - **N23 vehicles** are `vehicles` rows with a `vehicle_types` type. They open the
+      "Add Vehicle Equipment" modal (`fighter-page.tsx:1505-1526`, marked N23 only),
+      limited to vehicle categories. Their list rules are the 1,023
+      `fighter_type_equipment` rows keyed by `vehicle_type_id`, and every one of them
+      points at N23 equipment (verified: query). All 41 `vehicle_upgrade` items are N23;
+      36 of them get a Body, Drive or Engine slot (verified: query).
+    - **N26 vehicles** are fighters whose fighter type has `is_vehicle = true`. There are
+      4 such fighter types and 564 fighters; 128 of those fighters' types belong to
+      another gang type (verified: query). They open the ordinary Equipment modal with
+      their fighter type (`fighter-page.tsx:1482-1503`), so they send the same call
+      shapes as any fighter, and the list is labelled "Fighter's List". Their 11 list
+      rules are ordinary fighter-type rules.
+    - **So:** vehicle-type rules belong in the N23 core file. N26 vehicle rules go in the
+      per-gang-type files like any fighter's, and the resolver treats N26 vehicles as
+      fighters. That is what the RPC does today: it matches `$3` against both
+      `fighter_type_id` and `vehicle_type_id`
+      (`get_equipment_detailed_data.sql:266-267`).
 
 ## Decisions: answered by what is served today
 
@@ -311,8 +329,9 @@ the Trading Post tab.
 
 **Consequence:** Trading Post mode is a pricing mode, not only a channel. In the offer
 model, the `trading_post` offer exists for every item that is Trading Post stock *or*
-on the fighter's list, and the Trading Post tab shows it for both. For vehicles and the
-stash, that tab shows Trading Post stock only (`equipment.tsx:302-309`).
+on the fighter's list, and the Trading Post tab shows it for both. For N23 vehicles and
+the stash, that tab shows Trading Post stock only (`equipment.tsx:302-309`). N26
+vehicles are fighters and get the combined call like any other (finding 10).
 
 ### D2. Editable Cost, Trade Points and resource fields
 
@@ -456,8 +475,9 @@ The target design stands, with the D1–D7 answers applied:
   one shape: kind, scope columns, specificity and value. No table migration yet.
 - **Snapshot.**
   - One core file per edition. It holds items, profiles, Trading Post stock, discounts,
-    rarity, count limits, and rules not tied to a fighter type (vehicle rules and
-    gang-wide subtype rules).
+    rarity, count limits, and rules not tied to a fighter type. Those are the N23
+    vehicle-type rules, which only the N23 file has, and the gang-wide subtype rules.
+    N26 vehicles' rules are fighter-type rules (finding 10).
   - One fighter's-list rules file per gang type, **keyed by the gang type that owns
     each fighter type**. The modal loads the fighter type's file, plus the legacy and
     affiliation types' files when they differ.
@@ -507,7 +527,8 @@ is applied to production without asking first.
 2. **Compute derived fields at save time.** Vehicle slot and grant option names are
    currently worked out on every read (`get_equipment_detailed_data.sql:394-437`).
    Option names also change when a granted item is renamed, so that rename must update
-   them too.
+   them too. The vehicle slot only exists for N23 `vehicle_upgrade` items today
+   (finding 10).
 3. **Rules view, version table and triggers.** Add `equipment_rules`, `catalogue_version`,
    and statement-level triggers on every table the snapshot reads. That includes
    `fighter_effect_types`, `fighter_effect_type_modifiers`, `gang_types`,
@@ -526,9 +547,13 @@ is applied to production without asking first.
    - **Gangs.** Reuse #2183's equivalence set: 14 gangs × 11 call shapes, plus the 5
      most recently updated gangs each of Outcasts (N26), Underhive Outcasts (N23),
      Venators (N23) and Venators (N26).
-   - **Extra cases.** Add fighters whose type, legacy or affiliation comes from another
-     gang type (finding 1). Add a gang in a campaign with no listed Trading Posts, and a
-     PENDING one (D4).
+   - **Extra cases.**
+     - Fighters whose type, legacy or affiliation comes from another gang type
+       (finding 1).
+     - A gang in a campaign with no listed Trading Posts, and a PENDING one (D4).
+     - Both kinds of vehicle: an N23 vehicle through the vehicle modal, and an N26
+       vehicle fighter, including one whose type comes from another gang type
+       (finding 10).
 7. **Compare old and new on production data (D7).** This replaces browser shadow mode.
    - **What it is.** A script run from a developer machine, not shipped in the app. For
      a sample of real gangs and fighters it calls the live RPC and the new resolver with
