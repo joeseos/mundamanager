@@ -7,9 +7,8 @@
  * plain Node.
  *
  * Each item gets one offer per tab that shows it (fighter's list, Trading Post,
- * Unrestricted), each a row shaped as the RPC returns it, plus the unmerged terms of every
- * campaign custom Trading Post that stocks it. The modal switches tabs without asking the
- * server again.
+ * Unrestricted), each a row shaped as the RPC returns it. The modal switches tabs without
+ * asking the server again.
  */
 import type {
   CatalogueAvailabilityRule,
@@ -41,14 +40,6 @@ export interface EquipmentContext {
   isVehicle: boolean;
   /** The Gang Legacy switch. */
   legacy: boolean;
-}
-
-export interface EquipmentSources {
-  overlay: EquipmentOverlay;
-  /** The core files of the gang's edition and of overlay.otherEditions. */
-  cores: EquipmentCatalogueCore[];
-  /** The gang type files overlay.ruleFiles names. */
-  ruleFiles: EquipmentCatalogueGangType[];
 }
 
 export interface ResolvedWeaponProfile {
@@ -96,25 +87,10 @@ export interface ResolvedEquipmentRow {
   max_count: number | null;
 }
 
-/** One campaign custom Trading Post's own terms for an item, before the posts are merged. */
-export interface CustomTradingPostOffer {
-  post: string;
-  postName: string | null;
-  baseCost: number | null;
-  adjustedCost: number | null;
-  availability: string | null;
-  resourceName: string | null;
-  resourceAmount: number | null;
-  campaignTypeResource: string | null;
-  campaignResource: string | null;
-  banned: boolean;
-}
-
 export interface ResolvedItem {
   id: string;
   /** The row each tab shows, for the tabs that show the item. */
   offers: Partial<Record<EquipmentTab, ResolvedEquipmentRow>>;
-  customTradingPosts: CustomTradingPostOffer[];
 }
 
 export type ResolvedEquipment = Map<string, ResolvedItem>;
@@ -405,22 +381,6 @@ function mergeCustomTerms(rows: OverlayCustomTpStock[]): MergedCustomTerms {
   };
 }
 
-function customPostOffer(row: OverlayCustomTpStock, cost: number | null): CustomTradingPostOffer {
-  const merged = mergeCustomTerms([row]);
-  return {
-    post: row[1],
-    postName: row[2],
-    baseCost: merged.paidWithResource ? cost : (merged.costOverride ?? cost),
-    adjustedCost: merged.paidWithResource ? cost : (merged.adjustedCost ?? merged.costOverride ?? cost),
-    availability: merged.availability,
-    resourceName: merged.resourceName,
-    resourceAmount: merged.resourceAmount,
-    campaignTypeResource: merged.campaignTypeResource,
-    campaignResource: merged.campaignResource,
-    banned: merged.banned,
-  };
-}
-
 export function resolveEquipment(
   index: CatalogueIndex,
   overlay: EquipmentOverlay,
@@ -655,12 +615,8 @@ export function resolveEquipment(
       }
     }
 
-    if (Object.keys(offers).length > 0 || customRows.length > 0) {
-      result.set(item.id, {
-        id: item.id,
-        offers,
-        customTradingPosts: customRows.map((row) => customPostOffer(row, item.cost)),
-      });
+    if (Object.keys(offers).length > 0) {
+      result.set(item.id, { id: item.id, offers });
     }
   }
 
@@ -717,7 +673,7 @@ export function resolveEquipment(
     }
     if (tpOnly === 0) offers['unrestricted'] = { ...plain, trade_points: tradePoints };
 
-    result.set(id, { id, offers, customTradingPosts: customRows.map((row) => customPostOffer(row, cost)) });
+    result.set(id, { id, offers });
   }
 
   return result;
