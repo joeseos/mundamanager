@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Decisions agreed 2026-10-02: D1–D6 keep what is served today, D5 uses option (a), D7 uses a comparison script, and Phases 1 and 2 are skipped. Next is Phase 3. |
+| Status | Decisions agreed 2026-10-02: D1–D6 keep what is served today, D5 uses option (a), D7 uses a comparison script, and Phases 1 and 2 are skipped. Phase 3 is in draft #2188. |
 | Date | 2026-10-01 |
 | Scope | `components/equipment/equipment.tsx`, `buyEquipmentForFighter`, `public.get_equipment_detailed_data` |
 
@@ -520,12 +520,22 @@ is applied to production without asking first.
    - **The cost it avoids.** A migration, two stored columns and triggers on three
      tables. It was built and tested, then dropped unmerged.
    - **Instead,** Phase 4 works them out while building the snapshot.
-3. **Rules view, version table and triggers.** Add `equipment_rules`, `catalogue_version`,
-   and statement-level triggers on every table the snapshot reads. That includes
-   `fighter_effect_types`, `fighter_effect_type_modifiers`, `gang_types`,
-   `exotic_beasts`, `weapon_profiles`, the Trading Post tables and `count_limits`.
-4. **Snapshot function, delivery and compact encoding.** Use D5 option (a), the Vercel
-   route under `/api/`. The snapshot function works out each vehicle upgrade's slot and
+3. **Version table and triggers** (#2188). `catalogue_version` holds one number, bumped by
+   a statement-level trigger on each table the snapshot will read:
+   - **The tables (16):** `equipment`, `weapon_profiles`, `fighter_type_equipment`,
+     `equipment_discounts`, `equipment_availability`, `trading_post_equipment`,
+     `trading_post_types`, `count_limits`, `exotic_beasts`, `fighter_effect_types`,
+     `fighter_effect_type_modifiers`, `gang_types`, `fighter_types`,
+     `fighter_gang_legacy`, `gang_affiliation` and `vehicle_types`.
+   - **No player contention.** All 16 can only be written by admins (verified:
+     `pg_policies`), so the single row is never contended by players.
+   - **Visible at commit.** The bump runs in the writer's transaction, so the new number
+     shows only when the change commits.
+   - **Rules view moved.** The `equipment_rules` view is now part of Phase 4: nothing uses
+     it before the snapshot, whose needs decide its shape.
+4. **Rules view, snapshot function, delivery and compact encoding.** Add the
+   `equipment_rules` view the snapshot is built from. Add a version trigger to any further
+   table the snapshot reads. Use D5 option (a), the Vercel route under `/api/`. The snapshot function works out each vehicle upgrade's slot and
    each grant option's equipment name while it builds, as the RPC does today
    (`get_equipment_detailed_data.sql:394-437`). The slot only exists for N23
    `vehicle_upgrade` items (finding 10). Store grant options in their stored order.
