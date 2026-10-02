@@ -2,35 +2,36 @@ import 'server-only';
 
 import { NextResponse } from 'next/server';
 import { unstable_cache } from 'next/cache';
-import { createClient, createServiceRoleClient } from '@/utils/supabase/server';
-import { getUserIdFromClaims } from '@/utils/auth';
+import { createServiceRoleClient } from '@/utils/supabase/server';
 import type { EquipmentCatalogueCore, EquipmentCatalogueGangType } from '@/types/equipment-catalogue';
 
 /**
  * Serves the Equipment modal's catalogue snapshot at
- * /api/equipment/catalogue?version=&edition_id=[&gang_type_id=].
+ * /api/equipment/catalogue/{version}/{edition}[/{gangType}].
  *
- * A file never changes once built for a version, so the browser may keep it for good. The
- * version is in the URL, and a request for any other version is redirected, uncached, to the
- * current one. Each version is built once (Next data cache) whoever asks first.
+ * A file never changes once built for a version, so the CDN and the browser may keep it for
+ * good, and the route runs about once per file per version. It is official rules data, with
+ * nothing about any user in it, so it is served to anyone. Everything that varies is in the
+ * path, as some CDNs leave query strings out of their cache keys. A request for any other
+ * version is redirected, uncached, to the current one.
  */
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const VERSION_RE = /^\d{1,18}$/;
 
-const IMMUTABLE = 'private, max-age=31536000, immutable';
+const IMMUTABLE = 'public, max-age=31536000, s-maxage=31536000, immutable';
 const NO_STORE = 'no-store';
 
 /** The catalogue changed between the version check and the build. */
-class CatalogueVersionMoved extends Error {
+export class CatalogueVersionMoved extends Error {
   constructor(readonly current: number) {
     super(`Catalogue version moved to ${current}`);
   }
 }
 
-type CatalogueFile = EquipmentCatalogueCore | EquipmentCatalogueGangType;
+export type CatalogueFile = EquipmentCatalogueCore | EquipmentCatalogueGangType;
 
-async function getCurrentCatalogueVersion(): Promise<number> {
+export async function getCurrentCatalogueVersion(): Promise<number> {
   const supabase = createServiceRoleClient();
   const { data, error } = await supabase
     .from('catalogue_version')
@@ -47,7 +48,7 @@ async function getCurrentCatalogueVersion(): Promise<number> {
  * Built once per version, edition and gang type. Throws rather than return a file of another
  * version, because unstable_cache keeps whatever it is given.
  */
-const getCatalogueFile = unstable_cache(
+export const getCatalogueFile = unstable_cache(
   async (version: number, edition: string, gangType: string | null): Promise<CatalogueFile | null> => {
     const supabase = createServiceRoleClient();
     const { data, error } = await supabase.rpc('get_equipment_catalogue', {
@@ -71,9 +72,7 @@ const getCatalogueFile = unstable_cache(
 );
 
 function catalogueUrl(version: number, edition: string, gangType: string | null): string {
-  const params = new URLSearchParams({ version: String(version), edition_id: edition });
-  if (gangType) params.set('gang_type_id', gangType);
-  return `/api/equipment/catalogue?${params}`;
+  return `/api/equipment/catalogue/${version}/${edition}${gangType ? `/${gangType}` : ''}`;
 }
 
 function redirectToVersion(requestUrl: string, version: number, edition: string, gangType: string | null) {
@@ -86,21 +85,21 @@ function errorResponse(message: string, status: number) {
   return NextResponse.json({ error: message }, { status, headers: { 'Cache-Control': NO_STORE } });
 }
 
-export async function serveEquipmentCatalogue(
-  requestUrl: string,
-  params: { version: string; edition: string; gangType: string | null }
-): Promise<NextResponse> {
-  const { version, edition, gangType } = params;
+/** path: [version, edition] for a core file, [version, edition, gangType] for a gang type's file. */
+export async function serveEquipmentCatalogue(requestUrl: string, path: string[]): Promise<NextResponse> {
+  const [version = '', rawEdition = '', rawGangType = null, ...rest] = path;
 
-  // Signed-in users only, as the catalogue tables are.
-  const userId = await getUserIdFromClaims(await createClient());
-  if (!userId) {
-    return errorResponse('Unauthorized', 401);
-  }
-
-  if (!VERSION_RE.test(version) || !UUID_RE.test(edition) || (gangType !== null && !UUID_RE.test(gangType))) {
+  if (
+    rest.length > 0 ||
+    !VERSION_RE.test(version) ||
+    !UUID_RE.test(rawEdition) ||
+    (rawGangType !== null && !UUID_RE.test(rawGangType))
+  ) {
     return errorResponse('Not found', 404);
   }
+
+  const edition = rawEdition.toLowerCase();
+  const gangType = rawGangType?.toLowerCase() ?? null;
 
   try {
     const current = await getCurrentCatalogueVersion();
@@ -108,7 +107,7 @@ export async function serveEquipmentCatalogue(
       return redirectToVersion(requestUrl, current, edition, gangType);
     }
 
-    const file = await getCatalogueFile(current, edition.toLowerCase(), gangType?.toLowerCase() ?? null);
+    const file = await getCatalogueFile(current, edition, gangType);
     if (!file) {
       return errorResponse('Not found', 404);
     }
