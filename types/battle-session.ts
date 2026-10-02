@@ -132,6 +132,8 @@ export interface BattleSessionFull extends BattleSession {
     fighters: BattleSessionFighter[];
   })[];
   campaign_name?: string;
+  /** The challenge this session plays, which its completion files. */
+  linked_battle?: { campaign_territory_id: string | null; cycle: number | null; note: string | null } | null;
   campaign_resources?: CampaignResource[];
   campaign_gang_ids?: Record<string, string>;
 }

@@ -15,6 +15,8 @@ import type {
 import { fetchBattleSessionDirect } from '@/app/lib/battle-sessions/get-battle-session-data';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
 import { editionsConflict, gangEditionJoin, gangEditionSlug } from '@/types/edition';
+import type { BattleParticipant } from '@/types/campaign';
+import { parseParticipants } from '@/utils/battle-winners';
 
 /**
  * Gangs have no edition of their own — it is always derived via the gang type,
@@ -143,10 +145,43 @@ export async function createBattleSession(params: {
   campaign_id?: string;
   scenario?: string;
   gang_ids?: string[];
+  /** An accepted challenge to play; its gangs, roles and scenario replace the ones above. */
+  campaign_battle_id?: string;
 }): Promise<{ success: boolean; session_id?: string; error?: string }> {
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
+
+    let challengeRoles = new Map<string, BattleParticipant['role']>();
+    let existingSessionId: string | undefined;
+    if (params.campaign_battle_id) {
+      const [{ data: challenge }, { data: existingSession }] = await Promise.all([
+        supabase
+          .from('campaign_battles')
+          .select('campaign_id, scenario, status, participants')
+          .eq('id', params.campaign_battle_id)
+          .maybeSingle(),
+        supabase
+          .from('battle_sessions')
+          .select('id')
+          .eq('campaign_battle_id', params.campaign_battle_id)
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      if (!challenge) return { success: false, error: 'Challenge not found' };
+      existingSessionId = existingSession?.id;
+      if (challenge.status !== 'challenge_accepted')
+        return { success: false, error: 'Only an accepted challenge can be played as a battle session' };
+
+      const challengeParticipants = parseParticipants(challenge.participants as string);
+      challengeRoles = new Map(challengeParticipants.map((p) => [p.gang_id, p.role]));
+      params = {
+        campaign_id: challenge.campaign_id,
+        scenario: challenge.scenario || undefined,
+        gang_ids: [...challengeRoles.keys()],
+        campaign_battle_id: params.campaign_battle_id,
+      };
+    }
 
     const { data: profile } = await supabase
       .from('profiles')
@@ -168,6 +203,17 @@ export async function createBattleSession(params: {
           `)
           .in('id', params.gang_ids)
       : { data: null };
+
+    // Same rule as editing the battle log: a participating gang's owner or an arbitrator.
+    if (
+      params.campaign_battle_id &&
+      !gangs?.some((g) => g.user_id === user.id) &&
+      !(await isSessionArbitrator(user.id, params.campaign_id ?? null))
+    ) {
+      return { success: false, error: 'Only a gang in this challenge or an arbitrator can play it' };
+    }
+    // A challenge already being played opens its session rather than starting a second one.
+    if (existingSessionId) return { success: true, session_id: existingSessionId };
 
     // Nothing stops a skirmish "New Battle" from pairing gangs of different
     // editions — the opponent pickers filter, but a server action is a public
@@ -223,6 +269,7 @@ export async function createBattleSession(params: {
         scenario: params.scenario || null,
         status: 'pre_battle',
         edition_id: editionId,
+        campaign_battle_id: params.campaign_battle_id ?? null,
       })
       .select('id')
       .single();
@@ -236,7 +283,7 @@ export async function createBattleSession(params: {
         battle_session_id: sessionId,
         user_id: g.user_id,
         gang_id: g.id,
-        role: 'none' as const,
+        role: challengeRoles.get(g.id) ?? 'none',
         gang_rating_snapshot: g.rating ?? 0,
       }));
 
@@ -1327,7 +1374,10 @@ export async function completeBattleSession(
     ] = await Promise.all([
       supabase
         .from('battle_sessions')
-        .select('status, campaign_id, scenario, winner_gang_id, created_at')
+        .select(`
+          status, campaign_id, scenario, winner_gang_id, created_at, campaign_battle_id,
+          challenge:campaign_battle_id ( scenario, winner_id, note, participants, campaign_territory_id, cycle, status )
+        `)
         .eq('id', sessionId)
         .single(),
       supabase
@@ -1373,10 +1423,17 @@ export async function completeBattleSession(
     const legacyWinnerId: string | null =
       claimerGangId ?? effectiveWinnerIds[0] ?? null;
 
-    // --- Campaign battle log (inline insert, no createBattleLog call) ---
-    let campaign_battle_id: string | undefined;
+    // --- Campaign battle log (inline write, no createBattleLog call) ---
+    // A session played from a challenge files that challenge; any other inserts a new log.
+    const challenge = Array.isArray(session.challenge) ? session.challenge[0] : session.challenge;
+    if (challenge?.status === 'played')
+      return { success: false, error: 'This challenge has already been filed as played' };
+
+    let campaign_battle_id: string | undefined = session.campaign_battle_id ?? undefined;
     let dispossessedGangId: string | null = null;
     let claimedTerritory = false;
+    // Undoes the log write if a later step fails.
+    let rollbackBattleLog = async () => {};
     if (session.campaign_id) {
       const battleParticipants = allParticipants.map((p) => ({
         role: p.role,
@@ -1384,29 +1441,57 @@ export async function completeBattleSession(
         is_winner: winnerGangSet.has(p.gang_id),
         claimed_territory: claimerGangId !== null && p.gang_id === claimerGangId,
       }));
+      const battleLog = {
+        scenario: session.scenario || '',
+        winner_id: legacyWinnerId,
+        note: options?.note || null,
+        participants: JSON.stringify(battleParticipants),
+        campaign_territory_id: options?.campaign_territory_id || null,
+        cycle: options?.cycle ?? null,
+      };
 
-      const { data: battle, error: battleError } = await supabase
-        .from('campaign_battles')
-        .insert([
-          {
+      if (challenge) {
+        // Keeps the challenge's date, as filing it by hand does. The status guard lets
+        // only one filing win, so the rollback below never undoes someone else's.
+        const { data: filed, error: battleError } = await supabase
+          .from('campaign_battles')
+          .update({ ...battleLog, status: 'played', updated_at: new Date().toISOString() })
+          .eq('id', campaign_battle_id!)
+          .neq('status', 'played')
+          .select('id');
+
+        if (battleError || !filed?.length) {
+          if (battleError) console.error('Error filing challenge battle log:', battleError);
+          return { success: false, error: 'Failed to file the challenge battle log' };
+        }
+        rollbackBattleLog = async () => {
+          const { error: restoreError } = await supabase
+            .from('campaign_battles')
+            .update(challenge)
+            .eq('id', campaign_battle_id!);
+          if (restoreError) console.error('Failed to restore challenge battle log:', restoreError);
+        };
+      } else {
+        const { data: battle, error: battleError } = await supabase
+          .from('campaign_battles')
+          .insert([{
+            ...battleLog,
             campaign_id: session.campaign_id,
-            scenario: session.scenario || '',
-            winner_id: legacyWinnerId,
-            note: options?.note || null,
-            participants: JSON.stringify(battleParticipants),
             created_at: session.created_at ?? new Date().toISOString(),
-            campaign_territory_id: options?.campaign_territory_id || null,
-            cycle: options?.cycle ?? null,
-          },
-        ])
-        .select('id')
-        .single();
+          }])
+          .select('id')
+          .single();
 
-      if (battleError) {
-        console.error('Error creating campaign battle log:', battleError);
-        return { success: false, error: 'Failed to create campaign battle log' };
+        if (battleError) {
+          console.error('Error creating campaign battle log:', battleError);
+          return { success: false, error: 'Failed to create campaign battle log' };
+        }
+        campaign_battle_id = battle.id;
+        rollbackBattleLog = async () => {
+          const { error: deleteError } = await supabase.from('campaign_battles').delete().eq('id', battle.id);
+          if (deleteError) console.error('Failed to rollback campaign battle:', deleteError);
+        };
       }
-      campaign_battle_id = battle.id;
 
       // Claim territory in same flow
       const claimTerritoryId = claimerGangId ? options?.campaign_territory_id : undefined;
@@ -1429,8 +1514,7 @@ export async function completeBattleSession(
           .eq('campaign_id', session.campaign_id);
 
         if (claimError) {
-          const { error: deleteError } = await supabase.from('campaign_battles').delete().eq('id', campaign_battle_id);
-          if (deleteError) console.error('Failed to rollback campaign battle after territory claim error:', deleteError);
+          await rollbackBattleLog();
           return { success: false, error: `Failed to claim territory: ${claimError.message}` };
         }
       }
@@ -1450,10 +1534,7 @@ export async function completeBattleSession(
       .select('id');
 
     if (error || !updated || updated.length === 0) {
-      if (campaign_battle_id) {
-        const { error: deleteError } = await supabase.from('campaign_battles').delete().eq('id', campaign_battle_id);
-        if (deleteError) console.error('Failed to rollback campaign battle after session update error:', deleteError);
-      }
+      await rollbackBattleLog();
       return { success: false, error: error?.message || 'Session was already completed' };
     }
 

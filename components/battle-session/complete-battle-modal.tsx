@@ -56,9 +56,12 @@ export default function CompleteBattleModal({
   const initialIsDraw =
     initialWinnerIds.length === 0 && session.winner_gang_id === null;
 
-  const [selectedTerritory, setSelectedTerritory] = useState('');
-  const [cycle, setCycle] = useState('');
-  const [notes, setNotes] = useState('');
+  // A challenge's staked territory, cycle and note carry over to its report.
+  const [selectedTerritory, setSelectedTerritory] = useState(
+    session.linked_battle?.campaign_territory_id ?? ''
+  );
+  const [cycle, setCycle] = useState(session.linked_battle?.cycle?.toString() ?? '');
+  const [notes, setNotes] = useState(session.linked_battle?.note ?? '');
   const isReportOverLimit = notes.length > reportCharLimit;
   const [submitting, setSubmitting] = useState(false);
 

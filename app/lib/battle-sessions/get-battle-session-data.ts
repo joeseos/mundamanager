@@ -11,7 +11,7 @@ async function fetchBattleSessionDirect(
 ): Promise<BattleSessionFull | null> {
   const { data: session, error: sessionError } = await supabase
     .from('battle_sessions')
-    .select('*, editions:edition_id ( slug )')
+    .select('*, editions:edition_id ( slug ), linked_battle:campaign_battle_id ( campaign_territory_id, cycle, note )')
     .eq('id', sessionId)
     .single();
 
