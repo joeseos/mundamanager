@@ -189,8 +189,9 @@ CROSS JOIN LATERAL (
     WHERE cl.fighter_type_id IS NOT NULL AND eb.fighter_type_id = cl.fighter_type_id
 ) item;
 
+-- Only get_equipment_catalogue reads it, as the service role.
 REVOKE ALL ON public.equipment_rules FROM anon, authenticated;
-GRANT SELECT ON public.equipment_rules TO authenticated, service_role;
+GRANT SELECT ON public.equipment_rules TO service_role;
 
 CREATE OR REPLACE FUNCTION public.get_equipment_catalogue(
     p_edition_id   uuid,
