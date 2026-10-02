@@ -153,6 +153,7 @@ export async function createBattleSession(params: {
     const user = await getAuthenticatedUser(supabase);
 
     let challengeRoles = new Map<string, BattleParticipant['role']>();
+    let existingSessionId: string | undefined;
     if (params.campaign_battle_id) {
       const [{ data: challenge }, { data: existingSession }] = await Promise.all([
         supabase
@@ -168,8 +169,7 @@ export async function createBattleSession(params: {
           .maybeSingle(),
       ]);
       if (!challenge) return { success: false, error: 'Challenge not found' };
-      // A challenge already being played opens its session rather than starting a second one.
-      if (existingSession) return { success: true, session_id: existingSession.id };
+      existingSessionId = existingSession?.id;
       if (challenge.status !== 'challenge_accepted')
         return { success: false, error: 'Only an accepted challenge can be played as a battle session' };
 
@@ -212,6 +212,8 @@ export async function createBattleSession(params: {
     ) {
       return { success: false, error: 'Only a gang in this challenge or an arbitrator can play it' };
     }
+    // A challenge already being played opens its session rather than starting a second one.
+    if (existingSessionId) return { success: true, session_id: existingSessionId };
 
     // Nothing stops a skirmish "New Battle" from pairing gangs of different
     // editions — the opponent pickers filter, but a server action is a public

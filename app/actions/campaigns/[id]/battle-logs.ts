@@ -396,7 +396,8 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       nextStatus = challengedGangId ? 'challenge_issued' : 'challenge_pending';
     }
 
-    // A challenge being played in a battle session is filed when that session completes.
+    // A challenge being played in a battle session is filed when that session completes,
+    // so its opponent and status stay as the session was started with.
     const { data: linkedSession } = isOpenChallenge
       ? await supabase
           .from('battle_sessions')
@@ -406,8 +407,11 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
           .limit(1)
           .maybeSingle()
       : { data: null };
-    if (linkedSession && nextStatus === 'played') {
-      return { success: false as const, error: 'This challenge is being played in a battle session. Complete it there.' };
+    if (linkedSession && (opponentChanged || (!!nextStatus && nextStatus !== existingStatus))) {
+      return {
+        success: false as const,
+        error: 'This challenge is being played in a battle session. Complete or cancel the session first.',
+      };
     }
 
     // Any other status change is an answer. RLS lets any participant update
@@ -650,6 +654,20 @@ export async function deleteBattleLog(
     if (checkError || !existingBattle) {
       console.error('Battle not found or access denied', checkError);
       throw new Error('Battle not found or access denied');
+    }
+
+    // Deleting it would orphan the session, whose completion would then log the battle again.
+    if (existingBattle.status !== 'played') {
+      const { data: linkedSession } = await supabase
+        .from('battle_sessions')
+        .select('id')
+        .eq('campaign_battle_id', battleId)
+        .neq('status', 'completed')
+        .limit(1)
+        .maybeSingle();
+      if (linkedSession) {
+        throw new Error('This challenge is being played in a battle session. Complete or cancel the session first.');
+      }
     }
 
     // Only a played battle claimed its territory; a challenge merely staked one,
