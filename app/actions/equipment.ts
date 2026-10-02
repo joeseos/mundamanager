@@ -38,8 +38,6 @@ interface BuyEquipmentParams {
   target_equipment_id?: string;
   /** The Equipment modal tab the item was bought from. */
   equipment_list_type?: EquipmentTab;
-  /** The listed price, sent only by tabs opened before equipment_list_type existed. */
-  listed_cost?: number;
   /** The modal's Gang Legacy switch. */
   include_legacy?: boolean;
   selected_grant_equipment_ids?: string[];
@@ -329,7 +327,7 @@ async function resolveListedOffer(
 ): Promise<ResolvedEquipmentRow> {
   const tab = params.equipment_list_type;
   if (!tab || !EQUIPMENT_TABS.includes(tab)) {
-    throw new Error('Unknown equipment_list_type');
+    throw new Error('equipment_list_type is required');
   }
 
   // As the modal: the stash has no fighter type; an N23 vehicle's modal is opened from its
@@ -435,13 +433,10 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     const vehicleRow = vehicleResult.data as { fighter_id: string | null; vehicle_type_id: string | null } | null;
     const vehicleAssignedFighterId = vehicleRow?.fighter_id || null;
 
-    // The listed price, resolved here while the equipment is read below. Tabs opened before
-    // this check was deployed send no equipment_list_type and keep the old path, which takes the
-    // listed_cost they send. Remove that path together with get_equipment_detailed_data.
-    const listedOfferPromise =
-      params.equipment_list_type == null ? null : resolveListedOffer(supabase, params, vehicleRow);
+    // The listed price, resolved here while the equipment is read below.
+    const listedOfferPromise = resolveListedOffer(supabase, params, vehicleRow);
     // Settled at once so a rejection never goes unhandled while the reads below run.
-    listedOfferPromise?.catch(() => {});
+    listedOfferPromise.catch(() => {});
 
     // Shape must match the fighters select in the Promise.all above; the cast is
     // unavoidable there, so keep the two in step by hand.
@@ -548,9 +543,9 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
 
     // Calculate final costs. The gang pays the cost the user typed, as before. The listed price,
     // which rating uses when "Use Listed Cost for Rating" is ticked, is resolved here rather than
-    // taken from the browser, except on the old path above.
-    const listedOffer = listedOfferPromise ? await listedOfferPromise : null;
-    const listedCost = (listedOffer ? listedOffer.adjusted_cost : params.listed_cost) ?? baseCost;
+    // taken from the browser.
+    const listedOffer = await listedOfferPromise;
+    const listedCost = listedOffer.adjusted_cost ?? baseCost;
     const finalPurchaseCost = params.manual_cost ?? listedCost;
     let ratingCost = params.use_base_cost_for_rating
       ? listedCost
