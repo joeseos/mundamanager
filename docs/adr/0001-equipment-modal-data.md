@@ -575,8 +575,13 @@ migration under `supabase/migrations/` and update the matching file under
    - **Per-edition split.** Nothing is lost: every rule count matches its source table.
      Rules that point at another edition's item are left out; there are none today.
    - **Data note.** 21 `equipment_availability` rows tie N26 items to the N23 House Escher
-     or House Goliath gang type: 18 exclusive, 3 not. The exclusive ones have no effect
-     today, as none of those items is Trading Post stock. A list went to the data admins.
+     or House Goliath gang type instead of the N26 one: 18 exclusive, 3 not (verified:
+     query). A list went to the data admins.
+     - **Rarity is wrong today.** 20 of the rows set rarity E, but they only reach N23
+       gangs, which never see these N26 items. N26 Escher and Goliath gangs therefore see
+       the items' own rarity, C.
+     - **The exclusive flag has no effect,** because none of the items is Trading Post
+       stock.
 5. **Overlay RPC**, as described above.
 6. **Resolver with golden tests.**
    - **Shapes.** Generate fixtures from the live RPC using the list-only, Trading
