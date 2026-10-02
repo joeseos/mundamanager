@@ -359,27 +359,6 @@ what the modal displayed, so nothing visible changes. This is how "never trust a
 sent by the client" applies here: to the listed price, not to the amount the user chose
 to pay.
 
-**Noticed while checking (not changed here).** With the box unticked and Master-crafted
-on, the uplift is applied twice:
-
-- The dialog pre-fills the Cost field with the already-uplifted price
-  (`purchase-modal.tsx:112-121`).
-- The server then uplifts that typed cost again (`equipment.ts:478-492`).
-- The optimistic client handler does the same, so the two agree
-  (`fighter-equipment-list.tsx:138-145`).
-
-Verified on production data:
-
-- Of 10,363 Master-crafted rows in `fighter_equipment`, 9,043 store one uplift of the base
-  cost as their rating cost, and 60 store two.
-- 5 of those 60 still have their purchase log entry. All 5 show the gang charged one
-  uplift while its rating rose by two, for example a Lightning claw (base 70) charged 90
-  and rated 115. The 5 were bought between 2026-07-03 and 2026-09-28.
-- It only hits when the box is unticked, and it only affects rating, never credits. That
-  fits nobody having reported it.
-
-Fixing it is a separate PR.
-
 ### D3. Whose custom equipment
 
 **Today** (verified, `get_equipment_detailed_data.sql:293-313, 723`): three sources are
