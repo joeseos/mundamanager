@@ -9,7 +9,7 @@
 --   * get_equipment_catalogue(edition, gang type): builds one snapshot file and returns it
 --     with the catalogue_version it was built at, from the same statement.
 --
--- The catalogue route (/api/equipment-catalogue) calls the function through the service
+-- The catalogue route (/api/equipment/catalogue) calls the function through the service
 -- role; nothing else uses any of this yet.
 --
 -- Apply this migration BEFORE supabase/functions/bump_catalogue_version.sql and

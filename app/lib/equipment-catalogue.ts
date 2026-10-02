@@ -8,7 +8,7 @@ import type { EquipmentCatalogueCore, EquipmentCatalogueGangType } from '@/types
 
 /**
  * Serves the Equipment modal's catalogue snapshot at
- * /api/equipment-catalogue/{version}/{edition}[/{gangType}].
+ * /api/equipment/catalogue?version=&edition_id=[&gang_type_id=].
  *
  * A file never changes once built for a version, so the browser may keep it for good. The
  * version is in the URL, and a request for any other version is redirected, uncached, to the
@@ -71,7 +71,9 @@ const getCatalogueFile = unstable_cache(
 );
 
 function catalogueUrl(version: number, edition: string, gangType: string | null): string {
-  return `/api/equipment-catalogue/${version}/${edition}${gangType ? `/${gangType}` : ''}`;
+  const params = new URLSearchParams({ version: String(version), edition_id: edition });
+  if (gangType) params.set('gang_type_id', gangType);
+  return `/api/equipment/catalogue?${params}`;
 }
 
 function redirectToVersion(requestUrl: string, version: number, edition: string, gangType: string | null) {
