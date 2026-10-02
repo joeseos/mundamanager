@@ -906,8 +906,13 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
           .eq('gang_id', gangId)
       ]);
 
-      const fighters = fightersRes.error ? [] : (fightersRes.data || []);
-      const vehicles = vehiclesRes.error ? [] : (vehiclesRes.data || []);
+      // Throw so a failed read is not cached: revalidate is false, so an empty
+      // roster would stick until the next fighter or vehicle change.
+      if (fightersRes.error) throw fightersRes.error;
+      if (vehiclesRes.error) throw vehiclesRes.error;
+
+      const fighters = fightersRes.data || [];
+      const vehicles = vehiclesRes.data || [];
 
       const emptyBundle: GangFightersBundle = {
         gangId,
@@ -1110,6 +1115,10 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
           ? supabase.from('gangs').select('id, name').in('id', capturedByGangIds)
           : Promise.resolve({ data: [] })
       ]);
+
+      for (const res of [equipmentRes, skillsRes, effectsRes, beastLinksRes, loadoutsRes, capturedByGangsRes]) {
+        if (res.error) throw res.error;
+      }
 
       return {
         gangId,
