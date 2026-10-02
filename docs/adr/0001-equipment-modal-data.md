@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Decisions agreed 2026-10-02: D1–D6 keep what is served today, D5 uses option (a), D7 uses a comparison script, and Phases 1 and 2 are skipped. Phase 3 is in draft #2188. |
+| Status | Decisions agreed 2026-10-02: D1–D6 keep what is served today, D5 uses option (a), D7 uses a comparison script, and Phases 1 and 2 are skipped. Phase 3 is done; next is Phase 4. All phases go in #2186. |
 | Date | 2026-10-01 |
 | Scope | `components/equipment/equipment.tsx`, `buyEquipmentForFighter`, `public.get_equipment_detailed_data` |
 
@@ -503,9 +503,9 @@ The target design stands, with the D1–D7 answers applied:
 
 ## Phase plan
 
-One PR per phase; stop after each. Database phases add a migration under
-`supabase/migrations/` and update the matching file under `supabase/functions/`. Nothing
-is applied to production without asking first.
+All phases go in one PR (#2186); stop for review after each phase. Database phases add a
+migration under `supabase/migrations/` and update the matching file under
+`supabase/functions/`. Nothing is applied to production without asking first.
 
 1. **Skipped (2026-10-02): one call for both tabs.**
    - With D1 it would change no price. It would only save the refetch when switching
@@ -520,7 +520,7 @@ is applied to production without asking first.
    - **The cost it avoids.** A migration, two stored columns and triggers on three
      tables. It was built and tested, then dropped unmerged.
    - **Instead,** Phase 4 works them out while building the snapshot.
-3. **Version table and triggers** (#2188). `catalogue_version` holds one number, bumped by
+3. **Version table and triggers.** `catalogue_version` holds one number, bumped by
    a statement-level trigger on each table the snapshot will read:
    - **The tables (16):** `equipment`, `weapon_profiles`, `fighter_type_equipment`,
      `equipment_discounts`, `equipment_availability`, `trading_post_equipment`,
