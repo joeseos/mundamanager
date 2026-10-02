@@ -51,3 +51,6 @@ todo.md
 supabase/.temp/
 supabase/policies/
 supabase/seed/
+
+# scripts/equipment-resolver/compare-production.mjs progress (production ids)
+compare-state.json
