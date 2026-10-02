@@ -134,3 +134,76 @@ export interface EquipmentCatalogueGangType {
   refs: string[];
   listRules: CatalogueListRule[];
 }
+
+/**
+ * The Equipment modal's per-gang overlay, from get_equipment_overlay
+ * (supabase/functions/get_equipment_overlay.sql): what the snapshot cannot hold because it
+ * depends on the gang, its campaign, the fighter or the viewer. Ids are uuids.
+ */
+export const EQUIPMENT_OVERLAY_FORMAT = 1;
+
+/** Custom equipment the viewer can see. */
+export type OverlayCustomItem = [
+  id: string,
+  name: string | null,
+  category: string | null,
+  type: 'weapon' | 'wargear' | 'vehicle_upgrade',
+  cost: number | null,
+  availability: string | null,
+  tradePoints: string,
+  profiles: CatalogueProfile[] | null,
+  /** Seen only because a campaign custom Trading Post stocks it, so on the Trading Post tab only. */
+  tpOnly: CatalogueFlag,
+];
+
+/** The campaign's custom Trading Posts' terms for one item, official or custom. Trading Post tab only. */
+export type OverlayCustomTpOffer = [
+  item: string,
+  costOverride: number | null,
+  /** The price set for this gang's gang type, custom gang type or origin. */
+  adjustedCost: number | null,
+  availability: string | null,
+  /** Paid with a campaign resource or Reputation, in which case the item's own cost is shown. */
+  paidWithResource: CatalogueFlag,
+  resourceName: string | null,
+  resourceAmount: number | null,
+  campaignTypeResource: string | null,
+  campaignResource: string | null,
+  banned: CatalogueFlag,
+  /** The stocking custom Trading Posts' names, sorted. */
+  tradingPosts: string[],
+];
+
+export interface EquipmentOverlay {
+  format: typeof EQUIPMENT_OVERLAY_FORMAT;
+  /** The current catalogue version, which names the snapshot files to load. */
+  version: number;
+  gang: {
+    id: string;
+    gangType: string | null;
+    customGangType: string | null;
+    edition: string | null;
+    origin: string | null;
+    subtypes: string[];
+    alignment: 'Outlaw' | 'Law Abiding' | 'Unaligned' | null;
+    affiliation: string | null;
+  };
+  /** Editions besides the gang's whose core files hold items the gang can reach. */
+  otherEditions: string[];
+  /** The official Trading Posts the Trading Post tab sells from. */
+  tradingPosts: string[];
+  /** The requested fighter, when it belongs to the gang. */
+  fighter: {
+    id: string;
+    fighterType: string | null;
+    /** Only for a fighter without an official type. */
+    customFighterType: string | null;
+    subtypes: string[];
+    typeSubtypes: string[];
+    legacyFighterType: string | null;
+    /** Official and custom items on the custom fighter type's equipment list. */
+    list: string[];
+  } | null;
+  customItems: OverlayCustomItem[];
+  customTpOffers: OverlayCustomTpOffer[];
+}
