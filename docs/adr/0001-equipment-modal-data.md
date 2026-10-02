@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Proposed. Phase 0 (investigation) is done; nothing after it has started. |
+| Status | Proposed. Phase 0 is done, and D1–D6 are answered by what is served today. D7 is still open. |
 | Date | 2026-10-01 |
 | Scope | `components/equipment/equipment.tsx`, `buyEquipmentForFighter`, `public.get_equipment_detailed_data` |
 
@@ -279,26 +279,153 @@ Where things can come from:
    A snapshot query needs its own `gcTime`. Otherwise reopening after 10 idle minutes
    refetches it, cheaply, from the browser's HTTP cache.
 
-## Decisions needed before Phase 1
+## Decisions: answered by what is served today
 
-| # | Question | Options | Recommendation |
+Rule: each decision takes the behaviour the RPC and modal serve today. The new design
+reproduces it, so no phase changes a value a user sees. The one exception is D7, which
+has no current behaviour to copy.
+
+### D1. Prices in the Trading Post tab
+
+**Today** (verified, `get_equipment_detailed_data.sql` unless noted):
+
+- The Trading Post tab shows fighter's-list items and Trading Post stock together, and
+  prices every row in Trading Post mode:
+  - **Price:** the custom Trading Post price, else its override, else the item's base
+    cost. Discounts don't apply (`:343-351`).
+  - **Rarity:** the custom Trading Post override, else the base value (`:322-323`).
+  - **Trade Points:** the cheapest matching discount's Trade Points, else the item's
+    own (`:354-357`). Fighter-type discounts therefore still change Trade Points in
+    this tab, even though they don't change credits.
+  - **Banned:** taken from the custom Trading Posts (`:455`).
+- The Fighter's List tab prices in list mode: discounts and list rarity apply, Trade
+  Points are `'0'`, and `banned` is false. The campaign Trading Post parameters are not
+  sent from this tab (`equipment.tsx:297-317`).
+- The Gang Legacy switch only appears on the Fighter's List tab, but its state carries
+  over. When it is on, the Trading Post tab also includes the legacy type's list items
+  (`equipment.tsx:319-325, 816-828`).
+
+**So:** keep all of this. The Combat shotgun stays 60 on the Fighter's List tab and 70 on
+the Trading Post tab.
+
+**Consequence:** Trading Post mode is a pricing mode, not only a channel. In the offer
+model, the `trading_post` offer exists for every item that is Trading Post stock *or*
+on the fighter's list, and the Trading Post tab shows it for both. For vehicles and the
+stash, that tab shows Trading Post stock only (`equipment.tsx:302-309`).
+
+### D2. Editable Cost, Trade Points and resource fields
+
+**Today** (verified): the fields are editable and pre-filled with the listed value. The
+server charges what the user typed. When "Use Listed Cost for Rating" is on, which is
+the default, it rates with the client's `listed_cost` (question 2).
+
+**So:** keep the fields, and keep charging the typed amount. The buy action re-resolves
+the listed values on the server, for the tab the item was bought from, and uses them in
+place of the client's `listed_cost`. On today's data they equal what the modal
+displayed.
+
+**Conflict with the brief:** "never trust a price sent by the client" can only apply to
+`listed_cost` and the rating, not to the charge. Making the server charge its own price
+would mean removing the editable fields, which changes what is served today.
+
+### D3. Whose custom equipment
+
+**Today** (verified, `get_equipment_detailed_data.sql:293-313, 723`): three sources are
+shown:
+
+- the **viewer's** own custom equipment,
+- custom equipment shared with the gang's campaign,
+- custom equipment stocked by the custom Trading Posts the request names.
+
+**So:** keep the viewer. An admin or arbitrator who opens another player's gang still
+sees their own custom items.
+
+### D4. Which campaign row, and which Trading Posts
+
+**Today** (verified):
+
+- **Allegiance and shared custom equipment** come from the gang's `campaign_gangs`
+  row whatever its status (`get_equipment_detailed_data.sql:76-81, 300-304`).
+- **Both Trading Post id lists** come from `getGangCampaigns`, which does not filter by
+  status. The modal takes the first entry (`gang-data.ts:474-494`,
+  `fighter-page.tsx:674-681`).
+- **Production:** no gang has more than one row. 268 PENDING rows carry a Trading Post
+  list.
+- **Official Trading Posts in the Trading Post tab:**
+  - A gang in a campaign gets exactly `campaigns.trading_posts`. Its own gang type's
+    post is included only if listed (`get_equipment_detailed_data.sql:90-98, 112-118`).
+  - 190 campaign gangs belong to a campaign that lists none, so they get no official
+    Trading Post stock.
+  - 64 belong to a campaign that leaves out their own post.
+  - A gang not in a campaign gets its gang type's own post.
+- **Custom Trading Posts:** `campaigns.custom_trading_posts` (91 campaign gangs have
+  some).
+- **Other tabs:** the Fighter's List and Unrestricted tabs send no campaign ids. The
+  "Trading Post" source in the item tooltip there names the gang type's own post
+  (`equipment-tooltip.tsx:36-37`).
+
+**So:** the overlay derives the same row and the same id lists server-side, per tab as
+above. It sorts the rows explicitly so a second row, if one ever appears, is chosen the
+same way every time. No gang has one today, so no output changes.
+
+### D5. Who can read the catalogue
+
+**Today** (verified): signed-in users only.
+
+- Every source table allows `SELECT` to `authenticated` only (`pg_policies`).
+- The RPC is revoked from `anon` (`get_equipment_detailed_data.sql:740-743`).
+
+**So:** the snapshot is signed-in only. No public URL.
+
+**Consequence for Phase 4:** a shared CDN cache cannot serve a signed-in-only response,
+so the snapshot is fetched once per user per version rather than once per version. At
+today's traffic:
+
+- 1,181 distinct users called the RPC in the last 24 hours, across 2,131 user-hours
+  (verified: edge logs).
+- Catalogue tables were written in at least 60 distinct hours over the last 30 days,
+  on 22 of those days (verified: `created_at`/`updated_at`; deletes are not visible
+  this way).
+
+There are two ways to deliver it. Either is never per open:
+
+| Option | How | Vercel invocations | Notes |
 |---|---|---|---|
-| D1 | What should a fighter's-list item cost when bought from the Trading Post tab? | (a) List price and no Trade Points, as on the Fighter's List tab. (b) The Trading Post price, as today. (c) Show both offers. | (c) in the target design, with (a) as the default the Buy button uses. Phase 1 makes this possible without a refetch. |
-| D2 | What happens to the editable Cost, Trade Points and resource fields? | (a) Keep them as an explicit override. The server resolves the listed price, uses it for rating and as the default charge, and logs any override. (b) Remove them. | (a). Players use the override for house rules. "Never trust the client" then applies to the listed price, the rating and availability. |
-| D3 | Whose custom equipment does the modal show? | (a) The viewer's, as today. (b) The gang owner's plus campaign-shared items. | (b). Admins and arbitrators edit on the owner's behalf. |
-| D4 | Which campaign counts? | (a) Any `campaign_gangs` row, as today. (b) ACCEPTED only, matching `check_permission`. | (b). Consider a unique partial index on `campaign_gangs(gang_id) WHERE status = 'ACCEPTED'` as a separate change. |
-| D5 | Who can read the snapshot? | (a) Public, cached by the CDN. (b) Signed-in only, which means no shared CDN cache and a function call per user per version. (c) Public files in Storage, written when the version bumps. | (a) if catalogue rules may be public. They contain no user data. Otherwise (c). |
-| D6 | Does the Unrestricted tab keep list pricing and rarity? | Keep, or switch to base values. | Keep. It is unchanged today and outside the 60 vs 70 issue. |
-| D7 | Where does Phase 7 send its difference logs? | (a) Console only. (b) A sampled insert into a Supabase table. (c) A Vercel route, which breaks the no-new-invocations rule. | (b), sampled. |
+| (a) Vercel route | Under `/api/`. Verifies the JWT locally, builds once per version through the Next data cache, and returns `Cache-Control: private, max-age=31536000, immutable`. | Once per user per version, roughly 1.2k–2.1k a day at today's traffic | Closest to the original design (inferred) |
+| (b) Supabase GET | Parts stored per version in a table and read through a `STABLE` function over PostgREST `GET`, with the same header set through `response.headers`. | None | Needs a build step the first time a version is requested. The gateway passing the header through is unverified. |
+
+This choice is only needed before Phase 4.
+
+### D6. The Unrestricted tab
+
+**Today** (verified):
+
+- **Rows:** every item of the gang's edition (`get_equipment_detailed_data.sql:588-593`)
+  plus the visible custom items.
+- **Prices:** list mode. Gang-type, fighter-type and affiliation discounts apply.
+  Legacy discounts don't, because the list flag isn't sent (`:199, 210`).
+- **Rarity:** list rarity.
+- **Trade Points:** the discount's, else the item's, never `'0'`. They are charged in
+  N26 (`equipment.tsx:166-169`).
+
+**So:** keep exactly that.
+
+### D7. Where shadow-mode differences go
+
+There is nothing to copy. Nothing collects client-side logs today: there is no logging
+package in `package.json` and no log table or action (verified). This is the one
+decision still open. My suggestion is a sampled insert into a Supabase table through an
+RPC, which adds no Vercel invocations.
 
 ## Decision (proposed)
 
-The target design stands, with these changes from Phase 0:
+The target design stands, with the D1–D6 answers applied:
 
 - **Offers per channel.** Each item gets one offer per channel: `fighter_list`,
   `trading_post` and `custom_tp:<id>`. Each offer has its own price, Trade Points,
-  rarity, resource cost and banned flag. There are no mode flags; the modal filters
-  locally.
+  rarity, resource cost and banned flag, with values as D1 and D6 describe. Note that
+  the `trading_post` offer also exists for fighter's-list items. There are no mode
+  flags; the modal filters locally.
 - **Rules view first.** An `equipment_rules` view unions the existing rule tables into
   one shape: kind, scope columns, specificity and value. No table migration yet.
 - **Snapshot.**
@@ -310,29 +437,31 @@ The target design stands, with these changes from Phase 0:
     affiliation types' files when they differ.
   - Compact encoding: integer indexes instead of repeated UUIDs, only the columns
     needed, arrays rather than keyed objects.
+  - Signed-in only (D5).
 - **Version.** A `catalogue_version` row, bumped by statement-level `SECURITY DEFINER`
   triggers on every table the snapshot reads. The admin PATCH bumps it many times per
   save, which is acceptable: only the last version is requested again.
-- **Snapshot route.** It lives under `/api/`, so the proxy adds no cookies. One SQL
-  function returns the version and the data from the same statement. The route serves
-  them with `Cache-Control: public, max-age=31536000, immutable`, or the D5 alternative.
-  A request for a stale version gets a `no-store` redirect to the current one.
+- **Snapshot delivery.** One SQL function returns the version and the data from the
+  same statement. It is served by option (a) or (b) under D5. A request for a stale
+  version gets a `no-store` redirect to the current one.
 - **Overlay RPC.** It derives all context from `gang_id` server-side and checks the
   caller can edit the gang. It returns the current `catalogue_version` and:
-  - custom items, chosen per D3,
-  - the authorised **official** Trading Post type ids,
-  - custom Trading Post rules, for the custom posts the gang's ACCEPTED campaign allows,
+  - the viewer's, campaign-shared and campaign-custom-Trading-Post custom items (D3),
+  - the gang's campaign row whatever its status (D4),
+  - the authorised official and custom Trading Post ids, by today's rules (D4),
   - custom fighter type lists,
   - campaign resource names.
 
-  Both kinds of Trading Post id are decided server-side, never taken from the client.
+  It never accepts Trading Post ids from the client. On today's data, deriving them
+  server-side gives the same ids the client sends now.
 - **Resolver.** A pure module (`lib/equipment/resolve.ts`) with no React or Supabase
   imports. The modal loads the snapshot with React Query, keyed on the version, with
   `staleTime: Infinity` and a long `gcTime`.
-- **Buy action.** It re-resolves the purchased item on the server from cached gang
-  context, the overlay data and the snapshot. It uses that listed price for rating and
-  as the default charge, and enforces `banned` and availability. Overrides are allowed
-  only as D2 decides.
+- **Buy action.** The client names the tab the item was bought from. The server checks
+  the item is offered there, which for Unrestricted means anything in the gang's
+  edition, and that it isn't banned. It then re-resolves the listed values to use as
+  `listed_cost` and for the rating, and charges the typed amount, as today (D2). The UI
+  already prevents everything these checks reject, so no visible behaviour changes.
 
 ## Phase plan
 
@@ -340,13 +469,21 @@ One PR per phase; stop after each. Database phases add a migration under
 `supabase/migrations/` and update the matching file under `supabase/functions/`. Nothing
 is applied to production without asking first.
 
-1. **Separate list and Trading Post prices.** Phase 0 confirmed the 60 vs 70 issue. The
-   RPC returns list and Trading Post price, Trade Points and rarity as separate columns,
-   and the modal stops refetching on tab toggles.
-   - Changing the return type needs a `DROP` of the current signature. Wrap the
-     function file in `BEGIN`/`COMMIT` so callers never see it missing (finding 7).
-   - The app must accept both the old and the new row shape while the two deploys race.
-   - Existing columns keep their current values unless D1 says otherwise.
+1. **One call for both tabs.**
+   - **What it no longer does.** With D1, this phase changes no price; the 60 vs 70
+     difference is what is served today. What is left is the refetch when switching to
+     the Trading Post tab: 838 of about 10.5k calls in the 22.6-hour window, plus
+     every switch while in a campaign.
+   - **How.** The combined call adds list-mode columns, computed exactly as the
+     list-only call computes them, so without the campaign Trading Post parameters.
+     The Fighter's List tab then reads those columns and stays identical.
+   - **Cost.** Every Fighter's List open would then return the union of list and
+     Trading Post rows, which is a larger response for the roughly 91% of opens that
+     never switch tab (838 combined against 9,312 list calls; inferred). Phase 8
+     removes tab refetches anyway, so **consider skipping this phase**.
+   - **If kept:** wrap the function file in `BEGIN`/`COMMIT` around the `DROP` (finding
+     7). Make the app accept both row shapes while the two deploys race. The
+     Unrestricted tab and the Legacy switch keep their own fetches.
 2. **Compute derived fields at save time.** Vehicle slot and grant option names are
    currently worked out on every read (`get_equipment_detailed_data.sql:394-437`).
    Option names also change when a granted item is renamed, so that rename must update
@@ -355,33 +492,41 @@ is applied to production without asking first.
    and statement-level triggers on every table the snapshot reads. That includes
    `fighter_effect_types`, `fighter_effect_type_modifiers`, `gang_types`,
    `exotic_beasts`, `weapon_profiles`, the Trading Post tables and `count_limits`.
-4. **Snapshot function, versioned route and compact encoding.** Report the compressed
-   size of the core file and of the largest gang-type file. Confirm that per-edition
-   partitioning still loses nothing (finding 2).
-5. **Overlay RPC**, as described above, with D3 and D4 applied.
+4. **Snapshot function, delivery and compact encoding.** Use D5 option (a) or (b).
+   Report the compressed size of the core file and of the largest gang-type file.
+   Confirm that per-edition partitioning still loses nothing (finding 2).
+5. **Overlay RPC**, as described above.
 6. **Resolver with golden tests.**
-   - Generate fixtures from the live RPC per channel, using list-only and Trading
-     Post-only shapes, not the combined one.
-   - Reuse #2183's equivalence set: 14 gangs × 11 call shapes, plus the 5 most recently
-     updated gangs each of Outcasts (N26), Underhive Outcasts (N23), Venators (N23) and
-     Venators (N26).
-   - Add fighters whose type, legacy or affiliation comes from another gang type
-     (finding 1).
-7. **Shadow mode.** The modal computes both versions and logs any differences, per D7.
-   The UI does not change.
-8. **Switch over.** Switch the modal, then the buy action, then retire the RPC once
-   nothing calls it.
+   - **Shapes.** Generate fixtures from the live RPC using the list-only, Trading
+     Post-only and Unrestricted shapes, **plus the combined shape**. Under D1 the
+     combined shape is the only source of Trading Post-tab values for fighter's-list
+     items outside Trading Post stock: the Trading Post-only shape doesn't return them,
+     and the list-only shape prices them differently.
+   - **Gangs.** Reuse #2183's equivalence set: 14 gangs × 11 call shapes, plus the 5
+     most recently updated gangs each of Outcasts (N26), Underhive Outcasts (N23),
+     Venators (N23) and Venators (N26).
+   - **Extra cases.** Add fighters whose type, legacy or affiliation comes from another
+     gang type (finding 1). Add a gang in a campaign with no listed Trading Posts, and a
+     PENDING one (D4).
+7. **Shadow mode.** The modal computes both versions and records any differences, sent
+   wherever D7 decides. The UI does not change.
+8. **Switch over.** Switch the modal, then the buy action (as D2 describes), then retire
+   the RPC once nothing calls it.
 
 ## Consequences
 
 - **Fewer database calls per open.** One small overlay call replaces a 160–340 ms RPC.
-  Tab toggles and the Legacy switch become local.
+  Tab toggles and the Legacy switch become local. The snapshot is fetched once per user
+  per catalogue version (D5).
 - **Shared, testable resolution.** Price and availability rules are resolved in
   TypeScript, shared by the modal and the buy action, and covered by golden tests.
-- **Server-side validation.** The buy action gains validation it does not have today.
-  Behaviour changes are limited to D1–D4, each landing in a named PR.
-- **New moving parts:** a version table, triggers on about 20 tables, a cached route, and
-  a client cache that must be keyed on the version.
+- **No visible change.** No value a user sees changes. The buy action only adds
+  server-side checks that reject requests the UI cannot make.
+- **Today's quirks are kept on purpose:** the 60 vs 70 split, Trade Points discounts on
+  the Trading Post tab, viewer-based custom equipment, and PENDING campaign rows.
+  Changing any of them later is a separate, deliberate PR.
+- **New moving parts:** a version table, triggers on about 20 tables, a snapshot
+  delivery path, and a client cache that must be keyed on the version.
 - **Mid-save snapshots.** Until the admin PATCH runs in one transaction, a snapshot can
   catch a half-applied save (question 6).
 
