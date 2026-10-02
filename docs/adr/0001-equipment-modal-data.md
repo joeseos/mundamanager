@@ -125,8 +125,9 @@ these are read in `equipment.ts:309-1125`). `banned` is enforced only by the dis
 Buy button (`equipment.tsx:993-1008`). The base `cost` read at `equipment.ts:385-470` is
 only a fallback.
 
-**Inferred:** "never trust a price sent by the client" collides with a deliberate
-feature, the editable Cost field. See decision D2.
+The editable Cost field is deliberate. The user also chooses, with the "Use Listed
+Cost for Rating" checkbox, whether rating follows the listed price or the typed cost.
+The value actually at risk is the client-sent `listed_cost`; see D2.
 
 ### 3. Every caller of `get_equipment_detailed_data`
 
@@ -315,18 +316,41 @@ stash, that tab shows Trading Post stock only (`equipment.tsx:302-309`).
 
 ### D2. Editable Cost, Trade Points and resource fields
 
-**Today** (verified): the fields are editable and pre-filled with the listed value. The
-server charges what the user typed. When "Use Listed Cost for Rating" is on, which is
-the default, it rates with the client's `listed_cost` (question 2).
+**Today** (verified): the purchase dialog separates what the gang pays from what counts
+towards rating.
 
-**So:** keep the fields, and keep charging the typed amount. The buy action re-resolves
-the listed values on the server, for the tab the item was bought from, and uses them in
-place of the client's `listed_cost`. On today's data they equal what the modal
-displayed.
+- **What the gang pays:** the Cost field, pre-filled with the listed price. The user
+  can change it, and the server charges what was typed (`purchase-modal.tsx:42,
+  471-490`; `equipment.ts:477, 823`).
+- **What counts towards rating:** the user chooses with the "Use Listed Cost for
+  Rating" checkbox. It is ticked by default. Ticked, rating uses the listed price;
+  unticked, it uses the typed cost. Master-crafted +25% is added server-side
+  (`purchase-modal.tsx:45, 553-567`; `equipment.ts:478-492`).
+- **Trade Points:** typed and charged as typed, in N26 (`equipment.ts:542-546`).
+- **Resource amount:** typed, but rejected when it differs from a configured amount the
+  server finds (`equipment.ts:535-539`).
+- **The listed price itself:** sent by the client as `listed_cost`
+  (`use-purchase-equipment.ts:107`).
 
-**Conflict with the brief:** "never trust a price sent by the client" can only apply to
-`listed_cost` and the rating, not to the charge. Making the server charge its own price
-would mean removing the editable fields, which changes what is served today.
+**So:** keep the fields, the checkbox and the charge. The typed cost is the user's own
+choice, so the server does not need to distrust it. The only value the server stops
+taking from the client is `listed_cost`. The buy action re-resolves it for the tab the
+item was bought from, and uses it when the box is ticked. On today's data it equals
+what the modal displayed, so nothing visible changes. This is how "never trust a price
+sent by the client" applies here: to the listed price, not to the amount the user chose
+to pay.
+
+**Noticed while checking (not changed here).** With the box unticked and Master-crafted
+on, the uplift is applied twice:
+
+- The dialog pre-fills the Cost field with the already-uplifted price
+  (`purchase-modal.tsx:112-121`).
+- The server then uplifts that typed cost again (`equipment.ts:478-492`).
+- The optimistic client handler does the same, so the two agree
+  (`fighter-equipment-list.tsx:138-145`).
+
+For example, 60 becomes 75 in the Cost field and 95 in rating (inferred from code, not
+reproduced). Fixing it is a separate PR.
 
 ### D3. Whose custom equipment
 
@@ -459,9 +483,10 @@ The target design stands, with the D1–D6 answers applied:
   `staleTime: Infinity` and a long `gcTime`.
 - **Buy action.** The client names the tab the item was bought from. The server checks
   the item is offered there, which for Unrestricted means anything in the gang's
-  edition, and that it isn't banned. It then re-resolves the listed values to use as
-  `listed_cost` and for the rating, and charges the typed amount, as today (D2). The UI
-  already prevents everything these checks reject, so no visible behaviour changes.
+  edition, and that it isn't banned. It then re-resolves the listed price in place of
+  the client's `listed_cost`, which rating uses when the user ticks "Use Listed Cost for
+  Rating". It charges the typed amount, as today (D2). The UI already prevents
+  everything these checks reject, so no visible behaviour changes.
 
 ## Phase plan
 
