@@ -13,8 +13,8 @@
 --     catalogue_version.
 --
 -- The catalogue route (/api/equipment/catalogue) calls get_equipment_catalogue through the
--- service role. A signed-in user who can edit a gang may call get_equipment_overlay for it.
--- Nothing uses any of this yet.
+-- service role. A signed-in user who can edit a gang may call get_equipment_overlay for it:
+-- the Equipment modal does when it opens, and the buy action does to resolve the listed price.
 --
 -- Apply this migration BEFORE supabase/functions/bump_catalogue_version.sql,
 -- supabase/functions/get_equipment_catalogue.sql and

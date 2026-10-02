@@ -1,6 +1,7 @@
 -- The Equipment modal's per-gang overlay: what the catalogue snapshot (get_equipment_catalogue)
 -- cannot hold because it depends on the gang, its campaign, the fighter or the viewer. The modal
--- calls it from the browser when it opens; its version names the snapshot files to load.
+-- calls it from the browser when it opens; its version names the snapshot files to load. The buy
+-- action calls it too, to resolve the listed price on the server.
 --
 -- It derives here, from the gang, what get_equipment_detailed_data is given by the client or
 -- reads itself, and returns:
