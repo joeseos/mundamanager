@@ -4,7 +4,6 @@
  */
 
 import type { FighterEffect } from '@/types/fighter-effect';
-import { resolveMedicalEscort, type MedicalEscortOutcome } from '@/utils/dice';
 import { countsTowardRating } from '@/utils/fighter-status';
 
 export type PostCycleActionId =

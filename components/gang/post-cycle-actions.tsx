@@ -318,7 +318,7 @@ export default function PostCycleActions({
       });
 
   /** What a row will do on resolving, as far as it is known beforehand. */
-  const effectOf = (assignment: PostCycleAssignment | null, row?: RowState) => {
+  const effectOf = (assignment: PostCycleAssignment | null) => {
     if (!assignment) return null;
     if (assignment.action === 'train') return `+${TRAIN_XP} XP`;
     const delta = assignmentCreditsDelta(assignment);
@@ -342,7 +342,6 @@ export default function PostCycleActions({
         const current = fighterById.get(change.fighterId);
         if (current) onFighterUpdate?.(applyChange(current, change), true);
       }
-
 
       if (result.gang) onGangFinancialsUpdate?.(result.gang);
 
@@ -428,7 +427,7 @@ export default function PostCycleActions({
             const done = resolved[fighter.id];
             const state = rowStates.get(fighter.id);
             const assignment = state?.assignment ?? null;
-            const effect = done ? null : effectOf(assignment, row);
+            const effect = done ? null : effectOf(assignment);
             const rowIssues = state?.issues ?? [];
             const target = row?.targetFighterId
               ? fighterById.get(row.targetFighterId)
@@ -492,20 +491,18 @@ export default function PostCycleActions({
                   )}
 
                   {pending?.action === 'medical_escort' && (
-                    <>
-                      <Combobox
-                        options={patientOptions(fighter.id, criticallyInjured)}
-                        value={pending.targetFighterId ?? ''}
-                        onValueChange={(value) =>
-                          setRow(fighter.id, { targetFighterId: value || undefined })
-                        }
-                        placeholder="Critically Injured fighter"
-                        noResultsText="No fighter has a Critical Injury"
-                        dropdownPlacement="down"
-                        clearable
-                        disabled={!canEdit}
-                      />
-                    </>
+                    <Combobox
+                      options={patientOptions(fighter.id, criticallyInjured)}
+                      value={pending.targetFighterId ?? ''}
+                      onValueChange={(value) =>
+                        setRow(fighter.id, { targetFighterId: value || undefined })
+                      }
+                      placeholder="Critically Injured fighter"
+                      noResultsText="No fighter has a Critical Injury"
+                      dropdownPlacement="down"
+                      clearable
+                      disabled={!canEdit}
+                    />
                   )}
 
                   {pending?.action === 'fit_bionics' && (
@@ -549,7 +546,6 @@ export default function PostCycleActions({
                     </Button>
                   )}
 
-
                   {rowIssues.map((message) => (
                     <p key={message} className="text-xs text-red-600">
                       {message}
@@ -586,7 +582,6 @@ export default function PostCycleActions({
           })}
         </ul>
       </div>
-
 
     </div>
   );
