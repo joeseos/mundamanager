@@ -28,7 +28,8 @@ import { editFighterStatus } from "@/app/actions/edit-fighter";
 import { toast } from 'sonner';
 import type { FighterEffect } from '@/types/fighter';
 import { hasKilledStatusFlag, countsTowardRating } from '@/utils/fighter-status';
-import { hasVehicles, hasGangTacticsCards } from '@/types/edition';
+import { hasVehicles, hasGangTacticsCards, hasPostCycleActions } from '@/types/edition';
+import PostCycleActions from "@/components/gang/post-cycle-actions";
 
 interface GangPageContentProps {
   initialGangData: any; // We'll type this properly based on the processed data structure
@@ -147,6 +148,21 @@ export default function GangPageContent({
       }
     }));
   }, []);
+
+  const handleGangFinancialsUpdate = useCallback(
+    (financials: { credits: number; rating: number; wealth: number }) => {
+      setGangData((prev: GangDataState) => ({
+        ...prev,
+        processedData: {
+          ...prev.processedData,
+          credits: financials.credits,
+          rating: financials.rating,
+          wealth: financials.wealth,
+        },
+      }));
+    },
+    []
+  );
 
   const handleGangTradePointsUpdate = useCallback((newTradePoints: number) => {
     setGangData((prev: GangDataState) => ({
@@ -709,6 +725,17 @@ export default function GangPageContent({
             campaigns={gangData.processedData.campaigns || []}
             editionSlug={gangData.processedData.edition_slug}
           />
+          {hasPostCycleActions(gangData.processedData.edition_slug) && gangCampaigns.length > 0 && (
+            <PostCycleActions
+              gangId={gangId}
+              editionSlug={gangData.processedData.edition_slug}
+              fighters={gangData.processedData.fighters}
+              gangCredits={gangData.processedData.credits}
+              userPermissions={userPermissions}
+              onFighterUpdate={handleFighterUpdate}
+              onGangFinancialsUpdate={handleGangFinancialsUpdate}
+            />
+          )}
         </div>
       ),
     },
@@ -935,17 +962,7 @@ export default function GangPageContent({
                   },
                 }));
               }}
-              onGangFinancialsUpdate={(financials) => {
-                setGangData(prev => ({
-                  ...prev,
-                  processedData: {
-                    ...prev.processedData,
-                    credits: financials.credits,
-                    rating: financials.rating,
-                    wealth: financials.wealth,
-                  },
-                }));
-              }}
+              onGangFinancialsUpdate={handleGangFinancialsUpdate}
             />
           </Modal>
         );
