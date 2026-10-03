@@ -77,7 +77,6 @@ type Fighter = Awaited<ReturnType<typeof getGangFightersList>>[number];
 
 interface HandlerContext {
   supabase: any;
-  gangId: string;
   editionSlug: string;
   editionId: string | null;
   performer: Fighter;
@@ -391,7 +390,7 @@ export async function resolvePostCycleAction(
     }
 
     const handled = await runHandler(
-      { supabase, gangId, editionSlug, editionId, performer, target },
+      { supabase, editionSlug, editionId, performer, target },
       assignment
     );
 
