@@ -103,6 +103,11 @@ export function EquipmentSelection({
             )
           : undefined;
 
+        // Categories can offer the same equipment ids (e.g. two default weapons that
+        // each take any of the same replacements), so only drop items this category added.
+        const withoutCategoryItems = (items: SelectedEquipmentItem[]) =>
+          items.filter(item => item.selection_key !== categoryId);
+
         return (
           <div key={categoryId} className="space-y-3">
             {/* Default equipment display */}
@@ -179,20 +184,16 @@ export function EquipmentSelection({
                             );
                           });
                           setSelectedEquipment((prev) => {
-                            const currentCategoryOptions = categoryData.options || [];
-                            let filtered = prev.filter(item =>
-                              !currentCategoryOptions.some((o: any) => o.id === item.equipment_id)
-                            );
+                            const filtered = withoutCategoryItems(prev);
                             if (categoryData.select_type === 'optional_single' && categoryData.default && categoryData.default.length > 0) {
                               categoryData.default.forEach((defaultItem: any) => {
-                                if (!filtered.some(item => item.equipment_id === defaultItem.id)) {
-                                  filtered.push({
-                                    equipment_id: defaultItem.id,
-                                    cost: 0,
-                                    quantity: defaultItem.quantity || 1,
-                                    is_editable: defaultItem.is_editable || false,
-                                  });
-                                }
+                                filtered.push({
+                                  equipment_id: defaultItem.id,
+                                  cost: 0,
+                                  quantity: defaultItem.quantity || 1,
+                                  is_editable: defaultItem.is_editable || false,
+                                  selection_key: categoryId,
+                                });
                               });
                             }
                             return filtered;
@@ -231,20 +232,16 @@ export function EquipmentSelection({
                             );
                           });
                           setSelectedEquipment((prev) => {
-                            const currentCategoryOptions = categoryData.options || [];
-                            let filtered = prev.filter(item =>
-                              !currentCategoryOptions.some((o: any) => o.id === item.equipment_id)
-                            );
+                            const filtered = withoutCategoryItems(prev);
                             if (categoryData.default && categoryData.default.length > 0) {
                               categoryData.default.forEach((defaultItem: any) => {
-                                if (!filtered.some(item => item.equipment_id === defaultItem.id)) {
-                                  filtered.push({
-                                    equipment_id: defaultItem.id,
-                                    cost: 0,
-                                    quantity: defaultItem.quantity || 1,
-                                    is_editable: defaultItem.is_editable || false,
-                                  });
-                                }
+                                filtered.push({
+                                  equipment_id: defaultItem.id,
+                                  cost: 0,
+                                  quantity: defaultItem.quantity || 1,
+                                  is_editable: defaultItem.is_editable || false,
+                                  selection_key: categoryId,
+                                });
                               });
                             }
                             return filtered;
@@ -299,14 +296,7 @@ export function EquipmentSelection({
 
                                 setSelectedEquipment(prevEquip => {
                                   const currentCategoryOptions = categoryData.options || [];
-                                  let filtered = prevEquip.filter(item =>
-                                    !currentCategoryOptions.some((o: any) => o.id === item.equipment_id)
-                                  );
-                                  if (categoryData.default) {
-                                    categoryData.default.forEach((d: any) => {
-                                      filtered = filtered.filter(item => item.equipment_id !== d.id);
-                                    });
-                                  }
+                                  const filtered = withoutCategoryItems(prevEquip);
 
                                   currentCategoryOptions.forEach((o: any) => {
                                     if (newIds.includes(`${categoryId}-${o.id}`)) {
@@ -315,6 +305,7 @@ export function EquipmentSelection({
                                         cost: o.cost || 0,
                                         quantity: 1,
                                         is_editable: o.is_editable || false,
+                                        selection_key: categoryId,
                                       });
                                     }
                                   });
@@ -330,6 +321,7 @@ export function EquipmentSelection({
                                       cost: 0,
                                       quantity: remainingDefaults,
                                       is_editable: firstDefault.is_editable || false,
+                                      selection_key: categoryId,
                                     });
                                   }
 
@@ -377,23 +369,13 @@ export function EquipmentSelection({
                                 return [...filtered, uniqueOptionId];
                               });
 
-                              setSelectedEquipment((prev) => {
-                                const currentCategoryOptions = categoryData.options || [];
-                                let filtered = prev.filter(item =>
-                                  !currentCategoryOptions.some((o: any) => o.id === item.equipment_id)
-                                );
-                                if (categoryData.default) {
-                                  categoryData.default.forEach((d: any) => {
-                                    filtered = filtered.filter(item => item.equipment_id !== d.id);
-                                  });
-                                }
-                                return [...filtered, {
-                                  equipment_id: option.id,
-                                  cost: optionCost,
-                                  quantity: totalSlots,
-                                  is_editable: option.is_editable || false,
-                                }];
-                              });
+                              setSelectedEquipment((prev) => [...withoutCategoryItems(prev), {
+                                equipment_id: option.id,
+                                cost: optionCost,
+                                quantity: totalSlots,
+                                is_editable: option.is_editable || false,
+                                selection_key: categoryId,
+                              }]);
 
                               setFighterCost((prevCost) =>
                                 String(parseInt(prevCost || '0') - (prevCostPerUnit * totalSlots) + (optionCost * totalSlots))
@@ -426,25 +408,13 @@ export function EquipmentSelection({
                                 return [...filtered, uniqueOptionId];
                               });
 
-                              setSelectedEquipment((prev) => {
-                                const currentCategoryOptions = categoryData.options || [];
-                                let filtered = prev.filter(item =>
-                                  !currentCategoryOptions.some((o: any) =>
-                                    o.id === item.equipment_id && selectedEquipmentIds.includes(`${categoryId}-${o.id}`)
-                                  )
-                                );
-                                if (categoryData.select_type === 'optional_single' && categoryData.default && categoryData.default.length > 0) {
-                                  categoryData.default.forEach((defaultItem: any) => {
-                                    filtered = filtered.filter(item => item.equipment_id !== defaultItem.id);
-                                  });
-                                }
-                                return [...filtered, {
-                                  equipment_id: option.id,
-                                  cost: option.cost || 0,
-                                  quantity: 1,
-                                  is_editable: option.is_editable || false,
-                                }];
-                              });
+                              setSelectedEquipment((prev) => [...withoutCategoryItems(prev), {
+                                equipment_id: option.id,
+                                cost: option.cost || 0,
+                                quantity: 1,
+                                is_editable: option.is_editable || false,
+                                selection_key: categoryId,
+                              }]);
 
                               setFighterCost((prevCost) => {
                                 const currentCategoryOptions = categoryData.options || [];
@@ -483,11 +453,14 @@ export function EquipmentSelection({
                                 cost: optionCost,
                                 quantity: 1,
                                 is_editable: option.is_editable || false,
+                                selection_key: categoryId,
                               }]);
                               setFighterCost(prevCost => String(parseInt(prevCost || '0') + optionCost));
                             } else {
                               setSelectedEquipmentIds(prev => prev.filter(id => id !== uniqueOptionId));
-                              setSelectedEquipment(prev => prev.filter(item => item.equipment_id !== option.id));
+                              setSelectedEquipment(prev => prev.filter(item =>
+                                !(item.selection_key === categoryId && item.equipment_id === option.id)
+                              ));
                               setFighterCost(prevCost => String(parseInt(prevCost || '0') - optionCost));
                             }
                           }}
