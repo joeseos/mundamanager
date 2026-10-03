@@ -401,7 +401,7 @@ export default function PostCycleActions({
           Post-Cycle Actions
         </span>
         <span className="text-xs font-normal text-muted-foreground">
-          {Object.keys(resolved).length} of {actors.length} resolved
+          {actors.filter((f) => resolved[f.id]).length} of {actors.length} resolved
         </span>
       </h3>
 
