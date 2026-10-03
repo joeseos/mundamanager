@@ -346,10 +346,22 @@ export default function PostCycleActions({
 
       if (result.gang) onGangFinancialsUpdate?.(result.gang);
 
-      if (!result.success) {
-        toast.error(result.error || 'Failed to resolve the action');
-        return;
-      }
+      if (!result.success) toast.error(result.error || 'Failed to resolve the action');
+
+      /**
+       * Mirrors the server's own check. A Fit Bionics that removed two of three
+       * injuries, or a Stabilised result whose insert failed after the Critical
+       * Injury was cleared, is billed and logged — so it has spent the action,
+       * even though it reports failure. Without this the fighter could pick
+       * another one.
+       */
+      const landed =
+        !!outcome &&
+        (!outcome.failed ||
+          outcome.creditsDelta !== 0 ||
+          (outcome.changes?.length ?? 0) > 0);
+
+      if (!landed) return;
 
       const patientId =
         state.assignment.action === 'medical_escort' ||
@@ -358,23 +370,22 @@ export default function PostCycleActions({
           : null;
 
       // The row is done: record what happened and drop its inputs.
-      if (outcome) {
-        setResolved((prev) => ({
-          ...prev,
-          [fighterId]: { action: outcome.action, outcome: outcome.outcome },
-          // A fighter taken to the Doc spends no action of their own. Most are
-          // dead or in Recovery afterwards and drop out anyway, but a Fit
-          // Bionics patient is still on their feet.
-          ...(patientId
-            ? {
-                [patientId]: {
-                  action: outcome.action,
-                  outcome: `Taken to the Doc by ${outcome.fighterName}.`,
-                },
-              }
-            : {}),
-        }));
-      }
+      setResolved((prev) => ({
+        ...prev,
+        [fighterId]: { action: outcome.action, outcome: outcome.outcome },
+        // A fighter taken to the Doc spends no action of their own. Most are
+        // dead or in Recovery afterwards and drop out anyway, but a Fit
+        // Bionics patient is still on their feet.
+        ...(patientId
+          ? {
+              [patientId]: {
+                action: outcome.action,
+                outcome: `Taken to the Doc by ${outcome.fighterName}.`,
+              },
+            }
+          : {}),
+      }));
+
       setRows((prev) => {
         const next = { ...prev };
         delete next[fighterId];
