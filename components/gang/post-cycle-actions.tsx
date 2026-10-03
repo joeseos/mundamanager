@@ -226,10 +226,23 @@ export default function PostCycleActions({
     for (const [fighterId, row] of activeRows) {
       const assignment = toAssignment(fighterId, row);
       const issues = assignment
-        ? validatePostCycleAssignment(fighters, assignment, {
-            ...availability,
-          }).map((issue) => issue.message)
+        ? validatePostCycleAssignment(fighters, assignment, availability).map(
+            (issue) => issue.message
+          )
         : [];
+
+      // The server cannot see this: after one Fit Bionics the patient still has
+      // other injuries, so a second row targeting them would pass validation.
+      const patientId =
+        assignment &&
+        (assignment.action === 'medical_escort' || assignment.action === 'fit_bionics')
+          ? assignment.targetFighterId
+          : null;
+      if (patientId && resolved[patientId]) {
+        issues.push(
+          `${fighterById.get(patientId)?.fighter_name ?? 'That fighter'} has already been to the Doc.`
+        );
+      }
       states.set(fighterId, {
         assignment,
         issues,
@@ -237,7 +250,7 @@ export default function PostCycleActions({
       });
     }
     return states;
-  }, [activeRows, fighters, availability]);
+  }, [activeRows, fighters, availability, resolved, fighterById]);
 
   // Both halves count: five is the cap for the whole sequence, so rows still
   // waiting to resolve take slots just as resolved ones do.
@@ -338,14 +351,14 @@ export default function PostCycleActions({
         return;
       }
 
+      const patientId =
+        state.assignment.action === 'medical_escort' ||
+        state.assignment.action === 'fit_bionics'
+          ? state.assignment.targetFighterId
+          : null;
+
       // The row is done: record what happened and drop its inputs.
       if (outcome) {
-        const patientId =
-          state.assignment.action === 'medical_escort' ||
-          state.assignment.action === 'fit_bionics'
-            ? state.assignment.targetFighterId
-            : null;
-
         setResolved((prev) => ({
           ...prev,
           [fighterId]: { action: outcome.action, outcome: outcome.outcome },
@@ -363,8 +376,11 @@ export default function PostCycleActions({
         }));
       }
       setRows((prev) => {
-        const { [fighterId]: _done, ...rest } = prev;
-        return rest;
+        const next = { ...prev };
+        delete next[fighterId];
+        // The patient spends no action, so whatever they had queued goes with it.
+        if (patientId) delete next[patientId];
+        return next;
       });
     } catch (error) {
       toast.error(
@@ -407,6 +423,9 @@ export default function PostCycleActions({
               ? fighterById.get(row.targetFighterId)
               : undefined;
             const isResolving = resolvingFighterId === fighter.id;
+            // A patient is added to `resolved` by the escort's row, so `row`
+            // alone is not enough to decide whether inputs still show.
+            const pending = done ? undefined : row;
             const cannotAfford = (state?.cost ?? 0) > gangCredits;
 
             return (
@@ -461,11 +480,11 @@ export default function PostCycleActions({
                     />
                   )}
 
-                  {row?.action === 'medical_escort' && (
+                  {pending?.action === 'medical_escort' && (
                     <>
                       <Combobox
                         options={patientOptions(fighter.id, criticallyInjured)}
-                        value={row.targetFighterId ?? ''}
+                        value={pending.targetFighterId ?? ''}
                         onValueChange={(value) =>
                           setRow(fighter.id, { targetFighterId: value || undefined })
                         }
@@ -478,11 +497,11 @@ export default function PostCycleActions({
                     </>
                   )}
 
-                  {row?.action === 'fit_bionics' && (
+                  {pending?.action === 'fit_bionics' && (
                     <>
                       <Combobox
                         options={patientOptions(fighter.id, injuredFighters)}
-                        value={row.targetFighterId ?? ''}
+                        value={pending.targetFighterId ?? ''}
                         onValueChange={(value) =>
                           setRow(fighter.id, { targetFighterId: value || undefined, injuryIds: [] })
                         }
@@ -495,7 +514,7 @@ export default function PostCycleActions({
                       {target && (
                         <EffectChecklist
                           effects={removableLastingInjuriesOf(target)}
-                          selected={row.injuryIds}
+                          selected={pending.injuryIds}
                           costEach={FIT_BIONICS_COST_PER_INJURY}
                           onChange={(injuryIds) => setRow(fighter.id, { injuryIds })}
                           disabled={!canEdit}
@@ -505,7 +524,7 @@ export default function PostCycleActions({
                     </>
                   )}
 
-                  {row?.action === 'visit_chop_shop' && (
+                  {pending?.action === 'visit_chop_shop' && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -526,7 +545,7 @@ export default function PostCycleActions({
                     </p>
                   ))}
 
-                  {row && (
+                  {pending && (
                     <Button
                       size="sm"
                       className="w-full"
@@ -543,7 +562,7 @@ export default function PostCycleActions({
                       {isResolving ? 'Resolving…' : 'Resolve'}
                     </Button>
                   )}
-                  {row && cannotAfford && rowIssues.length === 0 && (
+                  {pending && cannotAfford && rowIssues.length === 0 && (
                     <p className="text-xs text-red-600">
                       The gang cannot afford this action.
                     </p>
