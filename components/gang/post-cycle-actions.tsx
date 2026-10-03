@@ -110,6 +110,29 @@ function applyChange(fighter: FighterProps, change: PostCycleFighterChange): Fig
   return next;
 }
 
+/** The "who is this done to" combobox, shared by the two Doc actions. */
+function TargetPicker({
+  value,
+  onChange,
+  ...rest
+}: Pick<
+  React.ComponentProps<typeof Combobox>,
+  'options' | 'placeholder' | 'noResultsText' | 'disabled'
+> & {
+  value?: string;
+  onChange: (fighterId?: string) => void;
+}) {
+  return (
+    <Combobox
+      {...rest}
+      value={value ?? ''}
+      onValueChange={(next) => onChange(next || undefined)}
+      dropdownPlacement="down"
+      clearable
+    />
+  );
+}
+
 function EffectChecklist({
   effects,
   selected,
@@ -491,32 +514,27 @@ export default function PostCycleActions({
                   )}
 
                   {pending?.action === 'medical_escort' && (
-                    <Combobox
+                    <TargetPicker
                       options={patientOptions(fighter.id, criticallyInjured)}
-                      value={pending.targetFighterId ?? ''}
-                      onValueChange={(value) =>
-                        setRow(fighter.id, { targetFighterId: value || undefined })
-                      }
+                      value={pending.targetFighterId}
+                      onChange={(targetFighterId) => setRow(fighter.id, { targetFighterId })}
                       placeholder="Critically Injured fighter"
                       noResultsText="No fighter has a Critical Injury"
-                      dropdownPlacement="down"
-                      clearable
                       disabled={!canEdit}
                     />
                   )}
 
                   {pending?.action === 'fit_bionics' && (
                     <>
-                      <Combobox
+                      <TargetPicker
                         options={patientOptions(fighter.id, injuredFighters)}
-                        value={pending.targetFighterId ?? ''}
-                        onValueChange={(value) =>
-                          setRow(fighter.id, { targetFighterId: value || undefined, injuryIds: [] })
+                        value={pending.targetFighterId}
+                        // Switching patient drops the injuries picked for the last one.
+                        onChange={(targetFighterId) =>
+                          setRow(fighter.id, { targetFighterId, injuryIds: [] })
                         }
                         placeholder="Fighter to fit bionics"
                         noResultsText="No fighter has a removable Lasting Injury"
-                        dropdownPlacement="down"
-                        clearable
                         disabled={!canEdit}
                       />
                       {target && (
