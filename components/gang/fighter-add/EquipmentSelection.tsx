@@ -114,6 +114,10 @@ export function EquipmentSelection({
           is_editable: equipment.is_editable || false,
           selection_key: categoryId,
         });
+        const withCategoryDefaults = (items: SelectedEquipmentItem[]) => [
+          ...withoutCategoryItems(items),
+          ...(categoryData.default || []).map((d: any) => categoryItem(d, 0, d.quantity || 1)),
+        ];
 
         return (
           <div key={categoryId} className="space-y-3">
@@ -190,15 +194,7 @@ export function EquipmentSelection({
                               !currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
                             );
                           });
-                          setSelectedEquipment((prev) => {
-                            const filtered = withoutCategoryItems(prev);
-                            if (categoryData.select_type === 'optional_single' && categoryData.default && categoryData.default.length > 0) {
-                              categoryData.default.forEach((defaultItem: any) => {
-                                filtered.push(categoryItem(defaultItem, 0, defaultItem.quantity || 1));
-                              });
-                            }
-                            return filtered;
-                          });
+                          setSelectedEquipment(withCategoryDefaults);
                           setFighterCost((prevCost) => {
                             const currentCategoryOptions = categoryData.options || [];
                             const prevSelectedUniqueId = selectedEquipmentIds.find(id =>
@@ -232,15 +228,7 @@ export function EquipmentSelection({
                               !currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
                             );
                           });
-                          setSelectedEquipment((prev) => {
-                            const filtered = withoutCategoryItems(prev);
-                            if (categoryData.default && categoryData.default.length > 0) {
-                              categoryData.default.forEach((defaultItem: any) => {
-                                filtered.push(categoryItem(defaultItem, 0, defaultItem.quantity || 1));
-                              });
-                            }
-                            return filtered;
-                          });
+                          setSelectedEquipment(withCategoryDefaults);
                           if (strictSelectedId) {
                             const prevOption = (categoryData.options || []).find((o: any) => `${categoryId}-${o.id}` === strictSelectedId);
                             if (prevOption) {
