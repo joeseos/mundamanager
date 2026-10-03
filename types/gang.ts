@@ -160,6 +160,7 @@ export interface GangFighter {
   fighter_variant?: string | null;
   alliance_crew_name?: string;
   is_spyrer?: boolean;
+  is_vehicle?: boolean;
   position?: string;
   xp: number;
   kills: number;
