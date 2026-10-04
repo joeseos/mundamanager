@@ -839,7 +839,8 @@ async function _getCampaignOoaCounts(campaignId: string, supabase: SupabaseClien
 /**
  * Get each gang's Out of Action count for a campaign (Slaughterer triumph).
  * Counts fighter_ooa_records made in this campaign, so OOAs recorded before
- * that table existed, or outside the campaign, are not included.
+ * that table existed, or outside the campaign, are not included. Counts for
+ * gangs no longer in the campaign are dropped when the leaderboard is ranked.
  */
 export const getCampaignOoaCounts = async (campaignId: string) => {
   return unstable_cache(
@@ -848,12 +849,7 @@ export const getCampaignOoaCounts = async (campaignId: string) => {
     },
     [`campaign-ooa-counts-${campaignId}`],
     {
-      tags: [
-        TAGS.campaignOoa(campaignId),
-        // Deleting a gang nulls causing_gang_id through the FK without an OOA
-        // record write; deleteGang fires the campaign members tag instead.
-        TAGS.campaignMembers(campaignId)
-      ],
+      tags: [TAGS.campaignOoa(campaignId)],
       revalidate: false
     }
   )();

@@ -107,7 +107,13 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       getCampaignResources(params.id),
       getCampaignCaptives(params.id),
       getCampaignSharedTradingPosts(params.id),
-      getCampaignOoaCounts(params.id)
+      // Only feeds an optional Triumphs leaderboard; a failure here shouldn't
+      // take down the campaign page. Caught outside the cache so an empty
+      // result is never stored.
+      getCampaignOoaCounts(params.id).catch((error) => {
+        console.error('Error loading campaign OOA counts:', error);
+        return [];
+      })
     ]);
 
     // Check if campaign exists
