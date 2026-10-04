@@ -15,10 +15,8 @@
 -- database is consistent as soon as this commits, and the deploy-on-merge then
 -- re-applies the same bodies.
 --
--- The app that is still live until the merge deploys reads
--- gang_types.gang_type_id. The gang_type_id() bridge function below keeps those
--- reads working in the meantime. Migration 20261004120001 drops it once the new
--- app is live.
+-- Hard cutover: the app that is live until the merge deploys still reads
+-- gang_types.gang_type_id, so merge right after applying this.
 
 BEGIN;
 
@@ -95,19 +93,6 @@ ALTER TABLE public.gang_types
   RENAME CONSTRAINT gang_types_gang_type_id_edition_id_key TO gang_types_id_edition_id_key;
 
 COMMENT ON COLUMN public.gang_types.parent_gang_type_id IS 'House this gang list belongs to. House Escher: Wyld Hunt stores House Escher''s id here; House Escher itself stores null. Each row keeps its own fighter types.';
-
--- Temporary bridge for the deploy window. PostgREST exposes a function that
--- takes a gang_types row as a computed column, so the previous app's
--- select=gang_type_id and gang_type_id=eq.… queries on gang_types keep
--- working until the new app is live. In SQL, gt.gang_type_id also resolves
--- to this function. Dropped by 20261004120001.
-CREATE FUNCTION public.gang_type_id(public.gang_types)
-RETURNS uuid
-LANGUAGE sql
-STABLE
-AS $$ SELECT $1.id $$;
-
-COMMENT ON FUNCTION public.gang_type_id(public.gang_types) IS 'Temporary: gang_types.gang_type_id was renamed to id. Dropped by migration 20261004120001 once the app no longer reads gang_type_id.';
 
 -- Function bodies are stored as text, so RENAME COLUMN does not touch them.
 -- Same signatures and return types as before, so CREATE OR REPLACE keeps the
