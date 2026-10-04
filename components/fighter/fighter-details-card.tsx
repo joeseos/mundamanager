@@ -22,7 +22,6 @@ import { FaMedkit, FaBookDead } from "react-icons/fa";
 import { LuLogs } from "react-icons/lu";
 import { Equipment } from '@/types/equipment';
 import { UserPermissions } from '@/types/user-permissions';
-import { useHasOpened } from '@/hooks/use-has-opened';
 
 // Modals load their code on first open, not with the page
 const FighterImageEditModal = dynamic(
@@ -301,9 +300,6 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   const [currentImageUrl, setCurrentImageUrl] = useState(image_url);
   const [isLogsModalOpen, setIsLogsModalOpen] = useState(false);
   const [isOoaHistoryModalOpen, setIsOoaHistoryModalOpen] = useState(false);
-  const hasOpenedImageModal = useHasOpened(isImageModalOpen);
-  const hasOpenedLogsModal = useHasOpened(isLogsModalOpen);
-  const hasOpenedOoaHistoryModal = useHasOpened(isOoaHistoryModalOpen);
 
   // Create fighter data object for stat calculation
   const fighterData = useMemo<FighterProps>(() => ({
@@ -687,7 +683,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       </div>
 
       {/* Image Edit Modal */}
-      {hasOpenedImageModal && (
+      {isImageModalOpen && (
         <FighterImageEditModal
           isOpen={isImageModalOpen}
           onClose={() => setIsImageModalOpen(false)}
@@ -699,7 +695,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       )}
 
       {/* Fighter Logs Modal */}
-      {hasOpenedLogsModal && (
+      {isLogsModalOpen && (
         <LogModal
           fetchUrl={`/api/gangs/${gangId || ''}/logs?fighterId=${id}${showsVehicleProfile && vehicles?.[0] ? `&vehicleId=${vehicles[0].id}` : ''}`}
           title={`Activity Logs: ${name}`}
@@ -711,7 +707,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       )}
 
       {/* OOA / Wreck Records Modal */}
-      {hasOpenedOoaHistoryModal && (
+      {isOoaHistoryModalOpen && (
         <FighterOoaHistoryModal
           isOpen={isOoaHistoryModalOpen}
           fighterId={id}

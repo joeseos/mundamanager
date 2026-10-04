@@ -34,7 +34,6 @@ import { UserPermissions } from '@/types/user-permissions';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { sortFightersByPositioning } from '@/utils/fighter-positioning';
-import { useHasOpened } from '@/hooks/use-has-opened';
 
 // Modals load their code on first open, not with the page
 const ChemAlchemyCreator = dynamic(() => import('./chem-alchemy'), { ssr: false });
@@ -103,7 +102,6 @@ export default function GangInventory({
   const [fighters, setFighters] = useState<FighterProps[]>(initialFighters);
   const [showChemAlchemy, setShowChemAlchemy] = useState(false);
   const [showTradingPost, setShowTradingPost] = useState(false);
-  const hasOpenedChemAlchemy = useHasOpened(showChemAlchemy);
   const [sellModalItemIdx, setSellModalItemIdx] = useState<number | null>(null);
   const [deleteModalIdx, setDeleteModalIdx] = useState<number | null>(null);
   
@@ -987,7 +985,7 @@ export default function GangInventory({
         </div>
       </div>
 
-      {hasOpenedChemAlchemy && (
+      {showChemAlchemy && (
         <ChemAlchemyCreator
           isOpen={showChemAlchemy}
           onClose={() => setShowChemAlchemy(false)}

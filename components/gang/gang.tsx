@@ -28,7 +28,6 @@ import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { hasAlignment, hasTradePoints, hasVehicles } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
-import { useHasOpened } from '@/hooks/use-has-opened';
 
 // Modals load their code on first open, not with the page
 const FighterAddModal = dynamic(() => import('./fighter-add/FighterAddModal'), { ssr: false });
@@ -236,10 +235,6 @@ export default function Gang({
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
-  const hasOpenedEditModal = useHasOpened(showEditModal);
-  const hasOpenedResourcesModal = useHasOpened(showResourcesModal);
-  const hasOpenedLogsModal = useHasOpened(showLogsModal);
-  const hasOpenedImageModal = useHasOpened(showImageModal);
   const [currentGangImageUrl, setCurrentGangImageUrl] = useState(image_url);
   const [currentDefaultGangImage, setCurrentDefaultGangImage] = useState<number | null | undefined>(default_gang_image);
   const [viewMode, setViewMode] = useState<GangPageViewMode>('normal');
@@ -1283,7 +1278,7 @@ export default function Gang({
             </div>
           </div>
 
-          {hasOpenedEditModal && (
+          {showEditModal && (
             <GangEditModal
               isOpen={showEditModal}
               onClose={() => setShowEditModal(false)}
@@ -1313,7 +1308,7 @@ export default function Gang({
             />
           )}
 
-          {hasOpenedResourcesModal && (
+          {showResourcesModal && (
             <GangResourcesModal
               isOpen={showResourcesModal}
               onClose={() => setShowResourcesModal(false)}
@@ -1395,7 +1390,7 @@ export default function Gang({
             />
           )}
 
-          {hasOpenedLogsModal && (
+          {showLogsModal && (
             <LogModal
               fetchUrl={`/api/gangs/${id}/logs`}
               editionSlug={edition_slug}
@@ -1411,7 +1406,7 @@ export default function Gang({
             isOpen={showCopyModal}
             onClose={() => setShowCopyModal(false)}
           />
-          {hasOpenedImageModal && (
+          {showImageModal && (
             <GangImageEditModal
               isOpen={showImageModal}
               onClose={() => setShowImageModal(false)}

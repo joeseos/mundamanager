@@ -31,7 +31,6 @@ import { CampaignNotes } from "@/components/campaigns/[id]/campaign-notes";
 import CampaignMap from "./campaign-map"
 import { TbMapSearch } from "react-icons/tb";
 import { PiFlagBannerFoldBold } from "react-icons/pi";
-import { useHasOpened } from "@/hooks/use-has-opened";
 
 // Modals load their code on first open, not with the page
 const CampaignImageEditModal = dynamic(
@@ -219,9 +218,6 @@ export default function CampaignPageContent({
   const [showTerritoryModal, setShowTerritoryModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showLogsModal, setShowLogsModal] = useState(false);
-  const hasOpenedEditModal = useHasOpened(showEditModal);
-  const hasOpenedImageModal = useHasOpened(showImageModal);
-  const hasOpenedLogsModal = useHasOpened(showLogsModal);
 
   // Provide default permissions if null
   const safePermissions = permissions || {
@@ -1029,7 +1025,7 @@ export default function CampaignPageContent({
           )}
 
         {/* Replace the inline modal with our new component */}
-        {hasOpenedEditModal && (
+        {showEditModal && (
           <CampaignEditModal
             isOpen={showEditModal}
             campaignData={{
@@ -1095,7 +1091,7 @@ export default function CampaignPageContent({
           />
         )}
 
-        {hasOpenedImageModal && (
+        {showImageModal && (
           <CampaignImageEditModal
             isOpen={showImageModal}
             onClose={() => setShowImageModal(false)}
@@ -1131,7 +1127,7 @@ export default function CampaignPageContent({
 
       </div>
 
-      {hasOpenedLogsModal && (
+      {showLogsModal && (
         <LogModal
           fetchUrl={`/api/campaigns/${campaignData.id}/logs`}
           title="Campaign Activity Logs"

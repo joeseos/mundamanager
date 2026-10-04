@@ -26,7 +26,6 @@ import {
   getN26ProspectSpecialisation,
   hasN26ProspectPromotionOccurred,
 } from '@/utils/keepTypePromotionN26';
-import { useHasOpened } from '@/hooks/use-has-opened';
 
 // Modals load their code on first open, not with the page
 const AdvancementModal = dynamic(
@@ -143,7 +142,6 @@ export function AdvancementsList({
 }: AdvancementsListProps) {
   const [isAdvancementModalOpen, setIsAdvancementModalOpen] = useState(false);
   const [isStandalonePromotionOpen, setIsStandalonePromotionOpen] = useState(false);
-  const hasOpenedStandalonePromotion = useHasOpened(isStandalonePromotionOpen);
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string; type: string } | null>(null);
 
   // No XP is spent on Advancements in a rank-based edition, so there is no XP
@@ -651,7 +649,7 @@ export function AdvancementsList({
       />
 
       {/* Modals */}
-      {hasOpenedStandalonePromotion && (
+      {isStandalonePromotionOpen && (
         <FighterPromotionModal
           currentSubtype={fighterSubtypes[0] || ''}
           currentSubtypes={fighterSubtypes}

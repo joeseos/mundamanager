@@ -24,7 +24,6 @@ import { Combobox } from "@/components/ui/combobox";
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { useHasOpened } from "@/hooks/use-has-opened";
 
 // Loads its code on first open, not with the page
 const CampaignBattleLogModal = dynamic(() => import("@/components/campaigns/[id]/campaign-battle-log-modal"), {
@@ -105,7 +104,6 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   } = props;
   
   const [showBattleModal, setShowBattleModal] = useState(false);
-  const hasOpenedBattleModal = useHasOpened(showBattleModal);
   const [showChallengeRoundModal, setShowChallengeRoundModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [availableGangs, setAvailableGangs] = useState<CampaignGang[]>([]);
@@ -1360,7 +1358,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         />
       )}
 
-      {hasOpenedBattleModal && (
+      {showBattleModal && (
         <CampaignBattleLogModal
           campaignId={campaignId}
           editionSlug={editionSlug}

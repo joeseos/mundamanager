@@ -37,7 +37,6 @@ import {
 import { hasCumulativeXp } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { VENATOR_RANKS_INCOMPLETE_MESSAGE } from '@/utils/venatorSkillAccess';
-import { useHasOpened } from '@/hooks/use-has-opened';
 
 // Loads its code on first open, not with the modal
 const FighterPromotionModal = dynamic(
@@ -504,8 +503,6 @@ export function AdvancementModal({
   const [gangerPromotionOpen, setGangerPromotionOpen] = useState(false);
   const [gangerPendingPromotion, setGangerPendingPromotion] = useState<FighterPromotionResult | null>(null);
   const [championPromotionOpen, setChampionPromotionOpen] = useState(false);
-  const hasOpenedGangerPromotion = useHasOpened(gangerPromotionOpen);
-  const hasOpenedChampionPromotion = useHasOpened(championPromotionOpen);
   const [championPendingPromotion, setChampionPendingPromotion] = useState<ChampionPendingPromotion | null>(null);
   const [championPreviewSkillAccess, setChampionPreviewSkillAccess] = useState<SkillAccess[]>([]);
   const [championPreviewSkillAccessLoading, setChampionPreviewSkillAccessLoading] = useState(false);
@@ -2584,7 +2581,7 @@ export function AdvancementModal({
                   </div>
                 )}
 
-                {hasOpenedGangerPromotion && (
+                {gangerPromotionOpen && (
                   <FighterPromotionModal
                     currentSubtype={fighterSubtypes[0] || ''}
                     currentSubtypes={fighterSubtypes}
@@ -2724,7 +2721,7 @@ export function AdvancementModal({
                     </div>
                   )}
 
-                {onFighterDetailsUpdate && hasOpenedChampionPromotion && (
+                {onFighterDetailsUpdate && championPromotionOpen && (
                   <FighterPromotionModal
                     currentSubtype={fighterSubtypes[0] || ''}
                     currentSubtypes={fighterSubtypes}

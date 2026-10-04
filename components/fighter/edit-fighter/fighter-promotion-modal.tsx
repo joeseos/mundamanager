@@ -272,7 +272,7 @@ export function FighterPromotionModal({
   );
 
   // Reset state on each open, pre-select the first eligible type.
-  // Starts closed, so mounting already open (it loads on first open) counts as an open.
+  // Starts closed, so mounting already open (it renders only while open) counts as an open.
   const [prevIsOpen, setPrevIsOpen] = useState(false);
   if (isOpen && !prevIsOpen) {
     if (isSimplifiedPath) {
