@@ -15,7 +15,7 @@ BEGIN
     IF EXISTS (
       SELECT 1
       FROM public.gang_types
-      WHERE gang_type_id = NEW.parent_gang_type_id
+      WHERE id = NEW.parent_gang_type_id
         AND parent_gang_type_id IS NOT NULL
     ) THEN
       RAISE EXCEPTION 'parent_gang_type_id must reference a root gang type';
@@ -24,7 +24,7 @@ BEGIN
     IF EXISTS (
       SELECT 1
       FROM public.gang_types
-      WHERE parent_gang_type_id = NEW.gang_type_id
+      WHERE parent_gang_type_id = NEW.id
     ) THEN
       RAISE EXCEPTION 'cannot set parent_gang_type_id on a gang type that is already a parent of other gang lists';
     END IF;

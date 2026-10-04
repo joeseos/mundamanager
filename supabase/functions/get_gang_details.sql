@@ -832,7 +832,7 @@ BEGIN
        (SELECT subtype_info FROM gang_subtype_info) as gang_subtypes,
        ed.slug AS edition_slug
    FROM gangs g
-   LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+   LEFT JOIN gang_types gt ON gt.id = g.gang_type_id
    LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
    LEFT JOIN editions ed ON ed.id = COALESCE(gt.edition_id, cgt.edition_id)
    LEFT JOIN alliances a ON a.id = g.alliance_id

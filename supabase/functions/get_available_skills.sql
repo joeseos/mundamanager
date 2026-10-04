@@ -25,7 +25,7 @@ BEGIN
          v_edition_id
     FROM fighters f
     JOIN gangs g ON g.id = f.gang_id
-    LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+    LEFT JOIN gang_types gt ON gt.id = g.gang_type_id
     LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
     WHERE f.id = get_available_skills.fighter_id;
 

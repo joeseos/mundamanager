@@ -5,10 +5,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { isValidHttpUrl } from '@/utils/http-url';
 import { invalidateGangTypesCatalog } from '@/utils/cache-tags';
 
-const GANG_TYPE_LIST_COLUMNS = 'gang_type_id, gang_type, edition_id';
+const GANG_TYPE_LIST_COLUMNS = 'gang_type_id:id, gang_type, edition_id';
 
 const GANG_TYPE_COLUMNS =
-  'gang_type_id, gang_type, alignment, is_hidden, affiliation, trading_post_type_id, gang_origin_category_id, parent_gang_type_id, default_image_urls, edition_id';
+  'gang_type_id:id, gang_type, alignment, is_hidden, affiliation, trading_post_type_id, gang_origin_category_id, parent_gang_type_id, default_image_urls, edition_id';
 
 const ALLOWED_ALIGNMENTS = [
   'Law Abiding',
@@ -441,8 +441,8 @@ async function assertParentGangType(
 
   const { data, error } = await supabase
     .from('gang_types')
-    .select('gang_type_id, edition_id, parent_gang_type_id')
-    .eq('gang_type_id', parentGangTypeId)
+    .select('id, edition_id, parent_gang_type_id')
+    .eq('id', parentGangTypeId)
     .maybeSingle();
 
   if (error) throw error;
@@ -457,7 +457,7 @@ async function assertParentGangType(
   if (currentGangTypeId) {
     const { data: children, error: childrenError } = await supabase
       .from('gang_types')
-      .select('gang_type_id')
+      .select('id')
       .eq('parent_gang_type_id', currentGangTypeId)
       .limit(1);
 
@@ -525,7 +525,7 @@ async function assertEditionChangeAllowed(
       .eq('gang_type_id', gangTypeId),
     supabase
       .from('gang_types')
-      .select('gang_type_id', { count: 'exact', head: true })
+      .select('id', { count: 'exact', head: true })
       .eq('parent_gang_type_id', gangTypeId),
   ]);
 
@@ -727,7 +727,7 @@ async function _PATCH(request: Request) {
     const { data: existing, error: existingError } = await supabase
       .from('gang_types')
       .select(GANG_TYPE_COLUMNS)
-      .eq('gang_type_id', gangTypeId)
+      .eq('id', gangTypeId)
       .maybeSingle();
 
     if (existingError) throw existingError;
@@ -774,7 +774,7 @@ async function _PATCH(request: Request) {
     const { data: gangType, error } = await supabase
       .from('gang_types')
       .update(patch)
-      .eq('gang_type_id', gangTypeId)
+      .eq('id', gangTypeId)
       .select(GANG_TYPE_COLUMNS)
       .maybeSingle();
 

@@ -109,8 +109,8 @@ async function assertGangTypeMatchesEdition(
 
   const { data, error } = await supabase
     .from('gang_types')
-    .select('gang_type_id, edition_id')
-    .eq('gang_type_id', gangTypeId)
+    .select('id, edition_id')
+    .eq('id', gangTypeId)
     .maybeSingle();
 
   if (error) throw error;

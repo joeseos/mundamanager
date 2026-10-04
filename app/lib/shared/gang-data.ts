@@ -386,13 +386,13 @@ export const getGangType = async (gangBasic: GangBasic, supabase: any): Promise<
     async () => {
       const { data, error } = await supabase
         .from('gang_types')
-        .select('gang_type_id, gang_type, image_url, default_image_urls')
-        .eq('gang_type_id', gangBasic.gang_type_id)
+        .select('id, gang_type, image_url, default_image_urls')
+        .eq('id', gangBasic.gang_type_id)
         .single();
 
       if (error) throw error;
       return {
-        id: data.gang_type_id,
+        id: data.id,
         gang_type: data.gang_type,
         image_url: data.image_url,
         default_image_urls: normaliseDefaultImageUrls(data.default_image_urls)
