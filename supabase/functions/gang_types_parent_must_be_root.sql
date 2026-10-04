@@ -4,6 +4,10 @@
 -- DEPLOY ORDER: apply migration 20260902172743_add_gang_types_parent_gang_type_id.sql
 -- (which creates the column) BEFORE this trigger goes live. UPDATE OF
 -- parent_gang_type_id will fail if the column does not exist.
+--
+-- Also apply migration 20261004120000_rename_gang_types_gang_type_id_to_id.sql
+-- BEFORE this file deploys. The checks read gang_types.id, which is an unused
+-- bigint until that migration drops it and renames gang_type_id to id.
 
 CREATE OR REPLACE FUNCTION public.gang_types_parent_must_be_root()
 RETURNS trigger

@@ -8,13 +8,35 @@
 -- make id the primary key on its own. The uuid values don't change, so every
 -- gang_type_id column in other tables still points at the same rows.
 --
--- Hard cutover: the app code shipped with this migration reads gang_types.id,
--- so apply it in the same window as the deploy. The functions that read the
--- column are recreated below, so the database is consistent as soon as this
--- commits. The deploy-on-merge of supabase/functions/*.sql then re-applies the
--- same bodies.
+-- DEPLOY ORDER: apply this migration BEFORE merging the PR that ships it.
+-- The merge deploys supabase/functions/*.sql, whose bodies read gang_types.id,
+-- and the new app code, which reads gang_types.id. Both break on the old
+-- schema. The functions that read the column are recreated below, so the
+-- database is consistent as soon as this commits, and the deploy-on-merge then
+-- re-applies the same bodies.
+--
+-- The app that is still live until the merge deploys reads
+-- gang_types.gang_type_id. The gang_type_id() bridge function below keeps those
+-- reads working in the meantime. Migration 20261004120001 drops it once the new
+-- app is live.
 
 BEGIN;
+
+-- Re-adding the foreign keys below needs ACCESS EXCLUSIVE on every table that
+-- references gang_types. Take all the locks first, in one fixed order, and
+-- give up after a few seconds rather than queue every gang read behind a long
+-- query. If it times out, nothing has changed; run it again.
+SET LOCAL lock_timeout = '5s';
+LOCK TABLE
+  public.gang_types,
+  public.gangs,
+  public.fighter_types,
+  public.fighter_type_equipment,
+  public.fighter_type_gang_cost,
+  public.fighter_type_availability,
+  public.count_limits,
+  public.tactics_cards_packs
+IN ACCESS EXCLUSIVE MODE;
 
 -- No foreign key uses the composite primary key; they all use one of the
 -- unique constraints handled below.
@@ -73,6 +95,19 @@ ALTER TABLE public.gang_types
   RENAME CONSTRAINT gang_types_gang_type_id_edition_id_key TO gang_types_id_edition_id_key;
 
 COMMENT ON COLUMN public.gang_types.parent_gang_type_id IS 'House this gang list belongs to. House Escher: Wyld Hunt stores House Escher''s id here; House Escher itself stores null. Each row keeps its own fighter types.';
+
+-- Temporary bridge for the deploy window. PostgREST exposes a function that
+-- takes a gang_types row as a computed column, so the previous app's
+-- select=gang_type_id and gang_type_id=eq.… queries on gang_types keep
+-- working until the new app is live. In SQL, gt.gang_type_id also resolves
+-- to this function. Dropped by 20261004120001.
+CREATE FUNCTION public.gang_type_id(public.gang_types)
+RETURNS uuid
+LANGUAGE sql
+STABLE
+AS $$ SELECT $1.id $$;
+
+COMMENT ON FUNCTION public.gang_type_id(public.gang_types) IS 'Temporary: gang_types.gang_type_id was renamed to id. Dropped by migration 20261004120001 once the app no longer reads gang_type_id.';
 
 -- Function bodies are stored as text, so RENAME COLUMN does not touch them.
 -- Same signatures and return types as before, so CREATE OR REPLACE keeps the

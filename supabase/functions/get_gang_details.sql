@@ -1,6 +1,10 @@
 -- This Code is obsolete. Do not use it or update it.
 -- We now use the library app/lib/shared/gang-data.ts to get the gang details.
 -- This code is kept here for compatibility with the Rule Snatcher Tool.
+--
+-- DEPLOY ORDER: apply migration 20261004120000_rename_gang_types_gang_type_id_to_id.sql
+-- BEFORE this file deploys. This function reads gang_types.id, which is an unused
+-- bigint until that migration drops it and renames gang_type_id to id.
 
 DROP FUNCTION IF EXISTS public.get_gang_details(uuid);
 

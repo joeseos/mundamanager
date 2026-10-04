@@ -1,3 +1,7 @@
+-- DEPLOY ORDER: apply migration 20261004120000_rename_gang_types_gang_type_id_to_id.sql
+-- BEFORE this file deploys. This function reads gang_types.id, which is an unused
+-- bigint until that migration drops it and renames gang_type_id to id.
+
 CREATE OR REPLACE FUNCTION public.get_available_skills(
     fighter_id UUID
 )
