@@ -184,7 +184,9 @@ export async function insertFighterOoaRecords(
   const { error } = await supabase.from('fighter_ooa_records').insert(rows);
   if (error) throw error;
 
-  if (params.campaign_id) invalidateCampaignOoa(params.campaign_id);
+  if (params.campaign_id && validRecords.some(r => r.event_type === 'out_of_action')) {
+    invalidateCampaignOoa(params.campaign_id);
+  }
 }
 
 /**
@@ -253,7 +255,7 @@ export async function createFighterOoaRecord(params: {
 
     if (error) throw error;
 
-    if (data.campaign_id) invalidateCampaignOoa(data.campaign_id);
+    if (data.campaign_id && data.event_type === 'out_of_action') invalidateCampaignOoa(data.campaign_id);
 
     return { success: true, data: data as FighterOoaRecord };
   } catch (error) {
@@ -347,12 +349,14 @@ export async function deleteFighterOoaRecord(
       .from('fighter_ooa_records')
       .delete()
       .eq('id', recordId)
-      .select('campaign_id');
+      .select('campaign_id, event_type');
 
     if (error) throw error;
+    // RLS filters a DELETE the user may not make down to zero rows, without an error.
+    if (!data?.length) throw new Error('Record not found or you do not have permission to delete it');
 
-    (data || []).forEach(({ campaign_id }) => {
-      if (campaign_id) invalidateCampaignOoa(campaign_id);
+    data.forEach(({ campaign_id, event_type }) => {
+      if (campaign_id && event_type === 'out_of_action') invalidateCampaignOoa(campaign_id);
     });
 
     return { success: true };
