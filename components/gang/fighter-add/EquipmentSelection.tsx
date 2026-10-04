@@ -97,12 +97,18 @@ export function EquipmentSelection({
           : 0;
         const remainingSlots = totalSlots - usedSlots;
 
-        const strictSelectedId = isOptional && replacementMode === 'strict'
-          ? selectedEquipmentIds.find(id =>
-              (categoryData.options || []).some((o: any) => `${categoryId}-${o.id}` === id)
-            )
+        const isCategoryOptionId = (id: string) =>
+          (categoryData.options || []).some((o: any) => `${categoryId}-${o.id}` === id);
+
+        // Strict, single and optional_single categories hold one pick at a time.
+        // Flexible and multiple categories can hold several, so they have no single pick.
+        const holdsOnePick = (isOptional && replacementMode === 'strict') || isSingle || isOptionalSingle;
+        const selectedOptionId = holdsOnePick ? selectedEquipmentIds.find(isCategoryOptionId) : undefined;
+        const selectedOption = selectedOptionId
+          ? (categoryData.options || []).find((o: any) => `${categoryId}-${o.id}` === selectedOptionId)
           : undefined;
 
+        const withoutCategoryIds = (ids: string[]) => ids.filter(id => !isCategoryOptionId(id));
         // Categories can offer the same equipment ids (e.g. two default weapons that
         // each take any of the same replacements), so only drop items this category added.
         const withoutCategoryItems = (items: SelectedEquipmentItem[]) =>
@@ -135,7 +141,7 @@ export function EquipmentSelection({
                     if (isOptional && totalSlots > 0) {
                       let displayQty: number;
                       if (replacementMode === 'strict') {
-                        displayQty = strictSelectedId ? 0 : item.quantity;
+                        displayQty = selectedOptionId ? 0 : item.quantity;
                       } else {
                         const slotsBefore = categoryData.default!
                           .slice(0, index)
@@ -186,25 +192,13 @@ export function EquipmentSelection({
                         type="radio"
                         name={`equipment-selection-${categoryId}`}
                         id={`${categoryId}-keep-default`}
-                        checked={!categoryData.options?.some((o: any) => selectedEquipmentIds.includes(`${categoryId}-${o.id}`))}
+                        checked={!selectedOptionId}
                         onChange={() => {
-                          setSelectedEquipmentIds((prev) => {
-                            const currentCategoryOptions = categoryData.options || [];
-                            return prev.filter(id =>
-                              !currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
-                            );
-                          });
+                          setSelectedEquipmentIds(withoutCategoryIds);
                           setSelectedEquipment(withCategoryDefaults);
-                          setFighterCost((prevCost) => {
-                            const currentCategoryOptions = categoryData.options || [];
-                            const prevSelectedUniqueId = selectedEquipmentIds.find(id =>
-                              currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
-                            );
-                            const prevSelectedCost = prevSelectedUniqueId
-                              ? currentCategoryOptions.find((o: any) => `${categoryId}-${o.id}` === prevSelectedUniqueId)?.cost || 0
-                              : 0;
-                            return String(parseInt(prevCost || '0') - prevSelectedCost);
-                          });
+                          setFighterCost((prevCost) =>
+                            String(parseInt(prevCost || '0') - (selectedOption?.cost || 0))
+                          );
                         }}
                       />
                       <label htmlFor={`${categoryId}-keep-default`} className="text-sm font-medium">
@@ -220,22 +214,14 @@ export function EquipmentSelection({
                         type="radio"
                         name={`equipment-selection-${categoryId}`}
                         id={`${categoryId}-keep-default`}
-                        checked={!strictSelectedId}
+                        checked={!selectedOptionId}
                         onChange={() => {
-                          setSelectedEquipmentIds((prev) => {
-                            const currentCategoryOptions = categoryData.options || [];
-                            return prev.filter(id =>
-                              !currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
-                            );
-                          });
+                          setSelectedEquipmentIds(withoutCategoryIds);
                           setSelectedEquipment(withCategoryDefaults);
-                          if (strictSelectedId) {
-                            const prevOption = (categoryData.options || []).find((o: any) => `${categoryId}-${o.id}` === strictSelectedId);
-                            if (prevOption) {
-                              setFighterCost((prevCost) =>
-                                String(parseInt(prevCost || '0') - (prevOption.cost || 0) * totalSlots)
-                              );
-                            }
+                          if (selectedOption) {
+                            setFighterCost((prevCost) =>
+                              String(parseInt(prevCost || '0') - (selectedOption.cost || 0) * totalSlots)
+                            );
                           }
                         }}
                       />
@@ -323,22 +309,12 @@ export function EquipmentSelection({
                             type="radio"
                             name={`equipment-selection-${categoryId}`}
                             id={uniqueOptionId}
-                            checked={strictSelectedId === uniqueOptionId}
+                            checked={selectedOptionId === uniqueOptionId}
                             onChange={() => {
                               const optionCost = option.cost || 0;
+                              const prevCostPerUnit = selectedOption?.cost || 0;
 
-                              const prevOption = strictSelectedId
-                                ? (categoryData.options || []).find((o: any) => `${categoryId}-${o.id}` === strictSelectedId)
-                                : undefined;
-                              const prevCostPerUnit = prevOption?.cost || 0;
-
-                              setSelectedEquipmentIds((prev) => {
-                                const currentCategoryOptions = categoryData.options || [];
-                                const filtered = prev.filter(id =>
-                                  !currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
-                                );
-                                return [...filtered, uniqueOptionId];
-                              });
+                              setSelectedEquipmentIds((prev) => [...withoutCategoryIds(prev), uniqueOptionId]);
 
                               setSelectedEquipment((prev) => [...withoutCategoryItems(prev), categoryItem(option, optionCost, totalSlots)]);
 
@@ -365,27 +341,13 @@ export function EquipmentSelection({
                             id={uniqueOptionId}
                             checked={selectedEquipmentIds.includes(uniqueOptionId)}
                             onChange={() => {
-                              setSelectedEquipmentIds((prev) => {
-                                const currentCategoryOptions = categoryData.options || [];
-                                const filtered = prev.filter(id =>
-                                  !currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
-                                );
-                                return [...filtered, uniqueOptionId];
-                              });
+                              setSelectedEquipmentIds((prev) => [...withoutCategoryIds(prev), uniqueOptionId]);
 
                               setSelectedEquipment((prev) => [...withoutCategoryItems(prev), categoryItem(option, option.cost || 0, 1)]);
 
-                              setFighterCost((prevCost) => {
-                                const currentCategoryOptions = categoryData.options || [];
-                                const prevSelectedUniqueId = selectedEquipmentIds.find(id =>
-                                  currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
-                                );
-                                const prevSelectedCost = prevSelectedUniqueId
-                                  ? currentCategoryOptions.find((o: any) => `${categoryId}-${o.id}` === prevSelectedUniqueId)?.cost || 0
-                                  : 0;
-                                const optionCost = option.cost || 0;
-                                return String(parseInt(prevCost || '0') - prevSelectedCost + optionCost);
-                              });
+                              setFighterCost((prevCost) =>
+                                String(parseInt(prevCost || '0') - (selectedOption?.cost || 0) + (option.cost || 0))
+                              );
                             }}
                           />
                           <label htmlFor={uniqueOptionId} className="text-sm">
