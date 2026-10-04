@@ -40,11 +40,17 @@ interface TriumphTerritory {
   gang_id: string | null;
 }
 
+interface GangOoaCount {
+  gang_id: string;
+  ooa_count: number;
+}
+
 interface CampaignTriumphsProps {
   triumphs: CampaignTriumph[];
   battles?: Battle[];
   members?: TriumphMember[];
   territories?: TriumphTerritory[];
+  ooaCounts?: GangOoaCount[];
 }
 
 interface GangInfo {
@@ -98,7 +104,7 @@ function applyCompetitionRanking(
   return ranked;
 }
 
-export default function CampaignTriumphs({ triumphs, battles = [], members = [], territories = [] }: CampaignTriumphsProps) {
+export default function CampaignTriumphs({ triumphs, battles = [], members = [], territories = [], ooaCounts = [] }: CampaignTriumphsProps) {
   const gangMap = useMemo(() => {
     const map = new Map<string, GangInfo>();
     members.forEach(member => {
@@ -199,6 +205,16 @@ export default function CampaignTriumphs({ triumphs, battles = [], members = [],
       .sort((a, b) => b.value - a.value);
     return applyCompetitionRanking(sorted);
   }, [battles, gangMap]);
+
+  const topByOoa = useMemo(() => {
+    const sorted = ooaCounts
+      .map(({ gang_id: gangId, ooa_count: value }) => {
+        const info = gangMap.get(gangId);
+        return { gangId, gangName: info?.name || 'Unknown', gangType: info?.type || '-', gangColour: info?.colour || '#000000', playerId: info?.playerId || '', playerName: info?.playerName || 'Unknown', value };
+      })
+      .sort((a, b) => b.value - a.value);
+    return applyCompetitionRanking(sorted);
+  }, [ooaCounts, gangMap]);
 
   const topByWealth = useMemo(() => {
     const sorted = Array.from(gangMap.values())
@@ -313,6 +329,14 @@ export default function CampaignTriumphs({ triumphs, battles = [], members = [],
         <div>
           <h3 className="text-lg font-bold mb-3">Top Gangs by Victories</h3>
           <RankedTable entries={topByVictories} valueLabel="Victories" />
+        </div>
+      )}
+
+      {/* Top Gangs by OOA Caused */}
+      {topByOoa.length > 0 && (
+        <div>
+          <h3 className="text-lg font-bold mb-3">Top Gangs by OOA Caused</h3>
+          <RankedTable entries={topByOoa} valueLabel="OOA" />
         </div>
       )}
 

@@ -22,7 +22,8 @@ import {
   getCampaignResources,
   getCampaignCaptives,
   getCampaignSharedTradingPosts,
-  getCampaignMapWithObjects
+  getCampaignMapWithObjects,
+  getCampaignOoaCounts
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
 
 export default async function CampaignPage(props: { params: Promise<{ id: string }> }) {
@@ -86,7 +87,8 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       campaignAllegiances,
       campaignResources,
       campaignCaptives,
-      customTradingPostTypes
+      customTradingPostTypes,
+      campaignOoaCounts
     ] = await Promise.all([
       getCampaignBasic(params.id),
       getCampaignMembers(params.id),
@@ -104,7 +106,8 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       getCampaignAllegiances(params.id),
       getCampaignResources(params.id),
       getCampaignCaptives(params.id),
-      getCampaignSharedTradingPosts(params.id)
+      getCampaignSharedTradingPosts(params.id),
+      getCampaignOoaCounts(params.id)
     ]);
 
     // Check if campaign exists
@@ -158,6 +161,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       battles: campaignBattles,
       battleSessions: battleSessionsResult.data || [],
       triumphs: campaignTriumphs,
+      ooaCounts: campaignOoaCounts,
       captives: campaignCaptives
     };
     
