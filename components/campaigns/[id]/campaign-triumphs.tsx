@@ -319,7 +319,7 @@ export default function CampaignTriumphs({ triumphs, battles = [], members = [],
       )}
 
       {/* Top Gangs by OOA Caused */}
-      {topByOoa.length > 0 && (
+      {hasGangData && topByOoa.length > 0 && (
         <div>
           <h3 className="text-lg font-bold mb-3">Top Gangs by OOA Caused</h3>
           <RankedTable entries={topByOoa} valueLabel="OOA" />
