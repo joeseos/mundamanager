@@ -23,12 +23,10 @@ import {
   updateTerritoryStatus
 } from "@/app/actions/campaigns/[id]/campaign-territories";
 import { getPlayingCardSortKey } from "@/utils/campaigns/territory-playing-card-options";
-import ModalLoading from "@/components/ui/modal-loading";
 
 // Loads its code on first open, not with the page
 const TerritoryEditModal = dynamic(() => import("@/components/campaigns/[id]/campaign-territory-edit-modal"), {
   ssr: false,
-  loading: ModalLoading,
 });
 
 interface Gang {

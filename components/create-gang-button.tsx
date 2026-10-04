@@ -3,12 +3,11 @@
 import { useState } from "react"
 import dynamic from "next/dynamic"
 import { Button } from "@/components/ui/button"
-import ModalLoading from "@/components/ui/modal-loading"
 
 // Loads its code on first open, not with the page
 const CreateGangModal = dynamic(
   () => import("@/components/create-gang-modal").then((mod) => mod.CreateGangModal),
-  { ssr: false, loading: ModalLoading }
+  { ssr: false }
 )
 
 export function CreateGangButton() {

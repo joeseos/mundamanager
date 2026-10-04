@@ -24,13 +24,11 @@ import { Combobox } from "@/components/ui/combobox";
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import ModalLoading from "@/components/ui/modal-loading";
 import { useHasOpened } from "@/hooks/use-has-opened";
 
 // Loads its code on first open, not with the page
 const CampaignBattleLogModal = dynamic(() => import("@/components/campaigns/[id]/campaign-battle-log-modal"), {
   ssr: false,
-  loading: ModalLoading,
 });
 
 interface CampaignBattleLogsTerritory extends Territory {

@@ -34,12 +34,11 @@ import { UserPermissions } from '@/types/user-permissions';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { sortFightersByPositioning } from '@/utils/fighter-positioning';
-import ModalLoading from '@/components/ui/modal-loading';
 import { useHasOpened } from '@/hooks/use-has-opened';
 
 // Modals load their code on first open, not with the page
-const ChemAlchemyCreator = dynamic(() => import('./chem-alchemy'), { ssr: false, loading: ModalLoading });
-const ItemModal = dynamic(() => import('@/components/equipment/equipment'), { ssr: false, loading: ModalLoading });
+const ChemAlchemyCreator = dynamic(() => import('./chem-alchemy'), { ssr: false });
+const ItemModal = dynamic(() => import('@/components/equipment/equipment'), { ssr: false });
 
 interface GangInventoryProps {
   stash: StashItem[];

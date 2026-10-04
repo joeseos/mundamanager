@@ -61,16 +61,14 @@ import { updateFighterXp } from '@/app/actions/edit-fighter';
 import FighterCard from '@/components/gang/fighter-card';
 import type { BattleSessionFull, BattleSessionParticipant, BattleSessionFighter, SessionCondition, SessionInjuryRecord } from '@/types/battle-session';
 import { beastSubtypeName, hasFleshWoundCondition, hasN26CompositeBattleMarkers } from '@/types/edition';
-import ModalLoading from '@/components/ui/modal-loading';
 
 // Modals load their code on first open, not with the page
 const CrewSelectionModal = dynamic(() => import('@/components/battle-session/crew-selection-modal'), {
   ssr: false,
-  loading: ModalLoading,
 });
 const FighterXpModal = dynamic(
   () => import('@/components/fighter/fighter-xp-modal').then((mod) => mod.FighterXpModal),
-  { ssr: false, loading: ModalLoading }
+  { ssr: false }
 );
 
 const DUAL_ACTIVATION_RULES = ['Spyre Hunter', 'Aranthian Beauty Plating'];

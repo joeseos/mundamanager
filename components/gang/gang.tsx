@@ -28,18 +28,17 @@ import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { hasAlignment, hasTradePoints, hasVehicles } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
-import ModalLoading from '@/components/ui/modal-loading';
 import { useHasOpened } from '@/hooks/use-has-opened';
 
 // Modals load their code on first open, not with the page
-const FighterAddModal = dynamic(() => import('./fighter-add/FighterAddModal'), { ssr: false, loading: ModalLoading });
-const AddVehicle = dynamic(() => import('./add-vehicle'), { ssr: false, loading: ModalLoading });
-const LogModal = dynamic(() => import('../log-modal'), { ssr: false, loading: ModalLoading });
-const GangEditModal = dynamic(() => import('./gang-edit-modal'), { ssr: false, loading: ModalLoading });
-const GangResourcesModal = dynamic(() => import('./gang-resources-modal'), { ssr: false, loading: ModalLoading });
+const FighterAddModal = dynamic(() => import('./fighter-add/FighterAddModal'), { ssr: false });
+const AddVehicle = dynamic(() => import('./add-vehicle'), { ssr: false });
+const LogModal = dynamic(() => import('../log-modal'), { ssr: false });
+const GangEditModal = dynamic(() => import('./gang-edit-modal'), { ssr: false });
+const GangResourcesModal = dynamic(() => import('./gang-resources-modal'), { ssr: false });
 const GangImageEditModal = dynamic(
   () => import('./gang-image-edit-modal').then((mod) => mod.GangImageEditModal),
-  { ssr: false, loading: ModalLoading }
+  { ssr: false }
 );
 
 

@@ -22,18 +22,17 @@ import { FaMedkit, FaBookDead } from "react-icons/fa";
 import { LuLogs } from "react-icons/lu";
 import { Equipment } from '@/types/equipment';
 import { UserPermissions } from '@/types/user-permissions';
-import ModalLoading from '@/components/ui/modal-loading';
 import { useHasOpened } from '@/hooks/use-has-opened';
 
 // Modals load their code on first open, not with the page
 const FighterImageEditModal = dynamic(
   () => import('./fighter-image-edit-modal').then((mod) => mod.FighterImageEditModal),
-  { ssr: false, loading: ModalLoading }
+  { ssr: false }
 );
-const LogModal = dynamic(() => import('@/components/log-modal'), { ssr: false, loading: ModalLoading });
+const LogModal = dynamic(() => import('@/components/log-modal'), { ssr: false });
 const FighterOoaHistoryModal = dynamic(
   () => import('./fighter-ooa-history-modal').then((mod) => mod.FighterOoaHistoryModal),
-  { ssr: false, loading: ModalLoading }
+  { ssr: false }
 );
 
 // Vehicle equipment interface that extends Equipment

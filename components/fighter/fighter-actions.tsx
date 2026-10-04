@@ -16,12 +16,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { beastSubtypeName, hasGuilderSales, hasSpyrerRecovery } from '@/types/edition';
-import ModalLoading from "@/components/ui/modal-loading";
 
 // Loads its code on first open, not with the page
 const CopyFighterModal = dynamic(() => import("@/components/fighter/copy-fighter-modal"), {
   ssr: false,
-  loading: ModalLoading,
 });
 
 interface Fighter {

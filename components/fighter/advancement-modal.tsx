@@ -37,13 +37,12 @@ import {
 import { hasCumulativeXp } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { VENATOR_RANKS_INCOMPLETE_MESSAGE } from '@/utils/venatorSkillAccess';
-import ModalLoading from '@/components/ui/modal-loading';
 import { useHasOpened } from '@/hooks/use-has-opened';
 
 // Loads its code on first open, not with the modal
 const FighterPromotionModal = dynamic(
   () => import('@/components/fighter/edit-fighter/fighter-promotion-modal').then((mod) => mod.FighterPromotionModal),
-  { ssr: false, loading: ModalLoading }
+  { ssr: false }
 );
 
 // AdvancementModal Interfaces

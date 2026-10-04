@@ -28,12 +28,10 @@ import { setActiveLoadout } from '@/app/actions/loadouts';
 import { EquipmentTooltipTrigger } from '@/components/equipment/equipment-tooltip';
 import { Tooltip } from 'react-tooltip';
 import { getTooltipAttribute } from '@/components/ui/tooltip-renderers';
-import ModalLoading from '@/components/ui/modal-loading';
 
 // Loads its code on first open, not with the page
 const FighterLoadoutsModal = dynamic(() => import('@/components/fighter/fighter-loadouts-modal'), {
   ssr: false,
-  loading: ModalLoading,
 });
 
 // No active loadout, or one we can't resolve, means nothing is out of it.

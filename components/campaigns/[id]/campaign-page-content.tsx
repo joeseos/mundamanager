@@ -31,23 +31,20 @@ import { CampaignNotes } from "@/components/campaigns/[id]/campaign-notes";
 import CampaignMap from "./campaign-map"
 import { TbMapSearch } from "react-icons/tb";
 import { PiFlagBannerFoldBold } from "react-icons/pi";
-import ModalLoading from "@/components/ui/modal-loading";
 import { useHasOpened } from "@/hooks/use-has-opened";
 
 // Modals load their code on first open, not with the page
 const CampaignImageEditModal = dynamic(
   () => import("@/components/campaigns/[id]/campaign-image-edit-modal").then((mod) => mod.CampaignImageEditModal),
-  { ssr: false, loading: ModalLoading }
+  { ssr: false }
 );
 const CampaignAddTerritoryModal = dynamic(() => import("@/components/campaigns/[id]/campaign-add-territory-modal"), {
   ssr: false,
-  loading: ModalLoading,
 });
 const CampaignEditModal = dynamic(() => import("@/components/campaigns/[id]/campaign-edit-modal"), {
   ssr: false,
-  loading: ModalLoading,
 });
-const LogModal = dynamic(() => import("@/components/log-modal"), { ssr: false, loading: ModalLoading });
+const LogModal = dynamic(() => import("@/components/log-modal"), { ssr: false });
 
 interface Gang {
   id: string;

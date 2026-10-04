@@ -9,7 +9,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
-import ModalLoading from "@/components/ui/modal-loading";
 import { Equipment, FighterLoadout } from '@/types/equipment';
 import { AdvancementsList } from "@/components/fighter/fighter-advancement-list";
 import { PowerBoostsList } from "@/components/fighter/fighter-power-boosts";
@@ -38,15 +37,14 @@ import { hasN26ProspectPromotionOccurred } from '@/utils/keepTypePromotionN26';
 // Modals load their code on first open, not with the page
 const ItemModal = dynamic(() => import("@/components/equipment/equipment"), {
   ssr: false,
-  loading: ModalLoading,
 });
 const EditFighterModal = dynamic(
   () => import("@/components/fighter/edit-fighter/fighter-edit-modal").then((mod) => mod.EditFighterModal),
-  { ssr: false, loading: ModalLoading }
+  { ssr: false }
 );
 const FighterXpModal = dynamic(
   () => import("@/components/fighter/fighter-xp-modal").then((mod) => mod.FighterXpModal),
-  { ssr: false, loading: ModalLoading }
+  { ssr: false }
 );
 
 interface FighterPageProps {

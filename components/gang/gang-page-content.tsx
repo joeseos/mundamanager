@@ -27,20 +27,19 @@ import { toast } from 'sonner';
 import type { FighterEffect } from '@/types/fighter';
 import { hasKilledStatusFlag, countsTowardRating } from '@/utils/fighter-status';
 import { hasVehicles, hasGangTacticsCards } from '@/types/edition';
-import ModalLoading, { ModalContentLoading } from "@/components/ui/modal-loading";
 
 // Fighter card modals load their code on first open, not with the page
 const FighterXpModal = dynamic(
   () => import("@/components/fighter/fighter-xp-modal").then((mod) => mod.FighterXpModal),
-  { ssr: false, loading: ModalLoading }
+  { ssr: false }
 );
 const InjuriesList = dynamic(
   () => import("@/components/fighter/fighter-injury-list").then((mod) => mod.InjuriesList),
-  { ssr: false, loading: ModalContentLoading }
+  { ssr: false }
 );
 const VehicleDamagesList = dynamic(
   () => import("@/components/fighter/vehicle-lasting-damages").then((mod) => mod.VehicleDamagesList),
-  { ssr: false, loading: ModalContentLoading }
+  { ssr: false }
 );
 
 interface GangPageContentProps {

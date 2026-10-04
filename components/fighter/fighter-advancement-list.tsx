@@ -26,17 +26,16 @@ import {
   getN26ProspectSpecialisation,
   hasN26ProspectPromotionOccurred,
 } from '@/utils/keepTypePromotionN26';
-import ModalLoading from '@/components/ui/modal-loading';
 import { useHasOpened } from '@/hooks/use-has-opened';
 
 // Modals load their code on first open, not with the page
 const AdvancementModal = dynamic(
   () => import('@/components/fighter/advancement-modal').then((mod) => mod.AdvancementModal),
-  { ssr: false, loading: ModalLoading }
+  { ssr: false }
 );
 const FighterPromotionModal = dynamic(
   () => import('@/components/fighter/edit-fighter/fighter-promotion-modal').then((mod) => mod.FighterPromotionModal),
-  { ssr: false, loading: ModalLoading }
+  { ssr: false }
 );
 
 // AdvancementsList Interfaces

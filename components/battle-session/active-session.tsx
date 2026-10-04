@@ -23,11 +23,10 @@ import type { BattleSessionFull } from '@/types/battle-session';
 import type { Scenario } from '@/types/campaign';
 import { sameEditionForDisplay } from '@/types/edition';
 import type { GangFighter } from '@/types/gang';
-import ModalLoading from '@/components/ui/modal-loading';
 
 // Modals load their code on first open, not with the page
-const CreateBattleModal = dynamic(() => import('./create-battle-modal'), { ssr: false, loading: ModalLoading });
-const CompleteBattleModal = dynamic(() => import('./complete-battle-modal'), { ssr: false, loading: ModalLoading });
+const CreateBattleModal = dynamic(() => import('./create-battle-modal'), { ssr: false });
+const CompleteBattleModal = dynamic(() => import('./complete-battle-modal'), { ssr: false });
 
 interface ActiveSessionProps {
   session: BattleSessionFull;
