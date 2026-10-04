@@ -33,6 +33,7 @@ import { revalidateTag } from 'next/cache';
  *                  per-gang resource rows        | edits
  * campaign-map-{id} map and its objects          | map editor mutations
  * campaign-captives-{id} captives held by gangs  | fighter capture/rescue
+ * campaign-ooa-{id} per-gang OOA counts          | OOA record mutations
  * campaign-trading-posts-{id} shared custom TPs  | custom-share mutations
  * user-{id}        profile/gang list/        | profile, list, social
  *                  campaign list/friends     | mutations
@@ -57,6 +58,7 @@ export const TAGS = {
   campaignResources: (id: string) => `campaign-resources-${id}`,
   campaignMap: (id: string) => `campaign-map-${id}`,
   campaignCaptives: (id: string) => `campaign-captives-${id}`,
+  campaignOoa: (id: string) => `campaign-ooa-${id}`,
   campaignTradingPosts: (id: string) => `campaign-trading-posts-${id}`,
   user: (id: string) => `user-${id}`,
   customs: (userId: string) => `custom-${userId}`,
@@ -201,6 +203,11 @@ export const invalidateCampaignCaptives = (campaignId: string) => {
   bust(TAGS.campaignCaptives(campaignId));
 };
 
+/** An OOA / vehicle-wreck record tagged with this campaign changed. */
+export const invalidateCampaignOoa = (campaignId: string) => {
+  bust(TAGS.campaignOoa(campaignId));
+};
+
 /** The set of custom trading posts shared into the campaign changed. */
 export const invalidateCampaignTradingPosts = (campaignId: string) => {
   bust(TAGS.campaignTradingPosts(campaignId));
@@ -219,6 +226,7 @@ export const invalidateCampaignAll = (campaignId: string) => {
   bust(TAGS.campaignResources(campaignId));
   bust(TAGS.campaignMap(campaignId));
   bust(TAGS.campaignCaptives(campaignId));
+  bust(TAGS.campaignOoa(campaignId));
   bust(TAGS.campaignTradingPosts(campaignId));
 };
 

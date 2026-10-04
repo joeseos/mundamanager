@@ -7,6 +7,7 @@ import { fetchCampaignAllegiances } from '@/utils/campaigns/allegiances';
 import { getWinnerIdsFromParsed, getClaimerGangIdFromParsed } from '@/utils/battle-winners';
 import { fetchCampaignResources } from '@/utils/campaigns/resources';
 import { CAMPAIGN_TERRITORY_COLUMNS } from '@/utils/campaigns/territories';
+import { fetchAllRows } from '@/utils/supabase/fetch-all-rows';
 import { editionSlugFromJoin } from '@/types/edition';
 import type { CampaignMapRow, CampaignMapObjectRow, CampaignMapBundle } from '@/types/campaign';
 
@@ -815,6 +816,44 @@ async function _getCampaignCaptives(campaignId: string, supabase: SupabaseClient
 
   return Object.values(byHoldingGang).sort((a, b) => a.gangName.localeCompare(b.gangName));
 }
+
+async function _getCampaignOoaCounts(campaignId: string, supabase: SupabaseClient) {
+  const rows = await fetchAllRows<{ causing_gang_id: string }>((from, to) =>
+    supabase
+      .from('fighter_ooa_records')
+      .select('causing_gang_id')
+      .eq('campaign_id', campaignId)
+      .eq('event_type', 'out_of_action')
+      .not('causing_gang_id', 'is', null)
+      .order('id')
+      .range(from, to)
+  );
+
+  const counts = new Map<string, number>();
+  rows.forEach(({ causing_gang_id }) => {
+    counts.set(causing_gang_id, (counts.get(causing_gang_id) || 0) + 1);
+  });
+  return Array.from(counts, ([gang_id, ooa_count]) => ({ gang_id, ooa_count }));
+}
+
+/**
+ * Get each gang's Out of Action count for a campaign (Slaughterer triumph).
+ * Counts fighter_ooa_records made in this campaign, so OOAs recorded before
+ * that table existed, or outside the campaign, are not included. Counts for
+ * gangs no longer in the campaign are dropped when the leaderboard is ranked.
+ */
+export const getCampaignOoaCounts = async (campaignId: string) => {
+  return unstable_cache(
+    async () => {
+      return _getCampaignOoaCounts(campaignId, createServiceRoleClient());
+    },
+    [`campaign-ooa-counts-${campaignId}`],
+    {
+      tags: [TAGS.campaignOoa(campaignId)],
+      revalidate: false
+    }
+  )();
+};
 
 /**
  * Get available resources for a campaign

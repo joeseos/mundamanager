@@ -22,7 +22,8 @@ import {
   getCampaignResources,
   getCampaignCaptives,
   getCampaignSharedTradingPosts,
-  getCampaignMapWithObjects
+  getCampaignMapWithObjects,
+  getCampaignOoaCounts
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
 
 export default async function CampaignPage(props: { params: Promise<{ id: string }> }) {
@@ -86,7 +87,8 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       campaignAllegiances,
       campaignResources,
       campaignCaptives,
-      customTradingPostTypes
+      customTradingPostTypes,
+      campaignOoaCounts
     ] = await Promise.all([
       getCampaignBasic(params.id),
       getCampaignMembers(params.id),
@@ -104,7 +106,14 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       getCampaignAllegiances(params.id),
       getCampaignResources(params.id),
       getCampaignCaptives(params.id),
-      getCampaignSharedTradingPosts(params.id)
+      getCampaignSharedTradingPosts(params.id),
+      // Only feeds an optional Triumphs leaderboard; a failure here shouldn't
+      // take down the campaign page. Caught outside the cache so an empty
+      // result is never stored.
+      getCampaignOoaCounts(params.id).catch((error) => {
+        console.error('Error loading campaign OOA counts:', error);
+        return [];
+      })
     ]);
 
     // Check if campaign exists
@@ -158,6 +167,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       battles: campaignBattles,
       battleSessions: battleSessionsResult.data || [],
       triumphs: campaignTriumphs,
+      ooaCounts: campaignOoaCounts,
       captives: campaignCaptives
     };
     

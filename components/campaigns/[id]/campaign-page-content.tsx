@@ -135,6 +135,7 @@ interface CampaignPageContentProps {
       created_at: string;
       updated_at: string | null;
     }[];
+    ooaCounts?: { gang_id: string; ooa_count: number }[];
     captives?: Array<{
       gangId: string;
       gangName: string;
@@ -1007,6 +1008,7 @@ export default function CampaignPageContent({
                   battles={campaignData.battles || []}
                   members={campaignData.members || []}
                   territories={campaignData.territories || []}
+                  ooaCounts={campaignData.ooaCounts || []}
                 />
               </div>
             </div>
