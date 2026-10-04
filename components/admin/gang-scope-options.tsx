@@ -23,7 +23,7 @@ export interface GangScope {
 }
 
 interface GangScopeLists {
-  gangTypes: Array<{ gang_type_id: string; gang_type: string }>;
+  gangTypes: Array<{ id: string; gang_type: string }>;
   origins: GangOriginOption[];
   subtypes: Array<{ id: string; subtype: string }>;
 }
@@ -37,7 +37,7 @@ export const gangScopeKey = (scope: GangScope) =>
 export function formatGangScope(scope: GangScope, { gangTypes, origins, subtypes }: GangScopeLists): string {
   return [
     scope.gang_type_id
-      ? `Gang type: ${gangTypes.find(g => g.gang_type_id === scope.gang_type_id)?.gang_type ?? '…'}`
+      ? `Gang type: ${gangTypes.find(g => g.id === scope.gang_type_id)?.gang_type ?? '…'}`
       : null,
     scope.gang_origin_id
       ? `Origin: ${origins.find(o => o.id === scope.gang_origin_id)?.origin_name ?? '…'}`
@@ -74,7 +74,7 @@ export function GangScopeSelects({
         >
           <option value="">Any Gang Type</option>
           {gangTypes.map((gangType) => (
-            <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
+            <option key={gangType.id} value={gangType.id}>
               {gangType.gang_type}
             </option>
           ))}

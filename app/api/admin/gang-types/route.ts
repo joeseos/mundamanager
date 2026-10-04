@@ -5,10 +5,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { isValidHttpUrl } from '@/utils/http-url';
 import { invalidateGangTypesCatalog } from '@/utils/cache-tags';
 
-const GANG_TYPE_LIST_COLUMNS = 'gang_type_id:id, gang_type, edition_id';
+const GANG_TYPE_LIST_COLUMNS = 'id, gang_type, edition_id';
 
 const GANG_TYPE_COLUMNS =
-  'gang_type_id:id, gang_type, alignment, is_hidden, affiliation, trading_post_type_id, gang_origin_category_id, parent_gang_type_id, default_image_urls, edition_id';
+  'id, gang_type, alignment, is_hidden, affiliation, trading_post_type_id, gang_origin_category_id, parent_gang_type_id, default_image_urls, edition_id';
 
 const ALLOWED_ALIGNMENTS = [
   'Law Abiding',
@@ -48,7 +48,7 @@ type GangTypePatch = {
 };
 
 type GangTypeRow = {
-  gang_type_id: string;
+  id: string;
   gang_type: string | null;
   alignment: string | null;
   is_hidden: boolean | null;
@@ -709,14 +709,14 @@ async function _PATCH(request: Request) {
     }
 
     const body = await request.json() as Record<string, unknown>;
-    const gangTypeIdParsed = parseUuid(body.gang_type_id, 'gang_type_id');
+    const gangTypeIdParsed = parseUuid(body.id, 'id');
     if ('error' in gangTypeIdParsed) {
       return NextResponse.json({ error: gangTypeIdParsed.error }, { status: 400 });
     }
     const gangTypeId = gangTypeIdParsed.data;
 
     if (!gangTypeId) {
-      return NextResponse.json({ error: 'gang_type_id is required' }, { status: 400 });
+      return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
 
     const validated = validateGangTypePatch(body);

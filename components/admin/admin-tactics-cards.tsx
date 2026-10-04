@@ -34,7 +34,7 @@ interface TacticsCardRow {
 }
 
 interface GangType {
-  gang_type_id: string;
+  id: string;
   gang_type: string;
   edition_id?: string | null;
 }
@@ -45,7 +45,7 @@ interface AdminTacticsCardsModalProps {
 
 function packGangTypeName(pack: TacticsPack, gangTypes: GangType[]): string | undefined {
   if (pack.gang_type_id == null) return undefined;
-  return gangTypes.find(gt => gt.gang_type_id === pack.gang_type_id)?.gang_type;
+  return gangTypes.find(gt => gt.id === pack.gang_type_id)?.gang_type;
 }
 
 function packSelectOption(pack: TacticsPack, gangTypes: GangType[]) {
@@ -165,7 +165,7 @@ export function AdminTacticsCardsModal({ onClose }: AdminTacticsCardsModalProps)
     () => [
       { value: '', label: 'Core (All gangs)' },
       ...filteredGangTypes.map((gangType) => ({
-        value: gangType.gang_type_id,
+        value: gangType.id,
         label: gangType.gang_type,
       })),
     ],
@@ -241,7 +241,7 @@ export function AdminTacticsCardsModal({ onClose }: AdminTacticsCardsModalProps)
     }
 
     if (packGangTypeId) {
-      const selectedGangType = gangTypes.find(gt => gt.gang_type_id === packGangTypeId);
+      const selectedGangType = gangTypes.find(gt => gt.id === packGangTypeId);
       if (selectedGangType && selectedGangType.edition_id !== newEditionId) {
         setPackGangTypeId('');
       }

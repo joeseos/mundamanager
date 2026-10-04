@@ -17,7 +17,7 @@ enum OperationType {
 }
 
 interface AdminGangType {
-  gang_type_id: string;
+  id: string;
   gang_type: string;
   alignment: string | null;
   is_hidden: boolean;
@@ -215,12 +215,12 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
   const parentOptions = useMemo(
     () => filteredGangTypes.filter(gt =>
       !gt.parent_gang_type_id &&
-      gt.gang_type_id !== selectedGangTypeId
+      gt.id !== selectedGangTypeId
     ),
     [filteredGangTypes, selectedGangTypeId]
   );
 
-  const selectedGangType = gangTypes.find(gt => gt.gang_type_id === selectedGangTypeId);
+  const selectedGangType = gangTypes.find(gt => gt.id === selectedGangTypeId);
   const willAssignEdition = Boolean(
     !isCreateMode && selectedGangType && !selectedGangType.edition_id && editionId
   );
@@ -252,7 +252,7 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
     setEditionId(newEditionId);
 
     if (newEditionId && selectedGangTypeId) {
-      const gangType = gangTypes.find(gt => gt.gang_type_id === selectedGangTypeId);
+      const gangType = gangTypes.find(gt => gt.id === selectedGangTypeId);
       if (gangType?.edition_id && gangType.edition_id !== newEditionId) {
         setSelectedGangTypeId('');
         clearFormFields();
@@ -268,7 +268,7 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
     }
 
     if (parentGangTypeId) {
-      const selected = gangTypes.find(gt => gt.gang_type_id === parentGangTypeId);
+      const selected = gangTypes.find(gt => gt.id === parentGangTypeId);
       if (selected && selected.edition_id !== newEditionId) {
         setParentGangTypeId('');
       }
@@ -277,7 +277,7 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
 
   const handleGangTypeSelect = (gangTypeId: string) => {
     setSelectedGangTypeId(gangTypeId);
-    const gangType = gangTypes.find(gt => gt.gang_type_id === gangTypeId);
+    const gangType = gangTypes.find(gt => gt.id === gangTypeId);
     if (gangType) {
       applyGangType(gangType);
       setIsCreateMode(false);
@@ -329,7 +329,7 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
       const body = JSON.stringify(
         operation === OperationType.POST
           ? payload
-          : { gang_type_id: selectedGangTypeId, ...payload }
+          : { id: selectedGangTypeId, ...payload }
       );
 
       const response = await fetch('/api/admin/gang-types', {
@@ -356,8 +356,8 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
 
       await queryClient.invalidateQueries({ queryKey: ['admin-gang-types'] });
 
-      if (operation === OperationType.POST && resultData?.gang_type_id) {
-        setSelectedGangTypeId(resultData.gang_type_id);
+      if (operation === OperationType.POST && resultData?.id) {
+        setSelectedGangTypeId(resultData.id);
         setIsCreateMode(false);
         applyGangType(resultData);
       }
@@ -425,7 +425,7 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
               >
                 <option value="">Select a gang type to edit</option>
                 {filteredGangTypes.map((gangType) => (
-                  <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
+                  <option key={gangType.id} value={gangType.id}>
                     {gangType.gang_type}
                     {!gangType.edition_id ? ' (no edition)' : ''}
                     {gangType.is_hidden ? ' (hidden)' : ''}
@@ -552,7 +552,7 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
               >
                 <option value="">None (root gang type)</option>
                 {parentOptions.map((gangType) => (
-                  <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
+                  <option key={gangType.id} value={gangType.id}>
                     {gangType.gang_type}
                   </option>
                 ))}
