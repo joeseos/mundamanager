@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { createCampaign } from "@/app/actions/create-campaign"
 import { toast } from 'sonner';
@@ -27,6 +28,35 @@ interface CreateCampaignModalProps {
   initialCampaignTypes: CampaignType[] | null;
   initialTradingPostTypes: TradingPostType[] | null;
   userId?: string;
+}
+
+// Button component that opens the modal
+export function CreateCampaignButton({ initialCampaignTypes, initialTradingPostTypes, userId }: { initialCampaignTypes: CampaignType[] | null; initialTradingPostTypes: TradingPostType[] | null; userId?: string }) {
+  const [showModal, setShowModal] = useState(false);
+
+  const handleClose = () => {
+    setShowModal(false);
+  };
+
+  return (
+    <>
+      <Button 
+        onClick={() => setShowModal(true)}
+        className="w-full"
+      >
+        Create Campaign
+      </Button>
+
+      {showModal && (
+        <CreateCampaignModal
+          onClose={handleClose}
+          initialCampaignTypes={initialCampaignTypes}
+          initialTradingPostTypes={initialTradingPostTypes}
+          userId={userId}
+        />
+      )}
+    </>
+  );
 }
 
 // Modal component

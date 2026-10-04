@@ -2,8 +2,8 @@
 // utils/cache-tags.ts - not revalidatePath, which evicts every cached entry.
 
 import { createClient } from "@/utils/supabase/server";
-import { CreateGangButton } from '@/components/create-gang-button';
-import { CreateCampaignButton } from '@/components/create-campaign-button';
+import { CreateGangButton } from '@/components/create-gang-modal';
+import { CreateCampaignButton } from '@/components/create-campaign';
 import { getUserGangs } from '@/app/lib/get-user-gangs';
 import { getUserCampaigns, getUserShareCampaigns } from '@/app/lib/get-user-campaigns';
 import { FaDiscord, FaPatreon } from "react-icons/fa6";

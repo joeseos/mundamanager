@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react"
 import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Combobox } from "@/components/ui/combobox"
@@ -72,6 +73,32 @@ interface CreateGangModalProps {
 
 // Default image index to display (0 = Silhouette, 1 = Djidiouf, 2 = Carl R Johnston Grey, 3 = Carl R Johnston Colour)
 const DEFAULT_IMAGE_INDEX = 3;
+
+// Button component that opens the modal
+export function CreateGangButton() {
+  const [showModal, setShowModal] = useState(false);
+
+  const handleClose = () => {
+    setShowModal(false);
+  };
+
+  return (
+    <>
+      <Button 
+        onClick={() => setShowModal(true)}
+        className="w-full"
+      >
+        Create Gang
+      </Button>
+
+      {showModal && (
+        <CreateGangModal
+          onClose={handleClose}
+        />
+      )}
+    </>
+  );
+}
 
 // Modal component
 export function CreateGangModal({ onClose }: CreateGangModalProps) {
