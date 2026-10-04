@@ -17,7 +17,6 @@ import { deleteGang } from '@/app/actions/delete-gang';
 import { hasAlignment, sameEditionForDisplay } from '@/types/edition';
 import { isVenatorGang } from '@/utils/venatorSkillAccess';
 import { saveVenatorSkillRanks } from '@/app/actions/gang/save-venator-skill-ranks';
-import { createClient } from '@/utils/supabase/client';
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToParentElement, restrictToVerticalAxis } from '@dnd-kit/modifiers';
@@ -232,14 +231,9 @@ export default function GangEditModal({
     queryKey: ['gang-skill-set-ranks', gangId],
     enabled: isVenator,
     queryFn: async () => {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from('gang_skill_set_ranks')
-        .select('rank, skill_type_id')
-        .eq('gang_id', gangId)
-        .order('rank');
-      if (error) throw error;
-      return data ?? [];
+      const response = await fetch(`/api/gangs/${gangId}/skill-set-ranks`);
+      if (!response.ok) throw new Error('Failed to load skill set ranks');
+      return response.json();
     },
   });
 
