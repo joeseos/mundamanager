@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
+import { getUserIdFromClaims } from '@/utils/auth';
 
 /**
  * GET /api/gangs/[id]/skill-set-ranks
@@ -21,6 +22,11 @@ export async function GET(
   }
 
   try {
+    const userId = await getUserIdFromClaims(supabase);
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { data, error } = await supabase
       .from('gang_skill_set_ranks')
       .select('rank, skill_type_id')
