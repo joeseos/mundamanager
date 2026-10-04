@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { FighterDetailsStatsTable } from '../ui/fighter-details-stats-table';
@@ -21,9 +22,19 @@ import { FaMedkit, FaBookDead } from "react-icons/fa";
 import { LuLogs } from "react-icons/lu";
 import { Equipment } from '@/types/equipment';
 import { UserPermissions } from '@/types/user-permissions';
-import { FighterImageEditModal } from './fighter-image-edit-modal';
-import LogModal from '@/components/log-modal';
-import { FighterOoaHistoryModal } from './fighter-ooa-history-modal';
+import ModalLoading from '@/components/ui/modal-loading';
+import { useHasOpened } from '@/hooks/use-has-opened';
+
+// Modals load their code on first open, not with the page
+const FighterImageEditModal = dynamic(
+  () => import('./fighter-image-edit-modal').then((mod) => mod.FighterImageEditModal),
+  { ssr: false, loading: ModalLoading }
+);
+const LogModal = dynamic(() => import('@/components/log-modal'), { ssr: false, loading: ModalLoading });
+const FighterOoaHistoryModal = dynamic(
+  () => import('./fighter-ooa-history-modal').then((mod) => mod.FighterOoaHistoryModal),
+  { ssr: false, loading: ModalLoading }
+);
 
 // Vehicle equipment interface that extends Equipment
 interface VehicleEquipment extends Equipment {
@@ -291,6 +302,9 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   const [currentImageUrl, setCurrentImageUrl] = useState(image_url);
   const [isLogsModalOpen, setIsLogsModalOpen] = useState(false);
   const [isOoaHistoryModalOpen, setIsOoaHistoryModalOpen] = useState(false);
+  const hasOpenedImageModal = useHasOpened(isImageModalOpen);
+  const hasOpenedLogsModal = useHasOpened(isLogsModalOpen);
+  const hasOpenedOoaHistoryModal = useHasOpened(isOoaHistoryModalOpen);
 
   // Create fighter data object for stat calculation
   const fighterData = useMemo<FighterProps>(() => ({
@@ -674,35 +688,41 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       </div>
 
       {/* Image Edit Modal */}
-      <FighterImageEditModal
-        isOpen={isImageModalOpen}
-        onClose={() => setIsImageModalOpen(false)}
-        currentImageUrl={currentImageUrl}
-        fighterId={id}
-        gangId={gangId || ''}
-        onImageUpdate={handleImageUpdate}
-      />
+      {hasOpenedImageModal && (
+        <FighterImageEditModal
+          isOpen={isImageModalOpen}
+          onClose={() => setIsImageModalOpen(false)}
+          currentImageUrl={currentImageUrl}
+          fighterId={id}
+          gangId={gangId || ''}
+          onImageUpdate={handleImageUpdate}
+        />
+      )}
 
       {/* Fighter Logs Modal */}
-      <LogModal
-        fetchUrl={`/api/gangs/${gangId || ''}/logs?fighterId=${id}${showsVehicleProfile && vehicles?.[0] ? `&vehicleId=${vehicles[0].id}` : ''}`}
-        title={`Activity Logs: ${name}`}
-        emptyMessage="No activity logs found for this fighter."
-        editionSlug={edition_slug}
-        isOpen={isLogsModalOpen}
-        onClose={() => setIsLogsModalOpen(false)}
-      />
+      {hasOpenedLogsModal && (
+        <LogModal
+          fetchUrl={`/api/gangs/${gangId || ''}/logs?fighterId=${id}${showsVehicleProfile && vehicles?.[0] ? `&vehicleId=${vehicles[0].id}` : ''}`}
+          title={`Activity Logs: ${name}`}
+          emptyMessage="No activity logs found for this fighter."
+          editionSlug={edition_slug}
+          isOpen={isLogsModalOpen}
+          onClose={() => setIsLogsModalOpen(false)}
+        />
+      )}
 
       {/* OOA / Wreck Records Modal */}
-      <FighterOoaHistoryModal
-        isOpen={isOoaHistoryModalOpen}
-        fighterId={id}
-        gangId={gangId}
-        campaignId={campaignId}
-        canEdit={canShowEditButtons}
-        editionSlug={edition_slug}
-        onClose={() => setIsOoaHistoryModalOpen(false)}
-      />
+      {hasOpenedOoaHistoryModal && (
+        <FighterOoaHistoryModal
+          isOpen={isOoaHistoryModalOpen}
+          fighterId={id}
+          gangId={gangId}
+          campaignId={campaignId}
+          canEdit={canShowEditButtons}
+          editionSlug={edition_slug}
+          onClose={() => setIsOoaHistoryModalOpen(false)}
+        />
+      )}
     </div>
   );
 });

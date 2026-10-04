@@ -2,13 +2,13 @@
 
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/ui/modal";
 import { toast } from 'sonner';
 import { SellFighterModal } from "@/components/fighter/sell-fighter";
 import { UserPermissions } from '@/types/user-permissions';
 import { editFighterStatus } from "@/app/actions/edit-fighter";
-import CopyFighterModal from "@/components/fighter/copy-fighter-modal";
 import { useMutation } from '@tanstack/react-query';
 import { isStatusIncompatible } from '@/utils/fighter-status';
 import { Tooltip } from 'react-tooltip';
@@ -16,6 +16,13 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { beastSubtypeName, hasGuilderSales, hasSpyrerRecovery } from '@/types/edition';
+import ModalLoading from "@/components/ui/modal-loading";
+
+// Loads its code on first open, not with the page
+const CopyFighterModal = dynamic(() => import("@/components/fighter/copy-fighter-modal"), {
+  ssr: false,
+  loading: ModalLoading,
+});
 
 interface Fighter {
   id: string;

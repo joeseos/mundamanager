@@ -7,8 +7,9 @@ import { WeaponList } from "@/components/fighter/fighter-equipment-list";
 import { VehicleEquipmentList } from "@/components/fighter/vehicle-equipment-list";
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
-import ItemModal from "@/components/equipment/equipment";
+import ModalLoading from "@/components/ui/modal-loading";
 import { Equipment, FighterLoadout } from '@/types/equipment';
 import { AdvancementsList } from "@/components/fighter/fighter-advancement-list";
 import { PowerBoostsList } from "@/components/fighter/fighter-power-boosts";
@@ -17,10 +18,8 @@ import { InjuriesList } from "@/components/fighter/fighter-injury-list";
 import { FighterNotes } from "@/components/fighter/fighter-notes-list";
 import { VehicleEquipment } from '@/types/fighter';
 import { VEHICLE_EQUIPMENT_CATEGORIES } from '@/utils/vehicleEquipmentCategories';
-import { EditFighterModal } from "@/components/fighter/edit-fighter/fighter-edit-modal";
 import { Vehicle } from '@/types/fighter';
 import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages";
-import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { UserPermissions } from '@/types/user-permissions';
 import { FighterActions } from "@/components/fighter/fighter-actions";
 import { Combobox } from "@/components/ui/combobox";
@@ -35,6 +34,20 @@ import { sortFightersByPositioning } from '@/utils/fighter-positioning';
 import { hasCumulativeXp, hasSpyrerPowerBoosts } from '@/types/edition';
 import { nextTierStartFor, openAdvancementsFor } from '@/utils/advancementRanks';
 import { hasN26ProspectPromotionOccurred } from '@/utils/keepTypePromotionN26';
+
+// Modals load their code on first open, not with the page
+const ItemModal = dynamic(() => import("@/components/equipment/equipment"), {
+  ssr: false,
+  loading: ModalLoading,
+});
+const EditFighterModal = dynamic(
+  () => import("@/components/fighter/edit-fighter/fighter-edit-modal").then((mod) => mod.EditFighterModal),
+  { ssr: false, loading: ModalLoading }
+);
+const FighterXpModal = dynamic(
+  () => import("@/components/fighter/fighter-xp-modal").then((mod) => mod.FighterXpModal),
+  { ssr: false, loading: ModalLoading }
+);
 
 interface FighterPageProps {
   initialFighterData: any;

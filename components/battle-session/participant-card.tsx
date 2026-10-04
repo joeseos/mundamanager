@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, Fragment } from 'react';
 import { createPortal } from 'react-dom';
+import dynamic from 'next/dynamic';
 import { sortParticipantFightersByPositioning } from '@/utils/fighter-positioning';
 
 import { useMutation } from '@tanstack/react-query';
@@ -14,10 +15,8 @@ import { PatreonSupporterIcon } from '@/components/ui/patreon-supporter-icon';
 import { LuPlus, LuMinus, LuClipboard } from 'react-icons/lu';
 import { Combobox } from '@/components/ui/combobox';
 import Modal from '@/components/ui/modal';
-import CrewSelectionModal from '@/components/battle-session/crew-selection-modal';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import DiceRoller from '@/components/dice-roller';
-import { FighterXpModal } from '@/components/fighter/fighter-xp-modal';
 import { rollD66, rollNd6Outcome, resolveInjuryFor, resolveInjuryRangeByNameFor } from '@/utils/dice';
 import { lastingInjuryRankFor } from '@/utils/lastingInjuryRank';
 import { requiredHatredTarget } from '@/utils/injuryTarget';
@@ -62,6 +61,17 @@ import { updateFighterXp } from '@/app/actions/edit-fighter';
 import FighterCard from '@/components/gang/fighter-card';
 import type { BattleSessionFull, BattleSessionParticipant, BattleSessionFighter, SessionCondition, SessionInjuryRecord } from '@/types/battle-session';
 import { beastSubtypeName, hasFleshWoundCondition, hasN26CompositeBattleMarkers } from '@/types/edition';
+import ModalLoading from '@/components/ui/modal-loading';
+
+// Modals load their code on first open, not with the page
+const CrewSelectionModal = dynamic(() => import('@/components/battle-session/crew-selection-modal'), {
+  ssr: false,
+  loading: ModalLoading,
+});
+const FighterXpModal = dynamic(
+  () => import('@/components/fighter/fighter-xp-modal').then((mod) => mod.FighterXpModal),
+  { ssr: false, loading: ModalLoading }
+);
 
 const DUAL_ACTIVATION_RULES = ['Spyre Hunter', 'Aranthian Beauty Plating'];
 const hasDualActivation = (rules?: string[]) =>

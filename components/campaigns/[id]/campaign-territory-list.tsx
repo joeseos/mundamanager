@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { LuSquarePen } from "react-icons/lu";
@@ -15,7 +16,6 @@ import { Tooltip } from 'react-tooltip';
 import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import Modal from "@/components/ui/modal";
 import TerritoryGangModal from "@/components/campaigns/[id]/campaign-territory-gang-modal";
-import TerritoryEditModal from "@/components/campaigns/[id]/campaign-territory-edit-modal";
 import { 
   assignGangToTerritory, 
   removeGangFromTerritory, 
@@ -23,6 +23,13 @@ import {
   updateTerritoryStatus
 } from "@/app/actions/campaigns/[id]/campaign-territories";
 import { getPlayingCardSortKey } from "@/utils/campaigns/territory-playing-card-options";
+import ModalLoading from "@/components/ui/modal-loading";
+
+// Loads its code on first open, not with the page
+const TerritoryEditModal = dynamic(() => import("@/components/campaigns/[id]/campaign-territory-edit-modal"), {
+  ssr: false,
+  loading: ModalLoading,
+});
 
 interface Gang {
   id: string;

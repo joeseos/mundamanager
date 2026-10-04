@@ -6,25 +6,86 @@ import { PiFlagBannerFoldBold } from "react-icons/pi";
 import { TbCards } from "react-icons/tb";
 import { LuSquarePen } from 'react-icons/lu';
 import { useState } from "react";
-import { AdminCreateFighterTypeModal } from "@/components/admin/admin-create-fighter-type";
-import { AdminEditFighterTypeModal } from "@/components/admin/admin-edit-fighter-type";
-import { AdminCreateEquipmentModal } from "@/components/admin/admin-create-equipment";
-import { AdminEditEquipmentModal } from "@/components/admin/admin-edit-equipment";
-import { AdminCreateSkillModal } from "@/components/admin/admin-create-skill";
-import { AdminEditSkillModal } from "@/components/admin/admin-edit-skill";
-import { AdminGangLineageModal } from "@/components/admin/admin-gang-lineage";
-import { AdminCreateVehicleTypeModal } from "@/components/admin/admin-create-vehicle-type";
-import { AdminEditVehicleTypeModal } from "@/components/admin/admin-edit-vehicle-type";
-import { AdminStatsModal } from "@/components/admin/admin-stats-modal";
-import { AdminScenariosModal } from "@/components/admin/admin-scenarios-modal";
-import { AdminInjuriesGlitchesModal } from "@/components/admin/admin-injuries";
-import { AdminAlliancesModal } from "@/components/admin/admin-alliances";
-import { AdminGangTypesModal } from "@/components/admin/admin-gang-types";
-import { AdminTacticsCardsModal } from "@/components/admin/admin-tactics-cards";
-import { AdminCampaignManagementModal } from "@/components/admin/admin-campaign-management";
-import { AdminSupportToolsModal } from "@/components/admin/admin-support-tools";
-import { AdminNotificationsModal } from "@/components/admin/admin-notifications-modal";
-import { AdminUserGuidesModal } from "@/components/admin/admin-user-guides-modal";
+import dynamic from "next/dynamic";
+import ModalLoading from "@/components/ui/modal-loading";
+
+// Each modal loads its code on first open, not with the page
+const AdminCreateFighterTypeModal = dynamic(() => import("@/components/admin/admin-create-fighter-type").then((mod) => mod.AdminCreateFighterTypeModal), {
+  ssr: false,
+  loading: ModalLoading,
+});
+const AdminEditFighterTypeModal = dynamic(() => import("@/components/admin/admin-edit-fighter-type").then((mod) => mod.AdminEditFighterTypeModal), {
+  ssr: false,
+  loading: ModalLoading,
+});
+const AdminCreateEquipmentModal = dynamic(() => import("@/components/admin/admin-create-equipment").then((mod) => mod.AdminCreateEquipmentModal), {
+  ssr: false,
+  loading: ModalLoading,
+});
+const AdminEditEquipmentModal = dynamic(() => import("@/components/admin/admin-edit-equipment").then((mod) => mod.AdminEditEquipmentModal), {
+  ssr: false,
+  loading: ModalLoading,
+});
+const AdminCreateSkillModal = dynamic(() => import("@/components/admin/admin-create-skill").then((mod) => mod.AdminCreateSkillModal), {
+  ssr: false,
+  loading: ModalLoading,
+});
+const AdminEditSkillModal = dynamic(() => import("@/components/admin/admin-edit-skill").then((mod) => mod.AdminEditSkillModal), {
+  ssr: false,
+  loading: ModalLoading,
+});
+const AdminGangLineageModal = dynamic(() => import("@/components/admin/admin-gang-lineage").then((mod) => mod.AdminGangLineageModal), {
+  ssr: false,
+  loading: ModalLoading,
+});
+const AdminCreateVehicleTypeModal = dynamic(() => import("@/components/admin/admin-create-vehicle-type").then((mod) => mod.AdminCreateVehicleTypeModal), {
+  ssr: false,
+  loading: ModalLoading,
+});
+const AdminEditVehicleTypeModal = dynamic(() => import("@/components/admin/admin-edit-vehicle-type").then((mod) => mod.AdminEditVehicleTypeModal), {
+  ssr: false,
+  loading: ModalLoading,
+});
+const AdminStatsModal = dynamic(() => import("@/components/admin/admin-stats-modal").then((mod) => mod.AdminStatsModal), {
+  ssr: false,
+  loading: ModalLoading,
+});
+const AdminScenariosModal = dynamic(() => import("@/components/admin/admin-scenarios-modal").then((mod) => mod.AdminScenariosModal), {
+  ssr: false,
+  loading: ModalLoading,
+});
+const AdminInjuriesGlitchesModal = dynamic(() => import("@/components/admin/admin-injuries").then((mod) => mod.AdminInjuriesGlitchesModal), {
+  ssr: false,
+  loading: ModalLoading,
+});
+const AdminAlliancesModal = dynamic(() => import("@/components/admin/admin-alliances").then((mod) => mod.AdminAlliancesModal), {
+  ssr: false,
+  loading: ModalLoading,
+});
+const AdminGangTypesModal = dynamic(() => import("@/components/admin/admin-gang-types").then((mod) => mod.AdminGangTypesModal), {
+  ssr: false,
+  loading: ModalLoading,
+});
+const AdminTacticsCardsModal = dynamic(() => import("@/components/admin/admin-tactics-cards").then((mod) => mod.AdminTacticsCardsModal), {
+  ssr: false,
+  loading: ModalLoading,
+});
+const AdminCampaignManagementModal = dynamic(() => import("@/components/admin/admin-campaign-management").then((mod) => mod.AdminCampaignManagementModal), {
+  ssr: false,
+  loading: ModalLoading,
+});
+const AdminSupportToolsModal = dynamic(() => import("@/components/admin/admin-support-tools").then((mod) => mod.AdminSupportToolsModal), {
+  ssr: false,
+  loading: ModalLoading,
+});
+const AdminNotificationsModal = dynamic(() => import("@/components/admin/admin-notifications-modal").then((mod) => mod.AdminNotificationsModal), {
+  ssr: false,
+  loading: ModalLoading,
+});
+const AdminUserGuidesModal = dynamic(() => import("@/components/admin/admin-user-guides-modal").then((mod) => mod.AdminUserGuidesModal), {
+  ssr: false,
+  loading: ModalLoading,
+});
 
 export default function AdminPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);

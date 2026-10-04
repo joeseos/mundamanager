@@ -271,8 +271,9 @@ export function FighterPromotionModal({
     [currentSpecialRules]
   );
 
-  // Reset state on each open, pre-select the first eligible type
-  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  // Reset state on each open, pre-select the first eligible type.
+  // Starts closed, so mounting already open (it loads on first open) counts as an open.
+  const [prevIsOpen, setPrevIsOpen] = useState(false);
   if (isOpen && !prevIsOpen) {
     if (isSimplifiedPath) {
       setSelectedTypeId('');

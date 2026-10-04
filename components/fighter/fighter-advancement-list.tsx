@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { Button } from "@/components/ui/button";
 import { toast } from 'sonner';
 import Modal from "@/components/ui/modal";
@@ -29,7 +30,7 @@ import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { LuUndo2 } from 'react-icons/lu';
 import DiceRoller from '@/components/dice-roller';
 import { Combobox } from '@/components/ui/combobox';
-import { FighterPromotionModal, type FighterPromotionResult } from '@/components/fighter/edit-fighter/fighter-promotion-modal';
+import type { FighterPromotionResult } from '@/components/fighter/edit-fighter/fighter-promotion-modal';
 import { N26AdvancementResultTable } from '@/components/fighter/n26-advancement-result-table';
 import {
   roll,
@@ -52,6 +53,14 @@ import {
   getN26ProspectSpecialisation,
   hasN26ProspectPromotionOccurred,
 } from '@/utils/keepTypePromotionN26';
+import ModalLoading from '@/components/ui/modal-loading';
+import { useHasOpened } from '@/hooks/use-has-opened';
+
+// Loads its code on first open, not with the page
+const FighterPromotionModal = dynamic(
+  () => import('@/components/fighter/edit-fighter/fighter-promotion-modal').then((mod) => mod.FighterPromotionModal),
+  { ssr: false, loading: ModalLoading }
+);
 
 // AdvancementModal Interfaces
 interface AdvancementModalProps {
@@ -588,6 +597,8 @@ export function AdvancementModal({
   const [gangerPromotionOpen, setGangerPromotionOpen] = useState(false);
   const [gangerPendingPromotion, setGangerPendingPromotion] = useState<FighterPromotionResult | null>(null);
   const [championPromotionOpen, setChampionPromotionOpen] = useState(false);
+  const hasOpenedGangerPromotion = useHasOpened(gangerPromotionOpen);
+  const hasOpenedChampionPromotion = useHasOpened(championPromotionOpen);
   const [championPendingPromotion, setChampionPendingPromotion] = useState<ChampionPendingPromotion | null>(null);
   const [championPreviewSkillAccess, setChampionPreviewSkillAccess] = useState<SkillAccess[]>([]);
   const [championPreviewSkillAccessLoading, setChampionPreviewSkillAccessLoading] = useState(false);
@@ -2666,22 +2677,24 @@ export function AdvancementModal({
                   </div>
                 )}
 
-                <FighterPromotionModal
-                  currentSubtype={fighterSubtypes[0] || ''}
-                  currentSubtypes={fighterSubtypes}
-                  currentSpecialRules={fighterSpecialRules}
-                  currentFighterType={fighterTypeName}
-                  currentFighterTypeId={fighterTypeId}
-                  currentFighterSpecialisationId={fighterSpecialisationId || undefined}
-                  fighterTypes={preFetchedFighterTypes}
-                  editionSlug={editionSlug}
-                  isOpen={gangerPromotionOpen}
-                  onClose={() => setGangerPromotionOpen(false)}
-                  onPromoted={(data) => {
-                    setGangerPendingPromotion(data);
-                    setGangerPromotionOpen(false);
-                  }}
-                />
+                {hasOpenedGangerPromotion && (
+                  <FighterPromotionModal
+                    currentSubtype={fighterSubtypes[0] || ''}
+                    currentSubtypes={fighterSubtypes}
+                    currentSpecialRules={fighterSpecialRules}
+                    currentFighterType={fighterTypeName}
+                    currentFighterTypeId={fighterTypeId}
+                    currentFighterSpecialisationId={fighterSpecialisationId || undefined}
+                    fighterTypes={preFetchedFighterTypes}
+                    editionSlug={editionSlug}
+                    isOpen={gangerPromotionOpen}
+                    onClose={() => setGangerPromotionOpen(false)}
+                    onPromoted={(data) => {
+                      setGangerPendingPromotion(data);
+                      setGangerPromotionOpen(false);
+                    }}
+                  />
+                )}
               </div>
             )}
 
@@ -2804,7 +2817,7 @@ export function AdvancementModal({
                     </div>
                   )}
 
-                {onFighterDetailsUpdate && (
+                {onFighterDetailsUpdate && hasOpenedChampionPromotion && (
                   <FighterPromotionModal
                     currentSubtype={fighterSubtypes[0] || ''}
                     currentSubtypes={fighterSubtypes}
@@ -3061,6 +3074,7 @@ export function AdvancementsList({
 }: AdvancementsListProps) {
   const [isAdvancementModalOpen, setIsAdvancementModalOpen] = useState(false);
   const [isStandalonePromotionOpen, setIsStandalonePromotionOpen] = useState(false);
+  const hasOpenedStandalonePromotion = useHasOpened(isStandalonePromotionOpen);
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string; type: string } | null>(null);
 
   // No XP is spent on Advancements in a rank-based edition, so there is no XP
@@ -3568,22 +3582,24 @@ export function AdvancementsList({
       />
 
       {/* Modals */}
-      <FighterPromotionModal
-        currentSubtype={fighterSubtypes[0] || ''}
-        currentSubtypes={fighterSubtypes}
-        currentSpecialRules={fighterSpecialRules}
-        currentFighterType={fighterTypeName}
-        currentFighterTypeId={fighterTypeId}
-        currentFighterSpecialisationId={fighterSpecialisationId || undefined}
-        fighterTypes={preFetchedFighterTypes}
-        editionSlug={editionSlug}
-        isOpen={isStandalonePromotionOpen}
-        onClose={() => setIsStandalonePromotionOpen(false)}
-        showXpPromotionHint
-        onPromoted={(data) => {
-          standalonePromotionMutation.mutate(data);
-        }}
-      />
+      {hasOpenedStandalonePromotion && (
+        <FighterPromotionModal
+          currentSubtype={fighterSubtypes[0] || ''}
+          currentSubtypes={fighterSubtypes}
+          currentSpecialRules={fighterSpecialRules}
+          currentFighterType={fighterTypeName}
+          currentFighterTypeId={fighterTypeId}
+          currentFighterSpecialisationId={fighterSpecialisationId || undefined}
+          fighterTypes={preFetchedFighterTypes}
+          editionSlug={editionSlug}
+          isOpen={isStandalonePromotionOpen}
+          onClose={() => setIsStandalonePromotionOpen(false)}
+          showXpPromotionHint
+          onPromoted={(data) => {
+            standalonePromotionMutation.mutate(data);
+          }}
+        />
+      )}
 
       {isAdvancementModalOpen && (
         <AdvancementModal

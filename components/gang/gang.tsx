@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { Button } from '../ui/button';
 import { FighterProps } from '@/types/fighter';
 import { toast } from 'sonner';
@@ -11,28 +12,35 @@ import { VehicleProps } from '@/types/vehicle';
 import Image from 'next/image';
 import { DraggableFighters } from './draggable-fighters';
 import { GiAncientRuins } from "react-icons/gi";
-import FighterAddModal from './fighter-add/FighterAddModal';
-import AddVehicle from './add-vehicle';
 import { FiPrinter, FiShare2, FiCamera } from 'react-icons/fi';
 import { AiFillEyeInvisible } from "react-icons/ai";
 import { LuLogs } from "react-icons/lu";
 import { useShare } from '@/hooks/use-share';
 import { toJpeg } from 'html-to-image';
-import LogModal from '../log-modal';
 import { ViewModeDropdown, isGangPageViewMode, type GangPageViewMode } from './ViewModeDropdown';
-import GangEditModal from './gang-edit-modal';
-import GangResourcesModal from './gang-resources-modal';
 import { UserPermissions } from '@/types/user-permissions';
 import { updateGangPositioning } from '@/app/actions/update-gang-positioning';
 import { FaRegCopy } from 'react-icons/fa';
 import CopyGangModal from './copy-gang-modal';
 import { Tooltip } from 'react-tooltip';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
-import { GangImageEditModal } from './gang-image-edit-modal';
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { hasAlignment, hasTradePoints, hasVehicles } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
+import ModalLoading from '@/components/ui/modal-loading';
+import { useHasOpened } from '@/hooks/use-has-opened';
+
+// Modals load their code on first open, not with the page
+const FighterAddModal = dynamic(() => import('./fighter-add/FighterAddModal'), { ssr: false, loading: ModalLoading });
+const AddVehicle = dynamic(() => import('./add-vehicle'), { ssr: false, loading: ModalLoading });
+const LogModal = dynamic(() => import('../log-modal'), { ssr: false, loading: ModalLoading });
+const GangEditModal = dynamic(() => import('./gang-edit-modal'), { ssr: false, loading: ModalLoading });
+const GangResourcesModal = dynamic(() => import('./gang-resources-modal'), { ssr: false, loading: ModalLoading });
+const GangImageEditModal = dynamic(
+  () => import('./gang-image-edit-modal').then((mod) => mod.GangImageEditModal),
+  { ssr: false, loading: ModalLoading }
+);
 
 
 interface GangProps {
@@ -229,6 +237,10 @@ export default function Gang({
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
+  const hasOpenedEditModal = useHasOpened(showEditModal);
+  const hasOpenedResourcesModal = useHasOpened(showResourcesModal);
+  const hasOpenedLogsModal = useHasOpened(showLogsModal);
+  const hasOpenedImageModal = useHasOpened(showImageModal);
   const [currentGangImageUrl, setCurrentGangImageUrl] = useState(image_url);
   const [currentDefaultGangImage, setCurrentDefaultGangImage] = useState<number | null | undefined>(default_gang_image);
   const [viewMode, setViewMode] = useState<GangPageViewMode>('normal');
@@ -1272,44 +1284,48 @@ export default function Gang({
             </div>
           </div>
 
-          <GangEditModal
-            isOpen={showEditModal}
-            onClose={() => setShowEditModal(false)}
-            gangId={id}
-            gangName={name}
-            editionSlug={edition_slug}
-            isGangOwner={userPermissions?.isOwner}
-            isAdmin={userPermissions?.isAdmin}
-            alignment={alignment}
-            allianceId={allianceId}
-            allianceName={allianceName}
-            gangColour={gangColour}
-            gangSubtypes={gangSubtypes}
-            availableSubtypes={availableSubtypes}
-            gangAffiliationId={gangAffiliationId}
-            gangAffiliationName={gangAffiliationName}
-            gangType={gang_type}
-            customGangTypeId={custom_gang_type_id}
-            gangTypeHasAffiliation={gang_type_has_affiliation}
-            gangOriginId={gangOriginId}
-            gangOriginName={gangOriginName}
-            gangOriginCategoryName={gangOriginCategoryName}
-            gangTypeHasOrigin={gang_type_has_origin || false}
-            hidden={hidden}
-            campaigns={campaignsWithOptimisticData}
-            onSave={handleGangUpdate}
-          />
+          {hasOpenedEditModal && (
+            <GangEditModal
+              isOpen={showEditModal}
+              onClose={() => setShowEditModal(false)}
+              gangId={id}
+              gangName={name}
+              editionSlug={edition_slug}
+              isGangOwner={userPermissions?.isOwner}
+              isAdmin={userPermissions?.isAdmin}
+              alignment={alignment}
+              allianceId={allianceId}
+              allianceName={allianceName}
+              gangColour={gangColour}
+              gangSubtypes={gangSubtypes}
+              availableSubtypes={availableSubtypes}
+              gangAffiliationId={gangAffiliationId}
+              gangAffiliationName={gangAffiliationName}
+              gangType={gang_type}
+              customGangTypeId={custom_gang_type_id}
+              gangTypeHasAffiliation={gang_type_has_affiliation}
+              gangOriginId={gangOriginId}
+              gangOriginName={gangOriginName}
+              gangOriginCategoryName={gangOriginCategoryName}
+              gangTypeHasOrigin={gang_type_has_origin || false}
+              hidden={hidden}
+              campaigns={campaignsWithOptimisticData}
+              onSave={handleGangUpdate}
+            />
+          )}
 
-          <GangResourcesModal
-            isOpen={showResourcesModal}
-            onClose={() => setShowResourcesModal(false)}
-            credits={credits}
-            reputation={reputation}
-            tradePoints={tradePoints}
-            editionSlug={edition_slug}
-            campaigns={campaignsWithOptimisticData}
-            onSave={handleGangUpdate}
-          />
+          {hasOpenedResourcesModal && (
+            <GangResourcesModal
+              isOpen={showResourcesModal}
+              onClose={() => setShowResourcesModal(false)}
+              credits={credits}
+              reputation={reputation}
+              tradePoints={tradePoints}
+              editionSlug={edition_slug}
+              campaigns={campaignsWithOptimisticData}
+              onSave={handleGangUpdate}
+            />
+          )}
 
           {showAddFighterModal && (
             <FighterAddModal
@@ -1380,30 +1396,34 @@ export default function Gang({
             />
           )}
 
-          <LogModal
-            fetchUrl={`/api/gangs/${id}/logs`}
-            editionSlug={edition_slug}
-            isOpen={showLogsModal}
-            onClose={() => setShowLogsModal(false)}
-            fighters={allFightersForLogs}
-            vehicles={allVehiclesForLogs}
-          />
+          {hasOpenedLogsModal && (
+            <LogModal
+              fetchUrl={`/api/gangs/${id}/logs`}
+              editionSlug={edition_slug}
+              isOpen={showLogsModal}
+              onClose={() => setShowLogsModal(false)}
+              fighters={allFightersForLogs}
+              vehicles={allVehiclesForLogs}
+            />
+          )}
           <CopyGangModal
             gangId={id}
             currentName={name}
             isOpen={showCopyModal}
             onClose={() => setShowCopyModal(false)}
           />
-          <GangImageEditModal
-            isOpen={showImageModal}
-            onClose={() => setShowImageModal(false)}
-            currentImageUrl={currentGangImageUrl}
-            gangId={id}
-            onImageUpdate={handleGangImageUpdate}
-            defaultImageUrl={getDefaultImageUrl() || undefined}
-            defaultImageUrls={gang_type_default_image_urls}
-            currentDefaultImageIndex={currentDefaultGangImage}
-          />
+          {hasOpenedImageModal && (
+            <GangImageEditModal
+              isOpen={showImageModal}
+              onClose={() => setShowImageModal(false)}
+              currentImageUrl={currentGangImageUrl}
+              gangId={id}
+              onImageUpdate={handleGangImageUpdate}
+              defaultImageUrl={getDefaultImageUrl() || undefined}
+              defaultImageUrls={gang_type_default_image_urls}
+              currentDefaultImageIndex={currentDefaultGangImage}
+            />
+          )}
           <Tooltip
             id="gang-composition-tooltip"
             place="top"

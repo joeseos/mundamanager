@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useRef, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +10,6 @@ import { useShare } from '@/hooks/use-share';
 import { toJpeg } from 'html-to-image';
 import Image from 'next/image';
 import { UNKNOWN_GANG_IMAGE_URL } from '@/types/gang';
-import { CampaignImageEditModal } from '@/components/campaigns/[id]/campaign-image-edit-modal';
 import MemberSearchBar from "@/components/campaigns/[id]/campaign-member-search-bar"
 import MembersTable from "@/components/campaigns/[id]/campaign-members-table"
 import CampaignBattleLogsList from "@/components/campaigns/[id]/campaign-battle-logs-list";
@@ -20,9 +20,7 @@ import { FaBook } from "react-icons/fa";
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import CampaignTerritoryList from "@/components/campaigns/[id]/campaign-territory-list";
 import CampaignCaptivesList from "@/components/campaigns/[id]/campaign-captives-list";
-import CampaignAddTerritoryModal from "@/components/campaigns/[id]/campaign-add-territory-modal";
 import { CampaignBattleLogsListRef } from "@/components/campaigns/[id]/campaign-battle-logs-list";
-import CampaignEditModal from "@/components/campaigns/[id]/campaign-edit-modal";
 import CampaignTriumphs from "@/components/campaigns/[id]/campaign-triumphs";
 import type { CampaignPermissions } from '@/types/user-permissions';
 import type { Battle, CampaignType } from '@/types/campaign';
@@ -33,7 +31,23 @@ import { CampaignNotes } from "@/components/campaigns/[id]/campaign-notes";
 import CampaignMap from "./campaign-map"
 import { TbMapSearch } from "react-icons/tb";
 import { PiFlagBannerFoldBold } from "react-icons/pi";
-import LogModal from "@/components/log-modal";
+import ModalLoading from "@/components/ui/modal-loading";
+import { useHasOpened } from "@/hooks/use-has-opened";
+
+// Modals load their code on first open, not with the page
+const CampaignImageEditModal = dynamic(
+  () => import("@/components/campaigns/[id]/campaign-image-edit-modal").then((mod) => mod.CampaignImageEditModal),
+  { ssr: false, loading: ModalLoading }
+);
+const CampaignAddTerritoryModal = dynamic(() => import("@/components/campaigns/[id]/campaign-add-territory-modal"), {
+  ssr: false,
+  loading: ModalLoading,
+});
+const CampaignEditModal = dynamic(() => import("@/components/campaigns/[id]/campaign-edit-modal"), {
+  ssr: false,
+  loading: ModalLoading,
+});
+const LogModal = dynamic(() => import("@/components/log-modal"), { ssr: false, loading: ModalLoading });
 
 interface Gang {
   id: string;
@@ -208,6 +222,9 @@ export default function CampaignPageContent({
   const [showTerritoryModal, setShowTerritoryModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showLogsModal, setShowLogsModal] = useState(false);
+  const hasOpenedEditModal = useHasOpened(showEditModal);
+  const hasOpenedImageModal = useHasOpened(showImageModal);
+  const hasOpenedLogsModal = useHasOpened(showLogsModal);
 
   // Provide default permissions if null
   const safePermissions = permissions || {
@@ -1015,110 +1032,118 @@ export default function CampaignPageContent({
           )}
 
         {/* Replace the inline modal with our new component */}
-        <CampaignEditModal
-          isOpen={showEditModal}
-          campaignData={{
-            id: campaignData.id,
-            campaign_name: campaignData.campaign_name,
-            description: campaignData.description,
-            trading_posts: campaignData.trading_posts || [],
-            custom_trading_posts: campaignData.custom_trading_posts || [],
-            status: campaignData.status,
-            allow_join_requests: campaignData.allow_join_requests ?? false,
-            campaign_type_name: campaignData.campaign_type_name,
-            campaign_type_id: campaignData.campaign_type_id,
-            edition_slug: campaignData.edition_slug ?? null,
-            discord_guild_id: campaignData.discord_guild_id,
-            discord_channel_id: campaignData.discord_channel_id,
-            discord_channel_type: campaignData.discord_channel_type,
-          }}
-          tradingPostTypes={tradingPostTypes || []}
-          customTradingPostTypes={customTradingPostTypes}
-          onClose={() => setShowEditModal(false)}
-          isArbitrator={!!safePermissions.isArbitrator}
-          isAdmin={isAdmin}
-          onSaved={handleSettingsSaved}
-          isOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}
-          campaignAllegiances={campaignAllegiances}
-          predefinedAllegiances={campaignAllegiances.filter(a => !a.is_custom)}
-          onMembersUpdate={(allegianceId) => {
-            // Optimistically clear allegiance from all gangs that have it
-            setCampaignData(prev => ({
-              ...prev,
-              members: prev.members.map(member => ({
-                ...member,
-                gangs: member.gangs.map((gang: Member['gangs'][0]) => ({
-                  ...gang,
-                  allegiance: gang.allegiance?.id === allegianceId ? null : gang.allegiance
+        {hasOpenedEditModal && (
+          <CampaignEditModal
+            isOpen={showEditModal}
+            campaignData={{
+              id: campaignData.id,
+              campaign_name: campaignData.campaign_name,
+              description: campaignData.description,
+              trading_posts: campaignData.trading_posts || [],
+              custom_trading_posts: campaignData.custom_trading_posts || [],
+              status: campaignData.status,
+              allow_join_requests: campaignData.allow_join_requests ?? false,
+              campaign_type_name: campaignData.campaign_type_name,
+              campaign_type_id: campaignData.campaign_type_id,
+              edition_slug: campaignData.edition_slug ?? null,
+              discord_guild_id: campaignData.discord_guild_id,
+              discord_channel_id: campaignData.discord_channel_id,
+              discord_channel_type: campaignData.discord_channel_type,
+            }}
+            tradingPostTypes={tradingPostTypes || []}
+            customTradingPostTypes={customTradingPostTypes}
+            onClose={() => setShowEditModal(false)}
+            isArbitrator={!!safePermissions.isArbitrator}
+            isAdmin={isAdmin}
+            onSaved={handleSettingsSaved}
+            isOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}
+            campaignAllegiances={campaignAllegiances}
+            predefinedAllegiances={campaignAllegiances.filter(a => !a.is_custom)}
+            onMembersUpdate={(allegianceId) => {
+              // Optimistically clear allegiance from all gangs that have it
+              setCampaignData(prev => ({
+                ...prev,
+                members: prev.members.map(member => ({
+                  ...member,
+                  gangs: member.gangs.map((gang: Member['gangs'][0]) => ({
+                    ...gang,
+                    allegiance: gang.allegiance?.id === allegianceId ? null : gang.allegiance
+                  }))
                 }))
               }))
-            }))
-          }}
-          onAllegianceRenamed={(allegianceId, newName) => {
-            // Optimistically update allegiance name for all gangs that have it
-            setCampaignData(prev => ({
-              ...prev,
-              members: prev.members.map(member => ({
-                ...member,
-                gangs: member.gangs.map((gang: Member['gangs'][0]) => ({
-                  ...gang,
-                  allegiance: gang.allegiance?.id === allegianceId 
-                    ? {
-                        ...gang.allegiance,
-                        name: newName
-                      }
-                    : gang.allegiance
+            }}
+            onAllegianceRenamed={(allegianceId, newName) => {
+              // Optimistically update allegiance name for all gangs that have it
+              setCampaignData(prev => ({
+                ...prev,
+                members: prev.members.map(member => ({
+                  ...member,
+                  gangs: member.gangs.map((gang: Member['gangs'][0]) => ({
+                    ...gang,
+                    allegiance: gang.allegiance?.id === allegianceId 
+                      ? {
+                          ...gang.allegiance,
+                          name: newName
+                        }
+                      : gang.allegiance
+                  }))
                 }))
               }))
-            }))
-          }}
-          campaignResources={campaignResources}
-          predefinedResources={campaignResources.filter(r => !r.is_custom)}
-          onDiscordConnected={(guildId) => {
-            setCampaignData(prev => ({ ...prev, discord_guild_id: guildId }));
-          }}
-        />
+            }}
+            campaignResources={campaignResources}
+            predefinedResources={campaignResources.filter(r => !r.is_custom)}
+            onDiscordConnected={(guildId) => {
+              setCampaignData(prev => ({ ...prev, discord_guild_id: guildId }));
+            }}
+          />
+        )}
 
-        <CampaignImageEditModal
-          isOpen={showImageModal}
-          onClose={() => setShowImageModal(false)}
-          currentImageUrl={campaignData.image_url || ''}
-          campaignId={campaignData.id}
-          onImageUpdate={(newUrl) => setCampaignData(prev => ({ ...prev, image_url: newUrl }))}
-          defaultImageUrl={campaignData.campaign_type_image_url}
-        />
+        {hasOpenedImageModal && (
+          <CampaignImageEditModal
+            isOpen={showImageModal}
+            onClose={() => setShowImageModal(false)}
+            currentImageUrl={campaignData.image_url || ''}
+            campaignId={campaignData.id}
+            onImageUpdate={(newUrl) => setCampaignData(prev => ({ ...prev, image_url: newUrl }))}
+            defaultImageUrl={campaignData.campaign_type_image_url}
+          />
+        )}
 
-        <CampaignAddTerritoryModal
-          isOpen={showTerritoryModal}
-          onClose={() => setShowTerritoryModal(false)}
-          campaignId={campaignData.id}
-          campaignTypeId={campaignData.campaign_type_id}
-          editionSlug={campaignData.edition_slug ?? null}
-          campaignTypes={campaignTypes}
-          allTerritories={allTerritories}
-          existingCampaignTerritories={campaignData.territories.map(territory => ({
-            territory_id: territory.territory_id,
-            territory_name: territory.territory_name
-          }))}
-          onTerritoryAdd={(territory) => {
-            setCampaignData(prev => ({
-              ...prev,
-              territories: [...(prev.territories || []), territory]
-            }));
-          }}
-          isAdmin={!!safePermissions.canManageTerritories}
-        />
+        {showTerritoryModal && (
+          <CampaignAddTerritoryModal
+            isOpen={showTerritoryModal}
+            onClose={() => setShowTerritoryModal(false)}
+            campaignId={campaignData.id}
+            campaignTypeId={campaignData.campaign_type_id}
+            editionSlug={campaignData.edition_slug ?? null}
+            campaignTypes={campaignTypes}
+            allTerritories={allTerritories}
+            existingCampaignTerritories={campaignData.territories.map(territory => ({
+              territory_id: territory.territory_id,
+              territory_name: territory.territory_name
+            }))}
+            onTerritoryAdd={(territory) => {
+              setCampaignData(prev => ({
+                ...prev,
+                territories: [...(prev.territories || []), territory]
+              }));
+            }}
+            isAdmin={!!safePermissions.canManageTerritories}
+          />
+        )}
 
       </div>
 
-      <LogModal
-        fetchUrl={`/api/campaigns/${campaignData.id}/logs`}
-        title="Campaign Activity Logs"
-        emptyMessage="No activity logs found for this campaign."
-        editionSlug={campaignData.edition_slug ?? null}
-        isOpen={showLogsModal}
-        onClose={() => setShowLogsModal(false)}
-      />
+      {hasOpenedLogsModal && (
+        <LogModal
+          fetchUrl={`/api/campaigns/${campaignData.id}/logs`}
+          title="Campaign Activity Logs"
+          emptyMessage="No activity logs found for this campaign."
+          editionSlug={campaignData.edition_slug ?? null}
+          isOpen={showLogsModal}
+          onClose={() => setShowLogsModal(false)}
+        />
+      )}
 
       {/* View Campaign Data Modal */}
       {showExportModal && (

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { FighterProps } from "@/types/fighter";
 import { FighterType } from "@/types/fighter-type";
 import Gang from "@/components/gang/gang";
@@ -20,15 +21,27 @@ import GangTacticsCards from "@/components/gang/gang-tactics-cards";
 import type { BattleSession } from "@/types/battle-session";
 import type { GangTacticsCard } from "@/types/tactics-card";
 import { FighterCardModalsProvider } from "@/components/gang/fighter-card-modals-context";
-import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
-import { InjuriesList } from "@/components/fighter/fighter-injury-list";
-import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages";
 import Modal from "@/components/ui/modal";
 import { editFighterStatus } from "@/app/actions/edit-fighter";
 import { toast } from 'sonner';
 import type { FighterEffect } from '@/types/fighter';
 import { hasKilledStatusFlag, countsTowardRating } from '@/utils/fighter-status';
 import { hasVehicles, hasGangTacticsCards } from '@/types/edition';
+import ModalLoading, { ModalContentLoading } from "@/components/ui/modal-loading";
+
+// Fighter card modals load their code on first open, not with the page
+const FighterXpModal = dynamic(
+  () => import("@/components/fighter/fighter-xp-modal").then((mod) => mod.FighterXpModal),
+  { ssr: false, loading: ModalLoading }
+);
+const InjuriesList = dynamic(
+  () => import("@/components/fighter/fighter-injury-list").then((mod) => mod.InjuriesList),
+  { ssr: false, loading: ModalContentLoading }
+);
+const VehicleDamagesList = dynamic(
+  () => import("@/components/fighter/vehicle-lasting-damages").then((mod) => mod.VehicleDamagesList),
+  { ssr: false, loading: ModalContentLoading }
+);
 
 interface GangPageContentProps {
   initialGangData: any; // We'll type this properly based on the processed data structure

@@ -2,11 +2,18 @@
 
 import { useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
-import CreateBattleModal from '@/components/battle-session/create-battle-modal';
+import ModalLoading from '@/components/ui/modal-loading';
 import type { CampaignGang } from '@/components/battle-session/create-battle-modal';
 import { statusLabels, formatBattleSessionDate } from '@/types/battle-session';
 import type { BattleSession } from '@/types/battle-session';
+
+// Loads its code on first open, not with the page
+const CreateBattleModal = dynamic(() => import('@/components/battle-session/create-battle-modal'), {
+  ssr: false,
+  loading: ModalLoading,
+});
 
 interface BattleSessionsListProps {
   sessions: BattleSession[];

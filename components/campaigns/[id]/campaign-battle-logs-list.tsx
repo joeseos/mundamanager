@@ -2,9 +2,9 @@
 
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { useState, useEffect, forwardRef, useImperativeHandle, useMemo, useCallback } from "react";
 import { toast } from 'sonner';
-import CampaignBattleLogModal from "@/components/campaigns/[id]/campaign-battle-log-modal";
 import { BiSolidNotepad } from "react-icons/bi";
 import { HiX } from "react-icons/hi";
 import { LuChevronLeft, LuChevronRight } from "react-icons/lu";
@@ -24,6 +24,14 @@ import { Combobox } from "@/components/ui/combobox";
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import ModalLoading from "@/components/ui/modal-loading";
+import { useHasOpened } from "@/hooks/use-has-opened";
+
+// Loads its code on first open, not with the page
+const CampaignBattleLogModal = dynamic(() => import("@/components/campaigns/[id]/campaign-battle-log-modal"), {
+  ssr: false,
+  loading: ModalLoading,
+});
 
 interface CampaignBattleLogsTerritory extends Territory {
   default_gang_territory?: boolean;
@@ -99,6 +107,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   } = props;
   
   const [showBattleModal, setShowBattleModal] = useState(false);
+  const hasOpenedBattleModal = useHasOpened(showBattleModal);
   const [showChallengeRoundModal, setShowChallengeRoundModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [availableGangs, setAvailableGangs] = useState<CampaignGang[]>([]);
@@ -1353,26 +1362,28 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         />
       )}
 
-      <CampaignBattleLogModal
-        campaignId={campaignId}
-        editionSlug={editionSlug}
-        availableGangs={availableGangs}
-        territories={territories.map(t => ({
-          id: t.id,
-          name: t.territory_name,
-          controlled_by: t.gang_id || undefined,
-          is_custom: t.is_custom,
-          default_gang_territory: t.default_gang_territory
-        }))}
-        isOpen={showBattleModal}
-        onClose={handleModalClose}
-        onBattleUpdate={onBattlesChange}
-        onTerritoryUpdate={onTerritoryUpdate}
-        battles={battles}
-        battleToEdit={selectedBattle}
-        userRole={isAdmin ? 'ARBITRATOR' : 'MEMBER'}
-        canRespondToChallenge={isAdmin || ownsGang(selectedBattle?.challenged_gang_id)}
-      />
+      {hasOpenedBattleModal && (
+        <CampaignBattleLogModal
+          campaignId={campaignId}
+          editionSlug={editionSlug}
+          availableGangs={availableGangs}
+          territories={territories.map(t => ({
+            id: t.id,
+            name: t.territory_name,
+            controlled_by: t.gang_id || undefined,
+            is_custom: t.is_custom,
+            default_gang_territory: t.default_gang_territory
+          }))}
+          isOpen={showBattleModal}
+          onClose={handleModalClose}
+          onBattleUpdate={onBattlesChange}
+          onTerritoryUpdate={onTerritoryUpdate}
+          battles={battles}
+          battleToEdit={selectedBattle}
+          userRole={isAdmin ? 'ARBITRATOR' : 'MEMBER'}
+          canRespondToChallenge={isAdmin || ownsGang(selectedBattle?.challenged_gang_id)}
+        />
+      )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (

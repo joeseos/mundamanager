@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { useMutation } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -13,9 +14,7 @@ import { VehicleProps } from '@/types/vehicle';
 import { vehicleExclusiveCategories, vehicleCompatibleCategories } from '@/utils/vehicleEquipmentCategories';
 import { hasChemAlchemy } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
-import ChemAlchemyCreator from './chem-alchemy';
 import { createChemAlchemy } from '@/app/actions/chem-alchemy';
-import ItemModal from '@/components/equipment/equipment';
 import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
 import Modal from '@/components/ui/modal';
 import { Equipment } from '@/types/equipment';
@@ -35,6 +34,12 @@ import { UserPermissions } from '@/types/user-permissions';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { sortFightersByPositioning } from '@/utils/fighter-positioning';
+import ModalLoading from '@/components/ui/modal-loading';
+import { useHasOpened } from '@/hooks/use-has-opened';
+
+// Modals load their code on first open, not with the page
+const ChemAlchemyCreator = dynamic(() => import('./chem-alchemy'), { ssr: false, loading: ModalLoading });
+const ItemModal = dynamic(() => import('@/components/equipment/equipment'), { ssr: false, loading: ModalLoading });
 
 interface GangInventoryProps {
   stash: StashItem[];
@@ -99,6 +104,7 @@ export default function GangInventory({
   const [fighters, setFighters] = useState<FighterProps[]>(initialFighters);
   const [showChemAlchemy, setShowChemAlchemy] = useState(false);
   const [showTradingPost, setShowTradingPost] = useState(false);
+  const hasOpenedChemAlchemy = useHasOpened(showChemAlchemy);
   const [sellModalItemIdx, setSellModalItemIdx] = useState<number | null>(null);
   const [deleteModalIdx, setDeleteModalIdx] = useState<number | null>(null);
   
@@ -982,13 +988,15 @@ export default function GangInventory({
         </div>
       </div>
 
-      <ChemAlchemyCreator
-        isOpen={showChemAlchemy}
-        onClose={() => setShowChemAlchemy(false)}
-        gangCredits={gangCredits}
-        hasApprenticeClanChymist={fighters.some(fighter => fighter.fighter_type === "Apprentice Clan Chymist")}
-        onCreateChem={(chem) => createChemMutation.mutate(chem)}
-      />
+      {hasOpenedChemAlchemy && (
+        <ChemAlchemyCreator
+          isOpen={showChemAlchemy}
+          onClose={() => setShowChemAlchemy(false)}
+          gangCredits={gangCredits}
+          hasApprenticeClanChymist={fighters.some(fighter => fighter.fighter_type === "Apprentice Clan Chymist")}
+          onCreateChem={(chem) => createChemMutation.mutate(chem)}
+        />
+      )}
 
       {showTradingPost && (
         <ItemModal
