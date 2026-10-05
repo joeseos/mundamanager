@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { Button } from "@/components/ui/button";
 import { toast } from 'sonner';
 import Modal from "@/components/ui/modal";
@@ -25,7 +26,11 @@ import {
   getN26ProspectSpecialisation,
   hasN26ProspectPromotionOccurred,
 } from '@/utils/keepTypePromotionN26';
-import { AdvancementModal } from '@/components/fighter/advancement-modal';
+
+const AdvancementModal = dynamic(
+  () => import('@/components/fighter/advancement-modal').then((mod) => mod.AdvancementModal),
+  { ssr: false }
+);
 
 // AdvancementsList Interfaces
 interface StatChange {
