@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Input } from '../ui/input';
 import { Switch } from "@/components/ui/switch";
@@ -17,7 +17,6 @@ import { deleteGang } from '@/app/actions/delete-gang';
 import { hasAlignment, sameEditionForDisplay } from '@/types/edition';
 import { isVenatorGang } from '@/utils/venatorSkillAccess';
 import { saveVenatorSkillRanks } from '@/app/actions/gang/save-venator-skill-ranks';
-import { createClient } from '@/utils/supabase/client';
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToParentElement, restrictToVerticalAxis } from '@dnd-kit/modifiers';
@@ -41,6 +40,14 @@ interface GangUpdates {
   campaign_allegiance_id?: string | null;
   campaign_allegiance_is_custom?: boolean;
   campaign_id?: string;
+}
+
+interface Alliance {
+  id: string;
+  alliance_name: string;
+  alliance_type?: string | null;
+  strong_alliance: string;
+  edition_slug?: string | null;
 }
 
 interface Campaign {
@@ -224,14 +231,9 @@ export default function GangEditModal({
     queryKey: ['gang-skill-set-ranks', gangId],
     enabled: isVenator,
     queryFn: async () => {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from('gang_skill_set_ranks')
-        .select('rank, skill_type_id')
-        .eq('gang_id', gangId)
-        .order('rank');
-      if (error) throw error;
-      return data ?? [];
+      const response = await fetch(`/api/gangs/${gangId}/skill-set-ranks`);
+      if (!response.ok) throw new Error('Failed to load skill set ranks');
+      return response.json();
     },
   });
 
@@ -349,26 +351,65 @@ export default function GangEditModal({
     campaignAllegianceId: effectiveCurrentAllegianceId
   });
   
-  // Alliance management state
-  const [allianceList, setAllianceList] = useState<Array<{
-    id: string;
-    alliance_name: string;
-    alliance_type?: string | null;
-    strong_alliance: string;
-    edition_slug?: string | null;
-  }>>([]);
-  const [allianceListLoaded, setAllianceListLoaded] = useState(false);
-  const editionAllianceList = allianceList.filter(alliance =>
-    sameEditionForDisplay(alliance.edition_slug, editionSlug)
-  );
-  
-  // Gang affiliation management state
-  const [affiliationList, setAffiliationList] = useState<Array<{id: string, name: string}>>([]);
-  const [affiliationListLoaded, setAffiliationListLoaded] = useState(false);
+  // Alliances, affiliations and origins load on first focus of their field, then
+  // come from the query cache (same keys as FighterAddModal and the injury hatred picker)
+  const [alliancesRequested, setAlliancesRequested] = useState(false);
+  const { data: editionAllianceList = [], isSuccess: allianceListLoaded, error: alliancesError } = useQuery<Alliance[]>({
+    queryKey: ['alliances', editionSlug],
+    queryFn: async () => {
+      const response = await fetch('/api/alliances');
+      if (!response.ok) throw new Error('Failed to fetch alliances');
+      const data: Alliance[] = await response.json();
+      return data.filter((alliance) => sameEditionForDisplay(alliance.edition_slug, editionSlug));
+    },
+    enabled: alliancesRequested,
+  });
 
-  // Gang origin management state
-  const [originList, setOriginList] = useState<Array<{id: string, origin_name: string, category_name: string}>>([]);
-  const [originListLoaded, setOriginListLoaded] = useState(false);
+  useEffect(() => {
+    if (alliancesError) toast.error('Failed to load alliances');
+  }, [alliancesError]);
+
+  const [gangTypesRequested, setGangTypesRequested] = useState(false);
+  const { data: gangTypes, isSuccess: gangTypesLoaded, error: gangTypesError } = useQuery<Array<{
+    edition_slug?: string | null;
+    available_affiliations?: Array<{ id: string; name: string }>;
+    available_origins?: Array<{ id: string; origin_name: string; category_name: string }>;
+  }>>({
+    queryKey: ['gang-types'],
+    queryFn: async () => {
+      const response = await fetch('/api/gang-types');
+      if (!response.ok) throw new Error('Failed to fetch gang types');
+      return response.json();
+    },
+    enabled: gangTypesRequested,
+  });
+
+  useEffect(() => {
+    if (gangTypesError) toast.error('Failed to load affiliations/origins');
+  }, [gangTypesError]);
+
+  // Affiliations come from the first gang type of this gang's edition that has any
+  const affiliationList = useMemo(
+    () => gangTypes?.find((type) =>
+      sameEditionForDisplay(type.edition_slug, editionSlug)
+      && (type.available_affiliations?.length ?? 0) > 0
+    )?.available_affiliations ?? [],
+    [gangTypes, editionSlug]
+  );
+
+  // Origins in this gang's origin category, from the first gang type that has any
+  const originList = useMemo(() => {
+    if (!gangTypes || !gangOriginCategoryName) return [];
+    for (const type of gangTypes) {
+      const matchingOrigins = (type.available_origins ?? []).filter((origin) =>
+        origin.category_name === gangOriginCategoryName
+      );
+      if (matchingOrigins.length > 0) {
+        return matchingOrigins.sort((a, b) => a.origin_name.localeCompare(b.origin_name));
+      }
+    }
+    return [];
+  }, [gangTypes, gangOriginCategoryName]);
 
   // Colour picker modal state
   const [showColourPickerModal, setShowColourPickerModal] = useState(false);
@@ -440,72 +481,6 @@ export default function GangEditModal({
     }
   }
 
-  const fetchAlliances = async () => {
-    if (allianceListLoaded) return;
-    
-    try {
-      const response = await fetch('/api/alliances');
-      if (!response.ok) throw new Error('Failed to fetch alliances');
-      const data = await response.json();
-      setAllianceList(data);
-      setAllianceListLoaded(true);
-    } catch (error) {
-      console.error('Error fetching alliances:', error);
-      toast.error('Failed to load alliances');
-    }
-  };
-
-  const fetchAffiliations = async () => {
-    if (affiliationListLoaded && originListLoaded) return;
-
-    try {
-      const response = await fetch('/api/gang-types');
-      if (!response.ok) throw new Error('Failed to fetch gang types');
-      const data = await response.json();
-      
-      // Extract all available affiliations from the first gang type of this
-      // gang's edition that has them
-      if (!affiliationListLoaded) {
-        const gangTypeWithAffiliations = data.find((type: any) =>
-          sameEditionForDisplay(type.edition_slug, editionSlug)
-          && type.available_affiliations && type.available_affiliations.length > 0);
-        if (gangTypeWithAffiliations) {
-          setAffiliationList(gangTypeWithAffiliations.available_affiliations);
-        }
-        setAffiliationListLoaded(true);
-      }
-
-      // Extract origins that match this gang's category
-      if (!originListLoaded) {
-        // First try to find gang type with origins matching this gang's category
-        let originsForThisGang: any[] = [];
-
-        if (gangOriginCategoryName) {
-          // Look for gang type that has origins matching our category
-          for (const type of data) {
-            if (type.available_origins && type.available_origins.length > 0) {
-              const matchingOrigins = type.available_origins.filter((origin: any) =>
-                origin.category_name === gangOriginCategoryName
-              );
-              if (matchingOrigins.length > 0) {
-                originsForThisGang = matchingOrigins;
-                break;
-              }
-            }
-          }
-        }
-
-        // No fallback - if no matching origins found, keep empty list
-
-        setOriginList(originsForThisGang);
-        setOriginListLoaded(true);
-      }
-    } catch (error) {
-      console.error('Error fetching affiliations/origins:', error);
-      toast.error('Failed to load affiliations/origins');
-    }
-  };
-
   const syncGangSubtypesWithAlignment = (newAlignment: string, currentSubtypes: Array<{id: string, subtype: string}>) => {
     const outlaw = editionAvailableSubtypes.find(v => v.subtype === 'Outlaw');
     const hasOutlaw = currentSubtypes.some(v => v.subtype === 'Outlaw');
@@ -576,7 +551,7 @@ export default function GangEditModal({
       if (formState.allianceId === '') {
         updates.alliance_name = '';
       } else {
-        const alliance = allianceList.find(a => a.id === formState.allianceId);
+        const alliance = editionAllianceList.find(a => a.id === formState.allianceId);
         updates.alliance_name = alliance?.alliance_name || '';
       }
     }
@@ -830,7 +805,7 @@ export default function GangEditModal({
         <Combobox
           value={formState.allianceId || ""}
           onValueChange={(value) => setFormState(prev => ({ ...prev, allianceId: value }))}
-          onFocus={fetchAlliances}
+          onFocus={() => setAlliancesRequested(true)}
           placeholder={allianceListLoaded ? "Select Alliance" : "Select Alliance"}
           options={(() => {
             if (!allianceListLoaded) {
@@ -859,11 +834,9 @@ export default function GangEditModal({
               formState.allianceId &&
               !editionAllianceList.some(a => a.id === formState.allianceId)
             ) {
-              const currentAlliance =
-                allianceList.find(a => a.id === formState.allianceId) ||
-                (allianceId === formState.allianceId
-                  ? { id: allianceId, alliance_name: allianceName }
-                  : null);
+              const currentAlliance = allianceId === formState.allianceId
+                ? { id: allianceId, alliance_name: allianceName }
+                : null;
               if (currentAlliance) {
                 options.push({
                   value: currentAlliance.id,
@@ -909,14 +882,14 @@ export default function GangEditModal({
           <select
             value={formState.gangAffiliationId || ""}
             onChange={(e) => setFormState(prev => ({ ...prev, gangAffiliationId: e.target.value }))}
-            onFocus={fetchAffiliations}
+            onFocus={() => setGangTypesRequested(true)}
             className="w-full p-2 border rounded-md"
           >
             {/* Default "None" option */}
             <option value="">None</option>
 
             {/* Display affiliations after they are loaded */}
-            {affiliationListLoaded ? (
+            {gangTypesLoaded ? (
               affiliationList.map((affiliation) => (
                 <option key={affiliation.id} value={affiliation.id}>
                   {affiliation.name}
@@ -939,18 +912,16 @@ export default function GangEditModal({
           <select
             value={formState.gangOriginId || ""}
             onChange={(e) => setFormState(prev => ({ ...prev, gangOriginId: e.target.value }))}
-            onFocus={fetchAffiliations}
+            onFocus={() => setGangTypesRequested(true)}
             className="w-full p-2 border rounded-md"
           >
             <option value="">None</option>
-            {originListLoaded ? (
-              originList
-                .sort((a, b) => a.origin_name.localeCompare(b.origin_name))
-                .map((origin) => (
-                  <option key={origin.id} value={origin.id}>
-                    {origin.origin_name}
-                  </option>
-                ))
+            {gangTypesLoaded ? (
+              originList.map((origin) => (
+                <option key={origin.id} value={origin.id}>
+                  {origin.origin_name}
+                </option>
+              ))
             ) : (
               <>
                 {gangOriginId && <option value={gangOriginId}>{gangOriginName}</option>}
