@@ -8,6 +8,7 @@ import { getWinnerIdsFromParsed, getClaimerGangIdFromParsed } from '@/utils/batt
 import { fetchCampaignResources } from '@/utils/campaigns/resources';
 import { CAMPAIGN_TERRITORY_COLUMNS } from '@/utils/campaigns/territories';
 import { fetchAllRows } from '@/utils/supabase/fetch-all-rows';
+import { sumFighterKills } from '@/app/lib/shared/gang-data';
 import { editionSlugFromJoin } from '@/types/edition';
 import type { CampaignMapRow, CampaignMapObjectRow, CampaignMapBundle } from '@/types/campaign';
 
@@ -817,39 +818,45 @@ async function _getCampaignCaptives(campaignId: string, supabase: SupabaseClient
   return Object.values(byHoldingGang).sort((a, b) => a.gangName.localeCompare(b.gangName));
 }
 
-async function _getCampaignOoaCounts(campaignId: string, supabase: SupabaseClient) {
-  const rows = await fetchAllRows<{ causing_gang_id: string }>((from, to) =>
+async function _getCampaignOoaCounts(gangIds: string[], supabase: SupabaseClient) {
+  if (gangIds.length === 0) return [];
+
+  const fighters = await fetchAllRows<{ gang_id: string; kills: number | null }>((from, to) =>
     supabase
-      .from('fighter_ooa_records')
-      .select('causing_gang_id')
-      .eq('campaign_id', campaignId)
-      .eq('event_type', 'out_of_action')
-      .not('causing_gang_id', 'is', null)
+      .from('fighters')
+      .select('gang_id, kills')
+      .in('gang_id', gangIds)
       .order('id')
       .range(from, to)
   );
 
-  const counts = new Map<string, number>();
-  rows.forEach(({ causing_gang_id }) => {
-    counts.set(causing_gang_id, (counts.get(causing_gang_id) || 0) + 1);
+  const fightersByGang = new Map<string, { kills: number | null }[]>();
+  fighters.forEach((f) => {
+    const list = fightersByGang.get(f.gang_id) ?? [];
+    list.push(f);
+    fightersByGang.set(f.gang_id, list);
   });
-  return Array.from(counts, ([gang_id, ooa_count]) => ({ gang_id, ooa_count }));
+  return Array.from(fightersByGang, ([gang_id, list]) => ({ gang_id, ooa_count: sumFighterKills(list) }));
 }
 
 /**
- * Get each gang's Out of Action count for a campaign (Slaughterer triumph).
- * Counts fighter_ooa_records made in this campaign, so OOAs recorded before
- * that table existed, or outside the campaign, are not included. Counts for
- * gangs no longer in the campaign are dropped when the leaderboard is ranked.
+ * Get each gang's "OOA caused" for a campaign (Slaughterer triumph): the sum
+ * of its fighters' kills, the same number the gang page shows
+ * (getGangFighterStats). One query covers all the campaign's gangs.
  */
 export const getCampaignOoaCounts = async (campaignId: string) => {
+  const gangIds = await getCampaignGangIds(campaignId);
   return unstable_cache(
     async () => {
-      return _getCampaignOoaCounts(campaignId, createServiceRoleClient());
+      return _getCampaignOoaCounts(gangIds, createServiceRoleClient());
     },
-    [`campaign-ooa-counts-${campaignId}`],
+    [`campaign-ooa-counts-v2-${campaignId}`],
     {
-      tags: [TAGS.campaignOoa(campaignId)],
+      tags: [
+        TAGS.campaignMembers(campaignId),
+        // The gang page's stats use the same tag, so both refresh together.
+        ...gangIds.map(gangId => TAGS.gangRoster(gangId))
+      ],
       revalidate: false
     }
   )();

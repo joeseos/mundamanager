@@ -1207,6 +1207,14 @@ export interface GangFighterStats {
   deaths_breakdown: DeathsBreakdownItem[];
 }
 
+/**
+ * A gang's "OOA caused": the sum of every fighter's kills, dead and retired
+ * fighters included. Shared by the gang page's stats and the campaign
+ * Triumphs leaderboard so both always show the same number.
+ */
+export const sumFighterKills = (fighters: Array<{ kills: number | null }>) =>
+  fighters.reduce((sum, f) => sum + (Number(f.kills) || 0), 0);
+
 export const getGangFighterStats = async (
   gangId: string,
   supabase: any
@@ -1221,10 +1229,7 @@ export const getGangFighterStats = async (
       if (error) throw error;
 
       const fighterList = fighters || [];
-      const ooaCaused = fighterList.reduce(
-        (sum: number, f: { kills: number }) => sum + (Number(f.kills) || 0),
-        0
-      );
+      const ooaCaused = sumFighterKills(fighterList);
       const deathsSuffered = fighterList.filter(
         (f: { killed: boolean }) => f.killed === true
       ).length;
