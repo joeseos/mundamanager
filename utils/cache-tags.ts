@@ -15,7 +15,8 @@ import { revalidateTag } from 'next/cache';
  * gang-roster-{id} fighters AND all gang     | any fighter OR vehicle
  *                  vehicles, their equipment,| mutation — NOT
  *                  effects, loadouts, stats  | updateGangFinancials
- *                  (45 KB - 1 MB)            |
+ *                  (45 KB - 1 MB); campaign  |
+ *                  OOA counts (Triumphs)     |
  * gang-overview-{id} name/rating/wealth/     | updateGangFinancials (choke
  *                  credits copies on other   | point) + gang name/reputation
  *                  pages (campaign, home)    | edits — NOT xp/image/loadouts

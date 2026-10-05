@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { getGangFighterStats } from "@/app/lib/shared/gang-data";
+import { getUserIdFromClaims } from "@/utils/auth";
 
 /**
  * GET /api/gangs/[id]/stats
@@ -23,6 +24,13 @@ export async function GET(
   }
 
   try {
+    // getGangFighterStats caches per gang across users. Without a session, RLS
+    // returns no fighters, which would be cached as a zero "OOA caused".
+    const userId = await getUserIdFromClaims(supabase);
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const stats = await getGangFighterStats(gangId, supabase);
     return NextResponse.json(stats);
   } catch (error: any) {

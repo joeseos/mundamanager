@@ -9,6 +9,7 @@ import { fetchCampaignResources } from '@/utils/campaigns/resources';
 import { CAMPAIGN_TERRITORY_COLUMNS } from '@/utils/campaigns/territories';
 import { fetchAllRows } from '@/utils/supabase/fetch-all-rows';
 import { sumFighterKills } from '@/app/lib/shared/gang-data';
+import { groupBy } from '@/utils/gang-assembly';
 import { editionSlugFromJoin } from '@/types/edition';
 import type { CampaignMapRow, CampaignMapObjectRow, CampaignMapBundle } from '@/types/campaign';
 
@@ -595,11 +596,13 @@ const getCampaignGangIds = async (campaignId: string) => {
   return unstable_cache(
     async () => {
       const supabase = createServiceRoleClient();
-      const { data: campaignGangs } = await supabase
+      const { data: campaignGangs, error } = await supabase
         .from('campaign_gangs')
         .select('gang_id')
         .eq('campaign_id', campaignId);
 
+      // Throw rather than cache an empty list until the next membership change.
+      if (error) throw error;
       return campaignGangs?.map(cg => cg.gang_id) || [];
     },
     [`campaign-gang-ids-v2-${campaignId}`],
@@ -826,17 +829,14 @@ async function _getCampaignOoaCounts(gangIds: string[], supabase: SupabaseClient
       .from('fighters')
       .select('gang_id, kills')
       .in('gang_id', gangIds)
+      // Fighters without kills add nothing to the sum.
+      .gt('kills', 0)
       .order('id')
       .range(from, to)
   );
 
-  const fightersByGang = new Map<string, { kills: number | null }[]>();
-  fighters.forEach((f) => {
-    const list = fightersByGang.get(f.gang_id) ?? [];
-    list.push(f);
-    fightersByGang.set(f.gang_id, list);
-  });
-  return Array.from(fightersByGang, ([gang_id, list]) => ({ gang_id, ooa_count: sumFighterKills(list) }));
+  return Object.entries(groupBy(fighters, 'gang_id'))
+    .map(([gang_id, list]) => ({ gang_id, ooa_count: sumFighterKills(list) }));
 }
 
 /**
