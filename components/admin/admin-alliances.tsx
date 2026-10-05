@@ -394,7 +394,7 @@ export function AdminAlliancesModal({ onClose }: AdminAlliancesModalProps) {
                 disabled={isFormDisabled}
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Credits a gang pays to form this alliance. Leave empty for no tithe.
+                Credits a gang pays to form or break this alliance, added to its rating while allied. Leave empty for no tithe.
               </p>
             </div>
           </div>

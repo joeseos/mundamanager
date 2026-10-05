@@ -348,7 +348,7 @@ export default function GangEditModal({
     name: gangName,
     alignment: effectiveAlignment,
     allianceId: allianceId || '',
-    // Tithe paid on forming the alliance; prefilled from the alliance, editable
+    // Tithe paid on forming or breaking an alliance; prefilled from the listed prices, editable
     tithe: '',
     gangColour: gangColour,
     gangHasSubtypes: gangSubtypes.length > 0,
