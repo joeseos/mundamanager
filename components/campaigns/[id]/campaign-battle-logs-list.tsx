@@ -9,12 +9,13 @@ import { BiSolidNotepad } from "react-icons/bi";
 import { HiX } from "react-icons/hi";
 import { LuChevronLeft, LuChevronRight } from "react-icons/lu";
 import { deleteBattleLog } from "@/app/actions/campaigns/[id]/battle-logs";
+import { createBattleSession } from "@/app/actions/battle-sessions";
 import { updateMemberRole } from "@/app/actions/campaigns/[id]/campaign-members";
 import Modal from "@/components/ui/modal";
 import Link from "next/link";
 import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md";
 import { HiUser } from "react-icons/hi2";
-import { LuTrash2, LuSquarePen } from "react-icons/lu";
+import { LuTrash2, LuSquarePen, LuSwords } from "react-icons/lu";
 import { useMutation } from '@tanstack/react-query';
 import { Battle, BattleParticipant, CampaignGang, Territory, Member } from '@/types/campaign';
 import { battleStatusColors, battleStatusLabels, battleStatusOf, isPlayedBattle } from '@/types/campaign';
@@ -434,6 +435,19 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       const errorMessage = error instanceof Error ? error.message : 'Failed to delete battle report';
       toast.error(errorMessage);
     }
+  });
+
+  // Opens the challenge's battle session, starting it on first use.
+  const playChallengeMutation = useMutation({
+    mutationFn: (battleId: string) => createBattleSession({ campaign_battle_id: battleId }),
+    onSuccess: (result) => {
+      if (!result.success || !result.session_id) {
+        toast.error(result.error || 'Failed to start battle session');
+        return;
+      }
+      router.push(`/campaigns/${campaignId}/battle-session/${result.session_id}`);
+    },
+    onError: () => toast.error('Failed to start battle session'),
   });
 
   // Expose the openAddModal function to parent components
@@ -1190,7 +1204,20 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                   </td>
                   {canUserEditBattle(battle) && (
                     <td className="p-1 md:p-2 align-top text-right">
-                      <div className="flex flex-wrap justify-end gap-2">
+                      <div className="flex justify-end gap-2">
+                        {battleStatusOf(battle) === 'challenge_accepted' && (
+                          <Button
+                            onClick={() => playChallengeMutation.mutate(battle.id)}
+                            disabled={playChallengeMutation.isPending}
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            aria-label="Play as battle session"
+                            title="Play as battle session"
+                          >
+                            <LuSwords className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           onClick={() => handleEditBattle(battle)}
                           variant="outline"

@@ -18,7 +18,7 @@ interface BattleSessionLike {
   winner_gang_id?: string | null;
 }
 
-function parseParticipants(
+export function parseParticipants(
   participants: BattleParticipant[] | string | null | undefined
 ): BattleParticipant[] {
   if (!participants) return [];
