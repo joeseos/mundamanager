@@ -225,14 +225,14 @@ BEGIN
             SELECT COALESCE(gt.edition_id, cgt.edition_id)
             INTO v_fighter_edition_id
             FROM gangs g
-            LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+            LEFT JOIN gang_types gt ON gt.id = g.gang_type_id
             LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
             WHERE g.id = v_gang_id;
 
             SELECT gt.gang_type
             INTO v_target_name
             FROM gang_types gt
-            WHERE gt.gang_type_id = in_hatred_target_id
+            WHERE gt.id = in_hatred_target_id
               AND gt.edition_id IS NOT DISTINCT FROM v_fighter_edition_id;
 
             IF v_target_name IS NULL THEN
@@ -1134,7 +1134,7 @@ BEGIN
     IF EXISTS (
       SELECT 1
       FROM public.gang_types
-      WHERE gang_type_id = NEW.parent_gang_type_id
+      WHERE id = NEW.parent_gang_type_id
         AND parent_gang_type_id IS NOT NULL
     ) THEN
       RAISE EXCEPTION 'parent_gang_type_id must reference a root gang type';
@@ -1143,7 +1143,7 @@ BEGIN
     IF EXISTS (
       SELECT 1
       FROM public.gang_types
-      WHERE parent_gang_type_id = NEW.gang_type_id
+      WHERE parent_gang_type_id = NEW.id
     ) THEN
       RAISE EXCEPTION 'cannot set parent_gang_type_id on a gang type that is already a parent of other gang lists';
     END IF;
@@ -1181,7 +1181,7 @@ BEGIN
          v_edition_id
     FROM fighters f
     JOIN gangs g ON g.id = f.gang_id
-    LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+    LEFT JOIN gang_types gt ON gt.id = g.gang_type_id
     LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
     WHERE f.id = get_available_skills.fighter_id;
 
@@ -1420,7 +1420,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             COALESCE(gt.edition_id, cgt.edition_id) AS edition_id
         FROM (SELECT 1) AS _dummy
         LEFT JOIN gangs g ON g.id = $8
-        LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+        LEFT JOIN gang_types gt ON gt.id = g.gang_type_id
         LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
         LEFT JOIN fighter_types ft_sub ON ft_sub.id = $3
         LEFT JOIN custom_fighter_types cft_sub ON cft_sub.id = $3
@@ -1441,7 +1441,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
     gang_tp AS (
         SELECT gt.trading_post_type_id
         FROM gang_types gt
-        WHERE gt.gang_type_id = $1
+        WHERE gt.id = $1
           AND (
               $9 IS NULL
               OR gt.trading_post_type_id = ANY($9)
@@ -2164,7 +2164,7 @@ BEGIN
   INTO v_edition_id
   FROM fighters f
   JOIN gangs g ON g.id = f.gang_id
-  LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+  LEFT JOIN gang_types gt ON gt.id = g.gang_type_id
   LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
   WHERE f.id = get_fighter_available_advancements.fighter_id;
 
@@ -4082,7 +4082,7 @@ BEGIN
        (SELECT subtype_info FROM gang_subtype_info) as gang_subtypes,
        ed.slug AS edition_slug
    FROM gangs g
-   LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+   LEFT JOIN gang_types gt ON gt.id = g.gang_type_id
    LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
    LEFT JOIN editions ed ON ed.id = COALESCE(gt.edition_id, cgt.edition_id)
    LEFT JOIN alliances a ON a.id = g.alliance_id
@@ -4484,8 +4484,16 @@ CREATE TABLE public.alliances (
     strong_alliance uuid,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     alliance_crew_name text,
-    edition_id uuid
+    edition_id uuid,
+    tithe_cost numeric
 );
+
+
+--
+-- Name: COLUMN alliances.tithe_cost; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.alliances.tithe_cost IS 'N26 Tithe Price: credits a gang pays from its Stash to form or break this alliance, and adds to its rating while allied. Prefills the editable tithe in the gang edit modal; updateGang moves rating by it on an alliance change. NULL is no tithe.';
 
 
 --
@@ -6296,11 +6304,10 @@ CREATE TABLE public.gang_tactics_cards (
 --
 
 CREATE TABLE public.gang_types (
-    id bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     gang_type text,
     image_url text,
-    gang_type_id uuid DEFAULT gen_random_uuid() NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     alignment public.alignment,
     is_hidden boolean DEFAULT false,
     trading_post_type_id uuid,
@@ -6309,7 +6316,7 @@ CREATE TABLE public.gang_types (
     default_image_urls jsonb,
     edition_id uuid,
     parent_gang_type_id uuid,
-    CONSTRAINT gang_types_parent_not_self_check CHECK ((parent_gang_type_id IS DISTINCT FROM gang_type_id)),
+    CONSTRAINT gang_types_parent_not_self_check CHECK ((parent_gang_type_id IS DISTINCT FROM id)),
     CONSTRAINT gang_types_parent_requires_edition_check CHECK (((parent_gang_type_id IS NULL) OR (edition_id IS NOT NULL)))
 );
 
@@ -6325,21 +6332,7 @@ COMMENT ON COLUMN public.gang_types.default_image_urls IS 'List of default image
 -- Name: COLUMN gang_types.parent_gang_type_id; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.gang_types.parent_gang_type_id IS 'House this gang list belongs to. House Escher: Wyld Hunt stores House Escher''s gang_type_id here; House Escher itself stores null. Each row keeps its own fighter types.';
-
-
---
--- Name: gang_types_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-ALTER TABLE public.gang_types ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
-    SEQUENCE NAME public.gang_types_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1
-);
+COMMENT ON COLUMN public.gang_types.parent_gang_type_id IS 'House this gang list belongs to. House Escher: Wyld Hunt stores House Escher''s id here; House Escher itself stores null. Each row keeps its own fighter types.';
 
 
 --
@@ -7459,19 +7452,11 @@ ALTER TABLE ONLY public.gang_tactics_cards
 
 
 --
--- Name: gang_types gang_types_gang_type_id_edition_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: gang_types gang_types_id_edition_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.gang_types
-    ADD CONSTRAINT gang_types_gang_type_id_edition_id_key UNIQUE (gang_type_id, edition_id);
-
-
---
--- Name: gang_types gang_types_gang_type_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.gang_types
-    ADD CONSTRAINT gang_types_gang_type_id_key UNIQUE (gang_type_id);
+    ADD CONSTRAINT gang_types_id_edition_id_key UNIQUE (id, edition_id);
 
 
 --
@@ -7479,7 +7464,7 @@ ALTER TABLE ONLY public.gang_types
 --
 
 ALTER TABLE ONLY public.gang_types
-    ADD CONSTRAINT gang_types_pkey PRIMARY KEY (id, gang_type_id);
+    ADD CONSTRAINT gang_types_pkey PRIMARY KEY (id);
 
 
 --
@@ -8352,6 +8337,13 @@ CREATE INDEX fighter_gang_legacy_edition_id_idx ON public.fighter_gang_legacy US
 --
 
 CREATE INDEX fighter_injuries_fighter_id_idx ON public.fighter_injuries USING btree (fighter_id);
+
+
+--
+-- Name: fighter_ooa_records_campaign_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_ooa_records_campaign_id_idx ON public.fighter_ooa_records USING btree (campaign_id) WHERE (campaign_id IS NOT NULL);
 
 
 --
@@ -9930,7 +9922,7 @@ ALTER TABLE ONLY public.count_limits
 --
 
 ALTER TABLE ONLY public.count_limits
-    ADD CONSTRAINT count_limits_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(gang_type_id) ON DELETE CASCADE;
+    ADD CONSTRAINT count_limits_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(id) ON DELETE CASCADE;
 
 
 --
@@ -10802,7 +10794,7 @@ ALTER TABLE ONLY public.fighter_type_availability
 --
 
 ALTER TABLE ONLY public.fighter_type_availability
-    ADD CONSTRAINT fighter_type_availability_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(gang_type_id) ON DELETE CASCADE;
+    ADD CONSTRAINT fighter_type_availability_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(id) ON DELETE CASCADE;
 
 
 --
@@ -10850,7 +10842,7 @@ ALTER TABLE ONLY public.fighter_type_equipment
 --
 
 ALTER TABLE ONLY public.fighter_type_equipment
-    ADD CONSTRAINT fighter_type_equipment_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(gang_type_id) ON DELETE CASCADE;
+    ADD CONSTRAINT fighter_type_equipment_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(id) ON DELETE CASCADE;
 
 
 --
@@ -10874,7 +10866,7 @@ ALTER TABLE ONLY public.fighter_type_gang_cost
 --
 
 ALTER TABLE ONLY public.fighter_type_gang_cost
-    ADD CONSTRAINT fighter_type_gang_cost_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(gang_type_id) ON DELETE CASCADE;
+    ADD CONSTRAINT fighter_type_gang_cost_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(id) ON DELETE CASCADE;
 
 
 --
@@ -10954,7 +10946,7 @@ ALTER TABLE ONLY public.fighter_types
 --
 
 ALTER TABLE ONLY public.fighter_types
-    ADD CONSTRAINT fighter_types_gang_type_edition_fkey FOREIGN KEY (gang_type_id, edition_id) REFERENCES public.gang_types(gang_type_id, edition_id) ON UPDATE CASCADE;
+    ADD CONSTRAINT fighter_types_gang_type_edition_fkey FOREIGN KEY (gang_type_id, edition_id) REFERENCES public.gang_types(id, edition_id) ON UPDATE CASCADE;
 
 
 --
@@ -10962,7 +10954,7 @@ ALTER TABLE ONLY public.fighter_types
 --
 
 ALTER TABLE ONLY public.fighter_types
-    ADD CONSTRAINT fighter_types_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(gang_type_id) ON DELETE CASCADE;
+    ADD CONSTRAINT fighter_types_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(id) ON DELETE CASCADE;
 
 
 --
@@ -11194,7 +11186,7 @@ ALTER TABLE ONLY public.gang_types
 --
 
 ALTER TABLE ONLY public.gang_types
-    ADD CONSTRAINT gang_types_parent_gang_type_edition_fkey FOREIGN KEY (parent_gang_type_id, edition_id) REFERENCES public.gang_types(gang_type_id, edition_id) ON UPDATE CASCADE ON DELETE RESTRICT;
+    ADD CONSTRAINT gang_types_parent_gang_type_edition_fkey FOREIGN KEY (parent_gang_type_id, edition_id) REFERENCES public.gang_types(id, edition_id) ON UPDATE CASCADE ON DELETE RESTRICT;
 
 
 --
@@ -11242,7 +11234,7 @@ ALTER TABLE ONLY public.gangs
 --
 
 ALTER TABLE ONLY public.gangs
-    ADD CONSTRAINT gangs_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(gang_type_id) ON DELETE CASCADE;
+    ADD CONSTRAINT gangs_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(id) ON DELETE CASCADE;
 
 
 --
@@ -11346,7 +11338,7 @@ ALTER TABLE ONLY public.tactics_cards_packs
 --
 
 ALTER TABLE ONLY public.tactics_cards_packs
-    ADD CONSTRAINT tactics_cards_packs_gang_type_edition_fkey FOREIGN KEY (gang_type_id, edition_id) REFERENCES public.gang_types(gang_type_id, edition_id) ON UPDATE CASCADE;
+    ADD CONSTRAINT tactics_cards_packs_gang_type_edition_fkey FOREIGN KEY (gang_type_id, edition_id) REFERENCES public.gang_types(id, edition_id) ON UPDATE CASCADE;
 
 
 --
@@ -11354,7 +11346,7 @@ ALTER TABLE ONLY public.tactics_cards_packs
 --
 
 ALTER TABLE ONLY public.tactics_cards_packs
-    ADD CONSTRAINT tactics_cards_packs_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(gang_type_id) ON DELETE CASCADE;
+    ADD CONSTRAINT tactics_cards_packs_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(id) ON DELETE CASCADE;
 
 
 --
