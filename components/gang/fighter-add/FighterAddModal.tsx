@@ -123,64 +123,6 @@ function mapFighterType(type: any): FighterType {
   } as FighterType;
 }
 
-/** A `single` equipment category with no default needs the user to pick before adding. */
-function missingRequiredSelection(equipmentSelection: unknown, selectedEquipmentIds: string[] = []): boolean {
-  if (!equipmentSelection) return false;
-  const normalized: NormalizedEquipmentSelection = normalizeEquipmentSelection(equipmentSelection);
-  for (const [categoryId, categoryData] of Object.entries(normalized)) {
-    const selectType = categoryData.select_type || 'optional';
-    if (selectType === 'single' &&
-        (!categoryData.default || categoryData.default.length === 0) &&
-        categoryData.options && categoryData.options.length > 0) {
-      const selectedFromCategory = selectedEquipmentIds.some(id =>
-        categoryData.options?.some((opt: EquipmentOption) => `${categoryId}-${opt.id}` === id)
-      );
-      if (!selectedFromCategory) return true;
-    }
-  }
-  return false;
-}
-
-/** The equipment selection's defaults and the cost they come to (delegation-aware base cost). */
-function defaultLoadout(type: FighterType, useDelegationCost: boolean) {
-  const selectedEquipment = type.equipment_selection
-    ? getDefaultEquipmentFromSelection(type.equipment_selection)
-    : [];
-  const cost = getBaseCost(type, useDelegationCost) +
-    selectedEquipment.reduce((sum, item) => sum + item.cost * item.quantity, 0);
-  return { selectedEquipment, cost };
-}
-
-function defaultEquipmentParams(type: FighterType | undefined): SelectedEquipmentItem[] {
-  return type?.default_equipment?.map((item: any) => ({
-    equipment_id: item.id,
-    cost: item.cost || 0,
-    quantity: 1,
-    is_editable: item.is_editable || false,
-  })) || [];
-}
-
-const PARTY_OPTION_VALUE = 'alliance-party';
-
-type AllianceParty = Array<{ type: FighterType; count: number }>;
-
-/**
- * The fighters an N26 alliance brings, from the fighter types in its category: max_count of
- * each (the "0-2" from count_limits), or one where no limit is set. Null when the party is a
- * single fighter, which the type list already adds, or when a member needs a choice adding
- * the whole party cannot make (a variant, or equipment with no default).
- */
-function allianceParty(types: FighterType[]): AllianceParty | null {
-  const families = new Set(types.map(t => t.typeSubtypeKey ?? t.id));
-  if (families.size !== types.length || types.some(t => missingRequiredSelection(t.equipment_selection))) {
-    return null;
-  }
-  const party = types
-    .map(type => ({ type, count: type.max_count ?? 1 }))
-    .sort((a, b) => a.type.fighter_type.localeCompare(b.type.fighter_type));
-  return party.reduce((sum, member) => sum + member.count, 0) > 1 ? party : null;
-}
-
 export default function FighterAddModal({
   catalog,
   showModal,
@@ -285,11 +227,6 @@ export default function FighterAddModal({
       )
     : fighterTypes;
 
-  const party = isCategoryAdditions && selectedSubtype.startsWith('alliance:')
-    ? allianceParty(filteredTypes)
-    : null;
-  const isPartySelected = party !== null && selectedFighterTypeId === PARTY_OPTION_VALUE;
-
   const currentFighterTypeId = selectedSpecialisationId || selectedFighterTypeId;
   const currentFighterType = fighterTypes.find(t => t.id === currentFighterTypeId);
 
@@ -343,10 +280,18 @@ export default function FighterAddModal({
   const applyDefaultEquipmentAndCost = (typeId: string, delegation: boolean) => {
     const selectedType = fighterTypes.find(t => t.id === typeId);
     if (!selectedType) return;
-    const { selectedEquipment: defaultEquipment, cost } = defaultLoadout(selectedType, delegation);
-    setSelectedEquipment(defaultEquipment);
-    setSelectedEquipmentIds([]);
-    setFighterCost(String(cost));
+    const baseCost = getBaseCost(selectedType, delegation);
+    if (selectedType.equipment_selection) {
+      const defaultEquipment = getDefaultEquipmentFromSelection(selectedType.equipment_selection);
+      setSelectedEquipment(defaultEquipment);
+      setSelectedEquipmentIds([]);
+      const defaultCost = defaultEquipment.reduce((sum, item) => sum + item.cost * item.quantity, 0);
+      setFighterCost(String(baseCost + defaultCost));
+    } else {
+      setSelectedEquipment([]);
+      setSelectedEquipmentIds([]);
+      setFighterCost(String(baseCost));
+    }
   };
 
   const handleSelectFighterType = (typeId: string) => {
@@ -488,19 +433,6 @@ export default function FighterAddModal({
     } as FighterProps;
   };
 
-  const toRosterFighter = (data: AddFighterServerData, fighterTypeId: string) => {
-    const selectedType = fighterTypes.find(t => t.id === fighterTypeId);
-    return {
-      ...buildFighterFromServerData(data, fighterTypeId, selectedType?.specialisation?.specialisation_name),
-      edition_slug: selectedType?.edition_slug ?? null,
-      is_vehicle: selectedType?.is_vehicle ?? false
-    };
-  };
-
-  const addCreatedBeasts = (beasts: ExoticBeastServerData[] | undefined) => {
-    beasts?.forEach((beast) => onFighterAdded(buildBeastFromServerData(beast), 0));
-  };
-
   const addFighterMutation = useMutation({
     mutationFn: async (params: {
       fighter_name: string;
@@ -551,7 +483,16 @@ export default function FighterAddModal({
       if (!context || !result.data) return;
       const data = result.data;
 
-      const realFighter = toRosterFighter(data as AddFighterServerData, variables.fighter_type_id);
+      const selectedType = fighterTypes.find(t => t.id === variables.fighter_type_id);
+      const realFighter = {
+        ...buildFighterFromServerData(
+          data as AddFighterServerData,
+          variables.fighter_type_id,
+          selectedType?.specialisation?.specialisation_name
+        ),
+        edition_slug: selectedType?.edition_slug ?? null,
+        is_vehicle: selectedType?.is_vehicle ?? false
+      };
 
       if (context.tempFighterId && onFighterReconcile) {
         onFighterReconcile(context.tempFighterId, realFighter);
@@ -559,7 +500,12 @@ export default function FighterAddModal({
         onFighterAdded(realFighter, variables.cost);
       }
 
-      addCreatedBeasts(data.created_beasts);
+      if (data.created_beasts && data.created_beasts.length > 0) {
+        data.created_beasts.forEach((beast: ExoticBeastServerData) => {
+          const beastFighter = buildBeastFromServerData(beast);
+          onFighterAdded(beastFighter, 0);
+        });
+      }
 
       if (result.warning) {
         toast.error(result.warning);
@@ -570,49 +516,7 @@ export default function FighterAddModal({
     },
   });
 
-  // Adds each member in turn rather than optimistically: one card per server response, and a
-  // failure part way (the fighter cap, say) keeps the members already added.
-  const handleAddParty = async (members: AllianceParty) => {
-    const loadouts = members.map(({ type, count }) => ({ type, count, ...defaultLoadout(type, false) }));
-    const partyCost = loadouts.reduce((sum, member) => sum + member.cost * member.count, 0);
-    if (partyCost > 0 && initialCredits < partyCost) {
-      setFetchError('Not enough credits to add this party');
-      return false;
-    }
-
-    closeModal();
-    const total = loadouts.reduce((sum, member) => sum + member.count, 0);
-    let added = 0;
-    try {
-      for (const { type, count, cost, selectedEquipment: partySelectedEquipment } of loadouts) {
-        for (let i = 1; i <= count; i++) {
-          const result = await addFighterToGang({
-            fighter_name: count > 1 ? `${type.fighter_type} ${i}` : type.fighter_type,
-            fighter_type_id: type.id,
-            gang_id: gangId,
-            cost,
-            selected_equipment: partySelectedEquipment,
-            default_equipment: defaultEquipmentParams(type),
-            use_base_cost_for_rating: true,
-          });
-          if (!result.success || !result.data) throw new Error(result.error || 'Failed to add fighter');
-          onFighterAdded(toRosterFighter(result.data as AddFighterServerData, type.id), cost);
-          addCreatedBeasts(result.data.created_beasts);
-          added++;
-        }
-      }
-      toast.success(`${added} fighters added successfully`);
-    } catch (error) {
-      toast.error(`Added ${added} of ${total} fighters`, {
-        description: error instanceof Error ? error.message : undefined,
-      });
-    }
-    return true;
-  };
-
   const handleAddFighter = async () => {
-    if (isPartySelected && party) return handleAddParty(party);
-
     if (!fighterName || !fighterCost) {
       setFetchError('Please fill in all fields');
       return false;
@@ -630,7 +534,13 @@ export default function FighterAddModal({
       return false;
     }
 
-    const defaultEquipment = defaultEquipmentParams(fighterTypes.find(t => t.id === fighterTypeIdToUse));
+    const fighterTypeForEquipment = fighterTypes.find(t => t.id === fighterTypeIdToUse);
+    const defaultEquipment: SelectedEquipmentItem[] = fighterTypeForEquipment?.default_equipment?.map((item: any) => ({
+      equipment_id: item.id,
+      cost: item.cost || 0,
+      quantity: 1,
+      is_editable: item.is_editable || false,
+    })) || [];
 
     addFighterMutation.mutate({
       fighter_name: fighterName,
@@ -671,10 +581,24 @@ export default function FighterAddModal({
   const delegationType = fighterTypes.find(t => t.id === (selectedSpecialisationId || selectedFighterTypeId));
   const selectedEquipmentCost = selectedEquipment.reduce((sum, item) => sum + item.cost * item.quantity, 0);
 
-  const requiredSelectionMissing = missingRequiredSelection(
-    fighterTypes.find(t => t.id === selectedFighterTypeId)?.equipment_selection,
-    selectedEquipmentIds
-  );
+  // A `single` category with no default requires an explicit selection.
+  const requiredSelectionMissing = (() => {
+    const selectedType = fighterTypes.find(t => t.id === selectedFighterTypeId);
+    if (!selectedType?.equipment_selection) return false;
+    const normalized: NormalizedEquipmentSelection = normalizeEquipmentSelection(selectedType.equipment_selection);
+    for (const [categoryId, categoryData] of Object.entries(normalized)) {
+      const selectType = categoryData.select_type || 'optional';
+      if (selectType === 'single' &&
+          (!categoryData.default || categoryData.default.length === 0) &&
+          categoryData.options && categoryData.options.length > 0) {
+        const selectedFromCategory = selectedEquipmentIds.some(id =>
+          categoryData.options?.some((opt: EquipmentOption) => `${categoryId}-${opt.id}` === id)
+        );
+        if (!selectedFromCategory) return true;
+      }
+    }
+    return false;
+  })();
 
   const buildCategoryOptions = () => {
     const options: Array<{ value: string; label: string | React.ReactNode; displayValue?: string; disabled?: boolean }> = [];
@@ -884,18 +808,6 @@ export default function FighterAddModal({
         };
       };
 
-      if (party) {
-        const members = party
-          .map(({ type, count }) => count > 1 ? `${count}× ${type.fighter_type}` : type.fighter_type)
-          .join(', ');
-        const partyCost = party.reduce((sum, { type, count }) => sum + defaultLoadout(type, false).cost * count, 0);
-        const displayName = `${members} - ${partyCost} credits`;
-        options.push(
-          { value: 'header-party', label: <span className="font-bold">Whole Party</span>, displayValue: 'Whole Party', disabled: true },
-          { value: PARTY_OPTION_VALUE, label: <span className="ml-3">{displayName}</span>, displayValue: displayName },
-        );
-      }
-
       // Group by alignment (Law Abiding / Outlaw / Unaligned)
       const groupedByAlignment = topLevel.reduce((groups, { fighter, cost }) => {
         const alignment = fighter.alignment?.toLowerCase() ?? 'unaligned';
@@ -1093,11 +1005,6 @@ export default function FighterAddModal({
             {beastSubtypeName(editionSlug)}s associated with a Fighter, such as a Dramatis Personae, are added alongside them, which automatically creates a Fighter card for each {beastSubtypeName(editionSlug).toLowerCase()}. They are listed here to support greater flexibility and house rules.
           </p>
         )}
-        {isPartySelected && (
-          <p className="text-sm text-muted-foreground">
-            Adds every fighter in the party with their default equipment, each named after their type. Rename them from their fighter page.
-          </p>
-        )}
 
         {/* Include All Fighter Types (roster catalog only) */}
         {!isAdditions && (
@@ -1185,74 +1092,70 @@ export default function FighterAddModal({
         editionSlug={currentEditionSlug}
       />
 
-      {!isPartySelected && (
-        <>
-          {/* Cost */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-muted-foreground">Cost (credits) *</label>
-            <Input
-              type="number"
-              placeholder={`Enter ${noun.toLowerCase()} cost`}
-              value={fighterCost}
-              onChange={(e) => setFighterCost(e.target.value)}
-              className="w-full"
-              min={0}
+      {/* Cost */}
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-muted-foreground">Cost (credits) *</label>
+        <Input
+          type="number"
+          placeholder={`Enter ${noun.toLowerCase()} cost`}
+          value={fighterCost}
+          onChange={(e) => setFighterCost(e.target.value)}
+          className="w-full"
+          min={0}
+        />
+        {currentFighterType && (
+          <p className="text-sm text-muted-foreground">
+            Base cost: {getBaseCost(currentFighterType, useDelegationCost)} credits
+            {selectedEquipmentCost > 0 && <> | Equipment cost: {selectedEquipmentCost} credits</>}
+          </p>
+        )}
+
+        {/* Use Delegation Cost (data-driven) */}
+        {delegationType?.delegation_cost ? (
+          <div className="flex items-center space-x-2 mb-4 mt-2">
+            <Checkbox
+              id="use-delegation-cost"
+              checked={useDelegationCost}
+              onCheckedChange={(checked) => {
+                const isDelegation = checked as boolean;
+                setUseDelegationCost(isDelegation);
+                const baseCost = isDelegation ? delegationType.delegation_cost! : delegationType.total_cost;
+                setFighterCost(String(baseCost + selectedEquipmentCost));
+              }}
             />
-            {currentFighterType && (
-              <p className="text-sm text-muted-foreground">
-                Base cost: {getBaseCost(currentFighterType, useDelegationCost)} credits
-                {selectedEquipmentCost > 0 && <> | Equipment cost: {selectedEquipmentCost} credits</>}
-              </p>
-            )}
-
-            {/* Use Delegation Cost (data-driven) */}
-            {delegationType?.delegation_cost ? (
-              <div className="flex items-center space-x-2 mb-4 mt-2">
-                <Checkbox
-                  id="use-delegation-cost"
-                  checked={useDelegationCost}
-                  onCheckedChange={(checked) => {
-                    const isDelegation = checked as boolean;
-                    setUseDelegationCost(isDelegation);
-                    const baseCost = isDelegation ? delegationType.delegation_cost! : delegationType.total_cost;
-                    setFighterCost(String(baseCost + selectedEquipmentCost));
-                  }}
-                />
-                <label htmlFor="use-delegation-cost" className="text-sm font-medium text-muted-foreground cursor-pointer">
-                  Use Delegation Cost
-                </label>
-              </div>
-            ) : null}
-
-            {/* Use Listed Cost for Rating */}
-            <div className="flex items-center space-x-2 mb-4 mt-2">
-              <Checkbox
-                id="use-base-cost-for-rating"
-                checked={useBaseCostForRating}
-                onCheckedChange={(checked) => setUseBaseCostForRating(checked as boolean)}
-              />
-              <label htmlFor="use-base-cost-for-rating" className="text-sm font-medium text-muted-foreground cursor-pointer">
-                Use Listed Cost for Rating
-              </label>
-              <InfoTooltip ariaLabel={`About listed cost for ${noun.toLowerCase()} rating`}>
-                When enabled, the {noun.toLowerCase()}&apos;s rating is calculated using their listed cost, even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
-              </InfoTooltip>
-            </div>
+            <label htmlFor="use-delegation-cost" className="text-sm font-medium text-muted-foreground cursor-pointer">
+              Use Delegation Cost
+            </label>
           </div>
+        ) : null}
 
-          {/* Fighter Name */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-muted-foreground">{noun} Name *</label>
-            <Input
-              type="text"
-              placeholder={`Enter ${noun.toLowerCase()} name`}
-              value={fighterName}
-              onChange={(e) => setFighterName(e.target.value)}
-              className="w-full"
-            />
-          </div>
-        </>
-      )}
+        {/* Use Listed Cost for Rating */}
+        <div className="flex items-center space-x-2 mb-4 mt-2">
+          <Checkbox
+            id="use-base-cost-for-rating"
+            checked={useBaseCostForRating}
+            onCheckedChange={(checked) => setUseBaseCostForRating(checked as boolean)}
+          />
+          <label htmlFor="use-base-cost-for-rating" className="text-sm font-medium text-muted-foreground cursor-pointer">
+            Use Listed Cost for Rating
+          </label>
+          <InfoTooltip ariaLabel={`About listed cost for ${noun.toLowerCase()} rating`}>
+            When enabled, the {noun.toLowerCase()}&apos;s rating is calculated using their listed cost, even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
+          </InfoTooltip>
+        </div>
+      </div>
+
+      {/* Fighter Name */}
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-muted-foreground">{noun} Name *</label>
+        <Input
+          type="text"
+          placeholder={`Enter ${noun.toLowerCase()} name`}
+          value={fighterName}
+          onChange={(e) => setFighterName(e.target.value)}
+          className="w-full"
+        />
+      </div>
 
       {fetchError && <p className="text-red-500">{fetchError}</p>}
     </div>
@@ -1270,11 +1173,10 @@ export default function FighterAddModal({
       content={modalContent}
       onClose={closeModal}
       onConfirm={handleAddFighter}
-      confirmText={isPartySelected ? 'Add Party' : `Add ${noun}`}
+      confirmText={`Add ${noun}`}
       confirmDisabled={
         addFighterMutation.isPending ||
-        !selectedFighterTypeId ||
-        (!isPartySelected && (!fighterName || !fighterCost)) ||
+        !selectedFighterTypeId || !fighterName || !fighterCost ||
         (availableSpecialisations.length > 0 && !selectedSpecialisationId) ||
         requiredSelectionMissing
       }
