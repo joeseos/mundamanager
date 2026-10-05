@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { Button } from "@/components/ui/button";
 import { toast } from 'sonner';
 import Modal from "@/components/ui/modal";
-import { Skill, FighterSkills, FighterEffect as FighterEffectType } from '@/types/fighter';
+import { FighterSkills, FighterEffect as FighterEffectType, type FighterDetailsPatch } from '@/types/fighter';
 import { countAdvancementsTaken, openAdvancementsFor } from "@/utils/advancementRanks";
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
@@ -33,38 +33,9 @@ const AdvancementModal = dynamic(
 );
 
 // AdvancementsList Interfaces
-interface StatChange {
-  id: string;
-  applied_at: string;
-  stat_change_type_id: string;
-  stat_change_name: string;
-  xp_spent: number;
-  changes: {
-    [key: string]: number;
-  };
-}
-
-interface FighterChanges {
-  advancement?: StatChange[];
-  characteristics?: Array<{
-    id: string;
-    created_at: string;
-    updated_at: string;
-    code: string;
-    times_increased: number;
-    characteristic_name: string;
-    credits_increase: number;
-    xp_cost: number;
-    characteristic_value: number;
-    acquired_at: string;
-  }>;
-  skills?: Skill[];
-}
-
 interface AdvancementsListProps {
   fighterXp: number;
   fighterStartingXp?: number | null;
-  fighterChanges?: FighterChanges;
   fighterId: string;
   editionSlug?: string | null;
   fighterSubtypes: string[];
@@ -74,7 +45,6 @@ interface AdvancementsListProps {
   onAdvancementUpdate: (updatedAdvancements: Array<FighterEffectType>) => void;
   onSkillUpdate?: (updatedSkills: FighterSkills) => void;
   onXpCreditsUpdate?: (xpChange: number, creditsChange: number) => void;
-  onCharacteristicUpdate?: (characteristicName: string, changeAmount: number) => void;
   gangId?: string;
   venatorRanksIncomplete?: boolean;
   gangTypeId?: string;
@@ -85,34 +55,13 @@ interface AdvancementsListProps {
   fighterSpecialisationId?: string;
   promotedFromProspect?: boolean;
   fighterArchetypeName?: string | null;
-  onFighterDetailsUpdate?: (patch: {
-    fighter_subtypes?: string[];
-    fighter_type?: string;
-    fighter_type_id?: string;
-    fighter_specialisation?: string | null;
-    fighter_specialisation_id?: string | null;
-    special_rules?: string[];
-    promoted_from_prospect?: boolean;
-  }) => void;
-}
-
-interface TransformedAdvancement {
-  id: string;
-  stat_change_name: string;
-  xp_spent: number;
-  changes: {
-    credits: number;
-    [key: string]: number;
-  };
-  acquired_at: string;
-  type: 'characteristic' | 'skill';
+  onFighterDetailsUpdate?: (patch: FighterDetailsPatch) => void;
 }
 
 // AdvancementsList Component
 export function AdvancementsList({
   fighterXp,
   fighterStartingXp = null,
-  fighterChanges = { advancement: [], characteristics: [], skills: [] },
   fighterId,
   editionSlug = null,
   fighterSubtypes,
@@ -122,7 +71,6 @@ export function AdvancementsList({
   onAdvancementUpdate,
   onSkillUpdate,
   onXpCreditsUpdate,
-  onCharacteristicUpdate,
   gangId = '',
   venatorRanksIncomplete,
   gangTypeId = '',
@@ -396,10 +344,10 @@ export function AdvancementsList({
         characteristicName
       };
     },
-    onSuccess: (result, variables, context) => {
+    onSuccess: (_result, _variables, context) => {
       toast.success(`${context?.advancementToDelete?.effect_name || 'Advancement'} removed successfully`);
     },
-    onError: (error, variables, context) => {
+    onError: (_error, _variables, context) => {
       // Rollback optimistic updates
       if (context?.isSkill && context?.previousSkills && onSkillUpdate) {
         onSkillUpdate(context.previousSkills);
@@ -419,54 +367,6 @@ export function AdvancementsList({
       toast.error('Failed to delete advancement');
     }
   });
-
-  // Memoize the entire data transformation
-  const { characteristics, skills: transformedSkills } = useMemo(() => {
-    const transformedCharacteristics: TransformedAdvancement[] = [];
-    const transformedSkills: TransformedAdvancement[] = [];
-    
-    // Transform characteristics
-    if (fighterChanges.characteristics && Array.isArray(fighterChanges.characteristics)) {
-      fighterChanges.characteristics.forEach((data) => {
-        transformedCharacteristics.push({
-          id: data.id,
-          stat_change_name: data.characteristic_name,
-          xp_spent: data.xp_cost,
-          changes: {
-            credits: data.credits_increase,
-            [data.code.toLowerCase()]: data.characteristic_value
-          },
-          acquired_at: data.acquired_at,
-          type: 'characteristic'
-        });
-      });
-    }
-
-    // Transform skills
-    if (Array.isArray(skills)) {
-      skills.forEach((skill) => {
-        transformedSkills.push({
-          id: skill.id,
-          stat_change_name: skill.name,
-          xp_spent: skill.xp_cost || 0,
-          changes: {
-            credits: skill.credits_increase
-          },
-          acquired_at: skill.acquired_at,
-          type: 'skill'
-        });
-      });
-    }
-
-    // Sort each array by acquired_at date
-    const sortByDate = (a: TransformedAdvancement, b: TransformedAdvancement) => 
-      new Date(b.acquired_at).getTime() - new Date(a.acquired_at).getTime();
-
-    return {
-      characteristics: transformedCharacteristics.sort(sortByDate),
-      skills: transformedSkills.sort(sortByDate)
-    };
-  }, [fighterChanges, skills]); // Only recompute when fighterChanges or skills updates
 
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const advancementSkills = useMemo(() => {
@@ -494,9 +394,6 @@ export function AdvancementsList({
       advancement_id: advancementId,
       advancement_type: isSkill ? 'skill' : 'characteristic'
     });
-  };
-
-  const handleAdvancementAdded = (advancement: FighterEffectType) => {
   };
 
   // Transform advancements for the List component
@@ -671,11 +568,9 @@ export function AdvancementsList({
           advancements={advancements}
           skills={skills}
           onClose={() => setIsAdvancementModalOpen(false)}
-          onAdvancementAdded={handleAdvancementAdded}
           onSkillUpdate={onSkillUpdate}
           onXpCreditsUpdate={onXpCreditsUpdate}
           onAdvancementUpdate={onAdvancementUpdate}
-          onCharacteristicUpdate={onCharacteristicUpdate}
           userPermissions={userPermissions}
           gangId={gangId}
           venatorRanksIncomplete={venatorRanksIncomplete}

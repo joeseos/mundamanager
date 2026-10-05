@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { toast } from 'sonner';
-import { Skill, FighterEffect as FighterEffectType } from '@/types/fighter';
+import { FighterEffect as FighterEffectType, type FighterDetailsPatch } from '@/types/fighter';
 import { createClient } from '@/utils/supabase/client';
 import { buildGroupedSkillSetComboboxOptions } from '@/utils/skillSetComboboxOptions';
 import { hasWyrdFighterSubtype, isWyrdPowerSkillSet } from '@/utils/skillSetRank';
@@ -47,11 +47,9 @@ interface AdvancementModalProps {
   advancements: Array<FighterEffectType>;
   skills: Record<string, any>;
   onClose: () => void;
-  onAdvancementAdded: (advancement: FighterEffectType) => void;
   onSkillUpdate?: (updatedSkills: Record<string, any>) => void;
   onXpCreditsUpdate?: (xpChange: number, creditsChange: number) => void;
   onAdvancementUpdate: (updatedAdvancements: FighterEffectType[]) => void;
-  onCharacteristicUpdate?: (characteristicName: string, changeAmount: number) => void;
   userPermissions?: UserPermissions;
   gangId?: string;
   venatorRanksIncomplete?: boolean;
@@ -63,15 +61,7 @@ interface AdvancementModalProps {
   fighterSpecialisationId?: string;
   /** Skill-access archetype name (e.g. Outcasts "Wyrd"). */
   fighterArchetypeName?: string | null;
-  onFighterDetailsUpdate?: (patch: {
-    fighter_subtypes?: string[];
-    fighter_type?: string;
-    fighter_type_id?: string;
-    fighter_specialisation?: string | null;
-    fighter_specialisation_id?: string | null;
-    special_rules?: string[];
-    promoted_from_prospect?: boolean;
-  }) => void;
+  onFighterDetailsUpdate?: (patch: FighterDetailsPatch) => void;
 }
 
 interface StatChangeCategory {
@@ -122,13 +112,6 @@ interface SkillResponse {
   fighter_subtypes: string[];
 }
 
-interface SkillAcquisitionType {
-  id: string;
-  name: string;
-  xpCost: number;
-  creditCost: number;
-}
-
 type AcquisitionType = {
   name: string;
   type_id: string;
@@ -136,20 +119,11 @@ type AcquisitionType = {
   credit_cost: number;
 };
 
-interface SkillData {
-  skill_id: string;
-  skill_name: string;
-  skill_type_id: string;
-  available_acquisition_types: AcquisitionType[];
-  available: boolean;
-}
-
 // Type guard function
 function isStatChangeCategory(category: StatChangeCategory | SkillType): category is StatChangeCategory {
   return category.type === 'characteristic';
 }
 
-// Add SkillAccess interface
 interface SkillAccess {
   skill_type_id: string;
   access_level: 'primary' | 'secondary' | 'allowed' | 'denied' | null; // default from fighter type
@@ -385,11 +359,9 @@ export function AdvancementModal({
   advancements,
   skills,
   onClose,
-  onAdvancementAdded,
   onSkillUpdate,
   onXpCreditsUpdate,
   onAdvancementUpdate,
-  onCharacteristicUpdate,
   userPermissions,
   gangId = '',
   venatorRanksIncomplete,
@@ -412,7 +384,6 @@ export function AdvancementModal({
   const [skillsLoading, setSkillsLoading] = useState(false);
   const [advancementType, setAdvancementType] = useState<AdvancementTypeValue>('');
   const [skillAcquisitionType, setSkillAcquisitionType] = useState<string>('');
-  // skillsData not used in optimistic path; removed
   const [editableXpCost, setEditableXpCost] = useState<number>(0);
   const [editableCreditsIncrease, setEditableCreditsIncrease] = useState<number>(0);
   /** When true, ganger roll UI must not overwrite footer XP/credits from suggested values. */
@@ -500,7 +471,6 @@ export function AdvancementModal({
   const [championPreviewSkillAccess, setChampionPreviewSkillAccess] = useState<SkillAccess[]>([]);
   const [championPreviewSkillAccessLoading, setChampionPreviewSkillAccessLoading] = useState(false);
   const [championPurchaseBusy, setChampionPurchaseBusy] = useState(false);
-  // isSubmitting unused; removed
   const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
   const [skillAccessLoading, setSkillAccessLoading] = useState(false);
   // Roll-for-skill UI for non-Ganger fighters when a Random acquisition type is selected
@@ -578,13 +548,13 @@ export function AdvancementModal({
         creditsIncrease: variables.credits_increase
       };
     },
-    onSuccess: (result, variables, context) => {
+    onSuccess: (_result, variables) => {
       // Don't manually replace - let the cache invalidation handle it
       // This prevents race conditions between manual updates and cache refresh
       const name = variables.ganger_pair_stat_name ?? selectedAdvancement?.stat_change_name;
       toast.success("Success!", { description: `Successfully added ${name}` });
     },
-    onError: (error, variables, context) => {
+    onError: (error, _variables, context) => {
       // Rollback optimistic advancement update
       if (context?.previousAdvancements) {
         onAdvancementUpdate(context.previousAdvancements);
@@ -652,13 +622,13 @@ export function AdvancementModal({
 
       return { previousAdvancements, previousSkills, skillName };
     },
-    onSuccess: (result, variables, context) => {
+    onSuccess: (_result, variables) => {
       // Don't do anything - let the cache refresh handle the real data
       // The optimistic update will be replaced naturally when the cache refreshes
       const name = variables.ganger_skill_name ?? selectedAdvancement?.stat_change_name;
       toast.success("Success!", { description: `Successfully added ${name}` });
     },
-    onError: (error, variables, context) => {
+    onError: (error, _variables, context) => {
       // Rollback skills update
       if (context?.previousSkills && onSkillUpdate) {
         onSkillUpdate(context.previousSkills);
@@ -2051,22 +2021,6 @@ export function AdvancementModal({
     }
   }
 
-  // Add these console.logs to help debug
-  // Debug effect removed
-
-  // Add this useEffect to track state changes
-  // Debug effect removed
-
-  // First, let's add some debug logging to see what's happening with the skill selection
-  // Debug effect removed
-
-  // Add this to track the characteristic data
-  useEffect(() => {
-    if (selectedCategory && advancementType === 'characteristic') {
-      // no-op
-    }
-  }, [selectedCategory, selectedAdvancement, advancementType]);
-
   // Fetch skill access for the standard skill advancement flow
   useEffect(() => {
     if (advancementType !== 'skill') return;
@@ -2140,9 +2094,6 @@ export function AdvancementModal({
     }
   };
 
-  const isGangerOrExoticBeastRestricted =
-    fighterSubtypes.includes('Ganger') || fighterSubtypes.includes('Exotic Beast');
-
   const handleAdvancementPurchase = async () => {
     if (gangerModalRollBuy) {
       setGangerPurchaseBusy(true);
@@ -2191,33 +2142,6 @@ export function AdvancementModal({
     }
   };
 
-  const formatCharacteristicAdvancement = (advancementDetails: any): AvailableAdvancement => {
-    return {
-      id: advancementDetails.id,
-      level: advancementDetails.times_increased || 0,
-      xp_cost: advancementDetails.xp_cost,
-      stat_change: 1,
-      can_purchase: advancementDetails.can_purchase,
-      credits_increase: advancementDetails.credits_increase || 0,
-      stat_change_name: advancementDetails.characteristic_name,
-      description: advancementDetails.description
-    };
-  };
-
-  const formatSkillAdvancement = (advancementDetails: any): AvailableAdvancement => {
-    return {
-      id: advancementDetails.skill_id,
-      skill_id: advancementDetails.skill_id,
-      xp_cost: advancementDetails.xp_cost || 0,
-      stat_change: 1,
-      can_purchase: true,
-      credits_increase: advancementDetails.credits_increase || 0,
-      stat_change_name: advancementDetails.skill_name,
-      description: advancementDetails.description
-    };
-  };
-
-  // Update the useEffect that handles XP cost changes
   const handleXpCostChange = (value: number) => {
     if (gangerModalRollBuy) setGangerCostsUserOverride(true);
     setEditableXpCost(value);
@@ -2594,7 +2518,7 @@ export function AdvancementModal({
             )}
 
           <div className="space-y-4">
-          {(!isGangerOrExoticBeastRestricted || isCumulativeXp) && (
+          {(!isGangerOrExoticBeastSubtype || isCumulativeXp) && (
             <>
             {/* The N26 result sets the advancement type itself, so this free-choice
                 picker would be a second route to the same purchase, untied to the
