@@ -104,7 +104,7 @@ function SkillSetOptions({ skillTypes, excludeIds, editionSlug }: {
 }
 
 interface GangType {
-  gang_type_id: string;
+  id: string;
   gang_type: string;
   is_custom?: boolean;
 }
@@ -522,7 +522,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     return (
       <>
         {availableToAll.map((type) => (
-          <option key={type.gang_type_id} value={type.gang_type_id}>
+          <option key={type.id} value={type.id}>
             {type.gang_type}
           </option>
         ))}
@@ -531,7 +531,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
             {customTypes
               .sort((a, b) => a.gang_type.localeCompare(b.gang_type))
               .map((type) => (
-                <option key={type.gang_type_id} value={type.gang_type_id}>
+                <option key={type.id} value={type.id}>
                   {type.gang_type}
                 </option>
               ))}
@@ -540,7 +540,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         {systemTypes
           .sort((a, b) => a.gang_type.localeCompare(b.gang_type))
           .map((type) => (
-            <option key={type.gang_type_id} value={type.gang_type_id}>
+            <option key={type.id} value={type.id}>
               {type.gang_type}
             </option>
           ))}
@@ -935,7 +935,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       return false;
     }
 
-    const selectedGang = gangTypes.find(g => g.gang_type_id === selectedGangType);
+    const selectedGang = gangTypes.find(g => g.id === selectedGangType);
     const isCustomGangType = selectedGang?.is_custom === true;
 
     const requestData = {

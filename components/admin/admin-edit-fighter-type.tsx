@@ -510,7 +510,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         fromAnotherEdition(gangOriginList, rule.gang_origin_id)
         || fromAnotherEdition(gangSubtypeList, rule.gang_subtype_id)
         || fromAnotherEdition(
-          gangTypes.map(type => ({ id: type.gang_type_id, edition_id: type.edition_id })),
+          gangTypes.map(type => ({ id: type.id, edition_id: type.edition_id })),
           rule.gang_type_id
         );
       setAvailability(prev => prev?.filter(rule => !fromAnotherEditionScope(rule)) ?? null);
@@ -518,7 +518,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     }
 
     if (newEditionId && gangTypeFilter) {
-      const gangType = gangTypes.find(type => type.gang_type_id === gangTypeFilter);
+      const gangType = gangTypes.find(type => type.id === gangTypeFilter);
       if (gangType && gangType.edition_id !== newEditionId) {
         setGangTypeFilter('');
         setSelectedFighterTypeId('');
@@ -1285,7 +1285,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         >
           <option value="">Select a gang type</option>
           {filteredGangTypes.map((gangType) => (
-            <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
+            <option key={gangType.id} value={gangType.id}>
               {gangType.gang_type}
             </option>
           ))}
@@ -1371,7 +1371,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
               >
                 <option value="">All Gang Types</option>
                 {filteredGangTypes.map((type) => (
-                  <option key={type.gang_type_id} value={type.gang_type_id}>
+                  <option key={type.id} value={type.id}>
                     {type.gang_type}
                   </option>
                 ))}
@@ -2330,8 +2330,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 {gangTypeCosts.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {gangTypeCosts.map((gangCost, index) => {
-                      const gangType = filteredGangTypes.find(g => g.gang_type_id === gangCost.gang_type_id)
-                        ?? gangTypes.find(g => g.gang_type_id === gangCost.gang_type_id);
+                      const gangType = filteredGangTypes.find(g => g.id === gangCost.gang_type_id)
+                        ?? gangTypes.find(g => g.id === gangCost.gang_type_id);
                       const affiliation = gangCost.gang_affiliation_id
                         ? filteredGangAffiliations.find(a => a.id === gangCost.gang_affiliation_id)
                           ?? gangAffiliations.find(a => a.id === gangCost.gang_affiliation_id)

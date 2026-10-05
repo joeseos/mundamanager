@@ -24,7 +24,7 @@ interface Alliance {
 }
 
 interface GangType {
-  gang_type_id: string;
+  id: string;
   gang_type: string;
   edition_id?: string | null;
 }
@@ -101,7 +101,7 @@ export function AdminAlliancesModal({ onClose }: AdminAlliancesModalProps) {
     }
 
     if (strongAlliance) {
-      const selectedGangType = gangTypes.find(gt => gt.gang_type_id === strongAlliance);
+      const selectedGangType = gangTypes.find(gt => gt.id === strongAlliance);
       if (selectedGangType && selectedGangType.edition_id !== newEditionId) {
         setStrongAlliance('');
       }
@@ -351,7 +351,7 @@ export function AdminAlliancesModal({ onClose }: AdminAlliancesModalProps) {
               >
                 <option value="">None</option>
                 {filteredGangTypes.map((gangType) => (
-                  <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
+                  <option key={gangType.id} value={gangType.id}>
                     {gangType.gang_type}
                   </option>
                 ))}

@@ -12,7 +12,7 @@ export interface GangOriginCategory {
 }
 
 export interface GangType {
-  gang_type_id: string;
+  id: string;
   gang_type: string;
   alignment: string;
   note?: string;

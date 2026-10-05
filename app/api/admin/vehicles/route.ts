@@ -150,13 +150,13 @@ export async function GET(request: Request) {
               .in('id', equipmentIds),
             supabase
               .from('gang_types')
-              .select('gang_type_id, gang_type')
-              .in('gang_type_id', gangTypeIds)
+              .select('id, gang_type')
+              .in('id', gangTypeIds)
           ]);
 
           if (equipmentResult.data && gangTypeResult.data) {
             const equipmentMap = new Map(equipmentResult.data.map(item => [item.id, item.equipment_name]));
-            const gangTypeMap = new Map(gangTypeResult.data.map(item => [item.gang_type_id.toString(), item.gang_type]));
+            const gangTypeMap = new Map(gangTypeResult.data.map(item => [item.id, item.gang_type]));
 
             vehicleDetails.gang_type_equipment = gangTypeEquipment.map((item: { id: string; equipment_id: string; gang_type_id: string }) => ({
               id: item.id,
@@ -177,8 +177,8 @@ export async function GET(request: Request) {
       if (vehicleDetails && vehicleDetails.gang_type_id) {
         const { data: gangType, error: gangError } = await supabase
           .from('gang_types')
-          .select('gang_type_id, gang_type')
-          .eq('gang_type_id', vehicleDetails.gang_type_id)
+          .select('id, gang_type')
+          .eq('id', vehicleDetails.gang_type_id)
           .single();
 
         if (!gangError && gangType) {
@@ -203,7 +203,7 @@ export async function GET(request: Request) {
     // Fetch gang types list (default)
     const { data: gangTypes, error } = await supabase
       .from('gang_types')
-      .select('gang_type_id, gang_type')
+      .select('id, gang_type')
       .order('gang_type');
 
     if (error) throw error;

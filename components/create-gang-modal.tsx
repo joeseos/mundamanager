@@ -40,7 +40,7 @@ type Gang = {
 };
 
 type GangType = {
-  gang_type_id: string;
+  id: string;
   gang_type: string;
   alignment: string;
   image_url?: string;
@@ -138,7 +138,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const gangSubtypeRank = useMemo(() => getGangSubtypeRank(editionSlug), [editionSlug]);
 
   const selectedRootGangType = useMemo(
-    () => editionGangTypes.find(type => type.gang_type_id === gangType),
+    () => editionGangTypes.find(type => type.id === gangType),
     [editionGangTypes, gangType]
   );
 
@@ -151,7 +151,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const resolvedGangTypeId = gangVariantId ?? gangType;
 
   const resolvedGangType = useMemo(
-    () => gangTypes.find(type => type.gang_type_id === resolvedGangTypeId),
+    () => gangTypes.find(type => type.id === resolvedGangTypeId),
     [gangTypes, resolvedGangTypeId]
   );
 
@@ -206,7 +206,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
       });
       for (const type of types) {
         options.push({
-          value: type.gang_type_id,
+          value: type.id,
           label: <span className="ml-3">{type.gang_type}</span>,
           displayValue: type.gang_type,
         });
@@ -226,7 +226,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
       });
       for (const type of customTypes) {
         options.push({
-          value: type.gang_type_id,
+          value: type.id,
           label: <span className="ml-3">{type.gang_type}</span>,
           displayValue: type.gang_type,
         });
@@ -240,7 +240,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const [prevEditionSlug, setPrevEditionSlug] = useState(editionSlug);
   if (editionSlug !== prevEditionSlug) {
     setPrevEditionSlug(editionSlug);
-    if (gangType && !editionGangTypes.some(type => type.gang_type_id === gangType)) {
+    if (gangType && !editionGangTypes.some(type => type.id === gangType)) {
       setGangType("");
       setGangVariantId(null);
       setSelectedAffiliation("");
@@ -277,11 +277,11 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
           visibleGangTypes.forEach((type: GangType) => {
             const normalised = normaliseDefaultImageUrls(type.default_image_urls);
             if (normalised && normalised.length > 0) {
-              imageArrayMap[type.gang_type_id] = normalised;
+              imageArrayMap[type.id] = normalised;
             } else if (type.image_url) {
-              imageArrayMap[type.gang_type_id] = [{ url: type.image_url }];
+              imageArrayMap[type.id] = [{ url: type.image_url }];
             } else {
-              imageArrayMap[type.gang_type_id] = [];
+              imageArrayMap[type.id] = [];
             }
           });
           setGangTypeImageArrays(imageArrayMap);
@@ -413,8 +413,8 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
         // Use the server action to create the gang
         const result = await createGang({
           name: gangName,
-          gangTypeId: selectedGangType.is_custom ? '' : selectedGangType.gang_type_id,
-          customGangTypeId: selectedGangType.is_custom ? selectedGangType.gang_type_id : undefined,
+          gangTypeId: selectedGangType.is_custom ? '' : selectedGangType.id,
+          customGangTypeId: selectedGangType.is_custom ? selectedGangType.id : undefined,
           gangType: selectedGangType.gang_type,
           alignment: selectedGangType.alignment,
           gangAffiliationId: selectedAffiliation || null,
@@ -555,17 +555,17 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
                 </div>
                 <div className="flex flex-col gap-2">
                   {gangVariantOptions.map((variant) => (
-                    <div key={variant.gang_type_id} className="flex items-center space-x-2">
+                    <div key={variant.id} className="flex items-center space-x-2">
                       <input
                         type="radio"
-                        id={`gang-variant-${variant.gang_type_id}`}
+                        id={`gang-variant-${variant.id}`}
                         name="gang-variant"
-                        checked={gangVariantId === variant.gang_type_id}
-                        onChange={() => setGangVariantId(variant.gang_type_id)}
+                        checked={gangVariantId === variant.id}
+                        onChange={() => setGangVariantId(variant.id)}
                         className="h-4 w-4 text-foreground focus:ring-black border-border"
                       />
                       <label
-                        htmlFor={`gang-variant-${variant.gang_type_id}`}
+                        htmlFor={`gang-variant-${variant.id}`}
                         className="text-sm cursor-pointer"
                       >
                         {variant.gang_type}

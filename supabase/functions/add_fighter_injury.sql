@@ -1,3 +1,7 @@
+-- DEPLOY ORDER: apply migration 20261004120000_rename_gang_types_gang_type_id_to_id.sql
+-- BEFORE this file deploys. This function reads gang_types.id, which is an unused
+-- bigint until that migration drops it and renames gang_type_id to id.
+
 -- Drop all versions of the function to prevent overload conflicts
 DROP FUNCTION IF EXISTS add_fighter_injury(UUID, UUID, UUID, UUID, UUID) CASCADE;
 DROP FUNCTION IF EXISTS public.add_fighter_injury(UUID, UUID, UUID, UUID, UUID) CASCADE;
@@ -142,14 +146,14 @@ BEGIN
             SELECT COALESCE(gt.edition_id, cgt.edition_id)
             INTO v_fighter_edition_id
             FROM gangs g
-            LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+            LEFT JOIN gang_types gt ON gt.id = g.gang_type_id
             LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
             WHERE g.id = v_gang_id;
 
             SELECT gt.gang_type
             INTO v_target_name
             FROM gang_types gt
-            WHERE gt.gang_type_id = in_hatred_target_id
+            WHERE gt.id = in_hatred_target_id
               AND gt.edition_id IS NOT DISTINCT FROM v_fighter_edition_id;
 
             IF v_target_name IS NULL THEN

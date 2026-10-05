@@ -164,14 +164,14 @@ export async function GET(request: Request) {
       // Then fetch all gang types
       const { data: gangTypes, error: gangTypesError } = await supabase
         .from('gang_types')
-        .select('gang_type_id, gang_type');
+        .select('id, gang_type');
 
       if (gangTypesError) throw gangTypesError;
 
       // Create a map of gang type IDs to names
       const gangTypeMap = new Map(
-        gangTypes.map((gt: { gang_type_id: string; gang_type: string }) => 
-          [gt.gang_type_id, gt.gang_type]
+        gangTypes.map((gt: { id: string; gang_type: string }) => 
+          [gt.id, gt.gang_type]
         )
       );
 

@@ -1562,8 +1562,7 @@ function EditEquipmentModal({
 // ---------------------------------------------------------------------------
 
 interface GangTypeOption {
-  gang_type_id?: string;
-  id?: string;
+  id: string;
   gang_type: string;
   is_custom?: boolean;
   available_origins?: Array<{ id: string; origin_name: string }>;
@@ -1592,7 +1591,7 @@ function GangScopeFields({
     staleTime: 10 * 60 * 1000,
   });
 
-  const selectedGangType = gangTypes.find(gt => (gt.gang_type_id || gt.id) === gangTypeId);
+  const selectedGangType = gangTypes.find(gt => gt.id === gangTypeId);
   const origins = selectedGangType?.available_origins || [];
   const systemGangTypes = gangTypes.filter(gt => !gt.is_custom);
   const customGangTypes = gangTypes.filter(gt => gt.is_custom);
@@ -1606,7 +1605,7 @@ function GangScopeFields({
           value={gangTypeId}
           onChange={(e) => {
             const val = e.target.value;
-            const gt = gangTypes.find(g => (g.gang_type_id || g.id) === val);
+            const gt = gangTypes.find(g => g.id === val);
             onGangTypeChange(val, !!gt?.is_custom, gt?.gang_type || null);
           }}
         >
@@ -1614,7 +1613,7 @@ function GangScopeFields({
           {systemGangTypes.length > 0 && (
             <optgroup label="System Gang Types">
               {systemGangTypes.map(gt => (
-                <option key={`system_${gt.gang_type_id || gt.id}`} value={gt.gang_type_id || gt.id}>
+                <option key={`system_${gt.id}`} value={gt.id}>
                   {gt.gang_type}
                 </option>
               ))}
