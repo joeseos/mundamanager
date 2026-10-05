@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { useMutation } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -15,7 +16,6 @@ import { hasChemAlchemy } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import ChemAlchemyCreator from './chem-alchemy';
 import { createChemAlchemy } from '@/app/actions/chem-alchemy';
-import ItemModal from '@/components/equipment/equipment';
 import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
 import Modal from '@/components/ui/modal';
 import { Equipment } from '@/types/equipment';
@@ -35,6 +35,10 @@ import { UserPermissions } from '@/types/user-permissions';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { sortFightersByPositioning } from '@/utils/fighter-positioning';
+
+// Loads its code on first open, not with the page. ssr: false also gives it
+// its own Suspense boundary, so the page keeps updating while the code loads.
+const ItemModal = dynamic(() => import('@/components/equipment/equipment'), { ssr: false });
 
 interface GangInventoryProps {
   stash: StashItem[];
