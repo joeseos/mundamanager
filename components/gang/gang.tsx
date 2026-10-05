@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { Button } from '../ui/button';
 import { FighterProps } from '@/types/fighter';
 import { toast } from 'sonner';
@@ -20,7 +21,6 @@ import { useShare } from '@/hooks/use-share';
 import { toJpeg } from 'html-to-image';
 import LogModal from '../log-modal';
 import { ViewModeDropdown, isGangPageViewMode, type GangPageViewMode } from './ViewModeDropdown';
-import GangEditModal from './gang-edit-modal';
 import GangResourcesModal from './gang-resources-modal';
 import { UserPermissions } from '@/types/user-permissions';
 import { updateGangPositioning } from '@/app/actions/update-gang-positioning';
@@ -33,6 +33,10 @@ import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { hasAlignment, hasTradePoints, hasVehicles } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
+
+// Loads its code on first open, not with the page. ssr: false also gives it
+// its own Suspense boundary, so the page keeps updating while the code loads.
+const GangEditModal = dynamic(() => import('./gang-edit-modal'), { ssr: false });
 
 
 interface GangProps {
@@ -1272,33 +1276,35 @@ export default function Gang({
             </div>
           </div>
 
-          <GangEditModal
-            isOpen={showEditModal}
-            onClose={() => setShowEditModal(false)}
-            gangId={id}
-            gangName={name}
-            editionSlug={edition_slug}
-            isGangOwner={userPermissions?.isOwner}
-            isAdmin={userPermissions?.isAdmin}
-            alignment={alignment}
-            allianceId={allianceId}
-            allianceName={allianceName}
-            gangColour={gangColour}
-            gangSubtypes={gangSubtypes}
-            availableSubtypes={availableSubtypes}
-            gangAffiliationId={gangAffiliationId}
-            gangAffiliationName={gangAffiliationName}
-            gangType={gang_type}
-            customGangTypeId={custom_gang_type_id}
-            gangTypeHasAffiliation={gang_type_has_affiliation}
-            gangOriginId={gangOriginId}
-            gangOriginName={gangOriginName}
-            gangOriginCategoryName={gangOriginCategoryName}
-            gangTypeHasOrigin={gang_type_has_origin || false}
-            hidden={hidden}
-            campaigns={campaignsWithOptimisticData}
-            onSave={handleGangUpdate}
-          />
+          {showEditModal && (
+            <GangEditModal
+              isOpen={showEditModal}
+              onClose={() => setShowEditModal(false)}
+              gangId={id}
+              gangName={name}
+              editionSlug={edition_slug}
+              isGangOwner={userPermissions?.isOwner}
+              isAdmin={userPermissions?.isAdmin}
+              alignment={alignment}
+              allianceId={allianceId}
+              allianceName={allianceName}
+              gangColour={gangColour}
+              gangSubtypes={gangSubtypes}
+              availableSubtypes={availableSubtypes}
+              gangAffiliationId={gangAffiliationId}
+              gangAffiliationName={gangAffiliationName}
+              gangType={gang_type}
+              customGangTypeId={custom_gang_type_id}
+              gangTypeHasAffiliation={gang_type_has_affiliation}
+              gangOriginId={gangOriginId}
+              gangOriginName={gangOriginName}
+              gangOriginCategoryName={gangOriginCategoryName}
+              gangTypeHasOrigin={gang_type_has_origin || false}
+              hidden={hidden}
+              campaigns={campaignsWithOptimisticData}
+              onSave={handleGangUpdate}
+            />
+          )}
 
           <GangResourcesModal
             isOpen={showResourcesModal}

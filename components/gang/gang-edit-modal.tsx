@@ -602,7 +602,8 @@ export default function GangEditModal({
       updates.gang_subtypes = formState.gangSubtypes.map(v => v.id);
     }
 
-    if (isVenator) {
+    // Saved ranks that have not loaded yet are left untouched
+    if (isVenator && ranksSeeded) {
       const filled = ranks.filter(Boolean);
       const hadPreviousRanks = existingRanks.length > 0;
       const previousOrdered = [...existingRanks]
@@ -740,7 +741,10 @@ export default function GangEditModal({
             Add four Skill Sets, then drag to rank them. Rank order
             determines skill access for each fighter.
           </p>
-          {ranks.length > 0 && (
+          {!ranksSeeded && (
+            <p className="text-sm text-muted-foreground">Loading Skill Sets...</p>
+          )}
+          {ranksSeeded && ranks.length > 0 && (
             <DndContext
               sensors={rankSensors}
               collisionDetection={closestCenter}
@@ -767,7 +771,7 @@ export default function GangEditModal({
               </SortableContext>
             </DndContext>
           )}
-          {ranks.length < 4 && (
+          {ranksSeeded && ranks.length < 4 && (
             <Combobox
               key={ranks.join(',')}
               value={undefined}
