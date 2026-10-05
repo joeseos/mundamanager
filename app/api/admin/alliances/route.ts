@@ -30,6 +30,7 @@ function validateAlliancePayload(body: {
   alignment?: unknown;
   strong_alliance?: unknown;
   alliance_crew_name?: unknown;
+  tithe_cost?: unknown;
   edition_id?: unknown;
 }) {
   const trimmedType = typeof body.alliance_type === 'string' ? body.alliance_type.trim() : '';
@@ -62,6 +63,11 @@ function validateAlliancePayload(body: {
     return { error: 'alliance_crew_name must be 500 characters or less' };
   }
 
+  const titheCost = body.tithe_cost ?? null;
+  if (titheCost !== null && !(typeof titheCost === 'number' && Number.isInteger(titheCost) && titheCost >= 0)) {
+    return { error: 'tithe_cost must be a whole number of 0 or more' };
+  }
+
   return {
     data: {
       alliance_type: trimmedType,
@@ -69,6 +75,7 @@ function validateAlliancePayload(body: {
       alignment,
       strong_alliance: emptyToNull(body.strong_alliance),
       alliance_crew_name: allianceCrewName,
+      tithe_cost: titheCost as number | null,
       edition_id: editionId,
     },
   };
@@ -138,7 +145,7 @@ export async function GET() {
 
     const { data: alliances, error } = await supabase
       .from('alliances')
-      .select('id, alliance_type, alliance_name, alignment, strong_alliance, alliance_crew_name, edition_id')
+      .select('id, alliance_type, alliance_name, alignment, strong_alliance, alliance_crew_name, tithe_cost, edition_id')
       .order('alliance_name', { ascending: true });
 
     if (error) throw error;
@@ -180,7 +187,7 @@ export async function POST(request: Request) {
     const { data: alliance, error } = await supabase
       .from('alliances')
       .insert([validated.data])
-      .select('id, alliance_type, alliance_name, alignment, strong_alliance, alliance_crew_name, edition_id')
+      .select('id, alliance_type, alliance_name, alignment, strong_alliance, alliance_crew_name, tithe_cost, edition_id')
       .single();
 
     if (error) throw error;
@@ -229,7 +236,7 @@ export async function PATCH(request: Request) {
       .from('alliances')
       .update(validated.data)
       .eq('id', id)
-      .select('id, alliance_type, alliance_name, alignment, strong_alliance, alliance_crew_name, edition_id')
+      .select('id, alliance_type, alliance_name, alignment, strong_alliance, alliance_crew_name, tithe_cost, edition_id')
       .maybeSingle();
 
     if (error) throw error;
