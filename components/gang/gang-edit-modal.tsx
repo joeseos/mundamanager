@@ -557,7 +557,6 @@ export default function GangEditModal({
       : titheAmount > credits
         ? 'Not enough credits to pay the tithe'
         : null;
-  const titheRatingChange = titheOf(formState.allianceId) - titheOf(initialValues.allianceId);
 
   const handleSave = async (options?: { skipRankConfirm?: boolean }) => {
     if (titheError) return false;
@@ -934,10 +933,6 @@ export default function GangEditModal({
             onChange={(e) => setFormState(prev => ({ ...prev, tithe: e.target.value }))}
             className="w-full"
           />
-          <p className="text-sm text-muted-foreground">
-            Listed tithe: {titheParts.map(part => `${part.cost} to ${part.verb} ${part.name}`).join(' + ')}. Deducted from your credits when you save. Set to 0 to skip.
-            {titheRatingChange !== 0 && <> Gang rating {titheRatingChange > 0 ? '+' : ''}{titheRatingChange}.</>}
-          </p>
           {titheError && <p className="text-sm text-red-500">{titheError}</p>}
         </div>
       )}
