@@ -1356,6 +1356,7 @@ export default function Gang({
                 showModal={showAddVehicleModal}
                 setShowModal={setShowAddVehicleModal}
                 gangId={id}
+                gangTypeId={gang_type_id}
                 initialCredits={credits}
                 onVehicleAdd={handleVehicleAdded}
                 onGangCreditsUpdate={onGangCreditsUpdate}
