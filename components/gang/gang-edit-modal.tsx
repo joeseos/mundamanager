@@ -906,10 +906,13 @@ export default function GangEditModal({
 
                 // Add alliances in this group
                 alliancesInGroup.forEach(alliance => {
+                  const displayName = alliance.tithe_cost
+                    ? `${alliance.alliance_name} - ${alliance.tithe_cost} credits`
+                    : alliance.alliance_name;
                   options.push({
                     value: alliance.id,
-                    label: <span className="ml-3">{alliance.alliance_name}</span>,
-                    displayValue: alliance.alliance_name
+                    label: <span className="ml-3">{displayName}</span>,
+                    displayValue: displayName
                   });
                 });
               }
