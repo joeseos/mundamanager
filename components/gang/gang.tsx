@@ -102,6 +102,7 @@ interface GangProps {
   onFighterUpdate?: (updatedFighter: FighterProps) => void;
   onGangCreditsUpdate?: (newCredits: number) => void;
   onGangWealthUpdate?: (newWealth: number) => void;
+  onGangRatingUpdate?: (newRating: number) => void;
   positioning: Record<number, string>;
   gang_subtypes: Array<{id: string, subtype: string}> | null;
   vehicles?: VehicleProps[];
@@ -154,6 +155,7 @@ export default function Gang({
   onFighterUpdate,
   onGangCreditsUpdate,
   onGangWealthUpdate,
+  onGangRatingUpdate,
   positioning,
   gang_subtypes,
   vehicles,
@@ -583,6 +585,13 @@ export default function Gang({
       if (result.data) {
         setLastUpdated(result.data.last_updated);
         if (result.data.alliance_name) setAllianceName(result.data.alliance_name);
+        // An alliance change moves rating by the ally's Tithe Price on the server
+        if (variables.alliance_id !== undefined) {
+          setRating(result.data.rating);
+          onGangRatingUpdate?.(result.data.rating);
+          setWealth(result.data.wealth);
+          onGangWealthUpdate?.(result.data.wealth);
+        }
         if (result.data.gang_affiliation_name !== undefined) setGangAffiliationName(result.data.gang_affiliation_name);
         // Only update subtypes if they were actually changed in the request.
         if (variables.gang_subtypes !== undefined && result.data.gang_subtypes) {

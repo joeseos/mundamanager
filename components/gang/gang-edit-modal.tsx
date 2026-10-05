@@ -539,18 +539,25 @@ export default function GangEditModal({
     }
   };
 
-  // Forming an alliance with a tithe charges it once, on the change. Breaking one is left
-  // to a manual credits edit, so reopening the modal with the same alliance charges nothing.
-  const selectedAlliance = editionAllianceList.find(a => a.id === formState.allianceId);
-  const showTithe = formState.allianceId !== initialValues.allianceId && (selectedAlliance?.tithe_cost ?? 0) > 0;
-  const titheAmount = formState.tithe === '' ? 0 : Number(formState.tithe);
+  // Breaking and forming an alliance each cost its Tithe Price, so a change prefills the
+  // sum of both. This field is what is paid; the server moves rating by the listed prices.
+  const titheOf = (id: string) => editionAllianceList.find(a => a.id === id)?.tithe_cost ?? 0;
+  const listedTitheFor = (id: string) =>
+    id === initialValues.allianceId ? 0 : titheOf(initialValues.allianceId) + titheOf(id);
+  const titheParts = formState.allianceId === initialValues.allianceId ? [] : [
+    { verb: 'break', name: allianceName, cost: titheOf(initialValues.allianceId) },
+    { verb: 'form', name: editionAllianceList.find(a => a.id === formState.allianceId)?.alliance_name ?? '', cost: titheOf(formState.allianceId) },
+  ].filter(part => part.cost > 0);
+  const showTithe = titheParts.length > 0;
+  const titheAmount = Number(formState.tithe);
   const titheError = !showTithe
     ? null
-    : !Number.isInteger(titheAmount) || titheAmount < 0
+    : formState.tithe.trim() === '' || !Number.isInteger(titheAmount) || titheAmount < 0
       ? 'Enter a whole number of 0 or more'
       : titheAmount > credits
         ? 'Not enough credits to pay the tithe'
         : null;
+  const titheRatingChange = titheOf(formState.allianceId) - titheOf(initialValues.allianceId);
 
   const handleSave = async (options?: { skipRankConfirm?: boolean }) => {
     if (titheError) return false;
@@ -582,7 +589,7 @@ export default function GangEditModal({
       if (showTithe && titheAmount > 0) {
         updates.credits = titheAmount;
         updates.credits_operation = 'subtract';
-        updates.credits_reason = `Tithe: formed alliance with ${updates.alliance_name}`;
+        updates.credits_reason = `Alliance tithe: ${titheParts.map(part => `${part.verb} ${part.name}`).join(', ')}`;
       }
     }
 
@@ -841,7 +848,7 @@ export default function GangEditModal({
           onValueChange={(value) => setFormState(prev => ({
             ...prev,
             allianceId: value,
-            tithe: editionAllianceList.find(a => a.id === value)?.tithe_cost?.toString() ?? ''
+            tithe: String(listedTitheFor(value))
           }))}
           onFocus={() => setAlliancesRequested(true)}
           placeholder={allianceListLoaded ? "Select Alliance" : "Select Alliance"}
@@ -913,7 +920,7 @@ export default function GangEditModal({
         />
       </div>
 
-      {showTithe && selectedAlliance && (
+      {showTithe && (
         <div className="space-y-2">
           <p className="text-sm font-medium">Tithe (credits)</p>
           <Input
@@ -925,7 +932,8 @@ export default function GangEditModal({
             className="w-full"
           />
           <p className="text-sm text-muted-foreground">
-            Listed tithe: {selectedAlliance.tithe_cost} credits. Deducted from your credits when you save. Set to 0 to skip.
+            Listed tithe: {titheParts.map(part => `${part.cost} to ${part.verb} ${part.name}`).join(' + ')}. Deducted from your credits when you save. Set to 0 to skip.
+            {titheRatingChange !== 0 && <> Gang rating {titheRatingChange > 0 ? '+' : ''}{titheRatingChange}.</>}
           </p>
           {titheError && <p className="text-sm text-red-500">{titheError}</p>}
         </div>
