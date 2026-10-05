@@ -1281,6 +1281,7 @@ export default function Gang({
               gangId={id}
               gangName={name}
               editionSlug={edition_slug}
+              credits={credits}
               isGangOwner={userPermissions?.isOwner}
               isAdmin={userPermissions?.isAdmin}
               alignment={alignment}

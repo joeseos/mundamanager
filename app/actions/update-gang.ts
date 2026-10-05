@@ -94,6 +94,13 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       throw new Error('Gang not found');
     }
 
+    // The credits change is applied after the gang row is written. Refuse an unaffordable
+    // deduction up front so an alliance formed with a tithe is not saved without the payment.
+    if (params.credits !== undefined && params.credits_operation === 'subtract' &&
+        params.credits > (gang.credits ?? 0)) {
+      throw new Error('Insufficient credits');
+    }
+
     // Prepare update object
     const updates: any = {
       last_updated: new Date().toISOString()
