@@ -965,8 +965,9 @@ export function EditFighterModal({
       const submitData: any = {
         name: formValues.name,
         label: formValues.label,
-        kills: formValues.kills,
-        kill_count: formValues.kill_count,
+        // Number inputs hold text; a cleared one would submit ""
+        kills: Number(formValues.kills) || 0,
+        kill_count: Number(formValues.kill_count) || 0,
         costAdjustment: formValues.costAdjustment,
         special_rules: formValues.special_rules,
         selected_archetype_id: effectiveArchetypeId || null
