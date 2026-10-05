@@ -1410,7 +1410,6 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
 
     if (params.fighter_name !== undefined) updateData.fighter_name = params.fighter_name.trimEnd();
     if (params.label !== undefined) updateData.label = params.label;
-    // Numeric columns reject "", which a cleared number input submits
     if (params.kills !== undefined) updateData.kills = Number(params.kills) || 0;
     if (params.kill_count !== undefined) updateData.kill_count = Number(params.kill_count) || 0;
     if (params.cost_adjustment !== undefined) updateData.cost_adjustment = params.cost_adjustment;
