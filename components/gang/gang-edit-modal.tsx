@@ -1069,11 +1069,11 @@ export default function GangEditModal({
 
       {showColourPickerModal && (
         <Modal
-          title="Select Gang Colour"
+          title="Gang Colour"
           helper="This sets your gang's appearance in a campaign."
           onClose={() => setShowColourPickerModal(false)}
           onConfirm={() => setShowColourPickerModal(false)}
-          confirmText="Close"
+          confirmText="Confirm"
           content={
             <div className="space-y-4">
               <div className="flex justify-center">
