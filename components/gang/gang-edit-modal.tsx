@@ -40,6 +40,9 @@ interface GangUpdates {
   campaign_allegiance_id?: string | null;
   campaign_allegiance_is_custom?: boolean;
   campaign_id?: string;
+  credits?: number;
+  credits_operation?: 'subtract';
+  credits_reason?: string;
 }
 
 interface Alliance {
@@ -47,6 +50,7 @@ interface Alliance {
   alliance_name: string;
   alliance_type?: string | null;
   strong_alliance: string;
+  tithe_cost?: number | null;
   edition_slug?: string | null;
 }
 
@@ -68,6 +72,7 @@ interface GangEditModalProps {
   gangId: string;
   gangName: string;
   editionSlug?: string | null;
+  credits: number;
   alignment: string;
   allianceId: string | null;
   allianceName: string;
@@ -179,6 +184,7 @@ export default function GangEditModal({
   gangId,
   gangName,
   editionSlug,
+  credits,
   alignment,
   allianceId,
   allianceName,
@@ -342,6 +348,8 @@ export default function GangEditModal({
     name: gangName,
     alignment: effectiveAlignment,
     allianceId: allianceId || '',
+    // Tithe paid on forming or breaking an alliance; prefilled from the listed prices, editable
+    tithe: '',
     gangColour: gangColour,
     gangHasSubtypes: gangSubtypes.length > 0,
     gangSubtypes: gangSubtypes,
@@ -459,6 +467,7 @@ export default function GangEditModal({
         name: gangName,
         alignment: effectiveAlignment,
         allianceId: allianceId || '',
+        tithe: '',
         gangColour: gangColour,
         gangHasSubtypes: gangSubtypes.length > 0,
         gangSubtypes: gangSubtypes,
@@ -530,7 +539,28 @@ export default function GangEditModal({
     }
   };
 
+  // Breaking and forming an alliance each cost its Tithe Price, so a change prefills the
+  // sum of both. This field is what is paid; the server moves rating by the listed prices.
+  const titheOf = (id: string) => editionAllianceList.find(a => a.id === id)?.tithe_cost ?? 0;
+  const listedTitheFor = (id: string) =>
+    id === initialValues.allianceId ? 0 : titheOf(initialValues.allianceId) + titheOf(id);
+  const titheParts = formState.allianceId === initialValues.allianceId ? [] : [
+    { verb: 'break', name: allianceName, cost: titheOf(initialValues.allianceId) },
+    { verb: 'form', name: editionAllianceList.find(a => a.id === formState.allianceId)?.alliance_name ?? '', cost: titheOf(formState.allianceId) },
+  ].filter(part => part.cost > 0);
+  const showTithe = titheParts.length > 0;
+  const titheAmount = Number(formState.tithe);
+  const titheError = !showTithe
+    ? null
+    : formState.tithe.trim() === '' || !Number.isInteger(titheAmount) || titheAmount < 0
+      ? 'Enter a whole number of 0 or more'
+      : titheAmount > credits
+        ? 'Not enough credits to pay the tithe'
+        : null;
+
   const handleSave = async (options?: { skipRankConfirm?: boolean }) => {
+    if (titheError) return false;
+
     const updates: GangUpdates = {};
     const initial = initialValues;
 
@@ -553,6 +583,12 @@ export default function GangEditModal({
       } else {
         const alliance = editionAllianceList.find(a => a.id === formState.allianceId);
         updates.alliance_name = alliance?.alliance_name || '';
+      }
+
+      if (showTithe && titheAmount > 0) {
+        updates.credits = titheAmount;
+        updates.credits_operation = 'subtract';
+        updates.credits_reason = `Alliance tithe: ${titheParts.map(part => `${part.verb} ${part.name}`).join(', ')}`;
       }
     }
 
@@ -808,7 +844,11 @@ export default function GangEditModal({
         <p className="text-sm font-medium">Alliance</p>
         <Combobox
           value={formState.allianceId || ""}
-          onValueChange={(value) => setFormState(prev => ({ ...prev, allianceId: value }))}
+          onValueChange={(value) => setFormState(prev => ({
+            ...prev,
+            allianceId: value,
+            tithe: String(listedTitheFor(value))
+          }))}
           onFocus={() => setAlliancesRequested(true)}
           placeholder={allianceListLoaded ? "Select Alliance" : "Select Alliance"}
           options={(() => {
@@ -865,10 +905,13 @@ export default function GangEditModal({
 
                 // Add alliances in this group
                 alliancesInGroup.forEach(alliance => {
+                  const displayName = alliance.tithe_cost
+                    ? `${alliance.alliance_name} - ${alliance.tithe_cost} credits`
+                    : alliance.alliance_name;
                   options.push({
                     value: alliance.id,
-                    label: <span className="ml-3">{alliance.alliance_name}</span>,
-                    displayValue: alliance.alliance_name
+                    label: <span className="ml-3">{displayName}</span>,
+                    displayValue: displayName
                   });
                 });
               }
@@ -878,6 +921,21 @@ export default function GangEditModal({
           })()}
         />
       </div>
+
+      {showTithe && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Tithe (credits)</p>
+          <Input
+            type="number"
+            min={0}
+            step={1}
+            value={formState.tithe}
+            onChange={(e) => setFormState(prev => ({ ...prev, tithe: e.target.value }))}
+            className="w-full"
+          />
+          {titheError && <p className="text-sm text-red-500">{titheError}</p>}
+        </div>
+      )}
 
       {/* Gang Affiliation Section - Only show if gang type supports affiliations */}
       {gangTypeHasAffiliation && (
@@ -1037,6 +1095,7 @@ export default function GangEditModal({
           onClose={onClose}
           onConfirm={handleSave}
           confirmText="Save Changes"
+          confirmDisabled={!!titheError}
           onDelete={(isGangOwner || isAdmin) ? () => setShowDeleteModal(true) : undefined}
           deleteLabel={(isGangOwner || isAdmin) ? 'Delete' : undefined}
         />
