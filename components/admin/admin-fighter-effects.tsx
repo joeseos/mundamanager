@@ -1067,7 +1067,7 @@ export function AdminFighterEffects({
               </div>
             )}
 
-            {(newEffect.applies_to === 'equipment' || newEffect.requires_trait.trim()) && (
+            {(newEffect.applies_to === 'equipment' || newEffect.requires_trait.trim() || newEffect.traits_to_add || newEffect.traits_to_remove) && (
               <>
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-muted-foreground">
