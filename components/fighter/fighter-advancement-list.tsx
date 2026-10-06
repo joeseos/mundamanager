@@ -1057,32 +1057,17 @@ export function AdvancementModal({
     };
   }, [fighterId, shouldFetchGangerSkillsInSet, gangerSelectedSkillSetId, gangerPromotionTypeId]);
 
-  const logGangerRollMutation = useMutation({
-    mutationFn: async (variables: { outcome_label: string; dice_data: Record<string, unknown> }) => {
+  // The N26 and Ganger / Exotic Beast tables never show together, so they share
+  // one pending state.
+  const logAdvancementRollMutation = useMutation({
+    mutationFn: async (variables: {
+      advancement_table: string;
+      outcome_label: string;
+      dice_data: Record<string, unknown>;
+    }) => {
       const result = await verifyAndLogRolledGangerAdvancementRoll({
         fighter_id: fighterId,
-        advancement_table: GANGER_ADVANCEMENT_TABLE_LABEL,
-        outcome_label: variables.outcome_label,
-        dice_data: variables.dice_data
-      });
-      if (!result.success) throw new Error(result.error || 'Failed to log advancement roll');
-      return result;
-    },
-    onSuccess: () => {
-      toast.success('Advancement roll logged');
-    },
-    onError: (e: Error) => {
-      toast.error(e?.message || 'Failed to log advancement roll');
-    }
-  });
-
-  const logN26RollMutation = useMutation({
-    mutationFn: async (variables: { outcome_label: string; dice_data: Record<string, unknown> }) => {
-      const result = await verifyAndLogRolledGangerAdvancementRoll({
-        fighter_id: fighterId,
-        advancement_table: N26_ADVANCEMENT_TABLE_LABEL,
-        outcome_label: variables.outcome_label,
-        dice_data: variables.dice_data
+        ...variables
       });
       if (!result.success) throw new Error(result.error || 'Failed to log advancement roll');
       return result;
@@ -1096,10 +1081,11 @@ export function AdvancementModal({
   });
 
   const logN26RollWithCooldown = (outcomeLabel: string, rollTotal: number, dice: number[]) => {
-    if (n26RollCooldown || logN26RollMutation.isPending) return;
+    if (n26RollCooldown || logAdvancementRollMutation.isPending) return;
     setN26RollCooldown(true);
     try {
-      logN26RollMutation.mutate({
+      logAdvancementRollMutation.mutate({
+        advancement_table: N26_ADVANCEMENT_TABLE_LABEL,
         outcome_label: outcomeLabel,
         dice_data: { result: rollTotal, dice, may_take_lower_results: true }
       });
@@ -1265,7 +1251,7 @@ export function AdvancementModal({
   });
 
   const logGangerResolvedRollWithCooldown = (row: TableEntry, rollTotal: number, dice: number[]) => {
-    if (gangerRollCooldown || logGangerRollMutation.isPending) return false;
+    if (gangerRollCooldown || logAdvancementRollMutation.isPending) return false;
     setGangerRollCooldown(true);
     try {
       const combo = GANGER_ADVANCEMENT_COMBO_OPTIONS.find(
@@ -1275,7 +1261,8 @@ export function AdvancementModal({
         setGangerCostsUserOverride(false);
         setGangerSelectedRowId(combo.id);
       }
-      logGangerRollMutation.mutate({
+      logAdvancementRollMutation.mutate({
+        advancement_table: GANGER_ADVANCEMENT_TABLE_LABEL,
         outcome_label: row.name,
         dice_data: { result: rollTotal, dice }
       });
@@ -1447,7 +1434,7 @@ export function AdvancementModal({
     const pending =
       applyGangerSpecialistMutation.isPending ||
       logGangerSubRollMutation.isPending ||
-      logGangerRollMutation.isPending;
+      logAdvancementRollMutation.isPending;
     if (!userPermissions?.canEdit) return { canBuy: false, pending };
     if (!gangerSelectedRowId || !gangerSelectedRow) return { canBuy: false, pending };
     if (editableXpCost < 0 || currentXp < editableXpCost) return { canBuy: false, pending };
@@ -1482,7 +1469,7 @@ export function AdvancementModal({
     gangerSkillsInSet,
     applyGangerSpecialistMutation.isPending,
     logGangerSubRollMutation.isPending,
-    logGangerRollMutation.isPending
+    logAdvancementRollMutation.isPending
   ]);
 
   const gangerCostsDepsKey = `${gangerModalRollBuy}-${gangerSelectedRow?.kind}-${gangerPairStatName}-${gangerCostsUserOverride}`;
@@ -2338,7 +2325,7 @@ export function AdvancementModal({
     applyGangerSpecialistMutation.isPending ||
     applyChampionPromotionMutation.isPending ||
     logGangerSubRollMutation.isPending ||
-    logGangerRollMutation.isPending;
+    logAdvancementRollMutation.isPending;
 
   const buyAdvancementDisabled = gangerModalRollBuy
     ? !gangerBuyUi.canBuy || purchaseBlockingBusy || gangerBuyUi.pending
@@ -2423,7 +2410,7 @@ export function AdvancementModal({
                     }
                   }}
                   buttonText="Roll 2D6"
-                  disabled={!userPermissions.canEdit || logN26RollMutation.isPending || n26RollCooldown}
+                  disabled={!userPermissions.canEdit || logAdvancementRollMutation.isPending || n26RollCooldown}
                 />
               </div>
 
@@ -2509,7 +2496,7 @@ export function AdvancementModal({
                     buttonText="Roll 2D6"
                     disabled={
                       !userPermissions.canEdit ||
-                      logGangerRollMutation.isPending ||
+                      logAdvancementRollMutation.isPending ||
                       logGangerSubRollMutation.isPending ||
                       gangerRollCooldown
                     }
