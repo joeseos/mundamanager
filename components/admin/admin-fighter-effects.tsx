@@ -919,7 +919,6 @@ export function AdminFighterEffects({
                     onCheckedChange={(checked) => setNewEffect(prev => ({
                       ...prev,
                       applies_to: checked === true ? 'equipment' : '',
-                      // Hidden while targeting one weapon, so don't save it unseen
                       ...(checked === true && { requires_trait: '' })
                     }))}
                   />

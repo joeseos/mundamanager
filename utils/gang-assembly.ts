@@ -940,7 +940,6 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
   const myEquipmentIds = new Set(myEquipment.map((e: any) => e.id));
   const ownedStandardIds = new Set(myEquipment.filter((e: any) => e.equipment_id).map((e: any) => e.equipment_id));
 
-  // Fighter-wide weapon effects (requires_trait) come from any of the fighter's effects
   const myEffects = bundle.effects.filter((e: any) => e.fighter_id === fighterId && !e.vehicle_id);
 
   // Target relationships (equipment-to-equipment upgrades)

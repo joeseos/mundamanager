@@ -298,11 +298,7 @@ function requiredTraitOf(effect: { type_specific_data?: TraitModificationData | 
   return typeof tsd?.requires_trait === 'string' && tsd.requires_trait.trim() ? tsd.requires_trait.trim() : null;
 }
 
-/**
- * Add the fighter's requires_trait effects (e.g. a multi-harness) to the effects
- * already aimed at one weapon. applyWeaponModifiers then limits them to the
- * profiles that have the trait.
- */
+/** Adds the fighter's requires_trait effects (e.g. multi-harness) to a weapon's effects */
 export function withFighterWideWeaponEffects<T extends { id: string; type_specific_data?: TraitModificationData | string | null }>(
   weaponEffects: T[],
   fighterEffects: T[]
@@ -333,7 +329,6 @@ export function applyWeaponModifiers(
     // Work on a copy
     const modified = { ...profile };
 
-    // requires_trait effects only touch profiles that have the trait
     const baseTraits = splitTraits(profile.traits).map(t => t.toLowerCase());
     const profileEffects = validEffects.filter(eff => {
       const required = requiredTraitOf(eff);

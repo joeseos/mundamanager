@@ -11,11 +11,7 @@
 export interface TraitModificationData {
   traits_to_add?: string[];
   traits_to_remove?: string[];
-  /**
-   * Makes the effect reach every weapon the fighter carries, limited to profiles
-   * that have this trait (e.g. a multi-harness making Light weapons Reliable),
-   * instead of only the one weapon it targets.
-   */
+  /** Applies to all of the fighter's weapon profiles with this trait, e.g. Light */
   requires_trait?: string;
   special_rules_to_add?: string[];
   special_rules_to_remove?: string[];
