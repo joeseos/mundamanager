@@ -101,7 +101,7 @@ export default function CampaignEditModal({
   });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [charCount, setCharCount] = useState(0);
+  const [charCount, setCharCount] = useState((campaignData.description ?? '').length);
   const [confirmText, setConfirmText] = useState('');
   const [discordChannels, setDiscordChannels] = useState<Array<{ id: string; name: string; type: number }>>([]);
   const [loadingChannels, setLoadingChannels] = useState(false);
