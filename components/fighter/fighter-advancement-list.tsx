@@ -43,7 +43,11 @@ import {
   type TableEntry,
   type N26AdvancementEntry
 } from '@/utils/dice';
-import { hasCumulativeXp, initiativeAndMentalCharacteristicSuffix } from '@/types/edition';
+import {
+  hasCumulativeXp,
+  hasSubtypeAdvancementTables,
+  initiativeAndMentalCharacteristicSuffix
+} from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { VENATOR_RANKS_INCOMPLETE_MESSAGE } from '@/utils/venatorSkillAccess';
 import {
@@ -787,9 +791,11 @@ export function AdvancementModal({
 
   // Edition matters as much as subtype: N26 never renders the Ganger picker, so a
   // Ganger-subtyped N26 fighter would route Buy through a flow it can never satisfy.
+  const rollsOnSubtypeTable =
+    hasSubtypeAdvancementTables(editionSlug) && isGangerOrExoticBeastSubtype;
+
   const gangerModalRollBuy =
-    isGangerOrExoticBeastSubtype &&
-    !isCumulativeXp &&
+    rollsOnSubtypeTable &&
     !!userPermissions &&
     !!onFighterDetailsUpdate;
 
@@ -2235,9 +2241,6 @@ export function AdvancementModal({
     }
   };
 
-  const isGangerOrExoticBeastRestricted =
-    fighterSubtypes.includes('Ganger') || fighterSubtypes.includes('Exotic Beast');
-
   const handleAdvancementPurchase = async () => {
     if (gangerModalRollBuy) {
       setGangerPurchaseBusy(true);
@@ -2482,10 +2485,7 @@ export function AdvancementModal({
             </div>
           )}
 
-          {!isCumulativeXp &&
-            userPermissions &&
-            onFighterDetailsUpdate &&
-            (fighterSubtypes.includes('Ganger') || fighterSubtypes.includes('Exotic Beast')) && (
+          {gangerModalRollBuy && (
               <div className="mb-4 space-y-4">
                 <div>
                   <h4 className="font-semibold">Ganger / Exotic Beast</h4>
@@ -2689,7 +2689,7 @@ export function AdvancementModal({
             )}
 
           <div className="space-y-4">
-          {(!isGangerOrExoticBeastRestricted || isCumulativeXp) && (
+          {!rollsOnSubtypeTable && (
             <>
             {/* The N26 result sets the advancement type itself, so this free-choice
                 picker would be a second route to the same purchase, untied to the

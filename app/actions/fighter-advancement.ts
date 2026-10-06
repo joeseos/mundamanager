@@ -12,6 +12,7 @@ import {
   hasCumulativeXp,
   hasGangerChampionKeepTypePromotion,
   hasProspectSpecialisationPromotion,
+  hasSubtypeAdvancementTables,
 } from '@/types/edition';
 import {
   N26_CHAMPION_PROMOTION_SKILL_ID,
@@ -2075,7 +2076,7 @@ const GANGER_ELIGIBLE_SUBTYPES = new Set(['Ganger', 'Exotic Beast']);
  * rescue an N26 fighter.
  */
 const routesRollsBySubtype = (fighter: any): boolean =>
-  !hasCumulativeXp(gangEditionSlug(fighter.gangs));
+  hasSubtypeAdvancementTables(gangEditionSlug(fighter.gangs));
 
 const isGangerEligible = (fighter: any): boolean =>
   !!fighter.fighter_subtypes?.some((subtype: string) => GANGER_ELIGIBLE_SUBTYPES.has(subtype));

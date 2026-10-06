@@ -145,6 +145,12 @@ const EDITION_CAPABILITIES = {
    */
   cumulativeXp:             { n23: false, n26: true  },
   /**
+   * Gangers and Exotic Beasts roll their Advancements on a table of their own and
+   * log them through a separate roll logger, while every other subtype chooses.
+   * When false, every fighter takes Advancements the same way.
+   */
+  subtypeAdvancementTables: { n23: true,  n26: false },
+  /**
    * Weapon profiles use the N26 statline (SR, LR, Str, AP, Lethality) rather
    * than the N23 one (Rng S/L, Acc S/L, Str, AP, D, Am). Ammo and Damage are
    * written into Traits on N26 profiles.
@@ -331,6 +337,9 @@ export const hasStartingXp = (editionSlug?: string | null): boolean =>
 
 export const hasCumulativeXp = (editionSlug?: string | null): boolean =>
   can('cumulativeXp', editionSlug);
+
+export const hasSubtypeAdvancementTables = (editionSlug?: string | null): boolean =>
+  can('subtypeAdvancementTables', editionSlug);
 
 export const hasLethalityStatline = (editionSlug?: string | null): boolean =>
   can('lethalityStatline', editionSlug);
