@@ -3,7 +3,7 @@ import { countAdvancementsTaken } from '@/utils/advancementRanks';
 import { readHatredTarget } from '@/utils/injuryTarget';
 import { WeaponProps, WargearItem } from '@/types/fighter';
 import { WeaponProfile } from '@/types/equipment';
-import { applyWeaponModifiers } from '@/utils/effect-modifiers';
+import { applyWeaponModifiers, withFighterWideWeaponEffects } from '@/utils/effect-modifiers';
 import type {
   GangFighter,
   GangFighterIndexEntry,
@@ -418,7 +418,10 @@ export function assembleGangFighters(
 
           // Apply equipment-targeted effect modifiers to weapon profiles
           if (weaponProfiles.length > 0) {
-            const targetingEffects = equipmentTargetingEffectsMap.get(item.id) || [];
+            const targetingEffects = withFighterWideWeaponEffects(
+              equipmentTargetingEffectsMap.get(item.id) || [],
+              Object.values(effects).flat()
+            );
             if (targetingEffects.length > 0) {
               weaponProfiles = applyWeaponModifiers(weaponProfiles, targetingEffects);
             }
@@ -937,6 +940,9 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
   const myEquipmentIds = new Set(myEquipment.map((e: any) => e.id));
   const ownedStandardIds = new Set(myEquipment.filter((e: any) => e.equipment_id).map((e: any) => e.equipment_id));
 
+  // Fighter-wide weapon effects (requires_trait) come from any of the fighter's effects
+  const myEffects = bundle.effects.filter((e: any) => e.fighter_id === fighterId && !e.vehicle_id);
+
   // Target relationships (equipment-to-equipment upgrades)
   const targetEffectsMap = new Map<string, string>();
   // Effects that modify equipment profiles: targeting effects + self-effects
@@ -1049,7 +1055,7 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
     }
 
     if (weaponProfiles.length > 0) {
-      const weaponEffects = weaponEffectsMap.get(item.id) || [];
+      const weaponEffects = withFighterWideWeaponEffects(weaponEffectsMap.get(item.id) || [], myEffects);
       if (weaponEffects.length > 0) {
         weaponProfiles = applyWeaponModifiers(weaponProfiles, weaponEffects);
       }

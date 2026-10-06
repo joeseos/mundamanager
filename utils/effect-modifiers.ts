@@ -286,6 +286,31 @@ function applyUserStrengthModifiers(
   return formatUserStrength(result);
 }
 
+function splitTraits(traits: string | null | undefined): string[] {
+  return (traits || '')
+    .split(',')
+    .map((t: string) => t.trim())
+    .filter(Boolean);
+}
+
+function requiredTraitOf(effect: { type_specific_data?: TraitModificationData | string | null }): string | null {
+  const tsd = typeof effect.type_specific_data === 'object' ? effect.type_specific_data : null;
+  return typeof tsd?.requires_trait === 'string' && tsd.requires_trait.trim() ? tsd.requires_trait.trim() : null;
+}
+
+/**
+ * Add the fighter's requires_trait effects (e.g. a multi-harness) to the effects
+ * already aimed at one weapon. applyWeaponModifiers then limits them to the
+ * profiles that have the trait.
+ */
+export function withFighterWideWeaponEffects<T extends { id: string; type_specific_data?: TraitModificationData | string | null }>(
+  weaponEffects: T[],
+  fighterEffects: T[]
+): T[] {
+  const seen = new Set(weaponEffects.map(e => e.id));
+  return [...weaponEffects, ...fighterEffects.filter(e => e && !seen.has(e.id) && requiredTraitOf(e))];
+}
+
 /**
  * Apply equipment→equipment effect modifiers to weapon profiles
  * Handles numeric fields (strength, ap, damage, ammo) and traits
@@ -308,6 +333,13 @@ export function applyWeaponModifiers(
     // Work on a copy
     const modified = { ...profile };
 
+    // requires_trait effects only touch profiles that have the trait
+    const baseTraits = splitTraits(profile.traits).map(t => t.toLowerCase());
+    const profileEffects = validEffects.filter(eff => {
+      const required = requiredTraitOf(eff);
+      return !required || baseTraits.includes(required.toLowerCase());
+    });
+
     // Apply numeric fields with add/set operations
     const numericFields = ['range_short', 'range_long', 'acc_short', 'acc_long', 'strength', 'ap', 'damage', 'lethality', 'ammo'];
 
@@ -317,7 +349,7 @@ export function applyWeaponModifiers(
 
       // Collect all modifiers for this field
       const fieldModifiers: EffectModifier[] = [];
-      validEffects.forEach(eff => {
+      profileEffects.forEach(eff => {
         (eff.fighter_effect_modifiers || []).forEach(m => {
           if (m.stat_name === fieldName) {
             fieldModifiers.push(m);
@@ -345,12 +377,9 @@ export function applyWeaponModifiers(
     });
 
     // Traits add/remove via type_specific_data (weapon-specific feature)
-    let traitsArr: string[] = (modified.traits || '')
-      .split(',')
-      .map((t: string) => t.trim())
-      .filter(Boolean);
+    let traitsArr: string[] = splitTraits(modified.traits);
 
-    validEffects.forEach((eff) => {
+    profileEffects.forEach((eff) => {
       const tsd = typeof eff.type_specific_data === 'object' ? eff.type_specific_data || {} : {};
       const toRemove: string[] = tsd.traits_to_remove || [];
       const toAdd: string[] = tsd.traits_to_add || [];

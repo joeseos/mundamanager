@@ -147,6 +147,7 @@ export function AdminFighterEffects({
     selection_group: '',
     traits_to_add: '',
     traits_to_remove: '',
+    requires_trait: '',
     special_rules_to_add: '',
     special_rules_to_remove: '',
     // Picked by id: subtype_name repeats across editions
@@ -230,6 +231,7 @@ export function AdminFighterEffects({
         ...(newEffect.selection_group && { selection_group: newEffect.selection_group }),
         ...(traitsToAdd.length > 0 && { traits_to_add: traitsToAdd }),
         ...(traitsToRemove.length > 0 && { traits_to_remove: traitsToRemove }),
+        ...(newEffect.requires_trait.trim() && { requires_trait: newEffect.requires_trait.trim() }),
         ...(specialRulesToAdd.length > 0 && { special_rules_to_add: specialRulesToAdd }),
         ...(specialRulesToRemove.length > 0 && { special_rules_to_remove: specialRulesToRemove }),
         ...(newEffect.fighter_subtype_ids_to_add.length > 0 && { fighter_subtype_ids_to_add: newEffect.fighter_subtype_ids_to_add }),
@@ -275,6 +277,7 @@ export function AdminFighterEffects({
         selection_group: '',
         traits_to_add: '',
         traits_to_remove: '',
+        requires_trait: '',
         special_rules_to_add: '',
         special_rules_to_remove: '',
         fighter_subtype_ids_to_add: [],
@@ -317,6 +320,7 @@ export function AdminFighterEffects({
       selection_group: '',
       traits_to_add: '',
       traits_to_remove: '',
+      requires_trait: '',
       special_rules_to_add: '',
       special_rules_to_remove: '',
       fighter_subtype_ids_to_add: [],
@@ -344,6 +348,7 @@ export function AdminFighterEffects({
       selection_group: effect.type_specific_data?.selection_group || '',
       traits_to_add: effect.type_specific_data?.traits_to_add?.join(', ') || '',
       traits_to_remove: effect.type_specific_data?.traits_to_remove?.join(', ') || '',
+      requires_trait: effect.type_specific_data?.requires_trait || '',
       special_rules_to_add: effect.type_specific_data?.special_rules_to_add?.join(', ') || '',
       special_rules_to_remove: effect.type_specific_data?.special_rules_to_remove?.join(', ') || '',
       fighter_subtype_ids_to_add: effect.type_specific_data?.fighter_subtype_ids_to_add || [],
@@ -397,6 +402,7 @@ export function AdminFighterEffects({
       // Set traits arrays - use empty arrays when cleared
       traits_to_add: traitsToAdd.length > 0 ? traitsToAdd : undefined,
       traits_to_remove: traitsToRemove.length > 0 ? traitsToRemove : undefined,
+      requires_trait: newEffect.requires_trait.trim() || undefined,
       special_rules_to_add: specialRulesToAdd.length > 0 ? specialRulesToAdd : undefined,
       special_rules_to_remove: specialRulesToRemove.length > 0 ? specialRulesToRemove : undefined,
       fighter_subtype_ids_to_add: newEffect.fighter_subtype_ids_to_add.length > 0 ? newEffect.fighter_subtype_ids_to_add : undefined,
@@ -640,6 +646,12 @@ export function AdminFighterEffects({
                         {effect.type_specific_data?.traits_to_add && effect.type_specific_data.traits_to_add.length > 0 && (
                           <Badge variant="default" className="bg-green-600">
                             Adds: {effect.type_specific_data.traits_to_add.join(', ')}
+                          </Badge>
+                        )}
+
+                        {effect.type_specific_data?.requires_trait && (
+                          <Badge variant="outline">
+                            Weapons with {effect.type_specific_data.requires_trait}
                           </Badge>
                         )}
 
@@ -906,7 +918,9 @@ export function AdminFighterEffects({
                     checked={newEffect.applies_to === 'equipment'}
                     onCheckedChange={(checked) => setNewEffect(prev => ({
                       ...prev,
-                      applies_to: checked === true ? 'equipment' : ''
+                      applies_to: checked === true ? 'equipment' : '',
+                      // Hidden while targeting one weapon, so don't save it unseen
+                      ...(checked === true && { requires_trait: '' })
                     }))}
                   />
                   <span className="text-sm font-medium">
@@ -1037,7 +1051,24 @@ export function AdminFighterEffects({
               </div>
             )}
 
-            {newEffect.applies_to === 'equipment' && (
+            {!hideEquipmentOption && newEffect.applies_to !== 'equipment' && (
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-muted-foreground">
+                  Weapons With Trait (optional)
+                </label>
+                <Input
+                  type="text"
+                  value={newEffect.requires_trait}
+                  onChange={(e) => setNewEffect(prev => ({ ...prev, requires_trait: e.target.value }))}
+                  placeholder="e.g., Light"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Applies the trait changes below to every weapon profile the fighter has with this trait
+                </p>
+              </div>
+            )}
+
+            {(newEffect.applies_to === 'equipment' || newEffect.requires_trait.trim()) && (
               <>
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-muted-foreground">
