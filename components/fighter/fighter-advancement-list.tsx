@@ -45,7 +45,7 @@ import {
 } from '@/utils/dice';
 import {
   hasCumulativeXp,
-  hasSubtypeAdvancementTables,
+  hasSharedAdvancementTable,
   initiativeAndMentalCharacteristicSuffix
 } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
@@ -791,7 +791,7 @@ export function AdvancementModal({
   // Edition matters as much as subtype: N26 never renders the Ganger picker, so a
   // Ganger-subtyped N26 fighter would route Buy through a flow it can never satisfy.
   const rollsOnSubtypeTable =
-    hasSubtypeAdvancementTables(editionSlug) && isGangerOrExoticBeastSubtype;
+    !hasSharedAdvancementTable(editionSlug) && isGangerOrExoticBeastSubtype;
 
   const gangerModalRollBuy =
     rollsOnSubtypeTable &&
