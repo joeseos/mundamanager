@@ -989,9 +989,10 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
     });
   });
 
-  const activeLoadout = myLoadouts.find((l: any) => l.id === fighterRow?.active_loadout_id);
-  const activeLoadoutEquipmentIds = activeLoadout
-    ? new Set((activeLoadout.fighter_loadout_equipment || []).map((a: any) => a.fighter_equipment_id))
+  // Same fallback as the gang view: an active loadout that can't be found holds nothing
+  const activeLoadoutId = fighterRow?.active_loadout_id;
+  const activeLoadoutEquipmentIds = activeLoadoutId
+    ? new Set((myLoadouts.find((l: any) => l.id === activeLoadoutId)?.fighter_loadout_equipment || []).map((a: any) => a.fighter_equipment_id))
     : null;
   const fighterWideEffects = fighterWideWeaponEffects(
     myEffects.filter((e: any) => !activeLoadoutEquipmentIds || !e.fighter_equipment_id || activeLoadoutEquipmentIds.has(e.fighter_equipment_id))

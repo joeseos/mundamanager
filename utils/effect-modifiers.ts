@@ -293,17 +293,19 @@ function splitTraits(traits: string | null | undefined): string[] {
     .filter(Boolean);
 }
 
-function requiredTraitOf(effect: { type_specific_data?: TraitModificationData | string | null }): string | null {
+function requiredTraitsOf(effect: { type_specific_data?: TraitModificationData | string | null }): string[] {
   const tsd = typeof effect.type_specific_data === 'object' ? effect.type_specific_data : null;
-  return typeof tsd?.requires_trait === 'string' && tsd.requires_trait.trim() ? tsd.requires_trait.trim() : null;
+  return Array.isArray(tsd?.requires_traits)
+    ? tsd.requires_traits.map(t => t.trim().toLowerCase()).filter(Boolean)
+    : [];
 }
 
 type WeaponEffectLike = { id: string; type_specific_data?: TraitModificationData | string | null };
 
-/** The fighter's requires_trait effects (e.g. multi-harness). Trait changes only: their stat modifiers are the fighter's */
+/** The fighter's requires_traits effects (e.g. multi-harness). Trait changes only: their stat modifiers are the fighter's */
 export function fighterWideWeaponEffects<T extends WeaponEffectLike>(effects: T[]): T[] {
   return effects
-    .filter(e => e && requiredTraitOf(e))
+    .filter(e => e && requiredTraitsOf(e).length > 0)
     .map(e => ({ ...e, fighter_effect_modifiers: [] }));
 }
 
@@ -336,8 +338,8 @@ export function applyWeaponModifiers(
 
     const baseTraits = splitTraits(profile.traits).map(t => t.toLowerCase());
     const profileEffects = validEffects.filter(eff => {
-      const required = requiredTraitOf(eff);
-      return !required || baseTraits.includes(required.toLowerCase());
+      const required = requiredTraitsOf(eff);
+      return required.length === 0 || required.some(t => baseTraits.includes(t));
     });
 
     // Apply numeric fields with add/set operations
