@@ -43,7 +43,7 @@ import {
   type TableEntry,
   type N26AdvancementEntry
 } from '@/utils/dice';
-import { hasCumulativeXp } from '@/types/edition';
+import { hasCumulativeXp, initiativeAndMentalCharacteristicSuffix } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { VENATOR_RANKS_INCOMPLETE_MESSAGE } from '@/utils/venatorSkillAccess';
 import {
@@ -631,10 +631,13 @@ export function AdvancementModal({
         variables.ganger_characteristic_code ??
         (selectedAdvancement?.characteristic_code ||
           statChangeName.toLowerCase().replace(/\s+/g, '_'));
-      // "+" stats (lower is better) use -1; normal stats use 1
+      // "+" stats (lower is better) use -1; normal stats use 1. Initiative and the
+      // mental stats are "+" stats only in editions that print them that way.
       const plusStats = new Set([
-        'weapon_skill', 'ballistic_skill', 'initiative',
-        'leadership', 'cool', 'willpower', 'intelligence'
+        'weapon_skill', 'ballistic_skill', 'save',
+        ...(initiativeAndMentalCharacteristicSuffix(editionSlug) === '+'
+          ? ['initiative', 'leadership', 'cool', 'willpower', 'intelligence']
+          : [])
       ]);
       const numericValue = plusStats.has(characteristicCode) ? -1 : 1;
       const optimisticAdvancement = {
