@@ -3,7 +3,7 @@ import { countAdvancementsTaken } from '@/utils/advancementRanks';
 import { readHatredTarget } from '@/utils/injuryTarget';
 import { WeaponProps, WargearItem } from '@/types/fighter';
 import { WeaponProfile } from '@/types/equipment';
-import { applyWeaponModifiers, fighterWideWeaponEffects, withFighterWideWeaponEffects } from '@/utils/effect-modifiers';
+import { applyWeaponModifiers, fighterWideWeaponEffects } from '@/utils/effect-modifiers';
 import type {
   GangFighter,
   GangFighterIndexEntry,
@@ -420,10 +420,7 @@ export function assembleGangFighters(
 
           // Apply equipment-targeted effect modifiers to weapon profiles
           if (weaponProfiles.length > 0) {
-            const targetingEffects = withFighterWideWeaponEffects(
-              equipmentTargetingEffectsMap.get(item.id) || [],
-              fighterWideEffects
-            );
+            const targetingEffects = [...(equipmentTargetingEffectsMap.get(item.id) || []), ...fighterWideEffects];
             if (targetingEffects.length > 0) {
               weaponProfiles = applyWeaponModifiers(weaponProfiles, targetingEffects);
             }
@@ -1065,7 +1062,7 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
     }
 
     if (weaponProfiles.length > 0) {
-      const weaponEffects = withFighterWideWeaponEffects(weaponEffectsMap.get(item.id) || [], fighterWideEffects);
+      const weaponEffects = [...(weaponEffectsMap.get(item.id) || []), ...fighterWideEffects];
       if (weaponEffects.length > 0) {
         weaponProfiles = applyWeaponModifiers(weaponProfiles, weaponEffects);
       }

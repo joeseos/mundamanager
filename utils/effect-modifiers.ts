@@ -300,18 +300,11 @@ function requiredTraitsOf(effect: { type_specific_data?: TraitModificationData |
     : [];
 }
 
-type WeaponEffectLike = { id: string; type_specific_data?: TraitModificationData | string | null };
-
 /** The fighter's requires_traits effects (e.g. multi-harness). Trait changes only: their stat modifiers are the fighter's */
-export function fighterWideWeaponEffects<T extends WeaponEffectLike>(effects: T[]): T[] {
+export function fighterWideWeaponEffects<T extends { type_specific_data?: TraitModificationData | string | null }>(effects: T[]): T[] {
   return effects
     .filter(e => e && requiredTraitsOf(e).length > 0)
     .map(e => ({ ...e, fighter_effect_modifiers: [] }));
-}
-
-export function withFighterWideWeaponEffects<T extends WeaponEffectLike>(weaponEffects: T[], fighterWide: T[]): T[] {
-  const seen = new Set(weaponEffects.map(e => e.id));
-  return [...weaponEffects, ...fighterWide.filter(e => !seen.has(e.id))];
 }
 
 /**
