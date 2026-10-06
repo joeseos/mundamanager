@@ -943,6 +943,8 @@ export default function FighterPage({
             venatorRanksIncomplete={fighterData.gang?.venator_ranks_incomplete}
             gangTypeId={fighterData.fighter?.fighter_type?.gang_type_id || ''}
             customGangTypeId={fighterData.fighter?.fighter_type?.custom_gang_type_id || ''}
+            owningGangTypeId={fighterData.gang?.gang_type_id || ''}
+            isVehicle={isVehicle}
             fighterSpecialRules={fighterData.fighter?.special_rules || []}
             fighterTypeName={fighterData.fighter?.fighter_type?.fighter_type || ''}
             fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
@@ -958,6 +960,8 @@ export default function FighterPage({
                       fighter_subtypes: patch.fighter_subtypes ?? prev.fighter.fighter_subtypes,
                       special_rules: patch.special_rules ?? prev.fighter.special_rules,
                       promoted_from_prospect: patch.promoted_from_prospect ?? prev.fighter.promoted_from_prospect,
+                      xp: patch.xp ?? prev.fighter.xp,
+                      starting_xp: patch.starting_xp !== undefined ? patch.starting_xp : prev.fighter.starting_xp,
                       fighter_type:
                         patch.fighter_type !== undefined && patch.fighter_type_id !== undefined
                           ? {
@@ -1439,6 +1443,7 @@ export default function FighterPage({
               gangId={fighterData.gang?.id || ''}
               gangTypeId={fighterData.fighter?.fighter_type?.gang_type_id}
               customGangTypeId={fighterData.fighter?.fighter_type?.custom_gang_type_id}
+              owningGangTypeId={fighterData.gang?.gang_type_id}
               is_spyrer={fighterData.fighter.is_spyrer}
               onClose={() => handleModalToggle('editFighter', false)}
               onEditMutate={(optimistic) => {
