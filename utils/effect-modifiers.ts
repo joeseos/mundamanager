@@ -402,6 +402,26 @@ export function applySpecialRulesModifiers(
 // =============================================================================
 
 /**
+ * Skills an effect grants, e.g. a bionic arm granting "Iron Jaw". Reads
+ * skill_ids, plus the single skill_id that effects saved before it still carry.
+ *
+ * On a 'skills'-category type skill_id means the opposite — the skill the
+ * effect BELONGS TO — so callers must exclude that category first.
+ */
+export function grantedSkillsFromEffect(
+  effect: { type_specific_data?: unknown } | null | undefined
+): string[] {
+  const tsd = effect && typeof effect.type_specific_data === 'object' && effect.type_specific_data
+    ? effect.type_specific_data as Record<string, unknown>
+    : null;
+  if (!tsd) return [];
+
+  const skillIds = [...(Array.isArray(tsd.skill_ids) ? tsd.skill_ids : []), tsd.skill_id];
+
+  return [...new Set(skillIds.filter((id): id is string => typeof id === 'string' && id !== ''))];
+}
+
+/**
  * Subtype ids an effect list grants or strips, e.g. a Dirt bike granting
  * "Mounted". Ids, not names — resolving them needs the fighter_subtypes catalog.
  *
@@ -409,23 +429,6 @@ export function applySpecialRulesModifiers(
  * to fighters.fighter_subtypes (see utils/fighter-subtype-grants.ts). Shared with
  * the edit modal, which uses them to mark the resulting chips read-only.
  */
-/**
- * Skill an effect grants, e.g. a bionic arm granting "Iron Jaw".
- *
- * On a 'skills'-category type the same key means the opposite — the skill the
- * effect BELONGS TO — so callers must exclude that category first.
- */
-export function grantedSkillFromEffect(
-  effect: { type_specific_data?: unknown } | null | undefined
-): string | null {
-  const tsd = effect && typeof effect.type_specific_data === 'object' && effect.type_specific_data
-    ? effect.type_specific_data as Record<string, unknown>
-    : null;
-  const skillId = tsd?.skill_id;
-
-  return typeof skillId === 'string' && skillId ? skillId : null;
-}
-
 export function subtypeGrantsFromEffects(
   effects: Array<{ type_specific_data?: TraitModificationData | string | null }> | null | undefined
 ): { add: string[]; remove: string[] } {

@@ -11,7 +11,7 @@ import { countsTowardRating } from '@/utils/fighter-status';
 import { EquipmentGrants, ResourceCost, CostResourcePayload } from '@/types/equipment';
 import { createExoticBeastsForEquipment, invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
-import { grantedSkillFromEffect } from '@/utils/effect-modifiers';
+import { grantedSkillsFromEffect } from '@/utils/effect-modifiers';
 import { clearHardpointReference } from './vehicle-hardpoints';
 import { deductGangResource, returnGangResource, parseTradePointsCost, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
 import { gangEditionSlug, hasMasterCraftedWeapons, hasTradePoints } from '@/types/edition';
@@ -83,7 +83,7 @@ export async function grantSkillsForEffects(
   // N23 vehicle-only effects grant nothing; on N26 a vehicle is a fighter
   if (!fighterId) return false;
 
-  const candidates = (effects ?? []).filter(effect => grantedSkillFromEffect(effect));
+  const candidates = (effects ?? []).filter(effect => grantedSkillsFromEffect(effect).length > 0);
   if (candidates.length === 0) return false;
 
   // On a 'skills'-category type, skill_id is the skill this effect BELONGS TO
@@ -111,16 +111,18 @@ export async function grantSkillsForEffects(
   const serviceClient = createServiceRoleClient();
   let granted = false;
 
-  for (const effect of candidates) {
-    if (skillCategoryTypeIds.has(effect.fighter_effect_type_id)) continue;
+  const grants = candidates
+    .filter(effect => !skillCategoryTypeIds.has(effect.fighter_effect_type_id))
+    .flatMap(effect => grantedSkillsFromEffect(effect).map(skillId => ({ effect, skillId })));
 
+  for (const { effect, skillId } of grants) {
     // Zero cost: the equipment's price and the effect's credits_increase already
     // drive rating.
     const { data: skill, error: skillError } = await supabase
       .from('fighter_skills')
       .insert({
         fighter_id: fighterId,
-        skill_id: grantedSkillFromEffect(effect),
+        skill_id: skillId,
         user_id: userId,
         credits_increase: 0,
         xp_cost: 0,

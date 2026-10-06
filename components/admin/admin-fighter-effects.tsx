@@ -10,6 +10,7 @@ import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { HiX } from "react-icons/hi";
 import Modal from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
+import { grantedSkillsFromEffect } from "@/utils/effect-modifiers";
 import { 
   FighterEffectType, 
   FighterEffectTypeModifier, 
@@ -152,7 +153,7 @@ export function AdminFighterEffects({
     // Picked by id: subtype_name repeats across editions
     fighter_subtype_ids_to_add: [] as string[],
     fighter_subtype_ids_to_remove: [] as string[],
-    grants_skill_id: '',
+    grants_skill_ids: [] as string[],
     credits_increase: '',
     cost: '',
     is_editable: false,
@@ -222,7 +223,7 @@ export function AdminFighterEffects({
           ? { skill_id: equipmentId }
           : {
               equipment_id: equipmentId,
-              ...(newEffect.grants_skill_id && { skill_id: newEffect.grants_skill_id })
+              ...(newEffect.grants_skill_ids.length > 0 && { skill_ids: newEffect.grants_skill_ids })
             }),
         ...(newEffect.applies_to && { applies_to: newEffect.applies_to }),
         effect_selection: newEffect.effect_selection,
@@ -279,7 +280,7 @@ export function AdminFighterEffects({
         special_rules_to_remove: '',
         fighter_subtype_ids_to_add: [],
         fighter_subtype_ids_to_remove: [],
-        grants_skill_id: '',
+        grants_skill_ids: [],
         credits_increase: '',
         cost: '',
         is_editable: false,
@@ -321,7 +322,7 @@ export function AdminFighterEffects({
       special_rules_to_remove: '',
       fighter_subtype_ids_to_add: [],
       fighter_subtype_ids_to_remove: [],
-      grants_skill_id: '',
+      grants_skill_ids: [],
       credits_increase: '',
       cost: '',
       is_editable: false,
@@ -348,7 +349,7 @@ export function AdminFighterEffects({
       special_rules_to_remove: effect.type_specific_data?.special_rules_to_remove?.join(', ') || '',
       fighter_subtype_ids_to_add: effect.type_specific_data?.fighter_subtype_ids_to_add || [],
       fighter_subtype_ids_to_remove: effect.type_specific_data?.fighter_subtype_ids_to_remove || [],
-      grants_skill_id: isSkill ? '' : (effect.type_specific_data?.skill_id || ''),
+      grants_skill_ids: isSkill ? [] : grantedSkillsFromEffect(effect),
       credits_increase: effect.type_specific_data?.credits_increase?.toString() || '',
       cost: effect.type_specific_data?.cost?.toString() || '',
       is_editable: effect.type_specific_data?.is_editable === true,
@@ -407,8 +408,12 @@ export function AdminFighterEffects({
       ...(newEffect.cost ? { cost: parseInt(newEffect.cost) } : { cost: undefined }),
       // Set is_editable or remove it if false
       ...(newEffect.is_editable ? { is_editable: true } : { is_editable: undefined }),
-      // On the skill page skill_id is the owning skill, set at creation and never edited here
-      ...(isSkill ? {} : { skill_id: newEffect.grants_skill_id || undefined }),
+      // On the skill page skill_id is the owning skill, set at creation and never edited here.
+      // Elsewhere a single skill_id is the pre-skill_ids shape, folded into skill_ids on save.
+      ...(isSkill ? {} : {
+        skill_id: undefined,
+        skill_ids: newEffect.grants_skill_ids.length > 0 ? newEffect.grants_skill_ids : undefined
+      }),
       // Hardpoint fields - always include when category is hardpoint, clear when not
       // default_arcs = immutable template baseline for cost calc; arcs = current player-facing state.
       // At creation they're identical; arcs diverges later when the player modifies the hardpoint.
@@ -673,9 +678,9 @@ export function AdminFighterEffects({
                           </Badge>
                         )}
 
-                        {!isSkill && effect.type_specific_data?.skill_id && (
+                        {!isSkill && grantedSkillsFromEffect(effect).length > 0 && (
                           <Badge variant="secondary" className="text-xs">
-                            Grants: {skillNameById.get(effect.type_specific_data.skill_id) ?? effect.type_specific_data.skill_id}
+                            Grants: {grantedSkillsFromEffect(effect).map(id => skillNameById.get(id) ?? id).join(', ')}
                           </Badge>
                         )}
 
@@ -1019,20 +1024,49 @@ export function AdminFighterEffects({
             {!isSkill && (
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-muted-foreground">
-                  Grants Skill (optional)
+                  Grants Skills (optional)
                 </label>
                 <select
-                  value={newEffect.grants_skill_id}
-                  onChange={(e) => setNewEffect(prev => ({ ...prev, grants_skill_id: e.target.value }))}
+                  value=""
+                  onChange={(e) => {
+                    const skillId = e.target.value;
+                    if (skillId) {
+                      setNewEffect(prev => ({ ...prev, grants_skill_ids: [...prev.grants_skill_ids, skillId] }));
+                    }
+                  }}
                   className="w-full p-2 border rounded-md"
                 >
-                  <option value="">None</option>
-                  {skills.map(skill => (
-                    <option key={skill.id} value={skill.id}>{skill.skill_name}</option>
-                  ))}
+                  <option value="">Select a skill to add</option>
+                  {skills
+                    .filter(skill => !newEffect.grants_skill_ids.includes(skill.id))
+                    .map(skill => (
+                      <option key={skill.id} value={skill.id}>{skill.skill_name}</option>
+                    ))}
                 </select>
+                {newEffect.grants_skill_ids.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {newEffect.grants_skill_ids.map(skillId => (
+                      <div
+                        key={skillId}
+                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
+                      >
+                        <span>{skillNameById.get(skillId) ?? skillId}</span>
+                        <button
+                          type="button"
+                          onClick={() => setNewEffect(prev => ({
+                            ...prev,
+                            grants_skill_ids: prev.grants_skill_ids.filter(id => id !== skillId)
+                          }))}
+                          className="hover:text-red-500 focus:outline-hidden"
+                        >
+                          <HiX className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <p className="text-xs text-muted-foreground">
-                  The fighter gains this skill while the effect is applied, at no XP or credit cost.
+                  The fighter gains these skills while the effect is applied, at no XP or credit cost.
                 </p>
               </div>
             )}

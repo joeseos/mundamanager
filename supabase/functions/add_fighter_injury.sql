@@ -251,9 +251,22 @@ BEGIN
         END IF;
     END LOOP;
 
-    -- Check if there's a skill_id in the type_specific_data and add the skill relation
-    IF effect_type_record.type_specific_data->>'skill_id' IS NOT NULL THEN
-        skill_id_val := (effect_type_record.type_specific_data->>'skill_id')::UUID;
+    -- Add each granted skill: skill_ids, plus the single skill_id that effect
+    -- types saved before skill_ids still carry
+    FOR skill_id_val IN
+        SELECT DISTINCT granted.id::UUID
+        FROM (
+            SELECT jsonb_array_elements_text(
+                CASE WHEN jsonb_typeof(effect_type_record.type_specific_data->'skill_ids') = 'array'
+                    THEN effect_type_record.type_specific_data->'skill_ids'
+                    ELSE '[]'::jsonb
+                END
+            ) AS id
+            UNION
+            SELECT effect_type_record.type_specific_data->>'skill_id'
+        ) granted
+        WHERE granted.id IS NOT NULL AND granted.id <> ''
+    LOOP
 
         -- Add the skill to fighter_skills if it doesn't already exist
         INSERT INTO fighter_skills (
@@ -298,7 +311,7 @@ BEGIN
             SET fighter_effect_skill_id = new_fighter_effect_skill_id
             WHERE id = new_fighter_skill_id;
         END IF;
-    END IF;
+    END LOOP;
 
     -- Return the newly created effect
     RETURN QUERY

@@ -23,6 +23,8 @@ export interface TypeSpecificData extends TraitModificationData {
   // Base fields
   equipment_id?: string;
   skill_id?: string;
+  /** Skills granted while the effect applies. Never set on a 'skills'-category type. */
+  skill_ids?: string[];
   // Selection behavior
   applies_to?: 'equipment';
   effect_selection?: 'fixed' | 'single_select' | 'multiple_select';

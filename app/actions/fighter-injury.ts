@@ -13,6 +13,7 @@ import type { GangLogActionResult } from './logs/gang-logs';
 import { countsTowardRating, hasKilledStatusFlag } from '@/utils/fighter-status';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { gangEditionSlug } from '@/types/edition';
+import { grantedSkillsFromEffect } from '@/utils/effect-modifiers';
 
 export interface AddFighterInjuryParams {
   fighter_id: string;
@@ -315,7 +316,7 @@ export async function addFighterInjury(
     }
 
     // If injury grants a skill, invalidate skills cache
-    if (injuryData?.type_specific_data?.skill_id) {
+    if (grantedSkillsFromEffect(injuryData).length > 0) {
       revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
     }
 

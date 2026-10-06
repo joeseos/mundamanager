@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from 'next/server';
 import { getEditionIdBySlug } from '@/utils/editions';
+import { grantedSkillsFromEffect } from '@/utils/effect-modifiers';
 
 /**
  * Lists the lasting injury (or rig glitch) catalog.
@@ -76,14 +77,14 @@ export async function GET(request: Request) {
         delete result.fighter_effect_type_modifiers;
 
         // For injuries that grant skills, fetch the skill names
-        if (effect.type_specific_data?.skill_id) {
-          const { data: skill } = await supabase
+        const grantedSkillIds = grantedSkillsFromEffect(effect);
+        if (grantedSkillIds.length > 0) {
+          const { data: skills } = await supabase
             .from('skills')
             .select('id, name')
-            .eq('id', effect.type_specific_data.skill_id)
-            .single();
+            .in('id', grantedSkillIds);
 
-          result.granted_skill = skill || null;
+          result.granted_skills = skills || [];
         }
 
         return result;
