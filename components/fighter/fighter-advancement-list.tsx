@@ -2422,11 +2422,6 @@ export function AdvancementModal({
                       }
                     }
                   }}
-                  onRoll={(total, dice) => {
-                    setN26RollTotal(total);
-                    const row = resolveN26AdvancementFromUtil(total);
-                    if (row) logN26RollWithCooldown(row.name, total, dice);
-                  }}
                   buttonText="Roll 2D6"
                   disabled={!userPermissions.canEdit || logN26RollMutation.isPending || n26RollCooldown}
                 />
@@ -2510,10 +2505,6 @@ export function AdvancementModal({
                         const row = resolveGangerExoticBeastAdvancementFromUtil(total);
                         if (row) logGangerResolvedRollWithCooldown(row, total, dice);
                       }
-                    }}
-                    onRoll={(total, dice) => {
-                      const row = resolveGangerExoticBeastAdvancementFromUtil(total);
-                      if (row) logGangerResolvedRollWithCooldown(row, total, dice);
                     }}
                     buttonText="Roll 2D6"
                     disabled={
