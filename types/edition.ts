@@ -144,11 +144,7 @@ const EDITION_CAPABILITIES = {
    * if one is deleted.
    */
   cumulativeXp:             { n23: false, n26: true  },
-  /**
-   * Gangers and Exotic Beasts roll their Advancements on a table of their own and
-   * log them through a separate roll logger, while every other subtype chooses.
-   * When false, every fighter takes Advancements the same way.
-   */
+  /** Gangers and Exotic Beasts roll Advancements on a table of their own */
   subtypeAdvancementTables: { n23: true,  n26: false },
   /**
    * Weapon profiles use the N26 statline (SR, LR, Str, AP, Lethality) rather

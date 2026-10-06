@@ -635,8 +635,7 @@ export function AdvancementModal({
         variables.ganger_characteristic_code ??
         (selectedAdvancement?.characteristic_code ||
           statChangeName.toLowerCase().replace(/\s+/g, '_'));
-      // "+" stats (lower is better) use -1; normal stats use 1. Initiative and the
-      // mental stats are "+" stats only in editions that print them that way.
+      // "+" stats (lower is better) use -1; normal stats use 1
       const plusStats = new Set([
         'weapon_skill', 'ballistic_skill', 'save',
         ...(initiativeAndMentalCharacteristicSuffix(editionSlug) === '+'
@@ -1057,8 +1056,6 @@ export function AdvancementModal({
     };
   }, [fighterId, shouldFetchGangerSkillsInSet, gangerSelectedSkillSetId, gangerPromotionTypeId]);
 
-  // The N26 and Ganger / Exotic Beast tables never show together, so they share
-  // one pending state.
   const logAdvancementRollMutation = useMutation({
     mutationFn: async (variables: {
       advancement_table: string;
