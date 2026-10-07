@@ -1022,7 +1022,6 @@ export default function CampaignPageContent({
         {/* Replace the inline modal with our new component */}
         {showEditModal && (
           <CampaignEditModal
-            isOpen={showEditModal}
             campaignData={{
               id: campaignData.id,
               campaign_name: campaignData.campaign_name,
@@ -1088,7 +1087,6 @@ export default function CampaignPageContent({
 
         {showImageModal && (
           <CampaignImageEditModal
-            isOpen={showImageModal}
             onClose={() => setShowImageModal(false)}
             currentImageUrl={campaignData.image_url || ''}
             campaignId={campaignData.id}

@@ -438,7 +438,6 @@ function FighterActionModal({
 
       {showXpModal && fighterData && (
         <FighterXpModal
-          isOpen
           fighterId={fighter.fighter_id}
           currentXp={fighterData.xp}
           currentTotalXp={fighterData.xp}

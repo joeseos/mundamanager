@@ -6,7 +6,6 @@ import { ImageEditModal } from '@/components/ui/image-edit-modal';
 import { DefaultImageEntry } from '@/types/gang';
 
 interface GangImageEditModalProps {
-  isOpen: boolean;
   onClose: () => void;
   currentImageUrl?: string;
   gangId: string;
@@ -17,7 +16,6 @@ interface GangImageEditModalProps {
 }
 
 export const GangImageEditModal: React.FC<GangImageEditModalProps> = ({
-  isOpen,
   onClose,
   currentImageUrl,
   gangId,
@@ -39,7 +37,6 @@ export const GangImageEditModal: React.FC<GangImageEditModalProps> = ({
 
   return (
     <ImageEditModal
-      isOpen={isOpen}
       onClose={onClose}
       currentImageUrl={currentImageUrl}
       title="Edit Gang Image"

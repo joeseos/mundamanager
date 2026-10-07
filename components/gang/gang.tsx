@@ -1288,7 +1288,6 @@ export default function Gang({
 
           {showEditModal && (
             <GangEditModal
-              isOpen={showEditModal}
               onClose={() => setShowEditModal(false)}
               gangId={id}
               gangName={name}
@@ -1414,7 +1413,6 @@ export default function Gang({
           />
           {showImageModal && (
             <GangImageEditModal
-              isOpen={showImageModal}
               onClose={() => setShowImageModal(false)}
               currentImageUrl={currentGangImageUrl}
               gangId={id}

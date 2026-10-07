@@ -35,7 +35,6 @@ interface SettingsFormValues {
 }
 
 interface EditCampaignModalProps {
-  isOpen: boolean;
   campaignData: {
     id: string;
     campaign_name: string;
@@ -71,7 +70,6 @@ interface EditCampaignModalProps {
 }
 
 export default function CampaignEditModal({
-  isOpen,
   campaignData,
   onClose,
   onSaved,
@@ -104,7 +102,7 @@ export default function CampaignEditModal({
   const [charCount, setCharCount] = useState((campaignData.description ?? '').length);
   const [confirmText, setConfirmText] = useState('');
   const [discordChannels, setDiscordChannels] = useState<Array<{ id: string; name: string; type: number }>>([]);
-  const [loadingChannels, setLoadingChannels] = useState(false);
+  const [loadingChannels, setLoadingChannels] = useState(!!campaignData.discord_guild_id);
   const [selectedChannelId, setSelectedChannelId] = useState<string>(campaignData.discord_channel_id || '');
 
   const router = useRouter();
@@ -138,29 +136,25 @@ export default function CampaignEditModal({
     setSelectedChannelId(campaignData.discord_channel_id || '');
   }
 
-  const [prevDiscordKey, setPrevDiscordKey] = useState('');
-  const discordKey = `${campaignData.discord_guild_id}:${isOpen}`;
-  if (discordKey !== prevDiscordKey) {
-    setPrevDiscordKey(discordKey);
-    if (campaignData.discord_guild_id && isOpen) {
-      setLoadingChannels(true);
-    }
+  const [prevDiscordGuildId, setPrevDiscordGuildId] = useState(campaignData.discord_guild_id);
+  if (campaignData.discord_guild_id !== prevDiscordGuildId) {
+    setPrevDiscordGuildId(campaignData.discord_guild_id);
+    setLoadingChannels(!!campaignData.discord_guild_id);
   }
 
   useEffect(() => {
-    if (campaignData.discord_guild_id && isOpen) {
-      fetch(`/api/discord/channels?guild_id=${campaignData.discord_guild_id}`)
-        .then(res => res.ok ? res.json() : [])
-        .then(channels => setDiscordChannels(channels))
-        .catch(() => setDiscordChannels([]))
-        .finally(() => setLoadingChannels(false));
-    }
-  }, [campaignData.discord_guild_id, isOpen]);
+    if (!campaignData.discord_guild_id) return;
+    let cancelled = false;
+    fetch(`/api/discord/channels?guild_id=${campaignData.discord_guild_id}`)
+      .then(res => res.ok ? res.json() : [])
+      .then(channels => { if (!cancelled) setDiscordChannels(channels); })
+      .catch(() => { if (!cancelled) setDiscordChannels([]); })
+      .finally(() => { if (!cancelled) setLoadingChannels(false); });
+    return () => { cancelled = true; };
+  }, [campaignData.discord_guild_id]);
 
   // Listen for postMessage from Discord OAuth popup
   useEffect(() => {
-    if (!isOpen) return;
-
     const handleMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
       if (event.data?.type === 'discord-connected' && event.data.guildId) {
@@ -170,7 +164,7 @@ export default function CampaignEditModal({
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [isOpen, onDiscordConnected]);
+  }, [onDiscordConnected]);
 
   const saveSettings = async (saveData: SettingsFormValues): Promise<boolean> => {
     try {
@@ -306,9 +300,6 @@ export default function CampaignEditModal({
       setConfirmText('');
     }
   };
-
-  // Don't render anything if modal is not open
-  if (!isOpen) return null;
 
   return (
     <div>

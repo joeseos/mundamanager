@@ -681,7 +681,6 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       {/* Image Edit Modal */}
       {isImageModalOpen && (
         <FighterImageEditModal
-          isOpen={isImageModalOpen}
           onClose={() => setIsImageModalOpen(false)}
           currentImageUrl={currentImageUrl}
           fighterId={id}

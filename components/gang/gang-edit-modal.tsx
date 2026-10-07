@@ -65,7 +65,6 @@ interface Campaign {
 
 interface GangEditModalProps {
   // Modal control
-  isOpen: boolean;
   onClose: () => void;
 
   // Gang data
@@ -179,7 +178,6 @@ function SortableSkillSetRankRow({
  * - Campaign allegiance
  */
 export default function GangEditModal({
-  isOpen,
   onClose,
   gangId,
   gangName,
@@ -307,11 +305,7 @@ export default function GangEditModal({
   // Seeded once per opening, so a refetch mid-edit cannot overwrite unsaved reordering.
   // Adjusted during render like the form state below; an effect here cascades a render.
   const [ranksSeeded, setRanksSeeded] = useState(false);
-  if (!isOpen && ranksSeeded) {
-    setRanksSeeded(false);
-    setShowRankChangeConfirm(false);
-  }
-  if (isOpen && !ranksSeeded && existingRanksLoaded) {
+  if (!ranksSeeded && existingRanksLoaded) {
     setRanksSeeded(true);
     setRanks(
       [...existingRanks]
@@ -319,11 +313,6 @@ export default function GangEditModal({
         .map((r) => r.skill_type_id),
     );
   }
-
-  // Closing mid-drag would otherwise leave the scroll parent locked.
-  useEffect(() => {
-    if (!isOpen) unlockRankModalScroll();
-  }, [isOpen, unlockRankModalScroll]);
 
   // Get campaign ID and current allegiance if gang is in a campaign
   const campaignId = campaigns?.[0]?.campaign_id;
@@ -444,45 +433,43 @@ export default function GangEditModal({
     gcTime: 10 * 60 * 1000,  // 10 minutes - cache is kept for 10 minutes
   });
   
-  const resetKey = `${isOpen}-${gangName}-${alignment}-${allianceId}-${gangColour}-${JSON.stringify(gangSubtypes)}-${gangAffiliationId}-${gangOriginId}-${hidden}-${effectiveCurrentAllegianceId}`;
+  const resetKey = `${gangName}-${alignment}-${allianceId}-${gangColour}-${JSON.stringify(gangSubtypes)}-${gangAffiliationId}-${gangOriginId}-${hidden}-${effectiveCurrentAllegianceId}`;
   const [prevResetKey, setPrevResetKey] = useState(resetKey);
   if (resetKey !== prevResetKey) {
     setPrevResetKey(resetKey);
-    if (isOpen) {
-      setInitialValues({
-        name: gangName,
-        alignment: effectiveAlignment,
-        allianceId: allianceId || '',
-        gangColour: gangColour,
-        gangHasSubtypes: gangSubtypes.length > 0,
-        gangSubtypes: gangSubtypes,
-        gangAffiliationId: gangAffiliationId || '',
-        gangOriginId: gangOriginId || '',
-        hidden: hidden,
-        campaignAllegianceId: effectiveCurrentAllegianceId
-      });
+    setInitialValues({
+      name: gangName,
+      alignment: effectiveAlignment,
+      allianceId: allianceId || '',
+      gangColour: gangColour,
+      gangHasSubtypes: gangSubtypes.length > 0,
+      gangSubtypes: gangSubtypes,
+      gangAffiliationId: gangAffiliationId || '',
+      gangOriginId: gangOriginId || '',
+      hidden: hidden,
+      campaignAllegianceId: effectiveCurrentAllegianceId
+    });
 
-      setFormState(prev => ({
-        ...prev,
-        name: gangName,
-        alignment: effectiveAlignment,
-        allianceId: allianceId || '',
-        tithe: '',
-        gangColour: gangColour,
-        gangHasSubtypes: gangSubtypes.length > 0,
-        gangSubtypes: gangSubtypes,
-        gangAffiliationId: gangAffiliationId || '',
-        gangOriginId: gangOriginId || '',
-        hidden: hidden,
-        campaignAllegianceId: effectiveCurrentAllegianceId
-      }));
-    }
+    setFormState(prev => ({
+      ...prev,
+      name: gangName,
+      alignment: effectiveAlignment,
+      allianceId: allianceId || '',
+      tithe: '',
+      gangColour: gangColour,
+      gangHasSubtypes: gangSubtypes.length > 0,
+      gangSubtypes: gangSubtypes,
+      gangAffiliationId: gangAffiliationId || '',
+      gangOriginId: gangOriginId || '',
+      hidden: hidden,
+      campaignAllegianceId: effectiveCurrentAllegianceId
+    }));
   }
 
   const [prevEffectiveAllegianceId, setPrevEffectiveAllegianceId] = useState(effectiveCurrentAllegianceId);
   if (effectiveCurrentAllegianceId !== prevEffectiveAllegianceId) {
     setPrevEffectiveAllegianceId(effectiveCurrentAllegianceId);
-    if (isOpen && formState.campaignAllegianceId === initialValues.campaignAllegianceId) {
+    if (formState.campaignAllegianceId === initialValues.campaignAllegianceId) {
       setFormState(prev => ({
         ...prev,
         campaignAllegianceId: effectiveCurrentAllegianceId
@@ -1088,18 +1075,16 @@ export default function GangEditModal({
 
   return (
     <>
-      {isOpen && (
-        <Modal
-          title="Edit Gang"
-          content={editModalContent}
-          onClose={onClose}
-          onConfirm={handleSave}
-          confirmText="Save Changes"
-          confirmDisabled={!!titheError}
-          onDelete={(isGangOwner || isAdmin) ? () => setShowDeleteModal(true) : undefined}
-          deleteLabel={(isGangOwner || isAdmin) ? 'Delete' : undefined}
-        />
-      )}
+      <Modal
+        title="Edit Gang"
+        content={editModalContent}
+        onClose={onClose}
+        onConfirm={handleSave}
+        confirmText="Save Changes"
+        confirmDisabled={!!titheError}
+        onDelete={(isGangOwner || isAdmin) ? () => setShowDeleteModal(true) : undefined}
+        deleteLabel={(isGangOwner || isAdmin) ? 'Delete' : undefined}
+      />
 
       {showColourPickerModal && (
         <Modal

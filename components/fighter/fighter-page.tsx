@@ -1408,7 +1408,6 @@ export default function FighterPage({
 
           {uiState.modals.addXp && fighterData.fighter && (
             <FighterXpModal
-              isOpen={uiState.modals.addXp}
               fighterId={fighterId}
               currentXp={fighterData.fighter.xp ?? 0}
               currentTotalXp={fighterData.fighter.total_xp ?? 0}
@@ -1426,7 +1425,6 @@ export default function FighterPage({
           {uiState.modals.editFighter && fighterData.fighter && (
             <EditFighterModal
               fighter={convertToFighterProps({ ...fighterData.fighter, edition_slug: editionSlug })}
-              isOpen={uiState.modals.editFighter}
               initialValues={{
                 name: fighterData.fighter.fighter_name,
                 label: fighterData.fighter.label || '',
