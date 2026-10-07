@@ -22,11 +22,14 @@ import { FaMedkit, FaBookDead } from "react-icons/fa";
 import { LuLogs } from "react-icons/lu";
 import { Equipment } from '@/types/equipment';
 import { UserPermissions } from '@/types/user-permissions';
-import LogModal from '@/components/log-modal';
-import { FighterOoaHistoryModal } from './fighter-ooa-history-modal';
 
 const FighterImageEditModal = dynamic(
   () => import('./fighter-image-edit-modal').then((mod) => mod.FighterImageEditModal),
+  { ssr: false }
+);
+const LogModal = dynamic(() => import('@/components/log-modal'), { ssr: false });
+const FighterOoaHistoryModal = dynamic(
+  () => import('./fighter-ooa-history-modal').then((mod) => mod.FighterOoaHistoryModal),
   { ssr: false }
 );
 
@@ -690,25 +693,27 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       )}
 
       {/* Fighter Logs Modal */}
-      <LogModal
-        fetchUrl={`/api/gangs/${gangId || ''}/logs?fighterId=${id}${showsVehicleProfile && vehicles?.[0] ? `&vehicleId=${vehicles[0].id}` : ''}`}
-        title={`Activity Logs: ${name}`}
-        emptyMessage="No activity logs found for this fighter."
-        editionSlug={edition_slug}
-        isOpen={isLogsModalOpen}
-        onClose={() => setIsLogsModalOpen(false)}
-      />
+      {isLogsModalOpen && (
+        <LogModal
+          fetchUrl={`/api/gangs/${gangId || ''}/logs?fighterId=${id}${showsVehicleProfile && vehicles?.[0] ? `&vehicleId=${vehicles[0].id}` : ''}`}
+          title={`Activity Logs: ${name}`}
+          emptyMessage="No activity logs found for this fighter."
+          editionSlug={edition_slug}
+          onClose={() => setIsLogsModalOpen(false)}
+        />
+      )}
 
       {/* OOA / Wreck Records Modal */}
-      <FighterOoaHistoryModal
-        isOpen={isOoaHistoryModalOpen}
-        fighterId={id}
-        gangId={gangId}
-        campaignId={campaignId}
-        canEdit={canShowEditButtons}
-        editionSlug={edition_slug}
-        onClose={() => setIsOoaHistoryModalOpen(false)}
-      />
+      {isOoaHistoryModalOpen && (
+        <FighterOoaHistoryModal
+          fighterId={id}
+          gangId={gangId}
+          campaignId={campaignId}
+          canEdit={canShowEditButtons}
+          editionSlug={edition_slug}
+          onClose={() => setIsOoaHistoryModalOpen(false)}
+        />
+      )}
     </div>
   );
 });

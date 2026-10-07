@@ -18,7 +18,6 @@ interface CopyFighterModalProps {
   fighterId: string;
   currentName: string;
   currentGangId: string;
-  isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
   fighterBaseCost: number;
@@ -32,7 +31,6 @@ export default function CopyFighterModal({
   fighterId,
   currentName,
   currentGangId,
-  isOpen,
   onClose,
   onSuccess,
   fighterBaseCost,
@@ -67,8 +65,6 @@ export default function CopyFighterModal({
     const vehicleCost = (hasVehicles && copyVehicles) ? totalVehicleCost : 0;
     return fighterCost + vehicleCost;
   }, [copyAsExperienced, fighterBaseCost, fighterFullCost, copyVehicles, hasVehicles, totalVehicleCost]);
-
-  if (!isOpen) return null;
 
   const resetModalState = () => {
     setName(currentName);

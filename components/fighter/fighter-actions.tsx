@@ -1,5 +1,6 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,6 @@ import { toast } from 'sonner';
 import { SellFighterModal } from "@/components/fighter/sell-fighter";
 import { UserPermissions } from '@/types/user-permissions';
 import { editFighterStatus } from "@/app/actions/edit-fighter";
-import CopyFighterModal from "@/components/fighter/copy-fighter-modal";
 import { useMutation } from '@tanstack/react-query';
 import { isStatusIncompatible } from '@/utils/fighter-status';
 import { Tooltip } from 'react-tooltip';
@@ -16,6 +16,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { beastSubtypeName, hasGuilderSales, hasSpyrerRecovery } from '@/types/edition';
+
+const CopyFighterModal = dynamic(() => import('@/components/fighter/copy-fighter-modal'), { ssr: false });
 
 interface Fighter {
   id: string;
@@ -611,7 +613,6 @@ export function FighterActions({
           fighterId={fighter.id}
           currentName={fighter.fighter_name}
           currentGangId={gang.id}
-          isOpen={modals.copy}
           onClose={() => handleModalToggle('copy', false)}
           onSuccess={() => onFighterUpdate?.()}
           fighterBaseCost={fighter.base_copy_cost ?? fighter.base_credits ?? 0}

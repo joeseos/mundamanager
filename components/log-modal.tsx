@@ -26,7 +26,6 @@ interface LogModalProps {
   fetchUrl: string;
   title?: string;
   emptyMessage?: string;
-  isOpen: boolean;
   onClose: () => void;
   fighters?: Array<{ id: string; name: string }>;
   vehicles?: Array<{ id: string; name: string }>;
@@ -41,7 +40,6 @@ export default function LogModal({
   fetchUrl,
   title = 'Activity Logs',
   emptyMessage = 'No activity logs found.',
-  isOpen,
   onClose,
   fighters,
   vehicles,
@@ -85,16 +83,7 @@ export default function LogModal({
       }
       return response.json();
     },
-    enabled: isOpen,
   });
-
-  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
-  if (isOpen && !prevIsOpen) {
-    setCurrentPage(1);
-  }
-  if (isOpen !== prevIsOpen) {
-    setPrevIsOpen(isOpen);
-  }
 
   const getActionTypeDisplay = (actionType: string) => getLogTypeLabel(actionType, editionSlug);
 
@@ -180,8 +169,6 @@ export default function LogModal({
       }
     }
   ];
-
-  if (!isOpen) return null;
 
   const showFighterFilter = fighters && fighters.length > 0;
   const showVehicleFilter = vehicles && vehicles.length > 0;

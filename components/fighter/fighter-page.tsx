@@ -19,7 +19,6 @@ import { VehicleEquipment } from '@/types/fighter';
 import { VEHICLE_EQUIPMENT_CATEGORIES } from '@/utils/vehicleEquipmentCategories';
 import { Vehicle } from '@/types/fighter';
 import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages";
-import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { UserPermissions } from '@/types/user-permissions';
 import { FighterActions } from "@/components/fighter/fighter-actions";
 import { Combobox } from "@/components/ui/combobox";
@@ -40,6 +39,10 @@ import { hasN26ProspectPromotionOccurred } from '@/utils/keepTypePromotionN26';
 const ItemModal = dynamic(() => import('@/components/equipment/equipment'), { ssr: false });
 const EditFighterModal = dynamic(
   () => import('@/components/fighter/edit-fighter/fighter-edit-modal').then((mod) => mod.EditFighterModal),
+  { ssr: false }
+);
+const FighterXpModal = dynamic(
+  () => import('@/components/fighter/fighter-xp-modal').then((mod) => mod.FighterXpModal),
   { ssr: false }
 );
 

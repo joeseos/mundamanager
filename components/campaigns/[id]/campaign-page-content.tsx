@@ -32,9 +32,9 @@ import { CampaignNotes } from "@/components/campaigns/[id]/campaign-notes";
 import CampaignMap from "./campaign-map"
 import { TbMapSearch } from "react-icons/tb";
 import { PiFlagBannerFoldBold } from "react-icons/pi";
-import LogModal from "@/components/log-modal";
 
 const CampaignEditModal = dynamic(() => import('@/components/campaigns/[id]/campaign-edit-modal'), { ssr: false });
+const LogModal = dynamic(() => import('@/components/log-modal'), { ssr: false });
 const CampaignImageEditModal = dynamic(
   () => import('@/components/campaigns/[id]/campaign-image-edit-modal').then((mod) => mod.CampaignImageEditModal),
   { ssr: false }
@@ -1118,14 +1118,15 @@ export default function CampaignPageContent({
 
       </div>
 
-      <LogModal
-        fetchUrl={`/api/campaigns/${campaignData.id}/logs`}
-        title="Campaign Activity Logs"
-        emptyMessage="No activity logs found for this campaign."
-        editionSlug={campaignData.edition_slug ?? null}
-        isOpen={showLogsModal}
-        onClose={() => setShowLogsModal(false)}
-      />
+      {showLogsModal && (
+        <LogModal
+          fetchUrl={`/api/campaigns/${campaignData.id}/logs`}
+          title="Campaign Activity Logs"
+          emptyMessage="No activity logs found for this campaign."
+          editionSlug={campaignData.edition_slug ?? null}
+          onClose={() => setShowLogsModal(false)}
+        />
+      )}
 
       {/* View Campaign Data Modal */}
       {showExportModal && (
