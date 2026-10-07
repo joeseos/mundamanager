@@ -1,6 +1,6 @@
 // Profile order, used to group and sort the Advancement characteristic list.
 // 1-9 are the main characteristics, 10-13 the psychology ones; the thresholds in
-// fighter-advancement-list.tsx follow these numbers.
+// advancement-modal.tsx follow these numbers.
 //
 // Save is N26-only and sits after Attacks on that edition's statline
 // (M, WS, BS, S, T, W, I, A, Sv, Ld, Cl, Wil, Int). N23 has no Save Advancement,

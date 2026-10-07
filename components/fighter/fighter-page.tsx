@@ -1018,11 +1018,6 @@ export default function FighterPage({
                 };
               });
             }}
-            onCharacteristicUpdate={(characteristicName, changeAmount) => {
-              // Characteristics are now updated through effect modifiers
-              // The stats calculation will handle the display automatically
-              // No direct characteristic updates needed
-            }}
           />
 
           {fighterData.fighter?.is_spyrer && hasSpyrerPowerBoosts(editionSlug) && (
