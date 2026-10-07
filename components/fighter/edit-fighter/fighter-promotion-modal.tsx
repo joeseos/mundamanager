@@ -260,6 +260,7 @@ export function FighterPromotionModal({
       }),
     [
       displayTypes,
+      editionSlug,
       resolvedCurrentSpecialisationId,
       includeAllGangFighterTypes,
       targetSubtype,

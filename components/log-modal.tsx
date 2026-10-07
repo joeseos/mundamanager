@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Modal from '@/components/ui/modal';
 import { ListColumn } from '@/components/ui/list';
@@ -115,11 +115,8 @@ export default function LogModal({
     setFilterActionType('');
     setFilterFighterId('');
     setFilterVehicleId('');
-  };
-
-  useEffect(() => {
     setCurrentPage(1);
-  }, [filterActionType, filterFighterId, filterVehicleId]);
+  };
 
   const totalPages = Math.ceil(filteredLogs.length / logsPerPage);
   const startIndex = (currentPage - 1) * logsPerPage;
@@ -204,7 +201,7 @@ export default function LogModal({
             <Combobox
               options={actionTypeOptions}
               value={filterActionType}
-              onValueChange={setFilterActionType}
+              onValueChange={(value) => { setFilterActionType(value); setCurrentPage(1); }}
               placeholder="All Action Types"
               className="h-9"
             />
@@ -220,7 +217,7 @@ export default function LogModal({
                   ...(fighters ?? []).map(f => ({ value: f.id, label: f.name })),
                 ]}
                 value={filterFighterId}
-                onValueChange={setFilterFighterId}
+                onValueChange={(value) => { setFilterFighterId(value); setCurrentPage(1); }}
                 placeholder="All Fighters"
                 className="h-9"
               />
@@ -237,7 +234,7 @@ export default function LogModal({
                   ...(vehicles ?? []).map(v => ({ value: v.id, label: v.name })),
                 ]}
                 value={filterVehicleId}
-                onValueChange={setFilterVehicleId}
+                onValueChange={(value) => { setFilterVehicleId(value); setCurrentPage(1); }}
                 placeholder="All Vehicles"
                 className="h-9"
               />
