@@ -1394,7 +1394,6 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
             is_custom: t.is_custom,
             default_gang_territory: t.default_gang_territory
           }))}
-          isOpen={showBattleModal}
           onClose={handleModalClose}
           onBattleUpdate={onBattlesChange}
           onTerritoryUpdate={onTerritoryUpdate}

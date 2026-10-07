@@ -79,7 +79,6 @@ interface FighterTypesData {
 
 interface EditFighterModalProps {
   fighter: Fighter;
-  isOpen: boolean;
   initialValues: {
     name: string;
     label: string;
@@ -116,7 +115,6 @@ interface EditFighterModalProps {
 
 export function EditFighterModal({
   fighter,
-  isOpen,
   initialValues,
   gangId,
   gangTypeId,
@@ -162,7 +160,6 @@ export function EditFighterModal({
       if (!response.ok) throw new Error('Failed to fetch fighter types');
       return response.json();
     },
-    enabled: isOpen,
     staleTime: 10 * 60 * 1000,
   });
 
@@ -300,7 +297,6 @@ export function EditFighterModal({
       if (!response.ok) throw new Error('Failed to fetch fighter subtypes');
       return response.json();
     },
-    enabled: isOpen,
     staleTime: 10 * 60 * 1000,
   });
 
@@ -491,7 +487,7 @@ export function EditFighterModal({
       if (!response.ok) throw new Error('Failed to fetch archetypes');
       return response.json();
     },
-    enabled: isOpen && canUseArchetypes,
+    enabled: canUseArchetypes,
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
 
@@ -1060,9 +1056,6 @@ export function EditFighterModal({
       return false;
     }
   };
-
-  // Don't render if modal isn't open
-  if (!isOpen) return null;
 
   return (
     <>

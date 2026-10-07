@@ -28,7 +28,6 @@ interface CampaignBattleLogModalProps {
   editionSlug?: string | null;
   availableGangs: CampaignGang[];
   territories?: BattleLogTerritory[];
-  isOpen: boolean;
   onClose: () => void;
   onBattleUpdate: (updatedBattles: Battle[] | ((prevBattles: Battle[]) => Battle[])) => void;
   /** Battle logs can claim or release a territory; this reports that to the page. */
@@ -65,7 +64,6 @@ const CampaignBattleLogModal = ({
   editionSlug,
   availableGangs,
   territories = [],
-  isOpen,
   onClose,
   onBattleUpdate,
   onTerritoryUpdate,
@@ -105,7 +103,6 @@ const CampaignBattleLogModal = ({
     removeWinnerSlot,
     loadExistingWinners,
     removeGangFromWinners,
-    resetWinnerSelection,
   } = useWinnerSelection({
     maxParticipants: selectedGangs.length,
     selectedTerritory,
@@ -368,7 +365,7 @@ const CampaignBattleLogModal = ({
   useEffect(() => {
     let isMounted = true;
 
-    if (isOpen && campaignId) {
+    if (campaignId) {
       const fetchData = async () => {
         setIsLoadingBattleData(true);
         try {
@@ -411,14 +408,11 @@ const CampaignBattleLogModal = ({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, campaignId, editionSlug]);
+  }, [campaignId, editionSlug]);
 
   // Populate form when modal opens with edit data and scenarios are loaded
   const [populatedForBattle, setPopulatedForBattle] = useState<string | null>(null);
-  if (!isOpen && populatedForBattle !== null) {
-    setPopulatedForBattle(null);
-  }
-  if (isOpen && battleToEdit && scenarios.length > 0 && battleToEdit.id !== populatedForBattle) {
+  if (battleToEdit && scenarios.length > 0 && battleToEdit.id !== populatedForBattle) {
     setPopulatedForBattle(battleToEdit.id);
     setBattlePlayed(battleStatusOf(battleToEdit) === 'played');
     setChallengeResponse(battleStatusOf(battleToEdit));
@@ -729,7 +723,6 @@ const CampaignBattleLogModal = ({
 
     // Close modal immediately for instant UX
     onClose();
-    resetForm();
 
     // Create or update battle based on mode using mutations
     if (isEditMode && battleToEdit) {
@@ -739,27 +732,6 @@ const CampaignBattleLogModal = ({
     }
 
     return true;
-  };
-
-  const resetForm = () => {
-    setSelectedScenario('');
-    setCustomScenario('');
-    setGangsInBattle([
-      { id: 1, gangId: "", role: 'none' },
-      { id: 2, gangId: "", role: 'none' },
-    ]);
-    resetWinnerSelection();
-    setNotes('');
-    setSelectedTerritory('');
-    setCycle('');
-    const now = new Date();
-    const tzOffsetMs = now.getTimezoneOffset() * 60000;
-    setBattleDate(new Date(now.getTime() - tzOffsetMs).toISOString().slice(0, 10));
-  };
-
-  const handleClose = () => {
-    resetForm();
-    onClose();
   };
 
   // Check if form is valid using useMemo to avoid unnecessary recalculations
@@ -805,8 +777,6 @@ const CampaignBattleLogModal = ({
     cycle,
     showResultFields,
   ]);
-
-  if (!isOpen) return null;
 
   return (
     <Modal
@@ -1223,7 +1193,7 @@ const CampaignBattleLogModal = ({
           </div>
         </div>
       }
-      onClose={handleClose}
+      onClose={onClose}
       onConfirm={handleSaveBattle}
       confirmText={
         isUnplayedChallenge

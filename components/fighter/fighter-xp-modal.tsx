@@ -35,7 +35,6 @@ const TARGET_CASES: TargetCaseConfig[] = [
 type XpCase = XpCaseDef & { id: XpCaseId };
 
 interface FighterXpModalProps {
-  isOpen: boolean;
   fighterId: string;
   currentXp: number;
   currentTotalXp: number;
@@ -59,7 +58,6 @@ interface FighterXpModalProps {
 }
 
 export function FighterXpModal({
-  isOpen,
   fighterId,
   currentXp,
   currentTotalXp,
@@ -131,7 +129,7 @@ export function FighterXpModal({
   const { data: campaignGangs = [], isLoading: gangsLoading } = useQuery({
     queryKey: ['campaign-gangs-fighters', gangId, campaignId],
     queryFn: () => fetchCampaignGangsAndFighters({ campaignId, gangId: gangId! }),
-    enabled: isOpen && showTargets,
+    enabled: showTargets,
     staleTime: 60_000,
   });
 
@@ -385,8 +383,6 @@ export function FighterXpModal({
     // Call the parent onClose function
     onClose();
   };
-
-  if (!isOpen) return null;
 
   return (
     <Modal

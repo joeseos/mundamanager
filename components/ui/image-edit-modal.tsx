@@ -11,7 +11,6 @@ import { DefaultImageEntry, DefaultImageCredit } from '@/types/gang';
 import { DefaultImageCreditLine } from '@/components/ui/default-image-credit-line';
 
 interface ImageEditModalProps {
-  isOpen: boolean;
   onClose: () => void;
   currentImageUrl?: string;
   title: string;
@@ -27,7 +26,6 @@ interface ImageEditModalProps {
 }
 
 export const ImageEditModal: React.FC<ImageEditModalProps> = ({
-  isOpen,
   onClose,
   currentImageUrl,
   title,
@@ -47,14 +45,12 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
   const [isSavingDefaultImage, setIsSavingDefaultImage] = useState(false);
 
   const derivedIndex = currentDefaultImageIndex ?? null;
-  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
   const [prevDerivedIndex, setPrevDerivedIndex] = useState(derivedIndex);
-  if ((isOpen && !prevIsOpen) || (isOpen && derivedIndex !== prevDerivedIndex)) {
+  if (derivedIndex !== prevDerivedIndex) {
+    setPrevDerivedIndex(derivedIndex);
     setSelectedDefaultImageIndex(derivedIndex);
     setIsSavingDefaultImage(false);
   }
-  if (isOpen !== prevIsOpen) setPrevIsOpen(isOpen);
-  if (derivedIndex !== prevDerivedIndex) setPrevDerivedIndex(derivedIndex);
 
   const {
     image,
@@ -74,13 +70,10 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
     cropAspect,
     enableCrop,
   } = useImageEditor({
-    isOpen,
     onImageUpdate,
     uploadConfig,
     imageConfig,
   });
-
-  if (!isOpen) return null;
 
   // Default image index to display (0 = Silhouette, 1 = Djidiouf, 2 = Carl R Johnston Grey, 3 = Carl R Johnston Colour)
   const DEFAULT_IMAGE_INDEX = 3;

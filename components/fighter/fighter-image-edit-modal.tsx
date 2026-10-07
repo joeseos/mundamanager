@@ -5,7 +5,6 @@ import { updateFighterImage } from '@/app/actions/update-fighter-image';
 import { ImageEditModal } from '@/components/ui/image-edit-modal';
 
 interface FighterImageEditModalProps {
-  isOpen: boolean;
   onClose: () => void;
   currentImageUrl?: string;
   fighterId: string;
@@ -14,7 +13,6 @@ interface FighterImageEditModalProps {
 }
 
 export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
-  isOpen,
   onClose,
   currentImageUrl,
   fighterId,
@@ -25,7 +23,6 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
 
   return (
     <ImageEditModal
-      isOpen={isOpen}
       onClose={onClose}
       currentImageUrl={currentImageUrl}
       title="Edit Fighter Image"

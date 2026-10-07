@@ -769,7 +769,6 @@ export default function GangPageContent({
       {/* Fighter card context modals */}
       {xpModalFighter && (
         <FighterXpModal
-          isOpen={true}
           fighterId={xpModalFighter.id}
           currentXp={xpModalFighter.xp ?? 0}
           currentTotalXp={xpModalFighter.xp ?? 0}
