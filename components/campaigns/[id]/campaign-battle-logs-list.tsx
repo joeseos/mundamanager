@@ -1,10 +1,10 @@
 "use client"
 
 import { Button } from "@/components/ui/button";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, forwardRef, useImperativeHandle, useMemo, useCallback } from "react";
 import { toast } from 'sonner';
-import CampaignBattleLogModal from "@/components/campaigns/[id]/campaign-battle-log-modal";
 import { BiSolidNotepad } from "react-icons/bi";
 import { HiX } from "react-icons/hi";
 import { LuChevronLeft, LuChevronRight } from "react-icons/lu";
@@ -25,6 +25,8 @@ import { Combobox } from "@/components/ui/combobox";
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+
+const CampaignBattleLogModal = dynamic(() => import("@/components/campaigns/[id]/campaign-battle-log-modal"), { ssr: false });
 
 interface CampaignBattleLogsTerritory extends Territory {
   default_gang_territory?: boolean;
@@ -1380,26 +1382,28 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         />
       )}
 
-      <CampaignBattleLogModal
-        campaignId={campaignId}
-        editionSlug={editionSlug}
-        availableGangs={availableGangs}
-        territories={territories.map(t => ({
-          id: t.id,
-          name: t.territory_name,
-          controlled_by: t.gang_id || undefined,
-          is_custom: t.is_custom,
-          default_gang_territory: t.default_gang_territory
-        }))}
-        isOpen={showBattleModal}
-        onClose={handleModalClose}
-        onBattleUpdate={onBattlesChange}
-        onTerritoryUpdate={onTerritoryUpdate}
-        battles={battles}
-        battleToEdit={selectedBattle}
-        userRole={isAdmin ? 'ARBITRATOR' : 'MEMBER'}
-        canRespondToChallenge={isAdmin || ownsGang(selectedBattle?.challenged_gang_id)}
-      />
+      {showBattleModal && (
+        <CampaignBattleLogModal
+          campaignId={campaignId}
+          editionSlug={editionSlug}
+          availableGangs={availableGangs}
+          territories={territories.map(t => ({
+            id: t.id,
+            name: t.territory_name,
+            controlled_by: t.gang_id || undefined,
+            is_custom: t.is_custom,
+            default_gang_territory: t.default_gang_territory
+          }))}
+          isOpen={showBattleModal}
+          onClose={handleModalClose}
+          onBattleUpdate={onBattlesChange}
+          onTerritoryUpdate={onTerritoryUpdate}
+          battles={battles}
+          battleToEdit={selectedBattle}
+          userRole={isAdmin ? 'ARBITRATOR' : 'MEMBER'}
+          canRespondToChallenge={isAdmin || ownsGang(selectedBattle?.challenged_gang_id)}
+        />
+      )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (

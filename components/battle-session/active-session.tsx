@@ -1,5 +1,6 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
@@ -14,8 +15,6 @@ import {
 } from '@/app/actions/battle-sessions';
 import { useBattleSessionRealtime } from '@/hooks/use-battle-session-realtime';
 import ParticipantCard from './participant-card';
-import CreateBattleModal from './create-battle-modal';
-import CompleteBattleModal from './complete-battle-modal';
 import CompletedSession from './completed-session';
 import Modal from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
@@ -24,6 +23,9 @@ import type { BattleSessionFull } from '@/types/battle-session';
 import type { Scenario } from '@/types/campaign';
 import { sameEditionForDisplay } from '@/types/edition';
 import type { GangFighter } from '@/types/gang';
+
+const CreateBattleModal = dynamic(() => import('./create-battle-modal'), { ssr: false });
+const CompleteBattleModal = dynamic(() => import('./complete-battle-modal'), { ssr: false });
 
 interface ActiveSessionProps {
   session: BattleSessionFull;

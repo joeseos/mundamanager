@@ -1,5 +1,6 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useState, useCallback, useMemo } from 'react';
 import { FighterProps } from "@/types/fighter";
 import { FighterType } from "@/types/fighter-type";
@@ -20,7 +21,6 @@ import GangTacticsCards from "@/components/gang/gang-tactics-cards";
 import type { BattleSession } from "@/types/battle-session";
 import type { GangTacticsCard } from "@/types/tactics-card";
 import { FighterCardModalsProvider } from "@/components/gang/fighter-card-modals-context";
-import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { InjuriesList } from "@/components/fighter/fighter-injury-list";
 import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages";
 import Modal from "@/components/ui/modal";
@@ -29,6 +29,11 @@ import { toast } from 'sonner';
 import type { FighterEffect } from '@/types/fighter';
 import { hasKilledStatusFlag, countsTowardRating } from '@/utils/fighter-status';
 import { hasVehicles, hasGangTacticsCards } from '@/types/edition';
+
+const FighterXpModal = dynamic(
+  () => import('@/components/fighter/fighter-xp-modal').then((mod) => mod.FighterXpModal),
+  { ssr: false }
+);
 
 interface GangPageContentProps {
   initialGangData: any; // We'll type this properly based on the processed data structure
@@ -641,6 +646,7 @@ export default function GangPageContent({
             onFighterUpdate={handleFighterUpdate}
             onGangCreditsUpdate={handleGangCreditsUpdate}
             onGangWealthUpdate={handleGangWealthUpdate}
+            onGangRatingUpdate={handleGangRatingUpdate}
             gang_subtypes={gangData.processedData.gang_subtypes}
             vehicles={gangData.processedData.vehicles || []}
             userPermissions={userPermissions}
