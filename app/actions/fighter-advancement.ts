@@ -7,10 +7,12 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { updateGangRatingSimple, updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { countsTowardRating } from '@/utils/fighter-status';
 import {
+  gangEditionSlug,
   hasChampionLeaderTypePromotion,
   hasCumulativeXp,
   hasGangerChampionKeepTypePromotion,
   hasProspectSpecialisationPromotion,
+  hasSharedAdvancementTable,
 } from '@/types/edition';
 import {
   N26_CHAMPION_PROMOTION_SKILL_ID,
@@ -62,15 +64,6 @@ const ROLL_LOGGER_FIGHTER_SELECT = `
   id, gang_id, fighter_name, fighter_subtypes,
   ${GANG_EDITION_EMBED}
 `;
-
-// Embeds come back as objects for these many-to-one FKs; the untyped client
-// infers arrays, hence the casts (same pattern as equipment.ts).
-function editionSlugOf(fighter: any): string | null {
-  const gang = fighter.gangs as any;
-  return gang?.gang_types?.editions?.slug
-    ?? gang?.custom_gang_types?.editions?.slug
-    ?? null;
-}
 
 /**
  * Whether the fighter may take another Advancement right now.
@@ -226,7 +219,7 @@ export async function addCharacteristicAdvancement(
 
     // N26 earns Advancements by reaching a rank rather than buying them, so its
     // XP total only ever grows and there is nothing to afford.
-    const spendsXp = !hasCumulativeXp(editionSlugOf(fighter));
+    const spendsXp = !hasCumulativeXp(gangEditionSlug(fighter.gangs));
 
     const blockedReason = advancementBlockedReason(fighter, spendsXp, params.xp_cost);
     if (blockedReason) {
@@ -427,7 +420,7 @@ async function addSkillAdvancementInternal(
 
     // N26 earns Advancements by reaching a rank rather than buying them, so its
     // XP total only ever grows and there is nothing to afford.
-    const spendsXp = !hasCumulativeXp(editionSlugOf(fighter));
+    const spendsXp = !hasCumulativeXp(gangEditionSlug(fighter.gangs));
 
     const blockedReason = advancementBlockedReason(fighter, spendsXp, params.xp_cost);
     if (blockedReason) {
@@ -981,7 +974,7 @@ export async function applyN26ProspectPromotion(
       return { success: false, error: 'Fighter not found' };
     }
 
-    const editionSlug = editionSlugOf(before);
+    const editionSlug = gangEditionSlug(before.gangs);
     if (!hasProspectSpecialisationPromotion(editionSlug)) {
       return { success: false, error: 'Prospect specialisation promotion is not available for this edition' };
     }
@@ -1078,7 +1071,7 @@ export async function applyN26GangerChampionPromotion(
       return { success: false, error: 'Fighter not found' };
     }
 
-    const editionSlug = editionSlugOf(before);
+    const editionSlug = gangEditionSlug(before.gangs);
     if (!hasGangerChampionKeepTypePromotion(editionSlug)) {
       return {
         success: false,
@@ -1163,7 +1156,7 @@ export async function applyN26ChampionLeaderPromotion(
       return { success: false, error: 'Fighter not found' };
     }
 
-    const editionSlug = editionSlugOf(before);
+    const editionSlug = gangEditionSlug(before.gangs);
     if (!hasChampionLeaderTypePromotion(editionSlug)) {
       return {
         success: false,
@@ -1275,7 +1268,7 @@ export async function deleteAdvancement(
     // Note: Authorization is enforced by RLS policies on fighters table
 
     // Nothing was spent on an N26 Advancement, so deleting one refunds nothing.
-    const spendsXp = !hasCumulativeXp(editionSlugOf(fighter));
+    const spendsXp = !hasCumulativeXp(gangEditionSlug(fighter.gangs));
 
     let xpToRefund = 0;
     let ratingDelta = 0;
@@ -1334,7 +1327,7 @@ export async function deleteAdvancement(
       const currentSubtypesForGrant: string[] = Array.isArray(fighter.fighter_subtypes)
         ? fighter.fighter_subtypes
         : [];
-      const editionSlugForUndo = editionSlugOf(fighter);
+      const editionSlugForUndo = gangEditionSlug(fighter.gangs);
 
       // Load catalog subtypes once for N26 promotion undo checks.
       let catalogSubtypesForUndo: string[] = [];
@@ -2083,7 +2076,7 @@ const GANGER_ELIGIBLE_SUBTYPES = new Set(['Ganger', 'Exotic Beast']);
  * rescue an N26 fighter.
  */
 const routesRollsBySubtype = (fighter: any): boolean =>
-  !hasCumulativeXp(editionSlugOf(fighter));
+  !hasSharedAdvancementTable(gangEditionSlug(fighter.gangs));
 
 const isGangerEligible = (fighter: any): boolean =>
   !!fighter.fighter_subtypes?.some((subtype: string) => GANGER_ELIGIBLE_SUBTYPES.has(subtype));

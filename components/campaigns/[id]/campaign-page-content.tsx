@@ -22,7 +22,6 @@ import CampaignTerritoryList from "@/components/campaigns/[id]/campaign-territor
 import CampaignCaptivesList from "@/components/campaigns/[id]/campaign-captives-list";
 import CampaignAddTerritoryModal from "@/components/campaigns/[id]/campaign-add-territory-modal";
 import { CampaignBattleLogsListRef } from "@/components/campaigns/[id]/campaign-battle-logs-list";
-import CampaignEditModal from "@/components/campaigns/[id]/campaign-edit-modal";
 import CampaignTriumphs from "@/components/campaigns/[id]/campaign-triumphs";
 import type { CampaignPermissions } from '@/types/user-permissions';
 import type { Battle, CampaignType } from '@/types/campaign';
@@ -35,6 +34,7 @@ import { TbMapSearch } from "react-icons/tb";
 import { PiFlagBannerFoldBold } from "react-icons/pi";
 import LogModal from "@/components/log-modal";
 
+const CampaignEditModal = dynamic(() => import('@/components/campaigns/[id]/campaign-edit-modal'), { ssr: false });
 const CampaignImageEditModal = dynamic(
   () => import('@/components/campaigns/[id]/campaign-image-edit-modal').then((mod) => mod.CampaignImageEditModal),
   { ssr: false }
@@ -1020,69 +1020,71 @@ export default function CampaignPageContent({
           )}
 
         {/* Replace the inline modal with our new component */}
-        <CampaignEditModal
-          isOpen={showEditModal}
-          campaignData={{
-            id: campaignData.id,
-            campaign_name: campaignData.campaign_name,
-            description: campaignData.description,
-            trading_posts: campaignData.trading_posts || [],
-            custom_trading_posts: campaignData.custom_trading_posts || [],
-            status: campaignData.status,
-            allow_join_requests: campaignData.allow_join_requests ?? false,
-            campaign_type_name: campaignData.campaign_type_name,
-            campaign_type_id: campaignData.campaign_type_id,
-            edition_slug: campaignData.edition_slug ?? null,
-            discord_guild_id: campaignData.discord_guild_id,
-            discord_channel_id: campaignData.discord_channel_id,
-            discord_channel_type: campaignData.discord_channel_type,
-          }}
-          tradingPostTypes={tradingPostTypes || []}
-          customTradingPostTypes={customTradingPostTypes}
-          onClose={() => setShowEditModal(false)}
-          isArbitrator={!!safePermissions.isArbitrator}
-          isAdmin={isAdmin}
-          onSaved={handleSettingsSaved}
-          isOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}
-          campaignAllegiances={campaignAllegiances}
-          predefinedAllegiances={campaignAllegiances.filter(a => !a.is_custom)}
-          onMembersUpdate={(allegianceId) => {
-            // Optimistically clear allegiance from all gangs that have it
-            setCampaignData(prev => ({
-              ...prev,
-              members: prev.members.map(member => ({
-                ...member,
-                gangs: member.gangs.map((gang: Member['gangs'][0]) => ({
-                  ...gang,
-                  allegiance: gang.allegiance?.id === allegianceId ? null : gang.allegiance
+        {showEditModal && (
+          <CampaignEditModal
+            isOpen={showEditModal}
+            campaignData={{
+              id: campaignData.id,
+              campaign_name: campaignData.campaign_name,
+              description: campaignData.description,
+              trading_posts: campaignData.trading_posts || [],
+              custom_trading_posts: campaignData.custom_trading_posts || [],
+              status: campaignData.status,
+              allow_join_requests: campaignData.allow_join_requests ?? false,
+              campaign_type_name: campaignData.campaign_type_name,
+              campaign_type_id: campaignData.campaign_type_id,
+              edition_slug: campaignData.edition_slug ?? null,
+              discord_guild_id: campaignData.discord_guild_id,
+              discord_channel_id: campaignData.discord_channel_id,
+              discord_channel_type: campaignData.discord_channel_type,
+            }}
+            tradingPostTypes={tradingPostTypes || []}
+            customTradingPostTypes={customTradingPostTypes}
+            onClose={() => setShowEditModal(false)}
+            isArbitrator={!!safePermissions.isArbitrator}
+            isAdmin={isAdmin}
+            onSaved={handleSettingsSaved}
+            isOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}
+            campaignAllegiances={campaignAllegiances}
+            predefinedAllegiances={campaignAllegiances.filter(a => !a.is_custom)}
+            onMembersUpdate={(allegianceId) => {
+              // Optimistically clear allegiance from all gangs that have it
+              setCampaignData(prev => ({
+                ...prev,
+                members: prev.members.map(member => ({
+                  ...member,
+                  gangs: member.gangs.map((gang: Member['gangs'][0]) => ({
+                    ...gang,
+                    allegiance: gang.allegiance?.id === allegianceId ? null : gang.allegiance
+                  }))
                 }))
               }))
-            }))
-          }}
-          onAllegianceRenamed={(allegianceId, newName) => {
-            // Optimistically update allegiance name for all gangs that have it
-            setCampaignData(prev => ({
-              ...prev,
-              members: prev.members.map(member => ({
-                ...member,
-                gangs: member.gangs.map((gang: Member['gangs'][0]) => ({
-                  ...gang,
-                  allegiance: gang.allegiance?.id === allegianceId 
-                    ? {
-                        ...gang.allegiance,
-                        name: newName
-                      }
-                    : gang.allegiance
+            }}
+            onAllegianceRenamed={(allegianceId, newName) => {
+              // Optimistically update allegiance name for all gangs that have it
+              setCampaignData(prev => ({
+                ...prev,
+                members: prev.members.map(member => ({
+                  ...member,
+                  gangs: member.gangs.map((gang: Member['gangs'][0]) => ({
+                    ...gang,
+                    allegiance: gang.allegiance?.id === allegianceId 
+                      ? {
+                          ...gang.allegiance,
+                          name: newName
+                        }
+                      : gang.allegiance
+                  }))
                 }))
               }))
-            }))
-          }}
-          campaignResources={campaignResources}
-          predefinedResources={campaignResources.filter(r => !r.is_custom)}
-          onDiscordConnected={(guildId) => {
-            setCampaignData(prev => ({ ...prev, discord_guild_id: guildId }));
-          }}
-        />
+            }}
+            campaignResources={campaignResources}
+            predefinedResources={campaignResources.filter(r => !r.is_custom)}
+            onDiscordConnected={(guildId) => {
+              setCampaignData(prev => ({ ...prev, discord_guild_id: guildId }));
+            }}
+          />
+        )}
 
         {showImageModal && (
           <CampaignImageEditModal
