@@ -121,21 +121,6 @@ export default function CampaignEditModal({
     [customTradingPostTypes, campaignData.edition_slug]
   );
 
-  const [prevCampaignData, setPrevCampaignData] = useState(campaignData);
-  if (campaignData !== prevCampaignData) {
-    setPrevCampaignData(campaignData);
-    setFormValues({
-      campaignName: campaignData.campaign_name,
-      description: campaignData.description ?? '',
-      status: campaignData.status || 'Active',
-      allowJoinRequests: campaignData.allow_join_requests ?? false,
-      tradingPosts: campaignData.trading_posts || [],
-      customTradingPosts: campaignData.custom_trading_posts || [],
-    });
-    setCharCount((campaignData.description ?? '').length);
-    setSelectedChannelId(campaignData.discord_channel_id || '');
-  }
-
   const [prevDiscordGuildId, setPrevDiscordGuildId] = useState(campaignData.discord_guild_id);
   if (campaignData.discord_guild_id !== prevDiscordGuildId) {
     setPrevDiscordGuildId(campaignData.discord_guild_id);
