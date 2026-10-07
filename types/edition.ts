@@ -144,6 +144,8 @@ const EDITION_CAPABILITIES = {
    * if one is deleted.
    */
   cumulativeXp:             { n23: false, n26: true  },
+  /** Every fighter rolls Advancements on the one table, Gangers and Exotic Beasts included */
+  sharedAdvancementTable:   { n23: false, n26: true  },
   /**
    * Weapon profiles use the N26 statline (SR, LR, Str, AP, Lethality) rather
    * than the N23 one (Rng S/L, Acc S/L, Str, AP, D, Am). Ammo and Damage are
@@ -331,6 +333,9 @@ export const hasStartingXp = (editionSlug?: string | null): boolean =>
 
 export const hasCumulativeXp = (editionSlug?: string | null): boolean =>
   can('cumulativeXp', editionSlug);
+
+export const hasSharedAdvancementTable = (editionSlug?: string | null): boolean =>
+  can('sharedAdvancementTable', editionSlug);
 
 export const hasLethalityStatline = (editionSlug?: string | null): boolean =>
   can('lethalityStatline', editionSlug);
