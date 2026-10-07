@@ -1,12 +1,14 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import CreateBattleModal from '@/components/battle-session/create-battle-modal';
 import type { CampaignGang } from '@/components/battle-session/create-battle-modal';
 import { statusLabels, formatBattleSessionDate } from '@/types/battle-session';
 import type { BattleSession } from '@/types/battle-session';
+
+const CreateBattleModal = dynamic(() => import('@/components/battle-session/create-battle-modal'), { ssr: false });
 
 interface BattleSessionsListProps {
   sessions: BattleSession[];
