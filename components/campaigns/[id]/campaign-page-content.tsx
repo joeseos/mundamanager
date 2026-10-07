@@ -10,7 +10,6 @@ import { useShare } from '@/hooks/use-share';
 import { toJpeg } from 'html-to-image';
 import Image from 'next/image';
 import { UNKNOWN_GANG_IMAGE_URL } from '@/types/gang';
-import { CampaignImageEditModal } from '@/components/campaigns/[id]/campaign-image-edit-modal';
 import MemberSearchBar from "@/components/campaigns/[id]/campaign-member-search-bar"
 import MembersTable from "@/components/campaigns/[id]/campaign-members-table"
 import CampaignBattleLogsList from "@/components/campaigns/[id]/campaign-battle-logs-list";
@@ -36,6 +35,10 @@ import { PiFlagBannerFoldBold } from "react-icons/pi";
 import LogModal from "@/components/log-modal";
 
 const CampaignEditModal = dynamic(() => import('@/components/campaigns/[id]/campaign-edit-modal'), { ssr: false });
+const CampaignImageEditModal = dynamic(
+  () => import('@/components/campaigns/[id]/campaign-image-edit-modal').then((mod) => mod.CampaignImageEditModal),
+  { ssr: false }
+);
 
 interface Gang {
   id: string;
@@ -1083,14 +1086,16 @@ export default function CampaignPageContent({
           />
         )}
 
-        <CampaignImageEditModal
-          isOpen={showImageModal}
-          onClose={() => setShowImageModal(false)}
-          currentImageUrl={campaignData.image_url || ''}
-          campaignId={campaignData.id}
-          onImageUpdate={(newUrl) => setCampaignData(prev => ({ ...prev, image_url: newUrl }))}
-          defaultImageUrl={campaignData.campaign_type_image_url}
-        />
+        {showImageModal && (
+          <CampaignImageEditModal
+            isOpen={showImageModal}
+            onClose={() => setShowImageModal(false)}
+            currentImageUrl={campaignData.image_url || ''}
+            campaignId={campaignData.id}
+            onImageUpdate={(newUrl) => setCampaignData(prev => ({ ...prev, image_url: newUrl }))}
+            defaultImageUrl={campaignData.campaign_type_image_url}
+          />
+        )}
 
         <CampaignAddTerritoryModal
           isOpen={showTerritoryModal}

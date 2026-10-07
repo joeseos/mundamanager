@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -21,9 +22,13 @@ import { FaMedkit, FaBookDead } from "react-icons/fa";
 import { LuLogs } from "react-icons/lu";
 import { Equipment } from '@/types/equipment';
 import { UserPermissions } from '@/types/user-permissions';
-import { FighterImageEditModal } from './fighter-image-edit-modal';
 import LogModal from '@/components/log-modal';
 import { FighterOoaHistoryModal } from './fighter-ooa-history-modal';
+
+const FighterImageEditModal = dynamic(
+  () => import('./fighter-image-edit-modal').then((mod) => mod.FighterImageEditModal),
+  { ssr: false }
+);
 
 // Vehicle equipment interface that extends Equipment
 interface VehicleEquipment extends Equipment {
@@ -674,14 +679,16 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       </div>
 
       {/* Image Edit Modal */}
-      <FighterImageEditModal
-        isOpen={isImageModalOpen}
-        onClose={() => setIsImageModalOpen(false)}
-        currentImageUrl={currentImageUrl}
-        fighterId={id}
-        gangId={gangId || ''}
-        onImageUpdate={handleImageUpdate}
-      />
+      {isImageModalOpen && (
+        <FighterImageEditModal
+          isOpen={isImageModalOpen}
+          onClose={() => setIsImageModalOpen(false)}
+          currentImageUrl={currentImageUrl}
+          fighterId={id}
+          gangId={gangId || ''}
+          onImageUpdate={handleImageUpdate}
+        />
+      )}
 
       {/* Fighter Logs Modal */}
       <LogModal

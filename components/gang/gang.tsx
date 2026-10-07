@@ -26,7 +26,6 @@ import { FaRegCopy } from 'react-icons/fa';
 import CopyGangModal from './copy-gang-modal';
 import { Tooltip } from 'react-tooltip';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
-import { GangImageEditModal } from './gang-image-edit-modal';
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { hasAlignment, hasTradePoints, hasVehicles } from '@/types/edition';
@@ -35,6 +34,10 @@ import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 const GangEditModal = dynamic(() => import('./gang-edit-modal'), { ssr: false });
 const FighterAddModal = dynamic(() => import('./fighter-add/FighterAddModal'), { ssr: false });
 const AddVehicle = dynamic(() => import('./add-vehicle'), { ssr: false });
+const GangImageEditModal = dynamic(
+  () => import('./gang-image-edit-modal').then((mod) => mod.GangImageEditModal),
+  { ssr: false }
+);
 
 
 interface GangProps {
@@ -1409,16 +1412,18 @@ export default function Gang({
             isOpen={showCopyModal}
             onClose={() => setShowCopyModal(false)}
           />
-          <GangImageEditModal
-            isOpen={showImageModal}
-            onClose={() => setShowImageModal(false)}
-            currentImageUrl={currentGangImageUrl}
-            gangId={id}
-            onImageUpdate={handleGangImageUpdate}
-            defaultImageUrl={getDefaultImageUrl() || undefined}
-            defaultImageUrls={gang_type_default_image_urls}
-            currentDefaultImageIndex={currentDefaultGangImage}
-          />
+          {showImageModal && (
+            <GangImageEditModal
+              isOpen={showImageModal}
+              onClose={() => setShowImageModal(false)}
+              currentImageUrl={currentGangImageUrl}
+              gangId={id}
+              onImageUpdate={handleGangImageUpdate}
+              defaultImageUrl={getDefaultImageUrl() || undefined}
+              defaultImageUrls={gang_type_default_image_urls}
+              currentDefaultImageIndex={currentDefaultGangImage}
+            />
+          )}
           <Tooltip
             id="gang-composition-tooltip"
             place="top"
