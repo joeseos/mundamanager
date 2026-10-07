@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import Modal from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -66,19 +66,6 @@ export default function CopyFighterModal({
     return fighterCost + vehicleCost;
   }, [copyAsExperienced, fighterBaseCost, fighterFullCost, copyVehicles, hasVehicles, totalVehicleCost]);
 
-  const resetModalState = () => {
-    setName(currentName);
-    setSubmitting(false);
-    setDeductCredits(true);
-    setCopyAsExperienced(false);
-    setCopyVehicles(true);
-  };
-
-  const handleClose = () => {
-    resetModalState();
-    onClose();
-  };
-
   const handleConfirm = async () => {
     if (!name.trim()) return false;
 
@@ -106,7 +93,6 @@ export default function CopyFighterModal({
         : `${result.data?.fighter_name} was successfully copied.`
     });
 
-    resetModalState();
     onClose();
     onSuccess?.();
 
@@ -127,7 +113,7 @@ export default function CopyFighterModal({
         )
       }
       helper="Choose a name for the fighter copy."
-      onClose={handleClose}
+      onClose={onClose}
       onConfirm={handleConfirm}
       confirmText={submitting ? 'Copying...' : 'Copy'}
       confirmDisabled={!name.trim() || submitting}
