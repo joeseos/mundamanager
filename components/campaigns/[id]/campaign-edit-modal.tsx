@@ -139,19 +139,18 @@ export default function CampaignEditModal({
   const [prevDiscordGuildId, setPrevDiscordGuildId] = useState(campaignData.discord_guild_id);
   if (campaignData.discord_guild_id !== prevDiscordGuildId) {
     setPrevDiscordGuildId(campaignData.discord_guild_id);
-    if (campaignData.discord_guild_id) {
-      setLoadingChannels(true);
-    }
+    setLoadingChannels(!!campaignData.discord_guild_id);
   }
 
   useEffect(() => {
-    if (campaignData.discord_guild_id) {
-      fetch(`/api/discord/channels?guild_id=${campaignData.discord_guild_id}`)
-        .then(res => res.ok ? res.json() : [])
-        .then(channels => setDiscordChannels(channels))
-        .catch(() => setDiscordChannels([]))
-        .finally(() => setLoadingChannels(false));
-    }
+    if (!campaignData.discord_guild_id) return;
+    let cancelled = false;
+    fetch(`/api/discord/channels?guild_id=${campaignData.discord_guild_id}`)
+      .then(res => res.ok ? res.json() : [])
+      .then(channels => { if (!cancelled) setDiscordChannels(channels); })
+      .catch(() => { if (!cancelled) setDiscordChannels([]); })
+      .finally(() => { if (!cancelled) setLoadingChannels(false); });
+    return () => { cancelled = true; };
   }, [campaignData.discord_guild_id]);
 
   // Listen for postMessage from Discord OAuth popup

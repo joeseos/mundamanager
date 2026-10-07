@@ -475,7 +475,7 @@ export function EditFighterModal({
     fighterSubtypes: subtypesForArchetype,
   });
 
-  // Fetch archetypes using TanStack Query (only if eligible and modal is open)
+  // Fetch archetypes using TanStack Query (only if eligible)
   const { data: archetypesData } = useQuery({
     queryKey: ['skill-archetypes', archetypeFighterSubtypeId],
     queryFn: async () => {

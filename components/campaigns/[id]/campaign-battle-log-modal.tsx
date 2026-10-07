@@ -80,7 +80,7 @@ const CampaignBattleLogModal = ({
   ]);
   const [notes, setNotes] = useState('');
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
-  const [isLoadingBattleData, setIsLoadingBattleData] = useState(false);
+  const [isLoadingBattleData, setIsLoadingBattleData] = useState(!!campaignId);
   const [selectedTerritory, setSelectedTerritory] = useState<string>('');
   const isReportOverLimit = notes.length > reportCharLimit;
 

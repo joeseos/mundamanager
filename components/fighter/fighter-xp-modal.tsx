@@ -279,7 +279,7 @@ export function FighterXpModal({
     onXpUpdated(optimisticXp, optimisticTotalXp, optimisticKills, optimisticKillCount);
 
     // Close modal immediately for instant UX
-    handleModalClose();
+    onClose();
 
     // Build XP breakdown for rich log format (only when it matches the amount)
     const xpBreakdown: Record<string, number> = {};
@@ -355,33 +355,6 @@ export function FighterXpModal({
     });
 
     return true;
-  };
-
-  // Handle modal close - resets all state
-  const handleModalClose = () => {
-    // Reset all checkboxes
-    setXpCheckboxes(
-      xpCheckboxCases.reduce((acc, xpCase) => {
-        acc[xpCase.id] = false;
-        return acc;
-      }, {} as Record<string, boolean>)
-    );
-    // Reset all counters
-    setXpCounts(
-      xpCountCases.reduce((acc, xpCase) => {
-        acc[xpCase.id] = 0;
-        return acc;
-      }, {} as Record<string, number>)
-    );
-    // Clear XP amount, error, and misc note
-    setXpAmount('');
-    setXpError('');
-    setMiscNote('');
-    // Reset optional OOA / wreck target selectors
-    setExpandedTargets({ outOfAction: false, vehicleWrecked: false });
-    setTargetRows({ outOfAction: [], vehicleWrecked: [] });
-    // Call the parent onClose function
-    onClose();
   };
 
   return (
@@ -576,7 +549,7 @@ export function FighterXpModal({
           )}
         </div>
       }
-      onClose={handleModalClose}
+      onClose={onClose}
       onConfirm={() => handleAddXp(xpCounts.outOfAction)}
       confirmText={parseInt(xpAmount || '0', 10) < 0 ? 'Subtract XP' : 'Add XP'}
       confirmDisabled={!xpAmount || !isValidXpInput(xpAmount) || hasIncompleteTargetRows}

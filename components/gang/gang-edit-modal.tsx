@@ -314,9 +314,6 @@ export default function GangEditModal({
     );
   }
 
-  // Closing mid-drag would otherwise leave the scroll parent locked.
-  useEffect(() => unlockRankModalScroll, [unlockRankModalScroll]);
-
   // Get campaign ID and current allegiance if gang is in a campaign
   const campaignId = campaigns?.[0]?.campaign_id;
   const currentAllegianceFromCampaign = campaigns?.[0]?.allegiance;
