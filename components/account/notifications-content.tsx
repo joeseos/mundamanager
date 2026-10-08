@@ -298,7 +298,6 @@ export default function NotificationsContent({ userId }: { userId: string }) {
         return <LuOctagonX className="h-5 w-5 text-red-500" />;
       case 'warning':
         return <LuTriangleAlert className="h-5 w-5 text-amber-500" />;
-      case 'invite': // legacy: pre-split campaign/battle invites
       case 'campaign_invite':
         return <LuUserPlus className="h-5 w-5 text-indigo-500" />;
       case 'battle_invite':
