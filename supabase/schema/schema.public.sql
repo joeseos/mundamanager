@@ -6408,7 +6408,7 @@ CREATE TABLE public.notifications (
     link text,
     expires_at timestamp with time zone DEFAULT (now() + '30 days'::interval) NOT NULL,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    CONSTRAINT notifications_type_check CHECK (((type)::text = ANY (ARRAY['info'::text, 'warning'::text, 'error'::text, 'invite'::text, 'campaign_invite'::text, 'friend_request'::text, 'battle_invite'::text, 'gang_invite'::text, 'campaign_join_request'::text, 'campaign_challenge'::text])))
+    CONSTRAINT notifications_type_check CHECK (((type)::text = ANY (ARRAY['info'::text, 'warning'::text, 'error'::text, 'campaign_invite'::text, 'friend_request'::text, 'battle_invite'::text, 'gang_invite'::text, 'campaign_join_request'::text, 'campaign_challenge'::text])))
 );
 
 ALTER TABLE ONLY public.notifications REPLICA IDENTITY FULL;
