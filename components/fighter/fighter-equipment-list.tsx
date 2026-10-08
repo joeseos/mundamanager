@@ -1,5 +1,6 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useMutation } from '@tanstack/react-query';
@@ -22,12 +23,13 @@ import { FighterEffectType, FighterEffect } from '@/types/fighter-effect';
 import { applySelfUpgradesToEquipment } from '@/app/actions/equipment';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { FighterLoadout } from '@/types/equipment';
-import FighterLoadoutsModal from '@/components/fighter/fighter-loadouts-modal';
 import { Badge } from '@/components/ui/badge';
 import { setActiveLoadout } from '@/app/actions/loadouts';
 import { EquipmentTooltipTrigger } from '@/components/equipment/equipment-tooltip';
 import { Tooltip } from 'react-tooltip';
 import { getTooltipAttribute } from '@/components/ui/tooltip-renderers';
+
+const FighterLoadoutsModal = dynamic(() => import('@/components/fighter/fighter-loadouts-modal'), { ssr: false });
 
 // No active loadout, or one we can't resolve, means nothing is out of it.
 export function isEquipmentInActiveLoadout(

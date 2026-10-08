@@ -123,7 +123,6 @@ interface FighterPromotionModalProps {
     fighter_variant?: string | null;
   }>;
   editionSlug?: string | null;
-  isOpen: boolean;
   onClose: () => void;
   /** When true, shows guidance to use Add Advancement for XP-based promotion. */
   showXpPromotionHint?: boolean;
@@ -139,14 +138,12 @@ export function FighterPromotionModal({
   currentFighterSpecialisationId,
   fighterTypes,
   editionSlug = null,
-  isOpen,
   onClose,
   showXpPromotionHint = false,
   onPromoted,
 }: FighterPromotionModalProps) {
   const [selectedTypeId, setSelectedTypeId] = useState('');
   const [selectedSpecialisationId, setSelectedSpecialisationId] = useState('');
-  const [newSpecialRules, setNewSpecialRules] = useState<string[]>([]);
   const [newRuleInput, setNewRuleInput] = useState('');
   const [includeAllGangFighterTypes, setIncludeAllGangFighterTypes] = useState(false);
 
@@ -172,6 +169,10 @@ export function FighterPromotionModal({
     : (PROMOTION_MAP[sourceSubtype] || '');
   const isExoticBeast = resolvedSubtypes.includes('Exotic Beast') || currentSubtype === 'Exotic Beast';
   const isSimplifiedPath = isExoticBeast || isN26ProspectPromotion || isN26GangerChampionPromotion;
+  // The simplified paths keep the fighter's own rules; the others take the chosen type's.
+  const [newSpecialRules, setNewSpecialRules] = useState<string[]>(
+    () => (isSimplifiedPath ? normalizeSpecialRules(currentSpecialRules) : [])
+  );
 
   const n26ProspectSubtypes = useMemo(
     () => buildN26ProspectPromotionSubtypes(
@@ -259,6 +260,7 @@ export function FighterPromotionModal({
       }),
     [
       displayTypes,
+      editionSlug,
       resolvedCurrentSpecialisationId,
       includeAllGangFighterTypes,
       targetSubtype,
@@ -270,27 +272,6 @@ export function FighterPromotionModal({
     () => normalizeSpecialRules(currentSpecialRules),
     [currentSpecialRules]
   );
-
-  // Reset state on each open, pre-select the first eligible type
-  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
-  if (isOpen && !prevIsOpen) {
-    if (isSimplifiedPath) {
-      setSelectedTypeId('');
-      setSelectedSpecialisationId('');
-      setIncludeAllGangFighterTypes(false);
-      setNewSpecialRules(normalizeSpecialRules(currentSpecialRules));
-      setNewRuleInput('');
-    } else {
-      setIncludeAllGangFighterTypes(false);
-      setSelectedTypeId('');
-      setSelectedSpecialisationId('');
-      setNewSpecialRules([]);
-      setNewRuleInput('');
-    }
-  }
-  if (isOpen !== prevIsOpen) {
-    setPrevIsOpen(isOpen);
-  }
 
   const handleIncludeAllGangFighterTypesChange = (checked: boolean) => {
     setIncludeAllGangFighterTypes(checked);
@@ -383,8 +364,6 @@ export function FighterPromotionModal({
   const confirmDisabled = isN26ProspectPromotion
     ? !selectedSpecialisation
     : !isExoticBeast && !isN26GangerChampionPromotion && !selectedType;
-
-  if (!isOpen) return null;
 
   return (
     <Modal

@@ -2479,22 +2479,23 @@ export function AdvancementModal({
                   </div>
                 )}
 
-                <FighterPromotionModal
-                  currentSubtype={fighterSubtypes[0] || ''}
-                  currentSubtypes={fighterSubtypes}
-                  currentSpecialRules={fighterSpecialRules}
-                  currentFighterType={fighterTypeName}
-                  currentFighterTypeId={fighterTypeId}
-                  currentFighterSpecialisationId={fighterSpecialisationId || undefined}
-                  fighterTypes={preFetchedFighterTypes}
-                  editionSlug={editionSlug}
-                  isOpen={gangerPromotionOpen}
-                  onClose={() => setGangerPromotionOpen(false)}
-                  onPromoted={(data) => {
-                    setGangerPendingPromotion(data);
-                    setGangerPromotionOpen(false);
-                  }}
-                />
+                {gangerPromotionOpen && (
+                  <FighterPromotionModal
+                    currentSubtype={fighterSubtypes[0] || ''}
+                    currentSubtypes={fighterSubtypes}
+                    currentSpecialRules={fighterSpecialRules}
+                    currentFighterType={fighterTypeName}
+                    currentFighterTypeId={fighterTypeId}
+                    currentFighterSpecialisationId={fighterSpecialisationId || undefined}
+                    fighterTypes={preFetchedFighterTypes}
+                    editionSlug={editionSlug}
+                    onClose={() => setGangerPromotionOpen(false)}
+                    onPromoted={(data) => {
+                      setGangerPendingPromotion(data);
+                      setGangerPromotionOpen(false);
+                    }}
+                  />
+                )}
               </div>
             )}
 
@@ -2617,7 +2618,7 @@ export function AdvancementModal({
                     </div>
                   )}
 
-                {onFighterDetailsUpdate && (
+                {onFighterDetailsUpdate && championPromotionOpen && (
                   <FighterPromotionModal
                     currentSubtype={fighterSubtypes[0] || ''}
                     currentSubtypes={fighterSubtypes}
@@ -2627,7 +2628,6 @@ export function AdvancementModal({
                     currentFighterSpecialisationId={fighterSpecialisationId || undefined}
                     fighterTypes={preFetchedFighterTypes}
                     editionSlug={editionSlug}
-                    isOpen={championPromotionOpen}
                     onClose={() => setChampionPromotionOpen(false)}
                     onPromoted={(data) => {
                       setChampionPendingPromotion(data);

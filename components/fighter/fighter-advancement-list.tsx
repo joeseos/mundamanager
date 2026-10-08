@@ -18,7 +18,7 @@ import {
 } from '@/app/actions/fighter-advancement';
 import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { LuUndo2 } from 'react-icons/lu';
-import { FighterPromotionModal, type FighterPromotionResult } from '@/components/fighter/edit-fighter/fighter-promotion-modal';
+import type { FighterPromotionResult } from '@/components/fighter/edit-fighter/fighter-promotion-modal';
 import { hasCumulativeXp } from '@/types/edition';
 import {
   N26_CHAMPION_PROMOTION_SKILL_NAME,
@@ -29,6 +29,10 @@ import {
 
 const AdvancementModal = dynamic(
   () => import('@/components/fighter/advancement-modal').then((mod) => mod.AdvancementModal),
+  { ssr: false }
+);
+const FighterPromotionModal = dynamic(
+  () => import('@/components/fighter/edit-fighter/fighter-promotion-modal').then((mod) => mod.FighterPromotionModal),
   { ssr: false }
 );
 
@@ -541,22 +545,23 @@ export function AdvancementsList({
       />
 
       {/* Modals */}
-      <FighterPromotionModal
-        currentSubtype={fighterSubtypes[0] || ''}
-        currentSubtypes={fighterSubtypes}
-        currentSpecialRules={fighterSpecialRules}
-        currentFighterType={fighterTypeName}
-        currentFighterTypeId={fighterTypeId}
-        currentFighterSpecialisationId={fighterSpecialisationId || undefined}
-        fighterTypes={preFetchedFighterTypes}
-        editionSlug={editionSlug}
-        isOpen={isStandalonePromotionOpen}
-        onClose={() => setIsStandalonePromotionOpen(false)}
-        showXpPromotionHint
-        onPromoted={(data) => {
-          standalonePromotionMutation.mutate(data);
-        }}
-      />
+      {isStandalonePromotionOpen && (
+        <FighterPromotionModal
+          currentSubtype={fighterSubtypes[0] || ''}
+          currentSubtypes={fighterSubtypes}
+          currentSpecialRules={fighterSpecialRules}
+          currentFighterType={fighterTypeName}
+          currentFighterTypeId={fighterTypeId}
+          currentFighterSpecialisationId={fighterSpecialisationId || undefined}
+          fighterTypes={preFetchedFighterTypes}
+          editionSlug={editionSlug}
+          onClose={() => setIsStandalonePromotionOpen(false)}
+          showXpPromotionHint
+          onPromoted={(data) => {
+            standalonePromotionMutation.mutate(data);
+          }}
+        />
+      )}
 
       {isAdvancementModalOpen && (
         <AdvancementModal

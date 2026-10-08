@@ -17,7 +17,6 @@ import { AiFillEyeInvisible } from "react-icons/ai";
 import { LuLogs } from "react-icons/lu";
 import { useShare } from '@/hooks/use-share';
 import { toJpeg } from 'html-to-image';
-import LogModal from '../log-modal';
 import { ViewModeDropdown, isGangPageViewMode, type GangPageViewMode } from './ViewModeDropdown';
 import GangResourcesModal from './gang-resources-modal';
 import { UserPermissions } from '@/types/user-permissions';
@@ -34,6 +33,7 @@ import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 const GangEditModal = dynamic(() => import('./gang-edit-modal'), { ssr: false });
 const FighterAddModal = dynamic(() => import('./fighter-add/FighterAddModal'), { ssr: false });
 const AddVehicle = dynamic(() => import('./add-vehicle'), { ssr: false });
+const LogModal = dynamic(() => import('../log-modal'), { ssr: false });
 const GangImageEditModal = dynamic(
   () => import('./gang-image-edit-modal').then((mod) => mod.GangImageEditModal),
   { ssr: false }
@@ -1397,14 +1397,15 @@ export default function Gang({
             />
           )}
 
-          <LogModal
-            fetchUrl={`/api/gangs/${id}/logs`}
-            editionSlug={edition_slug}
-            isOpen={showLogsModal}
-            onClose={() => setShowLogsModal(false)}
-            fighters={allFightersForLogs}
-            vehicles={allVehiclesForLogs}
-          />
+          {showLogsModal && (
+            <LogModal
+              fetchUrl={`/api/gangs/${id}/logs`}
+              editionSlug={edition_slug}
+              onClose={() => setShowLogsModal(false)}
+              fighters={allFightersForLogs}
+              vehicles={allVehiclesForLogs}
+            />
+          )}
           <CopyGangModal
             gangId={id}
             currentName={name}
