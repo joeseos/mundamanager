@@ -19,7 +19,6 @@ import {
   formatD66Range,
   normaliseTacticsDescription,
   TACTICS_DESCRIPTION_CHAR_LIMIT,
-  tacticsPackDice,
   type GangTacticsCard,
   type TacticsCard,
   type TacticsCardsPack
@@ -82,7 +81,8 @@ export default function GangTacticsCards({
   // follows it.
   const activePack = selectedPackId ? packs.find(pack => pack.id === selectedPackId) : corePack;
   const catalogue = activePack?.cards ?? [];
-  const packDice = tacticsPackDice(catalogue);
+  // Packs carry no dice column: a deck numbered only 1-6 is a D6 table.
+  const isD6Pack = catalogue.length > 0 && catalogue.every(card => card.d66_max == null || card.d66_max <= 6);
 
   const hasRollableCard = catalogue.some(card => card.d66_min != null && !ownedCardIds.has(card.id));
 
@@ -111,7 +111,7 @@ export default function GangTacticsCards({
       card => card.d66_min != null && card.d66_max != null && total >= card.d66_min && total <= card.d66_max
     );
 
-  const rollPackDice = (): RollOutcome => (packDice === 'd6' ? rollNd6Outcome(1) : rollD66Outcome());
+  const rollPackDice = (): RollOutcome => (isD6Pack ? rollNd6Outcome(1) : rollD66Outcome());
 
   const rollUnowned = (): RollOutcome => {
     let outcome = rollPackDice();
@@ -331,7 +331,7 @@ export default function GangTacticsCards({
                   getName={(card) => card.name}
                   inline
                   rollFn={rollUnowned}
-                  buttonText={packDice === 'd6' ? 'Roll D6' : 'Roll D66'}
+                  buttonText={isD6Pack ? 'Roll D6' : 'Roll D66'}
                   disabled={isLoadingPacks || !hasRollableCard}
                   onRolled={(rolled) => {
                     const result = rolled[0];
