@@ -38,7 +38,7 @@ export default async function PrintGangPage(props: {
     } = await import("@/app/lib/shared/gang-data");
 
     // Fetch the gang core first to check if gang exists
-    const gangBasic = await getGangCore(params.id, supabase);
+    const gangBasic = await getGangCore(params.id);
 
     if (!gangBasic) {
       notFound();

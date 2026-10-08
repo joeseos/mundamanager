@@ -1,5 +1,6 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
+import { createServiceRoleClient } from '@/utils/supabase/server';
 
 // =============================================================================
 // TYPES - Shared interfaces for fighter data
@@ -75,18 +76,21 @@ export interface FighterBasic {
 // BASE DATA FUNCTIONS - Raw database queries with proper cache tags
 // =============================================================================
 
-// Thrown instead of returning null so "no row" is never cached: a read that
-// RLS filters to zero rows (the sign-out re-render runs without a session)
-// would otherwise 404 the fighter for everyone until its tag is busted.
-class FighterNotFound extends Error {}
-
 /**
  * Get fighter basic information (stats, name, type, etc.)
+ *
+ * Filled by a service-role client built inside the callback, for the same
+ * reason as getGangCore: the entry is shared by every viewer, and a
+ * session-less RLS read gets zero rows with no error, which would cache a 404.
+ * Every table read here is SELECT-able by any authenticated user.
  * Cache: BASE_FIGHTER_BASIC
  */
-export const getFighterBasic = async (fighterId: string, supabase: any): Promise<FighterBasic | null> => {
+export const getFighterBasic = async (fighterId: string): Promise<FighterBasic | null> => {
   return unstable_cache(
     async () => {
+      // Untyped like the caller's client was: without generated DB types the
+      // embed inference types to-one joins (custom_fighter_type etc.) as arrays.
+      const supabase: any = createServiceRoleClient();
       const { data, error } = await supabase
         .from('fighters')
         .select(`
@@ -157,8 +161,8 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
         .single();
 
       if (error) {
-        // Not found or invalid UUID format
-        if (error.code === 'PGRST116' || error.code === '22P02') throw new FighterNotFound();
+        // Return null for not found errors or invalid UUID format
+        if (error.code === 'PGRST116' || error.code === '22P02') return null;
         throw error;
       }
       return data;
@@ -168,10 +172,7 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
       tags: [TAGS.fighter(fighterId)],
       revalidate: false
     }
-  )().catch((error) => {
-    if (error instanceof FighterNotFound) return null;
-    throw error;
-  });
+  )();
 };
 
 /**

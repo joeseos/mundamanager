@@ -35,7 +35,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
   let pageProps;
   try {
     // Fetch the gang core first to check if gang exists
-    const gangBasic = await getGangCore(params.id, supabase);
+    const gangBasic = await getGangCore(params.id);
 
     if (!gangBasic) {
       notFound();

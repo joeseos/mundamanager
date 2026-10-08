@@ -32,7 +32,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     const { assembleFighterView, selectGangFighterIndex } = await import('@/utils/gang-assembly');
 
     // Fetch basic fighter data first to check if fighter exists and resolve the gang
-    const fighterBasic = await getFighterBasic(id, supabase);
+    const fighterBasic = await getFighterBasic(id);
 
     if (!fighterBasic) {
       notFound();
@@ -43,7 +43,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     // gang page visit. The bundle is read ONCE: both the fighter view and the
     // navigation roster are pure selectors over it.
     const [gangBasic, gangPositioning, bundle, gangCampaigns] = await Promise.all([
-      getGangCore(fighterBasic.gang_id, supabase),
+      getGangCore(fighterBasic.gang_id),
       getGangPositioning(fighterBasic.gang_id, supabase),
       getGangFightersBundle(fighterBasic.gang_id, supabase),
       getGangCampaigns(fighterBasic.gang_id, supabase),

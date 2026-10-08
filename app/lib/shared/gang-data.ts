@@ -1,5 +1,6 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
+import { createServiceRoleClient } from '@/utils/supabase/server';
 
 import { assembleGangFighters, groupBy } from '@/utils/gang-assembly';
 import {
@@ -143,21 +144,25 @@ export interface GangCore extends GangBasic {
   alliance: Alliance | null;
 }
 
-// Thrown instead of returning null so "no row" is never cached: a read that
-// RLS filters to zero rows (the sign-out re-render runs without a session)
-// would otherwise 404 the gang for everyone until its tag is busted.
-class GangNotFound extends Error {}
-
 /**
  * Get the full gang row (basic info + credits + rating + wealth + alliance).
  * One cache entry and one query replace the previous four parallel gangs-row
  * reads (basic/credits/rating-wealth) plus the alliance lookup. Positioning
  * is deliberately excluded — it changes on every drag and has its own entry.
+ *
+ * The entry is shared by every viewer, so it is filled by a service-role
+ * client built inside the callback rather than the caller's RLS client: a
+ * request whose session is missing (the sign-out re-render) gets zero rows
+ * with no error, which would cache a 404 for everyone. Every table read here
+ * is SELECT-able by any authenticated user, so this exposes nothing new.
  * Cache: gang-{id}
  */
-export const getGangCore = async (gangId: string, supabase: any): Promise<GangCore | null> => {
+export const getGangCore = async (gangId: string): Promise<GangCore | null> => {
   return unstable_cache(
     async () => {
+      // Untyped like the caller's client was: without generated DB types the
+      // embed inference types to-one joins (alliance etc.) as arrays.
+      const supabase: any = createServiceRoleClient();
       const { data, error } = await supabase
         .from('gangs')
         .select(`
@@ -223,11 +228,11 @@ export const getGangCore = async (gangId: string, supabase: any): Promise<GangCo
         .maybeSingle();
 
       if (error) {
-        // Invalid UUID format; maybeSingle returns null for no rows.
-        if (error.code === '22P02') throw new GangNotFound();
+        // Return null for invalid UUID format; maybeSingle returns null for no rows.
+        if (error.code === '22P02') return null;
         throw error;
       }
-      if (!data) throw new GangNotFound();
+      if (!data) return null;
       const editionSlug = gangEditionSlug(data);
       let venatorRanksIncomplete: boolean | undefined;
       if (isVenatorGang(editionSlug, data.gang_type, Boolean(data.custom_gang_type_id))) {
@@ -251,10 +256,7 @@ export const getGangCore = async (gangId: string, supabase: any): Promise<GangCo
       tags: [TAGS.gang(gangId), TAGS.globalGangTypes()],
       revalidate: false
     }
-  )().catch((error) => {
-    if (error instanceof GangNotFound) return null;
-    throw error;
-  });
+  )();
 };
 
 /**
@@ -1158,7 +1160,7 @@ export const getGangFightersList = async (
   const needsCore = callerSlug === undefined;
   const [bundle, core] = await Promise.all([
     getGangFightersBundle(gangId, supabase),
-    needsCore ? getGangCore(gangId, supabase) : Promise.resolve(null)
+    needsCore ? getGangCore(gangId) : Promise.resolve(null)
   ]);
   return assembleGangFighters(bundle, {
     ...options,
