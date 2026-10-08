@@ -5,11 +5,10 @@ import { buildGroupedSkillSetComboboxOptions } from '@/utils/skillSetComboboxOpt
 import { FighterSkills } from '@/types/fighter';
 import { FighterLoadout } from '@/types/equipment';
 import { isEquipmentInActiveLoadout } from '@/components/fighter/fighter-equipment-list';
-import { createClient } from '@/utils/supabase/client';
 import { List } from "@/components/ui/list";
 import { Combobox } from '@/components/ui/combobox';
 import { UserPermissions } from '@/types/user-permissions';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { VENATOR_RANKS_INCOMPLETE_MESSAGE } from '@/utils/venatorSkillAccess';
 import { 
   addSkillAdvancement, 
@@ -125,7 +124,32 @@ interface SkillAccess {
 export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncomplete, editionSlug, onClose, onSkillAdded, onSkillRollback, isSubmitting, onSelectSkill, onGangCreditsUpdate }: SkillModalProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [skillsData, setSkillsData] = useState<SkillResponse | null>(null);
+
+  // Fetched on each open and not kept after close: availability changes as
+  // skills are added or removed.
+  const { data: availableSkills, error: availableSkillsError } = useQuery({
+    queryKey: ['fighter-available-skills', fighterId],
+    queryFn: async (): Promise<SkillResponse> => {
+      const response = await fetch(`/api/fighters/${fighterId}/available-skills`);
+      if (!response.ok) throw new Error('Failed to fetch skills');
+      return response.json();
+    },
+    enabled: !!selectedCategory,
+    staleTime: 0,
+    gcTime: 0,
+  });
+
+  useEffect(() => {
+    if (availableSkillsError) toast.error('Failed to load skills');
+  }, [availableSkillsError]);
+
+  const skillsData = useMemo<SkillResponse | null>(
+    () =>
+      availableSkills && selectedCategory
+        ? { skills: availableSkills.skills.filter((skill) => skill.skill_type_id === selectedCategory) }
+        : null,
+    [availableSkills, selectedCategory]
+  );
   const [selectedSkill, setSelectedSkill] = useState<string>('');
   const [isCustomSkillSelected, setIsCustomSkillSelected] = useState(false);
   const [editableCost, setEditableCost] = useState<number>(0);
@@ -219,36 +243,6 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
 
     fetchCategoriesAndAccess();
   }, [fighterId]);
-
-  // Fetch skills when category is selected
-  useEffect(() => {
-    if (!selectedCategory) return;
-
-    const fetchSkills = async () => {
-      try {
-        const supabase = createClient();
-        const { data, error } = await supabase.rpc('get_available_skills', {
-          fighter_id: fighterId
-        });
-
-        if (error) {
-          throw new Error('Failed to fetch skills');
-        }
-
-        // Filter skills by the selected type
-        const skillsForType = data.skills.filter(
-          (skill: SkillData) => skill.skill_type_id === selectedCategory
-        );
-
-        setSkillsData({ skills: skillsForType });
-      } catch (error) {
-        console.error('Error fetching skills:', error);
-        toast.error('Failed to load skills');
-      }
-    };
-
-    fetchSkills();
-  }, [selectedCategory, fighterId]);
 
   /**
    * Skill Set combobox options grouped by rank (Custom Skill Sets first, then standard groups).
