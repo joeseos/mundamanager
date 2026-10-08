@@ -435,7 +435,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                     onCheckedChange={(checked) => setShowWFWBoxes(checked === true)}
                   />
                   <span className="text-sm">
-                    {hasFleshWoundCondition(edition_slug) ? "Wounds/Flesh Wounds Boxes" : "Wounds Boxes"}
+                    {hasFleshWoundCondition(edition_slug) ? "Wound/Flesh Wound Boxes" : "Wound Boxes"}
                   </span>
                 </label>
               </div>
