@@ -4,13 +4,12 @@ import { useState, useMemo } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Modal from '@/components/ui/modal';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Button } from '@/components/ui/button';
+import { CounterButton } from '@/components/ui/counter';
 import { IoSkull } from 'react-icons/io5';
 import { MdChair } from 'react-icons/md';
 import { GiCrossedChains, GiHandcuffs } from 'react-icons/gi';
 import { TbMeatOff } from 'react-icons/tb';
 import { FaMedkit } from 'react-icons/fa';
-import { LuMinus, LuPlus } from 'react-icons/lu';
 import { countsTowardRating } from '@/utils/fighter-status';
 import { rollInRange } from '@/utils/dice';
 import { createGangLog, type CreateGangLogParams } from '@/app/actions/logs/gang-logs';
@@ -372,23 +371,15 @@ export default function CrewSelectionModal({
             <div className="flex flex-col gap-2 sm:w-full sm:flex-row sm:items-center sm:justify-between sm:gap-8">
               <div className="flex items-center gap-1">
                 <span className="inline-block w-14 text-sm text-muted-foreground">Choose</span>
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handlePickChange(pickCount - 1)}>
-                  <LuMinus className="h-4 w-4" />
-                </Button>
+                <CounterButton direction="decrement" className="h-8 w-8" onClick={() => handlePickChange(pickCount - 1)} />
                 <span className="w-6 text-center text-sm font-medium">{pickCount}</span>
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handlePickChange(pickCount + 1)}>
-                  <LuPlus className="h-4 w-4" />
-                </Button>
+                <CounterButton direction="increment" className="h-8 w-8" onClick={() => handlePickChange(pickCount + 1)} />
               </div>
               <div className="flex items-center gap-1">
                 <span className="inline-block w-14 text-sm text-muted-foreground">Random</span>
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleRandomChange(randomCount - 1)}>
-                  <LuMinus className="h-4 w-4" />
-                </Button>
+                <CounterButton direction="decrement" className="h-8 w-8" onClick={() => handleRandomChange(randomCount - 1)} />
                 <span className="w-6 text-center text-sm font-medium">{randomCount}</span>
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleRandomChange(randomCount + 1)}>
-                  <LuPlus className="h-4 w-4" />
-                </Button>
+                <CounterButton direction="increment" className="h-8 w-8" onClick={() => handleRandomChange(randomCount + 1)} />
                 <button
                   className="ml-auto sm:ml-6 px-4 py-2 bg-neutral-900 text-white rounded-sm hover:bg-gray-800 disabled:opacity-50"
                   onClick={handleRoll}

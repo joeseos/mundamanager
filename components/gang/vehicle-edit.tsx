@@ -6,8 +6,7 @@ import Modal from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
-import { LuPlus } from "react-icons/lu";
-import { LuMinus } from "react-icons/lu";
+import { CounterButton } from "@/components/ui/counter";
 import { HiX } from "react-icons/hi";
 import { toast } from 'sonner';
 import { VehicleProps, VehicleEffect } from '@/types/vehicle';
@@ -311,15 +310,11 @@ function VehicleCharacteristicModal({
                   <span className="text-xs text-muted-foreground">{stat.name}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-10 w-10 rounded-md"
+                  <CounterButton
+                    direction="decrement"
                     onClick={() => handleDecrease(stat.key)}
                     disabled={isSaving}
-                  >
-                    <LuMinus className="h-4 w-4" />
-                  </Button>
+                  />
                   <div className="flex flex-col items-center">
                     <span className="text-sm md:text-xl font-bold">
                       {getAdjustedTotal(stat.key)}
@@ -328,15 +323,11 @@ function VehicleCharacteristicModal({
                       Base: {getBaseDisplay(stat.key)}
                     </span>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-10 w-10 rounded-md"
+                  <CounterButton
+                    direction="increment"
                     onClick={() => handleIncrease(stat.key)}
                     disabled={isSaving}
-                  >
-                    <LuPlus className="h-4 w-4" />
-                  </Button>
+                  />
                 </div>
               </div>
             ))}
