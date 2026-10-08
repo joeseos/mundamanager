@@ -1,12 +1,11 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
 import Modal from "@/components/ui/modal";
-import { LuPlus, LuMinus } from "react-icons/lu";
+import { Counter } from "@/components/ui/counter";
 import { FaBookDead } from "react-icons/fa";
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { updateFighterXpWithOoa } from '@/app/actions/edit-fighter';
@@ -422,25 +421,11 @@ export function FighterXpModal({
                       </button>
                     )}
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
-                      onClick={() => handleXpCountChange(xpCase.id, Math.max(0, xpCounts[xpCase.id] - 1))}
-                    >
-                      <LuMinus className="h-4 w-4" />
-                    </Button>
-                    <span className="w-6 text-center">{xpCounts[xpCase.id]}</span>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
-                      onClick={() => handleXpCountChange(xpCase.id, xpCounts[xpCase.id] + 1)}
-                    >
-                      <LuPlus className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Counter
+                    value={xpCounts[xpCase.id]}
+                    onDecrement={() => handleXpCountChange(xpCase.id, Math.max(0, xpCounts[xpCase.id] - 1))}
+                    onIncrement={() => handleXpCountChange(xpCase.id, xpCounts[xpCase.id] + 1)}
+                  />
                 </div>
                 {xpCase.id === 'misc' && xpCounts.misc > 0 && (
                   <Input

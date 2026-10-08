@@ -9,10 +9,11 @@ import { useMutation } from '@tanstack/react-query';
 import type { GangFighter } from '@/types/gang';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { Counter } from '@/components/ui/counter';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { PatreonSupporterIcon } from '@/components/ui/patreon-supporter-icon';
-import { LuPlus, LuMinus, LuClipboard } from 'react-icons/lu';
+import { LuClipboard } from 'react-icons/lu';
 import { Combobox } from '@/components/ui/combobox';
 import Modal from '@/components/ui/modal';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
@@ -369,26 +370,12 @@ function FighterActionModal({
                       </span>
                       <span className="text-sm">{name}</span>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
-                        onClick={() => adjustNumericCondition(nc.key, name, -1)}
-                        disabled={current === 0}
-                      >
-                        <LuMinus className="h-4 w-4" />
-                      </Button>
-                      <span className="w-6 text-center">{current}</span>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
-                        onClick={() => adjustNumericCondition(nc.key, name, 1)}
-                      >
-                        <LuPlus className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    <Counter
+                      value={current}
+                      min={0}
+                      onDecrement={() => adjustNumericCondition(nc.key, name, -1)}
+                      onIncrement={() => adjustNumericCondition(nc.key, name, 1)}
+                    />
                   </div>
                 );
               })}
@@ -1174,26 +1161,12 @@ function BattleParticipationModal({
                 <div className="text-sm font-medium">{gf.fighter_name}</div>
                 {details && <div className="text-xs text-muted-foreground">{details}</div>}
               </div>
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
-                  onClick={() => adjust(gf.id, -1)}
-                  disabled={(xpAmounts[gf.id] ?? 0) === 0}
-                >
-                  <LuMinus className="h-4 w-4" />
-                </Button>
-                <span className="w-6 text-center">{xpAmounts[gf.id] ?? 0}</span>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
-                  onClick={() => adjust(gf.id, 1)}
-                >
-                  <LuPlus className="h-4 w-4" />
-                </Button>
-              </div>
+              <Counter
+                value={xpAmounts[gf.id] ?? 0}
+                min={0}
+                onDecrement={() => adjust(gf.id, -1)}
+                onIncrement={() => adjust(gf.id, 1)}
+              />
             </div>
           );
         })}
