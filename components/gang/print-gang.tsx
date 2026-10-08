@@ -10,7 +10,7 @@ import { sortFightersByPositioning } from "@/utils/fighter-positioning";
 import { injuryAggregationLabel } from "@/utils/injuryTarget";
 import WeaponTable from "./fighter-card-weapon-table";
 import { StatsTable, StatsType } from "../ui/fighter-card-stats-table";
-import { hasAlignment, hasSaveCharacteristic, hasTradePoints } from "@/types/edition";
+import { hasAlignment, hasFleshWoundCondition, hasSaveCharacteristic, hasTradePoints } from "@/types/edition";
 import { formatFighterSubtypeDisplay } from "@/utils/fighterSubtypeDisplay";
 import { MdCheckBoxOutlineBlank } from "react-icons/md";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -231,6 +231,8 @@ export default function PrintGang({ gang }: PrintGangProps) {
   const [showInactiveFighters, setShowInactiveFighters] = useState(false);
   const [showXPBoxes, setShowXPBoxes] = useState(false);
   const [showWFWBoxes, setShowWFWBoxes] = useState(false);
+  // Editions without Flesh Wounds still track Wounds, so the option stays and only drops FW.
+  const showFleshWoundBoxes = hasFleshWoundCondition(edition_slug);
   const [showGangCard, setShowGangCard] = useState(true);
   const [showAdditionalDetails, setShowAdditionalDetails] = useState(true);
   const [showInactiveFighterLoadouts, setShowInactiveFighterLoadouts] = useState(false);
@@ -434,7 +436,9 @@ export default function PrintGang({ gang }: PrintGangProps) {
                     checked={showWFWBoxes}
                     onCheckedChange={(checked) => setShowWFWBoxes(checked === true)}
                   />
-                  <span className="text-sm">Wounds/Flesh Wounds Boxes</span>
+                  <span className="text-sm">
+                    {showFleshWoundBoxes ? "Wounds/Flesh Wounds Boxes" : "Wounds Boxes"}
+                  </span>
                 </label>
               </div>
             </div>
@@ -761,7 +765,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                          {/* W/FW boxes */}
                          {showWFWBoxes && (
                            <div>
-                             {!isCrew && (adjustedStats.wounds > 1 || adjustedStats.toughness > 1) && (
+                             {!isCrew && (adjustedStats.wounds > 1 || (showFleshWoundBoxes && adjustedStats.toughness > 1)) && (
                                <div className="flex items-center gap-2 text-[9px] shrink-0">
                                  {adjustedStats.wounds > 1 && (
                                    <div className="flex items-center gap-1">
@@ -773,7 +777,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                                      </div>
                                    </div>
                                  )}
-                                 {adjustedStats.toughness > 1 && (
+                                 {showFleshWoundBoxes && adjustedStats.toughness > 1 && (
                                    <div className="flex items-center gap-1">
                                      <span className="font-semibold whitespace-nowrap">FW</span>
                                      <div className="flex items-center gap-0.5">
@@ -1363,7 +1367,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                           {/* W/FW boxes */}
                           {showWFWBoxes && (
                             <div className="mt-1 flex items-center justify-between gap-2">
-                              {!isCrew && (adjustedStats.wounds > 1 || adjustedStats.toughness > 1) && (
+                              {!isCrew && (adjustedStats.wounds > 1 || (showFleshWoundBoxes && adjustedStats.toughness > 1)) && (
                                 <div className="flex items-center gap-2 shrink-0">
                                   {adjustedStats.wounds > 1 && (
                                     <div className="flex items-center gap-1">
@@ -1375,7 +1379,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                                       </div>
                                     </div>
                                   )}
-                                  {adjustedStats.toughness > 1 && (
+                                  {showFleshWoundBoxes && adjustedStats.toughness > 1 && (
                                     <div className="flex items-center gap-1">
                                       <span className="text-[12px] font-semibold whitespace-nowrap">FW</span>
                                       <div className="flex items-center gap-0.5">
