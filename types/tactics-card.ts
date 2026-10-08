@@ -73,6 +73,15 @@ export function formatD66Range(
   return min === max ? String(min) : `${min}-${max}`;
 }
 
+/**
+ * The die a pack is rolled on. Packs carry no dice column, so it follows the
+ * numbering: a deck numbered only 1-6 is a D6 table, anything else is D66.
+ */
+export function tacticsPackDice(cards: Pick<TacticsCard, 'd66_max'>[]): 'd6' | 'd66' {
+  const numbered = cards.filter(card => card.d66_max != null);
+  return numbered.length > 0 && numbered.every(card => card.d66_max! <= 6) ? 'd6' : 'd66';
+}
+
 /** Printed card order: D66 ascending then name, with unnumbered cards last. */
 export function compareTacticsCards(
   a: Pick<TacticsCard, 'name' | 'd66_min'>,

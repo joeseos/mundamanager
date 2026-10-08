@@ -13,12 +13,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { List, ListAction, ListColumn } from '@/components/ui/list';
 import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import { UserPermissions } from '@/types/user-permissions';
-import { rollD66Outcome, type RollOutcome } from '@/utils/dice';
+import { rollD66Outcome, rollNd6Outcome, type RollOutcome } from '@/utils/dice';
 import {
   compareTacticsCards,
   formatD66Range,
   normaliseTacticsDescription,
   TACTICS_DESCRIPTION_CHAR_LIMIT,
+  tacticsPackDice,
   type GangTacticsCard,
   type TacticsCard,
   type TacticsCardsPack
@@ -77,10 +78,11 @@ export default function GangTacticsCards({
 
   const corePack = packs.find(pack => pack.is_core);
   const selectablePacks = packs.filter(pack => !pack.is_core);
-  // Each pack is its own D66 table, so one is active at a time and the roller
+  // Each pack is its own roll table, so one is active at a time and the roller
   // follows it.
   const activePack = selectedPackId ? packs.find(pack => pack.id === selectedPackId) : corePack;
   const catalogue = activePack?.cards ?? [];
+  const packDice = tacticsPackDice(catalogue);
 
   const hasRollableCard = catalogue.some(card => card.d66_min != null && !ownedCardIds.has(card.id));
 
@@ -109,13 +111,15 @@ export default function GangTacticsCards({
       card => card.d66_min != null && card.d66_max != null && total >= card.d66_min && total <= card.d66_max
     );
 
-  const rollUnownedD66 = (): RollOutcome => {
-    let outcome = rollD66Outcome();
+  const rollPackDice = (): RollOutcome => (packDice === 'd6' ? rollNd6Outcome(1) : rollD66Outcome());
+
+  const rollUnowned = (): RollOutcome => {
+    let outcome = rollPackDice();
     for (let attempt = 0; attempt < 50; attempt++) {
       const card = cardForRoll(outcome.total);
       // No match is a gap in the catalogue's ranges — report it rather than loop past it.
       if (!card || !ownedCardIds.has(card.id)) return outcome;
-      outcome = rollD66Outcome();
+      outcome = rollPackDice();
     }
     return outcome;
   };
@@ -326,8 +330,8 @@ export default function GangTacticsCards({
                   }
                   getName={(card) => card.name}
                   inline
-                  rollFn={rollUnownedD66}
-                  buttonText="Roll D66"
+                  rollFn={rollUnowned}
+                  buttonText={packDice === 'd6' ? 'Roll D6' : 'Roll D66'}
                   disabled={isLoadingPacks || !hasRollableCard}
                   onRolled={(rolled) => {
                     const result = rolled[0];

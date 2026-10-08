@@ -162,7 +162,7 @@ export async function verifyAndLogRolledTacticsCard(params: {
     const auth = await authoriseGangTactics(supabase, params.gangId);
     if ('error' in auth) return { success: false, error: auth.error };
 
-    // Every pack is its own D66 table, so the roll only resolves once narrowed
+    // Every pack is its own roll table, so the roll only resolves once narrowed
     // to one of them.
     const packId = params.tacticsCardsPackId ?? auth.context.corePackId;
     if (!packId || !auth.context.availablePackIds.includes(packId)) {
