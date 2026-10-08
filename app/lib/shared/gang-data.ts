@@ -143,6 +143,11 @@ export interface GangCore extends GangBasic {
   alliance: Alliance | null;
 }
 
+// Thrown instead of returning null so "no row" is never cached: a read that
+// RLS filters to zero rows (the sign-out re-render runs without a session)
+// would otherwise 404 the gang for everyone until its tag is busted.
+class GangNotFound extends Error {}
+
 /**
  * Get the full gang row (basic info + credits + rating + wealth + alliance).
  * One cache entry and one query replace the previous four parallel gangs-row
@@ -218,11 +223,11 @@ export const getGangCore = async (gangId: string, supabase: any): Promise<GangCo
         .maybeSingle();
 
       if (error) {
-        // Return null for invalid UUID format; maybeSingle returns null for no rows.
-        if (error.code === '22P02') return null;
+        // Invalid UUID format; maybeSingle returns null for no rows.
+        if (error.code === '22P02') throw new GangNotFound();
         throw error;
       }
-      if (!data) return null;
+      if (!data) throw new GangNotFound();
       const editionSlug = gangEditionSlug(data);
       let venatorRanksIncomplete: boolean | undefined;
       if (isVenatorGang(editionSlug, data.gang_type, Boolean(data.custom_gang_type_id))) {
@@ -246,7 +251,10 @@ export const getGangCore = async (gangId: string, supabase: any): Promise<GangCo
       tags: [TAGS.gang(gangId), TAGS.globalGangTypes()],
       revalidate: false
     }
-  )();
+  )().catch((error) => {
+    if (error instanceof GangNotFound) return null;
+    throw error;
+  });
 };
 
 /**

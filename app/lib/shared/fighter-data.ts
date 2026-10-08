@@ -75,6 +75,11 @@ export interface FighterBasic {
 // BASE DATA FUNCTIONS - Raw database queries with proper cache tags
 // =============================================================================
 
+// Thrown instead of returning null so "no row" is never cached: a read that
+// RLS filters to zero rows (the sign-out re-render runs without a session)
+// would otherwise 404 the fighter for everyone until its tag is busted.
+class FighterNotFound extends Error {}
+
 /**
  * Get fighter basic information (stats, name, type, etc.)
  * Cache: BASE_FIGHTER_BASIC
@@ -152,8 +157,8 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
         .single();
 
       if (error) {
-        // Return null for not found errors or invalid UUID format
-        if (error.code === 'PGRST116' || error.code === '22P02') return null;
+        // Not found or invalid UUID format
+        if (error.code === 'PGRST116' || error.code === '22P02') throw new FighterNotFound();
         throw error;
       }
       return data;
@@ -163,7 +168,10 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
       tags: [TAGS.fighter(fighterId)],
       revalidate: false
     }
-  )();
+  )().catch((error) => {
+    if (error instanceof FighterNotFound) return null;
+    throw error;
+  });
 };
 
 /**
