@@ -1488,13 +1488,10 @@ export default function FighterPage({
               onClose={() => handleModalToggle('addWeapon', false)}
               gangCredits={fighterData.gang.credits}
               gangId={fighterData.gang.id}
-              gangTypeId={fighterData.gang.gang_type_id}
               fighterId={fighterData.fighter.id}
               fighterTypeId={fighterData.fighter.fighter_type.fighter_type_id}
-              gangAffiliationId={fighterData.gang.gang_affiliation_id}
               fighterCredits={fighterData.fighter.credits}
               fighterHasLegacy={Boolean((fighterData as any)?.fighter?.fighter_gang_legacy_id)}
-              fighterLegacyName={(fighterData as any)?.fighter?.fighter_gang_legacy?.name}
               isCustomFighter={Boolean((fighterData as any)?.fighter?.custom_fighter_type_id)}
               fighterWeapons={(fighterData.equipment || []).filter(eq => eq.equipment_type === 'weapon').map(eq => ({ id: eq.fighter_equipment_id, name: eq.equipment_name, equipment_category: eq.equipment_category, effect_names: eq.effect_names }))}
               {...campaignProps}
@@ -1512,7 +1509,6 @@ export default function FighterPage({
               onClose={() => handleModalToggle('addVehicleEquipment', false)}
               gangCredits={fighterData.gang.credits}
               gangId={fighterData.gang.id}
-              gangTypeId={fighterData.gang.gang_type_id}
               fighterId={fighterData.fighter.id}
               fighterTypeId={fighterData.fighter.fighter_type.fighter_type_id}
               fighterCredits={fighterData.fighter.credits}

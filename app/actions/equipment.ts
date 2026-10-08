@@ -15,6 +15,13 @@ import { grantedSkillFromEffect } from '@/utils/effect-modifiers';
 import { clearHardpointReference } from './vehicle-hardpoints';
 import { deductGangResource, returnGangResource, parseTradePointsCost, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
 import { gangEditionSlug, hasMasterCraftedWeapons, hasTradePoints } from '@/types/edition';
+import { getEquipmentOverlay, loadCatalogueIndex } from '@/app/lib/equipment-catalogue';
+import {
+  EQUIPMENT_TABS,
+  resolveEquipment,
+  type EquipmentTab,
+  type ResolvedEquipmentRow,
+} from '@/utils/equipment/resolve';
 
 interface BuyEquipmentParams {
   equipment_id?: string;
@@ -29,7 +36,10 @@ interface BuyEquipmentParams {
   selected_effect_ids?: string[];
   equipment_target?: { target_equipment_id: string; effect_type_id: string };
   target_equipment_id?: string;
-  listed_cost?: number;
+  /** The Equipment modal tab the item was bought from. */
+  equipment_list_type?: EquipmentTab;
+  /** The modal's Gang Legacy switch. */
+  include_legacy?: boolean;
   selected_grant_equipment_ids?: string[];
   resourceCost?: ResourceCost;
   campaign_gang_id?: string;
@@ -306,6 +316,61 @@ export async function insertEffectWithModifiers(
   }
 }
 
+/**
+ * The item's offer on the Equipment modal tab it was bought from, resolved from the same overlay
+ * and catalogue snapshot as the modal. Rejects an item that tab does not offer, or offers banned.
+ */
+async function resolveListedOffer(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  params: BuyEquipmentParams,
+  vehicle: { fighter_id: string | null; vehicle_type_id: string | null } | null
+): Promise<ResolvedEquipmentRow> {
+  const tab = params.equipment_list_type;
+  if (!tab || !EQUIPMENT_TABS.includes(tab)) {
+    throw new Error('equipment_list_type is required');
+  }
+
+  // As the modal: the stash has no fighter type; an N23 vehicle's modal is opened from its
+  // fighter's page and resolves for the vehicle type; a fighter's for its own type.
+  const isVehicle = Boolean(params.vehicle_id) && !params.buy_for_gang_stash;
+  const fighterId = params.buy_for_gang_stash
+    ? null
+    : isVehicle
+      ? (vehicle?.fighter_id ?? null)
+      : (params.fighter_id ?? null);
+
+  const overlay = await getEquipmentOverlay(supabase, params.gang_id, fighterId);
+
+  let typeId: string | null = null;
+  if (isVehicle) {
+    typeId = vehicle?.vehicle_type_id ?? null;
+    if (!typeId) throw new Error('Vehicle type information is missing');
+  } else if (!params.buy_for_gang_stash) {
+    if (!overlay.fighter) throw new Error('Fighter not found in this gang');
+    typeId = overlay.fighter.fighterType ?? overlay.fighter.customFighterType;
+    if (!typeId) throw new Error('Fighter type information is missing');
+  }
+
+  const index = await loadCatalogueIndex(overlay);
+  const resolved = resolveEquipment(index, overlay, {
+    typeId,
+    isVehicle,
+    legacy: Boolean(params.include_legacy),
+  });
+
+  // equipment_id wins when both are sent, as below.
+  const isCustom = !params.equipment_id;
+  const itemId = params.equipment_id ?? params.custom_equipment_id;
+  const offer = itemId ? resolved.get(itemId)?.offers[tab] : undefined;
+  if (!offer || offer.is_custom !== isCustom) {
+    throw new Error('This equipment is not available from that list');
+  }
+  if (offer.banned) {
+    throw new Error('This equipment is banned');
+  }
+  return offer;
+}
+
 export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promise<EquipmentActionResult> {
   try {
     const supabase = await createClient();
@@ -341,7 +406,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       (params.vehicle_id && !params.buy_for_gang_stash)
         ? supabase
             .from('vehicles')
-            .select('fighter_id')
+            .select('fighter_id, vehicle_type_id')
             .eq('id', params.vehicle_id)
             .single()
         : Promise.resolve({ data: null }),
@@ -365,7 +430,14 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     }
 
     // Extract parallel query results
-    const vehicleAssignedFighterId = vehicleResult.data?.fighter_id || null;
+    const vehicleRow = vehicleResult.data as { fighter_id: string | null; vehicle_type_id: string | null } | null;
+    const vehicleAssignedFighterId = vehicleRow?.fighter_id || null;
+
+    // The listed price, resolved here while the equipment is read below.
+    const listedOfferPromise = resolveListedOffer(supabase, params, vehicleRow);
+    // Settled at once so a rejection never goes unhandled while the reads below run.
+    listedOfferPromise.catch(() => {});
+
     // Shape must match the fighters select in the Promise.all above; the cast is
     // unavoidable there, so keep the two in step by hand.
     const fighterRow = fighterResult.data as { fighter_name: string | null; fighter_pet_id: string | null } | null;
@@ -469,14 +541,14 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       throw new Error('Either equipment_id or custom_equipment_id is required');
     }
 
-    // Calculate final costs
-    // We trust the client's listed_cost (the adjusted price from UI) because:
-    // 1. The client has already called get_equipment_with_discounts with correct gang_id
-    // 2. Users can already manipulate manual_cost if desired
-    // 3. Redundant server-side RPC call was removed for performance (previously missed gang_id parameter)
-    const finalPurchaseCost = params.manual_cost ?? params.listed_cost ?? baseCost;
+    // Calculate final costs. The gang pays the cost the user typed, as before. The listed price,
+    // which rating uses when "Use Listed Cost for Rating" is ticked, is resolved here rather than
+    // taken from the browser.
+    const listedOffer = await listedOfferPromise;
+    const listedCost = listedOffer.adjusted_cost ?? baseCost;
+    const finalPurchaseCost = params.manual_cost ?? listedCost;
     let ratingCost = params.use_base_cost_for_rating
-      ? (params.listed_cost ?? baseCost)
+      ? listedCost
       : finalPurchaseCost;
 
     const editionSlug = gangEditionSlug(gang);
@@ -539,8 +611,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       }
     }
 
-    // Trade Points (N26). The cost comes from the client alongside manual_cost — the
-    // modal already resolved the discounted catalog value via get_equipment_detailed_data.
+    // Trade Points (N26). The cost comes from the client alongside manual_cost, as the user may
+    // edit it in the purchase dialog like the credit cost.
     const tradePointsCost = hasTradePoints(editionSlug)
       ? parseTradePointsCost(params.manual_trade_points ?? equipmentDetails.trade_points)
       : 0;
