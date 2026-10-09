@@ -13,6 +13,9 @@ export type PostCycleActionId =
   | 'visit_chop_shop'
   | 'work_territory'
   | 'visit_trading_post'
+  | 'suit_evolution'
+  | 'suit_maintenance'
+  | 'terrorise_territory'
   | 'train';
 
 /** Subtypes match fighters.fighter_subtypes; `vehicle` means fighters.is_vehicle. */
@@ -26,19 +29,30 @@ export interface PostCycleActionDefinition {
   label: string;
   summary: string;
   performer: Performer;
+  /** Spyrers get only the Spyre Hunters list's actions, not the standard ones. */
+  openToSpyrers: boolean;
+  /** How many fighters may take it in one sequence; held by the panel. */
+  maxFighters?: number;
 }
 
 export const MEDICAL_ESCORT_COST = 30;
 export const FIT_BIONICS_COST_PER_INJURY = 50;
 export const WORK_TERRITORY_INCOME = 15;
-export const WORK_TERRITORY_MAX_FIGHTERS = 5;
 export const TRAIN_XP = 2;
+export const SUIT_EVOLUTION_KILL_COST = 4;
+
+const TERRITORY_MAX_FIGHTERS = 5;
 
 /** Must match the seeded N26 effect_name exactly. */
 export const CRITICAL_INJURY_EFFECT_NAME = 'Critical Injury';
 
 const LEADER_CHAMPION = ['leader', 'champion'] as const;
 const LEADER_CHAMPION_GANGER_PROSPECT = ['leader', 'champion', 'ganger', 'prospect'] as const;
+/**
+ * The subtype, not fighter_types.is_spyrer: that flag is also set on the
+ * Caryatid Prime, a pet with no hunting rig.
+ */
+const SPYRER = ['spyrer'] as const;
 
 export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefinition> = {
   medical_escort: {
@@ -46,42 +60,73 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
     label: 'Medical Escort',
     summary: `${MEDICAL_ESCORT_COST} credits + D6`,
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
+    openToSpyrers: false,
   },
   fit_bionics: {
     id: 'fit_bionics',
     label: 'Fit Bionics',
     summary: `${FIT_BIONICS_COST_PER_INJURY} credits per injury`,
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
+    openToSpyrers: false,
   },
   visit_chop_shop: {
     id: 'visit_chop_shop',
     label: 'Visit Chop Shop',
     summary: 'Logged only',
     performer: { kind: 'vehicle' },
+    openToSpyrers: false,
   },
   work_territory: {
     id: 'work_territory',
     label: 'Work Territory',
     summary: `+${WORK_TERRITORY_INCOME} credits`,
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION_GANGER_PROSPECT },
+    openToSpyrers: false,
+    maxFighters: TERRITORY_MAX_FIGHTERS,
   },
   develop_tactics: {
     id: 'develop_tactics',
     label: 'Develop Tactics',
     summary: 'Logged only',
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
+    openToSpyrers: false,
   },
   visit_trading_post: {
     id: 'visit_trading_post',
     label: 'Visit Trading Post',
     summary: 'Logged only',
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
+    openToSpyrers: false,
   },
+  suit_evolution: {
+    id: 'suit_evolution',
+    label: 'Suit Evolution',
+    summary: 'Logged only',
+    performer: { kind: 'subtypes', subtypes: SPYRER },
+    openToSpyrers: true,
+  },
+  suit_maintenance: {
+    id: 'suit_maintenance',
+    label: 'Suit Maintenance',
+    summary: 'Logged only',
+    performer: { kind: 'subtypes', subtypes: SPYRER },
+    openToSpyrers: true,
+  },
+  terrorise_territory: {
+    id: 'terrorise_territory',
+    label: 'Terrorise Territory',
+    summary: 'Logged only',
+    performer: { kind: 'subtypes', subtypes: SPYRER },
+    openToSpyrers: true,
+    maxFighters: TERRITORY_MAX_FIGHTERS,
+  },
+  // On both lists.
   train: {
     id: 'train',
     label: 'Train',
     summary: `+${TRAIN_XP} XP`,
     performer: { kind: 'any' },
+    openToSpyrers: true,
   },
 };
 
@@ -104,6 +149,7 @@ export interface PostCycleFighter {
   enslaved?: boolean;
   captured?: boolean;
   recovery?: boolean;
+  kill_count?: number;
   effects?: {
     injuries?: FighterEffect[];
     [key: string]: FighterEffect[] | undefined;
@@ -132,7 +178,9 @@ export function canPerformPostCycleAction(
   if (!canActInPostCycle(fighter)) return false;
   if (actionId === 'develop_tactics' && !availability.tacticsCardsAvailable) return false;
 
-  const { performer } = POST_CYCLE_ACTIONS[actionId];
+  const { performer, openToSpyrers } = POST_CYCLE_ACTIONS[actionId];
+  if (!openToSpyrers && hasSubtype(fighter, SPYRER)) return false;
+
   switch (performer.kind) {
     case 'any':
       return true;
@@ -183,6 +231,9 @@ export type PostCycleAssignment =
         | 'visit_chop_shop'
         | 'visit_trading_post'
         | 'work_territory'
+        | 'suit_evolution'
+        | 'suit_maintenance'
+        | 'terrorise_territory'
         | 'train';
     };
 
@@ -200,6 +251,10 @@ export function assignmentCreditsDelta(assignment: PostCycleAssignment): number 
     case 'visit_chop_shop':
     case 'visit_trading_post':
     case 'train':
+    // Logged only for now: the Spyrer's credits, kills and glitches are applied by hand.
+    case 'suit_evolution':
+    case 'suit_maintenance':
+    case 'terrorise_territory':
       return 0;
     default: {
       const unpriced: never = assignment;
@@ -305,6 +360,14 @@ export function validatePostCycleAssignment(
       break;
     }
 
+    case 'suit_evolution':
+      if ((performer.kill_count ?? 0) < SUIT_EVOLUTION_KILL_COST) {
+        issues.push({
+          fighterId: assignment.fighterId,
+          message: `${label} needs a Kill Count of at least ${SUIT_EVOLUTION_KILL_COST}.`,
+        });
+      }
+      break;
   }
 
   return issues;

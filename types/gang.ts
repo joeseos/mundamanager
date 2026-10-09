@@ -164,6 +164,7 @@ export interface GangFighter {
   position?: string;
   xp: number;
   kills: number;
+  kill_count?: number;
   credits: number;
   loadout_cost?: number; // Cost of equipment in active loadout only (for fighter card display)
   movement: number;

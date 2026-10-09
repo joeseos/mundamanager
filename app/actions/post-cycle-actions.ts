@@ -314,6 +314,11 @@ async function runHandler(
     case 'develop_tactics':
     case 'visit_chop_shop':
     case 'visit_trading_post':
+    // The Spyrer actions are logged only for now: their credits, kills and
+    // glitches are applied by hand.
+    case 'suit_evolution':
+    case 'suit_maintenance':
+    case 'terrorise_territory':
       return { outcome: '', creditsDelta: 0 };
     default: {
       const unhandled: never = assignment;
@@ -335,8 +340,8 @@ async function runHandler(
  * saved rows carry the consequence — the patient's Critical Injury is gone, the
  * cards are owned — so the next action is validated against real state instead
  * of against the other rows of a plan. The two cross-fighter rules a single
- * call cannot see (one action per fighter, five Work Territories) are held by
- * the panel.
+ * call cannot see (one action per fighter, five fighters per Territory action)
+ * are held by the panel.
  *
  * Not atomic within an action: Fit Bionics removing three injuries makes three
  * calls, and a failure partway leaves the earlier ones removed. The outcome
