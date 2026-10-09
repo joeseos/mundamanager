@@ -150,13 +150,15 @@ export default function PostCycleActions({
   onFighterUpdate,
   onGangFinancialsUpdate,
 }: PostCycleActionsProps) {
+  /** The actions picked so far; nothing is applied until Confirm. */
   const [rows, setRows] = useState<Record<string, RowState>>({});
-  const [resolvingFighterId, setResolvingFighterId] = useState<string | null>(null);
+  const [applying, setApplying] = useState(false);
+  /** Why an action failed on the last Confirm, keyed by the fighter taking it. */
+  const [failures, setFailures] = useState<Record<string, string>>({});
   /**
-   * What each fighter already did this sequence. The two rules a single server
-   * call cannot see — one action per fighter, and the per-action caps (five
-   * per Territory action, one Ritual Focus) — are held here; everything else is
-   * enforced by the saved state each resolved action leaves behind.
+   * What each fighter did on Confirm. The rules a single server call cannot
+   * see (one action per fighter, the per-action caps) are held here and in
+   * `rows`; everything else is enforced by the saved state each action leaves.
    */
   const [resolved, setResolved] = useState<
     Record<string, { action: PostCycleActionId; outcome: string }>
@@ -207,12 +209,13 @@ export default function PostCycleActions({
     [rows, actorIds]
   );
 
-  /** One validated assignment per pending row, keyed by the fighter resolving it. */
+  /** One validated assignment per pending row, keyed by the fighter taking it. */
   const rowStates = useMemo(() => {
     const states = new Map<
       string,
       { assignment: PostCycleAssignment | null; issues: string[]; cost: number }
     >();
+    const patientsTaken = new Set<string>();
 
     for (const [fighterId, row] of activeRows) {
       const assignment = toAssignment(fighterId, row);
@@ -220,13 +223,15 @@ export default function PostCycleActions({
         ? validatePostCycleAssignment(fighters, assignment, availability)
         : [];
 
-      // The server cannot see this: after one Fit Bionics the patient still has
-      // other injuries, so a second row targeting them would pass validation.
+      // The server checks one action at a time, so these rules across rows are
+      // the panel's: a patient takes no action of their own and sees the Doc once.
       const patientId = assignment && patientOf(assignment);
-      if (patientId && resolved[patientId]) {
-        issues.push(
-          `${fighterById.get(patientId)?.fighter_name ?? 'That fighter'} has already been to the Doc.`
-        );
+      if (patientId) {
+        const name = fighterById.get(patientId)?.fighter_name ?? 'That fighter';
+        if (resolved[patientId]) issues.push(`${name} has already acted this sequence.`);
+        else if (activeRows.has(patientId)) issues.push(`${name} has an action of their own.`);
+        else if (patientsTaken.has(patientId)) issues.push(`${name} is already being taken to the Doc.`);
+        patientsTaken.add(patientId);
       }
       states.set(fighterId, {
         assignment,
@@ -236,6 +241,14 @@ export default function PostCycleActions({
     }
     return states;
   }, [activeRows, fighters, availability, resolved, fighterById]);
+
+  const pendingStates = [...rowStates.values()];
+  const totalSpend = pendingStates.reduce((sum, s) => sum + Math.max(s.cost, 0), 0);
+  const cannotAfford = totalSpend > gangCredits;
+  const readyToApply =
+    pendingStates.length > 0 &&
+    pendingStates.every((s) => s.assignment && s.issues.length === 0) &&
+    !cannotAfford;
 
   // Both halves count: a cap is for the whole sequence, so rows still waiting
   // to resolve take slots just as resolved ones do.
@@ -319,63 +332,75 @@ export default function PostCycleActions({
     return delta === 0 ? null : `${delta > 0 ? '+' : ''}${delta} credits`;
   };
 
-  const handleResolve = async (fighterId: string) => {
-    const state = rowStates.get(fighterId);
-    if (!state?.assignment || resolvingFighterId) return;
+  /**
+   * Applies every picked action. One server call each, in roster order, so each
+   * is checked against what the ones before it saved. A failure does not stop
+   * the rest; its row keeps its pick and shows why.
+   */
+  const handleApply = async () => {
+    const queue = actors.flatMap((f) => {
+      const assignment = rowStates.get(f.id)?.assignment;
+      return assignment ? [assignment] : [];
+    });
+    if (applying || queue.length === 0) return;
 
-    setResolvingFighterId(fighterId);
-    try {
-      const result = await resolvePostCycleAction({
-        gangId,
-        assignment: state.assignment,
-      });
-      const outcome = result.outcome;
+    setApplying(true);
+    setFailures({});
+    let failed = 0;
 
-      // skipRatingUpdate: the authoritative rating arrives with the gang below.
-      for (const change of outcome?.changes ?? []) {
-        const current = fighterById.get(change.fighterId);
-        if (current) onFighterUpdate?.(applyChange(current, change), true);
+    for (const assignment of queue) {
+      const { fighterId } = assignment;
+      try {
+        const result = await resolvePostCycleAction({ gangId, assignment });
+        const outcome = result.outcome;
+
+        // skipRatingUpdate: the authoritative rating arrives with the gang below.
+        for (const change of outcome?.changes ?? []) {
+          const current = fighterById.get(change.fighterId);
+          if (current) onFighterUpdate?.(applyChange(current, change), true);
+        }
+        if (result.gang) onGangFinancialsUpdate?.(result.gang);
+
+        if (!result.success) {
+          failed++;
+          setFailures((prev) => ({ ...prev, [fighterId]: result.error || 'The action failed.' }));
+        }
+
+        // A partial failure still spent the action, so it is recorded like a success.
+        if (!result.landed || !outcome) continue;
+
+        const patientId = patientOf(assignment);
+        setResolved((prev) => ({
+          ...prev,
+          [fighterId]: { action: outcome.action, outcome: outcome.outcome },
+          // A fighter taken to the Doc spends no action of their own.
+          ...(patientId
+            ? {
+                [patientId]: {
+                  action: outcome.action,
+                  outcome: `Taken to the Doc by ${outcome.fighterName}.`,
+                },
+              }
+            : {}),
+        }));
+        setRows((prev) => {
+          const { [fighterId]: _done, ...rest } = prev;
+          return rest;
+        });
+      } catch (error) {
+        failed++;
+        setFailures((prev) => ({
+          ...prev,
+          [fighterId]: error instanceof Error ? error.message : 'The action failed.',
+        }));
       }
+    }
 
-      if (result.gang) onGangFinancialsUpdate?.(result.gang);
-
-      if (!result.success) toast.error(result.error || 'Failed to resolve the action');
-
-      // A partial failure still spent the action, or the fighter could pick another.
-      if (!result.landed || !outcome) return;
-
-      const patientId = patientOf(state.assignment);
-
-      // The row is done: record what happened and drop its inputs.
-      setResolved((prev) => ({
-        ...prev,
-        [fighterId]: { action: outcome.action, outcome: outcome.outcome },
-        // A fighter taken to the Doc spends no action of their own. Most are
-        // dead or in Recovery afterwards and drop out anyway, but a Fit
-        // Bionics patient is still on their feet.
-        ...(patientId
-          ? {
-              [patientId]: {
-                action: outcome.action,
-                outcome: `Taken to the Doc by ${outcome.fighterName}.`,
-              },
-            }
-          : {}),
-      }));
-
-      setRows((prev) => {
-        const next = { ...prev };
-        delete next[fighterId];
-        // The patient spends no action, so whatever they had queued goes with it.
-        if (patientId) delete next[patientId];
-        return next;
-      });
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to resolve the action'
-      );
-    } finally {
-      setResolvingFighterId(null);
+    setApplying(false);
+    if (failed > 0) {
+      toast.error(`${failed} of ${queue.length} Post-cycle Actions failed. See the marked rows.`);
+    } else {
+      toast.success('Post-cycle Actions applied');
     }
   };
 
@@ -410,11 +435,10 @@ export default function PostCycleActions({
             const target = row?.targetFighterId
               ? fighterById.get(row.targetFighterId)
               : undefined;
-            const isResolving = resolvingFighterId === fighter.id;
             // A patient is added to `resolved` by the escort's row, so `row`
             // alone is not enough to decide whether inputs still show.
             const pending = done ? undefined : row;
-            const cannotAfford = (state?.cost ?? 0) > gangCredits;
+            const failure = pending ? failures[fighter.id] : undefined;
 
             return (
               <li
@@ -464,7 +488,7 @@ export default function PostCycleActions({
                       placeholder="No action"
                       dropdownPlacement="down"
                       clearable
-                      disabled={!canEdit}
+                      disabled={!canEdit || applying}
                     />
                   )}
 
@@ -477,7 +501,7 @@ export default function PostCycleActions({
                       noResultsText="No fighter has a Critical Injury"
                       dropdownPlacement="down"
                       clearable
-                      disabled={!canEdit}
+                      disabled={!canEdit || applying}
                     />
                   )}
 
@@ -494,7 +518,7 @@ export default function PostCycleActions({
                         noResultsText="No fighter has a removable Lasting Injury"
                         dropdownPlacement="down"
                         clearable
-                        disabled={!canEdit}
+                        disabled={!canEdit || applying}
                       />
                       {target && (
                         <EffectChecklist
@@ -502,7 +526,7 @@ export default function PostCycleActions({
                           selected={pending.injuryIds}
                           costEach={FIT_BIONICS_COST_PER_INJURY}
                           onChange={(injuryIds) => setRow(fighter.id, { injuryIds })}
-                          disabled={!canEdit}
+                          disabled={!canEdit || applying}
                           emptyText="No removable Lasting Injuries. A Critical Injury cannot be removed with bionics."
                         />
                       )}
@@ -523,33 +547,11 @@ export default function PostCycleActions({
                     </Button>
                   )}
 
-                  {rowIssues.map((message) => (
+                  {[...rowIssues, ...(failure ? [failure] : [])].map((message) => (
                     <p key={message} className="text-xs text-red-600">
                       {message}
                     </p>
                   ))}
-
-                  {pending && (
-                    <Button
-                      size="sm"
-                      className="w-full"
-                      onClick={() => handleResolve(fighter.id)}
-                      disabled={
-                        !canEdit ||
-                        resolvingFighterId !== null ||
-                        !assignment ||
-                        rowIssues.length > 0 ||
-                        cannotAfford
-                      }
-                    >
-                      {isResolving ? 'Resolving…' : 'Resolve'}
-                    </Button>
-                  )}
-                  {pending && cannotAfford && rowIssues.length === 0 && (
-                    <p className="text-xs text-red-600">
-                      The gang cannot afford this action.
-                    </p>
-                  )}
                 </div>
 
                 <span className="hidden md:block md:pt-2">{effect}</span>
@@ -558,6 +560,21 @@ export default function PostCycleActions({
           })}
         </ul>
       </div>
+
+      {pendingStates.length > 0 && (
+        <div className="mt-4 flex flex-col items-end gap-2">
+          {cannotAfford && (
+            <p className="text-xs text-red-600">
+              The gang cannot afford these actions ({totalSpend} credits).
+            </p>
+          )}
+          <Button onClick={handleApply} disabled={!canEdit || applying || !readyToApply}>
+            {applying
+              ? 'Applying…'
+              : `Apply ${pendingStates.length} Post-cycle Action${pendingStates.length === 1 ? '' : 's'}`}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
