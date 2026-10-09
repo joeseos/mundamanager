@@ -117,6 +117,7 @@ export const LOG_TYPE_LABELS: Record<string, string> = {
   'post_cycle_trading_post': 'Visit Trading Post',
   'post_cycle_lead_ritual': 'Lead Ritual',
   'post_cycle_ritual_focus': 'Ritual Focus',
+  'post_cycle_death_rites': 'Death Rites',
   'post_cycle_suit_evolution': 'Suit Evolution',
   'post_cycle_suit_maintenance': 'Suit Maintenance',
   'post_cycle_terrorise_territory': 'Terrorise Territory',
