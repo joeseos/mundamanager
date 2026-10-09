@@ -9,7 +9,6 @@ import { GrCycle } from 'react-icons/gr';
 import { FighterProps } from '@/types/fighter';
 import type { FighterEffect } from '@/types/fighter-effect';
 import { UserPermissions } from '@/types/user-permissions';
-import { hasGangTacticsCards } from '@/types/edition';
 import { useFighterCardModals } from '@/components/gang/fighter-card-modals-context';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
@@ -22,6 +21,7 @@ import {
   assignmentCreditsDelta,
   eligiblePostCycleActions,
   hasCriticalInjury,
+  postCycleAvailability,
   removableLastingInjuriesOf,
   validatePostCycleAssignment,
   type PostCycleActionId,
@@ -37,8 +37,10 @@ interface PostCycleActionsProps {
   editionSlug?: string | null;
   fighters: FighterProps[];
   gangCredits: number;
-  /** Chaos Helots or Chaos Corrupted, from hasChaosRituals. */
-  chaosRitualsAvailable: boolean;
+  /** Gang facts the gang-specific actions depend on; see postCycleAvailability. */
+  gangType?: string | null;
+  isCustomGangType: boolean;
+  gangSubtypes: Array<{ id: string; subtype: string }>;
   userPermissions?: UserPermissions;
   onFighterUpdate?: (fighter: FighterProps, skipRatingUpdate?: boolean) => void;
   onGangFinancialsUpdate?: (financials: { credits: number; rating: number; wealth: number }) => void;
@@ -186,7 +188,9 @@ export default function PostCycleActions({
   editionSlug,
   fighters,
   gangCredits,
-  chaosRitualsAvailable,
+  gangType,
+  isCustomGangType,
+  gangSubtypes,
   userPermissions,
   onFighterUpdate,
   onGangFinancialsUpdate,
@@ -206,11 +210,14 @@ export default function PostCycleActions({
   const canEdit = userPermissions?.canEdit ?? false;
   const fighterCardModals = useFighterCardModals();
   const availability = useMemo(
-    () => ({
-      tacticsCardsAvailable: hasGangTacticsCards(editionSlug),
-      chaosRitualsAvailable,
-    }),
-    [editionSlug, chaosRitualsAvailable]
+    () =>
+      postCycleAvailability({
+        editionSlug,
+        gangType,
+        isCustomGangType,
+        subtypeNames: gangSubtypes.map((s) => s.subtype),
+      }),
+    [editionSlug, gangType, isCustomGangType, gangSubtypes]
   );
   const fighterById = useMemo(() => new Map(fighters.map((f) => [f.id, f])), [fighters]);
 

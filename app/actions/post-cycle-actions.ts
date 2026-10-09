@@ -2,7 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { hasGangTacticsCards, hasPostCycleActions } from '@/types/edition';
+import { hasPostCycleActions } from '@/types/edition';
 import { getEditionIdBySlug } from '@/utils/editions';
 import { getGangCore, getGangFightersList } from '@/app/lib/shared/gang-data';
 import { invalidateFighter } from '@/utils/cache-tags';
@@ -17,6 +17,7 @@ import {
   WORK_TERRITORY_INCOME,
   assignmentCreditsDelta,
   criticalInjuriesOf,
+  postCycleAvailability,
   validatePostCycleAssignment,
   type PostCycleAssignment,
 } from '@/utils/postCycleActions';
@@ -314,10 +315,11 @@ async function runHandler(
     case 'develop_tactics':
     case 'visit_chop_shop':
     case 'visit_trading_post':
-    // The Chaos ritual and Spyrer actions are logged only for now: the ritual
-    // roll, and the Spyrers' credits, kills and glitches, are applied by hand.
+    // The Chaos ritual, Death Rites and Spyrer actions are logged only for
+    // now: their rolls, checks, credits, kills and glitches are applied by hand.
     case 'lead_ritual':
     case 'ritual_focus':
+    case 'death_rites':
     case 'suit_evolution':
     case 'suit_maintenance':
     case 'terrorise_territory':
@@ -374,9 +376,15 @@ export async function resolvePostCycleAction(
     ]);
 
     const issues = validatePostCycleAssignment(fighters, assignment, {
-      tacticsCardsAvailable: hasGangTacticsCards(editionSlug),
-      // The page decides this from the gang subtypes it already loads; the
-      // server holds only subtype ids, and both ritual actions are logged only.
+      ...postCycleAvailability({
+        editionSlug,
+        gangType: gang.gang_type,
+        isCustomGangType: Boolean(gang.custom_gang_type_id),
+        subtypeNames: [],
+      }),
+      // Chaos Corrupted is a gang subtype, and the gang row holds subtype ids,
+      // not names. The page decides this from the names it already loads, and
+      // both ritual actions are logged only.
       chaosRitualsAvailable: true,
     });
     if (issues.length > 0) {

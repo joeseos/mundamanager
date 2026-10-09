@@ -4,6 +4,7 @@
  */
 
 import type { FighterEffect } from '@/types/fighter-effect';
+import { hasGangTacticsCards } from '@/types/edition';
 import { countsTowardRating } from '@/utils/fighter-status';
 
 export type PostCycleActionId =
@@ -15,6 +16,7 @@ export type PostCycleActionId =
   | 'visit_trading_post'
   | 'lead_ritual'
   | 'ritual_focus'
+  | 'death_rites'
   | 'suit_evolution'
   | 'suit_maintenance'
   | 'terrorise_territory'
@@ -125,6 +127,16 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
     maxFighters: 1,
     requires: 'chaosRitualsAvailable',
   },
+  death_rites: {
+    id: 'death_rites',
+    label: 'Death Rites',
+    summary: 'Logged only',
+    // Stands in for "Chymist Cult Fighter": every fighter on the cult's own list
+    // but the Khimerix has one of these. A Champion Hired Gun gets through too.
+    performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION_GANGER_PROSPECT },
+    openToSpyrers: false,
+    requires: 'deathRitesAvailable',
+  },
   suit_evolution: {
     id: 'suit_evolution',
     label: 'Suit Evolution',
@@ -197,27 +209,36 @@ function hasSubtype(fighter: PostCycleFighter, subtypes: readonly string[]): boo
 export interface PostCycleAvailability {
   tacticsCardsAvailable: boolean;
   chaosRitualsAvailable: boolean;
+  deathRitesAvailable: boolean;
+}
+
+/** The gang facts PostCycleAvailability is worked out from; the gang page already loads them. */
+export interface PostCycleGang {
+  editionSlug?: string | null;
+  gangType?: string | null;
+  isCustomGangType: boolean;
+  subtypeNames: readonly string[];
 }
 
 const CHAOS_HELOTS_GANG_TYPE = 'chaos helots';
 const CHAOS_CORRUPTED_GANG_SUBTYPE = 'chaos corrupted';
+const CHYMIST_CULT_GANG_TYPE = 'chymist cult';
 
 /**
- * Chaos Helot cults and Chaos Corrupted gangs may also Lead a Ritual or be its
- * Focus. Matched by name like isVenatorGang; a custom gang type's name is the
- * user's own, so it never counts.
+ * Gang types and subtypes are matched by name, like isVenatorGang. A custom
+ * gang type's name is the user's own, so it never counts.
  */
-export function hasChaosRituals(gang: {
-  gangType?: string | null;
-  isCustomGangType: boolean;
-  subtypeNames: readonly string[];
-}): boolean {
-  const isHelots =
-    !gang.isCustomGangType && (gang.gangType ?? '').toLowerCase() === CHAOS_HELOTS_GANG_TYPE;
-  return (
-    isHelots ||
-    gang.subtypeNames.some((name) => name.toLowerCase() === CHAOS_CORRUPTED_GANG_SUBTYPE)
-  );
+export function postCycleAvailability(gang: PostCycleGang): PostCycleAvailability {
+  const gangType = gang.isCustomGangType ? '' : (gang.gangType ?? '').toLowerCase();
+  const subtypes = gang.subtypeNames.map((name) => name.toLowerCase());
+
+  return {
+    tacticsCardsAvailable: hasGangTacticsCards(gang.editionSlug),
+    chaosRitualsAvailable:
+      gangType === CHAOS_HELOTS_GANG_TYPE || subtypes.includes(CHAOS_CORRUPTED_GANG_SUBTYPE),
+    // The Escher variant list, stored as its own gang type.
+    deathRitesAvailable: gangType === CHYMIST_CULT_GANG_TYPE,
+  };
 }
 
 export function canPerformPostCycleAction(
@@ -285,6 +306,7 @@ export type PostCycleAssignment =
         | 'work_territory'
         | 'lead_ritual'
         | 'ritual_focus'
+        | 'death_rites'
         | 'suit_evolution'
         | 'suit_maintenance'
         | 'terrorise_territory'
@@ -305,10 +327,11 @@ export function assignmentCreditsDelta(assignment: PostCycleAssignment): number 
     case 'visit_chop_shop':
     case 'visit_trading_post':
     case 'train':
-    // Logged only for now: the ritual roll, the Spyrer's credits, kills and
-    // glitches are all applied by hand.
+    // Logged only for now: the ritual roll, the Death Rites' 60 credits and
+    // check, and the Spyrers' credits, kills and glitches are applied by hand.
     case 'lead_ritual':
     case 'ritual_focus':
+    case 'death_rites':
     case 'suit_evolution':
     case 'suit_maintenance':
     case 'terrorise_territory':
