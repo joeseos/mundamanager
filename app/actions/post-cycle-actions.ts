@@ -14,7 +14,6 @@ import {
   FIT_BIONICS_COST_PER_INJURY,
   MEDICAL_ESCORT_COST,
   TRAIN_XP,
-  WORK_TERRITORY_INCOME,
   assignmentCreditsDelta,
   criticalInjuriesOf,
   postCycleAvailability,
@@ -307,8 +306,10 @@ async function runHandler(
       return handleFitBionics(ctx, assignment.injuryIds);
     case 'train':
       return handleTrain(ctx);
+    // The income is the whole action, so it is billed as its credits rule says.
     case 'work_territory':
-      return { outcome: '', creditsDelta: WORK_TERRITORY_INCOME };
+    case 'terrorise_territory':
+      return { outcome: '', creditsDelta: assignmentCreditsDelta(assignment) };
     // The repair runs through the vehicle damage modal, the card is added from
     // the Gang Tactics section and equipment is bought from the Stash tab, so
     // these three only leave a log line.
@@ -323,7 +324,6 @@ async function runHandler(
     case 'enhance_weapon':
     case 'suit_evolution':
     case 'suit_maintenance':
-    case 'terrorise_territory':
       return { outcome: '', creditsDelta: 0 };
     default: {
       const unhandled: never = assignment;

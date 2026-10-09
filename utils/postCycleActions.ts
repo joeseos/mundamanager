@@ -49,6 +49,7 @@ export interface PostCycleActionDefinition {
 export const MEDICAL_ESCORT_COST = 30;
 export const FIT_BIONICS_COST_PER_INJURY = 50;
 export const WORK_TERRITORY_INCOME = 15;
+export const TERRORISE_TERRITORY_INCOME = 10;
 export const TRAIN_XP = 2;
 export const SUIT_EVOLUTION_KILL_COST = 4;
 
@@ -161,7 +162,7 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   terrorise_territory: {
     id: 'terrorise_territory',
     label: 'Terrorise Territory',
-    summary: 'Logged only',
+    summary: `+${TERRORISE_TERRITORY_INCOME} credits`,
     performer: { kind: 'subtypes', subtypes: SPYRER },
     openToSpyrers: true,
     maxFighters: TERRITORY_MAX_FIGHTERS,
@@ -333,6 +334,8 @@ export function assignmentCreditsDelta(assignment: PostCycleAssignment): number 
       return -(assignment.injuryIds.length * FIT_BIONICS_COST_PER_INJURY);
     case 'work_territory':
       return WORK_TERRITORY_INCOME;
+    case 'terrorise_territory':
+      return TERRORISE_TERRITORY_INCOME;
     // Named rather than defaulted, so a new action has to state its price.
     case 'develop_tactics':
     case 'visit_chop_shop':
@@ -346,7 +349,6 @@ export function assignmentCreditsDelta(assignment: PostCycleAssignment): number 
     case 'enhance_weapon':
     case 'suit_evolution':
     case 'suit_maintenance':
-    case 'terrorise_territory':
       return 0;
     default: {
       const unpriced: never = assignment;
