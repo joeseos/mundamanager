@@ -40,6 +40,8 @@ interface VehicleDamagesListProps {
   addFormOnly?: boolean;
   /** When addFormOnly, called when user cancels or after successful add (closes parent modal). */
   onRequestClose?: () => void;
+  /** When true, hide the Add button (e.g. for a Chop Shop visit, which only repairs). */
+  hideAddButton?: boolean;
   onDamageUpdate: (updatedDamages: FighterEffect[]) => void;
   /** Fighter-scoped damages only; an N23 damage sits on the vehicle and never touches the fighter. */
   onFighterStatusUpdate?: (status: {
@@ -70,6 +72,7 @@ export function VehicleDamagesList({
   initialOpenAddModal = false,
   addFormOnly = false,
   onRequestClose,
+  hideAddButton = false,
   onDamageUpdate,
   onFighterStatusUpdate,
   fighterId,
@@ -917,13 +920,15 @@ export function VehicleDamagesList({
             >
               Repair
             </Button>
-            <Button
-              onClick={handleOpenModal}
-              className="bg-neutral-900 hover:bg-gray-800 text-white"
-              disabled={!userPermissions.canEdit || !hasDamageTable}
-            >
-              Add
-            </Button>
+            {!hideAddButton && (
+              <Button
+                onClick={handleOpenModal}
+                className="bg-neutral-900 hover:bg-gray-800 text-white"
+                disabled={!userPermissions.canEdit || !hasDamageTable}
+              >
+                Add
+              </Button>
+            )}
           </div>
         </div>
 

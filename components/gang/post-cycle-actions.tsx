@@ -539,7 +539,7 @@ export default function PostCycleActions({
                       size="sm"
                       className="w-full"
                       onClick={() =>
-                        fighterCardModals?.openVehicleDamageModal(fighter.id)
+                        fighterCardModals?.openVehicleDamageModal(fighter.id, { hideAddButton: true })
                       }
                       disabled={!canEdit || !fighterCardModals}
                     >
