@@ -11,6 +11,8 @@
 export interface TraitModificationData {
   traits_to_add?: string[];
   traits_to_remove?: string[];
+  /** Applies to all of the fighter's weapon profiles with any of these traits, e.g. Light */
+  requires_traits?: string[];
   special_rules_to_add?: string[];
   special_rules_to_remove?: string[];
   /** uuids into fighter_subtypes; ids not names, as subtype_name repeats across editions */
