@@ -37,6 +37,8 @@ interface PostCycleActionsProps {
   editionSlug?: string | null;
   fighters: FighterProps[];
   gangCredits: number;
+  /** Chaos Helots or Chaos Corrupted, from hasChaosRituals. */
+  chaosRitualsAvailable: boolean;
   userPermissions?: UserPermissions;
   onFighterUpdate?: (fighter: FighterProps, skipRatingUpdate?: boolean) => void;
   onGangFinancialsUpdate?: (financials: { credits: number; rating: number; wealth: number }) => void;
@@ -184,6 +186,7 @@ export default function PostCycleActions({
   editionSlug,
   fighters,
   gangCredits,
+  chaosRitualsAvailable,
   userPermissions,
   onFighterUpdate,
   onGangFinancialsUpdate,
@@ -192,9 +195,9 @@ export default function PostCycleActions({
   const [resolvingFighterId, setResolvingFighterId] = useState<string | null>(null);
   /**
    * What each fighter already did this sequence. The two rules a single server
-   * call cannot see — one action per fighter, and the five slots of each
-   * Territory action — are held here; everything else is enforced by the saved
-   * state each resolved action leaves behind.
+   * call cannot see — one action per fighter, and the per-action caps (five
+   * per Territory action, one Ritual Focus) — are held here; everything else is
+   * enforced by the saved state each resolved action leaves behind.
    */
   const [resolved, setResolved] = useState<
     Record<string, { action: PostCycleActionId; outcome: string }>
@@ -203,8 +206,11 @@ export default function PostCycleActions({
   const canEdit = userPermissions?.canEdit ?? false;
   const fighterCardModals = useFighterCardModals();
   const availability = useMemo(
-    () => ({ tacticsCardsAvailable: hasGangTacticsCards(editionSlug) }),
-    [editionSlug]
+    () => ({
+      tacticsCardsAvailable: hasGangTacticsCards(editionSlug),
+      chaosRitualsAvailable,
+    }),
+    [editionSlug, chaosRitualsAvailable]
   );
   const fighterById = useMemo(() => new Map(fighters.map((f) => [f.id, f])), [fighters]);
 

@@ -13,15 +13,21 @@ export type PostCycleActionId =
   | 'visit_chop_shop'
   | 'work_territory'
   | 'visit_trading_post'
+  | 'lead_ritual'
+  | 'ritual_focus'
   | 'suit_evolution'
   | 'suit_maintenance'
   | 'terrorise_territory'
   | 'train';
 
-/** Subtypes match fighters.fighter_subtypes; `vehicle` means fighters.is_vehicle. */
+/**
+ * Subtypes match fighters.fighter_subtypes; `vehicle` means fighters.is_vehicle;
+ * `fighter` is any model that is not a vehicle.
+ */
 type Performer =
   | { kind: 'subtypes'; subtypes: readonly string[] }
   | { kind: 'vehicle' }
+  | { kind: 'fighter' }
   | { kind: 'any' };
 
 export interface PostCycleActionDefinition {
@@ -33,6 +39,8 @@ export interface PostCycleActionDefinition {
   openToSpyrers: boolean;
   /** How many fighters may take it in one sequence; held by the panel. */
   maxFighters?: number;
+  /** Offered only when the gang has this. */
+  requires?: keyof PostCycleAvailability;
 }
 
 export const MEDICAL_ESCORT_COST = 30;
@@ -46,6 +54,7 @@ const TERRITORY_MAX_FIGHTERS = 5;
 /** Must match the seeded N26 effect_name exactly. */
 export const CRITICAL_INJURY_EFFECT_NAME = 'Critical Injury';
 
+const LEADER = ['leader'] as const;
 const LEADER_CHAMPION = ['leader', 'champion'] as const;
 const LEADER_CHAMPION_GANGER_PROSPECT = ['leader', 'champion', 'ganger', 'prospect'] as const;
 /**
@@ -90,6 +99,7 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
     summary: 'Logged only',
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
     openToSpyrers: false,
+    requires: 'tacticsCardsAvailable',
   },
   visit_trading_post: {
     id: 'visit_trading_post',
@@ -97,6 +107,23 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
     summary: 'Logged only',
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
     openToSpyrers: false,
+  },
+  lead_ritual: {
+    id: 'lead_ritual',
+    label: 'Lead Ritual',
+    summary: 'Logged only',
+    performer: { kind: 'subtypes', subtypes: LEADER },
+    openToSpyrers: false,
+    requires: 'chaosRitualsAvailable',
+  },
+  ritual_focus: {
+    id: 'ritual_focus',
+    label: 'Ritual Focus',
+    summary: 'Logged only',
+    performer: { kind: 'fighter' },
+    openToSpyrers: false,
+    maxFighters: 1,
+    requires: 'chaosRitualsAvailable',
   },
   suit_evolution: {
     id: 'suit_evolution',
@@ -166,8 +193,31 @@ function hasSubtype(fighter: PostCycleFighter, subtypes: readonly string[]): boo
   return subtypes.some((wanted) => owned.includes(wanted));
 }
 
+/** What the gang has, beyond its fighters, that some actions depend on. */
 export interface PostCycleAvailability {
   tacticsCardsAvailable: boolean;
+  chaosRitualsAvailable: boolean;
+}
+
+const CHAOS_HELOTS_GANG_TYPE = 'chaos helots';
+const CHAOS_CORRUPTED_GANG_SUBTYPE = 'chaos corrupted';
+
+/**
+ * Chaos Helot cults and Chaos Corrupted gangs may also Lead a Ritual or be its
+ * Focus. Matched by name like isVenatorGang; a custom gang type's name is the
+ * user's own, so it never counts.
+ */
+export function hasChaosRituals(gang: {
+  gangType?: string | null;
+  isCustomGangType: boolean;
+  subtypeNames: readonly string[];
+}): boolean {
+  const isHelots =
+    !gang.isCustomGangType && (gang.gangType ?? '').toLowerCase() === CHAOS_HELOTS_GANG_TYPE;
+  return (
+    isHelots ||
+    gang.subtypeNames.some((name) => name.toLowerCase() === CHAOS_CORRUPTED_GANG_SUBTYPE)
+  );
 }
 
 export function canPerformPostCycleAction(
@@ -176,14 +226,16 @@ export function canPerformPostCycleAction(
   availability: PostCycleAvailability
 ): boolean {
   if (!canActInPostCycle(fighter)) return false;
-  if (actionId === 'develop_tactics' && !availability.tacticsCardsAvailable) return false;
 
-  const { performer, openToSpyrers } = POST_CYCLE_ACTIONS[actionId];
+  const { performer, openToSpyrers, requires } = POST_CYCLE_ACTIONS[actionId];
+  if (requires && !availability[requires]) return false;
   if (!openToSpyrers && hasSubtype(fighter, SPYRER)) return false;
 
   switch (performer.kind) {
     case 'any':
       return true;
+    case 'fighter':
+      return !fighter.is_vehicle;
     case 'vehicle':
       return fighter.is_vehicle === true;
     case 'subtypes':
@@ -231,6 +283,8 @@ export type PostCycleAssignment =
         | 'visit_chop_shop'
         | 'visit_trading_post'
         | 'work_territory'
+        | 'lead_ritual'
+        | 'ritual_focus'
         | 'suit_evolution'
         | 'suit_maintenance'
         | 'terrorise_territory'
@@ -251,7 +305,10 @@ export function assignmentCreditsDelta(assignment: PostCycleAssignment): number 
     case 'visit_chop_shop':
     case 'visit_trading_post':
     case 'train':
-    // Logged only for now: the Spyrer's credits, kills and glitches are applied by hand.
+    // Logged only for now: the ritual roll, the Spyrer's credits, kills and
+    // glitches are all applied by hand.
+    case 'lead_ritual':
+    case 'ritual_focus':
     case 'suit_evolution':
     case 'suit_maintenance':
     case 'terrorise_territory':
