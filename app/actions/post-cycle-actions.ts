@@ -371,7 +371,11 @@ export async function resolvePostCycleAction(
     if (charged < 0) {
       const charge = await updateGangFinancials(supabase, { gangId, creditsDelta: charged });
       if (!charge.success) {
-        return { success: false, error: charge.error || 'Failed to charge the gang' };
+        const error =
+          charge.error === 'Insufficient credits'
+            ? 'Not enough credits'
+            : charge.error || 'Failed to charge the gang';
+        return { success: false, error };
       }
     }
 
