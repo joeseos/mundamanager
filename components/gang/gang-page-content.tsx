@@ -30,6 +30,7 @@ import type { FighterEffect } from '@/types/fighter';
 import { hasKilledStatusFlag, countsTowardRating } from '@/utils/fighter-status';
 import { hasVehicles, hasGangTacticsCards, hasPostCycleActions } from '@/types/edition';
 import PostCycleActions from "@/components/gang/post-cycle-actions";
+import { hasChaosRituals } from '@/utils/postCycleActions';
 
 const FighterXpModal = dynamic(
   () => import('@/components/fighter/fighter-xp-modal').then((mod) => mod.FighterXpModal),
@@ -644,6 +645,12 @@ export default function GangPageContent({
   // N26 vehicles are fighter types, so they live on the Gang tab rather than a roster of their own.
   const showVehicleRoster = !hasVehicles(gangData.processedData.edition_slug);
 
+  const chaosRitualsAvailable = hasChaosRituals({
+    gangType: gangData.processedData.gang_type,
+    isCustomGangType: Boolean(gangData.processedData.custom_gang_type_id),
+    subtypeNames: (gangData.processedData.gang_subtypes || []).map((s) => s.subtype),
+  });
+
   // One entry per tab so the titles, icons and panels can never drift out of step.
   const tabs = [
     {
@@ -737,6 +744,7 @@ export default function GangPageContent({
               editionSlug={gangData.processedData.edition_slug}
               fighters={gangData.processedData.fighters}
               gangCredits={gangData.processedData.credits}
+              chaosRitualsAvailable={chaosRitualsAvailable}
               userPermissions={userPermissions}
               onFighterUpdate={handleFighterUpdate}
               onGangFinancialsUpdate={handleGangFinancialsUpdate}

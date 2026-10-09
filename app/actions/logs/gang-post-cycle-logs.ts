@@ -12,6 +12,8 @@ const POST_CYCLE_LOG_ACTION_TYPES: Record<PostCycleActionId, string> = {
   visit_chop_shop: 'post_cycle_chop_shop',
   work_territory: 'post_cycle_work_territory',
   visit_trading_post: 'post_cycle_trading_post',
+  lead_ritual: 'post_cycle_lead_ritual',
+  ritual_focus: 'post_cycle_ritual_focus',
   suit_evolution: 'post_cycle_suit_evolution',
   suit_maintenance: 'post_cycle_suit_maintenance',
   terrorise_territory: 'post_cycle_terrorise_territory',

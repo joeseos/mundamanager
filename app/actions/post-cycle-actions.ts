@@ -314,8 +314,10 @@ async function runHandler(
     case 'develop_tactics':
     case 'visit_chop_shop':
     case 'visit_trading_post':
-    // The Spyrer actions are logged only for now: their credits, kills and
-    // glitches are applied by hand.
+    // The Chaos ritual and Spyrer actions are logged only for now: the ritual
+    // roll, and the Spyrers' credits, kills and glitches, are applied by hand.
+    case 'lead_ritual':
+    case 'ritual_focus':
     case 'suit_evolution':
     case 'suit_maintenance':
     case 'terrorise_territory':
@@ -340,8 +342,8 @@ async function runHandler(
  * saved rows carry the consequence — the patient's Critical Injury is gone, the
  * cards are owned — so the next action is validated against real state instead
  * of against the other rows of a plan. The two cross-fighter rules a single
- * call cannot see (one action per fighter, five fighters per Territory action)
- * are held by the panel.
+ * call cannot see (one action per fighter, and the per-action caps such as five
+ * Work Territories) are held by the panel.
  *
  * Not atomic within an action: Fit Bionics removing three injuries makes three
  * calls, and a failure partway leaves the earlier ones removed. The outcome
@@ -373,6 +375,9 @@ export async function resolvePostCycleAction(
 
     const issues = validatePostCycleAssignment(fighters, assignment, {
       tacticsCardsAvailable: hasGangTacticsCards(editionSlug),
+      // The page decides this from the gang subtypes it already loads; the
+      // server holds only subtype ids, and both ritual actions are logged only.
+      chaosRitualsAvailable: true,
     });
     if (issues.length > 0) {
       return { success: false, error: issues.map((i) => i.message).join(' ') };
