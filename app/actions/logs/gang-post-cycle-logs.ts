@@ -1,7 +1,7 @@
 'use server'
 
 import { createGangLog, GangLogActionResult } from "./gang-logs";
-import { formatRollOutcomeLine } from "@/utils/dice";
+import { formatRollOutcomeLine, type RollOutcome } from "@/utils/dice";
 import { POST_CYCLE_ACTIONS, postCycleLogType, type PostCycleActionId } from "@/utils/postCycleActions";
 
 export interface PostCycleActionLogParams {
@@ -10,8 +10,7 @@ export interface PostCycleActionLogParams {
   fighter_name: string;
   action: PostCycleActionId;
   outcome?: string;
-  roll_total?: number;
-  roll_dice?: number[];
+  roll?: RollOutcome;
   user_id?: string;
 }
 
@@ -19,27 +18,17 @@ export interface PostCycleActionLogParams {
 export async function logPostCycleAction(
   params: PostCycleActionLogParams
 ): Promise<GangLogActionResult> {
-  const definition = POST_CYCLE_ACTIONS[params.action];
-
-  const parts: string[] = [
-    `Fighter "${params.fighter_name}" performed the ${definition.label} Post-cycle Action.`,
-  ];
-
-  if (params.roll_total !== undefined) {
-    parts.push(
-      ` ${formatRollOutcomeLine(params.roll_total, params.roll_dice ?? [params.roll_total])}.`
-    );
-  }
-
-  if (params.outcome) {
-    parts.push(` ${params.outcome}`);
-  }
+  const description = [
+    `Fighter "${params.fighter_name}" performed the ${POST_CYCLE_ACTIONS[params.action].label} Post-cycle Action.`,
+    params.roll && `${formatRollOutcomeLine(params.roll.total, params.roll.dice)}.`,
+    params.outcome,
+  ].filter(Boolean).join(' ');
 
   return createGangLog({
     gang_id: params.gang_id,
     fighter_id: params.fighter_id,
     action_type: postCycleLogType(params.action),
-    description: parts.join(''),
+    description,
     user_id: params.user_id,
   });
 }

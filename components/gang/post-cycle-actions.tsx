@@ -78,9 +78,7 @@ function applyChange(fighter: FighterProps, change: PostCycleFighterChange): Fig
 
     next.effects = {
       ...next.effects,
-      injuries: change.addedInjury
-        ? [...kept, change.addedInjury as (typeof kept)[number]]
-        : kept,
+      injuries: change.addedInjury ? [...kept, change.addedInjury] : kept,
     };
   }
 
@@ -248,8 +246,8 @@ export default function PostCycleActions({
     pendingStates.every((s) => s.assignment && s.issues.length === 0) &&
     !cannotAfford;
 
-  // Both halves count: a cap is for the whole sequence, so rows still waiting
-  // to resolve take slots just as resolved ones do.
+  // A cap is for the whole sequence, so picked rows take slots just as applied
+  // ones do.
   const takenCounts = useMemo(() => {
     const counts = new Map<PostCycleActionId, number>();
     for (const { action } of [...Object.values(resolved), ...activeRows.values()]) {
@@ -322,7 +320,7 @@ export default function PostCycleActions({
         };
       });
 
-  /** What a row will do on resolving, as far as it is known beforehand. */
+  /** What a row will do on Confirm, as far as it is known beforehand. */
   const effectOf = (assignment: PostCycleAssignment | null) => {
     if (!assignment) return null;
     if (assignment.action === 'train') return `+${TRAIN_XP} XP`;
@@ -423,15 +421,12 @@ export default function PostCycleActions({
             const done = resolved[fighter.id];
             const state = rowStates.get(fighter.id);
             const assignment = state?.assignment ?? null;
-            const effect = done ? null : effectOf(assignment);
+            const effect = effectOf(assignment);
             const rowIssues = state?.issues ?? [];
             const target = row?.targetFighterId
               ? fighterById.get(row.targetFighterId)
               : undefined;
-            // A patient is added to `resolved` by the escort's row, so `row`
-            // alone is not enough to decide whether inputs still show.
-            const pending = done ? undefined : row;
-            const failure = pending ? failures[fighter.id] : undefined;
+            const failure = row ? failures[fighter.id] : undefined;
 
             return (
               <li
@@ -485,10 +480,10 @@ export default function PostCycleActions({
                     />
                   )}
 
-                  {pending?.action === 'medical_escort' && (
+                  {row?.action === 'medical_escort' && (
                     <Combobox
                       options={patientOptions(fighter.id, criticallyInjured)}
-                      value={pending.targetFighterId ?? ''}
+                      value={row.targetFighterId ?? ''}
                       onValueChange={(id) => setRow(fighter.id, { targetFighterId: id || undefined })}
                       placeholder="Critically Injured fighter"
                       noResultsText="No fighter has a Critical Injury"
@@ -498,11 +493,11 @@ export default function PostCycleActions({
                     />
                   )}
 
-                  {pending?.action === 'fit_bionics' && (
+                  {row?.action === 'fit_bionics' && (
                     <>
                       <Combobox
                         options={patientOptions(fighter.id, injuredFighters)}
-                        value={pending.targetFighterId ?? ''}
+                        value={row.targetFighterId ?? ''}
                         // Switching patient drops the injuries picked for the last one.
                         onValueChange={(id) =>
                           setRow(fighter.id, { targetFighterId: id || undefined, injuryIds: [] })
@@ -516,7 +511,7 @@ export default function PostCycleActions({
                       {target && (
                         <EffectChecklist
                           effects={removableLastingInjuriesOf(target)}
-                          selected={pending.injuryIds}
+                          selected={row.injuryIds}
                           costEach={FIT_BIONICS_COST_PER_INJURY}
                           onChange={(injuryIds) => setRow(fighter.id, { injuryIds })}
                           disabled={!canEdit || applying}

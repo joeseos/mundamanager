@@ -167,7 +167,6 @@ export const LASTING_INJURY_TABLE_N26: TableEntry[] = [
 // Medical Escort (N26 Post-cycle Action) - D6 table and resolver
 // ============================================================================
 
-/** A plain, unmodified D6 — nothing adds to this roll. */
 export const MEDICAL_ESCORT_TABLE: TableEntry[] = [
   { range: [1, 1], name: 'Complications' },
   { range: [2, 3], name: 'Stabilised' },

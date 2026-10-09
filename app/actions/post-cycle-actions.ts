@@ -5,8 +5,8 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { hasPostCycleActions } from '@/types/edition';
 import { getEditionIdBySlug } from '@/utils/editions';
 import { getGangCore, getGangFightersList, getGangSubtypes } from '@/app/lib/shared/gang-data';
-import { invalidateFighter } from '@/utils/cache-tags';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
+import type { FighterEffect } from '@/types/fighter-effect';
 import { addFighterInjury, deleteFighterInjury } from './fighter-injury';
 import { editFighterStatus, updateFighterXp } from './edit-fighter';
 import { logPostCycleAction } from './logs/gang-post-cycle-logs';
@@ -26,6 +26,7 @@ import {
   resolveInjuryFor,
   resolveMedicalEscort,
   rollD6,
+  type RollOutcome,
 } from '@/utils/dice';
 
 export interface ResolvePostCycleActionParams {
@@ -37,14 +38,7 @@ export interface ResolvePostCycleActionParams {
 export interface PostCycleFighterChange {
   fighterId: string;
   removedEffectIds?: string[];
-  addedInjury?: {
-    id: string;
-    effect_name: string;
-    fighter_effect_type_id?: string;
-    fighter_effect_modifiers: any[];
-    type_specific_data: any;
-    created_at: string;
-  };
+  addedInjury?: FighterEffect;
   killed?: boolean;
   recovery?: boolean;
   xpDelta?: number;
@@ -56,7 +50,7 @@ export interface PostCycleActionOutcome {
   action: PostCycleAssignment['action'];
   /** What happened beyond the action's name, ending on the credits it moved. */
   outcome: string;
-  roll?: { total: number; dice: number[] };
+  roll?: RollOutcome;
   /** What actually moved, so a failed or partial action is not billed in full. */
   creditsDelta: number;
   changes?: PostCycleFighterChange[];
@@ -84,7 +78,6 @@ type Fighter = Awaited<ReturnType<typeof getGangFightersList>>[number];
 interface HandlerContext {
   supabase: any;
   editionSlug: string;
-  editionId: string | null;
   performer: Fighter;
   /** Present for the two actions that act on someone else. */
   target?: Fighter;
@@ -92,12 +85,13 @@ interface HandlerContext {
 
 const INJURY_CATEGORY = 'injuries';
 
-/** Injury names repeat across editions, hence the edition id. */
+/** Injury names repeat across editions, hence the edition. */
 async function findInjuryTypeId(
   supabase: any,
   effectName: string,
-  editionId: string | null
+  editionSlug: string
 ): Promise<string | null> {
+  const editionId = await getEditionIdBySlug(editionSlug);
   const { data } = await supabase
     .from('fighter_effect_types')
     .select('id, fighter_effect_category:fighter_effect_category_id ( category_name )')
@@ -120,8 +114,9 @@ async function findInjuryTypeId(
  * Critical Injury for a 51-56 Lasting Injury, Full Recovery just clears it.
  */
 async function handleMedicalEscort(ctx: HandlerContext): Promise<HandlerOutcome> {
-  const { supabase, editionSlug, editionId } = ctx;
+  const { supabase, editionSlug } = ctx;
   const target = ctx.target!;
+  // Validation only accepts a patient with a Critical Injury.
   const criticalInjury = criticalInjuriesOf(target)[0];
   const escortCost = -MEDICAL_ESCORT_COST;
 
@@ -149,7 +144,7 @@ async function handleMedicalEscort(ctx: HandlerContext): Promise<HandlerOutcome>
   // leaves the patient as they were instead of healed for free.
   const stabilised = escortResult === 'Stabilised' ? medicalEscortStabilisedRoll() : null;
   const injuryName = stabilised ? resolveInjuryFor(stabilised.total, editionSlug)!.name : '';
-  const injuryTypeId = stabilised ? await findInjuryTypeId(supabase, injuryName, editionId) : null;
+  const injuryTypeId = stabilised ? await findInjuryTypeId(supabase, injuryName, editionSlug) : null;
 
   if (stabilised && !injuryTypeId) {
     return {
@@ -160,22 +155,20 @@ async function handleMedicalEscort(ctx: HandlerContext): Promise<HandlerOutcome>
     };
   }
 
-  if (criticalInjury) {
-    const removed = await deleteFighterInjury({
-      fighter_id: target.id,
-      injury_id: criticalInjury.id,
-    });
-    if (!removed.success) {
-      return {
-        roll,
-        outcome: `Failed to clear the Critical Injury: ${removed.error}`,
-        creditsDelta: 0,
-        failed: true,
-      };
-    }
+  const removed = await deleteFighterInjury({
+    fighter_id: target.id,
+    injury_id: criticalInjury.id,
+  });
+  if (!removed.success) {
+    return {
+      roll,
+      outcome: `Failed to clear the Critical Injury: ${removed.error}`,
+      creditsDelta: 0,
+      failed: true,
+    };
   }
 
-  const removedEffectIds = criticalInjury ? [criticalInjury.id] : [];
+  const removedEffectIds = [criticalInjury.id];
 
   if (escortResult === 'Full Recovery') {
     // 'recover' toggles, so only a fighter not already in Recovery is sent.
@@ -310,11 +303,11 @@ async function runHandler(
  * Resolve one fighter's Post-cycle Action.
  *
  * One action per call rather than a whole sequence: once an action lands, the
- * saved rows carry the consequence — the patient's Critical Injury is gone, the
- * cards are owned — so the next action is validated against real state instead
- * of against the other rows of a plan. The two cross-fighter rules a single
- * call cannot see (one action per fighter, and the per-action caps such as five
- * Work Territories) are held by the panel.
+ * saved rows carry the consequence — the patient's Critical Injury is gone — so
+ * the next action is validated against real state instead of against the other
+ * rows of a plan. The cross-fighter rules a single call cannot see (one action
+ * per fighter, the per-action caps such as five Work Territories, and a patient
+ * taking no action of their own) are held by the panel.
  *
  * Not atomic within an action: Fit Bionics removing three injuries makes three
  * calls, and a failure partway leaves the earlier ones removed. The outcome
@@ -341,9 +334,8 @@ export async function resolvePostCycleAction(
 
     // The gang row holds subtype ids; the names decide Chaos Corrupted. A gang
     // with no subtypes skips the lookup, and the rest read a cached list.
-    const [fighters, editionId, gangSubtypes] = await Promise.all([
+    const [fighters, gangSubtypes] = await Promise.all([
       getGangFightersList(gangId, supabase, { gangEditionSlug: editionSlug }),
-      getEditionIdBySlug(editionSlug),
       getGangSubtypes(gang.gang_subtypes ?? [], supabase),
     ]);
 
@@ -371,7 +363,7 @@ export async function resolvePostCycleAction(
     }
 
     const handled = await runHandler(
-      { supabase, editionSlug, editionId, performer, target },
+      { supabase, editionSlug, performer, target },
       assignment
     );
 
@@ -411,18 +403,13 @@ export async function resolvePostCycleAction(
           fighter_name: outcome.fighterName,
           action: outcome.action,
           outcome: outcome.outcome,
-          roll_total: outcome.roll?.total,
-          roll_dice: outcome.roll?.dice,
+          roll: outcome.roll,
           user_id: user.id,
         });
       } catch (logError) {
         console.error('Failed to log Post-cycle Action:', logError);
       }
     }
-
-    // updateGangFinancials already busted the gang's financial tags.
-    invalidateFighter(performer.id, gangId);
-    if (target) invalidateFighter(target.id, gangId);
 
     return {
       success: !outcome.failed,
