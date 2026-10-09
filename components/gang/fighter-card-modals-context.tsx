@@ -11,8 +11,6 @@ export interface OpenInjuryModalOptions {
 export interface OpenVehicleDamageModalOptions {
   /** When true, open the Add Lasting Damage modal instead of the list view */
   openAddModal?: boolean;
-  /** When true, hide the Add button, e.g. for a Chop Shop visit, which only repairs */
-  hideAddButton?: boolean;
 }
 
 interface FighterCardModalsContextValue {
