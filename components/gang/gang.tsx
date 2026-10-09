@@ -53,6 +53,7 @@ interface GangProps {
   gang_portrait_id?: string | null;
   gang_portrait_url?: string | null;
   gang_type_default_image_urls?: DefaultImageEntry[];
+  parent_gang_type_name?: string | null;
   gang_colour: string | null;
   credits: number | null;
   reputation: number | null;
@@ -132,6 +133,7 @@ export default function Gang({
   gang_portrait_id,
   gang_portrait_url,
   gang_type_default_image_urls,
+  parent_gang_type_name,
   gang_colour: initialGangColour,
   credits: initialCredits,
   reputation: initialReputation,
@@ -1446,8 +1448,8 @@ export default function Gang({
               currentImageUrl={currentGangImageUrl}
               gangId={id}
               gangType={gang_type || ''}
-              gangTypeId={gang_type_id}
               isCustomGangType={Boolean(custom_gang_type_id)}
+              parentGangTypeName={parent_gang_type_name}
               gangPortraitId={currentPortraitId}
               currentPortraitUrl={currentPortraitUrl}
               onImageUpdate={handleGangImageUpdate}

@@ -79,7 +79,9 @@ export function compareGangPortraits(a: GangPortrait, b: GangPortrait): number {
   if (styleDiff !== 0) return styleDiff;
   if (!a.label && b.label) return -1;
   if (a.label && !b.label) return 1;
-  return (a.label ?? '').localeCompare(b.label ?? '', undefined, { sensitivity: 'base' });
+  const labelDiff = (a.label ?? '').localeCompare(b.label ?? '', undefined, { sensitivity: 'base' });
+  if (labelDiff !== 0) return labelDiff;
+  return a.storage_path.localeCompare(b.storage_path);
 }
 
 /**

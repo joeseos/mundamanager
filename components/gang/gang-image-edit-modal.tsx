@@ -1,22 +1,12 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { updateGangImage } from '@/app/actions/update-gang-image';
 import { CreateGangPortraitPicker } from '@/components/gang/create-gang-portrait-picker';
 import { ImageEditModal } from '@/components/ui/image-edit-modal';
 import { useGangPortraits } from '@/hooks/use-gang-portraits';
-import {
-  gangPortraitPublicUrl,
-  UNKNOWN_GANG_IMAGE_URL,
-  type DefaultImageEntry,
-} from '@/types/gang';
-import { createClient } from '@/utils/supabase/client';
-import {
-  catalogueSlotForGangType,
-  defaultPortraitForSlot,
-  type CatalogueSlot,
-  type GangPortrait,
-} from '@/utils/gang-portraits';
+import { gangPortraitPublicUrl, type DefaultImageEntry } from '@/types/gang';
+import { catalogueSlotForGangType } from '@/utils/gang-portraits';
 
 interface GangImageEditModalProps {
   onClose: () => void;
@@ -25,21 +15,13 @@ interface GangImageEditModalProps {
   gangType: string;
   gangTypeId?: string | null;
   isCustomGangType: boolean;
+  parentGangTypeName?: string | null;
   gangPortraitId?: string | null;
   currentPortraitUrl?: string | null;
   onImageUpdate: (newImageUrl: string, newDefaultImageIndex?: number | null) => void;
   onPortraitUpdate: (portraitId: string, portraitUrl: string) => void;
   defaultImageUrls?: DefaultImageEntry[];
   currentDefaultImageIndex?: number | null;
-}
-
-function portraitIdForImageUrl(portraits: GangPortrait[], imageUrl?: string): string | null {
-  if (!imageUrl) return null;
-  const match = portraits.find((portrait) => {
-    const publicUrl = gangPortraitPublicUrl(portrait.storage_path);
-    return publicUrl === imageUrl || imageUrl.endsWith(`/${portrait.storage_path}`);
-  });
-  return match?.id ?? null;
 }
 
 function indexedDefaultImage(
@@ -58,31 +40,13 @@ function indexedDefaultImage(
   return defaultImageUrls[currentDefaultImageIndex];
 }
 
-function startingPortraitId(
-  portraits: GangPortrait[],
-  slot: CatalogueSlot | null,
-  savedPortraitId: string | null,
-  isCustomGangType: boolean,
-  indexedImage: DefaultImageEntry | undefined
-): string | null {
-  if (savedPortraitId && portraits.some((portrait) => portrait.id === savedPortraitId)) {
-    return savedPortraitId;
-  }
-  if (isCustomGangType) return null;
-  const matchedId = portraitIdForImageUrl(portraits, indexedImage?.url);
-  if (matchedId) return matchedId;
-  // An index that is not a catalogue file stays as-is until the user picks a portrait.
-  if (indexedImage?.url) return null;
-  return defaultPortraitForSlot(portraits, slot)?.id ?? null;
-}
-
 export const GangImageEditModal: React.FC<GangImageEditModalProps> = ({
   onClose,
   currentImageUrl,
   gangId,
   gangType,
-  gangTypeId,
   isCustomGangType,
+  parentGangTypeName,
   gangPortraitId,
   currentPortraitUrl,
   onImageUpdate,
@@ -91,87 +55,28 @@ export const GangImageEditModal: React.FC<GangImageEditModalProps> = ({
   currentDefaultImageIndex,
 }) => {
   const { portraits, status: portraitsStatus } = useGangPortraits();
-  const [catalogueSlot, setCatalogueSlot] = useState<CatalogueSlot | null>(null);
-  const [catalogueReady, setCatalogueReady] = useState(isCustomGangType || !gangTypeId);
   const [selectedPortraitId, setSelectedPortraitId] = useState<string | null>(gangPortraitId ?? null);
-  const [appliedStartingSelection, setAppliedStartingSelection] = useState(false);
   const [clearedPortrait, setClearedPortrait] = useState(false);
 
-  useEffect(() => {
-    if (isCustomGangType || !gangTypeId) return;
-    let cancelled = false;
-    const supabase = createClient();
-
-    const fetchGangType = async () => {
-      const { data: typeRow, error } = await supabase
-        .from('gang_types')
-        .select('gang_type, parent_gang_type_id')
-        .eq('id', gangTypeId)
-        .maybeSingle();
-
-      if (cancelled) return;
-      if (error || !typeRow) {
-        console.error('Error fetching gang type for portrait slot:', error);
-        setCatalogueSlot(catalogueSlotForGangType({ gang_type: gangType }, null));
-        setCatalogueReady(true);
-        return;
-      }
-
-      let parentName: string | null = null;
-      if (typeRow.parent_gang_type_id) {
-        const { data: parent } = await supabase
-          .from('gang_types')
-          .select('gang_type')
-          .eq('id', typeRow.parent_gang_type_id)
-          .maybeSingle();
-        parentName = parent?.gang_type ?? null;
-      }
-
-      if (cancelled) return;
-      setCatalogueSlot(
-        catalogueSlotForGangType(
-          {
-            gang_type: typeRow.gang_type,
-            parent_gang_type_id: typeRow.parent_gang_type_id,
-          },
-          parentName
-        )
+  const catalogueSlot = isCustomGangType
+    ? null
+    : catalogueSlotForGangType(
+        {
+          gang_type: gangType,
+          parent_gang_type_id: parentGangTypeName ? 'parent' : null,
+        },
+        parentGangTypeName ?? null
       );
-      setCatalogueReady(true);
-    };
-
-    fetchGangType();
-    return () => {
-      cancelled = true;
-    };
-  }, [gangType, gangTypeId, isCustomGangType]);
 
   const indexedImage = indexedDefaultImage(defaultImageUrls, currentDefaultImageIndex);
-
-  if (portraitsStatus === 'ready' && catalogueReady && !appliedStartingSelection) {
-    setAppliedStartingSelection(true);
-    if (!clearedPortrait) {
-      setSelectedPortraitId(
-        startingPortraitId(
-          portraits,
-          isCustomGangType ? null : catalogueSlot,
-          gangPortraitId ?? null,
-          isCustomGangType,
-          indexedImage
-        )
-      );
-    }
-  }
-
   const savedPortraitId = gangPortraitId ?? null;
   const silhouetteIndex = defaultImageUrls && defaultImageUrls.length > 0 ? 0 : null;
-  const silhouetteImageUrl = defaultImageUrls?.[0]?.url || UNKNOWN_GANG_IMAGE_URL;
+  const silhouetteImageUrl = defaultImageUrls?.[0]?.url ?? null;
   const alreadyOnSilhouette =
     savedPortraitId === null &&
     (silhouetteIndex === null ? currentDefaultImageIndex == null : currentDefaultImageIndex === 0);
   const portraitChanged =
     portraitsStatus !== 'error' &&
-    appliedStartingSelection &&
     !currentImageUrl &&
     ((selectedPortraitId !== null && selectedPortraitId !== savedPortraitId) ||
       (clearedPortrait && !alreadyOnSilhouette));
@@ -182,9 +87,7 @@ export const GangImageEditModal: React.FC<GangImageEditModalProps> = ({
       ? currentPortraitUrl
       : clearedPortrait
         ? silhouetteImageUrl
-        : !isCustomGangType && appliedStartingSelection
-          ? indexedImage?.url
-          : undefined;
+        : indexedImage?.url;
   const fallbackCredit = clearedPortrait
     ? defaultImageUrls?.[0]?.credit
     : !selectedPortraitId && fallbackImageUrl === indexedImage?.url
@@ -220,7 +123,7 @@ export const GangImageEditModal: React.FC<GangImageEditModalProps> = ({
       portraitPicker={
         <CreateGangPortraitPicker
           portraits={portraits}
-          catalogueSlot={isCustomGangType ? null : catalogueSlot}
+          catalogueSlot={catalogueSlot}
           selectedPortraitId={selectedPortraitId}
           gangTypeName={gangType}
           onSelect={(portraitId) => {

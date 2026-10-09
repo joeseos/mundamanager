@@ -58,6 +58,14 @@ export interface DefaultImageEntry {
   credit?: DefaultImageCredit;
 }
 
+/** Colour slot when the list has one, otherwise the last image. Null when the type has no art. */
+export function preferredDefaultGangImageIndex(
+  urls: DefaultImageEntry[] | undefined
+): number | null {
+  if (!urls || urls.length === 0) return null;
+  return Math.min(3, urls.length - 1);
+}
+
 /**
  * Normalises raw default_image_urls from Supabase.
  * Handles both the legacy string[] format and the new object[] format,

@@ -115,6 +115,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       gang_portrait_id: gangBasic.gang_portrait_id ?? null,
       gang_portrait_url: gangBasic.gang_portrait_url ?? null,
       gang_type_default_image_urls: gangType.default_image_urls ?? undefined,
+      parent_gang_type_name: gangType.parent_gang_type_name ?? null,
       gang_colour: gangBasic.gang_colour,
       credits: gangBasic.credits,
       reputation: gangBasic.reputation,

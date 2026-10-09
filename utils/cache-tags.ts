@@ -40,6 +40,8 @@ import { revalidateTag } from 'next/cache';
  * custom-{id}      custom content            | customise mutations
  * global-gang-types gang type catalog +      | any admin gang-type write
  *                  home-card portraits/names |
+ * global-gang-portraits catalogue file paths | catalogue row rename/delete
+ *                  joined onto gangs         | (invalidateGangPortraits) |
  */
 export const TAGS = {
   gang: (id: string) => `gang-${id}`,
@@ -73,6 +75,7 @@ export const TAGS = {
   // Global reference data
   globalEditions: () => 'global-editions',
   globalGangTypes: () => 'global-gang-types',
+  globalGangPortraits: () => 'global-gang-portraits',
   globalTerritories: () => 'global-territories-list',
   globalScenarios: () => 'global-scenarios',
   globalTradingPostTypes: () => 'global-trading-post-types',
@@ -279,6 +282,11 @@ export function invalidateCampaignCatalogLists() {
  */
 export function invalidateGangTypesCatalog() {
   bust(TAGS.globalGangTypes());
+}
+
+/** A gang_portraits row's path or identity changed. Joined portrait URLs are cached with the gang. */
+export function invalidateGangPortraits() {
+  bust(TAGS.globalGangPortraits());
 }
 
 // Global reference data

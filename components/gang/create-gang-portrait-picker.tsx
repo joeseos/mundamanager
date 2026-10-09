@@ -29,6 +29,8 @@ interface CreateGangPortraitPickerProps {
   /** Edit flow: replace the catalogue portrait with the gang type's silhouette. */
   silhouetteImageUrl?: string | null;
   onUseSilhouette?: () => void;
+  catalogueLoadFailed?: boolean;
+  onRetryCatalogue?: () => void;
 }
 
 function handleImageError(event: SyntheticEvent<HTMLImageElement, Event>) {
@@ -45,6 +47,8 @@ export function CreateGangPortraitPicker({
   fallbackCredit,
   silhouetteImageUrl,
   onUseSilhouette,
+  catalogueLoadFailed,
+  onRetryCatalogue,
 }: CreateGangPortraitPickerProps) {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const selected = portraits.find((portrait) => portrait.id === selectedPortraitId) ?? null;
@@ -136,15 +140,21 @@ export function CreateGangPortraitPicker({
               className="relative size-14 md:size-[4.5rem] rounded-full overflow-hidden border-2 border-muted-foreground bg-muted-foreground opacity-60 transition-opacity hover:opacity-100 focus-visible:opacity-100"
               aria-label="Use silhouette"
             >
-              <Image
-                src={silhouetteImageUrl || UNKNOWN_GANG_IMAGE_URL}
-                alt=""
-                fill
-                sizes="72px"
-                className="object-cover"
-                quality={75}
-                onError={handleImageError}
-              />
+              {silhouetteImageUrl ? (
+                <Image
+                  src={silhouetteImageUrl}
+                  alt=""
+                  fill
+                  sizes="72px"
+                  className="object-cover"
+                  quality={75}
+                  onError={handleImageError}
+                />
+              ) : (
+                <span className="flex size-full items-center justify-center bg-secondary text-sm">
+                  {gangTypeName.charAt(0)}
+                </span>
+              )}
             </button>
           )}
           <button
@@ -157,8 +167,23 @@ export function CreateGangPortraitPicker({
         </div>
       </div>
 
+      {catalogueLoadFailed && onRetryCatalogue && (
+        <p className="mt-3 text-sm text-center text-destructive">
+          Portraits could not be loaded.{' '}
+          <button type="button" onClick={onRetryCatalogue} className="underline">
+            Try again
+          </button>
+        </p>
+      )}
+
       {galleryOpen &&
         createPortal(
+          <div
+            data-portrait-picker
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') event.stopPropagation();
+            }}
+          >
           <GangPortraitGallery
             portraits={portraits}
             currentGroupLabel={currentGroupLabel}
@@ -168,7 +193,8 @@ export function CreateGangPortraitPicker({
               setGalleryOpen(false);
             }}
             onClose={() => setGalleryOpen(false)}
-          />,
+          />
+          </div>,
           document.body
         )}
     </div>

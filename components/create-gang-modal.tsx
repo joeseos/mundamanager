@@ -24,6 +24,7 @@ import {
 import { EditionToggle } from '@/components/home/edition-toggle'
 import { useHomeEdition } from '@/hooks/use-home-edition'
 import { sameEditionForDisplay } from '@/types/edition'
+import { normaliseDefaultImageUrls, preferredDefaultGangImageIndex } from '@/types/gang'
 
 type Gang = {
   id: string;
@@ -57,6 +58,7 @@ type GangType = {
     category_name: string;
   }>;
   parent_gang_type_id?: string | null;
+  default_image_urls?: unknown[] | null;
   is_custom?: boolean;
   edition_slug?: string | null;
 };
@@ -404,6 +406,11 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
           credits: parseInt(credits),
           gangSubtypes: selectedSubtypes.map(v => v.id),
           gangPortraitId: selectedPortraitId,
+          defaultGangImage: selectedPortraitId
+            ? null
+            : preferredDefaultGangImageIndex(
+                normaliseDefaultImageUrls(selectedGangType.default_image_urls)
+              ),
         });
 
         if (!result.success) {
@@ -446,7 +453,9 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === 'Enter') {
       const activeElement = document.activeElement;
-      if ((event.target as HTMLElement).closest('[data-portrait-picker]')) {
+      const target = event.target as HTMLElement | null;
+      // Gallery buttons are portaled outside this modal. Enter must activate them, not create the gang.
+      if (target?.closest('button, [data-portrait-picker]')) {
         return;
       }
 
@@ -711,15 +720,9 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
               selectedPortraitId={selectedPortraitId}
               gangTypeName={resolvedGangType?.gang_type || ''}
               onSelect={setSelectedPortraitId}
+              catalogueLoadFailed={Boolean(catalogueSlot) && portraitsStatus === 'error'}
+              onRetryCatalogue={retryPortraits}
             />
-          )}
-          {gangType && catalogueSlot && portraitsStatus === 'error' && (
-            <p className="text-sm text-center text-destructive">
-              Portraits could not be loaded.{' '}
-              <button type="button" onClick={retryPortraits} className="underline">
-                Try again
-              </button>
-            </p>
           )}
           <p className="text-xs text-center text-muted-foreground">You&apos;ll be able to upload a custom image once your gang is created.</p>
 
