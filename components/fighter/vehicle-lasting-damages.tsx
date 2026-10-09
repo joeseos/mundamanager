@@ -1203,7 +1203,7 @@ export function VehicleDamagesList({
             setRepairType("Superficial Damage");
           }}
           onConfirm={handleRepairDamage}
-          confirmText="Confirm"
+          confirmText="Repair"
           confirmDisabled={
             uniqueDamages.length === 0 ||
             repairDamageMutation.isPending ||
