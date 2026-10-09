@@ -199,10 +199,7 @@ export interface PostCycleFighter {
   captured?: boolean;
   recovery?: boolean;
   kill_count?: number;
-  effects?: {
-    injuries?: FighterEffect[];
-    [key: string]: FighterEffect[] | undefined;
-  };
+  effects?: { injuries?: FighterEffect[] };
 }
 
 /** Performers only: a Doc patient is always in Recovery, so targets skip this. */
