@@ -4,7 +4,7 @@ import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { hasPostCycleActions } from '@/types/edition';
 import { getEditionIdBySlug } from '@/utils/editions';
-import { getGangCore, getGangFightersList } from '@/app/lib/shared/gang-data';
+import { getGangCore, getGangFightersList, getGangSubtypes } from '@/app/lib/shared/gang-data';
 import { invalidateFighter } from '@/utils/cache-tags';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { addFighterInjury, deleteFighterInjury } from './fighter-injury';
@@ -339,23 +339,24 @@ export async function resolvePostCycleAction(
       };
     }
 
-    const [fighters, editionId] = await Promise.all([
+    // The gang row holds subtype ids; the names decide Chaos Corrupted. A gang
+    // with no subtypes skips the lookup, and the rest read a cached list.
+    const [fighters, editionId, gangSubtypes] = await Promise.all([
       getGangFightersList(gangId, supabase, { gangEditionSlug: editionSlug }),
       getEditionIdBySlug(editionSlug),
+      getGangSubtypes(gang.gang_subtypes ?? [], supabase),
     ]);
 
-    const issues = validatePostCycleAssignment(fighters, assignment, {
-      ...postCycleAvailability({
+    const issues = validatePostCycleAssignment(
+      fighters,
+      assignment,
+      postCycleAvailability({
         editionSlug,
         gangType: gang.gang_type,
         isCustomGangType: Boolean(gang.custom_gang_type_id),
-        subtypeNames: [],
-      }),
-      // Chaos Corrupted is a gang subtype, and the gang row holds subtype ids,
-      // not names. The page decides this from the names it already loads, and
-      // both ritual actions are logged only.
-      chaosRitualsAvailable: true,
-    });
+        subtypeNames: gangSubtypes.map((s) => s.subtype),
+      })
+    );
     if (issues.length > 0) {
       return { success: false, error: issues.join(' ') };
     }
