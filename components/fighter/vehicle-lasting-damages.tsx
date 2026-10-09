@@ -38,10 +38,8 @@ interface VehicleDamagesListProps {
   initialOpenAddModal?: boolean;
   /** When true, render only the add form (no list). Use when opening directly from gang card menu. */
   addFormOnly?: boolean;
-  /** When addFormOnly or repairOnly, called when user cancels or after a successful add or repair (closes parent modal). */
+  /** When addFormOnly, called when user cancels or after successful add (closes parent modal). */
   onRequestClose?: () => void;
-  /** When true, render only the Repair modal (e.g. for a Chop Shop visit). */
-  repairOnly?: boolean;
   onDamageUpdate: (updatedDamages: FighterEffect[]) => void;
   /** Fighter-scoped damages only; an N23 damage sits on the vehicle and never touches the fighter. */
   onFighterStatusUpdate?: (status: {
@@ -72,7 +70,6 @@ export function VehicleDamagesList({
   initialOpenAddModal = false,
   addFormOnly = false,
   onRequestClose,
-  repairOnly = false,
   onDamageUpdate,
   onFighterStatusUpdate,
   fighterId,
@@ -93,7 +90,7 @@ export function VehicleDamagesList({
   const [isRepairing, setIsRepairing] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedDamageId, setSelectedDamageId] = useState<string>('');
-  const [isRepairModalOpen, setIsRepairModalOpen] = useState(repairOnly);
+  const [isRepairModalOpen, setIsRepairModalOpen] = useState(false);
   const [selectedRepairTypeId, setSelectedRepairTypeId] = useState<string>('');
   const [damageRollCooldown, setDamageRollCooldown] = useState(false);
   const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
@@ -909,83 +906,81 @@ export function VehicleDamagesList({
   return (
     <>
       {/* Custom header with both Add and Repair buttons */}
-      {!repairOnly && (
-        <div className="mt-6">
-          <div className="flex flex-wrap justify-between items-center mb-2">
-            <h2 className="text-xl md:text-2xl font-bold">Lasting Damage</h2>
-            <div className="flex gap-2">
-              <Button
-                onClick={() => setIsRepairModalOpen(true)}
-                className="bg-card hover:bg-muted text-foreground border border-border"
-                disabled={uniqueDamages.length === 0 || !userPermissions.canEdit || !repairModel}
-              >
-                Repair
-              </Button>
-              <Button
-                onClick={handleOpenModal}
-                className="bg-neutral-900 hover:bg-gray-800 text-white"
-                disabled={!userPermissions.canEdit || !hasDamageTable}
-              >
-                Add
-              </Button>
-            </div>
-          </div>
-
-          {/* List component without header */}
-          <div>
-            <div className="overflow-x-auto">
-              <table className="w-full table-auto">
-                {(uniqueDamages.length > 0) && (
-                  <thead>
-                    <tr className="bg-muted">
-                      <th className="px-1 py-1 text-left" style={{ width: '75%' }}>Name</th>
-                      <th className="px-1 py-1 text-right">Action</th>
-                    </tr>
-                  </thead>
-                )}
-                <tbody>
-                  {uniqueDamages.length === 0 ? (
-                    <tr>
-                      <td colSpan={2} className="text-muted-foreground italic text-center py-4">
-                        No lasting damage yet.
-                      </td>
-                    </tr>
-                  ) : (
-                    uniqueDamages
-                      .sort((a, b) => {
-                        const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-                        const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
-                        return dateA - dateB;
-                      })
-                      .map((damage) => (
-                        <tr key={damage.id} className="border-t">
-                          <td className="px-1 py-1">{damage.effect_name}</td>
-                          <td className="px-1 py-1">
-                            <div className="flex justify-end gap-1">
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => setDeleteModalData({
-                                  id: damage.id,
-                                  name: damage.effect_name
-                                })}
-                                disabled={removeDamageMutation.isPending || !userPermissions.canEdit}
-                                className="text-xs px-1.5 h-6"
-                                title="Delete"
-                              >
-                                <LuTrash2 className="h-4 w-4" /> {/* Delete */}
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+      <div className="mt-6">
+        <div className="flex flex-wrap justify-between items-center mb-2">
+          <h2 className="text-xl md:text-2xl font-bold">Lasting Damage</h2>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => setIsRepairModalOpen(true)}
+              className="bg-card hover:bg-muted text-foreground border border-border"
+              disabled={uniqueDamages.length === 0 || !userPermissions.canEdit || !repairModel}
+            >
+              Repair
+            </Button>
+            <Button
+              onClick={handleOpenModal}
+              className="bg-neutral-900 hover:bg-gray-800 text-white"
+              disabled={!userPermissions.canEdit || !hasDamageTable}
+            >
+              Add
+            </Button>
           </div>
         </div>
-      )}
+
+        {/* List component without header */}
+        <div>
+          <div className="overflow-x-auto">
+            <table className="w-full table-auto">
+              {(uniqueDamages.length > 0) && (
+                <thead>
+                  <tr className="bg-muted">
+                    <th className="px-1 py-1 text-left" style={{ width: '75%' }}>Name</th>
+                    <th className="px-1 py-1 text-right">Action</th>
+                  </tr>
+                </thead>
+              )}
+              <tbody>
+                {uniqueDamages.length === 0 ? (
+                  <tr>
+                    <td colSpan={2} className="text-muted-foreground italic text-center py-4">
+                      No lasting damage yet.
+                    </td>
+                  </tr>
+                ) : (
+                  uniqueDamages
+                    .sort((a, b) => {
+                      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+                      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+                      return dateA - dateB;
+                    })
+                    .map((damage) => (
+                      <tr key={damage.id} className="border-t">
+                        <td className="px-1 py-1">{damage.effect_name}</td>
+                        <td className="px-1 py-1">
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => setDeleteModalData({
+                                id: damage.id,
+                                name: damage.effect_name
+                              })}
+                              disabled={removeDamageMutation.isPending || !userPermissions.canEdit}
+                              className="text-xs px-1.5 h-6"
+                              title="Delete"
+                            >
+                              <LuTrash2 className="h-4 w-4" /> {/* Delete */}
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
 
       {isAddModalOpen && (
         <Modal
@@ -1206,7 +1201,6 @@ export function VehicleDamagesList({
             setRepairPercent(0);
             setSelectedRepairIds([]);
             setRepairType("Superficial Damage");
-            if (repairOnly) onRequestClose?.();
           }}
           onConfirm={handleRepairDamage}
           confirmText="Confirm"

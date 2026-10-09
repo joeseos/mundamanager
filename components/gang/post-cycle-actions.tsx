@@ -9,7 +9,6 @@ import { GrCycle } from 'react-icons/gr';
 import { FighterProps } from '@/types/fighter';
 import type { FighterEffect } from '@/types/fighter-effect';
 import { UserPermissions } from '@/types/user-permissions';
-import { useFighterCardModals } from '@/components/gang/fighter-card-modals-context';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { countsTowardRating } from '@/utils/fighter-status';
@@ -165,7 +164,6 @@ export default function PostCycleActions({
   >({});
 
   const canEdit = userPermissions?.canEdit ?? false;
-  const fighterCardModals = useFighterCardModals();
   const availability = useMemo(
     () =>
       postCycleAvailability({
@@ -526,20 +524,6 @@ export default function PostCycleActions({
                         />
                       )}
                     </>
-                  )}
-
-                  {pending?.action === 'visit_chop_shop' && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      onClick={() =>
-                        fighterCardModals?.openVehicleDamageModal(fighter.id, { openRepairModal: true })
-                      }
-                      disabled={!canEdit || !fighterCardModals}
-                    >
-                      Repair Lasting Damage
-                    </Button>
                   )}
 
                   {[...rowIssues, ...(failure ? [failure] : [])].map((message) => (
