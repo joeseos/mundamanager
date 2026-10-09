@@ -29,12 +29,12 @@ import { toast } from 'sonner';
 import type { FighterEffect } from '@/types/fighter';
 import { hasKilledStatusFlag, countsTowardRating } from '@/utils/fighter-status';
 import { hasVehicles, hasGangTacticsCards, hasPostCycleActions } from '@/types/edition';
-import PostCycleActions from "@/components/gang/post-cycle-actions";
 
 const FighterXpModal = dynamic(
   () => import('@/components/fighter/fighter-xp-modal').then((mod) => mod.FighterXpModal),
   { ssr: false }
 );
+const PostCycleActions = dynamic(() => import('@/components/gang/post-cycle-actions'), { ssr: false });
 
 interface GangPageContentProps {
   initialGangData: any; // We'll type this properly based on the processed data structure
