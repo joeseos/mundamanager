@@ -17,8 +17,8 @@ import { countsTowardRating } from '@/utils/fighter-status';
 import {
   FIT_BIONICS_COST_PER_INJURY,
   POST_CYCLE_ACTIONS,
+  SUIT_EVOLUTION_KILL_COST,
   TRAIN_XP,
-  WORK_TERRITORY_MAX_FIGHTERS,
   assignmentCreditsDelta,
   eligiblePostCycleActions,
   hasCriticalInjury,
@@ -192,9 +192,9 @@ export default function PostCycleActions({
   const [resolvingFighterId, setResolvingFighterId] = useState<string | null>(null);
   /**
    * What each fighter already did this sequence. The two rules a single server
-   * call cannot see — one action per fighter, and the five Work Territory slots
-   * — are held here; everything else is enforced by the saved state each
-   * resolved action leaves behind.
+   * call cannot see — one action per fighter, and the five slots of each
+   * Territory action — are held here; everything else is enforced by the saved
+   * state each resolved action leaves behind.
    */
   const [resolved, setResolved] = useState<
     Record<string, { action: PostCycleActionId; outcome: string }>
@@ -275,14 +275,15 @@ export default function PostCycleActions({
     return states;
   }, [activeRows, fighters, availability, resolved, fighterById]);
 
-  // Both halves count: five is the cap for the whole sequence, so rows still
-  // waiting to resolve take slots just as resolved ones do.
-  const workTerritoryCount = useMemo(
-    () =>
-      Object.values(resolved).filter((done) => done.action === 'work_territory').length +
-      [...activeRows.values()].filter((row) => row.action === 'work_territory').length,
-    [resolved, activeRows]
-  );
+  // Both halves count: a cap is for the whole sequence, so rows still waiting
+  // to resolve take slots just as resolved ones do.
+  const takenCounts = useMemo(() => {
+    const counts = new Map<PostCycleActionId, number>();
+    for (const { action } of [...Object.values(resolved), ...activeRows.values()]) {
+      counts.set(action, (counts.get(action) ?? 0) + 1);
+    }
+    return counts;
+  }, [resolved, activeRows]);
 
   const setRow = (fighterId: string, next: Partial<RowState>) =>
     setRows((prev) => {
@@ -300,6 +301,15 @@ export default function PostCycleActions({
     });
 
   const unavailableReason = (fighter: FighterProps, actionId: PostCycleActionId) => {
+    const { maxFighters } = POST_CYCLE_ACTIONS[actionId];
+    if (
+      maxFighters !== undefined &&
+      (takenCounts.get(actionId) ?? 0) >= maxFighters &&
+      rows[fighter.id]?.action !== actionId
+    ) {
+      return `All ${maxFighters} taken`;
+    }
+
     switch (actionId) {
       case 'medical_escort':
         return criticallyInjured.some((f) => f.id !== fighter.id)
@@ -307,10 +317,9 @@ export default function PostCycleActions({
           : 'No Critical Injuries';
       case 'fit_bionics':
         return injuredFighters.some((f) => f.id !== fighter.id) ? null : 'No Lasting Injuries';
-      case 'work_territory':
-        return workTerritoryCount >= WORK_TERRITORY_MAX_FIGHTERS &&
-          rows[fighter.id]?.action !== 'work_territory'
-          ? `All ${WORK_TERRITORY_MAX_FIGHTERS} taken`
+      case 'suit_evolution':
+        return (fighter.kill_count ?? 0) < SUIT_EVOLUTION_KILL_COST
+          ? `Needs ${SUIT_EVOLUTION_KILL_COST} kills`
           : null;
       default:
         return null;

@@ -115,6 +115,9 @@ export const LOG_TYPE_LABELS: Record<string, string> = {
   'post_cycle_chop_shop': 'Visit Chop Shop',
   'post_cycle_work_territory': 'Work Territory',
   'post_cycle_trading_post': 'Visit Trading Post',
+  'post_cycle_suit_evolution': 'Suit Evolution',
+  'post_cycle_suit_maintenance': 'Suit Maintenance',
+  'post_cycle_terrorise_territory': 'Terrorise Territory',
   'post_cycle_train': 'Train',
 
   // Campaign
