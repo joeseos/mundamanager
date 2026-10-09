@@ -21,6 +21,7 @@ import {
   assignmentCreditsDelta,
   eligiblePostCycleActions,
   hasCriticalInjury,
+  patientOf,
   postCycleAvailability,
   removableLastingInjuriesOf,
   validatePostCycleAssignment,
@@ -53,41 +54,18 @@ interface RowState {
   injuryIds: string[];
 }
 
-const emptyRow = (action: PostCycleActionId): RowState => ({
-  action,
-  injuryIds: [],
-});
-
-/** Whether a row still lacks a pick its action needs. */
-function isIncomplete(row: RowState): boolean {
-  switch (row.action) {
-    case 'medical_escort':
-      return !row.targetFighterId;
-    case 'fit_bionics':
-      return !row.targetFighterId || row.injuryIds.length === 0;
-    default:
-      return false;
-  }
-}
-
+/** Null while the row still lacks a pick its action needs. */
 function toAssignment(fighterId: string, row: RowState): PostCycleAssignment | null {
-  if (isIncomplete(row)) return null;
-  switch (row.action) {
+  const { action, targetFighterId, injuryIds } = row;
+  switch (action) {
     case 'medical_escort':
-      return {
-        fighterId,
-        action: 'medical_escort',
-        targetFighterId: row.targetFighterId!,
-      };
+      return targetFighterId ? { fighterId, action, targetFighterId } : null;
     case 'fit_bionics':
-      return {
-        fighterId,
-        action: 'fit_bionics',
-        targetFighterId: row.targetFighterId!,
-        injuryIds: row.injuryIds,
-      };
+      return targetFighterId && injuryIds.length > 0
+        ? { fighterId, action, targetFighterId, injuryIds }
+        : null;
     default:
-      return { fighterId, action: row.action };
+      return { fighterId, action };
   }
 }
 
@@ -112,29 +90,6 @@ function applyChange(fighter: FighterProps, change: PostCycleFighterChange): Fig
   if (change.xpDelta) next.xp = (next.xp ?? 0) + change.xpDelta;
 
   return next;
-}
-
-/** The "who is this done to" combobox, shared by the two Doc actions. */
-function TargetPicker({
-  value,
-  onChange,
-  ...rest
-}: Pick<
-  React.ComponentProps<typeof Combobox>,
-  'options' | 'placeholder' | 'noResultsText' | 'disabled'
-> & {
-  value?: string;
-  onChange: (fighterId?: string) => void;
-}) {
-  return (
-    <Combobox
-      {...rest}
-      value={value ?? ''}
-      onValueChange={(next) => onChange(next || undefined)}
-      dropdownPlacement="down"
-      clearable
-    />
-  );
 }
 
 function EffectChecklist({
@@ -262,18 +217,12 @@ export default function PostCycleActions({
     for (const [fighterId, row] of activeRows) {
       const assignment = toAssignment(fighterId, row);
       const issues = assignment
-        ? validatePostCycleAssignment(fighters, assignment, availability).map(
-            (issue) => issue.message
-          )
+        ? validatePostCycleAssignment(fighters, assignment, availability)
         : [];
 
       // The server cannot see this: after one Fit Bionics the patient still has
       // other injuries, so a second row targeting them would pass validation.
-      const patientId =
-        assignment &&
-        (assignment.action === 'medical_escort' || assignment.action === 'fit_bionics')
-          ? assignment.targetFighterId
-          : null;
+      const patientId = assignment && patientOf(assignment);
       if (patientId && resolved[patientId]) {
         issues.push(
           `${fighterById.get(patientId)?.fighter_name ?? 'That fighter'} has already been to the Doc.`
@@ -310,7 +259,7 @@ export default function PostCycleActions({
         const { [fighterId]: _removed, ...rest } = prev;
         return rest;
       }
-      return { ...prev, [fighterId]: emptyRow(value as PostCycleActionId) };
+      return { ...prev, [fighterId]: { action: value as PostCycleActionId, injuryIds: [] } };
     });
 
   const unavailableReason = (fighter: FighterProps, actionId: PostCycleActionId) => {
@@ -392,26 +341,10 @@ export default function PostCycleActions({
 
       if (!result.success) toast.error(result.error || 'Failed to resolve the action');
 
-      /**
-       * Mirrors the server's own check. A Fit Bionics that removed two of three
-       * injuries, or a Stabilised result whose insert failed after the Critical
-       * Injury was cleared, is billed and logged — so it has spent the action,
-       * even though it reports failure. Without this the fighter could pick
-       * another one.
-       */
-      const landed =
-        !!outcome &&
-        (!outcome.failed ||
-          outcome.creditsDelta !== 0 ||
-          (outcome.changes?.length ?? 0) > 0);
+      // A partial failure still spent the action, or the fighter could pick another.
+      if (!result.landed || !outcome) return;
 
-      if (!landed) return;
-
-      const patientId =
-        state.assignment.action === 'medical_escort' ||
-        state.assignment.action === 'fit_bionics'
-          ? state.assignment.targetFighterId
-          : null;
+      const patientId = patientOf(state.assignment);
 
       // The row is done: record what happened and drop its inputs.
       setResolved((prev) => ({
@@ -536,27 +469,31 @@ export default function PostCycleActions({
                   )}
 
                   {pending?.action === 'medical_escort' && (
-                    <TargetPicker
+                    <Combobox
                       options={patientOptions(fighter.id, criticallyInjured)}
-                      value={pending.targetFighterId}
-                      onChange={(targetFighterId) => setRow(fighter.id, { targetFighterId })}
+                      value={pending.targetFighterId ?? ''}
+                      onValueChange={(id) => setRow(fighter.id, { targetFighterId: id || undefined })}
                       placeholder="Critically Injured fighter"
                       noResultsText="No fighter has a Critical Injury"
+                      dropdownPlacement="down"
+                      clearable
                       disabled={!canEdit}
                     />
                   )}
 
                   {pending?.action === 'fit_bionics' && (
                     <>
-                      <TargetPicker
+                      <Combobox
                         options={patientOptions(fighter.id, injuredFighters)}
-                        value={pending.targetFighterId}
+                        value={pending.targetFighterId ?? ''}
                         // Switching patient drops the injuries picked for the last one.
-                        onChange={(targetFighterId) =>
-                          setRow(fighter.id, { targetFighterId, injuryIds: [] })
+                        onValueChange={(id) =>
+                          setRow(fighter.id, { targetFighterId: id || undefined, injuryIds: [] })
                         }
                         placeholder="Fighter to fit bionics"
                         noResultsText="No fighter has a removable Lasting Injury"
+                        dropdownPlacement="down"
+                        clearable
                         disabled={!canEdit}
                       />
                       {target && (
@@ -599,7 +536,6 @@ export default function PostCycleActions({
                       onClick={() => handleResolve(fighter.id)}
                       disabled={
                         !canEdit ||
-                        isResolving ||
                         resolvingFighterId !== null ||
                         !assignment ||
                         rowIssues.length > 0 ||
@@ -622,7 +558,6 @@ export default function PostCycleActions({
           })}
         </ul>
       </div>
-
     </div>
   );
 }

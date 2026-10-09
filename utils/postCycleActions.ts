@@ -39,17 +39,19 @@ export interface PostCycleActionDefinition {
   summary: string;
   performer: Performer;
   /** Spyrers get only the Spyre Hunters list's actions, not the standard ones. */
-  openToSpyrers: boolean;
+  openToSpyrers?: boolean;
   /** How many fighters may take it in one sequence; held by the panel. */
   maxFighters?: number;
   /** Offered only when the gang has this. */
   requires?: keyof PostCycleAvailability;
+  /** Flat credits it moves, negative for a spend. Fit Bionics is priced per injury. */
+  credits?: number;
 }
 
 export const MEDICAL_ESCORT_COST = 30;
 export const FIT_BIONICS_COST_PER_INJURY = 50;
-export const WORK_TERRITORY_INCOME = 15;
-export const TERRORISE_TERRITORY_INCOME = 10;
+const WORK_TERRITORY_INCOME = 15;
+const TERRORISE_TERRITORY_INCOME = 10;
 export const TRAIN_XP = 2;
 export const SUIT_EVOLUTION_KILL_COST = 4;
 
@@ -73,36 +75,33 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
     label: 'Medical Escort',
     summary: `${MEDICAL_ESCORT_COST} credits + D6`,
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
-    openToSpyrers: false,
+    credits: -MEDICAL_ESCORT_COST,
   },
   fit_bionics: {
     id: 'fit_bionics',
     label: 'Fit Bionics',
     summary: `${FIT_BIONICS_COST_PER_INJURY} credits per injury`,
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
-    openToSpyrers: false,
   },
   visit_chop_shop: {
     id: 'visit_chop_shop',
     label: 'Visit Chop Shop',
     summary: 'Logged only',
     performer: { kind: 'vehicle' },
-    openToSpyrers: false,
   },
   work_territory: {
     id: 'work_territory',
     label: 'Work Territory',
     summary: `+${WORK_TERRITORY_INCOME} credits`,
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION_GANGER_PROSPECT },
-    openToSpyrers: false,
     maxFighters: TERRITORY_MAX_FIGHTERS,
+    credits: WORK_TERRITORY_INCOME,
   },
   develop_tactics: {
     id: 'develop_tactics',
     label: 'Develop Tactics',
     summary: 'Logged only',
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
-    openToSpyrers: false,
     requires: 'tacticsCardsAvailable',
   },
   visit_trading_post: {
@@ -110,14 +109,12 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
     label: 'Visit Trading Post',
     summary: 'Logged only',
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
-    openToSpyrers: false,
   },
   lead_ritual: {
     id: 'lead_ritual',
     label: 'Lead Ritual',
     summary: 'Logged only',
     performer: { kind: 'subtypes', subtypes: LEADER },
-    openToSpyrers: false,
     requires: 'chaosRitualsAvailable',
   },
   ritual_focus: {
@@ -125,7 +122,6 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
     label: 'Ritual Focus',
     summary: 'Logged only',
     performer: { kind: 'fighter' },
-    openToSpyrers: false,
     maxFighters: 1,
     requires: 'chaosRitualsAvailable',
   },
@@ -134,7 +130,6 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
     label: 'Death Rites',
     summary: 'Logged only',
     performer: { kind: 'fighter' },
-    openToSpyrers: false,
     requires: 'deathRitesAvailable',
   },
   enhance_weapon: {
@@ -142,7 +137,6 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
     label: 'Enhance Weapon',
     summary: 'Logged only',
     performer: { kind: 'fighter' },
-    openToSpyrers: false,
     requires: 'enhanceWeaponAvailable',
   },
   suit_evolution: {
@@ -166,6 +160,7 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
     performer: { kind: 'subtypes', subtypes: SPYRER },
     openToSpyrers: true,
     maxFighters: TERRITORY_MAX_FIGHTERS,
+    credits: TERRORISE_TERRITORY_INCOME,
   },
   // On both lists.
   train: {
@@ -184,6 +179,13 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
 export const POST_CYCLE_ACTION_ORDER = Object.keys(
   POST_CYCLE_ACTIONS
 ) as PostCycleActionId[];
+
+/** One gang log type per action, so the log can be filtered by it. */
+export const postCycleLogType = (action: PostCycleActionId) => `post_cycle_${action}`;
+
+export const POST_CYCLE_LOG_TYPE_LABELS: Record<string, string> = Object.fromEntries(
+  POST_CYCLE_ACTION_ORDER.map((id) => [postCycleLogType(id), POST_CYCLE_ACTIONS[id].label])
+);
 
 /** The fighter fields these rules read, shared by FighterProps and GangFighter. */
 export interface PostCycleFighter {
@@ -297,128 +299,41 @@ export const hasCriticalInjury = (fighter: PostCycleFighter): boolean =>
   criticalInjuriesOf(fighter).length > 0;
 
 export type PostCycleAssignment =
-  | {
-      fighterId: string;
-      action: 'medical_escort';
-      targetFighterId: string;
-    }
-  | {
-      fighterId: string;
-      action: 'fit_bionics';
-      targetFighterId: string;
-      injuryIds: string[];
-    }
-  | {
-      fighterId: string;
-      action:
-        | 'develop_tactics'
-        | 'visit_chop_shop'
-        | 'visit_trading_post'
-        | 'work_territory'
-        | 'lead_ritual'
-        | 'ritual_focus'
-        | 'death_rites'
-        | 'enhance_weapon'
-        | 'suit_evolution'
-        | 'suit_maintenance'
-        | 'terrorise_territory'
-        | 'train';
-    };
+  | { fighterId: string; action: 'medical_escort'; targetFighterId: string }
+  | { fighterId: string; action: 'fit_bionics'; targetFighterId: string; injuryIds: string[] }
+  | { fighterId: string; action: Exclude<PostCycleActionId, 'medical_escort' | 'fit_bionics'> };
+
+/** The fighter taken to the Doc, for the two actions that have one. */
+export const patientOf = (assignment: PostCycleAssignment): string | null =>
+  'targetFighterId' in assignment ? assignment.targetFighterId : null;
 
 /** Negative spends. */
 export function assignmentCreditsDelta(assignment: PostCycleAssignment): number {
-  switch (assignment.action) {
-    case 'medical_escort':
-      return -MEDICAL_ESCORT_COST;
-    case 'fit_bionics':
-      return -(assignment.injuryIds.length * FIT_BIONICS_COST_PER_INJURY);
-    case 'work_territory':
-      return WORK_TERRITORY_INCOME;
-    case 'terrorise_territory':
-      return TERRORISE_TERRITORY_INCOME;
-    // Named rather than defaulted, so a new action has to state its price.
-    case 'develop_tactics':
-    case 'visit_chop_shop':
-    case 'visit_trading_post':
-    case 'train':
-    // Logged only for now: their rolls, checks, credits, kills and glitches are
-    // applied by hand.
-    case 'lead_ritual':
-    case 'ritual_focus':
-    case 'death_rites':
-    case 'enhance_weapon':
-    case 'suit_evolution':
-    case 'suit_maintenance':
-      return 0;
-    default: {
-      const unpriced: never = assignment;
-      throw new Error(
-        `No credits rule for ${(unpriced as PostCycleAssignment).action}`
-      );
-    }
+  if (assignment.action === 'fit_bionics') {
+    return -(assignment.injuryIds.length * FIT_BIONICS_COST_PER_INJURY);
   }
+  return POST_CYCLE_ACTIONS[assignment.action].credits ?? 0;
 }
-
-function selectedEffectIssues(
-  selectedIds: string[],
-  available: FighterEffect[],
-  subject: string,
-  noun: string
-): string[] {
-  const messages: string[] = [];
-
-  if (selectedIds.length === 0) {
-    messages.push(`Choose at least one ${noun} on ${subject}.`);
-  }
-
-  const availableIds = new Set(available.map((effect) => effect.id));
-  if (selectedIds.some((id) => !availableIds.has(id))) {
-    messages.push(`${subject} does not have every selected ${noun}.`);
-  }
-
-  if (new Set(selectedIds).size !== selectedIds.length) {
-    messages.push(`${subject} has the same ${noun} selected twice.`);
-  }
-
-  return messages;
-}
-
-export interface PostCycleValidationIssue {
-  fighterId?: string;
-  message: string;
-}
-
-export type PostCycleValidationContext = PostCycleAvailability;
 
 /**
- * Everything one action must satisfy on its own.
- *
- * Cross-fighter bookkeeping used to live here, because a whole sequence arrived
- * at once and the rows had to be checked against each other. Actions now
- * resolve one at a time, so the previous one's consequences are already saved
- * by the time the next is validated, and the only rules left are about this
- * assignment: can the performer take it, and is the target still a legal one.
+ * Everything one action must satisfy on its own: can the performer take it, and
+ * is the target still a legal one. Returns the problems, if any.
  */
 export function validatePostCycleAssignment(
   fighters: PostCycleFighter[],
   assignment: PostCycleAssignment,
-  context: PostCycleValidationContext
-): PostCycleValidationIssue[] {
-  const issues: PostCycleValidationIssue[] = [];
+  availability: PostCycleAvailability
+): string[] {
+  const issues: string[] = [];
   const byId = new Map(fighters.map((f) => [f.id, f]));
   const performer = byId.get(assignment.fighterId);
 
-  if (!performer) {
-    return [{ fighterId: assignment.fighterId, message: 'Fighter is not part of this gang.' }];
-  }
+  if (!performer) return ['Fighter is not part of this gang.'];
 
   const label = performer.fighter_name;
 
-  if (!canPerformPostCycleAction(performer, assignment.action, context)) {
-    issues.push({
-      fighterId: assignment.fighterId,
-      message: `${label} cannot perform ${POST_CYCLE_ACTIONS[assignment.action].label}.`,
-    });
+  if (!canPerformPostCycleAction(performer, assignment.action, availability)) {
+    issues.push(`${label} cannot perform ${POST_CYCLE_ACTIONS[assignment.action].label}.`);
   }
 
   switch (assignment.action) {
@@ -426,40 +341,21 @@ export function validatePostCycleAssignment(
     case 'fit_bionics': {
       const target = byId.get(assignment.targetFighterId);
       if (!target || target.id === performer.id || !countsTowardRating(target)) {
-        issues.push({
-          fighterId: assignment.fighterId,
-          message: `${label} cannot take that fighter to the Doc.`,
-        });
-        break;
-      }
-
-      if (assignment.action === 'fit_bionics') {
-        for (const message of selectedEffectIssues(
-          assignment.injuryIds,
-          removableLastingInjuriesOf(target),
-          target.fighter_name,
-          'removable Lasting Injury'
-        )) {
-          issues.push({ fighterId: assignment.fighterId, message });
+        issues.push(`${label} cannot take that fighter to the Doc.`);
+      } else if (assignment.action === 'medical_escort' && !hasCriticalInjury(target)) {
+        issues.push(`${target.fighter_name} has no Critical Injury to treat.`);
+      } else if (assignment.action === 'fit_bionics') {
+        const removable = new Set(removableLastingInjuriesOf(target).map((e) => e.id));
+        if (assignment.injuryIds.length === 0 || !assignment.injuryIds.every((id) => removable.has(id))) {
+          issues.push(`Choose Lasting Injuries that ${target.fighter_name} has.`);
         }
-        break;
-      }
-
-      if (!hasCriticalInjury(target)) {
-        issues.push({
-          fighterId: assignment.fighterId,
-          message: `${target.fighter_name} has no Critical Injury to treat.`,
-        });
       }
       break;
     }
 
     case 'suit_evolution':
       if ((performer.kill_count ?? 0) < SUIT_EVOLUTION_KILL_COST) {
-        issues.push({
-          fighterId: assignment.fighterId,
-          message: `${label} needs a Kill Count of at least ${SUIT_EVOLUTION_KILL_COST}.`,
-        });
+        issues.push(`${label} needs a Kill Count of at least ${SUIT_EVOLUTION_KILL_COST}.`);
       }
       break;
   }

@@ -2,25 +2,7 @@
 
 import { createGangLog, GangLogActionResult } from "./gang-logs";
 import { formatRollOutcomeLine } from "@/utils/dice";
-import { POST_CYCLE_ACTIONS, type PostCycleActionId } from "@/utils/postCycleActions";
-
-/** One type per action so the log can be filtered by it; each needs a LOG_TYPE_LABELS entry. */
-const POST_CYCLE_LOG_ACTION_TYPES: Record<PostCycleActionId, string> = {
-  medical_escort: 'post_cycle_medical_escort',
-  fit_bionics: 'post_cycle_fit_bionics',
-  develop_tactics: 'post_cycle_develop_tactics',
-  visit_chop_shop: 'post_cycle_chop_shop',
-  work_territory: 'post_cycle_work_territory',
-  visit_trading_post: 'post_cycle_trading_post',
-  lead_ritual: 'post_cycle_lead_ritual',
-  ritual_focus: 'post_cycle_ritual_focus',
-  death_rites: 'post_cycle_death_rites',
-  enhance_weapon: 'post_cycle_enhance_weapon',
-  suit_evolution: 'post_cycle_suit_evolution',
-  suit_maintenance: 'post_cycle_suit_maintenance',
-  terrorise_territory: 'post_cycle_terrorise_territory',
-  train: 'post_cycle_train',
-};
+import { POST_CYCLE_ACTIONS, postCycleLogType, type PostCycleActionId } from "@/utils/postCycleActions";
 
 export interface PostCycleActionLogParams {
   gang_id: string;
@@ -56,7 +38,7 @@ export async function logPostCycleAction(
   return createGangLog({
     gang_id: params.gang_id,
     fighter_id: params.fighter_id,
-    action_type: POST_CYCLE_LOG_ACTION_TYPES[params.action],
+    action_type: postCycleLogType(params.action),
     description: parts.join(''),
     user_id: params.user_id,
   });
