@@ -26,6 +26,9 @@ interface CreateGangPortraitPickerProps {
   /** Shown when no catalogue portrait is selected, such as the gang's current index image. */
   fallbackImageUrl?: string | null;
   fallbackCredit?: DefaultImageCredit | null;
+  /** Edit flow: replace the catalogue portrait with the gang type's silhouette. */
+  silhouetteImageUrl?: string | null;
+  onUseSilhouette?: () => void;
 }
 
 function handleImageError(event: SyntheticEvent<HTMLImageElement, Event>) {
@@ -40,6 +43,8 @@ export function CreateGangPortraitPicker({
   onSelect,
   fallbackImageUrl,
   fallbackCredit,
+  silhouetteImageUrl,
+  onUseSilhouette,
 }: CreateGangPortraitPickerProps) {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const selected = portraits.find((portrait) => portrait.id === selectedPortraitId) ?? null;
@@ -124,6 +129,24 @@ export function CreateGangPortraitPicker({
               </button>
             );
           })}
+          {onUseSilhouette && selectedPortraitId && (
+            <button
+              type="button"
+              onClick={onUseSilhouette}
+              className="relative size-14 md:size-[4.5rem] rounded-full overflow-hidden border-2 border-muted-foreground bg-muted-foreground opacity-60 transition-opacity hover:opacity-100 focus-visible:opacity-100"
+              aria-label="Use silhouette"
+            >
+              <Image
+                src={silhouetteImageUrl || UNKNOWN_GANG_IMAGE_URL}
+                alt=""
+                fill
+                sizes="72px"
+                className="object-cover"
+                quality={75}
+                onError={handleImageError}
+              />
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setGalleryOpen(true)}

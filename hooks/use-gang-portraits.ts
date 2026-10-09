@@ -9,9 +9,11 @@ export type GangPortraitLoadStatus = 'loading' | 'ready' | 'error';
 export function useGangPortraits(): {
   portraits: GangPortrait[];
   status: GangPortraitLoadStatus;
+  retry: () => void;
 } {
   const [portraits, setPortraits] = useState<GangPortrait[]>([]);
   const [status, setStatus] = useState<GangPortraitLoadStatus>('loading');
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,7 +39,12 @@ export function useGangPortraits(): {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadKey]);
 
-  return { portraits, status };
+  const retry = () => {
+    setStatus('loading');
+    setReloadKey((key) => key + 1);
+  };
+
+  return { portraits, status, retry };
 }

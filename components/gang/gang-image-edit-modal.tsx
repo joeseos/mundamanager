@@ -7,6 +7,7 @@ import { ImageEditModal } from '@/components/ui/image-edit-modal';
 import { useGangPortraits } from '@/hooks/use-gang-portraits';
 import {
   gangPortraitPublicUrl,
+  UNKNOWN_GANG_IMAGE_URL,
   type DefaultImageEntry,
 } from '@/types/gang';
 import { createClient } from '@/utils/supabase/client';
@@ -94,6 +95,7 @@ export const GangImageEditModal: React.FC<GangImageEditModalProps> = ({
   const [catalogueReady, setCatalogueReady] = useState(isCustomGangType || !gangTypeId);
   const [selectedPortraitId, setSelectedPortraitId] = useState<string | null>(gangPortraitId ?? null);
   const [appliedStartingSelection, setAppliedStartingSelection] = useState(false);
+  const [clearedPortrait, setClearedPortrait] = useState(false);
 
   useEffect(() => {
     if (isCustomGangType || !gangTypeId) return;
@@ -148,37 +150,55 @@ export const GangImageEditModal: React.FC<GangImageEditModalProps> = ({
 
   if (portraitsStatus === 'ready' && catalogueReady && !appliedStartingSelection) {
     setAppliedStartingSelection(true);
-    setSelectedPortraitId(
-      startingPortraitId(
-        portraits,
-        isCustomGangType ? null : catalogueSlot,
-        gangPortraitId ?? null,
-        isCustomGangType,
-        indexedImage
-      )
-    );
+    if (!clearedPortrait) {
+      setSelectedPortraitId(
+        startingPortraitId(
+          portraits,
+          isCustomGangType ? null : catalogueSlot,
+          gangPortraitId ?? null,
+          isCustomGangType,
+          indexedImage
+        )
+      );
+    }
   }
 
   const savedPortraitId = gangPortraitId ?? null;
+  const silhouetteIndex = defaultImageUrls && defaultImageUrls.length > 0 ? 0 : null;
+  const silhouetteImageUrl = defaultImageUrls?.[0]?.url || UNKNOWN_GANG_IMAGE_URL;
+  const alreadyOnSilhouette =
+    savedPortraitId === null &&
+    (silhouetteIndex === null ? currentDefaultImageIndex == null : currentDefaultImageIndex === 0);
   const portraitChanged =
     portraitsStatus !== 'error' &&
     appliedStartingSelection &&
     !currentImageUrl &&
-    selectedPortraitId !== null &&
-    selectedPortraitId !== savedPortraitId;
+    ((selectedPortraitId !== null && selectedPortraitId !== savedPortraitId) ||
+      (clearedPortrait && !alreadyOnSilhouette));
   const selectedInList = portraits.some((portrait) => portrait.id === selectedPortraitId);
   const fallbackImageUrl = selectedInList
     ? undefined
     : selectedPortraitId
       ? currentPortraitUrl
-      : !isCustomGangType && appliedStartingSelection
-        ? indexedImage?.url
-        : undefined;
-  const fallbackCredit = !selectedPortraitId && fallbackImageUrl === indexedImage?.url
-    ? indexedImage?.credit
-    : undefined;
+      : clearedPortrait
+        ? silhouetteImageUrl
+        : !isCustomGangType && appliedStartingSelection
+          ? indexedImage?.url
+          : undefined;
+  const fallbackCredit = clearedPortrait
+    ? defaultImageUrls?.[0]?.credit
+    : !selectedPortraitId && fallbackImageUrl === indexedImage?.url
+      ? indexedImage?.credit
+      : undefined;
 
   const handleSavePortrait = async () => {
+    if (clearedPortrait && !selectedPortraitId) {
+      const result = await updateGangImage(gangId, undefined, silhouetteIndex);
+      if (result.success) {
+        onImageUpdate('', silhouetteIndex);
+      }
+      return result;
+    }
     if (!selectedPortraitId) return { success: false, error: 'No portrait selected' };
     const selected = portraits.find((portrait) => portrait.id === selectedPortraitId);
     const portraitUrl = selected ? gangPortraitPublicUrl(selected.storage_path) : undefined;
@@ -203,9 +223,17 @@ export const GangImageEditModal: React.FC<GangImageEditModalProps> = ({
           catalogueSlot={isCustomGangType ? null : catalogueSlot}
           selectedPortraitId={selectedPortraitId}
           gangTypeName={gangType}
-          onSelect={setSelectedPortraitId}
+          onSelect={(portraitId) => {
+            setClearedPortrait(false);
+            setSelectedPortraitId(portraitId);
+          }}
           fallbackImageUrl={fallbackImageUrl}
           fallbackCredit={fallbackCredit}
+          silhouetteImageUrl={silhouetteImageUrl}
+          onUseSilhouette={() => {
+            setClearedPortrait(true);
+            setSelectedPortraitId(null);
+          }}
         />
       }
       portraitChanged={portraitChanged}

@@ -74,6 +74,8 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
         note_backstory: sourceGang.note_backstory,
         positioning: null, // Will be updated after fighters are copied
         image_url: sourceGang.image_url || null,
+        gang_portrait_id: sourceGang.gang_portrait_id ?? null,
+        default_gang_image: sourceGang.default_gang_image ?? null,
         rating: sourceGang.rating ?? 0,
         gang_origin_id: sourceGang.gang_origin_id,
         gang_affiliation_id: sourceGang.gang_affiliation_id,

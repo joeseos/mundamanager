@@ -113,7 +113,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isLoadingGangTypes, setIsLoadingGangTypes] = useState(false);
-  const { portraits, status: portraitsStatus } = useGangPortraits();
+  const { portraits, status: portraitsStatus, retry: retryPortraits } = useGangPortraits();
   
   // Gang subtypes state
   const [availableSubtypes, setAvailableSubtypes] = useState<GangSubtype[]>([]);
@@ -366,8 +366,8 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
       return false;
     }
 
-    // Official types wait for the catalogue so create does not save a blank portrait.
-    if (catalogueSlot && portraitsStatus === 'loading') {
+    // Official types need a loaded catalogue. A failed fetch must not create a gang with no image.
+    if (catalogueSlot && portraitsStatus !== 'ready') {
       return false;
     }
     
@@ -712,6 +712,14 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
               gangTypeName={resolvedGangType?.gang_type || ''}
               onSelect={setSelectedPortraitId}
             />
+          )}
+          {gangType && catalogueSlot && portraitsStatus === 'error' && (
+            <p className="text-sm text-center text-destructive">
+              Portraits could not be loaded.{' '}
+              <button type="button" onClick={retryPortraits} className="underline">
+                Try again
+              </button>
+            </p>
           )}
           <p className="text-xs text-center text-muted-foreground">You&apos;ll be able to upload a custom image once your gang is created.</p>
 
