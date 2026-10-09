@@ -23,6 +23,9 @@ interface ImageEditModalProps {
   defaultImageUrls?: DefaultImageEntry[];
   currentDefaultImageIndex?: number | null;
   onDefaultImageIndexChange?: (index: number) => Promise<{ success: boolean; error?: string }>;
+  portraitPicker?: React.ReactNode;
+  portraitChanged?: boolean;
+  onSavePortrait?: () => Promise<{ success: boolean; error?: string }>;
 }
 
 export const ImageEditModal: React.FC<ImageEditModalProps> = ({
@@ -38,6 +41,9 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
   defaultImageUrls,
   currentDefaultImageIndex,
   onDefaultImageIndexChange,
+  portraitPicker,
+  portraitChanged = false,
+  onSavePortrait,
 }) => {
   const [selectedDefaultImageIndex, setSelectedDefaultImageIndex] = useState<number | null>(
     currentDefaultImageIndex ?? null
@@ -89,6 +95,7 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
 
   // Check if default image index has changed
   const defaultImageIndexChanged =
+    !portraitPicker &&
     defaultImageUrls &&
     effectiveSelectedIndex !== null &&
     effectiveSelectedIndex !== currentDefaultImageIndex;
@@ -100,7 +107,7 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
     isRemoving ||
     isProcessing ||
     isSavingDefaultImage ||
-    (!hasImageToSave && !defaultImageIndexChanged);
+    (!hasImageToSave && !defaultImageIndexChanged && !portraitChanged);
 
   const defaultConfirmText = isRemoving
     ? 'Removing image...'
@@ -108,7 +115,7 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
       ? 'Uploading...'
       : isSavingDefaultImage
         ? 'Saving...'
-        : defaultImageIndexChanged
+        : defaultImageIndexChanged || portraitChanged
           ? 'Set Image'
           : confirmDisabled || (!currentImageUrl && !image)
             ? 'Set Image'
@@ -119,6 +126,18 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
       await handleRemoveImage();
     } else if (hasImageToSave) {
       await handleSave();
+    } else if (portraitChanged && onSavePortrait) {
+      setIsSavingDefaultImage(true);
+      try {
+        const result = await onSavePortrait();
+        if (result.success) {
+          onClose();
+        }
+      } catch (error) {
+        console.error('Error saving gang portrait:', error);
+      } finally {
+        setIsSavingDefaultImage(false);
+      }
     } else if (defaultImageIndexChanged && onDefaultImageIndexChange && effectiveSelectedIndex !== null) {
       setIsSavingDefaultImage(true);
       try {
@@ -198,7 +217,8 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
             </div>
           </div>
         )}
-        {!currentImageUrl && !image && displayDefaultImageUrl && (
+        {!currentImageUrl && !image && portraitPicker}
+        {!currentImageUrl && !image && !portraitPicker && displayDefaultImageUrl && (
           <div className="mb-4">
             <div className="flex items-center justify-center relative">
               <div className="relative flex items-center justify-center">
