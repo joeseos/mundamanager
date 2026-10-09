@@ -16,6 +16,7 @@ import {
   TRAIN_XP,
   assignmentCreditsDelta,
   criticalInjuriesOf,
+  patientOf,
   postCycleAvailability,
   validatePostCycleAssignment,
   type PostCycleAssignment,
@@ -66,6 +67,11 @@ export interface ResolvePostCycleActionResult {
   success: boolean;
   error?: string;
   outcome?: PostCycleActionOutcome;
+  /**
+   * Something was applied, so the action is spent and logged even if `success`
+   * is false: a Fit Bionics that removed two of three injuries, say.
+   */
+  landed?: boolean;
   gang?: { credits: number; rating: number; wealth: number };
 }
 
@@ -90,7 +96,7 @@ const INJURY_CATEGORY = 'injuries';
 async function findInjuryTypeId(
   supabase: any,
   effectName: string,
-  editionId: string
+  editionId: string | null
 ): Promise<string | null> {
   const { data } = await supabase
     .from('fighter_effect_types')
@@ -120,23 +126,12 @@ async function handleMedicalEscort(ctx: HandlerContext): Promise<HandlerOutcome>
   const escortCost = -MEDICAL_ESCORT_COST;
 
   const total = rollD6();
-  const escortResult = resolveMedicalEscort(total);
+  const escortResult = resolveMedicalEscort(total)!;
   const roll = { total, dice: [total] };
 
-  if (!escortResult) {
-    return {
-      roll,
-      outcome: `Could not resolve a Medical Escort roll of ${total}.`,
-      creditsDelta: 0,
-      failed: true,
-    };
-  }
-
   if (escortResult === 'Complications') {
-    // editFighterStatus('kill') toggles, so it must never run on a dead fighter.
-    const killed = target.killed
-      ? { success: true, error: undefined }
-      : await editFighterStatus({ fighter_id: target.id, action: 'kill' });
+    // Validation only lets a living fighter be the patient, so this toggle kills.
+    const killed = await editFighterStatus({ fighter_id: target.id, action: 'kill' });
 
     return {
       roll,
@@ -146,26 +141,6 @@ async function handleMedicalEscort(ctx: HandlerContext): Promise<HandlerOutcome>
       creditsDelta: killed.success ? escortCost : 0,
       changes: killed.success ? [{ fighterId: target.id, killed: true }] : undefined,
       failed: !killed.success,
-    };
-  }
-
-  // Find the Stabilised injury before deleting anything, or a missing injury
-  // row (N26 'Eye Injury') would leave the fighter healed for free.
-  const stabilised = escortResult === 'Stabilised' ? medicalEscortStabilisedRoll() : null;
-  const injuryEntry = stabilised ? resolveInjuryFor(stabilised.total, editionSlug) : undefined;
-  const injuryTypeId =
-    injuryEntry && editionId
-      ? await findInjuryTypeId(supabase, injuryEntry.name, editionId)
-      : null;
-
-  if (stabilised && !injuryTypeId) {
-    return {
-      roll: stabilised,
-      outcome:
-        `Stabilised, but the Lasting Injury "${injuryEntry?.name ?? 'unknown'}" is not ` +
-        `set up for this edition. Nothing was changed or charged — apply it by hand.`,
-      creditsDelta: 0,
-      failed: true,
     };
   }
 
@@ -211,17 +186,21 @@ async function handleMedicalEscort(ctx: HandlerContext): Promise<HandlerOutcome>
     };
   }
 
+  // Stabilised: the Critical Injury becomes a 51-56 Lasting Injury.
+  const stabilised = medicalEscortStabilisedRoll();
+  const injuryName = resolveInjuryFor(stabilised.total, editionSlug)!.name;
   const applied = await addFighterInjury({
     fighter_id: target.id,
-    injury_type_id: injuryTypeId!,
+    // An injury with no row fails the insert, which the outcome then reports.
+    injury_type_id: (await findInjuryTypeId(supabase, injuryName, editionId)) ?? '',
     send_to_recovery: true,
   });
 
   return {
-    roll: stabilised!,
+    roll: stabilised,
     outcome: applied.success
-      ? `Stabilised: ${target.fighter_name} suffers ${injuryEntry!.name}.`
-      : `Stabilised, but applying ${injuryEntry!.name} failed: ${applied.error}`,
+      ? `Stabilised: ${target.fighter_name} suffers ${injuryName}.`
+      : `Stabilised, but applying ${injuryName} failed: ${applied.error}`,
     // The Critical Injury is gone either way, so the visit is billed.
     creditsDelta: escortCost,
     changes: [
@@ -291,10 +270,6 @@ async function handleTrain(ctx: HandlerContext): Promise<HandlerOutcome> {
   };
 }
 
-/**
- * Picks the handler for an action. The `never` default means a new
- * PostCycleActionId cannot be added without one.
- */
 async function runHandler(
   ctx: HandlerContext,
   assignment: PostCycleAssignment
@@ -306,31 +281,10 @@ async function runHandler(
       return handleFitBionics(ctx, assignment.injuryIds);
     case 'train':
       return handleTrain(ctx);
-    // The income is the whole action, so it is billed as its credits rule says.
-    case 'work_territory':
-    case 'terrorise_territory':
+    // The rest move their flat credits, if any, and leave a log line; anything
+    // else they do is applied elsewhere on the page or by hand.
+    default:
       return { outcome: '', creditsDelta: assignmentCreditsDelta(assignment) };
-    // The repair runs through the vehicle damage modal, the card is added from
-    // the Gang Tactics section and equipment is bought from the Stash tab, so
-    // these three only leave a log line.
-    case 'develop_tactics':
-    case 'visit_chop_shop':
-    case 'visit_trading_post':
-    // The gang-specific and Spyrer actions are logged only for now: their
-    // rolls, checks, credits, kills and glitches are applied by hand.
-    case 'lead_ritual':
-    case 'ritual_focus':
-    case 'death_rites':
-    case 'enhance_weapon':
-    case 'suit_evolution':
-    case 'suit_maintenance':
-      return { outcome: '', creditsDelta: 0 };
-    default: {
-      const unhandled: never = assignment;
-      throw new Error(
-        `No Post-cycle handler for ${(unhandled as PostCycleAssignment).action}`
-      );
-    }
   }
 }
 
@@ -389,15 +343,13 @@ export async function resolvePostCycleAction(
       chaosRitualsAvailable: true,
     });
     if (issues.length > 0) {
-      return { success: false, error: issues.map((i) => i.message).join(' ') };
+      return { success: false, error: issues.join(' ') };
     }
 
     const byId = new Map(fighters.map((f) => [f.id, f]));
     const performer = byId.get(assignment.fighterId)!;
-    const target =
-      assignment.action === 'medical_escort' || assignment.action === 'fit_bionics'
-        ? byId.get(assignment.targetFighterId)
-        : undefined;
+    const patientId = patientOf(assignment);
+    const target = patientId ? byId.get(patientId) : undefined;
 
     const cost = -assignmentCreditsDelta(assignment);
     const credits = gang.credits ?? 0;
@@ -428,6 +380,9 @@ export async function resolvePostCycleAction(
       outcome.outcome = outcome.outcome ? `${outcome.outcome} ${line}` : line;
     }
 
+    const landed =
+      !outcome.failed || outcome.creditsDelta !== 0 || (outcome.changes?.length ?? 0) > 0;
+
     // Billed from the outcome rather than the plan. Called even at zero, since
     // it also returns the rating and wealth the helpers above moved.
     const financials = await updateGangFinancials(supabase, {
@@ -440,12 +395,9 @@ export async function resolvePostCycleAction(
         success: false,
         error: financials.error || 'Failed to update gang credits',
         outcome,
+        landed,
       };
     }
-
-    // A failure is still logged if part of it landed, e.g. a partial Fit Bionics.
-    const landed =
-      !outcome.failed || outcome.creditsDelta !== 0 || (outcome.changes?.length ?? 0) > 0;
 
     if (landed) {
       try {
@@ -472,6 +424,7 @@ export async function resolvePostCycleAction(
       success: !outcome.failed,
       error: outcome.failed ? outcome.outcome : undefined,
       outcome,
+      landed,
       gang: financials.newValues,
     };
   } catch (error) {

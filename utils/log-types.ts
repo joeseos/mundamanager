@@ -2,6 +2,7 @@
  * Shared action type → display label map for log UIs.
  */
 import { downtimePhaseName } from '@/types/edition';
+import { POST_CYCLE_LOG_TYPE_LABELS } from '@/utils/postCycleActions';
 
 export const CAMPAIGN_ACTION_TYPES = [
   'campaign_joined',
@@ -109,20 +110,7 @@ export const LOG_TYPE_LABELS: Record<string, string> = {
   'tactics_card_removed': 'Gang Tactic removed',
 
   // Post-cycle Actions (N26)
-  'post_cycle_medical_escort': 'Medical Escort',
-  'post_cycle_fit_bionics': 'Fit Bionics',
-  'post_cycle_develop_tactics': 'Develop Tactics',
-  'post_cycle_chop_shop': 'Visit Chop Shop',
-  'post_cycle_work_territory': 'Work Territory',
-  'post_cycle_trading_post': 'Visit Trading Post',
-  'post_cycle_lead_ritual': 'Lead Ritual',
-  'post_cycle_ritual_focus': 'Ritual Focus',
-  'post_cycle_death_rites': 'Death Rites',
-  'post_cycle_enhance_weapon': 'Enhance Weapon',
-  'post_cycle_suit_evolution': 'Suit Evolution',
-  'post_cycle_suit_maintenance': 'Suit Maintenance',
-  'post_cycle_terrorise_territory': 'Terrorise Territory',
-  'post_cycle_train': 'Train',
+  ...POST_CYCLE_LOG_TYPE_LABELS,
 
   // Campaign
   'campaign_joined': 'Campaign joined',
