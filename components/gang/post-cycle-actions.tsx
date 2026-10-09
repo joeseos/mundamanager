@@ -408,14 +408,9 @@ export default function PostCycleActions({
 
   return (
     <div className="mt-8">
-      <h3 className="text-lg font-semibold mb-4 flex items-center justify-between flex-wrap gap-2">
-        <span className="flex items-center gap-2">
-          <GrCycle className="h-5 w-5" />
-          Post-Cycle Actions
-        </span>
-        <span className="text-xs font-normal text-muted-foreground">
-          {actors.filter((f) => resolved[f.id]).length} of {actors.length} resolved
-        </span>
+      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+        <GrCycle className="h-5 w-5" />
+        Post-Cycle Actions
       </h3>
 
       <div className="rounded-md border">
