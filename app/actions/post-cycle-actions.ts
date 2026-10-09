@@ -139,8 +139,24 @@ async function handleMedicalEscort(ctx: HandlerContext): Promise<HandlerOutcome>
         ? `Complications: ${target.fighter_name} died on the table.`
         : `Complications rolled, but applying the death failed: ${killed.error}`,
       creditsDelta: killed.success ? escortCost : 0,
-      changes: killed.success ? [{ fighterId: target.id, killed: true }] : undefined,
+      // Killing also clears Recovery on the server.
+      changes: killed.success ? [{ fighterId: target.id, killed: true, recovery: false }] : undefined,
       failed: !killed.success,
+    };
+  }
+
+  // Find the Stabilised injury before deleting anything, so a failed lookup
+  // leaves the patient as they were instead of healed for free.
+  const stabilised = escortResult === 'Stabilised' ? medicalEscortStabilisedRoll() : null;
+  const injuryName = stabilised ? resolveInjuryFor(stabilised.total, editionSlug)!.name : '';
+  const injuryTypeId = stabilised ? await findInjuryTypeId(supabase, injuryName, editionId) : null;
+
+  if (stabilised && !injuryTypeId) {
+    return {
+      roll: stabilised,
+      outcome: `Stabilised, but the Lasting Injury "${injuryName}" could not be found. Nothing was changed or charged.`,
+      creditsDelta: 0,
+      failed: true,
     };
   }
 
@@ -174,6 +190,7 @@ async function handleMedicalEscort(ctx: HandlerContext): Promise<HandlerOutcome>
           `Full Recovery rolled and the Critical Injury was cleared, but sending ` +
           `${target.fighter_name} into Recovery failed: ${recovered.error}`,
         creditsDelta: escortCost,
+        changes: [{ fighterId: target.id, removedEffectIds }],
         failed: true,
       };
     }
@@ -187,17 +204,14 @@ async function handleMedicalEscort(ctx: HandlerContext): Promise<HandlerOutcome>
   }
 
   // Stabilised: the Critical Injury becomes a 51-56 Lasting Injury.
-  const stabilised = medicalEscortStabilisedRoll();
-  const injuryName = resolveInjuryFor(stabilised.total, editionSlug)!.name;
   const applied = await addFighterInjury({
     fighter_id: target.id,
-    // An injury with no row fails the insert, which the outcome then reports.
-    injury_type_id: (await findInjuryTypeId(supabase, injuryName, editionId)) ?? '',
+    injury_type_id: injuryTypeId!,
     send_to_recovery: true,
   });
 
   return {
-    roll: stabilised,
+    roll: stabilised!,
     outcome: applied.success
       ? `Stabilised: ${target.fighter_name} suffers ${injuryName}.`
       : `Stabilised, but applying ${injuryName} failed: ${applied.error}`,
