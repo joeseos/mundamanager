@@ -17,6 +17,7 @@ export type PostCycleActionId =
   | 'lead_ritual'
   | 'ritual_focus'
   | 'death_rites'
+  | 'enhance_weapon'
   | 'suit_evolution'
   | 'suit_maintenance'
   | 'terrorise_territory'
@@ -131,11 +132,17 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
     id: 'death_rites',
     label: 'Death Rites',
     summary: 'Logged only',
-    // Stands in for "Chymist Cult Fighter": every fighter on the cult's own list
-    // but the Khimerix has one of these. A Champion Hired Gun gets through too.
-    performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION_GANGER_PROSPECT },
+    performer: { kind: 'fighter' },
     openToSpyrers: false,
     requires: 'deathRitesAvailable',
+  },
+  enhance_weapon: {
+    id: 'enhance_weapon',
+    label: 'Enhance Weapon',
+    summary: 'Logged only',
+    performer: { kind: 'fighter' },
+    openToSpyrers: false,
+    requires: 'enhanceWeaponAvailable',
   },
   suit_evolution: {
     id: 'suit_evolution',
@@ -210,6 +217,7 @@ export interface PostCycleAvailability {
   tacticsCardsAvailable: boolean;
   chaosRitualsAvailable: boolean;
   deathRitesAvailable: boolean;
+  enhanceWeaponAvailable: boolean;
 }
 
 /** The gang facts PostCycleAvailability is worked out from; the gang page already loads them. */
@@ -223,6 +231,7 @@ export interface PostCycleGang {
 const CHAOS_HELOTS_GANG_TYPE = 'chaos helots';
 const CHAOS_CORRUPTED_GANG_SUBTYPE = 'chaos corrupted';
 const CHYMIST_CULT_GANG_TYPE = 'chymist cult';
+const FURNACE_BRUTES_GANG_TYPE = 'furnace brutes';
 
 /**
  * Gang types and subtypes are matched by name, like isVenatorGang. A custom
@@ -236,8 +245,9 @@ export function postCycleAvailability(gang: PostCycleGang): PostCycleAvailabilit
     tacticsCardsAvailable: hasGangTacticsCards(gang.editionSlug),
     chaosRitualsAvailable:
       gangType === CHAOS_HELOTS_GANG_TYPE || subtypes.includes(CHAOS_CORRUPTED_GANG_SUBTYPE),
-    // The Escher variant list, stored as its own gang type.
+    // Alternate Escher and Goliath lists, each stored as its own gang type.
     deathRitesAvailable: gangType === CHYMIST_CULT_GANG_TYPE,
+    enhanceWeaponAvailable: gangType === FURNACE_BRUTES_GANG_TYPE,
   };
 }
 
@@ -307,6 +317,7 @@ export type PostCycleAssignment =
         | 'lead_ritual'
         | 'ritual_focus'
         | 'death_rites'
+        | 'enhance_weapon'
         | 'suit_evolution'
         | 'suit_maintenance'
         | 'terrorise_territory'
@@ -327,11 +338,12 @@ export function assignmentCreditsDelta(assignment: PostCycleAssignment): number 
     case 'visit_chop_shop':
     case 'visit_trading_post':
     case 'train':
-    // Logged only for now: the ritual roll, the Death Rites' 60 credits and
-    // check, and the Spyrers' credits, kills and glitches are applied by hand.
+    // Logged only for now: their rolls, checks, credits, kills and glitches are
+    // applied by hand.
     case 'lead_ritual':
     case 'ritual_focus':
     case 'death_rites':
+    case 'enhance_weapon':
     case 'suit_evolution':
     case 'suit_maintenance':
     case 'terrorise_territory':

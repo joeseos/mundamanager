@@ -315,11 +315,12 @@ async function runHandler(
     case 'develop_tactics':
     case 'visit_chop_shop':
     case 'visit_trading_post':
-    // The Chaos ritual, Death Rites and Spyrer actions are logged only for
-    // now: their rolls, checks, credits, kills and glitches are applied by hand.
+    // The gang-specific and Spyrer actions are logged only for now: their
+    // rolls, checks, credits, kills and glitches are applied by hand.
     case 'lead_ritual':
     case 'ritual_focus':
     case 'death_rites':
+    case 'enhance_weapon':
     case 'suit_evolution':
     case 'suit_maintenance':
     case 'terrorise_territory':
