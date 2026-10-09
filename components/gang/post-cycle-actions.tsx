@@ -152,14 +152,6 @@ export default function PostCycleActions({
   const [applying, setApplying] = useState(false);
   /** Why an action failed on the last Confirm, keyed by the fighter taking it. */
   const [failures, setFailures] = useState<Record<string, string>>({});
-  /**
-   * What each fighter did on Confirm. The rules a single server call cannot
-   * see (one action per fighter, the per-action caps) are held here and in
-   * `rows`; everything else is enforced by the saved state each action leaves.
-   */
-  const [resolved, setResolved] = useState<
-    Record<string, { action: PostCycleActionId; outcome: string }>
-  >({});
 
   const canEdit = userPermissions?.canEdit ?? false;
   const availability = useMemo(
@@ -224,8 +216,7 @@ export default function PostCycleActions({
       const patientId = assignment && patientOf(assignment);
       if (patientId) {
         const name = fighterById.get(patientId)?.fighter_name ?? 'That fighter';
-        if (resolved[patientId]) issues.push(`${name} has already acted this sequence.`);
-        else if (activeRows.has(patientId)) issues.push(`${name} has an action of their own.`);
+        if (activeRows.has(patientId)) issues.push(`${name} has an action of their own.`);
         else if (patientsTaken.has(patientId)) issues.push(`${name} is already being taken to the Doc.`);
         patientsTaken.add(patientId);
       }
@@ -236,7 +227,7 @@ export default function PostCycleActions({
       });
     }
     return states;
-  }, [activeRows, fighters, availability, resolved, fighterById]);
+  }, [activeRows, fighters, availability, fighterById]);
 
   const pendingStates = [...rowStates.values()];
   const totalSpend = pendingStates.reduce((sum, s) => sum + Math.max(s.cost, 0), 0);
@@ -246,15 +237,14 @@ export default function PostCycleActions({
     pendingStates.every((s) => s.assignment && s.issues.length === 0) &&
     !cannotAfford;
 
-  // A cap is for the whole sequence, so picked rows take slots just as applied
-  // ones do.
+  // Each picked row takes one of its action's slots.
   const takenCounts = useMemo(() => {
     const counts = new Map<PostCycleActionId, number>();
-    for (const { action } of [...Object.values(resolved), ...activeRows.values()]) {
+    for (const { action } of activeRows.values()) {
       counts.set(action, (counts.get(action) ?? 0) + 1);
     }
     return counts;
-  }, [resolved, activeRows]);
+  }, [activeRows]);
 
   const setRow = (fighterId: string, next: Partial<RowState>) =>
     setRows((prev) => {
@@ -301,11 +291,7 @@ export default function PostCycleActions({
     candidates
       .filter((f) => f.id !== performerId)
       .map((f) => {
-        const reason = resolved[f.id]
-          ? 'already acted'
-          : activeRows.has(f.id)
-            ? 'has an action'
-            : null;
+        const reason = activeRows.has(f.id) ? 'has an action' : null;
         return {
           value: f.id,
           label: reason ? (
@@ -330,8 +316,8 @@ export default function PostCycleActions({
 
   /**
    * Applies every picked action. One server call each, in roster order, so each
-   * is checked against what the ones before it saved. A failure does not stop
-   * the rest; its row keeps its pick and shows why.
+   * is checked against what the ones before it saved. An applied row is cleared.
+   * A failure does not stop the rest; its row keeps its pick and shows why.
    */
   const handleApply = async () => {
     const queue = actors.flatMap((f) => {
@@ -348,10 +334,9 @@ export default function PostCycleActions({
       const { fighterId } = assignment;
       try {
         const result = await resolvePostCycleAction({ gangId, assignment });
-        const outcome = result.outcome;
 
         // skipRatingUpdate: the authoritative rating arrives with the gang below.
-        for (const change of outcome?.changes ?? []) {
+        for (const change of result.outcome?.changes ?? []) {
           const current = fighterById.get(change.fighterId);
           if (current) onFighterUpdate?.(applyChange(current, change), true);
         }
@@ -362,27 +347,13 @@ export default function PostCycleActions({
           setFailures((prev) => ({ ...prev, [fighterId]: result.error || 'The action failed.' }));
         }
 
-        // A partial failure still spent the action, so it is recorded like a success.
-        if (!result.landed || !outcome) continue;
-
-        const patientId = patientOf(assignment);
-        setResolved((prev) => ({
-          ...prev,
-          [fighterId]: { action: outcome.action, outcome: outcome.outcome },
-          // A fighter taken to the Doc spends no action of their own.
-          ...(patientId
-            ? {
-                [patientId]: {
-                  action: outcome.action,
-                  outcome: `Taken to the Doc by ${outcome.fighterName}.`,
-                },
-              }
-            : {}),
-        }));
-        setRows((prev) => {
-          const { [fighterId]: _done, ...rest } = prev;
-          return rest;
-        });
+        // A partial failure still spent the action, so its row is cleared too.
+        if (result.landed) {
+          setRows((prev) => {
+            const { [fighterId]: _done, ...rest } = prev;
+            return rest;
+          });
+        }
       } catch (error) {
         failed++;
         setFailures((prev) => ({
@@ -418,7 +389,6 @@ export default function PostCycleActions({
         <ul>
           {actors.map((fighter) => {
             const row = rows[fighter.id];
-            const done = resolved[fighter.id];
             const state = rowStates.get(fighter.id);
             const assignment = state?.assignment ?? null;
             const effect = effectOf(assignment);
@@ -426,7 +396,8 @@ export default function PostCycleActions({
             const target = row?.targetFighterId
               ? fighterById.get(row.targetFighterId)
               : undefined;
-            const failure = row ? failures[fighter.id] : undefined;
+            // Shown even once the row is cleared, for an action that partly applied.
+            const failure = failures[fighter.id];
 
             return (
               <li
@@ -447,38 +418,27 @@ export default function PostCycleActions({
                 </div>
 
                 <div className="space-y-2 min-w-0">
-                  {done ? (
-                    <p className="text-sm md:pt-2">
-                      <span className="font-medium">
-                        {POST_CYCLE_ACTIONS[done.action].label}
-                      </span>
-                      {done.outcome && (
-                        <span className="text-muted-foreground"> — {done.outcome}</span>
-                      )}
-                    </p>
-                  ) : (
-                    <Combobox
-                      options={eligiblePostCycleActions(fighter, availability).map((option) => {
-                        const reason = unavailableReason(fighter, option.id);
-                        return {
-                          value: option.id,
-                          label: (
-                            <span className={reason ? 'text-muted-foreground' : undefined}>
-                              {option.label} - {reason ?? option.summary}
-                            </span>
-                          ),
-                          displayValue: option.label,
-                          disabled: reason !== null && row?.action !== option.id,
-                        };
-                      })}
-                      value={row?.action ?? ''}
-                      onValueChange={(value) => handleActionChange(fighter.id, value)}
-                      placeholder="No action"
-                      dropdownPlacement="down"
-                      clearable
-                      disabled={!canEdit || applying}
-                    />
-                  )}
+                  <Combobox
+                    options={eligiblePostCycleActions(fighter, availability).map((option) => {
+                      const reason = unavailableReason(fighter, option.id);
+                      return {
+                        value: option.id,
+                        label: (
+                          <span className={reason ? 'text-muted-foreground' : undefined}>
+                            {option.label} - {reason ?? option.summary}
+                          </span>
+                        ),
+                        displayValue: option.label,
+                        disabled: reason !== null && row?.action !== option.id,
+                      };
+                    })}
+                    value={row?.action ?? ''}
+                    onValueChange={(value) => handleActionChange(fighter.id, value)}
+                    placeholder="No action"
+                    dropdownPlacement="down"
+                    clearable
+                    disabled={!canEdit || applying}
+                  />
 
                   {row?.action === 'medical_escort' && (
                     <Combobox
