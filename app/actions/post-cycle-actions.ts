@@ -365,19 +365,30 @@ export async function resolvePostCycleAction(
     const patientId = patientOf(assignment);
     const target = patientId ? byId.get(patientId) : undefined;
 
-    const cost = -assignmentCreditsDelta(assignment);
-    const credits = gang.credits ?? 0;
-    if (cost > 0 && credits < cost) {
-      return {
-        success: false,
-        error: `Not enough credits. Required: ${cost}, Available: ${credits}`,
-      };
+    // A spend is taken before anything is applied, so a gang that can no longer
+    // pay is turned away with nothing changed.
+    const charged = Math.min(assignmentCreditsDelta(assignment), 0);
+    if (charged < 0) {
+      const charge = await updateGangFinancials(supabase, { gangId, creditsDelta: charged });
+      if (!charge.success) {
+        return { success: false, error: charge.error || 'Failed to charge the gang' };
+      }
     }
 
-    const handled = await runHandler(
-      { supabase, editionSlug, editionId, performer, target },
-      assignment
-    );
+    let handled: HandlerOutcome;
+    try {
+      handled = await runHandler(
+        { supabase, editionSlug, editionId, performer, target },
+        assignment
+      );
+    } catch (error) {
+      // Settled below like any other failure, so the charge is refunded.
+      handled = {
+        outcome: error instanceof Error ? error.message : 'The action failed',
+        creditsDelta: 0,
+        failed: true,
+      };
+    }
 
     const outcome: PostCycleActionOutcome = {
       ...handled,
@@ -386,32 +397,27 @@ export async function resolvePostCycleAction(
       action: assignment.action,
     };
 
-    if (outcome.creditsDelta !== 0) {
-      const line =
-        outcome.creditsDelta > 0
-          ? `Gained ${outcome.creditsDelta} credits.`
-          : `Cost ${-outcome.creditsDelta} credits.`;
-      outcome.outcome = outcome.outcome ? `${outcome.outcome} ${line}` : line;
-    }
-
     const landed =
       !outcome.failed || outcome.creditsDelta !== 0 || (outcome.changes?.length ?? 0) > 0;
 
-    // Billed from the outcome rather than the plan. Called even at zero, since
-    // it also returns the rating and wealth the helpers above moved.
+    // Settle against what actually happened: refund what a failed or partial
+    // action did not use, and pay out income. Called even at zero, since it also
+    // returns the rating and wealth the helpers above moved.
     const financials = await updateGangFinancials(supabase, {
       gangId,
-      creditsDelta: outcome.creditsDelta,
+      creditsDelta: outcome.creditsDelta - charged,
     });
 
-    if (!financials.success) {
-      return {
-        success: false,
-        error: financials.error || 'Failed to update gang credits',
-        outcome,
-        landed,
-      };
-    }
+    // What landed is still logged, so a failed settle leaves a record to fix by hand.
+    const creditsLine = !financials.success
+      ? `Updating the gang's credits failed: ${financials.error}.`
+      : outcome.creditsDelta > 0
+        ? `Gained ${outcome.creditsDelta} credits.`
+        : outcome.creditsDelta < 0
+          ? `Cost ${-outcome.creditsDelta} credits.`
+          : '';
+    outcome.outcome = [outcome.outcome, creditsLine].filter(Boolean).join(' ');
+    if (!financials.success) outcome.failed = true;
 
     if (landed) {
       try {
