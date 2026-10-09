@@ -6230,6 +6230,67 @@ CREATE TABLE public.gang_origins (
 
 
 --
+-- Name: gang_portraits; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.gang_portraits (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    storage_path text NOT NULL,
+    credit jsonb NOT NULL,
+    group_label text NOT NULL,
+    style text NOT NULL,
+    label text,
+    CONSTRAINT gang_portraits_credit_check CHECK (((jsonb_typeof(credit) = 'object'::text) AND (btrim(COALESCE((credit ->> 'name'::text), ''::text)) <> ''::text))),
+    CONSTRAINT gang_portraits_group_label_check CHECK ((btrim(group_label) <> ''::text)),
+    CONSTRAINT gang_portraits_label_check CHECK (((label IS NULL) OR (btrim(label) <> ''::text))),
+    CONSTRAINT gang_portraits_storage_path_check CHECK (((storage_path <> ''::text) AND (storage_path !~ '^/'::text))),
+    CONSTRAINT gang_portraits_style_check CHECK ((style = ANY (ARRAY['colour'::text, 'black & white'::text, 'ai-assisted'::text])))
+);
+
+
+--
+-- Name: TABLE gang_portraits; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.gang_portraits IS 'Catalogue of shared gang portraits in the gang-type-images bucket. One file belongs to one gallery section.';
+
+
+--
+-- Name: COLUMN gang_portraits.storage_path; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gang_portraits.storage_path IS 'Object path inside the gang-type-images bucket, such as djidiouf/house_cawdor.webp.';
+
+
+--
+-- Name: COLUMN gang_portraits.credit; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gang_portraits.credit IS 'Artist credit: name, url, and optional suffix. Shown with the portrait.';
+
+
+--
+-- Name: COLUMN gang_portraits.group_label; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gang_portraits.group_label IS 'Gallery section title, such as House Cawdor. Not a foreign key to gang_types.';
+
+
+--
+-- Name: COLUMN gang_portraits.style; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gang_portraits.style IS 'Portrait treatment used as a gallery filter: colour, black & white, or ai-assisted.';
+
+
+--
+-- Name: COLUMN gang_portraits.label; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gang_portraits.label IS 'Extra name within a section, such as Faith or Pride 1. Null on the main portrait.';
+
+
+--
 -- Name: gang_skill_set_ranks; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6369,6 +6430,7 @@ CREATE TABLE public.gangs (
     note_private text,
     note_private_updated_at timestamp with time zone,
     trade_points numeric DEFAULT 0 NOT NULL,
+    gang_portrait_id uuid,
     CONSTRAINT chk_gang_type_exclusive CHECK ((num_nonnulls(gang_type_id, custom_gang_type_id) = 1))
 );
 
@@ -6392,6 +6454,13 @@ COMMENT ON COLUMN public.gangs.default_gang_image IS 'Default Gang Image the use
 --
 
 COMMENT ON COLUMN public.gangs.trade_points IS 'N26 Trade Points resource. Only surfaced/edited for gangs whose gang type uses edition n26.';
+
+
+--
+-- Name: COLUMN gangs.gang_portrait_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gangs.gang_portrait_id IS 'Selected shared portrait from gang_portraits. Null for a custom upload, the silhouette, or no catalogue image.';
 
 
 --
@@ -7401,6 +7470,22 @@ ALTER TABLE ONLY public.gang_origin_categories
 
 ALTER TABLE ONLY public.gang_origins
     ADD CONSTRAINT gang_origins_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: gang_portraits gang_portraits_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_portraits
+    ADD CONSTRAINT gang_portraits_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: gang_portraits gang_portraits_storage_path_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_portraits
+    ADD CONSTRAINT gang_portraits_storage_path_key UNIQUE (storage_path);
 
 
 --
@@ -8676,6 +8761,13 @@ CREATE INDEX gang_origins_gang_origin_category_id_idx ON public.gang_origins USI
 
 
 --
+-- Name: gang_portraits_style_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gang_portraits_style_idx ON public.gang_portraits USING btree (style);
+
+
+--
 -- Name: gang_stash_gang_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8736,6 +8828,13 @@ CREATE INDEX gangs_created_at_idx ON public.gangs USING btree (created_at);
 --
 
 CREATE INDEX gangs_custom_gang_type_id_idx ON public.gangs USING btree (custom_gang_type_id);
+
+
+--
+-- Name: gangs_gang_portrait_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gangs_gang_portrait_id_idx ON public.gangs USING btree (gang_portrait_id) WHERE (gang_portrait_id IS NOT NULL);
 
 
 --
@@ -11230,6 +11329,14 @@ ALTER TABLE ONLY public.gangs
 
 
 --
+-- Name: gangs gangs_gang_portrait_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gangs
+    ADD CONSTRAINT gangs_gang_portrait_id_fkey FOREIGN KEY (gang_portrait_id) REFERENCES public.gang_portraits(id) ON DELETE SET NULL;
+
+
+--
 -- Name: gangs gangs_gang_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11987,6 +12094,13 @@ CREATE POLICY "Allow authenticated users to view fighters" ON public.fighters FO
 
 
 --
+-- Name: gang_portraits Allow authenticated users to view gang portraits; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view gang portraits" ON public.gang_portraits FOR SELECT TO authenticated USING (true);
+
+
+--
 -- Name: gang_skill_set_ranks Allow authenticated users to view gang skill set ranks; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -12329,6 +12443,47 @@ CREATE POLICY "Editions are viewable by everyone" ON public.editions FOR SELECT 
 
 
 --
+-- Name: fighter_exotic_beasts Fighter owner, admin or arb can create exotic beasts; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Fighter owner, admin or arb can create exotic beasts" ON public.fighter_exotic_beasts FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (fighter_owner_id IN ( SELECT f.id
+   FROM public.fighters f
+  WHERE (f.user_id = ( SELECT auth.uid() AS uid)))) OR (EXISTS ( SELECT 1
+   FROM (public.fighters f
+     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
+  WHERE ((f.id = fighter_exotic_beasts.fighter_owner_id) AND (cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+
+
+--
+-- Name: fighter_exotic_beasts Fighter owner, admin or arb can delete exotic beasts; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Fighter owner, admin or arb can delete exotic beasts" ON public.fighter_exotic_beasts FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (fighter_owner_id IN ( SELECT f.id
+   FROM public.fighters f
+  WHERE (f.user_id = ( SELECT auth.uid() AS uid)))) OR (EXISTS ( SELECT 1
+   FROM (public.fighters f
+     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
+  WHERE ((f.id = fighter_exotic_beasts.fighter_owner_id) AND (cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+
+
+--
+-- Name: fighter_exotic_beasts Fighter owner, admin or arb can update exotic beasts; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Fighter owner, admin or arb can update exotic beasts" ON public.fighter_exotic_beasts FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (fighter_owner_id IN ( SELECT f.id
+   FROM public.fighters f
+  WHERE (f.user_id = ( SELECT auth.uid() AS uid)))) OR (EXISTS ( SELECT 1
+   FROM (public.fighters f
+     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
+  WHERE ((f.id = fighter_exotic_beasts.fighter_owner_id) AND (cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (fighter_owner_id IN ( SELECT f.id
+   FROM public.fighters f
+  WHERE (f.user_id = ( SELECT auth.uid() AS uid)))) OR (EXISTS ( SELECT 1
+   FROM (public.fighters f
+     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
+  WHERE ((f.id = fighter_exotic_beasts.fighter_owner_id) AND (cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+
+
+--
 -- Name: fighter_ooa_records Gang owner, admin or arb can delete fighter ooa records; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -12499,6 +12654,13 @@ CREATE POLICY "Only admin can create fighter_type_gang_cost entries" ON public.f
 
 
 --
+-- Name: gang_portraits Only admin can create gang portraits; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can create gang portraits" ON public.gang_portraits FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
 -- Name: gang_types Only admin can create gang_types entries; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -12643,6 +12805,13 @@ CREATE POLICY "Only admin can delete fighter_specialisations" ON public.fighter_
 --
 
 CREATE POLICY "Only admin can delete fighter_type_gang_cost" ON public.fighter_type_gang_cost FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: gang_portraits Only admin can delete gang portraits; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can delete gang portraits" ON public.gang_portraits FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -12825,6 +12994,13 @@ CREATE POLICY "Only admin can update fighter_specialisations" ON public.fighter_
 --
 
 CREATE POLICY "Only admin can update fighter_type_gang_cost" ON public.fighter_type_gang_cost FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: gang_portraits Only admin can update gang portraits; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can update gang portraits" ON public.gang_portraits FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -13283,30 +13459,10 @@ CREATE POLICY "Only fighter effect owner or admin can update" ON public.fighter_
 
 
 --
--- Name: fighter_exotic_beasts Only fighter owner or admin can delete exotic beasts; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Only fighter owner or admin can delete exotic beasts" ON public.fighter_exotic_beasts FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (fighter_owner_id IN ( SELECT f.id
-   FROM public.fighters f
-  WHERE (f.user_id = ( SELECT auth.uid() AS uid))))));
-
-
---
 -- Name: fighter_injuries Only fighter owner or admin can delete injuries; Type: POLICY; Schema: public; Owner: -
 --
 
 CREATE POLICY "Only fighter owner or admin can delete injuries" ON public.fighter_injuries FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (fighter_id IN ( SELECT f.id
-   FROM public.fighters f
-  WHERE (f.user_id = ( SELECT auth.uid() AS uid))))));
-
-
---
--- Name: fighter_exotic_beasts Only fighter owner or admin can update exotic beasts; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Only fighter owner or admin can update exotic beasts" ON public.fighter_exotic_beasts FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (fighter_owner_id IN ( SELECT f.id
-   FROM public.fighters f
-  WHERE (f.user_id = ( SELECT auth.uid() AS uid)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (fighter_owner_id IN ( SELECT f.id
    FROM public.fighters f
   WHERE (f.user_id = ( SELECT auth.uid() AS uid))))));
 
@@ -13700,15 +13856,6 @@ CREATE POLICY "Users can only create their own fighter effects" ON public.fighte
    FROM (public.vehicles v
      JOIN public.campaign_gangs cg ON ((cg.gang_id = v.gang_id)))
   WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))))));
-
-
---
--- Name: fighter_exotic_beasts Users can only create their own fighter exotic beasts; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Users can only create their own fighter exotic beasts" ON public.fighter_exotic_beasts FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (fighter_owner_id IN ( SELECT f.id
-   FROM public.fighters f
-  WHERE (f.user_id = ( SELECT auth.uid() AS uid))))));
 
 
 --
@@ -14696,6 +14843,12 @@ ALTER TABLE public.gang_origin_categories ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.gang_origins ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: gang_portraits; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.gang_portraits ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: gang_skill_set_ranks; Type: ROW SECURITY; Schema: public; Owner: -
