@@ -92,6 +92,7 @@ interface PrintGangProps {
     gang_type_id: string;
     image_url?: string;
     default_gang_image?: number | null;
+    gang_portrait_url?: string | null;
     gang_type_default_image_urls?: DefaultImageEntry[];
     gang_colour: string | null;
     credits: number | null;
@@ -186,6 +187,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
     gang_type,
     image_url,
     default_gang_image,
+    gang_portrait_url,
     gang_type_default_image_urls,
     credits,
     rating,
@@ -215,6 +217,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
 
   const gangImageSrc = resolveGangImageUrl({
     imageUrl: image_url,
+    portraitUrl: gang_portrait_url,
     defaultGangImage: default_gang_image,
     defaultImageUrls: gang_type_default_image_urls,
   });

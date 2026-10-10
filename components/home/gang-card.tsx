@@ -25,6 +25,7 @@ export function GangCardContent({ gang, onToggleFavourite, dragListeners, dragAt
 
   const imageUrl = resolveGangImageUrl({
     imageUrl: gang.image_url,
+    portraitUrl: gang.gang_portrait_url,
     defaultGangImage: gang.default_gang_image,
     defaultImageUrls: gang.gang_type_default_image_urls,
   }) ?? null;

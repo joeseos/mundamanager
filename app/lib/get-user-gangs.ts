@@ -1,7 +1,7 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
 
-import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang';
+import { DefaultImageEntry, gangPortraitPublicUrl, joinedPortraitStoragePath, normaliseDefaultImageUrls } from '@/types/gang';
 import { gangEditionSlug } from '@/types/edition';
 
 export type Gang = {
@@ -12,6 +12,7 @@ export type Gang = {
   image_url: string;
   gang_type_image_url: string;
   default_gang_image?: number | null;
+  gang_portrait_url?: string | null;
   gang_type_default_image_urls?: DefaultImageEntry[];
   credits: number;
   reputation: number;
@@ -64,6 +65,9 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
             custom_gang_type_id,
             image_url,
             default_gang_image,
+            gang_portraits!gangs_gang_portrait_id_fkey (
+              storage_path
+            ),
             credits,
             reputation,
             rating,
@@ -140,6 +144,7 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
           image_url: gang.image_url || '',
           gang_type_image_url: gang.gang_types?.image_url || '',
           default_gang_image: gang.default_gang_image ?? null,
+          gang_portrait_url: gangPortraitPublicUrl(joinedPortraitStoragePath(gang.gang_portraits)) ?? null,
           gang_type_default_image_urls: normaliseDefaultImageUrls(gang.gang_types?.default_image_urls ?? gang.custom_gang_types?.default_image_urls),
           credits: gang.credits,
           reputation: gang.reputation,
@@ -165,13 +170,15 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
         throw error;
       }
     },
-    [`user-gangs-v5-${userId}`],
+    [`user-gangs-v7-${userId}`],
     {
       tags: [
         // List shape (create/delete/copy gang, favourites)
         TAGS.user(userId),
         // Catalog portraits/names joined from gang_types (admin gang-type writes)
         TAGS.globalGangTypes(),
+        // Catalogue file paths joined from gang_portraits
+        TAGS.globalGangPortraits(),
         // Card fields: rating/credits/name via the financials choke point
         ...gangIdsForTags.map(id => TAGS.gangOverview(id)),
         // Campaign names on cards: join/leave (previously never invalidated)

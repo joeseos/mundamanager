@@ -4,6 +4,8 @@ import { unstable_cache } from 'next/cache';
 import { assembleGangFighters, groupBy } from '@/utils/gang-assembly';
 import {
   DefaultImageEntry,
+  gangPortraitPublicUrl,
+  joinedPortraitStoragePath,
   normaliseDefaultImageUrls,
   type GangFighter,
   type GangFightersBundle,
@@ -68,6 +70,8 @@ export interface GangBasic {
   } | null;
   image_url?: string;
   default_gang_image?: number | null;
+  gang_portrait_id?: string | null;
+  gang_portrait_url?: string | null;
   hidden: boolean;
   venator_ranks_incomplete?: boolean;
 }
@@ -77,6 +81,7 @@ export interface GangType {
   gang_type: string;
   image_url: string;
   default_image_urls?: DefaultImageEntry[];
+  parent_gang_type_name?: string | null;
 }
 
 export interface Alliance {
@@ -212,6 +217,10 @@ export const getGangCore = async (gangId: string, supabase: any): Promise<GangCo
           ),
           image_url,
           default_gang_image,
+          gang_portrait_id,
+          gang_portraits!gangs_gang_portrait_id_fkey (
+            storage_path
+          ),
           hidden
         `)
         .eq('id', gangId)
@@ -223,9 +232,10 @@ export const getGangCore = async (gangId: string, supabase: any): Promise<GangCo
         throw error;
       }
       if (!data) return null;
-      const editionSlug = gangEditionSlug(data);
+      const { gang_portraits, ...gangRow } = data;
+      const editionSlug = gangEditionSlug(gangRow);
       let venatorRanksIncomplete: boolean | undefined;
-      if (isVenatorGang(editionSlug, data.gang_type, Boolean(data.custom_gang_type_id))) {
+      if (isVenatorGang(editionSlug, gangRow.gang_type, Boolean(gangRow.custom_gang_type_id))) {
         const { data: ranksProbe } = await supabase
           .from('gang_skill_set_ranks')
           .select('rank')
@@ -233,17 +243,18 @@ export const getGangCore = async (gangId: string, supabase: any): Promise<GangCo
         venatorRanksIncomplete = (ranksProbe ?? []).length < 4;
       }
       return {
-        ...data,
+        ...gangRow,
         edition_slug: editionSlug,
-        rating: (data.rating ?? 0) as number,
-        wealth: (data.wealth ?? 0) as number,
-        alliance: data.alliance ?? null,
+        rating: (gangRow.rating ?? 0) as number,
+        wealth: (gangRow.wealth ?? 0) as number,
+        alliance: gangRow.alliance ?? null,
+        gang_portrait_url: gangPortraitPublicUrl(joinedPortraitStoragePath(gang_portraits)) ?? null,
         venator_ranks_incomplete: venatorRanksIncomplete,
       };
     },
-    [`gang-core-v6-${gangId}`],
+    [`gang-core-v9-${gangId}`],
     {
-      tags: [TAGS.gang(gangId), TAGS.globalGangTypes()],
+      tags: [TAGS.gang(gangId), TAGS.globalGangTypes(), TAGS.globalGangPortraits()],
       revalidate: false
     }
   )();
@@ -386,19 +397,22 @@ export const getGangType = async (gangBasic: GangBasic, supabase: any): Promise<
     async () => {
       const { data, error } = await supabase
         .from('gang_types')
-        .select('id, gang_type, image_url, default_image_urls')
+        .select('id, gang_type, image_url, default_image_urls, parent:gang_types!gang_types_parent_gang_type_edition_fkey(gang_type)')
         .eq('id', gangBasic.gang_type_id)
         .single();
 
       if (error) throw error;
+      const parent = data.parent as { gang_type?: string } | { gang_type?: string }[] | null;
+      const parentRow = Array.isArray(parent) ? parent[0] : parent;
       return {
         id: data.id,
         gang_type: data.gang_type,
         image_url: data.image_url,
-        default_image_urls: normaliseDefaultImageUrls(data.default_image_urls)
+        default_image_urls: normaliseDefaultImageUrls(data.default_image_urls),
+        parent_gang_type_name: parentRow?.gang_type ?? null,
       };
     },
-    [`gang-type-${gangBasic.gang_type_id}`],
+    [`gang-type-v2-${gangBasic.gang_type_id}`],
     {
       tags: [TAGS.globalGangTypes()],
       revalidate: 3600

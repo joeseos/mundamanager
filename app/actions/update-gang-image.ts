@@ -6,26 +6,38 @@ import { createClient } from '@/utils/supabase/server';
 export async function updateGangImage(
   gangId: string,
   imageUrl?: string | null,
-  defaultGangImage?: number | null
+  defaultGangImage?: number | null,
+  gangPortraitId?: string | null
 ) {
   try {
     const supabase = await createClient();
 
-    const updates: { image_url?: string | null; default_gang_image?: number | null } = {};
+    const updates: {
+      image_url?: string | null;
+      default_gang_image?: number | null;
+      gang_portrait_id?: string | null;
+    } = {};
 
-    if (imageUrl !== undefined) {
+    if (gangPortraitId) {
+      updates.gang_portrait_id = gangPortraitId;
+      updates.image_url = null;
+      updates.default_gang_image = null;
+    } else if (imageUrl !== undefined) {
       // If imageUrl is provided (including null for removal), update it
       // and clear default_gang_image when setting a custom image
       updates.image_url = imageUrl;
       if (imageUrl !== null) {
-        // Setting a custom image, so clear the default image index
+        // Setting a custom image, so clear the catalogue portrait and the old index
         updates.default_gang_image = null;
+        updates.gang_portrait_id = null;
       }
     }
 
-    if (defaultGangImage !== undefined) {
-      // If defaultGangImage is provided, update it
+    if (!gangPortraitId && defaultGangImage !== undefined) {
+      // If defaultGangImage is provided, update it and drop the catalogue portrait
+      // so the index is what the gang shows.
       updates.default_gang_image = defaultGangImage;
+      updates.gang_portrait_id = null;
       if (defaultGangImage !== null) {
         // Selecting a default image, so clear the custom image URL
         updates.image_url = null;

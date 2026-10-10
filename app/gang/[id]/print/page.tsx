@@ -103,6 +103,7 @@ export default async function PrintGangPage(props: {
       gang_type_id: gangBasic.gang_type_id,
       image_url: gangBasic.image_url,
       default_gang_image: gangBasic.default_gang_image ?? null,
+      gang_portrait_url: gangBasic.gang_portrait_url ?? null,
       gang_type_default_image_urls: gangType.default_image_urls ?? undefined,
       gang_colour: gangBasic.gang_colour,
       credits: gangBasic.credits,

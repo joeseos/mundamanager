@@ -58,6 +58,14 @@ export interface DefaultImageEntry {
   credit?: DefaultImageCredit;
 }
 
+/** Colour slot when the list has one, otherwise the last image. Null when the type has no art. */
+export function preferredDefaultGangImageIndex(
+  urls: DefaultImageEntry[] | undefined
+): number | null {
+  if (!urls || urls.length === 0) return null;
+  return Math.min(3, urls.length - 1);
+}
+
 /**
  * Normalises raw default_image_urls from Supabase.
  * Handles both the legacy string[] format and the new object[] format,
@@ -79,17 +87,35 @@ export function normaliseDefaultImageUrls(
 export const UNKNOWN_GANG_IMAGE_URL =
   'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_gang_cropped_web.webp';
 
+export const GANG_TYPE_IMAGES_PUBLIC_BASE =
+  'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/gang-type-images/';
+
+export function gangPortraitPublicUrl(storagePath: string | null | undefined): string | undefined {
+  const path = storagePath?.replace(/^\/+/, '');
+  if (!path) return undefined;
+  return `${GANG_TYPE_IMAGES_PUBLIC_BASE}${path}`;
+}
+
+export function joinedPortraitStoragePath(
+  joined: { storage_path?: string | null } | { storage_path?: string | null }[] | null | undefined
+): string | undefined {
+  const portrait = Array.isArray(joined) ? joined[0] : joined;
+  return portrait?.storage_path || undefined;
+}
+
 /**
- * Custom upload, then the selected type default. Empty or missing `.url`
- * entries fall through so the caller can show a letter placeholder.
+ * Custom upload, then the catalogue portrait, then the selected type default.
+ * Empty or missing `.url` entries fall through so the caller can show a letter placeholder.
  */
 export function resolveGangImageUrl(options: {
   imageUrl?: string | null;
+  portraitUrl?: string | null;
   defaultGangImage?: number | null;
   defaultImageUrls?: DefaultImageEntry[] | null;
 }): string | undefined {
-  const { imageUrl, defaultGangImage, defaultImageUrls } = options;
+  const { imageUrl, portraitUrl, defaultGangImage, defaultImageUrls } = options;
   if (imageUrl) return imageUrl;
+  if (portraitUrl) return portraitUrl;
 
   if (
     defaultGangImage !== null &&

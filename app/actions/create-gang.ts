@@ -16,7 +16,9 @@ interface CreateGangParams {
   gangOriginId?: string | null;
   credits?: number;
   gangSubtypes?: string[];
-  defaultGangImage: number | null;
+  gangPortraitId?: string | null;
+  /** Used when the gang has no catalogue portrait, so a type with default art is not saved blank. */
+  defaultGangImage?: number | null;
 }
 
 export async function createGang({
@@ -29,7 +31,8 @@ export async function createGang({
   gangOriginId,
   credits = 1000,
   gangSubtypes = [],
-  defaultGangImage
+  gangPortraitId = null,
+  defaultGangImage = null
 }: CreateGangParams) {
   try {
     console.log('Server action: Creating gang:', name);
@@ -71,7 +74,8 @@ export async function createGang({
         gang_affiliation_id: gangAffiliationId || null,
         gang_origin_id: gangOriginId || null,
         gang_subtypes: gangSubtypes.length > 0 ? gangSubtypes : null,
-        default_gang_image: defaultGangImage
+        gang_portrait_id: gangPortraitId,
+        default_gang_image: gangPortraitId ? null : defaultGangImage
       }])
       .select();
     

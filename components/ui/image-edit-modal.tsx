@@ -2,13 +2,11 @@
 
 import React, { useState } from 'react';
 import Cropper from 'react-easy-crop';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import Modal from '@/components/ui/modal';
 import { UseImageEditorOptions } from '@/hooks/use-image-editor';
 import { useImageEditor } from '@/hooks/use-image-editor';
-import { LuChevronLeft, LuChevronRight } from 'react-icons/lu';
-import { DefaultImageEntry, DefaultImageCredit } from '@/types/gang';
-import { DefaultImageCreditLine } from '@/components/ui/default-image-credit-line';
 
 interface ImageEditModalProps {
   onClose: () => void;
@@ -20,9 +18,9 @@ interface ImageEditModalProps {
   confirmButtonText?: string;
   showRemoveButton?: boolean;
   defaultImageUrl?: string;
-  defaultImageUrls?: DefaultImageEntry[];
-  currentDefaultImageIndex?: number | null;
-  onDefaultImageIndexChange?: (index: number) => Promise<{ success: boolean; error?: string }>;
+  portraitPicker?: React.ReactNode;
+  portraitChanged?: boolean;
+  onSavePortrait?: () => Promise<{ success: boolean; error?: string }>;
 }
 
 export const ImageEditModal: React.FC<ImageEditModalProps> = ({
@@ -35,22 +33,11 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
   confirmButtonText,
   showRemoveButton = true,
   defaultImageUrl,
-  defaultImageUrls,
-  currentDefaultImageIndex,
-  onDefaultImageIndexChange,
+  portraitPicker,
+  portraitChanged = false,
+  onSavePortrait,
 }) => {
-  const [selectedDefaultImageIndex, setSelectedDefaultImageIndex] = useState<number | null>(
-    currentDefaultImageIndex ?? null
-  );
-  const [isSavingDefaultImage, setIsSavingDefaultImage] = useState(false);
-
-  const derivedIndex = currentDefaultImageIndex ?? null;
-  const [prevDerivedIndex, setPrevDerivedIndex] = useState(derivedIndex);
-  if (derivedIndex !== prevDerivedIndex) {
-    setPrevDerivedIndex(derivedIndex);
-    setSelectedDefaultImageIndex(derivedIndex);
-    setIsSavingDefaultImage(false);
-  }
+  const [isSavingPortrait, setIsSavingPortrait] = useState(false);
 
   const {
     image,
@@ -75,40 +62,21 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
     imageConfig,
   });
 
-  // Default image index to display (0 = Silhouette, 1 = Djidiouf, 2 = Carl R Johnston Grey, 3 = Carl R Johnston Colour)
-  const DEFAULT_IMAGE_INDEX = 3;
-
-  // When selectedDefaultImageIndex is null we visually show index DEFAULT_IMAGE_INDEX as the fallback (index 0 for
-  // silhouette art if only one image exists), so treat null as that index when default images are available.
-  const fallbackDefaultIndex = !defaultImageUrls
-    ? null
-    : defaultImageUrls.length > DEFAULT_IMAGE_INDEX ? DEFAULT_IMAGE_INDEX
-    : defaultImageUrls.length === 1 ? 0
-    : null;
-  const effectiveSelectedIndex = selectedDefaultImageIndex ?? fallbackDefaultIndex;
-
-  // Check if default image index has changed
-  const defaultImageIndexChanged =
-    defaultImageUrls &&
-    effectiveSelectedIndex !== null &&
-    effectiveSelectedIndex !== currentDefaultImageIndex;
-
-  // Determine if confirm button should be enabled
   const hasImageToSave = image && ((enableCrop && croppedAreaPixels) || !enableCrop);
   const confirmDisabled =
     isUploading ||
     isRemoving ||
     isProcessing ||
-    isSavingDefaultImage ||
-    (!hasImageToSave && !defaultImageIndexChanged);
+    isSavingPortrait ||
+    (!hasImageToSave && !portraitChanged);
 
   const defaultConfirmText = isRemoving
     ? 'Removing image...'
     : isUploading
       ? 'Uploading...'
-      : isSavingDefaultImage
+      : isSavingPortrait
         ? 'Saving...'
-        : defaultImageIndexChanged
+        : portraitChanged
           ? 'Set Image'
           : confirmDisabled || (!currentImageUrl && !image)
             ? 'Set Image'
@@ -117,57 +85,30 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
   const handleConfirm = async () => {
     if (isRemoving) {
       await handleRemoveImage();
-    } else if (hasImageToSave) {
+      return;
+    }
+    if (hasImageToSave) {
       await handleSave();
-    } else if (defaultImageIndexChanged && onDefaultImageIndexChange && effectiveSelectedIndex !== null) {
-      setIsSavingDefaultImage(true);
+      return;
+    }
+    if (portraitChanged && onSavePortrait) {
+      setIsSavingPortrait(true);
       try {
-        const result = await onDefaultImageIndexChange(effectiveSelectedIndex);
-        if (result.success) {
-          onClose();
+        const result = await onSavePortrait();
+        if (!result.success) {
+          toast.error('Could not save the portrait', { description: result.error || 'Please try again.' });
+          return false;
         }
+        onClose();
       } catch (error) {
-        console.error('Error saving default image index:', error);
+        console.error('Error saving gang portrait:', error);
+        toast.error('Could not save the portrait', { description: 'Please try again.' });
+        return false;
       } finally {
-        setIsSavingDefaultImage(false);
+        setIsSavingPortrait(false);
       }
     }
   };
-
-  const handlePreviousImage = () => {
-    if (defaultImageUrls && defaultImageUrls.length > 0) {
-      setSelectedDefaultImageIndex((prev) => {
-        const current = prev ?? fallbackDefaultIndex ?? 0;
-        return current === 0 ? defaultImageUrls.length - 1 : current - 1;
-      });
-    }
-  };
-
-  const handleNextImage = () => {
-    if (defaultImageUrls && defaultImageUrls.length > 0) {
-      setSelectedDefaultImageIndex((prev) => {
-        const current = prev ?? fallbackDefaultIndex ?? 0;
-        return current === defaultImageUrls.length - 1 ? 0 : current + 1;
-      });
-    }
-  };
-
-  // Get the display image entry for default images
-  const getDisplayDefaultImageEntry = (): DefaultImageEntry | undefined => {
-    if (defaultImageUrls && effectiveSelectedIndex !== null &&
-        effectiveSelectedIndex >= 0 && effectiveSelectedIndex < defaultImageUrls.length) {
-      return defaultImageUrls[effectiveSelectedIndex];
-    }
-    if (defaultImageUrl) {
-      return { url: defaultImageUrl };
-    }
-    return undefined;
-  };
-
-  const displayDefaultImageEntry = getDisplayDefaultImageEntry();
-  const displayDefaultImageUrl = displayDefaultImageEntry?.url;
-  const displayDefaultImageCredit: DefaultImageCredit | undefined = displayDefaultImageEntry?.credit;
-  const hasMultipleDefaultImages = defaultImageUrls && defaultImageUrls.length > 1;
 
   return (
     <Modal
@@ -198,43 +139,15 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
             </div>
           </div>
         )}
-        {!currentImageUrl && !image && displayDefaultImageUrl && (
-          <div className="mb-4">
-            <div className="flex items-center justify-center relative">
-              <div className="relative flex items-center justify-center">
-                {/* Left Arrow */}
-                {hasMultipleDefaultImages && (
-                  <button
-                    onClick={handlePreviousImage}
-                    className="absolute -left-12 z-30 p-2 rounded-full bg-card/80 hover:bg-card border border-border shadow-md transition-colors"
-                    aria-label="Previous default image"
-                    disabled={isSavingDefaultImage}
-                  >
-                    <LuChevronLeft className="w-5 h-5" />
-                  </button>
-                )}
-                
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={displayDefaultImageUrl}
-                  alt="Default"
-                  className="bg-secondary rounded-full shadow-md border-4 border-black size-[85px] rounded-full object-cover overflow-hidden"
-                />
-                
-                {/* Right Arrow */}
-                {hasMultipleDefaultImages && (
-                  <button
-                    onClick={handleNextImage}
-                    className="absolute -right-12 z-30 p-2 rounded-full bg-card/80 hover:bg-card border border-border shadow-md transition-colors"
-                    aria-label="Next default image"
-                    disabled={isSavingDefaultImage}
-                  >
-                    <LuChevronRight className="w-5 h-5" />
-                  </button>
-                )}
-              </div>
-            </div>
-            <DefaultImageCreditLine credit={displayDefaultImageCredit} />
+        {!currentImageUrl && !image && portraitPicker}
+        {!currentImageUrl && !image && !portraitPicker && defaultImageUrl && (
+          <div className="mb-4 flex items-center justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={defaultImageUrl}
+              alt="Default"
+              className="bg-secondary rounded-full shadow-md border-4 border-black size-[85px] object-cover overflow-hidden"
+            />
           </div>
         )}
         <div className="mb-4">
