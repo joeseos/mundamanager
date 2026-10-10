@@ -186,9 +186,11 @@ export interface GangFighter {
   fighter_variant?: string | null;
   alliance_crew_name?: string;
   is_spyrer?: boolean;
+  is_vehicle?: boolean;
   position?: string;
   xp: number;
   kills: number;
+  kill_count?: number;
   credits: number;
   loadout_cost?: number; // Cost of equipment in active loadout only (for fighter card display)
   movement: number;
