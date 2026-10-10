@@ -206,6 +206,59 @@ export interface Scenario {
 }
 
 /**
+ * N26 battles have no scenarios to pick from. A scenario is made of its parts,
+ * each rolled on a printed D6 table: a Deployment, an Objective and a Crew
+ * selection, plus a Side Job for each gang. `scenario_tables` are those tables
+ * (`table_type` says which part a table supplies) and `scenario_table_entries`
+ * their lines. These types describe what can be rolled; what a battle rolled
+ * is stored on the battle itself.
+ */
+export const SCENARIO_TABLE_TYPES = ['deployment', 'objective', 'side_job', 'crew_selection'] as const;
+
+export type ScenarioTableType = (typeof SCENARIO_TABLE_TYPES)[number];
+
+export const SCENARIO_TABLE_TYPE_LABELS: Record<ScenarioTableType, string> = {
+  deployment: 'Deployment',
+  objective: 'Objective',
+  side_job: 'Side Job',
+  crew_selection: 'Crew',
+};
+
+export function isScenarioTableType(value: unknown): value is ScenarioTableType {
+  return typeof value === 'string' && (SCENARIO_TABLE_TYPES as readonly string[]).includes(value);
+}
+
+export interface ScenarioTable {
+  id: string;
+  name: string;
+  edition_id: string;
+  /** NULL is the edition's core table for its type; a value is that house's table. */
+  gang_type_id: string | null;
+  table_type: ScenarioTableType;
+}
+
+export interface ScenarioTableEntry {
+  id: string;
+  name: string;
+  d6_min: number;
+  d6_max: number;
+  scenario_table_id: string;
+  edition_id: string;
+}
+
+export function formatD6Range(min: number, max: number): string {
+  return min === max ? String(min) : `${min}-${max}`;
+}
+
+/** Printed table order: D6 ascending, then name. */
+export function compareScenarioTableEntries(
+  a: Pick<ScenarioTableEntry, 'name' | 'd6_min'>,
+  b: Pick<ScenarioTableEntry, 'name' | 'd6_min'>
+): number {
+  return a.d6_min - b.d6_min || a.name.localeCompare(b.name);
+}
+
+/**
  * Campaign member data
  */
 export interface Member {
