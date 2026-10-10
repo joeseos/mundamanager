@@ -91,10 +91,10 @@ JOIN public.scenario_tables t
 ON CONFLICT (scenario_table_id, name) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
--- 3. Crew selection rules
+-- 3. Scenario crew selection rules
 -- ---------------------------------------------------------------------------
 
-INSERT INTO public.crew_selection_rules (
+INSERT INTO public.scenario_crew_selection_rules (
     scenario_table_entry_id, role, chosen_count, random_count,
     reinforcement_count, reinforcements_per_round, reinforcements_from_round
 )

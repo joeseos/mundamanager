@@ -122,7 +122,7 @@ CREATE TABLE public.scenario_table_entries (
 
 
 -- ============================================================================
--- CREW SELECTION RULES
+-- SCENARIO CREW SELECTION RULES
 -- How a crew_selection entry builds each gang's starting crew, so the battle
 -- session crew picker can be filled in from the rolled entry. One row per
 -- side: role NULL covers both gangs; Surprise Attack has an attacker row and a
@@ -133,7 +133,7 @@ CREATE TABLE public.scenario_table_entries (
 -- chosen only is Custom (X), random only is Random (X), both is Hybrid (X+Y).
 -- ============================================================================
 
-CREATE TABLE public.crew_selection_rules (
+CREATE TABLE public.scenario_crew_selection_rules (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone,
@@ -145,17 +145,17 @@ CREATE TABLE public.crew_selection_rules (
     reinforcements_per_round text,
     reinforcements_from_round smallint,
 
-    CONSTRAINT crew_selection_rules_scenario_table_entry_id_fkey
+    CONSTRAINT scenario_crew_selection_rules_scenario_table_entry_id_fkey
         FOREIGN KEY (scenario_table_entry_id)
         REFERENCES public.scenario_table_entries(id)
         ON DELETE CASCADE,
 
-    CONSTRAINT crew_selection_rules_role_check
+    CONSTRAINT scenario_crew_selection_rules_role_check
         CHECK (role IN ('attacker', 'defender')),
 
     -- The battle session parses these, so a malformed value is rejected here
     -- rather than surfacing mid-battle.
-    CONSTRAINT crew_selection_rules_dice_format_check
+    CONSTRAINT scenario_crew_selection_rules_dice_format_check
         CHECK (
             chosen_count ~ '^([0-9]+|[0-9]*D[0-9]+(\+[0-9]+)?)$'
             AND random_count ~ '^([0-9]+|[0-9]*D[0-9]+(\+[0-9]+)?)$'
@@ -164,39 +164,39 @@ CREATE TABLE public.crew_selection_rules (
         ),
 
     -- The Reinforcements (X) rule is all or nothing.
-    CONSTRAINT crew_selection_rules_reinforcements_check
+    CONSTRAINT scenario_crew_selection_rules_reinforcements_check
         CHECK (
             (reinforcement_count IS NULL) = (reinforcements_per_round IS NULL)
             AND (reinforcement_count IS NULL) = (reinforcements_from_round IS NULL)
         ),
 
     -- Leads with scenario_table_entry_id, so it also serves as that FK's index.
-    CONSTRAINT crew_selection_rules_scenario_table_entry_id_role_key
+    CONSTRAINT scenario_crew_selection_rules_scenario_table_entry_id_role_key
         UNIQUE NULLS NOT DISTINCT (scenario_table_entry_id, role)
 );
 
-COMMENT ON COLUMN public.crew_selection_rules.role IS
+COMMENT ON COLUMN public.scenario_crew_selection_rules.role IS
     'Scenario role this row applies to (attacker or defender, as in '
     'battle_session_participants.role). NULL applies to both gangs.';
 
-COMMENT ON COLUMN public.crew_selection_rules.chosen_count IS
+COMMENT ON COLUMN public.scenario_crew_selection_rules.chosen_count IS
     'Fighters the player picks: the X of Custom (X), or of Hybrid (X+Y).';
 
-COMMENT ON COLUMN public.crew_selection_rules.random_count IS
+COMMENT ON COLUMN public.scenario_crew_selection_rules.random_count IS
     'Fighters drawn at random after the picks: the X of Random (X), or the Y of Hybrid (X+Y).';
 
-COMMENT ON COLUMN public.crew_selection_rules.reinforcement_count IS
+COMMENT ON COLUMN public.scenario_crew_selection_rules.reinforcement_count IS
     'The X of the Reinforcements (X) rule. NULL when the rule is not in play.';
 
-COMMENT ON COLUMN public.crew_selection_rules.reinforcements_per_round IS
+COMMENT ON COLUMN public.scenario_crew_selection_rules.reinforcements_per_round IS
     'Reinforcements arriving each round, in dice notation (''D3'').';
 
-COMMENT ON COLUMN public.crew_selection_rules.reinforcements_from_round IS
+COMMENT ON COLUMN public.scenario_crew_selection_rules.reinforcements_from_round IS
     'First round reinforcements arrive in.';
 
 
 -- ============================================================================
--- RLS: SCENARIO TABLES, ENTRIES AND CREW SELECTION RULES
+-- RLS: SCENARIO TABLES, ENTRIES AND SCENARIO CREW SELECTION RULES
 -- Same shape as tactics_cards_packs: readable by any authenticated user,
 -- written by admins only.
 -- ============================================================================
@@ -271,24 +271,24 @@ CREATE POLICY "Only admin can delete scenario table entries"
         (SELECT private.is_admin())
     );
 
-ALTER TABLE public.crew_selection_rules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.scenario_crew_selection_rules ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Allow authenticated users to view crew selection rules"
-    ON public.crew_selection_rules
+CREATE POLICY "Allow authenticated users to view scenario crew selection rules"
+    ON public.scenario_crew_selection_rules
     FOR SELECT
     TO authenticated
     USING (true);
 
-CREATE POLICY "Only admin can create crew selection rules"
-    ON public.crew_selection_rules
+CREATE POLICY "Only admin can create scenario crew selection rules"
+    ON public.scenario_crew_selection_rules
     FOR INSERT
     TO authenticated
     WITH CHECK (
         (SELECT private.is_admin())
     );
 
-CREATE POLICY "Only admin can update crew selection rules"
-    ON public.crew_selection_rules
+CREATE POLICY "Only admin can update scenario crew selection rules"
+    ON public.scenario_crew_selection_rules
     FOR UPDATE
     TO authenticated
     USING (
@@ -298,8 +298,8 @@ CREATE POLICY "Only admin can update crew selection rules"
         (SELECT private.is_admin())
     );
 
-CREATE POLICY "Only admin can delete crew selection rules"
-    ON public.crew_selection_rules
+CREATE POLICY "Only admin can delete scenario crew selection rules"
+    ON public.scenario_crew_selection_rules
     FOR DELETE
     TO authenticated
     USING (
@@ -368,7 +368,7 @@ COMMENT ON COLUMN public.battle_sessions.objective_id IS
     'N26 Objective for this session. Copied to campaign_battles.objective_id on completion.';
 
 COMMENT ON COLUMN public.battle_sessions.crew_selection_id IS
-    'N26 Crew selection for this session. Its crew_selection_rules fill in the crew picker.';
+    'N26 Crew selection for this session. Its scenario_crew_selection_rules fill in the crew picker.';
 
 ALTER TABLE public.battle_session_participants
     ADD COLUMN IF NOT EXISTS side_job_id uuid
