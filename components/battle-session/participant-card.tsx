@@ -61,7 +61,7 @@ import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { updateFighterXp } from '@/app/actions/edit-fighter';
 import FighterCard from '@/components/gang/fighter-card';
 import type { BattleSessionFull, BattleSessionParticipant, BattleSessionFighter, SessionCondition, SessionInjuryRecord } from '@/types/battle-session';
-import { beastSubtypeName, hasFleshWoundCondition, hasN26CompositeBattleMarkers, hasCrewRating } from '@/types/edition';
+import { beastSubtypeName, hasFleshWoundCondition, hasN26CompositeBattleMarkers, hasCrewRating, hasTradePoints } from '@/types/edition';
 
 const CrewSelectionModal = dynamic(() => import('@/components/battle-session/crew-selection-modal'), { ssr: false });
 const FighterXpModal = dynamic(
@@ -1983,51 +1983,53 @@ export default function ParticipantCard({
 
           {canPostBattle && (
             <div className="border-t border-neutral-100 pt-3 dark:border-neutral-700 grid grid-cols-1 min-[480px]:grid-cols-2 md:grid-cols-3 gap-3">
-              <div className="col-span-full">
-                <div className="flex items-baseline gap-2 mb-1 flex-wrap">
-                  <span className="text-sm text-neutral-500">Trading Post Roll</span>
-                  {tradingPostRoll && (
-                    <span className="text-xs text-muted-foreground">
-                      Roll {tradingPostRoll.total} ({tradingPostRoll.dice.join(', ')})
-                      {tradingPostRoll.modifier !== 0 && ` ${tradingPostRoll.modifier > 0 ? '+' : ''}${tradingPostRoll.modifier} = ${tradingPostRoll.grandTotal}`}
-                    </span>
-                  )}
+              {!hasTradePoints(session.edition_slug) && (
+                <div className="col-span-full">
+                  <div className="flex items-baseline gap-2 mb-1 flex-wrap">
+                    <span className="text-sm text-neutral-500">Trading Post Roll</span>
+                    {tradingPostRoll && (
+                      <span className="text-xs text-muted-foreground">
+                        Roll {tradingPostRoll.total} ({tradingPostRoll.dice.join(', ')})
+                        {tradingPostRoll.modifier !== 0 && ` ${tradingPostRoll.modifier > 0 ? '+' : ''}${tradingPostRoll.modifier} = ${tradingPostRoll.grandTotal}`}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 flex-nowrap">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        const result = rollNd6Outcome(2);
+                        const mod = parseInt(tradingPostModifier) || 0;
+                        const grandTotal = result.total + mod;
+                        setTradingPostRoll({
+                          dice: result.dice,
+                          total: result.total,
+                          modifier: mod,
+                          grandTotal,
+                        });
+                        const desc = mod !== 0
+                          ? `Roll ${result.total} (${result.dice.join(', ')}) ${mod > 0 ? '+' : ''}${mod} = ${grandTotal}`
+                          : `Roll ${result.total} (${result.dice.join(', ')})`;
+                        createGangLog({
+                          gang_id: participant.gang_id,
+                          action_type: 'trading_post_roll',
+                          description: desc,
+                        });
+                      }}
+                    >
+                      Roll
+                    </Button>
+                    <input
+                      type="tel"
+                      inputMode="url"
+                      value={tradingPostModifier}
+                      onChange={(e) => setTradingPostModifier(e.target.value)}
+                      placeholder="Modifier"
+                      className="w-20 rounded-sm border border-neutral-300 px-2 py-2 text-base md:text-sm dark:border-neutral-600 dark:bg-neutral-800 shrink-0"
+                    />
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 flex-nowrap">
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      const result = rollNd6Outcome(2);
-                      const mod = parseInt(tradingPostModifier) || 0;
-                      const grandTotal = result.total + mod;
-                      setTradingPostRoll({
-                        dice: result.dice,
-                        total: result.total,
-                        modifier: mod,
-                        grandTotal,
-                      });
-                      const desc = mod !== 0
-                        ? `Roll ${result.total} (${result.dice.join(', ')}) ${mod > 0 ? '+' : ''}${mod} = ${grandTotal}`
-                        : `Roll ${result.total} (${result.dice.join(', ')})`;
-                      createGangLog({
-                        gang_id: participant.gang_id,
-                        action_type: 'trading_post_roll',
-                        description: desc,
-                      });
-                    }}
-                  >
-                    Roll
-                  </Button>
-                  <input
-                    type="tel"
-                    inputMode="url"
-                    value={tradingPostModifier}
-                    onChange={(e) => setTradingPostModifier(e.target.value)}
-                    placeholder="Modifier"
-                    className="w-20 rounded-sm border border-neutral-300 px-2 py-2 text-base md:text-sm dark:border-neutral-600 dark:bg-neutral-800 shrink-0"
-                  />
-                </div>
-              </div>
+              )}
               <div>
                 <label className="mb-1 block text-sm text-neutral-500">
                   Reputation Change
