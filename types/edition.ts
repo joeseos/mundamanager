@@ -239,6 +239,8 @@ const EDITION_CAPABILITIES = {
   injuredCondition:         { n23: false, n26: true  },
   /** Fighters can be rad-poisoned — an N26 condition token in a battle session. */
   radPoisonedCondition:     { n23: false, n26: true  },
+  /** A fighter's weapon can jam — an N26 condition token in a battle session. */
+  jammedCondition:          { n23: false, n26: true  },
   /** Fighters can be fearsome — an N26 condition token in a battle session. */
   fearsomeCondition:        { n23: false, n26: true  },
   /** Fighters can be in a frenzy — an N26 condition token in a battle session. */
@@ -436,6 +438,9 @@ export const hasInjuredCondition = (editionSlug?: string | null): boolean =>
 
 export const hasRadPoisonedCondition = (editionSlug?: string | null): boolean =>
   can('radPoisonedCondition', editionSlug);
+
+export const hasJammedCondition = (editionSlug?: string | null): boolean =>
+  can('jammedCondition', editionSlug);
 
 export const hasFearsomeCondition = (editionSlug?: string | null): boolean =>
   can('fearsomeCondition', editionSlug);
