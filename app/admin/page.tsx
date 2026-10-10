@@ -110,7 +110,7 @@ export default function AdminPage() {
     },
     {
       title: "Scenarios",
-      description: "Manage scenarios",
+      description: "Manage scenarios and N26 scenario tables",
       action: () => setShowScenarios(true),
       icon: LuScrollText
     },
