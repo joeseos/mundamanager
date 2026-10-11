@@ -237,12 +237,13 @@ async function _DELETE(request: Request) {
 // matching tags once per successful mutation (previously nothing was fired,
 // so admin edits never showed up until caches expired).
 function withReferenceInvalidation(
+  tag: string,
   handler: (...args: any[]) => Promise<Response>
 ) {
   return async (...args: any[]) => {
     const response = await handler(...args);
     if (response.ok) {
-      revalidateTag(TAGS.globalScenarios(), { expire: 0 });
+      revalidateTag(tag, { expire: 0 });
     }
     return response;
   };
@@ -449,15 +450,20 @@ const entries: Record<Method, Handler> = {
 // Dispatch
 // ============================================================================
 
-// Only scenario writes fire globalScenarios: nothing caches the entries yet.
 const HANDLERS: Record<string, Record<Method, Handler>> = {
   scenarios: {
     GET: _GET,
-    POST: withReferenceInvalidation(_POST),
-    PATCH: withReferenceInvalidation(_PATCH),
-    DELETE: withReferenceInvalidation(_DELETE),
+    POST: withReferenceInvalidation(TAGS.globalScenarios(), _POST),
+    PATCH: withReferenceInvalidation(TAGS.globalScenarios(), _PATCH),
+    DELETE: withReferenceInvalidation(TAGS.globalScenarios(), _DELETE),
   },
-  entries,
+  // The battle log pickers read the entries through getScenarioTablesCached.
+  entries: {
+    GET: entries.GET,
+    POST: withReferenceInvalidation(TAGS.globalScenarioTables(), entries.POST),
+    PATCH: withReferenceInvalidation(TAGS.globalScenarioTables(), entries.PATCH),
+    DELETE: withReferenceInvalidation(TAGS.globalScenarioTables(), entries.DELETE),
+  },
 };
 
 function dispatch(method: Method): Handler {

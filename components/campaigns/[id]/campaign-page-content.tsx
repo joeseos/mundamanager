@@ -24,7 +24,7 @@ import CampaignAddTerritoryModal from "@/components/campaigns/[id]/campaign-add-
 import { CampaignBattleLogsListRef } from "@/components/campaigns/[id]/campaign-battle-logs-list";
 import CampaignTriumphs from "@/components/campaigns/[id]/campaign-triumphs";
 import type { CampaignPermissions } from '@/types/user-permissions';
-import type { Battle, CampaignType } from '@/types/campaign';
+import type { Battle, CampaignType, ScenarioTableWithEntries } from '@/types/campaign';
 import type { BattleSession } from '@/types/battle-session';
 import CampaignBattleSessions from "@/components/campaigns/[id]/campaign-battle-sessions";
 import { requestToJoinCampaign, withdrawJoinRequest } from "@/app/actions/campaigns/[id]/campaign-join-requests";
@@ -150,6 +150,8 @@ interface CampaignPageContentProps {
   userId?: string;
   permissions: CampaignPermissions | null;
   hasPendingJoinRequest?: boolean;
+  /** The campaign edition's scenario tables, for the N26 battle log pickers. */
+  scenarioTables?: ScenarioTableWithEntries[];
   campaignTypes: CampaignType[];
   allTerritories: AllTerritory[];
   tradingPostTypes?: Array<{ id: string; trading_post_name: string; edition_slug?: string | null }>;
@@ -187,6 +189,7 @@ export default function CampaignPageContent({
   userId,
   permissions,
   hasPendingJoinRequest = false,
+  scenarioTables = [],
   campaignTypes, 
   allTerritories,
   tradingPostTypes,
@@ -964,6 +967,7 @@ export default function CampaignPageContent({
                     isCampaignOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}
                     isCampaignAdmin={!!safePermissions.isArbitrator || !!safePermissions.isAdmin}
                     currentCycle={campaignData.current_cycle ?? null}
+                    scenarioTables={scenarioTables}
                   />
                 </div>
               </div>
