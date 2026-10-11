@@ -226,6 +226,18 @@ export const SCENARIO_TABLE_TYPES = ['deployment', 'objective', 'side_job', 'cre
 
 export type ScenarioTableType = (typeof SCENARIO_TABLE_TYPES)[number];
 
+/**
+ * The parts of an N26 scenario rolled once per battle: the battle column each
+ * is stored in, and the table it is rolled on.
+ */
+export const SCENARIO_PARTS = [
+  { key: 'deployment_id', tableType: 'deployment', label: 'Deployment', placeholder: 'Select a Deployment' },
+  { key: 'objective_id', tableType: 'objective', label: 'Objective', placeholder: 'Select an Objective' },
+  { key: 'crew_selection_id', tableType: 'crew_selection', label: 'Crew', placeholder: 'Select a Crew' },
+] as const satisfies readonly { key: keyof Battle; tableType: ScenarioTableType; label: string; placeholder: string }[];
+
+export type ScenarioPartKey = (typeof SCENARIO_PARTS)[number]['key'];
+
 /** What the admin edits, and the name of the core table of each type. */
 export const SCENARIO_TABLE_TYPE_LABELS: Record<ScenarioTableType, string> = {
   deployment: 'Deployments',

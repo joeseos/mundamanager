@@ -276,10 +276,10 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
 
           return {
             ...battle,
-            // An N26 battle is named by its Deployment and Objective (to-one embeds, typed as lists).
+            // An N26 battle is named by its Deployment and Objective.
             scenario: scenarioPartsLabel(
-              ([] as { name: string }[]).concat(battle.deployment ?? [])[0]?.name,
-              ([] as { name: string }[]).concat(battle.objective ?? [])[0]?.name
+              (Array.isArray(battle.deployment) ? battle.deployment[0] : battle.deployment)?.name,
+              (Array.isArray(battle.objective) ? battle.objective[0] : battle.objective)?.name
             ) || battle.scenario,
             campaign_id: battle.campaign_id,
             campaign_name: campaign?.campaign_name || 'Unknown Campaign',

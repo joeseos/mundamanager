@@ -13,7 +13,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { createBattleLog, updateBattleLog, BattleLogParams } from "@/app/actions/campaigns/[id]/battle-logs";
 import { useMutation } from '@tanstack/react-query';
-import { Battle, BattleParticipant, BattleStatus, CampaignGang, Territory as BaseTerritory, Scenario, ScenarioTableWithEntries, ScenarioTableType } from '@/types/campaign';
+import { Battle, BattleParticipant, BattleStatus, CampaignGang, Territory as BaseTerritory, Scenario, SCENARIO_PARTS, ScenarioPartKey, ScenarioTableWithEntries, ScenarioTableType } from '@/types/campaign';
 import { battleStatusOf, challengeAnswerStatuses } from '@/types/campaign';
 import { getClaimerGangId, getWinnerIds } from '@/utils/battle-winners';
 import { useWinnerSelection } from '@/hooks/use-winner-selection';
@@ -60,24 +60,16 @@ type GangEntry = {
   id: number;
   gangId: string;
   role: GangRole;
-  /** N26: the gang's Side Job, and the table it is rolled on (empty for the core table). */
+  /** N26: the gang's Side Job, and whether it is rolled on the house's table instead of the core one. */
   sideJobId: string;
-  sideJobTableId: string;
+  sideJobFromHouse: boolean;
   sideJobCompleted: boolean;
 }
 
 const emptyGangEntry = (id: number): GangEntry => ({
-  id, gangId: '', role: 'none', sideJobId: '', sideJobTableId: '', sideJobCompleted: false,
+  id, gangId: '', role: 'none', sideJobId: '', sideJobFromHouse: false, sideJobCompleted: false,
 });
 
-/** The parts of an N26 scenario rolled once per battle, and the table each is rolled on. */
-const SCENARIO_PARTS = [
-  { key: 'deployment_id', tableType: 'deployment', label: 'Deployment', placeholder: 'Select a Deployment' },
-  { key: 'objective_id', tableType: 'objective', label: 'Objective', placeholder: 'Select an Objective' },
-  { key: 'crew_selection_id', tableType: 'crew_selection', label: 'Crew', placeholder: 'Select a Crew' },
-] as const satisfies readonly { key: keyof Battle; tableType: ScenarioTableType; label: string; placeholder: string }[];
-
-type ScenarioPartKey = (typeof SCENARIO_PARTS)[number]['key'];
 const noScenarioParts: Record<ScenarioPartKey, string> = { deployment_id: '', objective_id: '', crew_selection_id: '' };
 
 const CampaignBattleLogModal = ({
@@ -517,13 +509,12 @@ const CampaignBattleLogModal = ({
     if (participants && Array.isArray(participants) && participants.length > 0) {
       participants.forEach((participant: BattleParticipant, index: number) => {
         if (participant.gang_id) {
-          const sideJobTable = participant.side_job_id ? tableOfEntry(participant.side_job_id) : undefined;
           newGangsInBattle.push({
             ...emptyGangEntry(index + 1),
             gangId: participant.gang_id,
             role: participant.role as GangRole,
             sideJobId: participant.side_job_id ?? '',
-            sideJobTableId: sideJobTable?.gang_type_id ? sideJobTable.id : '',
+            sideJobFromHouse: !!(participant.side_job_id && tableOfEntry(participant.side_job_id)?.gang_type_id),
             sideJobCompleted: participant.side_job_completed === true,
           });
         }
@@ -1045,9 +1036,7 @@ const CampaignBattleLogModal = ({
               const houseTable = usesScenarioTables && gangEntry.gangId
                 ? houseSideJobTable(gangEntry.gangId)
                 : undefined;
-              const sideJobTable = houseTable && houseTable.id === gangEntry.sideJobTableId
-                ? houseTable
-                : coreTable('side_job');
+              const sideJobTable = houseTable && gangEntry.sideJobFromHouse ? houseTable : coreTable('side_job');
               
               return (
                 <div key={gangEntry.id} className="grid gap-3">
@@ -1125,17 +1114,17 @@ const CampaignBattleLogModal = ({
                       {houseTable && (
                         <div className="flex flex-wrap gap-x-4 gap-y-2">
                           {[
-                            { tableId: '', name: 'Core Side Jobs' },
-                            { tableId: houseTable.id, name: houseTable.name },
-                          ].map(({ tableId, name }) => (
+                            { fromHouse: false, name: 'Core Side Jobs' },
+                            { fromHouse: true, name: houseTable.name },
+                          ].map(({ fromHouse, name }) => (
                             <div key={name} className="flex items-center space-x-2">
                               <Checkbox
-                                id={`side-job-table-${gangEntry.id}-${tableId || 'core'}`}
-                                checked={gangEntry.sideJobTableId === tableId}
-                                onCheckedChange={() => updateGangEntry(gangEntry.id, { sideJobTableId: tableId, sideJobId: '' })}
+                                id={`side-job-table-${gangEntry.id}-${fromHouse ? 'house' : 'core'}`}
+                                checked={gangEntry.sideJobFromHouse === fromHouse}
+                                onCheckedChange={() => updateGangEntry(gangEntry.id, { sideJobFromHouse: fromHouse, sideJobId: '' })}
                                 disabled={isLoadingBattleData}
                               />
-                              <Label htmlFor={`side-job-table-${gangEntry.id}-${tableId || 'core'}`} className="text-sm">
+                              <Label htmlFor={`side-job-table-${gangEntry.id}-${fromHouse ? 'house' : 'core'}`} className="text-sm">
                                 {name}
                               </Label>
                             </div>
