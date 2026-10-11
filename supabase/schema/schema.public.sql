@@ -4538,10 +4538,19 @@ CREATE TABLE public.battle_session_participants (
     is_winner boolean DEFAULT false NOT NULL,
     claimed_territory boolean DEFAULT false NOT NULL,
     resource_changes jsonb DEFAULT '[]'::jsonb NOT NULL,
+    side_job_id uuid,
+    side_job_completed boolean DEFAULT false NOT NULL,
     CONSTRAINT battle_session_participants_role_check CHECK ((role = ANY (ARRAY['attacker'::text, 'defender'::text, 'none'::text])))
 );
 
 ALTER TABLE ONLY public.battle_session_participants REPLICA IDENTITY FULL;
+
+
+--
+-- Name: COLUMN battle_session_participants.side_job_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.battle_session_participants.side_job_id IS 'N26 Side Job this gang rolled: a scenario_table_entries row of the core side_job table or of its house''s. Copied into campaign_battles.participants on completion.';
 
 
 --
@@ -4561,6 +4570,9 @@ CREATE TABLE public.battle_sessions (
     round integer DEFAULT 1 NOT NULL,
     claimed_territory text,
     edition_id uuid,
+    deployment_id uuid,
+    objective_id uuid,
+    crew_selection_id uuid,
     CONSTRAINT battle_sessions_status_check CHECK ((status = ANY (ARRAY['pre_battle'::text, 'active'::text, 'post_battle'::text, 'completed'::text])))
 );
 
@@ -4572,6 +4584,27 @@ ALTER TABLE ONLY public.battle_sessions REPLICA IDENTITY FULL;
 --
 
 COMMENT ON COLUMN public.battle_sessions.edition_id IS 'Ruleset the session is played under. Derived server-side at creation from the campaign type, or from the creating gang for skirmish sessions. Nullable: a null edition resolves to NO_CAPABILITIES in the app rather than silently serving another edition''s rules.';
+
+
+--
+-- Name: COLUMN battle_sessions.deployment_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.battle_sessions.deployment_id IS 'N26 Deployment for this session. Copied to campaign_battles.deployment_id on completion.';
+
+
+--
+-- Name: COLUMN battle_sessions.objective_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.battle_sessions.objective_id IS 'N26 Objective for this session. Copied to campaign_battles.objective_id on completion.';
+
+
+--
+-- Name: COLUMN battle_sessions.crew_selection_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.battle_sessions.crew_selection_id IS 'N26 Crew selection for this session. Its scenario_crew_selection_rules fill in the crew picker.';
 
 
 --
@@ -4616,6 +4649,9 @@ CREATE TABLE public.campaign_battles (
     status text DEFAULT 'played'::text NOT NULL,
     challenger_gang_id uuid,
     challenged_gang_id uuid,
+    deployment_id uuid,
+    objective_id uuid,
+    crew_selection_id uuid,
     CONSTRAINT campaign_battles_status_check CHECK ((status = ANY (ARRAY['challenge_pending'::text, 'challenge_issued'::text, 'challenge_accepted'::text, 'challenge_declined'::text, 'played'::text])))
 );
 
@@ -4642,10 +4678,38 @@ COMMENT ON COLUMN public.campaign_battles.winner_id IS 'gang_id';
 
 
 --
+-- Name: COLUMN campaign_battles.participants; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_battles.participants IS 'One object per gang: gang_id and role (attacker, defender or none: a scenario role), with optional is_winner and claimed_territory, and on n26 optional side_job_id (a scenario_table_entries row of a side_job table) and side_job_completed.';
+
+
+--
 -- Name: COLUMN campaign_battles.status; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.campaign_battles.status IS 'Lifecycle of the battle log. Challenges start at challenge_issued and become played once the report is filed. Battles logged directly are born played.';
+
+
+--
+-- Name: COLUMN campaign_battles.deployment_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_battles.deployment_id IS 'N26 Deployment rolled for this battle: a scenario_table_entries row of a deployment table.';
+
+
+--
+-- Name: COLUMN campaign_battles.objective_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_battles.objective_id IS 'N26 Objective rolled for this battle: a scenario_table_entries row of an objective table.';
+
+
+--
+-- Name: COLUMN campaign_battles.crew_selection_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_battles.crew_selection_id IS 'N26 Crew selection rolled for this battle: a scenario_table_entries row of a crew_selection table.';
 
 
 --
@@ -6504,6 +6568,116 @@ CREATE TABLE public.profiles (
 
 
 --
+-- Name: scenario_crew_selection_rules; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.scenario_crew_selection_rules (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    scenario_table_entry_id uuid NOT NULL,
+    role text,
+    chosen_count text DEFAULT '0'::text NOT NULL,
+    random_count text DEFAULT '0'::text NOT NULL,
+    reinforcement_count smallint,
+    reinforcements_per_round text,
+    reinforcements_from_round smallint,
+    CONSTRAINT scenario_crew_selection_rules_dice_format_check CHECK (((chosen_count ~ '^([0-9]+|[0-9]*D[0-9]+(\+[0-9]+)?)$'::text) AND (random_count ~ '^([0-9]+|[0-9]*D[0-9]+(\+[0-9]+)?)$'::text) AND ((reinforcements_per_round IS NULL) OR (reinforcements_per_round ~ '^([0-9]+|[0-9]*D[0-9]+(\+[0-9]+)?)$'::text)))),
+    CONSTRAINT scenario_crew_selection_rules_reinforcements_check CHECK ((((reinforcement_count IS NULL) = (reinforcements_per_round IS NULL)) AND ((reinforcement_count IS NULL) = (reinforcements_from_round IS NULL)))),
+    CONSTRAINT scenario_crew_selection_rules_role_check CHECK ((role = ANY (ARRAY['attacker'::text, 'defender'::text])))
+);
+
+
+--
+-- Name: COLUMN scenario_crew_selection_rules.role; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.scenario_crew_selection_rules.role IS 'Scenario role this row applies to (attacker or defender, as in battle_session_participants.role). NULL applies to both gangs.';
+
+
+--
+-- Name: COLUMN scenario_crew_selection_rules.chosen_count; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.scenario_crew_selection_rules.chosen_count IS 'Fighters the player picks: the X of Custom (X), or of Hybrid (X+Y).';
+
+
+--
+-- Name: COLUMN scenario_crew_selection_rules.random_count; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.scenario_crew_selection_rules.random_count IS 'Fighters drawn at random after the picks: the X of Random (X), or the Y of Hybrid (X+Y).';
+
+
+--
+-- Name: COLUMN scenario_crew_selection_rules.reinforcement_count; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.scenario_crew_selection_rules.reinforcement_count IS 'The X of the Reinforcements (X) rule. NULL when the rule is not in play.';
+
+
+--
+-- Name: COLUMN scenario_crew_selection_rules.reinforcements_per_round; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.scenario_crew_selection_rules.reinforcements_per_round IS 'Reinforcements arriving each round, in dice notation (''D3'').';
+
+
+--
+-- Name: COLUMN scenario_crew_selection_rules.reinforcements_from_round; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.scenario_crew_selection_rules.reinforcements_from_round IS 'First round reinforcements arrive in.';
+
+
+--
+-- Name: scenario_table_entries; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.scenario_table_entries (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    edition_id uuid NOT NULL,
+    scenario_table_id uuid NOT NULL,
+    name text NOT NULL,
+    d6_min smallint NOT NULL,
+    d6_max smallint NOT NULL,
+    CONSTRAINT scenario_table_entries_d6_order_check CHECK ((d6_min <= d6_max))
+);
+
+
+--
+-- Name: scenario_tables; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.scenario_tables (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    edition_id uuid NOT NULL,
+    gang_type_id uuid,
+    table_type text NOT NULL,
+    name text NOT NULL,
+    CONSTRAINT scenario_tables_table_type_check CHECK ((table_type = ANY (ARRAY['deployment'::text, 'objective'::text, 'side_job'::text, 'crew_selection'::text])))
+);
+
+
+--
+-- Name: COLUMN scenario_tables.gang_type_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.scenario_tables.gang_type_id IS 'Gang type this table belongs to. NULL is the edition''s core table for its table_type, offered to every gang. A value also covers that type''s alternate lists via gang_types.parent_gang_type_id.';
+
+
+--
+-- Name: COLUMN scenario_tables.table_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.scenario_tables.table_type IS 'Which of the four scenario generation tables this is: deployment, objective, side_job or crew_selection.';
+
+
+--
 -- Name: scenarios; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -7593,6 +7767,78 @@ ALTER TABLE ONLY public.profiles
 
 
 --
+-- Name: scenario_crew_selection_rules scenario_crew_selection_rules_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_crew_selection_rules
+    ADD CONSTRAINT scenario_crew_selection_rules_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: scenario_crew_selection_rules scenario_crew_selection_rules_scenario_table_entry_id_role_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_crew_selection_rules
+    ADD CONSTRAINT scenario_crew_selection_rules_scenario_table_entry_id_role_key UNIQUE NULLS NOT DISTINCT (scenario_table_entry_id, role);
+
+
+--
+-- Name: scenario_table_entries scenario_table_entries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_table_entries
+    ADD CONSTRAINT scenario_table_entries_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: scenario_table_entries scenario_table_entries_scenario_table_id_d6_min_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_table_entries
+    ADD CONSTRAINT scenario_table_entries_scenario_table_id_d6_min_key UNIQUE (scenario_table_id, d6_min);
+
+
+--
+-- Name: scenario_table_entries scenario_table_entries_scenario_table_id_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_table_entries
+    ADD CONSTRAINT scenario_table_entries_scenario_table_id_name_key UNIQUE (scenario_table_id, name);
+
+
+--
+-- Name: scenario_tables scenario_tables_edition_id_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_tables
+    ADD CONSTRAINT scenario_tables_edition_id_name_key UNIQUE (edition_id, name);
+
+
+--
+-- Name: scenario_tables scenario_tables_edition_type_gang_type_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_tables
+    ADD CONSTRAINT scenario_tables_edition_type_gang_type_key UNIQUE NULLS NOT DISTINCT (edition_id, table_type, gang_type_id);
+
+
+--
+-- Name: scenario_tables scenario_tables_id_edition_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_tables
+    ADD CONSTRAINT scenario_tables_id_edition_id_key UNIQUE (id, edition_id);
+
+
+--
+-- Name: scenario_tables scenario_tables_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_tables
+    ADD CONSTRAINT scenario_tables_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: scenarios scenarios_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7816,6 +8062,13 @@ CREATE INDEX battle_session_participants_session_idx ON public.battle_session_pa
 
 
 --
+-- Name: battle_session_participants_side_job_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX battle_session_participants_side_job_id_idx ON public.battle_session_participants USING btree (side_job_id) WHERE (side_job_id IS NOT NULL);
+
+
+--
 -- Name: battle_session_participants_user_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7844,10 +8097,31 @@ CREATE INDEX battle_sessions_created_by_idx ON public.battle_sessions USING btre
 
 
 --
+-- Name: battle_sessions_crew_selection_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX battle_sessions_crew_selection_id_idx ON public.battle_sessions USING btree (crew_selection_id) WHERE (crew_selection_id IS NOT NULL);
+
+
+--
+-- Name: battle_sessions_deployment_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX battle_sessions_deployment_id_idx ON public.battle_sessions USING btree (deployment_id) WHERE (deployment_id IS NOT NULL);
+
+
+--
 -- Name: battle_sessions_edition_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX battle_sessions_edition_id_idx ON public.battle_sessions USING btree (edition_id);
+
+
+--
+-- Name: battle_sessions_objective_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX battle_sessions_objective_id_idx ON public.battle_sessions USING btree (objective_id) WHERE (objective_id IS NOT NULL);
 
 
 --
@@ -7921,6 +8195,13 @@ CREATE INDEX campaign_battles_challenger_gang_id_idx ON public.campaign_battles 
 
 
 --
+-- Name: campaign_battles_crew_selection_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_battles_crew_selection_id_idx ON public.campaign_battles USING btree (crew_selection_id) WHERE (crew_selection_id IS NOT NULL);
+
+
+--
 -- Name: campaign_battles_cycle_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7932,6 +8213,20 @@ CREATE INDEX campaign_battles_cycle_idx ON public.campaign_battles USING btree (
 --
 
 CREATE INDEX campaign_battles_defender_id_idx ON public.campaign_battles USING btree (defender_id);
+
+
+--
+-- Name: campaign_battles_deployment_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_battles_deployment_id_idx ON public.campaign_battles USING btree (deployment_id) WHERE (deployment_id IS NOT NULL);
+
+
+--
+-- Name: campaign_battles_objective_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_battles_objective_id_idx ON public.campaign_battles USING btree (objective_id) WHERE (objective_id IS NOT NULL);
 
 
 --
@@ -9363,6 +9658,13 @@ CREATE INDEX notifications_type_idx ON public.notifications USING btree (type);
 
 
 --
+-- Name: scenario_tables_gang_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX scenario_tables_gang_type_id_idx ON public.scenario_tables USING btree (gang_type_id);
+
+
+--
 -- Name: scenarios_edition_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9633,6 +9935,14 @@ ALTER TABLE ONLY public.battle_session_participants
 
 
 --
+-- Name: battle_session_participants battle_session_participants_side_job_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.battle_session_participants
+    ADD CONSTRAINT battle_session_participants_side_job_id_fkey FOREIGN KEY (side_job_id) REFERENCES public.scenario_table_entries(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: battle_session_participants battle_session_participants_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9665,11 +9975,35 @@ ALTER TABLE ONLY public.battle_sessions
 
 
 --
+-- Name: battle_sessions battle_sessions_crew_selection_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.battle_sessions
+    ADD CONSTRAINT battle_sessions_crew_selection_id_fkey FOREIGN KEY (crew_selection_id) REFERENCES public.scenario_table_entries(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: battle_sessions battle_sessions_deployment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.battle_sessions
+    ADD CONSTRAINT battle_sessions_deployment_id_fkey FOREIGN KEY (deployment_id) REFERENCES public.scenario_table_entries(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: battle_sessions battle_sessions_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.battle_sessions
     ADD CONSTRAINT battle_sessions_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: battle_sessions battle_sessions_objective_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.battle_sessions
+    ADD CONSTRAINT battle_sessions_objective_id_fkey FOREIGN KEY (objective_id) REFERENCES public.scenario_table_entries(id) ON DELETE RESTRICT;
 
 
 --
@@ -9729,11 +10063,35 @@ ALTER TABLE ONLY public.campaign_battles
 
 
 --
+-- Name: campaign_battles campaign_battles_crew_selection_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_battles
+    ADD CONSTRAINT campaign_battles_crew_selection_id_fkey FOREIGN KEY (crew_selection_id) REFERENCES public.scenario_table_entries(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: campaign_battles campaign_battles_defender_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.campaign_battles
     ADD CONSTRAINT campaign_battles_defender_id_fkey FOREIGN KEY (defender_id) REFERENCES public.gangs(id) ON DELETE SET NULL;
+
+
+--
+-- Name: campaign_battles campaign_battles_deployment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_battles
+    ADD CONSTRAINT campaign_battles_deployment_id_fkey FOREIGN KEY (deployment_id) REFERENCES public.scenario_table_entries(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: campaign_battles campaign_battles_objective_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_battles
+    ADD CONSTRAINT campaign_battles_objective_id_fkey FOREIGN KEY (objective_id) REFERENCES public.scenario_table_entries(id) ON DELETE RESTRICT;
 
 
 --
@@ -11377,6 +11735,62 @@ ALTER TABLE ONLY public.profiles
 
 
 --
+-- Name: scenario_crew_selection_rules scenario_crew_selection_rules_scenario_table_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_crew_selection_rules
+    ADD CONSTRAINT scenario_crew_selection_rules_scenario_table_entry_id_fkey FOREIGN KEY (scenario_table_entry_id) REFERENCES public.scenario_table_entries(id) ON DELETE CASCADE;
+
+
+--
+-- Name: scenario_table_entries scenario_table_entries_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_table_entries
+    ADD CONSTRAINT scenario_table_entries_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: scenario_table_entries scenario_table_entries_scenario_table_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_table_entries
+    ADD CONSTRAINT scenario_table_entries_scenario_table_id_fkey FOREIGN KEY (scenario_table_id) REFERENCES public.scenario_tables(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: scenario_table_entries scenario_table_entries_table_edition_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_table_entries
+    ADD CONSTRAINT scenario_table_entries_table_edition_fkey FOREIGN KEY (scenario_table_id, edition_id) REFERENCES public.scenario_tables(id, edition_id) ON UPDATE CASCADE;
+
+
+--
+-- Name: scenario_tables scenario_tables_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_tables
+    ADD CONSTRAINT scenario_tables_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: scenario_tables scenario_tables_gang_type_edition_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_tables
+    ADD CONSTRAINT scenario_tables_gang_type_edition_fkey FOREIGN KEY (gang_type_id, edition_id) REFERENCES public.gang_types(id, edition_id) ON UPDATE CASCADE;
+
+
+--
+-- Name: scenario_tables scenario_tables_gang_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_tables
+    ADD CONSTRAINT scenario_tables_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(id) ON DELETE CASCADE;
+
+
+--
 -- Name: scenarios scenarios_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12171,6 +12585,27 @@ CREATE POLICY "Allow authenticated users to view loadout equipment" ON public.fi
 
 
 --
+-- Name: scenario_crew_selection_rules Allow authenticated users to view scenario crew selection rules; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view scenario crew selection rules" ON public.scenario_crew_selection_rules FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: scenario_table_entries Allow authenticated users to view scenario table entries; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view scenario table entries" ON public.scenario_table_entries FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: scenario_tables Allow authenticated users to view scenario tables; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view scenario tables" ON public.scenario_tables FOR SELECT TO authenticated USING (true);
+
+
+--
 -- Name: scenarios Allow authenticated users to view scenarios; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -12668,6 +13103,27 @@ CREATE POLICY "Only admin can create gang_types entries" ON public.gang_types FO
 
 
 --
+-- Name: scenario_crew_selection_rules Only admin can create scenario crew selection rules; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can create scenario crew selection rules" ON public.scenario_crew_selection_rules FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: scenario_table_entries Only admin can create scenario table entries; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can create scenario table entries" ON public.scenario_table_entries FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: scenario_tables Only admin can create scenario tables; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can create scenario tables" ON public.scenario_tables FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
 -- Name: scenarios Only admin can create scenarios entries; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -12833,6 +13289,27 @@ CREATE POLICY "Only admin can delete gang_origins" ON public.gang_origins FOR DE
 --
 
 CREATE POLICY "Only admin can delete gang_types" ON public.gang_types FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: scenario_crew_selection_rules Only admin can delete scenario crew selection rules; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can delete scenario crew selection rules" ON public.scenario_crew_selection_rules FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: scenario_table_entries Only admin can delete scenario table entries; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can delete scenario table entries" ON public.scenario_table_entries FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: scenario_tables Only admin can delete scenario tables; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can delete scenario tables" ON public.scenario_tables FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -13022,6 +13499,27 @@ CREATE POLICY "Only admin can update gang_origins" ON public.gang_origins FOR UP
 --
 
 CREATE POLICY "Only admin can update gang_types" ON public.gang_types FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: scenario_crew_selection_rules Only admin can update scenario crew selection rules; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can update scenario crew selection rules" ON public.scenario_crew_selection_rules FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: scenario_table_entries Only admin can update scenario table entries; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can update scenario table entries" ON public.scenario_table_entries FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: scenario_tables Only admin can update scenario tables; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can update scenario tables" ON public.scenario_tables FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -14918,6 +15416,24 @@ ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: scenario_crew_selection_rules; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.scenario_crew_selection_rules ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: scenario_table_entries; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.scenario_table_entries ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: scenario_tables; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.scenario_tables ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: scenarios; Type: ROW SECURITY; Schema: public; Owner: -
