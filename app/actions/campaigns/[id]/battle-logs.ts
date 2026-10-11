@@ -11,19 +11,12 @@ import { getWinnerIds, getExplicitClaimerGangId, enrichWinners } from '@/utils/b
 import { normaliseParticipants, territoryClaimerFor, getAttackerDefenderIds } from '@/utils/battle-participants';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
-import { challengeAnswerStatuses, type BattleStatus } from '@/types/campaign';
-
-/**
- * Type definition for battle participant.
- * `is_winner` / `claimed_territory` are optional flags supporting multi-winner
- * battles. Defaults to `false` when omitted.
- */
-export interface BattleParticipant {
-  role: 'attacker' | 'defender' | 'none';
-  gang_id: string;
-  is_winner?: boolean;
-  claimed_territory?: boolean;
-}
+import {
+  challengeAnswerStatuses,
+  scenarioPartsLabel,
+  type BattleParticipant,
+  type BattleStatus,
+} from '@/types/campaign';
 
 /**
  * Type definition for territory claim
@@ -54,6 +47,13 @@ export interface BattleLogParams {
   territory_claimed_by_gang_id?: string | null;
   created_at?: string;
   cycle?: number | null;
+  /**
+   * N26: what was rolled on the scenario tables, as scenario_table_entries ids.
+   * Left out, a battle keeps what it has; null clears it.
+   */
+  deployment_id?: string | null;
+  objective_id?: string | null;
+  crew_selection_id?: string | null;
   /**
    * 'played' files a challenge's battle report; challenge_issued / accepted /
    * declined are the challenged gang's answer, which only its owner or an
@@ -161,6 +161,89 @@ async function logBattleParticipantResults(
   }
 }
 
+type ScenarioParts = Pick<BattleLogParams, 'deployment_id' | 'objective_id' | 'crew_selection_id'>;
+
+/** The table type each scenario part is rolled on, and what to call it. */
+const SCENARIO_PARTS: Record<keyof ScenarioParts, { tableType: string; label: string }> = {
+  deployment_id: { tableType: 'deployment', label: 'Deployment' },
+  objective_id: { tableType: 'objective', label: 'Objective' },
+  crew_selection_id: { tableType: 'crew_selection', label: 'Crew' },
+};
+const SCENARIO_PART_KEYS = Object.keys(SCENARIO_PARTS) as (keyof ScenarioParts)[];
+
+/** A to-one embed, which may arrive as an array. */
+const one = <T,>(embed: T | T[] | null | undefined): T | undefined =>
+  Array.isArray(embed) ? embed[0] : embed ?? undefined;
+
+/**
+ * Checks N26 scenario parts against the campaign: each entry must come from a
+ * table of its kind in the campaign's edition, and a gang's Side Job from the
+ * core table or the gang's own house table (its alternate lists use the
+ * house's). Returns the Deployment and Objective as the scenario's label for
+ * logs and notifications.
+ */
+async function checkScenarioParts(
+  supabase: SupabaseClient,
+  campaignId: string,
+  parts: ScenarioParts,
+  participants: BattleParticipant[]
+): Promise<{ error: string } | { label: string }> {
+  const sideJobGangs = participants.filter((p) => p.side_job_id);
+  const ids = [
+    ...SCENARIO_PART_KEYS.map((key) => parts[key]),
+    ...sideJobGangs.map((p) => p.side_job_id),
+  ].filter((id): id is string => !!id);
+  if (ids.length === 0) return { label: '' };
+
+  const [entriesResult, campaignResult, gangsResult] = await Promise.all([
+    supabase
+      .from('scenario_table_entries')
+      .select('id, name, edition_id, scenario_tables!scenario_table_entries_scenario_table_id_fkey (table_type, gang_type_id)')
+      .in('id', ids),
+    supabase.from('campaigns').select('campaign_types (edition_id)').eq('id', campaignId).single(),
+    sideJobGangs.length > 0
+      ? supabase
+          .from('gangs')
+          .select('id, gang_type_id, gang_types (parent_gang_type_id)')
+          .in('id', sideJobGangs.map((p) => p.gang_id))
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (entriesResult.error) throw entriesResult.error;
+  if (campaignResult.error) throw campaignResult.error;
+  if (gangsResult.error) throw gangsResult.error;
+
+  const editionId = one<any>(campaignResult.data?.campaign_types)?.edition_id;
+  const entries = new Map(
+    (entriesResult.data ?? []).map((entry: any) => [entry.id, { ...entry, table: one<any>(entry.scenario_tables) }])
+  );
+  const entryOn = (id: string, tableType: string) => {
+    const entry = entries.get(id);
+    return entry && entry.edition_id === editionId && entry.table?.table_type === tableType ? entry : undefined;
+  };
+
+  for (const key of SCENARIO_PART_KEYS) {
+    const id = parts[key];
+    if (id && !entryOn(id, SCENARIO_PARTS[key].tableType)) {
+      return { error: `That ${SCENARIO_PARTS[key].label} is not on this campaign's scenario tables` };
+    }
+  }
+  for (const participant of sideJobGangs) {
+    const entry = entryOn(participant.side_job_id!, 'side_job');
+    const gang: any = (gangsResult.data ?? []).find((g: any) => g.id === participant.gang_id);
+    const houses = [gang?.gang_type_id, one<any>(gang?.gang_types)?.parent_gang_type_id];
+    if (!entry || (entry.table.gang_type_id && !houses.includes(entry.table.gang_type_id))) {
+      return { error: 'A Side Job is not one that gang can roll' };
+    }
+  }
+
+  return {
+    label: scenarioPartsLabel(
+      parts.deployment_id ? entries.get(parts.deployment_id)?.name : null,
+      parts.objective_id ? entries.get(parts.objective_id)?.name : null
+    ),
+  };
+}
+
 /**
  * Create a new battle log using direct Supabase client
  */
@@ -193,6 +276,11 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       territoryClaimerFor(newTerritoryId, territory_claimed_by_gang_id, getExplicitClaimerGangId(rawParticipants))
     );
 
+    const scenarioParts = await checkScenarioParts(supabase, campaignId, params, participants);
+    if ('error' in scenarioParts) {
+      return { success: false as const, error: scenarioParts.error };
+    }
+
     // Legacy winner_id is populated as the claimer (if any), else the first winner.
     // NULL means a draw.
     const legacyWinnerId: string | null =
@@ -207,6 +295,9 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
         {
           campaign_id: campaignId,
           scenario,
+          deployment_id: params.deployment_id ?? null,
+          objective_id: params.objective_id ?? null,
+          crew_selection_id: params.crew_selection_id ?? null,
           winner_id: legacyWinnerId,
           note,
           participants: JSON.stringify(participants),
@@ -269,7 +360,7 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
         supabase,
         participants,
         effectiveWinnerIds,
-        scenario,
+        scenario || scenarioParts.label,
         campaign,
         claimed_territories,
         claimerGangId,
@@ -374,6 +465,11 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     const legacyWinnerId: string | null =
       claimerGangId ?? effectiveWinnerIds[0] ?? null;
 
+    const scenarioParts = await checkScenarioParts(supabase, campaignId, params, participants);
+    if ('error' in scenarioParts) {
+      return { success: false as const, error: scenarioParts.error };
+    }
+
     // A challenge names its opponent through this same form. A new opponent has
     // not answered yet, so naming one (re)issues the challenge.
     const existingStatus = existingBattle.status as BattleStatus;
@@ -475,6 +571,9 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       campaign_territory_id: newTerritoryId,
       cycle,
     };
+    for (const key of SCENARIO_PART_KEYS) {
+      if (params[key] !== undefined) updatePayload[key] = params[key];
+    }
     if (nextStatus) {
       updatePayload.status = nextStatus;
     }
@@ -539,7 +638,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
         supabase,
         participants,
         effectiveWinnerIds,
-        scenario,
+        scenario || scenarioParts.label,
         campaign,
         claimed_territories,
         claimerGangId,
@@ -569,7 +668,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
 
         if (challenger && challenged && receiverId && receiverId !== user.id) {
           const details = [
-            scenario ? `Scenario: **${scenario}**` : null,
+            (scenario || scenarioParts.label) ? `Scenario: **${scenario || scenarioParts.label}**` : null,
             stakedTerritory?.territory_name ? `Territory: **${stakedTerritory.territory_name}**` : null,
           ].filter(Boolean);
           const text = challengeIssued

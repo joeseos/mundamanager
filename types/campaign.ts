@@ -23,6 +23,9 @@ export interface BattleParticipant {
   gang_id: string;
   is_winner?: boolean;
   claimed_territory?: boolean;
+  /** N26: the Side Job this gang rolled (a scenario_table_entries id), and whether it was completed. */
+  side_job_id?: string | null;
+  side_job_completed?: boolean;
 }
 
 /**
@@ -79,6 +82,10 @@ export interface Battle {
   scenario_number?: number;
   scenario_name?: string;
   scenario?: string;
+  /** N26: what was rolled on the scenario tables, as scenario_table_entries ids. */
+  deployment_id?: string | null;
+  objective_id?: string | null;
+  crew_selection_id?: string | null;
   winner_id?: string | null;
   note?: string | null;
   participants?: BattleParticipant[] | string;
@@ -112,6 +119,8 @@ export interface Battle {
 export interface CampaignGang {
   id: string;
   name: string;
+  /** Null for a custom gang type. Picks the house Side Jobs an N26 gang may roll on. */
+  gang_type_id?: string | null;
   gang_colour?: string;
   campaign_member_id?: string;
   user_id?: string;
@@ -247,6 +256,20 @@ export interface ScenarioTableEntry {
   edition_id: string;
 }
 
+/** A scenario table with its entries, as the battle log pickers read it. */
+export interface ScenarioTableWithEntries extends ScenarioTable {
+  edition_slug: string | null;
+  /** For a house table, the house and its alternate lists, which all roll on it. Empty for a core table. */
+  gang_type_ids: string[];
+  /** In printed table order. */
+  entries: ScenarioTableEntry[];
+}
+
+/** What a battle's scenario is called in lists and logs: its Deployment and Objective. */
+export function scenarioPartsLabel(deploymentName?: string | null, objectiveName?: string | null): string {
+  return [deploymentName, objectiveName].filter(Boolean).join(' / ');
+}
+
 /** Printed table order: D6 ascending, then name. */
 export function compareScenarioTableEntries(
   a: Pick<ScenarioTableEntry, 'name' | 'd6_min'>,
@@ -282,6 +305,7 @@ export interface Member {
     id: string;              // gang's actual UUID
     name: string;
     gang_type: string;
+    gang_type_id?: string | null;
     gang_colour: string;
     rating?: number;
     wealth?: number;
