@@ -13,9 +13,11 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
 import {
   challengeAnswerStatuses,
+  SCENARIO_PARTS,
   scenarioPartsLabel,
   type BattleParticipant,
   type BattleStatus,
+  type ScenarioPartKey,
 } from '@/types/campaign';
 
 /**
@@ -161,15 +163,7 @@ async function logBattleParticipantResults(
   }
 }
 
-type ScenarioParts = Pick<BattleLogParams, 'deployment_id' | 'objective_id' | 'crew_selection_id'>;
-
-/** The table type each scenario part is rolled on, and what to call it. */
-const SCENARIO_PARTS: Record<keyof ScenarioParts, { tableType: string; label: string }> = {
-  deployment_id: { tableType: 'deployment', label: 'Deployment' },
-  objective_id: { tableType: 'objective', label: 'Objective' },
-  crew_selection_id: { tableType: 'crew_selection', label: 'Crew' },
-};
-const SCENARIO_PART_KEYS = Object.keys(SCENARIO_PARTS) as (keyof ScenarioParts)[];
+type ScenarioParts = Pick<BattleLogParams, ScenarioPartKey>;
 
 /** A to-one embed, which may arrive as an array. */
 const one = <T,>(embed: T | T[] | null | undefined): T | undefined =>
@@ -190,7 +184,7 @@ async function checkScenarioParts(
 ): Promise<{ error: string } | { label: string }> {
   const sideJobGangs = participants.filter((p) => p.side_job_id);
   const ids = [
-    ...SCENARIO_PART_KEYS.map((key) => parts[key]),
+    ...SCENARIO_PARTS.map((part) => parts[part.key]),
     ...sideJobGangs.map((p) => p.side_job_id),
   ].filter((id): id is string => !!id);
   if (ids.length === 0) return { label: '' };
@@ -221,10 +215,10 @@ async function checkScenarioParts(
     return entry && entry.edition_id === editionId && entry.table?.table_type === tableType ? entry : undefined;
   };
 
-  for (const key of SCENARIO_PART_KEYS) {
-    const id = parts[key];
-    if (id && !entryOn(id, SCENARIO_PARTS[key].tableType)) {
-      return { error: `That ${SCENARIO_PARTS[key].label} is not on this campaign's scenario tables` };
+  for (const part of SCENARIO_PARTS) {
+    const id = parts[part.key];
+    if (id && !entryOn(id, part.tableType)) {
+      return { error: `That ${part.label} is not on this campaign's scenario tables` };
     }
   }
   for (const participant of sideJobGangs) {
@@ -280,6 +274,7 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
     if ('error' in scenarioParts) {
       return { success: false as const, error: scenarioParts.error };
     }
+    const scenarioLabel = scenario || scenarioParts.label;
 
     // Legacy winner_id is populated as the claimer (if any), else the first winner.
     // NULL means a draw.
@@ -360,7 +355,7 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
         supabase,
         participants,
         effectiveWinnerIds,
-        scenario || scenarioParts.label,
+        scenarioLabel,
         campaign,
         claimed_territories,
         claimerGangId,
@@ -469,6 +464,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     if ('error' in scenarioParts) {
       return { success: false as const, error: scenarioParts.error };
     }
+    const scenarioLabel = scenario || scenarioParts.label;
 
     // A challenge names its opponent through this same form. A new opponent has
     // not answered yet, so naming one (re)issues the challenge.
@@ -571,7 +567,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       campaign_territory_id: newTerritoryId,
       cycle,
     };
-    for (const key of SCENARIO_PART_KEYS) {
+    for (const { key } of SCENARIO_PARTS) {
       if (params[key] !== undefined) updatePayload[key] = params[key];
     }
     if (nextStatus) {
@@ -638,7 +634,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
         supabase,
         participants,
         effectiveWinnerIds,
-        scenario || scenarioParts.label,
+        scenarioLabel,
         campaign,
         claimed_territories,
         claimerGangId,
@@ -668,7 +664,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
 
         if (challenger && challenged && receiverId && receiverId !== user.id) {
           const details = [
-            (scenario || scenarioParts.label) ? `Scenario: **${scenario || scenarioParts.label}**` : null,
+            scenarioLabel ? `Scenario: **${scenarioLabel}**` : null,
             stakedTerritory?.territory_name ? `Territory: **${stakedTerritory.territory_name}**` : null,
           ].filter(Boolean);
           const text = challengeIssued
