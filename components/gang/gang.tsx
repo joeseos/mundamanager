@@ -7,7 +7,7 @@ import { FighterProps } from '@/types/fighter';
 import { toast } from 'sonner';
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { StashItem, ResourceUpdate, DefaultImageEntry, resolveGangImageUrl, UNKNOWN_GANG_IMAGE_URL } from '@/types/gang';
+import { StashItem, ResourceUpdate, resolveGangImageUrl, UNKNOWN_GANG_IMAGE_URL } from '@/types/gang';
 import { VehicleProps } from '@/types/vehicle';
 import Image from 'next/image';
 import { DraggableFighters } from './draggable-fighters';
@@ -47,12 +47,9 @@ interface GangProps {
   custom_gang_type_id?: string | null;
   gang_type?: string;
   edition_slug?: string | null;
-  gang_type_image_url: string;
   image_url?: string;
-  default_gang_image?: number | null;
   gang_portrait_id?: string | null;
   gang_portrait_url?: string | null;
-  gang_type_default_image_urls?: DefaultImageEntry[];
   parent_gang_type_name?: string | null;
   gang_colour: string | null;
   credits: number | null;
@@ -129,10 +126,8 @@ export default function Gang({
   gang_type,
   edition_slug,
   image_url,
-  default_gang_image,
   gang_portrait_id,
   gang_portrait_url,
-  gang_type_default_image_urls,
   parent_gang_type_name,
   gang_colour: initialGangColour,
   credits: initialCredits,
@@ -243,7 +238,6 @@ export default function Gang({
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [currentGangImageUrl, setCurrentGangImageUrl] = useState(image_url);
-  const [currentDefaultGangImage, setCurrentDefaultGangImage] = useState<number | null | undefined>(default_gang_image);
   const [currentPortraitUrl, setCurrentPortraitUrl] = useState(gang_portrait_url);
   const [currentPortraitId, setCurrentPortraitId] = useState(gang_portrait_id ?? null);
   const [viewMode, setViewMode] = useState<GangPageViewMode>('normal');
@@ -282,11 +276,6 @@ export default function Gang({
     setWealth(initialWealth ?? 0);
   }
 
-  const [prevDefaultGangImage, setPrevDefaultGangImage] = useState(default_gang_image);
-  if (default_gang_image !== prevDefaultGangImage) {
-    setPrevDefaultGangImage(default_gang_image);
-    setCurrentDefaultGangImage(default_gang_image);
-  }
   const [prevPortraitUrl, setPrevPortraitUrl] = useState(gang_portrait_url);
   if (gang_portrait_url !== prevPortraitUrl) {
     setPrevPortraitUrl(gang_portrait_url);
@@ -431,14 +420,12 @@ export default function Gang({
     e.currentTarget.src = UNKNOWN_GANG_IMAGE_URL;
   };
 
-  const getDefaultImageUrl = useCallback((): string | null => {
+  const getDefaultImageUrl = useCallback((): string => {
     return resolveGangImageUrl({
       imageUrl: currentGangImageUrl,
       portraitUrl: currentPortraitUrl,
-      defaultGangImage: currentDefaultGangImage,
-      defaultImageUrls: gang_type_default_image_urls,
-    }) ?? null;
-  }, [currentGangImageUrl, currentPortraitUrl, currentDefaultGangImage, gang_type_default_image_urls]);
+    });
+  }, [currentGangImageUrl, currentPortraitUrl]);
 
   const formatDate = useCallback((date: string | Date | null) => {
     if (!date) return 'N/A';
@@ -830,22 +817,11 @@ export default function Gang({
     }
   };
 
-  const handleGangImageUpdate = (newImageUrl: string, newDefaultImageIndex?: number | null) => {
-    if (newDefaultImageIndex !== undefined) {
-      // Updating default image index. The old editor clears the catalogue portrait.
-      setCurrentGangImageUrl(undefined);
-      setCurrentDefaultGangImage(newDefaultImageIndex);
+  const handleGangImageUpdate = (newImageUrl: string, options?: { clearPortrait?: boolean }) => {
+    setCurrentGangImageUrl(newImageUrl || undefined);
+    if (newImageUrl || options?.clearPortrait) {
       setCurrentPortraitUrl(null);
       setCurrentPortraitId(null);
-    } else {
-      // Updating custom image URL
-      setCurrentGangImageUrl(newImageUrl || undefined);
-      // If setting a custom image, clear the default image index and catalogue portrait
-      if (newImageUrl) {
-        setCurrentDefaultGangImage(null);
-        setCurrentPortraitUrl(null);
-        setCurrentPortraitId(null);
-      }
     }
   };
 
@@ -853,7 +829,6 @@ export default function Gang({
     setCurrentPortraitId(portraitId);
     setCurrentPortraitUrl(portraitUrl);
     setCurrentGangImageUrl(undefined);
-    setCurrentDefaultGangImage(null);
   };
 
   const handlePositionsUpdate = async (newPositions: Record<number, string>) => {
@@ -1454,8 +1429,6 @@ export default function Gang({
               currentPortraitUrl={currentPortraitUrl}
               onImageUpdate={handleGangImageUpdate}
               onPortraitUpdate={handlePortraitUpdate}
-              defaultImageUrls={gang_type_default_image_urls}
-              currentDefaultImageIndex={currentDefaultGangImage}
             />
           )}
           <Tooltip

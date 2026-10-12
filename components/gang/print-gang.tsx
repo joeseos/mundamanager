@@ -22,7 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { GiAncientRuins } from "react-icons/gi";
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { decodeHtmlEntities, isHtmlEffectivelyEmpty } from "@/utils/htmlCleanUp";
-import { resolveGangImageUrl, UNKNOWN_GANG_IMAGE_URL, type DefaultImageEntry } from "@/types/gang";
+import { resolveGangImageUrl, UNKNOWN_GANG_IMAGE_URL } from "@/types/gang";
 
 const ROSTER_FIGHTER_NOTE_MAX_CHARS = 110;
 
@@ -91,9 +91,7 @@ interface PrintGangProps {
     gang_type: string;
     gang_type_id: string;
     image_url?: string;
-    default_gang_image?: number | null;
     gang_portrait_url?: string | null;
-    gang_type_default_image_urls?: DefaultImageEntry[];
     gang_colour: string | null;
     credits: number | null;
     reputation: number | null;
@@ -186,9 +184,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
     name,
     gang_type,
     image_url,
-    default_gang_image,
     gang_portrait_url,
-    gang_type_default_image_urls,
     credits,
     rating,
     wealth,
@@ -218,8 +214,6 @@ export default function PrintGang({ gang }: PrintGangProps) {
   const gangImageSrc = resolveGangImageUrl({
     imageUrl: image_url,
     portraitUrl: gang_portrait_url,
-    defaultGangImage: default_gang_image,
-    defaultImageUrls: gang_type_default_image_urls,
   });
 
   // View mode state: "roster" for table view, "cards" for card-based view

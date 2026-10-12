@@ -165,9 +165,9 @@ BEGIN
   FROM public.custom_weapon_profiles wp WHERE wp.custom_equipment_id = ANY(v_eq);
 
   INSERT INTO public.custom_gang_types (id, created_at, user_id, gang_type, alignment, trading_post_type_id,
-                                        default_image_urls, description, edition_id)
+                                        description, edition_id)
   SELECT (v_map_gt ->> gt.id::text)::uuid, now(), v_user, gt.gang_type, gt.alignment, gt.trading_post_type_id,
-         gt.default_image_urls, gt.description, gt.edition_id
+         gt.description, gt.edition_id
   FROM public.custom_gang_types gt WHERE gt.id = ANY(v_gt);
 
   INSERT INTO public.custom_fighter_types (id, created_at, user_id, fighter_type, gang_type, cost, movement,

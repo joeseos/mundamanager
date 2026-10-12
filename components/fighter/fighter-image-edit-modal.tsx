@@ -25,7 +25,7 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
     <ImageEditModal
       onClose={onClose}
       currentImageUrl={currentImageUrl}
-      title="Edit Fighter Image"
+      title="Edit Fighter Portrait"
       onImageUpdate={onImageUpdate}
       defaultImageUrl={defaultFighterImageUrl}
       uploadConfig={{
