@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import type { Battle, BattleParticipant } from '@/types/campaign';
 import { getWinnerIds } from '@/utils/battle-winners';
+import { compactGangTypeLabel } from '@/utils/gang-type-label';
 
 interface CampaignTriumph {
   id: string;
@@ -22,6 +23,7 @@ interface TriumphMember {
     id: string;
     name: string;
     gang_type?: string;
+    parent_gang_type_name?: string | null;
     gang_colour: string;
     rating?: number;
     wealth?: number;
@@ -131,7 +133,7 @@ export default function CampaignTriumphs({ triumphs, battles = [], members = [],
           map.set(gang.id, {
             id: gang.id,
             name: gang.name,
-            type: gang.gang_type || '-',
+            type: compactGangTypeLabel(gang.gang_type, gang.parent_gang_type_name) || '-',
             colour: gang.gang_colour || '#000000',
             playerId: member.user_id,
             playerName: member.username || 'Unknown',

@@ -27,6 +27,7 @@ interface Gang {
   id: string;
   name: string;
   gang_type: string;
+  parent_gang_type_name?: string | null;
   gang_colour: string;
   owner_username?: string;
   allegiance?: {
@@ -105,6 +106,7 @@ export default function CampaignMap({
             id: g.id,
             name: g.name,
             gang_type: g.gang_type,
+            parent_gang_type_name: g.parent_gang_type_name ?? null,
             gang_colour: g.gang_colour,
             owner_username: ownerUsername,
             allegiance: g.allegiance ?? null,
