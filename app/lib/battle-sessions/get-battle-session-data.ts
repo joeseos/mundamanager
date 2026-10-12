@@ -5,13 +5,19 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BattleSession, BattleSessionFull } from '@/types/battle-session';
 import { fetchCampaignResources, type CampaignResource } from '@/utils/campaigns/resources';
 
+/** N26: the names of a session's Deployment, Objective and Crew, for display. */
+export const SESSION_SCENARIO_PARTS_SELECT =
+  'deployment:scenario_table_entries!battle_sessions_deployment_id_fkey ( name ), ' +
+  'objective:scenario_table_entries!battle_sessions_objective_id_fkey ( name ), ' +
+  'crew_selection:scenario_table_entries!battle_sessions_crew_selection_id_fkey ( name )';
+
 async function fetchBattleSessionDirect(
   sessionId: string,
   supabase: SupabaseClient
 ): Promise<BattleSessionFull | null> {
   const { data: session, error: sessionError } = await supabase
     .from('battle_sessions')
-    .select('*, editions:edition_id ( slug ), linked_battle:campaign_battle_id ( campaign_territory_id, cycle, note )')
+    .select(`*, editions:edition_id ( slug ), linked_battle:campaign_battle_id ( campaign_territory_id, cycle, note ), ${SESSION_SCENARIO_PARTS_SELECT}`)
     .eq('id', sessionId)
     .single();
 
@@ -56,7 +62,7 @@ async function fetchBattleSessionDirect(
     await Promise.all([
       supabase
         .from('gangs')
-        .select('id, name, gang_colour, rating')
+        .select('id, name, gang_type_id, gang_colour, rating')
         .in('id', gangIds),
       supabase
         .from('profiles')
@@ -185,7 +191,7 @@ export const getGangBattleSessionsCached = async (
       // future consumer only discovers at runtime.
       const { data: sessions } = await supabase
         .from('battle_sessions')
-        .select('*, editions:edition_id ( slug )')
+        .select(`*, editions:edition_id ( slug ), ${SESSION_SCENARIO_PARTS_SELECT}`)
         .in('id', sessionIds)
         .order('updated_at', { ascending: false });
 

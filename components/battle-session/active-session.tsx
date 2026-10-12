@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import {
   fetchBattleSession,
   setSessionScenario,
+  setSessionScenarioParts,
   advanceRound,
   changeSessionPhase,
   cancelBattleSession,
@@ -19,9 +20,10 @@ import CompletedSession from './completed-session';
 import Modal from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
-import type { BattleSessionFull } from '@/types/battle-session';
-import type { Scenario } from '@/types/campaign';
-import { sameEditionForDisplay, hasCrewRating } from '@/types/edition';
+import { sessionScenarioLabel, type BattleSessionFull } from '@/types/battle-session';
+import { SCENARIO_PARTS, type Scenario, type ScenarioPartKey, type ScenarioTableWithEntries } from '@/types/campaign';
+import { sameEditionForDisplay, hasCrewRating, hasScenarioTables } from '@/types/edition';
+import { ScenarioEntryPicker } from '@/components/scenario-entry-picker';
 import type { GangFighter } from '@/types/gang';
 
 const CreateBattleModal = dynamic(() => import('./create-battle-modal'), { ssr: false });
@@ -35,6 +37,8 @@ interface ActiveSessionProps {
   gangFightersMap: Record<string, GangFighter[]>;
   gangPositioningMap: Record<string, Record<string, any> | null>;
   territories?: { id: string; name: string; controlled_by?: string; default_gang_territory?: boolean }[];
+  /** The session edition's scenario tables: an N26 battle is made from them. */
+  scenarioTables?: ScenarioTableWithEntries[];
 }
 
 export default function ActiveSession({
@@ -45,6 +49,7 @@ export default function ActiveSession({
   gangFightersMap,
   gangPositioningMap,
   territories = [],
+  scenarioTables = [],
 }: ActiveSessionProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -81,6 +86,20 @@ export default function ActiveSession({
       queryClient.invalidateQueries({ queryKey: ['battle-session', session.id] });
     },
     onError: () => toast.error('Failed to update scenario'),
+  });
+
+  // N26: Deployment, Objective and Crew instead of a scenario.
+  const usesScenarioTables = hasScenarioTables(session.edition_slug);
+  const scenarioPartMutation = useMutation({
+    mutationFn: async ({ key, entryId }: { key: ScenarioPartKey; entryId: string }) => {
+      const result = await setSessionScenarioParts(session.id, { [key]: entryId || null });
+      if (!result.success) throw new Error(result.error);
+    },
+    onSuccess: () => {
+      broadcast();
+      queryClient.invalidateQueries({ queryKey: ['battle-session', session.id] });
+    },
+    onError: (error) => toast.error(error.message || 'Failed to update scenario'),
   });
 
   const cancelMutation = useMutation({
@@ -181,7 +200,7 @@ export default function ActiveSession({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="min-w-0">
             <h1 className="text-2xl font-bold">
-              {session.scenario || 'Battle Session'}
+              {sessionScenarioLabel(session) || 'Battle Session'}
             </h1>
             {session.campaign_name && (
               <p className="text-sm text-neutral-500">{session.campaign_name}</p>
@@ -190,36 +209,36 @@ export default function ActiveSession({
           <div className="flex items-center gap-2">
             {canManage && (
               <>
-                {isPreBattle && (
-                  <Button onClick={() => setShowAddPlayerModal(true)}>
-                    Add Player
-                  </Button>
-                )}
-                {battleActive && (
+                  {isPreBattle && (
+                    <Button onClick={() => setShowAddPlayerModal(true)}>
+                      Add Player
+                    </Button>
+                  )}
+                  {battleActive && (
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowReturnToSetupModal(true)}
+                      disabled={changePhaseMutation.isPending}
+                    >
+                      Back to Pre-Battle
+                    </Button>
+                  )}
+                  {isPostBattle && (
+                    <Button
+                      variant="outline"
+                      onClick={() => changePhaseMutation.mutate('back')}
+                      disabled={changePhaseMutation.isPending}
+                    >
+                      Resume Battle
+                    </Button>
+                  )}
                   <Button
-                    variant="outline"
-                    onClick={() => setShowReturnToSetupModal(true)}
-                    disabled={changePhaseMutation.isPending}
+                    variant="destructive"
+                    onClick={() => setShowCancelModal(true)}
+                    disabled={cancelMutation.isPending}
                   >
-                    Back to Pre-Battle
+                    Cancel Battle
                   </Button>
-                )}
-                {isPostBattle && (
-                  <Button
-                    variant="outline"
-                    onClick={() => changePhaseMutation.mutate('back')}
-                    disabled={changePhaseMutation.isPending}
-                  >
-                    Resume Battle
-                  </Button>
-                )}
-                <Button
-                  variant="destructive"
-                  onClick={() => setShowCancelModal(true)}
-                  disabled={cancelMutation.isPending}
-                >
-                  Cancel Battle
-                </Button>
               </>
             )}
           </div>
@@ -227,21 +246,39 @@ export default function ActiveSession({
 
         {isPreBattle && (
           <div className="mt-4">
-            <label className="mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
-              Scenario
-            </label>
-            <Combobox
-              options={editionScenarios.map((s) => ({
-                value: s.id,
-                label: s.scenario_number ? `${s.scenario_number}. ${s.scenario_name}` : s.scenario_name,
-              }))}
-              value={editionScenarios.find((s) => s.scenario_name === session.scenario)?.id ?? ''}
-              onValueChange={(id) => {
-                const name = editionScenarios.find((s) => s.id === id)?.scenario_name ?? id;
-                scenarioMutation.mutate(name);
-              }}
-              placeholder="Select scenario..."
-            />
+            {usesScenarioTables ? (
+              <div className="space-y-3">
+                {SCENARIO_PARTS.map((part) => (
+                  <ScenarioEntryPicker
+                    key={part.key}
+                    label={part.label}
+                    entries={scenarioTables.find((t) => t.table_type === part.tableType && !t.gang_type_id)?.entries ?? []}
+                    value={session[part.key] ?? ''}
+                    onChange={(entryId) => scenarioPartMutation.mutate({ key: part.key, entryId })}
+                    placeholder={part.placeholder}
+                    disabled={scenarioPartMutation.isPending}
+                  />
+                ))}
+              </div>
+            ) : (
+              <>
+              <label className="mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                Scenario
+              </label>
+              <Combobox
+                options={editionScenarios.map((s) => ({
+                  value: s.id,
+                  label: s.scenario_number ? `${s.scenario_number}. ${s.scenario_name}` : s.scenario_name,
+                }))}
+                value={editionScenarios.find((s) => s.scenario_name === session.scenario)?.id ?? ''}
+                onValueChange={(id) => {
+                  const name = editionScenarios.find((s) => s.id === id)?.scenario_name ?? id;
+                  scenarioMutation.mutate(name);
+                }}
+                placeholder="Select scenario..."
+              />
+              </>
+            )}
             {session.participants.length >= 2 && (() => {
               const readyCount = session.participants.filter((p) => p.ready).length;
               const total = session.participants.length;
@@ -340,6 +377,7 @@ export default function ActiveSession({
               battleActive={battleActive}
               gangFightersList={gangFightersMap[participant.gang_id] || []}
               positioning={gangPositioningMap[participant.gang_id]}
+              scenarioTables={scenarioTables}
               onBroadcast={() => {
                 broadcast();
                 queryClient.invalidateQueries({ queryKey: ['battle-session', session.id] });

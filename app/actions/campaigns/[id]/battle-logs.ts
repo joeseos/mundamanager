@@ -14,11 +14,10 @@ import { checkCampaignArbitrator } from '@/utils/user-permissions';
 import {
   challengeAnswerStatuses,
   SCENARIO_PARTS,
-  scenarioPartsLabel,
   type BattleParticipant,
   type BattleStatus,
-  type ScenarioPartKey,
 } from '@/types/campaign';
+import { checkScenarioParts } from '@/utils/scenario-parts';
 
 /**
  * Type definition for territory claim
@@ -163,80 +162,13 @@ async function logBattleParticipantResults(
   }
 }
 
-type ScenarioParts = Pick<BattleLogParams, ScenarioPartKey>;
-
-/** A to-one embed, which may arrive as an array. */
-const one = <T,>(embed: T | T[] | null | undefined): T | undefined =>
-  Array.isArray(embed) ? embed[0] : embed ?? undefined;
-
-/**
- * Checks N26 scenario parts against the campaign: each entry must come from a
- * table of its kind in the campaign's edition, and a gang's Side Job from the
- * core table or the gang's own house table (its alternate lists use the
- * house's). Returns the Deployment and Objective as the scenario's label for
- * logs and notifications.
- */
-async function checkScenarioParts(
-  supabase: SupabaseClient,
-  campaignId: string,
-  parts: ScenarioParts,
-  participants: BattleParticipant[]
-): Promise<{ error: string } | { label: string }> {
-  const sideJobGangs = participants.filter((p) => p.side_job_id);
-  const ids = [
-    ...SCENARIO_PARTS.map((part) => parts[part.key]),
-    ...sideJobGangs.map((p) => p.side_job_id),
-  ].filter((id): id is string => !!id);
-  if (ids.length === 0) return { label: '' };
-
-  const [entriesResult, campaignResult, gangsResult] = await Promise.all([
-    supabase
-      .from('scenario_table_entries')
-      .select('id, name, edition_id, scenario_tables!scenario_table_entries_scenario_table_id_fkey (table_type, gang_type_id)')
-      .in('id', ids),
-    supabase.from('campaigns').select('campaign_types (edition_id)').eq('id', campaignId).single(),
-    sideJobGangs.length > 0
-      ? supabase
-          .from('gangs')
-          .select('id, gang_type_id, gang_types (parent_gang_type_id)')
-          .in('id', sideJobGangs.map((p) => p.gang_id))
-      : Promise.resolve({ data: [], error: null }),
-  ]);
-  if (entriesResult.error) throw entriesResult.error;
-  if (campaignResult.error) throw campaignResult.error;
-  if (gangsResult.error) throw gangsResult.error;
-
-  const editionId = one<any>(campaignResult.data?.campaign_types)?.edition_id;
-  const entries = new Map(
-    (entriesResult.data ?? []).map((entry: any) => [entry.id, { ...entry, table: one<any>(entry.scenario_tables) }])
-  );
-  const entryOn = (id: string, tableType: string) => {
-    const entry = entries.get(id);
-    return entry && entry.edition_id === editionId && entry.table?.table_type === tableType ? entry : undefined;
-  };
-
-  for (const part of SCENARIO_PARTS) {
-    const id = parts[part.key];
-    if (id && !entryOn(id, part.tableType)) {
-      return { error: `That ${part.label} is not on this campaign's scenario tables` };
-    }
-  }
-  for (const participant of sideJobGangs) {
-    const entry = entryOn(participant.side_job_id!, 'side_job');
-    const gang: any = (gangsResult.data ?? []).find((g: any) => g.id === participant.gang_id);
-    const houses = [gang?.gang_type_id, one<any>(gang?.gang_types)?.parent_gang_type_id];
-    if (!entry || (entry.table.gang_type_id && !houses.includes(entry.table.gang_type_id))) {
-      return { error: 'A Side Job is not one that gang can roll' };
-    }
-  }
-
-  return {
-    label: scenarioPartsLabel(
-      parts.deployment_id ? entries.get(parts.deployment_id)?.name : null,
-      parts.objective_id ? entries.get(parts.objective_id)?.name : null
-    ),
-  };
-}
+/** The campaign's edition, which a battle's scenario parts must come from. */
+const campaignEditionId = (supabase: SupabaseClient, campaignId: string) => async () => {
+  const { data, error } = await supabase.from('campaigns').select('campaign_types (edition_id)').eq('id', campaignId).single();
+  if (error) throw error;
+  const campaignType: any = Array.isArray(data?.campaign_types) ? data.campaign_types[0] : data?.campaign_types;
+  return campaignType?.edition_id as string | undefined;
+};
 
 /**
  * Create a new battle log using direct Supabase client
@@ -270,11 +202,12 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       territoryClaimerFor(newTerritoryId, territory_claimed_by_gang_id, getExplicitClaimerGangId(rawParticipants))
     );
 
-    const scenarioParts = await checkScenarioParts(supabase, campaignId, params, participants);
+    const scenarioParts = await checkScenarioParts(supabase, campaignEditionId(supabase, campaignId), params, participants);
     if ('error' in scenarioParts) {
       return { success: false as const, error: scenarioParts.error };
     }
-    const scenarioLabel = scenario || scenarioParts.label;
+    // An older N26 log's text names only its Deployment.
+    const scenarioLabel = scenarioParts.label || scenario;
 
     // Legacy winner_id is populated as the claimer (if any), else the first winner.
     // NULL means a draw.
@@ -460,11 +393,12 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     const legacyWinnerId: string | null =
       claimerGangId ?? effectiveWinnerIds[0] ?? null;
 
-    const scenarioParts = await checkScenarioParts(supabase, campaignId, params, participants);
+    const scenarioParts = await checkScenarioParts(supabase, campaignEditionId(supabase, campaignId), params, participants);
     if ('error' in scenarioParts) {
       return { success: false as const, error: scenarioParts.error };
     }
-    const scenarioLabel = scenario || scenarioParts.label;
+    // An older N26 log's text names only its Deployment.
+    const scenarioLabel = scenarioParts.label || scenario;
 
     // A challenge names its opponent through this same form. A new opponent has
     // not answered yet, so naming one (re)issues the challenge.

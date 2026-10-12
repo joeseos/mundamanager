@@ -14,7 +14,7 @@ import {
   setSessionWinners,
   completeBattleSession,
 } from '@/app/actions/battle-sessions';
-import type { BattleSessionFull } from '@/types/battle-session';
+import { sessionScenarioLabel, type BattleSessionFull } from '@/types/battle-session';
 import { hasCrewRating } from '@/types/edition';
 import { splitInjuryCounts } from '@/components/battle-session/participant-card';
 import type { GangFighter } from '@/types/gang';
@@ -186,10 +186,10 @@ export default function CompleteBattleModal({
       confirmDisabled={!hasAnyWinnerSelected || submitting || isReportOverLimit}
     >
       <div className="space-y-4">
-        {session.scenario && (
+        {sessionScenarioLabel(session) && (
           <div>
             <p className="text-sm font-medium text-muted-foreground">Scenario</p>
-            <p className="font-medium">{session.scenario}</p>
+            <p className="font-medium">{sessionScenarioLabel(session)}</p>
           </div>
         )}
 
