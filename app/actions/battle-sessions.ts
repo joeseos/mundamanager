@@ -302,15 +302,18 @@ export async function createBattleSession(params: {
     const sessionId = data.id;
 
     if (gangs && gangs.length > 0) {
-      const participants = gangs.map((g) => ({
-        battle_session_id: sessionId,
-        user_id: g.user_id,
-        gang_id: g.id,
-        role: challengeRoles.get(g.id) ?? 'none',
-        side_job_id: challengeSideJobs.get(g.id)?.side_job_id ?? null,
-        side_job_name: challengeSideJobs.get(g.id)?.side_job_name ?? null,
-        gang_rating_snapshot: g.rating ?? 0,
-      }));
+      const participants = gangs.map((g) => {
+        const sideJob = challengeSideJobs.get(g.id);
+        return {
+          battle_session_id: sessionId,
+          user_id: g.user_id,
+          gang_id: g.id,
+          role: challengeRoles.get(g.id) ?? 'none',
+          side_job_id: sideJob?.side_job_id ?? null,
+          side_job_name: sideJob?.side_job_name ?? null,
+          gang_rating_snapshot: g.rating ?? 0,
+        };
+      });
 
       await supabase.from('battle_session_participants').insert(participants);
 
@@ -1030,16 +1033,16 @@ export async function updateParticipantRole(
 
 /**
  * N26: a gang's Side Job, rolled before the battle by its owner (or whoever
- * manages the session), like its role. With no entry, a name makes it a custom
- * Side Job. Changing it clears its completion.
+ * manages the session), like its role: an entry, a custom name, or neither
+ * to clear it. Changing it clears its completion.
  */
 export async function updateParticipantSideJob(
   sessionId: string,
   participantId: string,
-  sideJobId: string | null,
-  customName?: string
+  sideJob: Pick<ParticipantSideJob, 'side_job_id' | 'side_job_name'>
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const { side_job_id = null, side_job_name = null } = participantSideJob(sideJob);
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
@@ -1068,17 +1071,13 @@ export async function updateParticipantSideJob(
       supabase,
       async () => session.edition_id,
       {},
-      [{ gang_id: participant.gang_id, side_job_id: sideJobId }]
+      [{ gang_id: participant.gang_id, side_job_id }]
     );
     if ('error' in check) return { success: false, error: check.error };
 
     const { error } = await supabase
       .from('battle_session_participants')
-      .update({
-        side_job_id: sideJobId,
-        side_job_name: (!sideJobId && customName?.trim()) || null,
-        side_job_completed: false,
-      })
+      .update({ side_job_id, side_job_name, side_job_completed: false })
       .eq('id', participantId)
       .eq('battle_session_id', sessionId);
 

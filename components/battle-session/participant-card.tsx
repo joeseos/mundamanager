@@ -1807,11 +1807,11 @@ export default function ParticipantCard({
             gangTypeId={participant.gang?.gang_type_id}
             value={localSideJob.id}
             onChange={canEditRole
-              ? (id) => handleSideJobChange({ id, name: '', completed: false }, updateParticipantSideJob(session.id, participant.id, id || null))
+              ? (id) => handleSideJobChange({ id, name: '', completed: false }, updateParticipantSideJob(session.id, participant.id, { side_job_id: id || null }))
               : undefined}
             customName={localSideJob.name}
             onCustomNameChange={canEditRole
-              ? (name) => handleSideJobChange({ id: '', name, completed: false }, updateParticipantSideJob(session.id, participant.id, null, name))
+              ? (name) => handleSideJobChange({ id: '', name, completed: false }, updateParticipantSideJob(session.id, participant.id, { side_job_name: name }))
               : undefined}
             saveCustomNameOnBlur
             completed={localSideJob.completed}
