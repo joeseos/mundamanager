@@ -14,8 +14,8 @@ import { UserPermissions } from '@/types/user-permissions';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { countsTowardRating } from '@/utils/fighter-status';
-import { CHOP_SHOP_COST_PER_DAMAGE } from '@/utils/dice';
 import {
+  CHOP_SHOP_COST_PER_DAMAGE,
   FIT_BIONICS_COST_PER_INJURY,
   POST_CYCLE_ACTIONS,
   SUIT_EVOLUTION_KILL_COST,

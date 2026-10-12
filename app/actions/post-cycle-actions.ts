@@ -14,6 +14,7 @@ import { addGangTacticsCards } from './gang-tactics-cards';
 import { repairVehicleDamage } from './remove-vehicle-damage';
 import { logPostCycleAction } from './logs/gang-post-cycle-logs';
 import {
+  CHOP_SHOP_COST_PER_DAMAGE,
   FIT_BIONICS_COST_PER_INJURY,
   MEDICAL_ESCORT_COST,
   TRAIN_XP,
@@ -26,7 +27,6 @@ import {
   type PostCycleAssignment,
 } from '@/utils/postCycleActions';
 import {
-  CHOP_SHOP_COST_PER_DAMAGE,
   medicalEscortStabilisedRoll,
   resolveInjuryFor,
   resolveMedicalEscort,
@@ -326,10 +326,13 @@ async function handleVisitChopShop(
   damageIds: string[]
 ): Promise<HandlerOutcome> {
   const vehicle = ctx.performer;
-  const repairCost = damageIds.length * CHOP_SHOP_COST_PER_DAMAGE;
+  // Taken from the vehicle's own list, so a repeated id is repaired and billed once.
+  const damages = lastingDamagesOf(vehicle).filter((damage) => damageIds.includes(damage.id));
+  const repairedIds = damages.map((damage) => damage.id);
+  const repairCost = damages.length * CHOP_SHOP_COST_PER_DAMAGE;
 
   const repaired = await repairVehicleDamage({
-    damageIds,
+    damageIds: repairedIds,
     repairCost,
     // An N26 vehicle is the fighter itself, with no vehicles row.
     vehicleId: null,
@@ -345,14 +348,10 @@ async function handleVisitChopShop(
     };
   }
 
-  const names = lastingDamagesOf(vehicle)
-    .filter((damage) => damageIds.includes(damage.id))
-    .map((damage) => damage.effect_name);
-
   return {
-    outcome: `Repaired ${names.join(', ')}. Cost ${repairCost} credits.`,
+    outcome: `Repaired ${damages.map((damage) => damage.effect_name).join(', ')}. Cost ${repairCost} credits.`,
     creditsDelta: 0,
-    changes: [{ fighterId: vehicle.id, removedEffectIds: damageIds }],
+    changes: [{ fighterId: vehicle.id, removedEffectIds: repairedIds }],
   };
 }
 

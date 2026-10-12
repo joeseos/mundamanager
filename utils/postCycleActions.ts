@@ -51,6 +51,8 @@ export interface PostCycleActionDefinition {
 
 export const MEDICAL_ESCORT_COST = 30;
 export const FIT_BIONICS_COST_PER_INJURY = 50;
+/** Set by the N26 vehicle repair model, so the Repair Damage modal charges the same. */
+export { CHOP_SHOP_COST_PER_DAMAGE };
 const WORK_TERRITORY_INCOME = 15;
 const TERRORISE_TERRITORY_INCOME = 10;
 export const TRAIN_XP = 2;
