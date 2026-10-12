@@ -333,21 +333,26 @@ export function typedScenarioParts(
   };
 }
 
-/** A Deployment or Objective as the scenario text holds it: its entry's or typed name. */
-export interface ScenarioPartName {
-  name?: string;
-  typed?: boolean;
-  /** Picked from a table, even when its entry's name is not at hand. */
-  picked?: boolean;
-}
-
-/** The scenario text that keeps a typed Deployment or Objective; '' when neither is typed. */
-export function typedScenarioText(deployment: ScenarioPartName, objective: ScenarioPartName): string {
-  if (!deployment.typed && !objective.typed) return '';
-  // A picked Objective keeps the separator even without its name, so a typed Deployment reads back.
-  return objective.name || objective.picked
-    ? `${deployment.name ?? ''}${SCENARIO_SEPARATOR}${objective.name ?? ''}`
-    : deployment.name ?? '';
+/**
+ * The scenario text that keeps a typed Deployment or Objective; '' when neither
+ * is typed. Each side is the part's typed name or, when it has an entry, the
+ * entry's name.
+ */
+export function typedScenarioText(
+  parts: Partial<Record<ScenarioPartKey, string | null>>,
+  typed: Partial<Record<ScenarioPartKey, string>>,
+  entryName: (entryId: string) => string | undefined
+): string {
+  const typedName = (key: ScenarioPartKey) => (parts[key] ? undefined : typed[key]);
+  if (!typedName('deployment_id') && !typedName('objective_id')) return '';
+  const name = (key: ScenarioPartKey) => {
+    const entryId = parts[key];
+    return (entryId ? entryName(entryId) : typedName(key)) ?? '';
+  };
+  // An Objective with an entry keeps the separator even without its name, so a typed Deployment reads back.
+  return parts.objective_id || typedName('objective_id')
+    ? `${name('deployment_id')}${SCENARIO_SEPARATOR}${name('objective_id')}`
+    : name('deployment_id');
 }
 
 /**
