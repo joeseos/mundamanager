@@ -178,6 +178,9 @@ export default function PostCycleActions({
   /** The fighter whose Gang Tactic is being picked, and the pick so far. */
   const [tacticsPickerFor, setTacticsPickerFor] = useState<string | null>(null);
   const [tacticsPick, setTacticsPick] = useState<RowState['tacticsCard'] | null>(null);
+  /** The vehicle whose Lasting Damage is being picked for the Chop Shop, and the pick so far. */
+  const [damagePickerFor, setDamagePickerFor] = useState<string | null>(null);
+  const [damagePick, setDamagePick] = useState<string[]>([]);
 
   const canEdit = userPermissions?.canEdit ?? false;
   const availability = useMemo(
@@ -332,6 +335,12 @@ export default function PostCycleActions({
     setTacticsPickerFor(fighterId);
   };
 
+  const openDamagePicker = (fighterId: string) => {
+    setDamagePick(rows[fighterId]?.damageIds ?? []);
+    setDamagePickerFor(fighterId);
+  };
+  const damagePickerVehicle = damagePickerFor ? fighterById.get(damagePickerFor) : undefined;
+
   const patientOptions = (performerId: string, candidates: FighterProps[]) =>
     candidates
       .filter((f) => f.id !== performerId)
@@ -442,6 +451,10 @@ export default function PostCycleActions({
             const target = row?.targetFighterId
               ? fighterById.get(row.targetFighterId)
               : undefined;
+            const repairs =
+              row?.action === 'visit_chop_shop'
+                ? lastingDamagesOf(fighter).filter((damage) => row.damageIds?.includes(damage.id))
+                : [];
             // Shown even once the row is cleared, for an action that partly applied.
             const failure = failures[fighter.id];
 
@@ -525,14 +538,21 @@ export default function PostCycleActions({
                   )}
 
                   {row?.action === 'visit_chop_shop' && (
-                    <EffectChecklist
-                      effects={lastingDamagesOf(fighter)}
-                      selected={row.damageIds ?? []}
-                      costEach={CHOP_SHOP_COST_PER_DAMAGE}
-                      onChange={(damageIds) => setRow(fighter.id, { damageIds })}
-                      disabled={!canEdit || applying}
-                      emptyText="No Lasting Damage to repair."
-                    />
+                    <>
+                      <Button
+                        size="sm"
+                        className="w-full"
+                        onClick={() => openDamagePicker(fighter.id)}
+                        disabled={!canEdit || applying}
+                      >
+                        Choose Lasting Damage
+                      </Button>
+                      {repairs.length > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          {repairs.map((damage) => damage.effect_name).join(', ')}
+                        </p>
+                      )}
+                    </>
                   )}
 
                   {row?.action === 'develop_tactics' && (
@@ -599,6 +619,27 @@ export default function PostCycleActions({
           confirmText="Choose"
           confirmDisabled={!tacticsPick}
           width="lg"
+        />
+      )}
+
+      {damagePickerVehicle && (
+        <Modal
+          title="Visit Chop Shop"
+          helper={`Pick the Lasting Damage ${damagePickerVehicle.fighter_name} has repaired. It is repaired and paid for when the Post-cycle Actions are applied.`}
+          content={
+            <EffectChecklist
+              effects={lastingDamagesOf(damagePickerVehicle)}
+              selected={damagePick}
+              costEach={CHOP_SHOP_COST_PER_DAMAGE}
+              onChange={setDamagePick}
+              disabled={!canEdit}
+              emptyText="No Lasting Damage to repair."
+            />
+          }
+          onClose={() => setDamagePickerFor(null)}
+          onConfirm={() => setRow(damagePickerVehicle.id, { damageIds: damagePick })}
+          confirmText="Choose"
+          confirmDisabled={damagePick.length === 0}
         />
       )}
     </div>
