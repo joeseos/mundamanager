@@ -256,7 +256,8 @@ export function Combobox({
     })
   }, [updatePosition])
 
-  React.useEffect(() => {
+  // Layout effect so the dropdown is placed before the first paint, not flashed at the initial 0,0
+  React.useLayoutEffect(() => {
     if (!open) return
 
     updatePosition()
