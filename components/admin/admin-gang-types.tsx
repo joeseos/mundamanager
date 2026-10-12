@@ -315,7 +315,12 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
                 <Button
                   type="button"
                   variant={selectedCategory === 'portraits' ? 'default' : 'outline'}
-                  onClick={() => setSelectedCategory('portraits')}
+                  onClick={() => {
+                    setSelectedGangTypeId('');
+                    clearFormFields();
+                    setIsCreateMode(false);
+                    setSelectedCategory('portraits');
+                  }}
                   disabled={isSubmitting || portraitState.isBusy}
                   className={
                     selectedCategory === 'portraits'

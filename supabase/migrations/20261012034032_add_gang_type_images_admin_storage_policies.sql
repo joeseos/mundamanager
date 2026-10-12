@@ -4,8 +4,9 @@
 -- to the public `gang-type-images` bucket under admin/<file>.webp.
 -- Public object URLs already work because the bucket is public. Listing a
 -- folder still needs a SELECT policy, so admins can list `admin/` when
--- choosing a free path. These policies also let an authenticated admin
--- insert, replace, and delete objects in that bucket.
+-- choosing a free path. Insert, update, delete, and that list are limited to
+-- objects whose first path segment is `admin`, so catalogue files outside
+-- that folder cannot be replaced or removed through these policies.
 --
 -- Safe to run multiple times: drops existing policies first.
 
@@ -27,6 +28,7 @@ CREATE POLICY "Gang type images can be listed by admins"
     TO authenticated
     USING (
         bucket_id = 'gang-type-images'
+        AND SPLIT_PART(name, '/', 1) = 'admin'
         AND (SELECT private.is_admin() AS is_admin)
     );
 
@@ -35,6 +37,7 @@ CREATE POLICY "Gang type images can be uploaded by admins"
     TO authenticated
     WITH CHECK (
         bucket_id = 'gang-type-images'
+        AND SPLIT_PART(name, '/', 1) = 'admin'
         AND (SELECT private.is_admin() AS is_admin)
     );
 
@@ -43,10 +46,12 @@ CREATE POLICY "Gang type images can be updated by admins"
     TO authenticated
     USING (
         bucket_id = 'gang-type-images'
+        AND SPLIT_PART(name, '/', 1) = 'admin'
         AND (SELECT private.is_admin() AS is_admin)
     )
     WITH CHECK (
         bucket_id = 'gang-type-images'
+        AND SPLIT_PART(name, '/', 1) = 'admin'
         AND (SELECT private.is_admin() AS is_admin)
     );
 
@@ -55,6 +60,7 @@ CREATE POLICY "Gang type images can be deleted by admins"
     TO authenticated
     USING (
         bucket_id = 'gang-type-images'
+        AND SPLIT_PART(name, '/', 1) = 'admin'
         AND (SELECT private.is_admin() AS is_admin)
     );
 

@@ -1,6 +1,9 @@
 -- This Code is obsolete. Do not use it or update it.
 -- We now use the library app/lib/shared/gang-data.ts to get the gang details.
 -- This code is kept here for compatibility with the Rule Snatcher Tool.
+-- Rule Snatcher does not need a gang image. This function does not return
+-- gang_type_image_url and does not read gangs.default_gang_image,
+-- gang_types.image_url, or default_image_urls.
 --
 -- DEPLOY ORDER: apply migration 20261004120000_rename_gang_types_gang_type_id_to_id.sql
 -- BEFORE this file deploys. This function reads gang_types.id, which is an unused
