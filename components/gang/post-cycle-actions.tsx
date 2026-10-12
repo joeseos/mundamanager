@@ -515,6 +515,7 @@ export default function PostCycleActions({
                   {row?.action === 'develop_tactics' && (
                     <Button
                       size="sm"
+                      className="w-full"
                       onClick={() => openTacticsPicker(fighter.id)}
                       disabled={!canEdit || applying}
                     >
