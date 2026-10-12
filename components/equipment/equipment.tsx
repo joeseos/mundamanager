@@ -33,7 +33,6 @@ interface ItemModalProps {
   gangTypeId?: string | null;
   fighterId: string;
   fighterTypeId?: string;
-  gangAffiliationId?: string | null;
   fighterCredits: number;
   fighterHasLegacy?: boolean;
   fighterLegacyName?: string;
@@ -102,7 +101,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
   gangTypeId,
   fighterId,
   fighterTypeId,
-  gangAffiliationId,
   fighterCredits,
   fighterHasLegacy,
   vehicleId,
