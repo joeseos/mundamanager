@@ -517,14 +517,11 @@ export default function PostCycleActions({
 
                   {row?.action === 'develop_tactics' && (
                     <Button
-                      variant="outline"
-                      className="w-full justify-start font-normal"
+                      size="sm"
                       onClick={() => openTacticsPicker(fighter.id)}
                       disabled={!canEdit || applying}
                     >
-                      <span className={`truncate ${row.tacticsCard ? '' : 'text-muted-foreground'}`}>
-                        {row.tacticsCard?.name ?? 'Choose a Gang Tactic'}
-                      </span>
+                      Choose Gang Tactic
                     </Button>
                   )}
 
