@@ -114,7 +114,7 @@ export default async function AccountPage() {
           </div>
           
           {/* Notifications */}
-          <div className="mt-6">
+          <div id="notifications" className="mt-6 scroll-mt-20">
             <h3 className="text-lg font-semibold mb-3">Notifications</h3>
             <NotificationsSection userId={user.id} />
           </div>
