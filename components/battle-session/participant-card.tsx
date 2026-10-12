@@ -61,7 +61,9 @@ import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { updateFighterXp } from '@/app/actions/edit-fighter';
 import FighterCard from '@/components/gang/fighter-card';
 import type { BattleSessionFull, BattleSessionParticipant, BattleSessionFighter, SessionCondition, SessionInjuryRecord } from '@/types/battle-session';
-import { beastSubtypeName, hasFleshWoundCondition, hasN26CompositeBattleMarkers, hasCrewRating, hasTradePoints } from '@/types/edition';
+import { beastSubtypeName, hasFleshWoundCondition, hasN26CompositeBattleMarkers, hasCrewRating, hasScenarioTables, hasTradePoints } from '@/types/edition';
+import type { ScenarioTableWithEntries } from '@/types/campaign';
+import { ParticipantSideJob } from '@/components/battle-session/participant-side-job';
 
 const CrewSelectionModal = dynamic(() => import('@/components/battle-session/crew-selection-modal'), { ssr: false });
 const FighterXpModal = dynamic(
@@ -1193,6 +1195,8 @@ interface ParticipantCardProps {
   gangFightersList?: GangFighter[];
   positioning?: Record<string, any> | null;
   onBroadcast?: () => void;
+  /** The session edition's scenario tables, for an N26 gang's Side Job. */
+  scenarioTables?: ScenarioTableWithEntries[];
 }
 
 export default function ParticipantCard({
@@ -1206,6 +1210,7 @@ export default function ParticipantCard({
   gangFightersList = [],
   positioning,
   onBroadcast,
+  scenarioTables = [],
 }: ParticipantCardProps) {
   const [creditsDelta, setCreditsDelta] = useState('');
   const [repDelta, setRepDelta] = useState('');
@@ -1761,6 +1766,16 @@ export default function ParticipantCard({
               </label>
             ))}
           </div>
+        )}
+        {hasScenarioTables(session.edition_slug) && (
+          <ParticipantSideJob
+            sessionId={session.id}
+            participant={participant}
+            scenarioTables={scenarioTables}
+            canPick={canEditRole}
+            canComplete={canPostBattle}
+            onSaved={onBroadcast}
+          />
         )}
         {showCrewModal && (
           <CrewSelectionModal

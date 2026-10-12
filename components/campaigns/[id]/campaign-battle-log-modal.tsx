@@ -18,7 +18,7 @@ import { battleStatusOf, challengeAnswerStatuses } from '@/types/campaign';
 import { getClaimerGangId, getWinnerIds } from '@/utils/battle-winners';
 import { useWinnerSelection } from '@/hooks/use-winner-selection';
 import { hasScenarioTables, sameEditionForDisplay } from '@/types/edition';
-import { ScenarioEntryPicker } from '@/components/campaigns/[id]/scenario-entry-picker';
+import { ScenarioEntryPicker } from '@/components/scenario-entry-picker';
 
 interface BattleLogTerritory extends BaseTerritory {
   default_gang_territory?: boolean;

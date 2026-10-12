@@ -5,7 +5,7 @@ import { useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import type { CampaignGang } from '@/components/battle-session/create-battle-modal';
-import { statusLabels, formatBattleSessionDate } from '@/types/battle-session';
+import { statusLabels, formatBattleSessionDate, sessionScenarioLabel } from '@/types/battle-session';
 import type { BattleSession } from '@/types/battle-session';
 
 const CreateBattleModal = dynamic(() => import('@/components/battle-session/create-battle-modal'), { ssr: false });
@@ -108,7 +108,7 @@ export default function BattleSessionsList({
                   className="border-b cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
                 >
                   <td className="p-1 md:p-2">{formatBattleSessionDate(session.updated_at)}</td>
-                  <td className="p-1 md:p-2">{session.scenario || '-'}</td>
+                  <td className="p-1 md:p-2">{sessionScenarioLabel(session) || '-'}</td>
                   <td className="p-1 md:p-2 text-sm">
                     {statusLabels[session.status]}
                   </td>

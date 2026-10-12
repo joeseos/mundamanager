@@ -215,8 +215,6 @@ const EDITION_CAPABILITIES = {
    * standard promote-to-Leader type picker with catalog subtypes.
    */
   championLeaderTypePromotion: { n23: false, n26: true },
-  /** The battle's scenario is rolled for on a D6 against the edition's numbered scenarios. */
-  scenarioD6Roll: { n23: false, n26: true },
   /**
    * A battle's scenario is made from parts rolled on scenario tables
    * (Deployment, Objective, Side Job, Crew) rather than picked from a list.
@@ -409,9 +407,6 @@ export const hasGangerChampionKeepTypePromotion = (
 export const hasChampionLeaderTypePromotion = (
   editionSlug?: string | null
 ): boolean => can('championLeaderTypePromotion', editionSlug);
-
-export const hasScenarioD6Roll = (editionSlug?: string | null): boolean =>
-  can('scenarioD6Roll', editionSlug);
 
 export const hasScenarioTables = (editionSlug?: string | null): boolean =>
   can('scenarioTables', editionSlug);
