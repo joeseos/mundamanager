@@ -16,8 +16,7 @@ import { BiSolidNotepad } from "react-icons/bi";
 import { GiAncientRuins } from "react-icons/gi";
 import { HiUser } from "react-icons/hi2";
 import { IoHome } from "react-icons/io5";
-import { LuSwords } from "react-icons/lu";
-import { MdFactory, MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md";
+import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md";
 import { GiHandcuffs } from "react-icons/gi";
 
 function getSubtypeRank(subtypes: string[] | null | undefined, editionSlug?: string | null) {
@@ -435,7 +434,6 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
                   <div className="mt-8">
                     <h3 className="text-lg font-semibold mb-4 flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <MdFactory className="h-5 w-5" />
                         Territories
                       </div>
                       {campaign.territories.length > 0 && (
@@ -539,7 +537,6 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
           <div className="mt-8">
             <h3 className="text-lg font-semibold mb-4 flex items-center justify-between flex-wrap">
               <div className="flex items-center gap-2">
-                <LuSwords className="h-5 w-5" />
                 Battle Logs
               </div>
               {totalBattles > 0 && (
@@ -753,8 +750,7 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
       {/* Captured Fighters */}
       {campaigns.length > 0 && (
         <div className="mt-8">
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <GiHandcuffs className="h-5 w-5 text-red-500" />
+          <h3 className="text-lg font-semibold mb-4">
             Captured Fighters
           </h3>
           {captives.length === 0 ? (
