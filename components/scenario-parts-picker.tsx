@@ -5,6 +5,7 @@ import {
   coreScenarioTable,
   SCENARIO_PARTS,
   TYPEABLE_SCENARIO_PARTS,
+  typedScenarioName,
   typedScenarioParts,
   typedScenarioText,
   type ScenarioPart,
@@ -50,7 +51,9 @@ export function ScenarioPartsPicker({
     const [deployment, objective] = TYPEABLE_SCENARIO_PARTS.map((key): ScenarioPartName => {
       const part = SCENARIO_PARTS.find((candidate) => candidate.key === key)!;
       const [id, name] = key === changed.key ? [entryId, typedName] : [parts[key], typed[key]];
-      return id ? { name: entriesOf(part).find((entry) => entry.id === id)?.name } : { name, typed: !!name };
+      return id
+        ? { name: entriesOf(part).find((entry) => entry.id === id)?.name, picked: true }
+        : { name, typed: !!name };
     });
     onChange({ [changed.key]: entryId || null, scenario: typedScenarioText(deployment, objective) });
   };
@@ -67,6 +70,7 @@ export function ScenarioPartsPicker({
           customName={typed[part.key]}
           onCustomNameChange={TYPEABLE_SCENARIO_PARTS.includes(part.key) ? (name) => change(part, '', name) : undefined}
           customPlaceholder={`Enter custom ${part.label} name`}
+          cleanCustomName={typedScenarioName}
           saveCustomNameOnBlur={saveTypedNamesOnBlur}
           placeholder={part.placeholder}
           disabled={disabled}

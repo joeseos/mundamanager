@@ -98,7 +98,9 @@ export default function ActiveSession({
     },
     onSuccess: () => {
       broadcast();
-      queryClient.invalidateQueries({ queryKey: ['battle-session', session.id] });
+      // Each change sends the whole scenario text, so the picker waits for the
+      // saved session before the next one, or it would write over this one.
+      return queryClient.invalidateQueries({ queryKey: ['battle-session', session.id] });
     },
     onError: (error) => toast.error(error.message || 'Failed to update scenario'),
   });
