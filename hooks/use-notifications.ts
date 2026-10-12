@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef } from 'react';
-import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { toast } from 'sonner';
@@ -92,22 +92,18 @@ export function useUnreadNotificationCount(userId: string) {
 const NOTIFICATIONS_HREF = '/account#notifications';
 const NEW_NOTIFICATION_TOAST_MS = 8_000;
 
-function showNewNotificationToast(count: number) {
-  const id = `notification-arrival-${Date.now()}`;
+function showNewNotificationToast(count: number, onView: () => void) {
   toast.message(count === 1 ? 'You received a new notification' : `You received ${count} new notifications`, {
-    id,
     toasterId: NOTIFICATION_TOASTER_ID,
     duration: NEW_NOTIFICATION_TOAST_MS,
-    description: (
-      <Link
-        href={NOTIFICATIONS_HREF}
-        prefetch={false}
-        className="font-medium text-foreground underline underline-offset-2"
-        onClick={() => toast.dismiss(id)}
-      >
-        View all notifications
-      </Link>
-    ),
+    action: {
+      label: 'View all notifications',
+      onClick: onView,
+    },
+    classNames: {
+      toast: 'flex-wrap',
+      actionButton: 'mt-1 !ml-0 w-full basis-full justify-center !h-8 !px-3 !text-sm',
+    },
   });
 }
 
@@ -210,6 +206,10 @@ export function useNotificationToasts(userId: string) {
     queryKey: notificationsQueryKey(userId),
     queryFn: ({ signal }) => fetchNotifications(userId, signal),
   });
+  const router = useRouter();
+  const pathname = usePathname();
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
   const cursorRef = useRef<ToastCursor | null>(null);
   const readyRef = useRef(false);
   const userIdRef = useRef(userId);
@@ -233,7 +233,15 @@ export function useNotificationToasts(userId: string) {
         ? data.filter(notification => isUnseenArrival(notification, stored))
         : data.filter(notification => !notification.dismissed);
     const claimed = claimArrivals(missed);
-    if (claimed.length > 0) showNewNotificationToast(claimed.length);
+    if (claimed.length > 0) {
+      showNewNotificationToast(claimed.length, () => {
+        if (pathnameRef.current === '/account') {
+          document.getElementById('notifications')?.scrollIntoView();
+          return;
+        }
+        router.push(NOTIFICATIONS_HREF);
+      });
+    }
 
     // No cursor yet: the whole list is the baseline. Otherwise only announced
     // rows move the cursor forward.
@@ -243,7 +251,7 @@ export function useNotificationToasts(userId: string) {
       if (!stored || !cursorsEqual(stored, next)) writeToastCursor(userId, next);
     }
     readyRef.current = true;
-  }, [data, isSuccess, userId]);
+  }, [data, isSuccess, router, userId]);
 }
 
 // A write that useNotifications shows straight away while it is pending. Once
