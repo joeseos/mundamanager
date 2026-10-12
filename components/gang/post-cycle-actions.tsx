@@ -14,6 +14,7 @@ import { UserPermissions } from '@/types/user-permissions';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { countsTowardRating } from '@/utils/fighter-status';
+import { CHOP_SHOP_COST_PER_DAMAGE } from '@/utils/dice';
 import {
   FIT_BIONICS_COST_PER_INJURY,
   POST_CYCLE_ACTIONS,
@@ -22,6 +23,7 @@ import {
   assignmentCreditsDelta,
   eligiblePostCycleActions,
   hasCriticalInjury,
+  lastingDamagesOf,
   patientOf,
   postCycleAvailability,
   removableLastingInjuriesOf,
@@ -60,11 +62,13 @@ interface RowState {
   injuryIds: string[];
   /** Develop Tactics; the name is only for showing the pick. */
   tacticsCard?: Pick<TacticsCard, 'id' | 'name'>;
+  /** Visit Chop Shop: the vehicle's Lasting Damage to repair. */
+  damageIds?: string[];
 }
 
 /** Null while the row still lacks a pick its action needs. */
 function toAssignment(fighterId: string, row: RowState): PostCycleAssignment | null {
-  const { action, targetFighterId, injuryIds, tacticsCard } = row;
+  const { action, targetFighterId, injuryIds, tacticsCard, damageIds } = row;
   switch (action) {
     case 'medical_escort':
       return targetFighterId ? { fighterId, action, targetFighterId } : null;
@@ -74,6 +78,8 @@ function toAssignment(fighterId: string, row: RowState): PostCycleAssignment | n
         : null;
     case 'develop_tactics':
       return tacticsCard ? { fighterId, action, tacticsCardId: tacticsCard.id } : null;
+    case 'visit_chop_shop':
+      return damageIds?.length ? { fighterId, action, damageIds } : null;
     default:
       return { fighterId, action };
   }
@@ -85,11 +91,15 @@ function applyChange(fighter: FighterProps, change: PostCycleFighterChange): Fig
 
   if (change.removedEffectIds?.length || change.addedInjury) {
     const removed = new Set(change.removedEffectIds ?? []);
-    const kept = (next.effects?.injuries ?? []).filter((effect) => !removed.has(effect.id));
+    const keep = (effects: FighterEffect[]) => effects.filter((effect) => !removed.has(effect.id));
+    const kept = keep(next.effects?.injuries ?? []);
+    // Only a vehicle has these, repaired by Visit Chop Shop.
+    const damages = next.effects?.['lasting damages'];
 
     next.effects = {
       ...next.effects,
       injuries: change.addedInjury ? [...kept, change.addedInjury] : kept,
+      ...(damages && { 'lasting damages': keep(damages) }),
     };
   }
 
@@ -306,6 +316,8 @@ export default function PostCycleActions({
           : 'No Critical Injuries';
       case 'fit_bionics':
         return injuredFighters.some((f) => f.id !== fighter.id) ? null : 'No Lasting Injuries';
+      case 'visit_chop_shop':
+        return lastingDamagesOf(fighter).length > 0 ? null : 'No Lasting Damage';
       case 'suit_evolution':
         return (fighter.kill_count ?? 0) < SUIT_EVOLUTION_KILL_COST
           ? `Needs ${SUIT_EVOLUTION_KILL_COST} kills`
@@ -510,6 +522,17 @@ export default function PostCycleActions({
                         />
                       )}
                     </>
+                  )}
+
+                  {row?.action === 'visit_chop_shop' && (
+                    <EffectChecklist
+                      effects={lastingDamagesOf(fighter)}
+                      selected={row.damageIds ?? []}
+                      costEach={CHOP_SHOP_COST_PER_DAMAGE}
+                      onChange={(damageIds) => setRow(fighter.id, { damageIds })}
+                      disabled={!canEdit || applying}
+                      emptyText="No Lasting Damage to repair."
+                    />
                   )}
 
                   {row?.action === 'develop_tactics' && (

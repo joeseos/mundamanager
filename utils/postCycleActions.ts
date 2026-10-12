@@ -5,6 +5,7 @@
 
 import type { FighterEffect } from '@/types/fighter-effect';
 import { hasGangTacticsCards } from '@/types/edition';
+import { CHOP_SHOP_COST_PER_DAMAGE } from '@/utils/dice';
 import { countsTowardRating } from '@/utils/fighter-status';
 
 export type PostCycleActionId =
@@ -44,7 +45,7 @@ export interface PostCycleActionDefinition {
   maxFighters?: number;
   /** Offered only when the gang has this. */
   requires?: keyof PostCycleAvailability;
-  /** Flat credits it moves, negative for a spend. Fit Bionics is priced per injury. */
+  /** Flat credits it moves, negative for a spend. Fit Bionics and Visit Chop Shop price each injury or damage. */
   credits?: number;
 }
 
@@ -86,7 +87,7 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   visit_chop_shop: {
     id: 'visit_chop_shop',
     label: 'Visit Chop Shop',
-    summary: 'Logged only',
+    summary: `${CHOP_SHOP_COST_PER_DAMAGE} credits per Lasting Damage`,
     performer: { kind: 'vehicle' },
   },
   work_territory: {
@@ -199,7 +200,7 @@ export interface PostCycleFighter {
   captured?: boolean;
   recovery?: boolean;
   kill_count?: number;
-  effects?: { injuries?: FighterEffect[] };
+  effects?: { injuries?: FighterEffect[]; 'lasting damages'?: FighterEffect[] };
 }
 
 /** Performers only: a Doc patient is always in Recovery, so targets skip this. */
@@ -295,14 +296,23 @@ export const removableLastingInjuriesOf = (fighter: PostCycleFighter): FighterEf
 export const hasCriticalInjury = (fighter: PostCycleFighter): boolean =>
   criticalInjuriesOf(fighter).length > 0;
 
+/** An N26 vehicle is a fighter, so its Lasting Damage sits in its own effects. */
+export const lastingDamagesOf = (fighter: PostCycleFighter): FighterEffect[] =>
+  fighter.effects?.['lasting damages'] ?? [];
+
 export type PostCycleAssignment =
   | { fighterId: string; action: 'medical_escort'; targetFighterId: string }
   | { fighterId: string; action: 'fit_bionics'; targetFighterId: string; injuryIds: string[] }
   /** A tactics_cards id; the server checks it is one of the gang's packs. */
   | { fighterId: string; action: 'develop_tactics'; tacticsCardId: string }
+  /** The vehicle's own Lasting Damage to repair. */
+  | { fighterId: string; action: 'visit_chop_shop'; damageIds: string[] }
   | {
       fighterId: string;
-      action: Exclude<PostCycleActionId, 'medical_escort' | 'fit_bionics' | 'develop_tactics'>;
+      action: Exclude<
+        PostCycleActionId,
+        'medical_escort' | 'fit_bionics' | 'develop_tactics' | 'visit_chop_shop'
+      >;
     };
 
 /** The fighter taken to the Doc, for the two actions that have one. */
@@ -313,6 +323,9 @@ export const patientOf = (assignment: PostCycleAssignment): string | null =>
 export function assignmentCreditsDelta(assignment: PostCycleAssignment): number {
   if (assignment.action === 'fit_bionics') {
     return -(assignment.injuryIds.length * FIT_BIONICS_COST_PER_INJURY);
+  }
+  if (assignment.action === 'visit_chop_shop') {
+    return -(assignment.damageIds.length * CHOP_SHOP_COST_PER_DAMAGE);
   }
   return POST_CYCLE_ACTIONS[assignment.action].credits ?? 0;
 }
@@ -351,6 +364,14 @@ export function validatePostCycleAssignment(
         if (assignment.injuryIds.length === 0 || !assignment.injuryIds.every((id) => removable.has(id))) {
           issues.push(`Choose Lasting Injuries that ${target.fighter_name} has.`);
         }
+      }
+      break;
+    }
+
+    case 'visit_chop_shop': {
+      const damaged = new Set(lastingDamagesOf(performer).map((e) => e.id));
+      if (assignment.damageIds.length === 0 || !assignment.damageIds.every((id) => damaged.has(id))) {
+        issues.push(`Choose Lasting Damage that ${label} has.`);
       }
       break;
     }
