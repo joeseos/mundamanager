@@ -3,10 +3,8 @@ import { unstable_cache } from 'next/cache';
 
 import { assembleGangFighters, groupBy } from '@/utils/gang-assembly';
 import {
-  DefaultImageEntry,
   gangPortraitPublicUrl,
   joinedPortraitStoragePath,
-  normaliseDefaultImageUrls,
   type GangFighter,
   type GangFightersBundle,
   type GetGangFightersListOptions,
@@ -69,7 +67,6 @@ export interface GangBasic {
     } | null;
   } | null;
   image_url?: string;
-  default_gang_image?: number | null;
   gang_portrait_id?: string | null;
   gang_portrait_url?: string | null;
   hidden: boolean;
@@ -79,8 +76,6 @@ export interface GangBasic {
 export interface GangType {
   id: string;
   gang_type: string;
-  image_url: string;
-  default_image_urls?: DefaultImageEntry[];
   parent_gang_type_name?: string | null;
 }
 
@@ -216,7 +211,6 @@ export const getGangCore = async (gangId: string, supabase: any): Promise<GangCo
             )
           ),
           image_url,
-          default_gang_image,
           gang_portrait_id,
           gang_portraits!gangs_gang_portrait_id_fkey (
             storage_path
@@ -252,7 +246,7 @@ export const getGangCore = async (gangId: string, supabase: any): Promise<GangCo
         venator_ranks_incomplete: venatorRanksIncomplete,
       };
     },
-    [`gang-core-v9-${gangId}`],
+    [`gang-core-v10-${gangId}`],
     {
       tags: [TAGS.gang(gangId), TAGS.globalGangTypes(), TAGS.globalGangPortraits()],
       revalidate: false
@@ -373,7 +367,7 @@ export const getGangType = async (gangBasic: GangBasic, supabase: any): Promise<
       async () => {
         const { data, error } = await supabase
           .from('custom_gang_types')
-          .select('id, gang_type, default_image_urls')
+          .select('id, gang_type')
           .eq('id', gangBasic.custom_gang_type_id)
           .single();
 
@@ -381,11 +375,9 @@ export const getGangType = async (gangBasic: GangBasic, supabase: any): Promise<
         return {
           id: data.id,
           gang_type: data.gang_type,
-          image_url: '',
-          default_image_urls: normaliseDefaultImageUrls(data.default_image_urls)
         };
       },
-      [`custom-gang-type-${gangBasic.custom_gang_type_id}`],
+      [`custom-gang-type-v2-${gangBasic.custom_gang_type_id}`],
       {
         tags: [TAGS.globalGangTypes()],
         revalidate: 3600
@@ -397,7 +389,7 @@ export const getGangType = async (gangBasic: GangBasic, supabase: any): Promise<
     async () => {
       const { data, error } = await supabase
         .from('gang_types')
-        .select('id, gang_type, image_url, default_image_urls, parent_gang_type_id')
+        .select('id, gang_type, parent_gang_type_id')
         .eq('id', gangBasic.gang_type_id)
         .single();
 
@@ -420,12 +412,10 @@ export const getGangType = async (gangBasic: GangBasic, supabase: any): Promise<
       return {
         id: data.id,
         gang_type: data.gang_type,
-        image_url: data.image_url,
-        default_image_urls: normaliseDefaultImageUrls(data.default_image_urls),
         parent_gang_type_name: parentGangTypeName,
       };
     },
-    [`gang-type-v3-${gangBasic.gang_type_id}`],
+    [`gang-type-v4-${gangBasic.gang_type_id}`],
     {
       tags: [TAGS.globalGangTypes()],
       revalidate: 3600

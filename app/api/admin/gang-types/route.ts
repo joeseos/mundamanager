@@ -2,13 +2,12 @@ import { NextResponse } from 'next/server';
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isValidHttpUrl } from '@/utils/http-url';
 import { invalidateGangTypesCatalog } from '@/utils/cache-tags';
 
 const GANG_TYPE_LIST_COLUMNS = 'id, gang_type, edition_id';
 
 const GANG_TYPE_COLUMNS =
-  'id, gang_type, alignment, is_hidden, affiliation, trading_post_type_id, gang_origin_category_id, parent_gang_type_id, default_image_urls, edition_id';
+  'id, gang_type, alignment, is_hidden, affiliation, trading_post_type_id, gang_origin_category_id, parent_gang_type_id, edition_id';
 
 const ALLOWED_ALIGNMENTS = [
   'Law Abiding',
@@ -17,11 +16,6 @@ const ALLOWED_ALIGNMENTS = [
 ] as const;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-type DefaultImagePayload = {
-  url: string;
-  credit?: { name?: string; url?: string; suffix?: string };
-};
 
 type GangTypePayload = {
   gang_type: string;
@@ -32,7 +26,6 @@ type GangTypePayload = {
   trading_post_type_id: string | null;
   gang_origin_category_id: string | null;
   parent_gang_type_id: string | null;
-  default_image_urls: DefaultImagePayload[] | null;
 };
 
 type GangTypePatch = {
@@ -44,7 +37,6 @@ type GangTypePatch = {
   trading_post_type_id?: string | null;
   gang_origin_category_id?: string | null;
   parent_gang_type_id?: string | null;
-  default_image_urls?: DefaultImagePayload[] | null;
 };
 
 type GangTypeRow = {
@@ -56,7 +48,6 @@ type GangTypeRow = {
   trading_post_type_id: string | null;
   gang_origin_category_id: string | null;
   parent_gang_type_id: string | null;
-  default_image_urls: unknown;
   edition_id: string | null;
 };
 
@@ -141,110 +132,6 @@ function parseGangTypeName(
   return { data: gangType };
 }
 
-function parseDefaultImageUrls(value: unknown):
-  | { error: string }
-  | { data: DefaultImagePayload[] | null } {
-  if (value === undefined || value === null || value === '') {
-    return { data: null };
-  }
-
-  if (!Array.isArray(value)) {
-    return { error: 'default_image_urls must be an array or null' };
-  }
-
-  const parsed: DefaultImagePayload[] = [];
-
-  for (const entry of value) {
-    if (typeof entry === 'string') {
-      const url = entry.trim();
-      if (!url) {
-        return { error: 'default_image_urls entries require a valid http(s) image url' };
-      }
-      if (!isValidHttpUrl(url)) {
-        return { error: 'default_image_urls entries must be valid http(s) URLs' };
-      }
-      parsed.push({ url });
-      continue;
-    }
-
-    if (!entry || typeof entry !== 'object') {
-      return { error: 'default_image_urls entries must be objects or URL strings' };
-    }
-
-    const url = emptyToNull((entry as { url?: unknown }).url);
-    const rawCredit = (entry as { credit?: unknown }).credit;
-    const creditFields = rawCredit && typeof rawCredit === 'object'
-      ? {
-          name: emptyToNull((rawCredit as { name?: unknown }).name),
-          url: emptyToNull((rawCredit as { url?: unknown }).url),
-          suffix: emptyToNull((rawCredit as { suffix?: unknown }).suffix),
-        }
-      : { name: null, url: null, suffix: null };
-
-    if (!url) {
-      if (creditFields.name || creditFields.url || creditFields.suffix) {
-        return { error: 'default_image_urls entries require an image url when credit fields are set' };
-      }
-      return { error: 'default_image_urls entries require a valid http(s) image url' };
-    }
-    if (!isValidHttpUrl(url)) {
-      return { error: 'default_image_urls entries must be valid http(s) URLs' };
-    }
-
-    if (creditFields.url && !isValidHttpUrl(creditFields.url)) {
-      return { error: 'default_image_urls credit url must be a valid http(s) URL' };
-    }
-
-    const credit: { name?: string; url?: string; suffix?: string } = {
-      ...(creditFields.name ? { name: creditFields.name } : {}),
-      ...(creditFields.url ? { url: creditFields.url } : {}),
-      ...(creditFields.suffix ? { suffix: creditFields.suffix } : {}),
-    };
-
-    parsed.push(Object.keys(credit).length > 0 ? { url, credit } : { url });
-  }
-
-  return { data: parsed.length > 0 ? parsed : null };
-}
-
-function defaultImageUrlsOf(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.map((entry) => {
-    if (typeof entry === 'string') return entry.trim();
-    if (entry && typeof entry === 'object') {
-      return emptyToNull((entry as { url?: unknown }).url) ?? '';
-    }
-    return '';
-  });
-}
-
-/**
- * gangs.default_gang_image is a positional index into default_image_urls.
- * Match by URL left-to-right so a same-length remove+add (e.g. [A,B,C] →
- * [A,C,D]) remaps pins instead of keeping stale positions. Unmatched old
- * slots map to null. Duplicate URLs are claimed in order.
- */
-function buildDefaultImageIndexMap(
-  oldUrls: string[],
-  newUrls: string[]
-): Map<number, number | null> {
-  const map = new Map<number, number | null>();
-  const used = new Set<number>();
-  for (let oldIndex = 0; oldIndex < oldUrls.length; oldIndex++) {
-    let found: number | null = null;
-    for (let newIndex = 0; newIndex < newUrls.length; newIndex++) {
-      if (used.has(newIndex)) continue;
-      if (oldUrls[oldIndex] === newUrls[newIndex]) {
-        found = newIndex;
-        used.add(newIndex);
-        break;
-      }
-    }
-    map.set(oldIndex, found);
-  }
-  return map;
-}
-
 function validateGangTypePayload(body: {
   gang_type?: unknown;
   edition_id?: unknown;
@@ -254,7 +141,6 @@ function validateGangTypePayload(body: {
   trading_post_type_id?: unknown;
   gang_origin_category_id?: unknown;
   parent_gang_type_id?: unknown;
-  default_image_urls?: unknown;
 }): { error: string } | { data: GangTypePayload } {
   const gangType = parseGangTypeName(body.gang_type);
   if ('error' in gangType) return gangType;
@@ -267,9 +153,6 @@ function validateGangTypePayload(body: {
 
   const alignment = parseAlignment(body.alignment);
   if ('error' in alignment) return alignment;
-
-  const defaultImages = parseDefaultImageUrls(body.default_image_urls);
-  if ('error' in defaultImages) return defaultImages;
 
   const isHidden = parseOptionalBoolean(body.is_hidden, 'is_hidden', false);
   if ('error' in isHidden) return isHidden;
@@ -296,7 +179,6 @@ function validateGangTypePayload(body: {
       trading_post_type_id: tradingPostTypeId.data,
       gang_origin_category_id: originCategoryId.data,
       parent_gang_type_id: parentGangTypeId.data,
-      default_image_urls: defaultImages.data,
     },
   };
 }
@@ -355,12 +237,6 @@ function validateGangTypePatch(body: Record<string, unknown>):
     const parentGangTypeId = parseUuid(body.parent_gang_type_id, 'parent_gang_type_id');
     if ('error' in parentGangTypeId) return parentGangTypeId;
     data.parent_gang_type_id = parentGangTypeId.data;
-  }
-
-  if ('default_image_urls' in body) {
-    const defaultImages = parseDefaultImageUrls(body.default_image_urls);
-    if ('error' in defaultImages) return defaultImages;
-    data.default_image_urls = defaultImages.data;
   }
 
   if (Object.keys(data).length === 0) {
@@ -568,64 +444,6 @@ async function syncDenormalizedGangTypeName(
   if (fighterTypesResult.error) throw fighterTypesResult.error;
 }
 
-async function remapPinnedDefaultImages(
-  supabase: SupabaseClient,
-  gangTypeId: string,
-  oldUrls: string[],
-  newUrls: string[]
-): Promise<void> {
-  const indexMap = buildDefaultImageIndexMap(oldUrls, newUrls);
-  const changes = [...indexMap.entries()].filter(([from, to]) => from !== to);
-
-  const clearOutOfRange = async () => {
-    const { error } = await supabase
-      .from('gangs')
-      .update({ default_gang_image: null })
-      .eq('gang_type_id', gangTypeId)
-      .gte('default_gang_image', newUrls.length);
-    if (error) throw error;
-  };
-
-  if (changes.length === 0) {
-    await clearOutOfRange();
-    return;
-  }
-
-  try {
-    // Phase 1: unique negatives so 2→1 cannot collide with existing 1s.
-    for (const [from] of changes) {
-      const { error } = await supabase
-        .from('gangs')
-        .update({ default_gang_image: -(from + 1) })
-        .eq('gang_type_id', gangTypeId)
-        .eq('default_gang_image', from);
-      if (error) throw error;
-    }
-
-    for (const [from, to] of changes) {
-      const { error } = await supabase
-        .from('gangs')
-        .update({ default_gang_image: to })
-        .eq('gang_type_id', gangTypeId)
-        .eq('default_gang_image', -(from + 1));
-      if (error) throw error;
-    }
-  } catch (error) {
-    // Best-effort, not transactional: phase-2 rows already written to `to` no
-    // longer match -(from+1), so they stay migrated while later entries revert.
-    for (const [from] of changes) {
-      await supabase
-        .from('gangs')
-        .update({ default_gang_image: from })
-        .eq('gang_type_id', gangTypeId)
-        .eq('default_gang_image', -(from + 1));
-    }
-    await clearOutOfRange();
-    throw error;
-  }
-
-  await clearOutOfRange();
-}
 
 function withReferenceInvalidation(
   handler: (request: Request) => Promise<Response>
@@ -785,15 +603,6 @@ async function _PATCH(request: Request) {
 
     if (patch.gang_type) {
       await syncDenormalizedGangTypeName(supabase, gangTypeId, patch.gang_type);
-    }
-
-    if (patch.default_image_urls !== undefined) {
-      await remapPinnedDefaultImages(
-        supabase,
-        gangTypeId,
-        defaultImageUrlsOf(current.default_image_urls),
-        (patch.default_image_urls ?? []).map((entry) => entry.url)
-      );
     }
 
     return NextResponse.json(gangType);

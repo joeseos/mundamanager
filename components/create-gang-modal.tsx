@@ -24,7 +24,6 @@ import {
 import { EditionToggle } from '@/components/home/edition-toggle'
 import { useHomeEdition } from '@/hooks/use-home-edition'
 import { sameEditionForDisplay } from '@/types/edition'
-import { normaliseDefaultImageUrls, preferredDefaultGangImageIndex } from '@/types/gang'
 
 type Gang = {
   id: string;
@@ -45,7 +44,6 @@ type GangType = {
   id: string;
   gang_type: string;
   alignment: string;
-  image_url?: string;
   affiliation: boolean;
   available_affiliations: Array<{
     id: string;
@@ -58,7 +56,6 @@ type GangType = {
     category_name: string;
   }>;
   parent_gang_type_id?: string | null;
-  default_image_urls?: unknown[] | null;
   is_custom?: boolean;
   edition_slug?: string | null;
 };
@@ -406,11 +403,6 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
           credits: parseInt(credits),
           gangSubtypes: selectedSubtypes.map(v => v.id),
           gangPortraitId: selectedPortraitId,
-          defaultGangImage: selectedPortraitId
-            ? null
-            : preferredDefaultGangImageIndex(
-                normaliseDefaultImageUrls(selectedGangType.default_image_urls)
-              ),
         });
 
         if (!result.success) {
