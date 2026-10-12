@@ -9,7 +9,7 @@ import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { createClient } from "@/utils/supabase/client";
-import { Battle, scenarioPartsLabel } from '@/types/campaign';
+import { Battle, scenarioLabel } from '@/types/campaign';
 import { getWinnerIds } from '@/utils/battle-winners';
 import Modal from "@/components/ui/modal";
 import { BiSolidNotepad } from "react-icons/bi";
@@ -275,11 +275,12 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
 
           return {
             ...battle,
-            // An N26 battle is named by its Deployment and Objective.
-            scenario: scenarioPartsLabel(
+            // An N26 battle is named by its Deployment and Objective, picked or typed.
+            scenario: scenarioLabel(
+              battle.scenario,
               (Array.isArray(battle.deployment) ? battle.deployment[0] : battle.deployment)?.name,
               (Array.isArray(battle.objective) ? battle.objective[0] : battle.objective)?.name
-            ) || battle.scenario,
+            ),
             campaign_id: battle.campaign_id,
             campaign_name: campaign?.campaign_name || 'Unknown Campaign',
             territory_name: battle.campaign_territory_id ? territoriesMap.get(battle.campaign_territory_id) : undefined,

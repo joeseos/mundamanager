@@ -13,14 +13,13 @@ import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { editionsConflict, hasScenarioTables, sameEditionForDisplay } from '@/types/edition';
 import { Button } from '@/components/ui/button';
 import UserSearchBar, { type UserSearchResult } from '@/components/shared/user-search-bar';
-import { ScenarioEntryPicker } from '@/components/scenario-entry-picker';
+import { ScenarioPartsPicker } from '@/components/scenario-parts-picker';
 import {
-  coreScenarioTable,
-  SCENARIO_PARTS,
+  neededScenarioPart,
   type Scenario,
-  type ScenarioPartKey,
   type ScenarioTableWithEntries,
 } from '@/types/campaign';
+import type { ScenarioParts } from '@/utils/scenario-parts';
 
 export interface CampaignGang {
   id: string;
@@ -72,9 +71,7 @@ export default function CreateBattleModal({
   const [customScenario, setCustomScenario] = useState('');
   // N26 has no scenario list: the battle's Deployment, Objective and Crew are rolled instead.
   const usesScenarioTables = hasScenarioTables(editionSlug);
-  const [scenarioParts, setScenarioParts] = useState<Record<ScenarioPartKey, string>>({
-    deployment_id: '', objective_id: '', crew_selection_id: '',
-  });
+  const [scenarioParts, setScenarioParts] = useState<ScenarioParts>({});
 
   // Non-campaign: user search + gang picker
   const [selectedUser, setSelectedUser] = useState<UserSearchResult | null>(null);
@@ -271,7 +268,8 @@ export default function CreateBattleModal({
 
       return createBattleSession({
         campaign_id: campaignId,
-        ...(usesScenarioTables ? scenarioParts : { scenario: scenarioName }),
+        // N26: the scenario text keeps a typed Deployment or Objective.
+        ...(usesScenarioTables ? { ...scenarioParts, scenario: customScenario } : { scenario: scenarioName }),
         gang_ids: allGangIds,
       });
     },
@@ -303,7 +301,7 @@ export default function CreateBattleModal({
   const canConfirm = isAddMode
     ? hasOpponents
     : usesScenarioTables
-      ? SCENARIO_PARTS.every(({ key }) => scenarioParts[key])
+      ? !neededScenarioPart({ ...scenarioParts, scenario: customScenario })
       : !!selectedScenario;
 
   const modalContent = (
@@ -466,19 +464,16 @@ export default function CreateBattleModal({
 
         {/* Scenario picker (create mode only) */}
         {!isAddMode && usesScenarioTables && (
-          <div className="space-y-3">
-            {SCENARIO_PARTS.map((part) => (
-              <ScenarioEntryPicker
-                key={part.key}
-                label={part.label}
-                entries={coreScenarioTable(editionScenarioTables, part.tableType)?.entries ?? []}
-                value={scenarioParts[part.key]}
-                onChange={(entryId) => setScenarioParts((current) => ({ ...current, [part.key]: entryId }))}
-                placeholder={part.placeholder}
-                disabled={isLoadingBattleData}
-              />
-            ))}
-          </div>
+          <ScenarioPartsPicker
+            scenarioTables={editionScenarioTables}
+            parts={scenarioParts}
+            scenario={customScenario}
+            onChange={({ scenario, ...change }) => {
+              setScenarioParts((current) => ({ ...current, ...change }));
+              setCustomScenario(scenario);
+            }}
+            disabled={isLoadingBattleData}
+          />
         )}
         {!isAddMode && !usesScenarioTables && (
           <div>
