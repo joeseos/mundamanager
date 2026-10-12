@@ -49,7 +49,7 @@ export default function BattleSessionsList({
 
   const content = (
     <>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex items-start justify-between">
         <h2 className="text-xl md:text-2xl font-bold">Battle Sessions</h2>
         {showAddButton && (
           <Button

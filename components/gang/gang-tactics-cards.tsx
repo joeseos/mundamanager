@@ -198,6 +198,8 @@ export default function GangTacticsCards({
     <>
       <List<GangTacticsCard>
         title="Gang Tactics"
+        // Top-align like the other gang tab headers instead of centring on the Add button.
+        titleClassName="self-start"
         className="mt-0"
         items={tacticsCards}
         columns={columns}
