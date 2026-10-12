@@ -418,6 +418,20 @@ export default function GangPageContent({
     }));
   }, []);
 
+  // Functional, since Post-cycle Actions may add several in one apply.
+  const handleTacticsCardAdded = useCallback((card: GangTacticsCard) => {
+    setGangData((prev: GangDataState) => ({
+      ...prev,
+      processedData: {
+        ...prev.processedData,
+        tacticsCards: [
+          ...(prev.processedData.tacticsCards || []).filter(existing => existing.id !== card.id),
+          card
+        ]
+      }
+    }));
+  }, []);
+
   const handleNoteBackstoryUpdate = useCallback((updatedNoteBackstory: string) => {
     setGangData((prev: GangDataState) => ({
       ...prev,
@@ -740,9 +754,11 @@ export default function GangPageContent({
               gangType={gangData.processedData.gang_type}
               isCustomGangType={Boolean(gangData.processedData.custom_gang_type_id)}
               gangSubtypes={gangData.processedData.gang_subtypes || []}
+              tacticsCards={gangData.processedData.tacticsCards || []}
               userPermissions={userPermissions}
               onFighterUpdate={handleFighterUpdate}
               onGangFinancialsUpdate={handleGangFinancialsUpdate}
+              onTacticsCardAdded={handleTacticsCardAdded}
             />
           )}
         </div>
