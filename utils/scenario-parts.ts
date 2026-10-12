@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   SCENARIO_PARTS,
-  scenarioPartsLabel,
+  scenarioLabel,
   type BattleParticipant,
   type ScenarioPartKey,
 } from '@/types/campaign';
@@ -18,7 +18,8 @@ const one = <T,>(embed: T | T[] | null | undefined): T | undefined =>
  * from a table of its kind in that edition, and a gang's Side Job from the core
  * table or the gang's own house table (its alternate lists use the house's).
  * The edition is only looked up when there is something to check. Returns the
- * Deployment and Objective as the scenario's label for logs and notifications.
+ * scenario's label for logs and notifications: its Deployment and Objective,
+ * picked or typed into the scenario text, or an N23 battle's scenario text.
  *
  * Shared by the battle log and battle session actions; lives in utils/ so
  * neither 'use server' file has to export it.
@@ -27,14 +28,15 @@ export async function checkScenarioParts(
   supabase: SupabaseClient,
   editionId: () => Promise<string | null | undefined>,
   parts: ScenarioParts,
-  participants: Pick<BattleParticipant, 'gang_id' | 'side_job_id'>[]
+  participants: Pick<BattleParticipant, 'gang_id' | 'side_job_id'>[],
+  scenario?: string | null
 ): Promise<{ error: string } | { label: string }> {
   const sideJobGangs = participants.filter((p) => p.side_job_id);
   const ids = [
     ...SCENARIO_PARTS.map((part) => parts[part.key]),
     ...sideJobGangs.map((p) => p.side_job_id),
   ].filter((id): id is string => !!id);
-  if (ids.length === 0) return { label: '' };
+  if (ids.length === 0) return { label: scenarioLabel(scenario) };
 
   const [entriesResult, battleEditionId, gangsResult] = await Promise.all([
     supabase
@@ -76,7 +78,8 @@ export async function checkScenarioParts(
   }
 
   return {
-    label: scenarioPartsLabel(
+    label: scenarioLabel(
+      scenario,
       parts.deployment_id ? entries.get(parts.deployment_id)?.name : null,
       parts.objective_id ? entries.get(parts.objective_id)?.name : null
     ),

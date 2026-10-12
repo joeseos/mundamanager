@@ -431,15 +431,22 @@ export async function setSessionScenario(
   }
 }
 
-/** N26: sets any of the session's Deployment, Objective and Crew before the battle; null clears one. */
+/**
+ * N26: sets any of the session's Deployment, Objective and Crew before the
+ * battle; null clears one. The scenario text, which keeps a typed Deployment
+ * or Objective, is saved with it.
+ */
 export async function setSessionScenarioParts(
   sessionId: string,
-  parts: ScenarioParts
+  parts: ScenarioParts & { scenario?: string }
 ): Promise<{ success: boolean; error?: string }> {
   try {
     return await updateSessionAsManager(
       sessionId,
-      Object.fromEntries(SCENARIO_PARTS.filter(({ key }) => parts[key] !== undefined).map(({ key }) => [key, parts[key]])),
+      {
+        ...Object.fromEntries(SCENARIO_PARTS.filter(({ key }) => parts[key] !== undefined).map(({ key }) => [key, parts[key]])),
+        ...(parts.scenario !== undefined && { scenario: parts.scenario || null }),
+      },
       {
         requireStatus: 'pre_battle',
         statusError: 'The scenario can only be changed during pre-battle',

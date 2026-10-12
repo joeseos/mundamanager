@@ -202,12 +202,11 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       territoryClaimerFor(newTerritoryId, territory_claimed_by_gang_id, getExplicitClaimerGangId(rawParticipants))
     );
 
-    const scenarioParts = await checkScenarioParts(supabase, campaignEditionId(supabase, campaignId), params, participants);
+    const scenarioParts = await checkScenarioParts(supabase, campaignEditionId(supabase, campaignId), params, participants, scenario);
     if ('error' in scenarioParts) {
       return { success: false as const, error: scenarioParts.error };
     }
-    // An older N26 log's text names only its Deployment.
-    const scenarioLabel = scenarioParts.label || scenario;
+    const scenarioLabel = scenarioParts.label;
 
     // Legacy winner_id is populated as the claimer (if any), else the first winner.
     // NULL means a draw.
@@ -393,12 +392,11 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     const legacyWinnerId: string | null =
       claimerGangId ?? effectiveWinnerIds[0] ?? null;
 
-    const scenarioParts = await checkScenarioParts(supabase, campaignEditionId(supabase, campaignId), params, participants);
+    const scenarioParts = await checkScenarioParts(supabase, campaignEditionId(supabase, campaignId), params, participants, scenario);
     if ('error' in scenarioParts) {
       return { success: false as const, error: scenarioParts.error };
     }
-    // An older N26 log's text names only its Deployment.
-    const scenarioLabel = scenarioParts.label || scenario;
+    const scenarioLabel = scenarioParts.label;
 
     // A challenge names its opponent through this same form. A new opponent has
     // not answered yet, so naming one (re)issues the challenge.

@@ -13,12 +13,13 @@ import { Combobox } from "@/components/ui/combobox";
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { createBattleLog, updateBattleLog, BattleLogParams } from "@/app/actions/campaigns/[id]/battle-logs";
 import { useMutation } from '@tanstack/react-query';
-import { Battle, BattleParticipant, BattleStatus, CampaignGang, Territory as BaseTerritory, Scenario, SCENARIO_PARTS, ScenarioPartKey, ScenarioTableWithEntries, coreScenarioTable } from '@/types/campaign';
+import { Battle, BattleParticipant, BattleStatus, CampaignGang, Territory as BaseTerritory, Scenario, ScenarioTableWithEntries, neededScenarioPart } from '@/types/campaign';
 import { battleStatusOf, challengeAnswerStatuses } from '@/types/campaign';
 import { getClaimerGangId, getWinnerIds } from '@/utils/battle-winners';
 import { useWinnerSelection } from '@/hooks/use-winner-selection';
 import { hasScenarioTables, sameEditionForDisplay } from '@/types/edition';
-import { ScenarioEntryPicker } from '@/components/scenario-entry-picker';
+import { ScenarioPartsPicker } from '@/components/scenario-parts-picker';
+import type { ScenarioParts } from '@/utils/scenario-parts';
 import { SideJobPicker } from '@/components/side-job-picker';
 
 interface BattleLogTerritory extends BaseTerritory {
@@ -70,8 +71,6 @@ const emptyGangEntry = (id: number): GangEntry => ({
   id, gangId: '', role: 'none', sideJobId: '', sideJobCompleted: false,
 });
 
-const noScenarioParts: Record<ScenarioPartKey, string> = { deployment_id: '', objective_id: '', crew_selection_id: '' };
-
 const CampaignBattleLogModal = ({
   campaignId,
   editionSlug,
@@ -91,7 +90,7 @@ const CampaignBattleLogModal = ({
   const usesScenarioTables = hasScenarioTables(editionSlug);
   const [selectedScenario, setSelectedScenario] = useState('');
   const [customScenario, setCustomScenario] = useState('');
-  const [scenarioParts, setScenarioParts] = useState(noScenarioParts);
+  const [scenarioParts, setScenarioParts] = useState<ScenarioParts>({});
   const [gangsInBattle, setGangsInBattle] = useState<GangEntry[]>([emptyGangEntry(1), emptyGangEntry(2)]);
   const [notes, setNotes] = useState('');
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
@@ -451,7 +450,8 @@ const CampaignBattleLogModal = ({
     // A challenge slot is created without a scenario, so treat "none" as its own
     // state rather than falling through to an empty custom name.
     const existingScenario = battleToEdit.scenario || battleToEdit.scenario_name || '';
-    if (matchingScenario) {
+    // N26 has no scenario list: its text keeps a typed Deployment or Objective.
+    if (matchingScenario && !usesScenarioTables) {
       setSelectedScenario(matchingScenario.id);
     } else if (existingScenario) {
       setSelectedScenario('custom');
@@ -461,14 +461,10 @@ const CampaignBattleLogModal = ({
       setCustomScenario('');
     }
 
-    // N26 logs from before the tables name their Deployment in the scenario text.
-    const deploymentNamed = coreScenarioTable(scenarioTables, 'deployment')?.entries.find(
-      (entry) => entry.name.toLowerCase() === existingScenario.trim().toLowerCase()
-    );
     setScenarioParts({
-      deployment_id: battleToEdit.deployment_id ?? deploymentNamed?.id ?? '',
-      objective_id: battleToEdit.objective_id ?? '',
-      crew_selection_id: battleToEdit.crew_selection_id ?? '',
+      deployment_id: battleToEdit.deployment_id,
+      objective_id: battleToEdit.objective_id,
+      crew_selection_id: battleToEdit.crew_selection_id,
     });
 
     if (battleToEdit.created_at) {
@@ -611,7 +607,7 @@ const CampaignBattleLogModal = ({
 
   // Every part of an N26 scenario is needed to file a report; a challenge may not have rolled them yet.
   const missingScenarioPart = usesScenarioTables && showResultFields
-    ? SCENARIO_PARTS.find((part) => !scenarioParts[part.key])
+    ? neededScenarioPart({ ...scenarioParts, scenario: customScenario })
     : undefined;
 
   // Get the list of gangs that are already selected in other entries
@@ -757,8 +753,8 @@ const CampaignBattleLogModal = ({
     // The server derives `winner_id` from participants[].is_winner /
     // claimed_territory so we don't need to send it. `null` means "draw".
     const battleData: BattleLogParams = {
-      // N26 has no scenario text; an older log keeps the one it was filed with.
-      scenario: usesScenarioTables ? (battleToEdit?.scenario ?? '') : scenarioName,
+      // N26: keeps a typed Deployment or Objective.
+      scenario: usesScenarioTables ? customScenario : scenarioName,
       ...(usesScenarioTables
         ? {
             deployment_id: scenarioParts.deployment_id || null,
@@ -936,19 +932,17 @@ const CampaignBattleLogModal = ({
           </div>
 
           {usesScenarioTables ? (
-            <div className="space-y-3">
-              {SCENARIO_PARTS.map((part) => (
-                <ScenarioEntryPicker
-                  key={part.key}
-                  label={`${part.label}${showResultFields ? ' *' : ''}`}
-                  entries={coreScenarioTable(scenarioTables, part.tableType)?.entries ?? []}
-                  value={scenarioParts[part.key]}
-                  onChange={(entryId) => setScenarioParts((current) => ({ ...current, [part.key]: entryId }))}
-                  placeholder={part.placeholder}
-                  disabled={isLoadingBattleData}
-                />
-              ))}
-            </div>
+            <ScenarioPartsPicker
+              scenarioTables={scenarioTables}
+              parts={scenarioParts}
+              scenario={customScenario}
+              onChange={({ scenario, ...change }) => {
+                setScenarioParts((current) => ({ ...current, ...change }));
+                setCustomScenario(scenario);
+              }}
+              required={showResultFields}
+              disabled={isLoadingBattleData}
+            />
           ) : (
           <div>
             <label className="block text-sm font-medium text-muted-foreground mb-1">

@@ -17,7 +17,7 @@ import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md";
 import { HiUser } from "react-icons/hi2";
 import { LuTrash2, LuSquarePen, LuSwords } from "react-icons/lu";
 import { useMutation } from '@tanstack/react-query';
-import { Battle, BattleParticipant, CampaignGang, Territory, Member, ScenarioTableWithEntries, scenarioPartsLabel } from '@/types/campaign';
+import { Battle, BattleParticipant, CampaignGang, Territory, Member, ScenarioTableWithEntries, scenarioLabel as scenarioLabelOf } from '@/types/campaign';
 import { battleStatusColors, battleStatusLabels, battleStatusOf, isPlayedBattle } from '@/types/campaign';
 import CampaignChallengeRoundModal from '@/components/campaigns/[id]/campaign-challenge-round-modal';
 import { getWinnerIds } from '@/utils/battle-winners';
@@ -149,16 +149,17 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   const [selectedBattle, setSelectedBattle] = useState<Battle | null>(null);
   const [battleToDelete, setBattleToDelete] = useState<Battle | null>(null);
 
-  // An N26 battle is named by its Deployment and Objective; older logs by their scenario text.
+  // An N26 battle is named by its Deployment and Objective, picked or typed; an N23 one by its scenario text.
   const scenarioLabel = useMemo(() => {
     const entryNames = new Map(
       scenarioTables.flatMap((table) => table.entries.map((entry) => [entry.id, entry.name] as const))
     );
     return (battle: Battle) =>
-      scenarioPartsLabel(
+      scenarioLabelOf(
+        battle.scenario,
         battle.deployment_id ? entryNames.get(battle.deployment_id) : null,
         battle.objective_id ? entryNames.get(battle.objective_id) : null
-      ) || battle.scenario || battle.scenario_name || '';
+      ) || battle.scenario_name || '';
   }, [scenarioTables]);
 
   // Extract unique values for filter options

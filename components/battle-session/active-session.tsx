@@ -21,9 +21,10 @@ import Modal from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
 import { sessionScenarioLabel, type BattleSessionFull } from '@/types/battle-session';
-import { coreScenarioTable, SCENARIO_PARTS, type Scenario, type ScenarioPartKey, type ScenarioTableWithEntries } from '@/types/campaign';
+import type { Scenario, ScenarioTableWithEntries } from '@/types/campaign';
+import type { ScenarioParts } from '@/utils/scenario-parts';
 import { sameEditionForDisplay, hasCrewRating, hasScenarioTables } from '@/types/edition';
-import { ScenarioEntryPicker } from '@/components/scenario-entry-picker';
+import { ScenarioPartsPicker } from '@/components/scenario-parts-picker';
 import type { GangFighter } from '@/types/gang';
 
 const CreateBattleModal = dynamic(() => import('./create-battle-modal'), { ssr: false });
@@ -91,8 +92,8 @@ export default function ActiveSession({
   // N26: Deployment, Objective and Crew instead of a scenario.
   const usesScenarioTables = hasScenarioTables(session.edition_slug);
   const scenarioPartMutation = useMutation({
-    mutationFn: async ({ key, entryId }: { key: ScenarioPartKey; entryId: string }) => {
-      const result = await setSessionScenarioParts(session.id, { [key]: entryId || null });
+    mutationFn: async (change: ScenarioParts & { scenario: string }) => {
+      const result = await setSessionScenarioParts(session.id, change);
       if (!result.success) throw new Error(result.error);
     },
     onSuccess: () => {
@@ -247,19 +248,14 @@ export default function ActiveSession({
         {isPreBattle && (
           <div className="mt-4">
             {usesScenarioTables ? (
-              <div className="space-y-3">
-                {SCENARIO_PARTS.map((part) => (
-                  <ScenarioEntryPicker
-                    key={part.key}
-                    label={part.label}
-                    entries={coreScenarioTable(scenarioTables, part.tableType)?.entries ?? []}
-                    value={session[part.key] ?? ''}
-                    onChange={(entryId) => scenarioPartMutation.mutate({ key: part.key, entryId })}
-                    placeholder={part.placeholder}
-                    disabled={!canManage || scenarioPartMutation.isPending}
-                  />
-                ))}
-              </div>
+              <ScenarioPartsPicker
+                scenarioTables={scenarioTables}
+                parts={session}
+                scenario={session.scenario}
+                onChange={(change) => scenarioPartMutation.mutate(change)}
+                saveTypedNamesOnBlur
+                disabled={!canManage || scenarioPartMutation.isPending}
+              />
             ) : (
               <>
               <label className="mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300">

@@ -1,5 +1,5 @@
 import type { CampaignResource } from '@/utils/campaigns/resources';
-import { scenarioPartsLabel } from '@/types/campaign';
+import { scenarioLabel } from '@/types/campaign';
 
 export type BattleSessionStatus = 'pre_battle' | 'active' | 'post_battle' | 'completed';
 
@@ -58,7 +58,7 @@ export interface BattleSession {
 export function sessionScenarioLabel(
   session: Pick<BattleSession, 'scenario' | 'deployment' | 'objective'>
 ): string {
-  return scenarioPartsLabel(session.deployment?.name, session.objective?.name) || session.scenario || '';
+  return scenarioLabel(session.scenario, session.deployment?.name, session.objective?.name);
 }
 
 export interface BattleSessionParticipant {
