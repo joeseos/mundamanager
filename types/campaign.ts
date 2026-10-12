@@ -299,12 +299,19 @@ export const TYPEABLE_SCENARIO_PARTS: readonly ScenarioPartKey[] = ['deployment_
 
 const SCENARIO_SEPARATOR = ' / ';
 
+/** A typed Deployment or Objective may not hold "/", which the scenario text keeps for its separator. */
+export function typedScenarioName(name: string): string {
+  return name.replace(/\//g, '');
+}
+
 /**
  * A typed Deployment or Objective has no column of its own: it is kept in the
  * battle's scenario text as "Deployment / Objective", each side the part's
  * typed name or its entry's, and " / Objective" while no Deployment is picked.
- * Reads the typed names back, given which parts have an entry. Text with no
- * separator names the Deployment, unless it was matched to an entry.
+ * Reads the typed names back, given which parts have an entry. A typed name
+ * has no "/", so the text is split at the separator beside it, and an entry's
+ * name may hold " / ". Text with no separator names the Deployment, unless it
+ * was matched to an entry.
  */
 export function typedScenarioParts(
   scenario: string | null | undefined,
@@ -314,11 +321,11 @@ export function typedScenarioParts(
   const text = scenario ?? '';
   if (!text.trim() || (hasDeployment && hasObjective)) return {};
   const first = text.indexOf(SCENARIO_SEPARATOR);
-  if (hasDeployment) {
-    return first < 0 ? {} : { objective_id: text.slice(first + SCENARIO_SEPARATOR.length).trim() || undefined };
-  }
   const last = text.lastIndexOf(SCENARIO_SEPARATOR);
-  if (hasObjective) return last < 0 ? {} : { deployment_id: text.slice(0, last).trim() || undefined };
+  if (hasDeployment) {
+    return last < 0 ? {} : { objective_id: text.slice(last + SCENARIO_SEPARATOR.length).trim() || undefined };
+  }
+  if (hasObjective) return first < 0 ? {} : { deployment_id: text.slice(0, first).trim() || undefined };
   if (first < 0) return { deployment_id: text.trim() };
   return {
     deployment_id: text.slice(0, first).trim() || undefined,
@@ -330,12 +337,17 @@ export function typedScenarioParts(
 export interface ScenarioPartName {
   name?: string;
   typed?: boolean;
+  /** Picked from a table, even when its entry's name is not at hand. */
+  picked?: boolean;
 }
 
 /** The scenario text that keeps a typed Deployment or Objective; '' when neither is typed. */
 export function typedScenarioText(deployment: ScenarioPartName, objective: ScenarioPartName): string {
   if (!deployment.typed && !objective.typed) return '';
-  return objective.name ? `${deployment.name ?? ''}${SCENARIO_SEPARATOR}${objective.name}` : deployment.name ?? '';
+  // A picked Objective keeps the separator even without its name, so a typed Deployment reads back.
+  return objective.name || objective.picked
+    ? `${deployment.name ?? ''}${SCENARIO_SEPARATOR}${objective.name ?? ''}`
+    : deployment.name ?? '';
 }
 
 /**

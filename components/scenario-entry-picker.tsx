@@ -20,6 +20,8 @@ interface ScenarioEntryPickerProps {
   customName?: string;
   onCustomNameChange?: (name: string) => void;
   customPlaceholder?: string;
+  /** Takes out what a custom name may not hold, as it is typed. */
+  cleanCustomName?: (name: string) => string;
   /** Saves the custom name when its field loses focus instead of on every key. */
   saveCustomNameOnBlur?: boolean;
   placeholder: string;
@@ -40,6 +42,7 @@ export function ScenarioEntryPicker({
   customName,
   onCustomNameChange,
   customPlaceholder,
+  cleanCustomName,
   saveCustomNameOnBlur,
   placeholder,
   disabled,
@@ -48,6 +51,8 @@ export function ScenarioEntryPicker({
   const [customChosen, setCustomChosen] = useState(!!customName);
   const [draft, setDraft] = useState<string | null>(null);
   const custom = !!onCustomNameChange && !value && (customChosen || !!customName);
+  // The field can close without losing focus, as when someone else picks an entry.
+  if (!custom && draft !== null) setDraft(null);
 
   const pickEntry = (entryId: string) => {
     setCustomChosen(false);
@@ -99,8 +104,9 @@ export function ScenarioEntryPicker({
             placeholder={customPlaceholder}
             value={draft ?? customName ?? ''}
             onChange={(e) => {
-              setDraft(e.target.value);
-              if (!saveCustomNameOnBlur) onCustomNameChange?.(e.target.value);
+              const name = cleanCustomName ? cleanCustomName(e.target.value) : e.target.value;
+              setDraft(name);
+              if (!saveCustomNameOnBlur) onCustomNameChange?.(name);
             }}
             onBlur={() => {
               if (saveCustomNameOnBlur && draft !== null && draft.trim() !== (customName ?? '')) {
