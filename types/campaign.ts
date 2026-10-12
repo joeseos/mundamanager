@@ -277,6 +277,21 @@ export interface ScenarioTableWithEntries extends ScenarioTable {
   entries: ScenarioTableEntry[];
 }
 
+/** The edition's core table of a type: the one every gang rolls on. */
+export function coreScenarioTable<T extends ScenarioTable>(tables: T[], tableType: ScenarioTableType): T | undefined {
+  return tables.find((table) => table.table_type === tableType && !table.gang_type_id);
+}
+
+/** The house Side Jobs a gang type may roll on instead of the core ones; alternate lists use their house's. */
+export function houseSideJobTable(
+  tables: ScenarioTableWithEntries[],
+  gangTypeId: string | null | undefined
+): ScenarioTableWithEntries | undefined {
+  return gangTypeId
+    ? tables.find((table) => table.table_type === 'side_job' && table.gang_type_ids.includes(gangTypeId))
+    : undefined;
+}
+
 /** What a battle's scenario is called in lists and logs: its Deployment and Objective. */
 export function scenarioPartsLabel(deploymentName?: string | null, objectiveName?: string | null): string {
   return [deploymentName, objectiveName].filter(Boolean).join(' / ');

@@ -43,6 +43,8 @@ import {
 import {
   removeParticipant,
   updateParticipantRole,
+  updateParticipantSideJob,
+  setSideJobCompleted,
   updateGangOutcome,
   updateParticipantResources,
   bulkAddFightersToSession,
@@ -63,7 +65,7 @@ import FighterCard from '@/components/gang/fighter-card';
 import type { BattleSessionFull, BattleSessionParticipant, BattleSessionFighter, SessionCondition, SessionInjuryRecord } from '@/types/battle-session';
 import { beastSubtypeName, hasFleshWoundCondition, hasN26CompositeBattleMarkers, hasCrewRating, hasScenarioTables, hasTradePoints } from '@/types/edition';
 import type { ScenarioTableWithEntries } from '@/types/campaign';
-import { ParticipantSideJob } from '@/components/battle-session/participant-side-job';
+import { SideJobPicker } from '@/components/side-job-picker';
 
 const CrewSelectionModal = dynamic(() => import('@/components/battle-session/crew-selection-modal'), { ssr: false });
 const FighterXpModal = dynamic(
@@ -1224,6 +1226,8 @@ export default function ParticipantCard({
   const [tradingPostRoll, setTradingPostRoll] = useState<{ dice: number[]; total: number; modifier: number; grandTotal: number } | null>(null);
   const [tradingPostModifier, setTradingPostModifier] = useState('');
   const [localRole, setLocalRole] = useState<'attacker' | 'defender' | 'none'>(participant.role);
+  const savedSideJob = { id: participant.side_job_id ?? '', completed: participant.side_job_completed === true };
+  const [localSideJob, setLocalSideJob] = useState(savedSideJob);
 
   const [readyOverride, setReadyOverride] = useState<boolean | null>(null);
   const readyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1278,6 +1282,20 @@ export default function ParticipantCard({
         toast.error(result.error || 'Failed to update role');
       }
     });
+  };
+
+  const handleSideJobChange = (sideJob: typeof savedSideJob, request: Promise<{ success: boolean; error?: string }>) => {
+    setLocalSideJob(sideJob);
+    request
+      .catch(() => ({ success: false, error: undefined }))
+      .then((result) => {
+        if (result.success) {
+          onBroadcast?.();
+        } else {
+          setLocalSideJob(savedSideJob);
+          toast.error(result.error || 'Failed to update Side Job');
+        }
+      });
   };
 
   // Map expanded gang fighters (one entry per loadout) to crew modal format
@@ -1622,6 +1640,12 @@ export default function ParticipantCard({
     setLocalRole(participant.role);
   }
 
+  const [prevSideJob, setPrevSideJob] = useState(savedSideJob);
+  if (savedSideJob.id !== prevSideJob.id || savedSideJob.completed !== prevSideJob.completed) {
+    setPrevSideJob(savedSideJob);
+    setLocalSideJob(savedSideJob);
+  }
+
 
 
   return (
@@ -1767,14 +1791,20 @@ export default function ParticipantCard({
             ))}
           </div>
         )}
-        {hasScenarioTables(session.edition_slug) && (
-          <ParticipantSideJob
-            sessionId={session.id}
-            participant={participant}
+        {hasScenarioTables(session.edition_slug) && (canEditRole || !!localSideJob.id) && (
+          <SideJobPicker
+            className="mt-2"
+            id={participant.id}
             scenarioTables={scenarioTables}
-            canPick={canEditRole}
-            canComplete={canPostBattle}
-            onSaved={onBroadcast}
+            gangTypeId={participant.gang?.gang_type_id}
+            value={localSideJob.id}
+            onChange={canEditRole
+              ? (id) => handleSideJobChange({ id, completed: false }, updateParticipantSideJob(session.id, participant.id, id || null))
+              : undefined}
+            completed={localSideJob.completed}
+            onCompletedChange={canPostBattle
+              ? (completed) => handleSideJobChange({ ...localSideJob, completed }, setSideJobCompleted(session.id, participant.id, completed))
+              : undefined}
           />
         )}
         {showCrewModal && (
