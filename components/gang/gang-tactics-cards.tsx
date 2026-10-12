@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
 import { Tooltip } from 'react-tooltip';
 import { BiSolidNotepad } from 'react-icons/bi';
@@ -10,7 +11,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { List, ListAction, ListColumn } from '@/components/ui/list';
 import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import { UserPermissions } from '@/types/user-permissions';
-import TacticsCardPicker from '@/components/gang/tactics-card-picker';
 import {
   compareTacticsCards,
   normaliseTacticsDescription,
@@ -22,6 +22,8 @@ import {
   deleteGangTacticsCard,
   updateGangTacticsCardDescription
 } from '@/app/actions/gang-tactics-cards';
+
+const TacticsCardPicker = dynamic(() => import('@/components/gang/tactics-card-picker'), { ssr: false });
 
 interface GangTacticsCardsProps {
   gangId: string;
