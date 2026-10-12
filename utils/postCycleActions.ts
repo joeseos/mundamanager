@@ -80,7 +80,7 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   fit_bionics: {
     id: 'fit_bionics',
     label: 'Fit Bionics',
-    summary: `${FIT_BIONICS_COST_PER_INJURY} credits per injury`,
+    summary: `${FIT_BIONICS_COST_PER_INJURY} credits per Lasting Injury`,
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
   },
   visit_chop_shop: {
