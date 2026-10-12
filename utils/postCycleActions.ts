@@ -37,6 +37,7 @@ type Performer =
 export interface PostCycleActionDefinition {
   id: PostCycleActionId;
   label: string;
+  /** Follows the label in the action picker, so it has to fit one line on a phone. */
   summary: string;
   performer: Performer;
   /** Spyrers get only the Spyre Hunters list's actions, not the standard ones. */
@@ -83,13 +84,13 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   fit_bionics: {
     id: 'fit_bionics',
     label: 'Fit Bionics',
-    summary: `${FIT_BIONICS_COST_PER_INJURY} credits per Lasting Injury`,
+    summary: 'Remove Lasting Injuries',
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
   },
   visit_chop_shop: {
     id: 'visit_chop_shop',
     label: 'Visit Chop Shop',
-    summary: `${CHOP_SHOP_COST_PER_DAMAGE} credits per Lasting Damage`,
+    summary: 'Repair Damage',
     performer: { kind: 'vehicle' },
   },
   work_territory: {
