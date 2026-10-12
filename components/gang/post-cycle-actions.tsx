@@ -366,7 +366,20 @@ export default function PostCycleActions({
     if (assignment.action === 'train') return `+${TRAIN_XP} XP`;
     if (assignment.action === 'develop_tactics') return rows[assignment.fighterId]?.tacticsCard?.name ?? null;
     const delta = assignmentCreditsDelta(assignment);
-    return delta === 0 ? null : `${delta > 0 ? '+' : ''}${delta} credits`;
+    const credits = delta === 0 ? null : `${delta > 0 ? '+' : ''}${delta} credits`;
+    if (assignment.action === 'visit_chop_shop') {
+      const vehicle = fighterById.get(assignment.fighterId);
+      const repaired = vehicle
+        ? lastingDamagesOf(vehicle).filter((damage) => assignment.damageIds.includes(damage.id))
+        : [];
+      return (
+        <>
+          <span className="block">{repaired.map((damage) => damage.effect_name).join(', ')}</span>
+          <span className="block">{credits}</span>
+        </>
+      );
+    }
+    return credits;
   };
 
   /**
@@ -451,10 +464,6 @@ export default function PostCycleActions({
             const target = row?.targetFighterId
               ? fighterById.get(row.targetFighterId)
               : undefined;
-            const repairs =
-              row?.action === 'visit_chop_shop'
-                ? lastingDamagesOf(fighter).filter((damage) => row.damageIds?.includes(damage.id))
-                : [];
             // Shown even once the row is cleared, for an action that partly applied.
             const failure = failures[fighter.id];
 
@@ -538,21 +547,14 @@ export default function PostCycleActions({
                   )}
 
                   {row?.action === 'visit_chop_shop' && (
-                    <>
-                      <Button
-                        size="sm"
-                        className="w-full"
-                        onClick={() => openDamagePicker(fighter.id)}
-                        disabled={!canEdit || applying}
-                      >
-                        Choose Lasting Damage
-                      </Button>
-                      {repairs.length > 0 && (
-                        <p className="text-xs text-muted-foreground">
-                          {repairs.map((damage) => damage.effect_name).join(', ')}
-                        </p>
-                      )}
-                    </>
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      onClick={() => openDamagePicker(fighter.id)}
+                      disabled={!canEdit || applying}
+                    >
+                      Choose Lasting Damage
+                    </Button>
                   )}
 
                   {row?.action === 'develop_tactics' && (
