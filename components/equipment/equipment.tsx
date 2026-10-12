@@ -320,11 +320,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
       // the fighter's own subtypes, which keep-type promotions change without changing
       // the fighter type. include_legacy decides whether its Gang Legacy type applies.
       const useLegacy = includeLegacyOverride !== undefined ? includeLegacyOverride : includeLegacy;
-      const hasGangAffiliation = Boolean(gangAffiliationId);
       if (!isVehicleEquipment && fighterId) {
         requestBody.fighter_id = fighterId;
-        // Affiliated gangs always sent fighter_id, so legacy always applied for them
-        requestBody.include_legacy = useLegacy || hasGangAffiliation;
+        requestBody.include_legacy = useLegacy;
       }
 
       const response = await fetch(

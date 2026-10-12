@@ -11,6 +11,9 @@
 -- two so the modal can always send fighter_id. It defaults to true, so a caller that
 -- does not send it gets the previous behaviour.
 --
+-- fighters.fighter_subtypes is never NULL ('[]' by default), so the fallback to the
+-- fighter type's subtypes now also covers a fighter whose own list is empty.
+--
 -- DEPLOY ORDER: apply this migration BEFORE merging the PR that ships it.
 -- components/equipment/equipment.tsx sends include_legacy, which PostgREST rejects
 -- until this signature exists. Body matches
@@ -81,8 +84,9 @@ AS $$
             cg.campaign_type_allegiance_id,
             fgl.fighter_type_id AS legacy_ft_id,
             ga.fighter_type_id  AS affiliation_ft_id,
-            -- Empty for gang and vehicle calls, so a subtype rule matches nothing
-            COALESCE(f.fighter_subtypes, ft_sub.fighter_subtypes, cft_sub.fighter_subtypes, '[]'::jsonb) AS fighter_subtypes,
+            -- Empty for gang and vehicle calls, so a subtype rule matches nothing.
+            -- A fighter with no subtypes of its own ('[]', never NULL) uses its type's.
+            COALESCE(NULLIF(f.fighter_subtypes, '[]'::jsonb), ft_sub.fighter_subtypes, cft_sub.fighter_subtypes, '[]'::jsonb) AS fighter_subtypes,
             COALESCE(gt.edition_id, cgt.edition_id) AS edition_id
         FROM (SELECT 1) AS _dummy
         LEFT JOIN gangs g ON g.id = $8
