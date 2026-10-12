@@ -110,7 +110,7 @@ export function SideJobPicker({
             id={`side-job-completed-${id}`}
             checked={completed}
             onCheckedChange={(checked) => onCompletedChange(checked === true)}
-            disabled={disabled || (!value && !customName)}
+            disabled={disabled || (!value && !customName?.trim())}
           />
           <Label htmlFor={`side-job-completed-${id}`} className="text-sm">
             Side Job completed
