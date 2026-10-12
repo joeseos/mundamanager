@@ -176,6 +176,11 @@ function laterCursor(a: ToastCursor | null, b: ToastCursor | null): ToastCursor 
   return { createdAt: a.createdAt, ids: [...new Set([...a.ids, ...b.ids])] };
 }
 
+function cursorsEqual(a: ToastCursor, b: ToastCursor) {
+  if (a.createdAt !== b.createdAt || a.ids.length !== b.ids.length) return false;
+  return a.ids.every((id, index) => id === b.ids[index]);
+}
+
 function isUnseenArrival(notification: Notification, cursor: ToastCursor) {
   if (notification.dismissed) return false;
   if (notification.created_at > cursor.createdAt) return true;
@@ -197,9 +202,9 @@ function claimArrivals(notifications: Notification[]): Notification[] {
 }
 
 // Toasts when a notification arrives while the site is open, and on the next visit
-// for any that arrived while this browser was closed or signed out. With no stored
-// cursor yet, the current unread rows are announced once. An older row that slides
-// into the latest-20 window is not new.
+// for any that arrived while this browser was closed or signed out. The first list
+// this browser sees only sets the cursor, so an existing unread backlog is not
+// announced as new. An older row that slides into the latest-20 window is not new.
 export function useNotificationToasts(userId: string) {
   const { data, isSuccess } = useQuery({
     queryKey: notificationsQueryKey(userId),
@@ -219,18 +224,23 @@ export function useNotificationToasts(userId: string) {
     if (!isSuccess || !data) return;
 
     const stored = laterCursor(readyRef.current ? cursorRef.current : null, readToastCursor(userId));
-    const missed = stored
-      ? data.filter(notification => isUnseenArrival(notification, stored))
-      : data.filter(notification => !notification.dismissed);
+    // The first successful list in this browser is a baseline. Later fetches with
+    // no cursor yet (the first list was empty) still announce real arrivals.
+    const establishingBaseline = !readyRef.current && !stored;
+    const missed = establishingBaseline
+      ? []
+      : stored
+        ? data.filter(notification => isUnseenArrival(notification, stored))
+        : data.filter(notification => !notification.dismissed);
     const claimed = claimArrivals(missed);
     if (claimed.length > 0) showNewNotificationToast(claimed.length);
 
-    // No stored cursor yet: the whole list is the baseline, after the unread rows
-    // above were announced. Otherwise only announced rows move the cursor forward.
+    // No cursor yet: the whole list is the baseline. Otherwise only announced
+    // rows move the cursor forward.
     const next = stored ? settledCursor(stored, claimed) : cursorFromNotifications(data);
     if (next) {
       cursorRef.current = next;
-      writeToastCursor(userId, next);
+      if (!stored || !cursorsEqual(stored, next)) writeToastCursor(userId, next);
     }
     readyRef.current = true;
   }, [data, isSuccess, userId]);
