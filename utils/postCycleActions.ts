@@ -58,6 +58,7 @@ const WORK_TERRITORY_INCOME = 15;
 const TERRORISE_TERRITORY_INCOME = 10;
 export const TRAIN_XP = 2;
 export const SUIT_EVOLUTION_KILL_COST = 4;
+export const SUIT_MAINTENANCE_COST = 100;
 
 const TERRITORY_MAX_FIGHTERS = 5;
 
@@ -153,9 +154,10 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   suit_maintenance: {
     id: 'suit_maintenance',
     label: 'Suit Maintenance',
-    summary: 'Logged only',
+    summary: 'Clear Glitches',
     performer: { kind: 'subtypes', subtypes: SPYRER },
     openToSpyrers: true,
+    credits: -SUIT_MAINTENANCE_COST,
   },
   terrorise_territory: {
     id: 'terrorise_territory',
@@ -203,7 +205,11 @@ export interface PostCycleFighter {
   captured?: boolean;
   recovery?: boolean;
   kill_count?: number;
-  effects?: { injuries?: FighterEffect[]; 'lasting damages'?: FighterEffect[] };
+  effects?: {
+    injuries?: FighterEffect[];
+    'lasting damages'?: FighterEffect[];
+    'rig-glitches'?: FighterEffect[];
+  };
 }
 
 /** Performers only: a Doc patient is always in Recovery, so targets skip this. */
@@ -303,6 +309,24 @@ export const hasCriticalInjury = (fighter: PostCycleFighter): boolean =>
 export const lastingDamagesOf = (fighter: PostCycleFighter): FighterEffect[] =>
   fighter.effects?.['lasting damages'] ?? [];
 
+/** Suit Maintenance clears all of them, so there is nothing to pick. */
+export const rigGlitchesOf = (fighter: PostCycleFighter): FighterEffect[] =>
+  fighter.effects?.['rig-glitches'] ?? [];
+
+/**
+ * The names as the fighter card lists them, a repeated one counted:
+ * "Superficial Damage (x2), Vox Ghosts".
+ */
+export function rigGlitchNames(glitches: FighterEffect[]): string {
+  const counts = new Map<string, number>();
+  for (const glitch of glitches) {
+    counts.set(glitch.effect_name, (counts.get(glitch.effect_name) ?? 0) + 1);
+  }
+  return [...counts]
+    .map(([name, count]) => (count > 1 ? `${name} (x${count})` : name))
+    .join(', ');
+}
+
 export type PostCycleAssignment =
   | { fighterId: string; action: 'medical_escort'; targetFighterId: string }
   | { fighterId: string; action: 'fit_bionics'; targetFighterId: string; injuryIds: string[] }
@@ -382,6 +406,12 @@ export function validatePostCycleAssignment(
     case 'suit_evolution':
       if ((performer.kill_count ?? 0) < SUIT_EVOLUTION_KILL_COST) {
         issues.push(`${label} needs a Kill Count of at least ${SUIT_EVOLUTION_KILL_COST}.`);
+      }
+      break;
+
+    case 'suit_maintenance':
+      if (rigGlitchesOf(performer).length === 0) {
+        issues.push(`${label} has no Rig Glitches to clear.`);
       }
       break;
   }

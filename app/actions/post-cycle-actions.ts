@@ -8,7 +8,7 @@ import { getGangCore, getGangFightersList, getGangSubtypes } from '@/app/lib/sha
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import type { FighterEffect } from '@/types/fighter-effect';
 import type { GangTacticsCard } from '@/types/tactics-card';
-import { addFighterInjury, deleteFighterInjury } from './fighter-injury';
+import { addFighterInjury, clearRigGlitchesDowntime, deleteFighterInjury } from './fighter-injury';
 import { editFighterStatus, updateFighterXp } from './edit-fighter';
 import { addGangTacticsCards } from './gang-tactics-cards';
 import { repairVehicleDamage } from './remove-vehicle-damage';
@@ -17,12 +17,15 @@ import {
   CHOP_SHOP_COST_PER_DAMAGE,
   FIT_BIONICS_COST_PER_INJURY,
   MEDICAL_ESCORT_COST,
+  SUIT_MAINTENANCE_COST,
   TRAIN_XP,
   assignmentCreditsDelta,
   criticalInjuriesOf,
   lastingDamagesOf,
   patientOf,
   postCycleAvailability,
+  rigGlitchNames,
+  rigGlitchesOf,
   validatePostCycleAssignment,
   type PostCycleAssignment,
 } from '@/utils/postCycleActions';
@@ -58,8 +61,8 @@ export interface PostCycleActionOutcome {
   roll?: RollOutcome;
   /**
    * What is billed once the handler is done: what actually moved, so a failed or
-   * partial action is not billed in full. Zero for Visit Chop Shop, whose repair
-   * charges the gang itself.
+   * partial action is not billed in full. Zero for Visit Chop Shop and Suit
+   * Maintenance, whose helpers charge the gang themselves.
    */
   creditsDelta: number;
   changes?: PostCycleFighterChange[];
@@ -355,6 +358,36 @@ async function handleVisitChopShop(
   };
 }
 
+/**
+ * Clears every Rig Glitch the way the Post-Cycle option of the fighter page's
+ * Clear all does. That action charges the gang itself, so nothing is billed after.
+ */
+async function handleSuitMaintenance(ctx: HandlerContext): Promise<HandlerOutcome> {
+  const spyrer = ctx.performer;
+  const glitches = rigGlitchesOf(spyrer);
+  const glitchIds = glitches.map((glitch) => glitch.id);
+
+  const cleared = await clearRigGlitchesDowntime({
+    fighter_id: spyrer.id,
+    glitch_ids: glitchIds,
+    credit_cost: SUIT_MAINTENANCE_COST,
+  });
+
+  if (!cleared.success) {
+    return {
+      outcome: `Failed to clear the Rig Glitches: ${cleared.error}`,
+      creditsDelta: 0,
+      failed: true,
+    };
+  }
+
+  return {
+    outcome: `Cleared ${rigGlitchNames(glitches)}. Cost ${SUIT_MAINTENANCE_COST} credits.`,
+    creditsDelta: 0,
+    changes: [{ fighterId: spyrer.id, removedEffectIds: glitchIds }],
+  };
+}
+
 async function runHandler(
   ctx: HandlerContext,
   assignment: PostCycleAssignment
@@ -370,6 +403,8 @@ async function runHandler(
       return handleDevelopTactics(ctx, assignment.tacticsCardId);
     case 'visit_chop_shop':
       return handleVisitChopShop(ctx, assignment.damageIds);
+    case 'suit_maintenance':
+      return handleSuitMaintenance(ctx);
     // The rest move their flat credits, if any, and leave a log line; anything
     // else they do is applied elsewhere on the page or by hand.
     default:

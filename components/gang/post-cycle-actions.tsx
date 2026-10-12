@@ -27,6 +27,8 @@ import {
   patientOf,
   postCycleAvailability,
   removableLastingInjuriesOf,
+  rigGlitchNames,
+  rigGlitchesOf,
   validatePostCycleAssignment,
   type PostCycleActionId,
   type PostCycleAssignment,
@@ -95,11 +97,14 @@ function applyChange(fighter: FighterProps, change: PostCycleFighterChange): Fig
     const kept = keep(next.effects?.injuries ?? []);
     // Only a vehicle has these, repaired by Visit Chop Shop.
     const damages = next.effects?.['lasting damages'];
+    // Cleared by a Spyrer's Suit Maintenance.
+    const glitches = next.effects?.['rig-glitches'];
 
     next.effects = {
       ...next.effects,
       injuries: change.addedInjury ? [...kept, change.addedInjury] : kept,
       ...(damages && { 'lasting damages': keep(damages) }),
+      ...(glitches && { 'rig-glitches': keep(glitches) }),
     };
   }
 
@@ -325,6 +330,8 @@ export default function PostCycleActions({
         return (fighter.kill_count ?? 0) < SUIT_EVOLUTION_KILL_COST
           ? `Needs ${SUIT_EVOLUTION_KILL_COST} kills`
           : null;
+      case 'suit_maintenance':
+        return rigGlitchesOf(fighter).length > 0 ? null : 'No Rig Glitches';
       default:
         return null;
     }
@@ -375,6 +382,15 @@ export default function PostCycleActions({
       return (
         <>
           <span className="block">{repaired.map((damage) => damage.effect_name).join(', ')}</span>
+          <span className="block">{credits}</span>
+        </>
+      );
+    }
+    if (assignment.action === 'suit_maintenance') {
+      const spyrer = fighterById.get(assignment.fighterId);
+      return (
+        <>
+          <span className="block">{spyrer && rigGlitchNames(rigGlitchesOf(spyrer))}</span>
           <span className="block">{credits}</span>
         </>
       );
