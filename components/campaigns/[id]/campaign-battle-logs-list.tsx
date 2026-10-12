@@ -17,7 +17,7 @@ import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md";
 import { HiUser } from "react-icons/hi2";
 import { LuTrash2, LuSquarePen, LuSwords } from "react-icons/lu";
 import { useMutation } from '@tanstack/react-query';
-import { Battle, BattleParticipant, CampaignGang, Territory, Member } from '@/types/campaign';
+import { Battle, BattleParticipant, CampaignGang, Territory, Member, ScenarioTableWithEntries, scenarioPartsLabel } from '@/types/campaign';
 import { battleStatusColors, battleStatusLabels, battleStatusOf, isPlayedBattle } from '@/types/campaign';
 import CampaignChallengeRoundModal from '@/components/campaigns/[id]/campaign-challenge-round-modal';
 import { getWinnerIds } from '@/utils/battle-winners';
@@ -56,6 +56,8 @@ interface CampaignBattleLogsListProps {
   isCampaignOwner?: boolean;
   isCampaignAdmin?: boolean;
   currentCycle?: number | null;
+  /** The campaign edition's scenario tables: N26 battles are made from them. */
+  scenarioTables?: ScenarioTableWithEntries[];
 }
 
 export interface CampaignBattleLogsListRef {
@@ -99,6 +101,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     isCampaignOwner = false,
     isCampaignAdmin = false,
     currentCycle = null,
+    scenarioTables = [],
   } = props;
   
   const [showBattleModal, setShowBattleModal] = useState(false);
@@ -146,6 +149,18 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   const [selectedBattle, setSelectedBattle] = useState<Battle | null>(null);
   const [battleToDelete, setBattleToDelete] = useState<Battle | null>(null);
 
+  // An N26 battle is named by its Deployment and Objective; older logs by their scenario text.
+  const scenarioLabel = useMemo(() => {
+    const entryNames = new Map(
+      scenarioTables.flatMap((table) => table.entries.map((entry) => [entry.id, entry.name] as const))
+    );
+    return (battle: Battle) =>
+      scenarioPartsLabel(
+        battle.deployment_id ? entryNames.get(battle.deployment_id) : null,
+        battle.objective_id ? entryNames.get(battle.objective_id) : null
+      ) || battle.scenario || battle.scenario_name || '';
+  }, [scenarioTables]);
+
   // Extract unique values for filter options
   const filterOptions = useMemo(() => {
     const cycles = new Set<number>();
@@ -161,7 +176,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       }
 
       // Scenarios
-      const scenarioName = battle.scenario || battle.scenario_name;
+      const scenarioName = scenarioLabel(battle);
       if (scenarioName) {
         scenarios.add(scenarioName);
       }
@@ -201,7 +216,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       winningGangIds: Array.from(winningGangIds),
       hasDraws
     };
-  }, [battles]);
+  }, [battles, scenarioLabel]);
 
   const gangRatings = useMemo(() => {
     const map = new Map<string, number>();
@@ -221,8 +236,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
 
     if (filterScenario) {
       filtered = filtered.filter(battle => {
-        const scenarioName = battle.scenario || battle.scenario_name;
-        return scenarioName === filterScenario;
+        return scenarioLabel(battle) === filterScenario;
       });
     }
 
@@ -268,8 +282,8 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           bValue = b.cycle ?? -1;
           break;
         case 'scenario':
-          aValue = (a.scenario || a.scenario_name || '').toLowerCase();
-          bValue = (b.scenario || b.scenario_name || '').toLowerCase();
+          aValue = scenarioLabel(a).toLowerCase();
+          bValue = scenarioLabel(b).toLowerCase();
           break;
         case 'territory':
           aValue = (a.territory_name || '').toLowerCase();
@@ -325,7 +339,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       }
       return 0;
     });
-  }, [battles, filterCycle, filterScenario, filterParticipatingGang, filterWinningGang, filterDraws, sortField, sortDirection, gangRatings]);
+  }, [battles, filterCycle, filterScenario, filterParticipatingGang, filterWinningGang, filterDraws, sortField, sortDirection, gangRatings, scenarioLabel]);
 
   // Handle sorting
   const handleSort = (field: string) => {
@@ -479,6 +493,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
               gangsMap.set(gangKey, {
                 id: gang.id,
                 name: gang.name,
+                gang_type_id: gang.gang_type_id,
                 gang_colour: gang.gang_colour,
                 campaign_member_id: member.id || gang.campaign_member_id,
                 user_id: member.user_id,
@@ -1134,7 +1149,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                   </td>
 
                   <td className="p-1 md:p-2 align-top max-w-[8rem]">
-                    {battle.scenario || battle.scenario_name || '-'}
+                    {scenarioLabel(battle) || '-'}
                   </td>
 
                   <td className="p-1 md:p-2 align-top">
@@ -1387,6 +1402,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           campaignId={campaignId}
           editionSlug={editionSlug}
           availableGangs={availableGangs}
+          scenarioTables={scenarioTables}
           territories={territories.map(t => ({
             id: t.id,
             name: t.territory_name,
@@ -1414,7 +1430,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
               {battleToDelete && (
                 <div className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
                   <p><span className="font-medium">Date:</span> {formatDate(battleToDelete.created_at)}</p>
-                  <p><span className="font-medium">Scenario:</span> {battleToDelete.scenario || battleToDelete.scenario_name || 'N/A'}</p>
+                  <p><span className="font-medium">Scenario:</span> {scenarioLabel(battleToDelete) || 'N/A'}</p>
                 </div>
               )}
               <p className="text-sm text-red-600 mt-4">

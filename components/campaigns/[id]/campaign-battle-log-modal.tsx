@@ -13,11 +13,12 @@ import { Combobox } from "@/components/ui/combobox";
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { createBattleLog, updateBattleLog, BattleLogParams } from "@/app/actions/campaigns/[id]/battle-logs";
 import { useMutation } from '@tanstack/react-query';
-import { Battle, BattleParticipant, BattleStatus, CampaignGang, Territory as BaseTerritory, Scenario } from '@/types/campaign';
+import { Battle, BattleParticipant, BattleStatus, CampaignGang, Territory as BaseTerritory, Scenario, SCENARIO_PARTS, ScenarioPartKey, ScenarioTableWithEntries, ScenarioTableType } from '@/types/campaign';
 import { battleStatusOf, challengeAnswerStatuses } from '@/types/campaign';
 import { getClaimerGangId, getWinnerIds } from '@/utils/battle-winners';
 import { useWinnerSelection } from '@/hooks/use-winner-selection';
-import { sameEditionForDisplay } from '@/types/edition';
+import { hasScenarioTables, sameEditionForDisplay } from '@/types/edition';
+import { ScenarioEntryPicker } from '@/components/campaigns/[id]/scenario-entry-picker';
 
 interface BattleLogTerritory extends BaseTerritory {
   default_gang_territory?: boolean;
@@ -41,6 +42,8 @@ interface CampaignBattleLogModalProps {
   userRole?: 'OWNER' | 'ARBITRATOR' | 'MEMBER';
   /** The challenged gang's owner (or an arbitrator) may accept or decline. */
   canRespondToChallenge?: boolean;
+  /** The campaign edition's scenario tables: an N26 battle is made from them. */
+  scenarioTables?: ScenarioTableWithEntries[];
 }
 
 const reportCharLimit = 4096;
@@ -57,7 +60,17 @@ type GangEntry = {
   id: number;
   gangId: string;
   role: GangRole;
+  /** N26: the gang's Side Job, and whether it is rolled on the house's table instead of the core one. */
+  sideJobId: string;
+  sideJobFromHouse: boolean;
+  sideJobCompleted: boolean;
 }
+
+const emptyGangEntry = (id: number): GangEntry => ({
+  id, gangId: '', role: 'none', sideJobId: '', sideJobFromHouse: false, sideJobCompleted: false,
+});
+
+const noScenarioParts: Record<ScenarioPartKey, string> = { deployment_id: '', objective_id: '', crew_selection_id: '' };
 
 const CampaignBattleLogModal = ({
   campaignId,
@@ -70,17 +83,19 @@ const CampaignBattleLogModal = ({
   battles,
   battleToEdit = null,
   userRole = 'MEMBER',
-  canRespondToChallenge = false
+  canRespondToChallenge = false,
+  scenarioTables = []
 }: CampaignBattleLogModalProps) => {
+  // N26 has no scenario list: Deployment, Objective and Crew are rolled for the
+  // battle, and a Side Job for each gang.
+  const usesScenarioTables = hasScenarioTables(editionSlug);
   const [selectedScenario, setSelectedScenario] = useState('');
   const [customScenario, setCustomScenario] = useState('');
-  const [gangsInBattle, setGangsInBattle] = useState<GangEntry[]>([
-    { id: 1, gangId: "", role: 'none' },
-    { id: 2, gangId: "", role: 'none' },
-  ]);
+  const [scenarioParts, setScenarioParts] = useState(noScenarioParts);
+  const [gangsInBattle, setGangsInBattle] = useState<GangEntry[]>([emptyGangEntry(1), emptyGangEntry(2)]);
   const [notes, setNotes] = useState('');
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
-  const [isLoadingBattleData, setIsLoadingBattleData] = useState(!!campaignId);
+  const [isLoadingBattleData, setIsLoadingBattleData] = useState(!!campaignId && !usesScenarioTables);
   const [selectedTerritory, setSelectedTerritory] = useState<string>('');
   const isReportOverLimit = notes.length > reportCharLimit;
 
@@ -148,6 +163,18 @@ const CampaignBattleLogModal = ({
     return territory?.name || territory?.territory_name;
   };
 
+  const coreTable = (tableType: ScenarioTableType) =>
+    scenarioTables.find((table) => table.table_type === tableType && !table.gang_type_id);
+  // A house table also serves the house's alternate lists.
+  const houseSideJobTable = (gangId: string) => {
+    const gangTypeId = availableGangs.find((gang) => gang.id === gangId)?.gang_type_id;
+    return gangTypeId
+      ? scenarioTables.find((table) => table.table_type === 'side_job' && table.gang_type_ids.includes(gangTypeId))
+      : undefined;
+  };
+  const tableOfEntry = (entryId: string) =>
+    scenarioTables.find((table) => table.entries.some((entry) => entry.id === entryId));
+
   // TanStack Query mutations for create and update
   const createBattleMutation = useMutation({
     mutationFn: async (battleData: BattleLogParams) => {
@@ -181,6 +208,9 @@ const CampaignBattleLogModal = ({
         created_at: battleData.created_at || new Date().toISOString(),
         scenario: battleData.scenario,
         scenario_name: battleData.scenario,
+        deployment_id: battleData.deployment_id,
+        objective_id: battleData.objective_id,
+        crew_selection_id: battleData.crew_selection_id,
         winner_id: legacyWinnerId,
         note: battleData.note,
         participants: battleData.participants,
@@ -289,6 +319,13 @@ const CampaignBattleLogModal = ({
               ...battle,
               scenario: battleData.scenario,
               scenario_name: battleData.scenario,
+              ...(battleData.deployment_id !== undefined
+                ? {
+                    deployment_id: battleData.deployment_id,
+                    objective_id: battleData.objective_id,
+                    crew_selection_id: battleData.crew_selection_id,
+                  }
+                : {}),
               winner_id: legacyWinnerId,
               note: battleData.note,
               participants: battleData.participants,
@@ -365,7 +402,8 @@ const CampaignBattleLogModal = ({
   useEffect(() => {
     let isMounted = true;
 
-    if (campaignId) {
+    // N26 picks from scenarioTables, which come with the page.
+    if (campaignId && !usesScenarioTables) {
       const fetchData = async () => {
         setIsLoadingBattleData(true);
         try {
@@ -408,11 +446,11 @@ const CampaignBattleLogModal = ({
     return () => {
       isMounted = false;
     };
-  }, [campaignId, editionSlug]);
+  }, [campaignId, editionSlug, usesScenarioTables]);
 
   // Populate form when modal opens with edit data and scenarios are loaded
   const [populatedForBattle, setPopulatedForBattle] = useState<string | null>(null);
-  if (battleToEdit && scenarios.length > 0 && battleToEdit.id !== populatedForBattle) {
+  if (battleToEdit && (usesScenarioTables || scenarios.length > 0) && battleToEdit.id !== populatedForBattle) {
     setPopulatedForBattle(battleToEdit.id);
     setBattlePlayed(battleStatusOf(battleToEdit) === 'played');
     setChallengeResponse(battleStatusOf(battleToEdit));
@@ -434,6 +472,16 @@ const CampaignBattleLogModal = ({
       setSelectedScenario('');
       setCustomScenario('');
     }
+
+    // N26 logs from before the tables name their Deployment in the scenario text.
+    const deploymentNamed = coreTable('deployment')?.entries.find(
+      (entry) => entry.name.toLowerCase() === existingScenario.trim().toLowerCase()
+    );
+    setScenarioParts({
+      deployment_id: battleToEdit.deployment_id ?? deploymentNamed?.id ?? '',
+      objective_id: battleToEdit.objective_id ?? '',
+      crew_selection_id: battleToEdit.crew_selection_id ?? '',
+    });
 
     if (battleToEdit.created_at) {
       const dt = new Date(battleToEdit.created_at);
@@ -462,30 +510,30 @@ const CampaignBattleLogModal = ({
       participants.forEach((participant: BattleParticipant, index: number) => {
         if (participant.gang_id) {
           newGangsInBattle.push({
-            id: index + 1,
+            ...emptyGangEntry(index + 1),
             gangId: participant.gang_id,
-            role: participant.role as GangRole
+            role: participant.role as GangRole,
+            sideJobId: participant.side_job_id ?? '',
+            sideJobFromHouse: !!(participant.side_job_id && tableOfEntry(participant.side_job_id)?.gang_type_id),
+            sideJobCompleted: participant.side_job_completed === true,
           });
         }
       });
     } else {
       let idx = 1;
       if (battleToEdit.attacker?.id) {
-        newGangsInBattle.push({ id: idx++, gangId: battleToEdit.attacker.id, role: 'attacker' });
+        newGangsInBattle.push({ ...emptyGangEntry(idx++), gangId: battleToEdit.attacker.id, role: 'attacker' });
       }
       if (battleToEdit.defender?.id) {
-        newGangsInBattle.push({ id: idx++, gangId: battleToEdit.defender.id, role: 'defender' });
+        newGangsInBattle.push({ ...emptyGangEntry(idx++), gangId: battleToEdit.defender.id, role: 'defender' });
       }
     }
 
     if (newGangsInBattle.length === 0) {
-      setGangsInBattle([
-        { id: 1, gangId: "", role: 'none' },
-        { id: 2, gangId: "", role: 'none' },
-      ]);
+      setGangsInBattle([emptyGangEntry(1), emptyGangEntry(2)]);
     } else {
       while (newGangsInBattle.length < 2) {
-        newGangsInBattle.push({ id: newGangsInBattle.length + 1, gangId: "", role: 'none' });
+        newGangsInBattle.push(emptyGangEntry(newGangsInBattle.length + 1));
       }
       setGangsInBattle(newGangsInBattle);
     }
@@ -543,7 +591,7 @@ const CampaignBattleLogModal = ({
   const handleGangChange = (gangEntryId: number, gangId: string) => {
     setGangsInBattle((current) =>
       current.map((entry) => (
-        entry.id === gangEntryId ? { ...entry, gangId, role: 'none' } : entry
+        entry.id === gangEntryId ? { ...emptyGangEntry(entry.id), gangId } : entry
       ))
     );
     // If the user changed away from a previously-selected gang, remove it from
@@ -556,7 +604,7 @@ const CampaignBattleLogModal = ({
 
   const addGang = () => {
     const newId = Math.max(...gangsInBattle.map((g) => g.id)) + 1;
-    setGangsInBattle([...gangsInBattle, { id: newId, gangId: "", role: 'none' }]);
+    setGangsInBattle([...gangsInBattle, emptyGangEntry(newId)]);
   };
 
   const removeGang = (gangEntryId: number) => {
@@ -567,6 +615,17 @@ const CampaignBattleLogModal = ({
       removeGangFromWinners(removedGangId);
     }
   };
+
+  const updateGangEntry = (gangEntryId: number, changes: Partial<GangEntry>) => {
+    setGangsInBattle((current) =>
+      current.map((entry) => (entry.id === gangEntryId ? { ...entry, ...changes } : entry))
+    );
+  };
+
+  // Every part of an N26 scenario is needed to file a report; a challenge may not have rolled them yet.
+  const missingScenarioPart = usesScenarioTables && showResultFields
+    ? SCENARIO_PARTS.find((part) => !scenarioParts[part.key])
+    : undefined;
 
   // Get the list of gangs that are already selected in other entries
   const getSelectedGangs = (excludeEntryId: number): string[] => {
@@ -580,12 +639,17 @@ const CampaignBattleLogModal = ({
     if (isSubmitting) return false;
 
     // Validate required fields
-    if (showResultFields && selectedScenario === '') {
+    if (missingScenarioPart) {
+      toast.error(`Please select a ${missingScenarioPart.label}`);
+      return false;
+    }
+
+    if (!usesScenarioTables && showResultFields && selectedScenario === '') {
       toast.error("Please select a scenario");
       return false;
     }
     
-    if (selectedScenario === 'custom' && !customScenario.trim()) {
+    if (!usesScenarioTables && selectedScenario === 'custom' && !customScenario.trim()) {
       toast.error("Please enter a custom scenario name");
       return false;
     }
@@ -663,6 +727,9 @@ const CampaignBattleLogModal = ({
         gang_id: gang.gangId,
         is_winner: winnerSet.has(gang.gangId),
         claimed_territory: !!claimerForPayload && gang.gangId === claimerForPayload,
+        ...(usesScenarioTables && gang.sideJobId
+          ? { side_job_id: gang.sideJobId, side_job_completed: gang.sideJobCompleted }
+          : {}),
       }));
 
     // Get the scenario name for the selected scenario
@@ -703,7 +770,15 @@ const CampaignBattleLogModal = ({
     // The server derives `winner_id` from participants[].is_winner /
     // claimed_territory so we don't need to send it. `null` means "draw".
     const battleData: BattleLogParams = {
-      scenario: scenarioName,
+      // N26 has no scenario text; an older log keeps the one it was filed with.
+      scenario: usesScenarioTables ? (battleToEdit?.scenario ?? '') : scenarioName,
+      ...(usesScenarioTables
+        ? {
+            deployment_id: scenarioParts.deployment_id || null,
+            objective_id: scenarioParts.objective_id || null,
+            crew_selection_id: scenarioParts.crew_selection_id || null,
+          }
+        : {}),
       winner_id: isDraw ? null : (claimerForPayload ?? activeWinners[0] ?? null),
       note: notes || null,
       participants: participants,
@@ -737,10 +812,12 @@ const CampaignBattleLogModal = ({
   // Check if form is valid using useMemo to avoid unnecessary recalculations
   const formValid = useMemo(() => {
     // A challenge may not have rolled its scenario yet.
-    const scenarioValid = showResultFields ? selectedScenario !== '' : true;
+    const scenarioValid = usesScenarioTables
+      ? !missingScenarioPart
+      : !showResultFields || selectedScenario !== '';
 
     // Check if custom scenario has text (when custom is selected)
-    const customScenarioValid = selectedScenario !== 'custom' ||
+    const customScenarioValid = usesScenarioTables || selectedScenario !== 'custom' ||
       (selectedScenario === 'custom' && customScenario.trim() !== '');
 
     // Check if at least one gang is selected
@@ -776,6 +853,8 @@ const CampaignBattleLogModal = ({
     claimedByGangId,
     cycle,
     showResultFields,
+    usesScenarioTables,
+    missingScenarioPart,
   ]);
 
   return (
@@ -869,6 +948,21 @@ const CampaignBattleLogModal = ({
             />
           </div>
 
+          {usesScenarioTables ? (
+            <div className="space-y-3">
+              {SCENARIO_PARTS.map((part) => (
+                <ScenarioEntryPicker
+                  key={part.key}
+                  label={`${part.label}${showResultFields ? ' *' : ''}`}
+                  entries={coreTable(part.tableType)?.entries ?? []}
+                  value={scenarioParts[part.key]}
+                  onChange={(entryId) => setScenarioParts((current) => ({ ...current, [part.key]: entryId }))}
+                  placeholder={part.placeholder}
+                  disabled={isLoadingBattleData}
+                />
+              ))}
+            </div>
+          ) : (
           <div>
             <label className="block text-sm font-medium text-muted-foreground mb-1">
               Scenario{showResultFields ? ' *' : ''}
@@ -923,6 +1017,7 @@ const CampaignBattleLogModal = ({
               </div>
             )}
           </div>
+          )}
 
           <div className="space-y-4">
             <label className="block text-sm font-medium text-muted-foreground">
@@ -936,6 +1031,12 @@ const CampaignBattleLogModal = ({
               const availableGangsForThisEntry = availableGangs.filter(
                 gang => !selectedGangs.includes(gang.id) || gang.id === gangEntry.gangId
               );
+
+              // N26: a house gang may roll on its house's Side Jobs instead of the core ones.
+              const houseTable = usesScenarioTables && gangEntry.gangId
+                ? houseSideJobTable(gangEntry.gangId)
+                : undefined;
+              const sideJobTable = houseTable && gangEntry.sideJobFromHouse ? houseTable : coreTable('side_job');
               
               return (
                 <div key={gangEntry.id} className="grid gap-3">
@@ -1007,6 +1108,55 @@ const CampaignBattleLogModal = ({
                       </Label>
                     </div>
                   </div>
+
+                  {usesScenarioTables && gangEntry.gangId && (
+                    <div className="ml-2 space-y-2">
+                      {houseTable && (
+                        <div className="flex flex-wrap gap-x-4 gap-y-2">
+                          {[
+                            { fromHouse: false, name: 'Core Side Jobs' },
+                            { fromHouse: true, name: houseTable.name },
+                          ].map(({ fromHouse, name }) => (
+                            <div key={name} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`side-job-table-${gangEntry.id}-${fromHouse ? 'house' : 'core'}`}
+                                checked={gangEntry.sideJobFromHouse === fromHouse}
+                                onCheckedChange={() => updateGangEntry(gangEntry.id, { sideJobFromHouse: fromHouse, sideJobId: '' })}
+                                disabled={isLoadingBattleData}
+                              />
+                              <Label htmlFor={`side-job-table-${gangEntry.id}-${fromHouse ? 'house' : 'core'}`} className="text-sm">
+                                {name}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <ScenarioEntryPicker
+                        label="Side Job"
+                        entries={sideJobTable?.entries ?? []}
+                        value={gangEntry.sideJobId}
+                        onChange={(sideJobId) => updateGangEntry(gangEntry.id, {
+                          sideJobId,
+                          ...(sideJobId ? {} : { sideJobCompleted: false }),
+                        })}
+                        placeholder="Select a Side Job"
+                        disabled={isLoadingBattleData}
+                      />
+                      {showResultFields && (
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id={`side-job-completed-${gangEntry.id}`}
+                            checked={gangEntry.sideJobCompleted}
+                            onCheckedChange={(checked) => updateGangEntry(gangEntry.id, { sideJobCompleted: checked === true })}
+                            disabled={isLoadingBattleData || !gangEntry.sideJobId}
+                          />
+                          <Label htmlFor={`side-job-completed-${gangEntry.id}`} className="text-sm">
+                            Side Job completed
+                          </Label>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}

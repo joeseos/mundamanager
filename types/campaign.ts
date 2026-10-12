@@ -23,6 +23,9 @@ export interface BattleParticipant {
   gang_id: string;
   is_winner?: boolean;
   claimed_territory?: boolean;
+  /** N26: the Side Job this gang rolled (a scenario_table_entries id), and whether it was completed. */
+  side_job_id?: string | null;
+  side_job_completed?: boolean;
 }
 
 /**
@@ -79,6 +82,10 @@ export interface Battle {
   scenario_number?: number;
   scenario_name?: string;
   scenario?: string;
+  /** N26: what was rolled on the scenario tables, as scenario_table_entries ids. */
+  deployment_id?: string | null;
+  objective_id?: string | null;
+  crew_selection_id?: string | null;
   winner_id?: string | null;
   note?: string | null;
   participants?: BattleParticipant[] | string;
@@ -112,6 +119,8 @@ export interface Battle {
 export interface CampaignGang {
   id: string;
   name: string;
+  /** Null for a custom gang type. Picks the house Side Jobs an N26 gang may roll on. */
+  gang_type_id?: string | null;
   gang_colour?: string;
   campaign_member_id?: string;
   user_id?: string;
@@ -217,6 +226,18 @@ export const SCENARIO_TABLE_TYPES = ['deployment', 'objective', 'side_job', 'cre
 
 export type ScenarioTableType = (typeof SCENARIO_TABLE_TYPES)[number];
 
+/**
+ * The parts of an N26 scenario rolled once per battle: the battle column each
+ * is stored in, and the table it is rolled on.
+ */
+export const SCENARIO_PARTS = [
+  { key: 'deployment_id', tableType: 'deployment', label: 'Deployment', placeholder: 'Select a Deployment' },
+  { key: 'objective_id', tableType: 'objective', label: 'Objective', placeholder: 'Select an Objective' },
+  { key: 'crew_selection_id', tableType: 'crew_selection', label: 'Crew', placeholder: 'Select a Crew' },
+] as const satisfies readonly { key: keyof Battle; tableType: ScenarioTableType; label: string; placeholder: string }[];
+
+export type ScenarioPartKey = (typeof SCENARIO_PARTS)[number]['key'];
+
 /** What the admin edits, and the name of the core table of each type. */
 export const SCENARIO_TABLE_TYPE_LABELS: Record<ScenarioTableType, string> = {
   deployment: 'Deployments',
@@ -245,6 +266,20 @@ export interface ScenarioTableEntry {
   d6_max: number;
   scenario_table_id: string;
   edition_id: string;
+}
+
+/** A scenario table with its entries, as the battle log pickers read it. */
+export interface ScenarioTableWithEntries extends ScenarioTable {
+  edition_slug: string | null;
+  /** For a house table, the house and its alternate lists, which all roll on it. Empty for a core table. */
+  gang_type_ids: string[];
+  /** In printed table order. */
+  entries: ScenarioTableEntry[];
+}
+
+/** What a battle's scenario is called in lists and logs: its Deployment and Objective. */
+export function scenarioPartsLabel(deploymentName?: string | null, objectiveName?: string | null): string {
+  return [deploymentName, objectiveName].filter(Boolean).join(' / ');
 }
 
 /** Printed table order: D6 ascending, then name. */
@@ -282,6 +317,7 @@ export interface Member {
     id: string;              // gang's actual UUID
     name: string;
     gang_type: string;
+    gang_type_id?: string | null;
     gang_colour: string;
     rating?: number;
     wealth?: number;

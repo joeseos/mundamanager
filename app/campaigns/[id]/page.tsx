@@ -9,7 +9,8 @@ import {
   getTradingPostTypesCached,
   getCampaignTriumphs,
   getCampaignTypes,
-  getAllTerritories
+  getAllTerritories,
+  getScenarioTablesCached
 } from "@/app/lib/reference-data";
 
 // Import the optimized functions with unstable_cache
@@ -88,7 +89,8 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       campaignResources,
       campaignCaptives,
       customTradingPostTypes,
-      campaignOoaCounts
+      campaignOoaCounts,
+      allScenarioTables
     ] = await Promise.all([
       getCampaignBasic(params.id),
       getCampaignMembers(params.id),
@@ -113,7 +115,8 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       getCampaignOoaCounts(params.id).catch((error) => {
         console.error('Error loading campaign OOA counts:', error);
         return [];
-      })
+      }),
+      getScenarioTablesCached()
     ]);
 
     // Check if campaign exists
@@ -186,6 +189,8 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       campaignMap,
       campaignMapObjects,
       hasPendingJoinRequest,
+      // The battle log pickers only need the campaign's own edition.
+      scenarioTables: allScenarioTables.filter((table) => table.edition_slug === campaignData.edition_slug),
     };
   } catch (error) {
     // notFound()/forbidden()/redirect() signal by throwing; let them through
@@ -224,6 +229,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
         mapData={pageProps.campaignMap}
         mapObjects={pageProps.campaignMapObjects}
         hasPendingJoinRequest={pageProps.hasPendingJoinRequest}
+        scenarioTables={pageProps.scenarioTables}
       />
     </CampaignErrorBoundary>
   );

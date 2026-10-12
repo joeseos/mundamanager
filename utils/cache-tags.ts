@@ -78,6 +78,7 @@ export const TAGS = {
   globalGangPortraits: () => 'global-gang-portraits',
   globalTerritories: () => 'global-territories-list',
   globalScenarios: () => 'global-scenarios',
+  globalScenarioTables: () => 'global-scenario-tables',
   globalTradingPostTypes: () => 'global-trading-post-types',
   globalPatreonSupporters: () => 'global-patreon-supporters',
   globalUserCount: () => 'global-user-count',
