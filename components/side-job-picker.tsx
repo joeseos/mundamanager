@@ -15,6 +15,12 @@ interface SideJobPickerProps {
   value: string;
   /** Left out, the Side Job is shown read-only. */
   onChange?: (sideJobId: string) => void;
+  /** A custom Side Job's name, kept with no entry. Picking an entry is expected to clear it, and naming one the entry. */
+  customName?: string;
+  /** Left out, Custom is not offered. */
+  onCustomNameChange?: (name: string) => void;
+  /** Saves a custom name when its field loses focus instead of on every key, for a screen that saves each change. */
+  saveCustomNameOnBlur?: boolean;
   completed: boolean;
   /** Left out, the completed checkbox is hidden. */
   onCompletedChange?: (completed: boolean) => void;
@@ -24,7 +30,7 @@ interface SideJobPickerProps {
 
 /**
  * An N26 gang's Side Job: rolled on the core table or, for a house gang, its
- * house's, and whether the gang completed it.
+ * house's, or Custom, named by hand; and whether the gang completed it.
  */
 export function SideJobPicker({
   id,
@@ -32,6 +38,9 @@ export function SideJobPicker({
   gangTypeId,
   value,
   onChange,
+  customName,
+  onCustomNameChange,
+  saveCustomNameOnBlur,
   completed,
   onCompletedChange,
   disabled,
@@ -80,6 +89,10 @@ export function SideJobPicker({
             entries={(fromHouse ? houseTable : coreTable)?.entries ?? []}
             value={value}
             onChange={onChange}
+            customName={customName}
+            onCustomNameChange={onCustomNameChange}
+            customPlaceholder="Enter custom Side Job name"
+            saveCustomNameOnBlur={saveCustomNameOnBlur}
             placeholder="Select a Side Job"
             disabled={disabled}
           />
@@ -87,7 +100,7 @@ export function SideJobPicker({
       ) : (
         <p className="text-sm">
           <span className="text-muted-foreground">Side Job:</span>{' '}
-          {entry ? `${entry.d6_min}. ${entry.name}` : 'Unknown'}
+          {entry ? `${entry.d6_min}. ${entry.name}` : customName || 'Unknown'}
           {completed && !onCompletedChange && <span className="text-muted-foreground"> (completed)</span>}
         </p>
       )}
@@ -97,7 +110,7 @@ export function SideJobPicker({
             id={`side-job-completed-${id}`}
             checked={completed}
             onCheckedChange={(checked) => onCompletedChange(checked === true)}
-            disabled={disabled || !value}
+            disabled={disabled || (!value && !customName)}
           />
           <Label htmlFor={`side-job-completed-${id}`} className="text-sm">
             Side Job completed

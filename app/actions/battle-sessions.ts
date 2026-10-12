@@ -16,7 +16,7 @@ import {
 import { fetchBattleSessionDirect, SESSION_SCENARIO_PARTS_SELECT } from '@/app/lib/battle-sessions/get-battle-session-data';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
 import { editionsConflict, gangEditionJoin, gangEditionSlug } from '@/types/edition';
-import { SCENARIO_PARTS, type BattleParticipant } from '@/types/campaign';
+import { participantSideJob, SCENARIO_PARTS, type BattleParticipant, type ParticipantSideJob } from '@/types/campaign';
 import { parseParticipants } from '@/utils/battle-winners';
 import { checkScenarioParts, type ScenarioParts } from '@/utils/scenario-parts';
 
@@ -155,7 +155,7 @@ export async function createBattleSession(params: {
     const user = await getAuthenticatedUser(supabase);
 
     let challengeRoles = new Map<string, BattleParticipant['role']>();
-    let challengeSideJobs = new Map<string, string>();
+    let challengeSideJobs = new Map<string, ParticipantSideJob>();
     let existingSessionId: string | undefined;
     if (params.campaign_battle_id) {
       const [{ data: challenge }, { data: existingSession }] = await Promise.all([
@@ -178,9 +178,7 @@ export async function createBattleSession(params: {
 
       const challengeParticipants = parseParticipants(challenge.participants as string);
       challengeRoles = new Map(challengeParticipants.map((p) => [p.gang_id, p.role]));
-      challengeSideJobs = new Map(
-        challengeParticipants.flatMap((p) => (p.side_job_id ? [[p.gang_id, p.side_job_id] as const] : []))
-      );
+      challengeSideJobs = new Map(challengeParticipants.map((p) => [p.gang_id, participantSideJob(p)]));
       params = {
         campaign_id: challenge.campaign_id,
         scenario: challenge.scenario || undefined,
@@ -300,7 +298,8 @@ export async function createBattleSession(params: {
         user_id: g.user_id,
         gang_id: g.id,
         role: challengeRoles.get(g.id) ?? 'none',
-        side_job_id: challengeSideJobs.get(g.id) ?? null,
+        side_job_id: challengeSideJobs.get(g.id)?.side_job_id ?? null,
+        side_job_name: challengeSideJobs.get(g.id)?.side_job_name ?? null,
         gang_rating_snapshot: g.rating ?? 0,
       }));
 
@@ -988,12 +987,14 @@ export async function updateParticipantRole(
 
 /**
  * N26: a gang's Side Job, rolled before the battle by its owner (or whoever
- * manages the session), like its role. Changing it clears its completion.
+ * manages the session), like its role. With no entry, a name makes it a custom
+ * Side Job. Changing it clears its completion.
  */
 export async function updateParticipantSideJob(
   sessionId: string,
   participantId: string,
-  sideJobId: string | null
+  sideJobId: string | null,
+  customName?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
@@ -1030,7 +1031,11 @@ export async function updateParticipantSideJob(
 
     const { error } = await supabase
       .from('battle_session_participants')
-      .update({ side_job_id: sideJobId, side_job_completed: false })
+      .update({
+        side_job_id: sideJobId,
+        side_job_name: (!sideJobId && customName?.trim()) || null,
+        side_job_completed: false,
+      })
       .eq('id', participantId)
       .eq('battle_session_id', sessionId);
 
@@ -1057,25 +1062,28 @@ export async function setSideJobCompleted(
     const auth = await verifySessionParticipant(supabase, sessionId, user.id, participantId);
     if (!auth.authorized) return { success: false, error: auth.error };
 
-    const { data: session } = await supabase
-      .from('battle_sessions')
-      .select('status')
-      .eq('id', sessionId)
-      .single();
+    const [{ data: session }, { data: participant }] = await Promise.all([
+      supabase.from('battle_sessions').select('status').eq('id', sessionId).single(),
+      supabase
+        .from('battle_session_participants')
+        .select('side_job_id, side_job_name')
+        .eq('id', participantId)
+        .eq('battle_session_id', sessionId)
+        .single(),
+    ]);
     if (session?.status !== 'post_battle')
       return { success: false, error: 'A Side Job can only be completed after the battle' };
+    // Only a gang with a Side Job, rolled or custom, can have completed it.
+    if (!participant?.side_job_id && !participant?.side_job_name)
+      return { success: false, error: 'This gang has no Side Job' };
 
-    // Only a gang with a Side Job can have completed it.
-    const { data: updated, error } = await supabase
+    const { error } = await supabase
       .from('battle_session_participants')
       .update({ side_job_completed: completed })
       .eq('id', participantId)
-      .eq('battle_session_id', sessionId)
-      .not('side_job_id', 'is', null)
-      .select('id');
+      .eq('battle_session_id', sessionId);
 
     if (error) return { success: false, error: error.message };
-    if (!updated?.length) return { success: false, error: 'This gang has no Side Job' };
 
     invalidateBattleSession(sessionId);
     return { success: true };
@@ -1543,7 +1551,7 @@ export async function completeBattleSession(
         .single(),
       supabase
         .from('battle_session_participants')
-        .select('id, gang_id, user_id, role, is_winner, claimed_territory, side_job_id, side_job_completed')
+        .select('id, gang_id, user_id, role, is_winner, claimed_territory, side_job_id, side_job_name, side_job_completed')
         .eq('battle_session_id', sessionId),
       supabase.from('profiles').select('username').eq('id', user.id).single(),
       options?.campaign_territory_id
@@ -1606,9 +1614,7 @@ export async function completeBattleSession(
         gang_id: p.gang_id,
         is_winner: winnerGangSet.has(p.gang_id),
         claimed_territory: claimerGangId !== null && p.gang_id === claimerGangId,
-        ...(p.side_job_id
-          ? { side_job_id: p.side_job_id, side_job_completed: p.side_job_completed === true }
-          : {}),
+        ...participantSideJob(p),
       }));
       const battleLog = {
         scenario: session.scenario || '',

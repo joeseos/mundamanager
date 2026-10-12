@@ -1226,7 +1226,11 @@ export default function ParticipantCard({
   const [tradingPostRoll, setTradingPostRoll] = useState<{ dice: number[]; total: number; modifier: number; grandTotal: number } | null>(null);
   const [tradingPostModifier, setTradingPostModifier] = useState('');
   const [localRole, setLocalRole] = useState<'attacker' | 'defender' | 'none'>(participant.role);
-  const savedSideJob = { id: participant.side_job_id ?? '', completed: participant.side_job_completed === true };
+  const savedSideJob = {
+    id: participant.side_job_id ?? '',
+    name: participant.side_job_name ?? '',
+    completed: participant.side_job_completed === true,
+  };
   const [localSideJob, setLocalSideJob] = useState(savedSideJob);
 
   const [readyOverride, setReadyOverride] = useState<boolean | null>(null);
@@ -1641,7 +1645,11 @@ export default function ParticipantCard({
   }
 
   const [prevSideJob, setPrevSideJob] = useState(savedSideJob);
-  if (savedSideJob.id !== prevSideJob.id || savedSideJob.completed !== prevSideJob.completed) {
+  if (
+    savedSideJob.id !== prevSideJob.id ||
+    savedSideJob.name !== prevSideJob.name ||
+    savedSideJob.completed !== prevSideJob.completed
+  ) {
     setPrevSideJob(savedSideJob);
     setLocalSideJob(savedSideJob);
   }
@@ -1791,7 +1799,7 @@ export default function ParticipantCard({
             ))}
           </div>
         )}
-        {hasScenarioTables(session.edition_slug) && (canEditRole || !!localSideJob.id) && (
+        {hasScenarioTables(session.edition_slug) && (canEditRole || !!localSideJob.id || !!localSideJob.name) && (
           <SideJobPicker
             className="mt-2"
             id={participant.id}
@@ -1799,8 +1807,13 @@ export default function ParticipantCard({
             gangTypeId={participant.gang?.gang_type_id}
             value={localSideJob.id}
             onChange={canEditRole
-              ? (id) => handleSideJobChange({ id, completed: false }, updateParticipantSideJob(session.id, participant.id, id || null))
+              ? (id) => handleSideJobChange({ id, name: '', completed: false }, updateParticipantSideJob(session.id, participant.id, id || null))
               : undefined}
+            customName={localSideJob.name}
+            onCustomNameChange={canEditRole
+              ? (name) => handleSideJobChange({ id: '', name, completed: false }, updateParticipantSideJob(session.id, participant.id, null, name))
+              : undefined}
+            saveCustomNameOnBlur
             completed={localSideJob.completed}
             onCompletedChange={canPostBattle
               ? (completed) => handleSideJobChange({ ...localSideJob, completed }, setSideJobCompleted(session.id, participant.id, completed))

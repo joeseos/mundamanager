@@ -13,7 +13,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { createBattleLog, updateBattleLog, BattleLogParams } from "@/app/actions/campaigns/[id]/battle-logs";
 import { useMutation } from '@tanstack/react-query';
-import { Battle, BattleParticipant, BattleStatus, CampaignGang, Territory as BaseTerritory, Scenario, ScenarioTableWithEntries, neededScenarioPart } from '@/types/campaign';
+import { Battle, BattleParticipant, BattleStatus, CampaignGang, Territory as BaseTerritory, Scenario, ScenarioTableWithEntries, neededScenarioPart, participantSideJob } from '@/types/campaign';
 import { battleStatusOf, challengeAnswerStatuses } from '@/types/campaign';
 import { getClaimerGangId, getWinnerIds } from '@/utils/battle-winners';
 import { useWinnerSelection } from '@/hooks/use-winner-selection';
@@ -62,13 +62,14 @@ type GangEntry = {
   id: number;
   gangId: string;
   role: GangRole;
-  /** N26: the gang's Side Job. */
+  /** N26: the gang's Side Job, an entry or a custom name. */
   sideJobId: string;
+  sideJobName: string;
   sideJobCompleted: boolean;
 }
 
 const emptyGangEntry = (id: number): GangEntry => ({
-  id, gangId: '', role: 'none', sideJobId: '', sideJobCompleted: false,
+  id, gangId: '', role: 'none', sideJobId: '', sideJobName: '', sideJobCompleted: false,
 });
 
 const CampaignBattleLogModal = ({
@@ -498,6 +499,7 @@ const CampaignBattleLogModal = ({
             gangId: participant.gang_id,
             role: participant.role as GangRole,
             sideJobId: participant.side_job_id ?? '',
+            sideJobName: participant.side_job_name ?? '',
             sideJobCompleted: participant.side_job_completed === true,
           });
         }
@@ -710,8 +712,12 @@ const CampaignBattleLogModal = ({
         gang_id: gang.gangId,
         is_winner: winnerSet.has(gang.gangId),
         claimed_territory: !!claimerForPayload && gang.gangId === claimerForPayload,
-        ...(usesScenarioTables && gang.sideJobId
-          ? { side_job_id: gang.sideJobId, side_job_completed: gang.sideJobCompleted }
+        ...(usesScenarioTables
+          ? participantSideJob({
+              side_job_id: gang.sideJobId,
+              side_job_name: gang.sideJobName,
+              side_job_completed: gang.sideJobCompleted,
+            })
           : {}),
       }));
 
@@ -1094,7 +1100,14 @@ const CampaignBattleLogModal = ({
                       value={gangEntry.sideJobId}
                       onChange={(sideJobId) => updateGangEntry(gangEntry.id, {
                         sideJobId,
+                        sideJobName: '',
                         ...(sideJobId ? {} : { sideJobCompleted: false }),
+                      })}
+                      customName={gangEntry.sideJobName}
+                      onCustomNameChange={(sideJobName) => updateGangEntry(gangEntry.id, {
+                        sideJobId: '',
+                        sideJobName,
+                        ...(sideJobName.trim() ? {} : { sideJobCompleted: false }),
                       })}
                       completed={gangEntry.sideJobCompleted}
                       onCompletedChange={showResultFields
