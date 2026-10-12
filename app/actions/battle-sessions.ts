@@ -1073,17 +1073,22 @@ export async function setSideJobCompleted(
     ]);
     if (session?.status !== 'post_battle')
       return { success: false, error: 'A Side Job can only be completed after the battle' };
-    // Only a gang with a Side Job, rolled or custom, can have completed it.
-    if (!participant?.side_job_id && !participant?.side_job_name)
-      return { success: false, error: 'This gang has no Side Job' };
+    // Only a gang with a Side Job, rolled or custom, can have completed it. The
+    // update checks the one read is still there. (PostgREST also filters the
+    // rows an update returns, so an `or` of both columns breaks `.select('id')`.)
+    const sideJobColumn = participant?.side_job_id ? 'side_job_id' : participant?.side_job_name ? 'side_job_name' : null;
+    if (!sideJobColumn) return { success: false, error: 'This gang has no Side Job' };
 
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from('battle_session_participants')
       .update({ side_job_completed: completed })
       .eq('id', participantId)
-      .eq('battle_session_id', sessionId);
+      .eq('battle_session_id', sessionId)
+      .not(sideJobColumn, 'is', null)
+      .select('id');
 
     if (error) return { success: false, error: error.message };
+    if (!updated?.length) return { success: false, error: 'This gang has no Side Job' };
 
     invalidateBattleSession(sessionId);
     return { success: true };
