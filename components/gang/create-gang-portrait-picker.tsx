@@ -29,6 +29,7 @@ interface CreateGangPortraitPickerProps {
   /** Edit flow: replace the catalogue portrait with the gang type's silhouette. */
   silhouetteImageUrl?: string | null;
   onUseSilhouette?: () => void;
+  silhouetteSelected?: boolean;
   catalogueLoadFailed?: boolean;
   onRetryCatalogue?: () => void;
 }
@@ -47,6 +48,7 @@ export function CreateGangPortraitPicker({
   fallbackCredit,
   silhouetteImageUrl,
   onUseSilhouette,
+  silhouetteSelected = false,
   catalogueLoadFailed,
   onRetryCatalogue,
 }: CreateGangPortraitPickerProps) {
@@ -133,30 +135,6 @@ export function CreateGangPortraitPicker({
               </button>
             );
           })}
-          {onUseSilhouette && selectedPortraitId && (
-            <button
-              type="button"
-              onClick={onUseSilhouette}
-              className="relative size-14 md:size-[4.5rem] rounded-full overflow-hidden border-2 border-muted-foreground bg-muted-foreground opacity-60 transition-opacity hover:opacity-100 focus-visible:opacity-100"
-              aria-label="Use silhouette"
-            >
-              {silhouetteImageUrl ? (
-                <Image
-                  src={silhouetteImageUrl}
-                  alt=""
-                  fill
-                  sizes="72px"
-                  className="object-cover"
-                  quality={75}
-                  onError={handleImageError}
-                />
-              ) : (
-                <span className="flex size-full items-center justify-center bg-secondary text-sm">
-                  {gangTypeName.charAt(0)}
-                </span>
-              )}
-            </button>
-          )}
           <button
             type="button"
             onClick={() => setGalleryOpen(true)}
@@ -188,6 +166,17 @@ export function CreateGangPortraitPicker({
             portraits={portraits}
             currentGroupLabel={currentGroupLabel}
             selectedPortraitId={selectedPortraitId}
+            gangTypeName={gangTypeName}
+            silhouetteImageUrl={onUseSilhouette ? silhouetteImageUrl : undefined}
+            silhouetteSelected={silhouetteSelected}
+            onUseSilhouette={
+              onUseSilhouette
+                ? () => {
+                    onUseSilhouette();
+                    setGalleryOpen(false);
+                  }
+                : undefined
+            }
             onSelect={(portraitId) => {
               onSelect(portraitId);
               setGalleryOpen(false);
@@ -205,12 +194,20 @@ function GangPortraitGallery({
   portraits,
   currentGroupLabel,
   selectedPortraitId,
+  gangTypeName,
+  silhouetteImageUrl,
+  silhouetteSelected = false,
+  onUseSilhouette,
   onSelect,
   onClose,
 }: {
   portraits: GangPortrait[];
   currentGroupLabel: string | null;
   selectedPortraitId: string | null;
+  gangTypeName: string;
+  silhouetteImageUrl?: string | null;
+  silhouetteSelected?: boolean;
+  onUseSilhouette?: () => void;
   onSelect: (portraitId: string) => void;
   onClose: () => void;
 }) {
@@ -223,7 +220,7 @@ function GangPortraitGallery({
       onClose={onClose}
       width="4xl"
     >
-      {sections.length === 0 ? (
+      {sections.length === 0 && !onUseSilhouette ? (
         <p className="text-sm text-muted-foreground">No portraits are available yet.</p>
       ) : (
         <div className="space-y-6">
@@ -274,6 +271,37 @@ function GangPortraitGallery({
               </div>
             </section>
           ))}
+          {onUseSilhouette && (
+            <section className={sections.length > 0 ? 'border-t border-border pt-6' : undefined}>
+              <h4 className="text-xl font-semibold mb-3">Silhouette</h4>
+              <button
+                type="button"
+                onClick={onUseSilhouette}
+                className={`flex flex-col items-center gap-1 rounded-md p-1 hover:bg-muted ${
+                  silhouetteSelected ? 'ring-2 ring-foreground' : ''
+                }`}
+                aria-label="Use silhouette"
+                aria-pressed={silhouetteSelected}
+              >
+                <span className="relative flex size-24 sm:size-32 items-center justify-center rounded-full overflow-hidden bg-secondary">
+                  {silhouetteImageUrl ? (
+                    <Image
+                      src={silhouetteImageUrl}
+                      alt=""
+                      fill
+                      sizes="128px"
+                      className="object-cover"
+                      quality={75}
+                      onError={handleImageError}
+                    />
+                  ) : (
+                    <span className="text-2xl">{gangTypeName.charAt(0)}</span>
+                  )}
+                </span>
+                <span className="text-xs text-center leading-tight">Silhouette</span>
+              </button>
+            </section>
+          )}
         </div>
       )}
     </Modal>

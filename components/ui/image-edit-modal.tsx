@@ -164,7 +164,7 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
             disabled={isUploading || isProcessing}
             className="w-full"
           >
-            {isProcessing ? 'Processing image...' : 'Replace with New Image'}
+            {isProcessing ? 'Processing image...' : 'Replace with Custom Image'}
           </Button>
           <p className="mt-2 text-xs text-muted-foreground text-center">
             Supported: JPG, PNG, WEBP, GIF, AVIF, SVG, HEIC • Max 10MB

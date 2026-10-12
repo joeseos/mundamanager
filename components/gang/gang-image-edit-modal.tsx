@@ -5,7 +5,7 @@ import { updateGangImage } from '@/app/actions/update-gang-image';
 import { CreateGangPortraitPicker } from '@/components/gang/create-gang-portrait-picker';
 import { ImageEditModal } from '@/components/ui/image-edit-modal';
 import { useGangPortraits } from '@/hooks/use-gang-portraits';
-import { gangPortraitPublicUrl, type DefaultImageEntry } from '@/types/gang';
+import { gangPortraitPublicUrl, UNKNOWN_GANG_IMAGE_URL } from '@/types/gang';
 import { catalogueSlotForGangType } from '@/utils/gang-portraits';
 
 interface GangImageEditModalProps {
@@ -18,26 +18,8 @@ interface GangImageEditModalProps {
   parentGangTypeName?: string | null;
   gangPortraitId?: string | null;
   currentPortraitUrl?: string | null;
-  onImageUpdate: (newImageUrl: string, newDefaultImageIndex?: number | null) => void;
+  onImageUpdate: (newImageUrl: string, options?: { clearPortrait?: boolean }) => void;
   onPortraitUpdate: (portraitId: string, portraitUrl: string) => void;
-  defaultImageUrls?: DefaultImageEntry[];
-  currentDefaultImageIndex?: number | null;
-}
-
-function indexedDefaultImage(
-  defaultImageUrls: DefaultImageEntry[] | undefined,
-  currentDefaultImageIndex: number | null | undefined
-): DefaultImageEntry | undefined {
-  if (
-    !defaultImageUrls ||
-    currentDefaultImageIndex === null ||
-    currentDefaultImageIndex === undefined ||
-    currentDefaultImageIndex < 0 ||
-    currentDefaultImageIndex >= defaultImageUrls.length
-  ) {
-    return undefined;
-  }
-  return defaultImageUrls[currentDefaultImageIndex];
 }
 
 export const GangImageEditModal: React.FC<GangImageEditModalProps> = ({
@@ -51,8 +33,6 @@ export const GangImageEditModal: React.FC<GangImageEditModalProps> = ({
   currentPortraitUrl,
   onImageUpdate,
   onPortraitUpdate,
-  defaultImageUrls,
-  currentDefaultImageIndex,
 }) => {
   const { portraits, status: portraitsStatus } = useGangPortraits();
   const [selectedPortraitId, setSelectedPortraitId] = useState<string | null>(gangPortraitId ?? null);
@@ -68,13 +48,8 @@ export const GangImageEditModal: React.FC<GangImageEditModalProps> = ({
         parentGangTypeName ?? null
       );
 
-  const indexedImage = indexedDefaultImage(defaultImageUrls, currentDefaultImageIndex);
   const savedPortraitId = gangPortraitId ?? null;
-  const silhouetteIndex = defaultImageUrls && defaultImageUrls.length > 0 ? 0 : null;
-  const silhouetteImageUrl = defaultImageUrls?.[0]?.url ?? null;
-  const alreadyOnSilhouette =
-    savedPortraitId === null &&
-    (silhouetteIndex === null ? currentDefaultImageIndex == null : currentDefaultImageIndex === 0);
+  const alreadyOnSilhouette = savedPortraitId === null && !currentImageUrl;
   const portraitChanged =
     portraitsStatus !== 'error' &&
     !currentImageUrl &&
@@ -85,20 +60,13 @@ export const GangImageEditModal: React.FC<GangImageEditModalProps> = ({
     ? undefined
     : selectedPortraitId
       ? currentPortraitUrl
-      : clearedPortrait
-        ? silhouetteImageUrl
-        : indexedImage?.url;
-  const fallbackCredit = clearedPortrait
-    ? defaultImageUrls?.[0]?.credit
-    : !selectedPortraitId && fallbackImageUrl === indexedImage?.url
-      ? indexedImage?.credit
-      : undefined;
+      : UNKNOWN_GANG_IMAGE_URL;
 
   const handleSavePortrait = async () => {
     if (clearedPortrait && !selectedPortraitId) {
-      const result = await updateGangImage(gangId, undefined, silhouetteIndex);
+      const result = await updateGangImage(gangId, null, null);
       if (result.success) {
-        onImageUpdate('', silhouetteIndex);
+        onImageUpdate('', { clearPortrait: true });
       }
       return result;
     }
@@ -107,7 +75,7 @@ export const GangImageEditModal: React.FC<GangImageEditModalProps> = ({
     const portraitUrl = selected ? gangPortraitPublicUrl(selected.storage_path) : undefined;
     if (!portraitUrl) return { success: false, error: 'Portrait image is missing' };
 
-    const result = await updateGangImage(gangId, undefined, undefined, selectedPortraitId);
+    const result = await updateGangImage(gangId, undefined, selectedPortraitId);
     if (result.success) {
       onPortraitUpdate(selectedPortraitId, portraitUrl);
     }
@@ -118,7 +86,7 @@ export const GangImageEditModal: React.FC<GangImageEditModalProps> = ({
     <ImageEditModal
       onClose={onClose}
       currentImageUrl={currentImageUrl}
-      title="Edit Gang Image"
+      title="Edit Gang Portrait"
       onImageUpdate={onImageUpdate}
       portraitPicker={
         <CreateGangPortraitPicker
@@ -131,8 +99,8 @@ export const GangImageEditModal: React.FC<GangImageEditModalProps> = ({
             setSelectedPortraitId(portraitId);
           }}
           fallbackImageUrl={fallbackImageUrl}
-          fallbackCredit={fallbackCredit}
-          silhouetteImageUrl={silhouetteImageUrl}
+          silhouetteImageUrl={UNKNOWN_GANG_IMAGE_URL}
+          silhouetteSelected={selectedPortraitId === null && (clearedPortrait || alreadyOnSilhouette)}
           onUseSilhouette={() => {
             setClearedPortrait(true);
             setSelectedPortraitId(null);

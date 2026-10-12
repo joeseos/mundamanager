@@ -53,37 +53,7 @@ export function hasDefaultImageCredit(
   return Boolean(credit?.name?.trim() || credit?.url?.trim() || credit?.suffix?.trim());
 }
 
-export interface DefaultImageEntry {
-  url: string;
-  credit?: DefaultImageCredit;
-}
-
-/** Colour slot when the list has one, otherwise the last image. Null when the type has no art. */
-export function preferredDefaultGangImageIndex(
-  urls: DefaultImageEntry[] | undefined
-): number | null {
-  if (!urls || urls.length === 0) return null;
-  return Math.min(3, urls.length - 1);
-}
-
-/**
- * Normalises raw default_image_urls from Supabase.
- * Handles both the legacy string[] format and the new object[] format,
- * so the app works before and after the data migration.
- */
-export function normaliseDefaultImageUrls(
-  raw: unknown[] | null | undefined
-): DefaultImageEntry[] | undefined {
-  if (!raw || !Array.isArray(raw) || raw.length === 0) return undefined;
-  return raw.map((entry) => {
-    if (typeof entry === 'string') {
-      return { url: entry };
-    }
-    return entry as DefaultImageEntry;
-  });
-}
-
-/** Shown when a gang portrait URL fails to load. */
+/** Shown when a gang has no custom upload or catalogue portrait, and when a portrait URL fails to load. */
 export const UNKNOWN_GANG_IMAGE_URL =
   'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_gang_cropped_web.webp';
 
@@ -104,31 +74,16 @@ export function joinedPortraitStoragePath(
 }
 
 /**
- * Custom upload, then the catalogue portrait, then the selected type default.
- * Empty or missing `.url` entries fall through so the caller can show a letter placeholder.
+ * Custom upload, then the catalogue portrait, then the shared silhouette.
  */
 export function resolveGangImageUrl(options: {
   imageUrl?: string | null;
   portraitUrl?: string | null;
-  defaultGangImage?: number | null;
-  defaultImageUrls?: DefaultImageEntry[] | null;
-}): string | undefined {
-  const { imageUrl, portraitUrl, defaultGangImage, defaultImageUrls } = options;
+}): string {
+  const { imageUrl, portraitUrl } = options;
   if (imageUrl) return imageUrl;
   if (portraitUrl) return portraitUrl;
-
-  if (
-    defaultGangImage !== null &&
-    defaultGangImage !== undefined &&
-    Array.isArray(defaultImageUrls) &&
-    defaultGangImage >= 0 &&
-    defaultGangImage < defaultImageUrls.length
-  ) {
-    const url = defaultImageUrls[defaultGangImage]?.url;
-    if (url) return url;
-  }
-
-  return undefined;
+  return UNKNOWN_GANG_IMAGE_URL;
 }
 
 export interface ResourceUpdate {
