@@ -316,12 +316,15 @@ const ItemModal: React.FC<ItemModalProps> = ({
         }
       }
 
-      // Include fighter_id so RPC can resolve legacy fighter type availability/discounts
-      // Pass fighter_id if: legacy toggle enabled OR gang has affiliation
+      // fighter_id lets the RPC match subtype rules (e.g. Leaders and Champions) against
+      // the fighter's own subtypes, which keep-type promotions change without changing
+      // the fighter type. include_legacy decides whether its Gang Legacy type applies.
       const useLegacy = includeLegacyOverride !== undefined ? includeLegacyOverride : includeLegacy;
       const hasGangAffiliation = Boolean(gangAffiliationId);
-      if (!isVehicleEquipment && fighterId && (useLegacy || hasGangAffiliation)) {
+      if (!isVehicleEquipment && fighterId) {
         requestBody.fighter_id = fighterId;
+        // Affiliated gangs always sent fighter_id, so legacy always applied for them
+        requestBody.include_legacy = useLegacy || hasGangAffiliation;
       }
 
       const response = await fetch(
