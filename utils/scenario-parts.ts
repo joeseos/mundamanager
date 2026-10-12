@@ -9,6 +9,13 @@ import {
 /** An N26 battle's Deployment, Objective and Crew, as scenario_table_entries ids. */
 export type ScenarioParts = Partial<Record<ScenarioPartKey, string | null>>;
 
+/** One part picked (an entry), typed (a Deployment or Objective's name) or cleared. */
+export interface ScenarioPartEdit {
+  key: ScenarioPartKey;
+  entryId: string | null;
+  typedName?: string;
+}
+
 /** A to-one embed, which may arrive as an array. */
 const one = <T,>(embed: T | T[] | null | undefined): T | undefined =>
   Array.isArray(embed) ? embed[0] : embed ?? undefined;

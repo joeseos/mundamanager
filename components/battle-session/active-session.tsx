@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
 import { sessionScenarioLabel, type BattleSessionFull } from '@/types/battle-session';
 import type { Scenario, ScenarioTableWithEntries } from '@/types/campaign';
-import type { ScenarioParts } from '@/utils/scenario-parts';
+import type { ScenarioPartEdit } from '@/utils/scenario-parts';
 import { sameEditionForDisplay, hasCrewRating, hasScenarioTables } from '@/types/edition';
 import { ScenarioPartsPicker } from '@/components/scenario-parts-picker';
 import type { GangFighter } from '@/types/gang';
@@ -92,15 +92,13 @@ export default function ActiveSession({
   // N26: Deployment, Objective and Crew instead of a scenario.
   const usesScenarioTables = hasScenarioTables(session.edition_slug);
   const scenarioPartMutation = useMutation({
-    mutationFn: async (change: ScenarioParts & { scenario: string }) => {
-      const result = await setSessionScenarioParts(session.id, change);
+    mutationFn: async (edit: ScenarioPartEdit) => {
+      const result = await setSessionScenarioParts(session.id, edit);
       if (!result.success) throw new Error(result.error);
     },
     onSuccess: () => {
       broadcast();
-      // Each change sends the whole scenario text, so the picker waits for the
-      // saved session before the next one, or it would write over this one.
-      return queryClient.invalidateQueries({ queryKey: ['battle-session', session.id] });
+      queryClient.invalidateQueries({ queryKey: ['battle-session', session.id] });
     },
     onError: (error) => toast.error(error.message || 'Failed to update scenario'),
   });
@@ -254,9 +252,9 @@ export default function ActiveSession({
                 scenarioTables={scenarioTables}
                 parts={session}
                 scenario={session.scenario}
-                onChange={(change) => scenarioPartMutation.mutate(change)}
+                onChange={(_change, edit) => scenarioPartMutation.mutate(edit)}
                 saveTypedNamesOnBlur
-                disabled={!canManage || scenarioPartMutation.isPending}
+                disabled={!canManage}
               />
             ) : (
               <>
