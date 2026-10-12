@@ -9,10 +9,9 @@ import {
   typedScenarioParts,
   typedScenarioText,
   type ScenarioPart,
-  type ScenarioPartName,
   type ScenarioTableWithEntries,
 } from '@/types/campaign';
-import type { ScenarioParts } from '@/utils/scenario-parts';
+import type { ScenarioPartEdit, ScenarioParts } from '@/utils/scenario-parts';
 
 interface ScenarioPartsPickerProps {
   /** The battle edition's scenario tables. */
@@ -20,8 +19,12 @@ interface ScenarioPartsPickerProps {
   parts: ScenarioParts;
   /** The battle's scenario text, which keeps a typed Deployment or Objective. */
   scenario: string | null | undefined;
-  /** One part's new entry (null when typed or cleared), and the scenario text to go with it. */
-  onChange: (change: ScenarioParts & { scenario: string }) => void;
+  /**
+   * One part's new entry (null when typed or cleared) and the scenario text to
+   * go with it, for a form that saves the whole battle; and the edit alone, for
+   * a screen that saves each change and builds the text from the saved battle.
+   */
+  onChange: (change: ScenarioParts & { scenario: string }, edit: ScenarioPartEdit) => void;
   /** Saves a typed name when its field loses focus instead of on every key, for a screen that saves each change. */
   saveTypedNamesOnBlur?: boolean;
   /** Marks every part as needed. */
@@ -46,16 +49,17 @@ export function ScenarioPartsPicker({
   const entriesOf = (part: ScenarioPart) => coreScenarioTable(scenarioTables, part.tableType)?.entries ?? [];
   const typed = typedScenarioParts(scenario, !!parts.deployment_id, !!parts.objective_id);
 
+  const entryName = (entryId: string) =>
+    SCENARIO_PARTS.flatMap(entriesOf).find((entry) => entry.id === entryId)?.name;
+
   const change = (changed: ScenarioPart, entryId: string, typedName?: string) => {
-    // The scenario text keeps both names whenever either is typed.
-    const [deployment, objective] = TYPEABLE_SCENARIO_PARTS.map((key): ScenarioPartName => {
-      const part = SCENARIO_PARTS.find((candidate) => candidate.key === key)!;
-      const [id, name] = key === changed.key ? [entryId, typedName] : [parts[key], typed[key]];
-      return id
-        ? { name: entriesOf(part).find((entry) => entry.id === id)?.name, picked: true }
-        : { name, typed: !!name };
-    });
-    onChange({ [changed.key]: entryId || null, scenario: typedScenarioText(deployment, objective) });
+    const edit = { key: changed.key, entryId: entryId || null, typedName };
+    const scenarioText = typedScenarioText(
+      { ...parts, [changed.key]: edit.entryId },
+      { ...typed, [changed.key]: typedName },
+      entryName
+    );
+    onChange({ [changed.key]: edit.entryId, scenario: scenarioText }, edit);
   };
 
   return (

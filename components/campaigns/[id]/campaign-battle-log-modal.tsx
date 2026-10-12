@@ -450,8 +450,7 @@ const CampaignBattleLogModal = ({
     // A challenge slot is created without a scenario, so treat "none" as its own
     // state rather than falling through to an empty custom name.
     const existingScenario = battleToEdit.scenario || battleToEdit.scenario_name || '';
-    // N26 has no scenario list: its text keeps a typed Deployment or Objective.
-    if (matchingScenario && !usesScenarioTables) {
+    if (matchingScenario) {
       setSelectedScenario(matchingScenario.id);
     } else if (existingScenario) {
       setSelectedScenario('custom');

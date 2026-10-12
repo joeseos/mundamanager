@@ -16,9 +16,16 @@ import {
 import { fetchBattleSessionDirect, SESSION_SCENARIO_PARTS_SELECT } from '@/app/lib/battle-sessions/get-battle-session-data';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
 import { editionsConflict, gangEditionJoin, gangEditionSlug } from '@/types/edition';
-import { SCENARIO_PARTS, type BattleParticipant } from '@/types/campaign';
+import {
+  SCENARIO_PARTS,
+  TYPEABLE_SCENARIO_PARTS,
+  typedScenarioName,
+  typedScenarioParts,
+  typedScenarioText,
+  type BattleParticipant,
+} from '@/types/campaign';
 import { parseParticipants } from '@/utils/battle-winners';
-import { checkScenarioParts, type ScenarioParts } from '@/utils/scenario-parts';
+import { checkScenarioParts, type ScenarioPartEdit, type ScenarioParts } from '@/utils/scenario-parts';
 
 /**
  * Gangs have no edition of their own — it is always derived via the gang type,
@@ -378,9 +385,25 @@ export async function cancelBattleSession(
   }
 }
 
+type ManagedSession = {
+  created_by: string;
+  campaign_id: string | null;
+  status: string;
+  edition_id: string | null;
+  scenario: string | null;
+  deployment_id: string | null;
+  objective_id: string | null;
+};
+
 async function updateSessionAsManager(
   sessionId: string,
-  updateFields: Record<string, unknown>,
+  /** Or built from the session once the caller may manage it. */
+  updateFields:
+    | Record<string, unknown>
+    | ((
+        supabase: Awaited<ReturnType<typeof createClient>>,
+        session: ManagedSession
+      ) => Promise<Record<string, unknown>>),
   options?: {
     requireStatus?: string;
     statusError?: string;
@@ -396,9 +419,9 @@ async function updateSessionAsManager(
 
   const { data: session } = await supabase
     .from('battle_sessions')
-    .select('created_by, campaign_id, status, edition_id')
+    .select('created_by, campaign_id, status, edition_id, scenario, deployment_id, objective_id')
     .eq('id', sessionId)
-    .single();
+    .single<ManagedSession>();
 
   if (!session) return { success: false, error: 'Session not found' };
   if (!(await canManageSession(user.id, session)))
@@ -408,9 +431,10 @@ async function updateSessionAsManager(
   const checkError = await options?.check?.(supabase, session);
   if (checkError) return { success: false, error: checkError };
 
+  const fields = typeof updateFields === 'function' ? await updateFields(supabase, session) : updateFields;
   const { error } = await supabase
     .from('battle_sessions')
-    .update({ ...updateFields, updated_at: new Date().toISOString() })
+    .update({ ...fields, updated_at: new Date().toISOString() })
     .eq('id', sessionId);
 
   if (error) return { success: false, error: error.message };
@@ -432,26 +456,43 @@ export async function setSessionScenario(
 }
 
 /**
- * N26: sets any of the session's Deployment, Objective and Crew before the
- * battle; null clears one. The scenario text, which keeps a typed Deployment
- * or Objective, is saved with it.
+ * N26: sets one of the session's Deployment, Objective and Crew before the
+ * battle: picks an entry, types a Deployment or Objective's name, or clears it.
+ * The scenario text that keeps a typed name is rebuilt here from the saved
+ * session, so changes made in quick succession don't undo each other.
  */
 export async function setSessionScenarioParts(
   sessionId: string,
-  parts: ScenarioParts & { scenario?: string }
+  edit: ScenarioPartEdit
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    if (!SCENARIO_PARTS.some(({ key }) => key === edit.key)) return { success: false, error: 'Unknown scenario part' };
+    const entryId = edit.entryId || null;
+    const typeable = TYPEABLE_SCENARIO_PARTS.includes(edit.key);
+    const typedName = typeable && !entryId ? typedScenarioName(String(edit.typedName ?? '')).trim() : '';
+
     return await updateSessionAsManager(
       sessionId,
-      {
-        ...Object.fromEntries(SCENARIO_PARTS.filter(({ key }) => parts[key] !== undefined).map(({ key }) => [key, parts[key]])),
-        ...(parts.scenario !== undefined && { scenario: parts.scenario || null }),
+      async (supabase, session) => {
+        if (!typeable) return { [edit.key]: entryId };
+        const parts = { deployment_id: session.deployment_id, objective_id: session.objective_id, [edit.key]: entryId };
+        const typed = {
+          ...typedScenarioParts(session.scenario, !!session.deployment_id, !!session.objective_id),
+          [edit.key]: typedName || undefined,
+        };
+        const entryIds = [parts.deployment_id, parts.objective_id].filter((id): id is string => !!id);
+        const { data: entries, error } = entryIds.length
+          ? await supabase.from('scenario_table_entries').select('id, name').in('id', entryIds)
+          : { data: [], error: null };
+        if (error) throw error;
+        const entryName = (entryId: string) => entries?.find((entry) => entry.id === entryId)?.name;
+        return { [edit.key]: entryId, scenario: typedScenarioText(parts, typed, entryName) || null };
       },
       {
         requireStatus: 'pre_battle',
         statusError: 'The scenario can only be changed during pre-battle',
         check: async (supabase, session) => {
-          const result = await checkScenarioParts(supabase, async () => session.edition_id, parts, []);
+          const result = await checkScenarioParts(supabase, async () => session.edition_id, { [edit.key]: entryId }, []);
           return 'error' in result ? result.error : undefined;
         },
       }

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Combobox } from '@/components/ui/combobox';
+import { Input } from '@/components/ui/input';
 import DiceRoller from '@/components/dice-roller';
 import { rollNd6Outcome } from '@/utils/dice';
 import type { ScenarioTableEntry } from '@/types/campaign';
@@ -98,9 +99,8 @@ export function ScenarioEntryPicker({
       </div>
       {custom && (
         <div className="mt-2">
-          <input
+          <Input
             type="text"
-            className="w-full px-3 py-2 rounded-md border border-border bg-muted"
             placeholder={customPlaceholder}
             value={draft ?? customName ?? ''}
             onChange={(e) => {
