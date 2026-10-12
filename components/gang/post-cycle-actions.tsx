@@ -469,7 +469,6 @@ export default function PostCycleActions({
                     value={row?.action ?? ''}
                     onValueChange={(value) => handleActionChange(fighter.id, value)}
                     placeholder="No action"
-                    dropdownPlacement="down"
                     clearable
                     disabled={!canEdit || applying}
                   />
@@ -481,7 +480,6 @@ export default function PostCycleActions({
                       onValueChange={(id) => setRow(fighter.id, { targetFighterId: id || undefined })}
                       placeholder="Critically Injured fighter"
                       noResultsText="No fighter has a Critical Injury"
-                      dropdownPlacement="down"
                       clearable
                       disabled={!canEdit || applying}
                     />
@@ -498,7 +496,6 @@ export default function PostCycleActions({
                         }
                         placeholder="Fighter to fit bionics"
                         noResultsText="No fighter has a removable Lasting Injury"
-                        dropdownPlacement="down"
                         clearable
                         disabled={!canEdit || applying}
                       />
