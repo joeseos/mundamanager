@@ -1,12 +1,12 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
 import Modal from '@/components/ui/modal';
-import TacticsCardPicker from '@/components/gang/tactics-card-picker';
 import { FighterProps } from '@/types/fighter';
 import type { FighterEffect } from '@/types/fighter-effect';
 import type { GangTacticsCard, TacticsCard } from '@/types/tactics-card';
@@ -33,6 +33,8 @@ import {
   resolvePostCycleAction,
   type PostCycleFighterChange,
 } from '@/app/actions/post-cycle-actions';
+
+const TacticsCardPicker = dynamic(() => import('@/components/gang/tactics-card-picker'), { ssr: false });
 
 interface PostCycleActionsProps {
   gangId: string;
