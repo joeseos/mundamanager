@@ -20,6 +20,9 @@ const one = <T,>(embed: T | T[] | null | undefined): T | undefined =>
  * The edition is only looked up when there is something to check. Returns the
  * scenario's label for logs and notifications: its Deployment and Objective,
  * picked or typed into the scenario text, or an N23 battle's scenario text.
+ * The label needs the battle's scenario text and both its Deployment and
+ * Objective, since a part with no entry is read as typed; a check of only some
+ * parts gets a partial one.
  *
  * Shared by the battle log and battle session actions; lives in utils/ so
  * neither 'use server' file has to export it.
