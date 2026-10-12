@@ -4,6 +4,7 @@ import { Inter } from 'next/font/google'
 import Link from 'next/link';
 import Image from 'next/image';
 import { Toaster } from "@/components/ui/sonner"
+import { NOTIFICATION_TOASTER_ID } from "@/utils/notification-toast"
 import { WebsiteStructuredData, OrganizationStructuredData } from "@/components/structured-data";
 import { QueryClientProviderWrapper } from "@/app/providers/query-client-provider";
 import { ClientThemeProvider } from "@/components/client-theme-provider";
@@ -191,6 +192,13 @@ export default function RootLayout({
           richColors 
           closeButton 
           position="bottom-right" 
+        />
+        <Toaster
+          id={NOTIFICATION_TOASTER_ID}
+          position="top-right"
+          offset={{ top: '4.5rem' }}
+          mobileOffset={{ top: '4.5rem' }}
+          closeButton
         />
           </QueryClientProviderWrapper>
         </ClientThemeProvider>
