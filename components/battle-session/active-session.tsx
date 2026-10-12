@@ -21,7 +21,7 @@ import Modal from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
 import { sessionScenarioLabel, type BattleSessionFull } from '@/types/battle-session';
-import { SCENARIO_PARTS, type Scenario, type ScenarioPartKey, type ScenarioTableWithEntries } from '@/types/campaign';
+import { coreScenarioTable, SCENARIO_PARTS, type Scenario, type ScenarioPartKey, type ScenarioTableWithEntries } from '@/types/campaign';
 import { sameEditionForDisplay, hasCrewRating, hasScenarioTables } from '@/types/edition';
 import { ScenarioEntryPicker } from '@/components/scenario-entry-picker';
 import type { GangFighter } from '@/types/gang';
@@ -209,36 +209,36 @@ export default function ActiveSession({
           <div className="flex items-center gap-2">
             {canManage && (
               <>
-                  {isPreBattle && (
-                    <Button onClick={() => setShowAddPlayerModal(true)}>
-                      Add Player
-                    </Button>
-                  )}
-                  {battleActive && (
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowReturnToSetupModal(true)}
-                      disabled={changePhaseMutation.isPending}
-                    >
-                      Back to Pre-Battle
-                    </Button>
-                  )}
-                  {isPostBattle && (
-                    <Button
-                      variant="outline"
-                      onClick={() => changePhaseMutation.mutate('back')}
-                      disabled={changePhaseMutation.isPending}
-                    >
-                      Resume Battle
-                    </Button>
-                  )}
-                  <Button
-                    variant="destructive"
-                    onClick={() => setShowCancelModal(true)}
-                    disabled={cancelMutation.isPending}
-                  >
-                    Cancel Battle
+                {isPreBattle && (
+                  <Button onClick={() => setShowAddPlayerModal(true)}>
+                    Add Player
                   </Button>
+                )}
+                {battleActive && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowReturnToSetupModal(true)}
+                    disabled={changePhaseMutation.isPending}
+                  >
+                    Back to Pre-Battle
+                  </Button>
+                )}
+                {isPostBattle && (
+                  <Button
+                    variant="outline"
+                    onClick={() => changePhaseMutation.mutate('back')}
+                    disabled={changePhaseMutation.isPending}
+                  >
+                    Resume Battle
+                  </Button>
+                )}
+                <Button
+                  variant="destructive"
+                  onClick={() => setShowCancelModal(true)}
+                  disabled={cancelMutation.isPending}
+                >
+                  Cancel Battle
+                </Button>
               </>
             )}
           </div>
@@ -252,11 +252,11 @@ export default function ActiveSession({
                   <ScenarioEntryPicker
                     key={part.key}
                     label={part.label}
-                    entries={scenarioTables.find((t) => t.table_type === part.tableType && !t.gang_type_id)?.entries ?? []}
+                    entries={coreScenarioTable(scenarioTables, part.tableType)?.entries ?? []}
                     value={session[part.key] ?? ''}
                     onChange={(entryId) => scenarioPartMutation.mutate({ key: part.key, entryId })}
                     placeholder={part.placeholder}
-                    disabled={scenarioPartMutation.isPending}
+                    disabled={!canManage || scenarioPartMutation.isPending}
                   />
                 ))}
               </div>

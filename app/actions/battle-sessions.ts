@@ -6,13 +6,14 @@ import { getAuthenticatedUser } from '@/utils/auth';
 
 import { after } from 'next/server';
 import { updateGang } from '@/app/actions/update-gang';
-import type {
-  BattleSessionFull,
-  SessionCondition,
-  SessionInjuryRecord,
-  SessionRecord,
+import {
+  sessionScenarioLabel,
+  type BattleSessionFull,
+  type SessionCondition,
+  type SessionInjuryRecord,
+  type SessionRecord,
 } from '@/types/battle-session';
-import { fetchBattleSessionDirect } from '@/app/lib/battle-sessions/get-battle-session-data';
+import { fetchBattleSessionDirect, SESSION_SCENARIO_PARTS_SELECT } from '@/app/lib/battle-sessions/get-battle-session-data';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
 import { editionsConflict, gangEditionJoin, gangEditionSlug } from '@/types/edition';
 import { SCENARIO_PARTS, type BattleParticipant } from '@/types/campaign';
@@ -380,14 +381,22 @@ export async function cancelBattleSession(
 async function updateSessionAsManager(
   sessionId: string,
   updateFields: Record<string, unknown>,
-  options?: { requireStatus?: string; statusError?: string }
+  options?: {
+    requireStatus?: string;
+    statusError?: string;
+    /** Runs once the caller may manage the session; returns an error to refuse the update. */
+    check?: (
+      supabase: Awaited<ReturnType<typeof createClient>>,
+      session: { edition_id: string | null }
+    ) => Promise<string | undefined>;
+  }
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient();
   const user = await getAuthenticatedUser(supabase);
 
   const { data: session } = await supabase
     .from('battle_sessions')
-    .select('created_by, campaign_id, status')
+    .select('created_by, campaign_id, status, edition_id')
     .eq('id', sessionId)
     .single();
 
@@ -396,6 +405,8 @@ async function updateSessionAsManager(
     return { success: false, error: 'Only the session creator or an arbitrator can perform this action' };
   if (options?.requireStatus && session.status !== options.requireStatus)
     return { success: false, error: options.statusError || 'Invalid session status' };
+  const checkError = await options?.check?.(supabase, session);
+  if (checkError) return { success: false, error: checkError };
 
   const { error } = await supabase
     .from('battle_sessions')
@@ -420,26 +431,23 @@ export async function setSessionScenario(
   }
 }
 
-/** N26: sets any of the session's Deployment, Objective and Crew; null clears one. */
+/** N26: sets any of the session's Deployment, Objective and Crew before the battle; null clears one. */
 export async function setSessionScenarioParts(
   sessionId: string,
   parts: ScenarioParts
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createClient();
-    const { data: session } = await supabase
-      .from('battle_sessions')
-      .select('edition_id')
-      .eq('id', sessionId)
-      .single();
-    if (!session) return { success: false, error: 'Session not found' };
-
-    const check = await checkScenarioParts(supabase, async () => session.edition_id, parts, []);
-    if ('error' in check) return { success: false, error: check.error };
-
     return await updateSessionAsManager(
       sessionId,
-      Object.fromEntries(SCENARIO_PARTS.filter(({ key }) => parts[key] !== undefined).map(({ key }) => [key, parts[key]]))
+      Object.fromEntries(SCENARIO_PARTS.filter(({ key }) => parts[key] !== undefined).map(({ key }) => [key, parts[key]])),
+      {
+        requireStatus: 'pre_battle',
+        statusError: 'The scenario can only be changed during pre-battle',
+        check: async (supabase, session) => {
+          const result = await checkScenarioParts(supabase, async () => session.edition_id, parts, []);
+          return 'error' in result ? result.error : undefined;
+        },
+      }
     );
   } catch (err) {
     console.error('Error setting scenario parts:', err);
@@ -1517,7 +1525,7 @@ export async function completeBattleSession(
       supabase
         .from('battle_sessions')
         .select(`
-          status, campaign_id, scenario, deployment_id, objective_id, crew_selection_id, edition_id,
+          status, campaign_id, scenario, deployment_id, objective_id, crew_selection_id, ${SESSION_SCENARIO_PARTS_SELECT},
           winner_gang_id, created_at, campaign_battle_id,
           challenge:campaign_battle_id (
             scenario, deployment_id, objective_id, crew_selection_id, winner_id, note, participants,
@@ -1575,12 +1583,10 @@ export async function completeBattleSession(
     if (challenge?.status === 'played')
       return { success: false, error: 'This challenge has already been filed as played' };
 
-    // N26: a session started before it had scenario parts keeps its challenge's.
-    const scenarioParts = Object.fromEntries(
-      SCENARIO_PARTS.map(({ key }) => [key, session[key] ?? challenge?.[key] ?? null])
-    ) as Required<ScenarioParts>;
-    const partsCheck = await checkScenarioParts(supabase, async () => session.edition_id, scenarioParts, []);
-    const scenarioLabel = ('label' in partsCheck && partsCheck.label) || session.scenario || '';
+    // N26: what the session rolled, checked as it was set.
+    const scenarioParts = Object.fromEntries(SCENARIO_PARTS.map(({ key }) => [key, session[key] ?? null]));
+    // The name embeds are to-one, though typed as lists.
+    const scenarioLabel = sessionScenarioLabel(session as any);
 
     let campaign_battle_id: string | undefined = session.campaign_battle_id ?? undefined;
     let dispossessedGangId: string | null = null;

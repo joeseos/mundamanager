@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import UserSearchBar, { type UserSearchResult } from '@/components/shared/user-search-bar';
 import { ScenarioEntryPicker } from '@/components/scenario-entry-picker';
 import {
+  coreScenarioTable,
   SCENARIO_PARTS,
   type Scenario,
   type ScenarioPartKey,
@@ -150,10 +151,7 @@ export default function CreateBattleModal({
     if (b.scenario_number === null) return -1;
     return a.scenario_number - b.scenario_number;
   });
-  const coreTableEntries = (tableType: string) =>
-    (battleData?.scenarioTables ?? []).find(
-      (table) => table.edition_slug === editionSlug && table.table_type === tableType && !table.gang_type_id
-    )?.entries ?? [];
+  const editionScenarioTables = (battleData?.scenarioTables ?? []).filter((table) => table.edition_slug === editionSlug);
 
   // Own gangs stay selectable — a user can own both sides of a battle.
   const opponentCampaignGangs = (campaignGangs ?? [])
@@ -473,7 +471,7 @@ export default function CreateBattleModal({
               <ScenarioEntryPicker
                 key={part.key}
                 label={part.label}
-                entries={coreTableEntries(part.tableType)}
+                entries={coreScenarioTable(editionScenarioTables, part.tableType)?.entries ?? []}
                 value={scenarioParts[part.key]}
                 onChange={(entryId) => setScenarioParts((current) => ({ ...current, [part.key]: entryId }))}
                 placeholder={part.placeholder}
