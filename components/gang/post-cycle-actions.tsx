@@ -5,8 +5,11 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
+import Modal from '@/components/ui/modal';
+import TacticsCardPicker from '@/components/gang/tactics-card-picker';
 import { FighterProps } from '@/types/fighter';
 import type { FighterEffect } from '@/types/fighter-effect';
+import type { GangTacticsCard, TacticsCard } from '@/types/tactics-card';
 import { UserPermissions } from '@/types/user-permissions';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
@@ -40,9 +43,12 @@ interface PostCycleActionsProps {
   gangType?: string | null;
   isCustomGangType: boolean;
   gangSubtypes: Array<{ id: string; subtype: string }>;
+  /** What the gang already holds, which Develop Tactics cannot pick again. */
+  tacticsCards: GangTacticsCard[];
   userPermissions?: UserPermissions;
   onFighterUpdate?: (fighter: FighterProps, skipRatingUpdate?: boolean) => void;
   onGangFinancialsUpdate?: (financials: { credits: number; rating: number; wealth: number }) => void;
+  onTacticsCardAdded?: (card: GangTacticsCard) => void;
 }
 
 /** A row may be half-filled, so it is not yet a PostCycleAssignment. */
@@ -50,11 +56,13 @@ interface RowState {
   action: PostCycleActionId;
   targetFighterId?: string;
   injuryIds: string[];
+  /** Develop Tactics; the name is only for showing the pick. */
+  tacticsCard?: Pick<TacticsCard, 'id' | 'name'>;
 }
 
 /** Null while the row still lacks a pick its action needs. */
 function toAssignment(fighterId: string, row: RowState): PostCycleAssignment | null {
-  const { action, targetFighterId, injuryIds } = row;
+  const { action, targetFighterId, injuryIds, tacticsCard } = row;
   switch (action) {
     case 'medical_escort':
       return targetFighterId ? { fighterId, action, targetFighterId } : null;
@@ -62,6 +70,8 @@ function toAssignment(fighterId: string, row: RowState): PostCycleAssignment | n
       return targetFighterId && injuryIds.length > 0
         ? { fighterId, action, targetFighterId, injuryIds }
         : null;
+    case 'develop_tactics':
+      return tacticsCard ? { fighterId, action, tacticsCardId: tacticsCard.id } : null;
     default:
       return { fighterId, action };
   }
@@ -142,15 +152,20 @@ export default function PostCycleActions({
   gangType,
   isCustomGangType,
   gangSubtypes,
+  tacticsCards,
   userPermissions,
   onFighterUpdate,
   onGangFinancialsUpdate,
+  onTacticsCardAdded,
 }: PostCycleActionsProps) {
   /** The actions picked so far; nothing is applied until Confirm. */
   const [rows, setRows] = useState<Record<string, RowState>>({});
   const [applying, setApplying] = useState(false);
   /** Why an action failed on the last Confirm, keyed by the fighter taking it. */
   const [failures, setFailures] = useState<Record<string, string>>({});
+  /** The fighter whose Gang Tactic is being picked, and the pick so far. */
+  const [tacticsPickerFor, setTacticsPickerFor] = useState<string | null>(null);
+  const [tacticsPick, setTacticsPick] = useState<RowState['tacticsCard'] | null>(null);
 
   const canEdit = userPermissions?.canEdit ?? false;
   const availability = useMemo(
@@ -164,6 +179,10 @@ export default function PostCycleActions({
     [editionSlug, gangType, isCustomGangType, gangSubtypes]
   );
   const fighterById = useMemo(() => new Map(fighters.map((f) => [f.id, f])), [fighters]);
+  const ownedTacticsCardIds = useMemo(
+    () => new Set(tacticsCards.map((card) => card.tactics_cards_id)),
+    [tacticsCards]
+  );
 
   const actors = useMemo(
     () =>
@@ -203,6 +222,7 @@ export default function PostCycleActions({
       { assignment: PostCycleAssignment | null; issues: string[]; cost: number }
     >();
     const patientsTaken = new Set<string>();
+    const tacticsTaken = new Set<string>();
 
     for (const [fighterId, row] of activeRows) {
       const assignment = toAssignment(fighterId, row);
@@ -219,6 +239,15 @@ export default function PostCycleActions({
         else if (patientsTaken.has(patientId)) issues.push(`${name} is already being taken to the Doc.`);
         patientsTaken.add(patientId);
       }
+      // Two fighters developing the same card would add it once.
+      if (assignment?.action === 'develop_tactics') {
+        if (ownedTacticsCardIds.has(assignment.tacticsCardId)) {
+          issues.push(`The gang already holds ${row.tacticsCard?.name ?? 'that Gang Tactic'}.`);
+        } else if (tacticsTaken.has(assignment.tacticsCardId)) {
+          issues.push(`${row.tacticsCard?.name ?? 'That Gang Tactic'} is already being developed.`);
+        }
+        tacticsTaken.add(assignment.tacticsCardId);
+      }
       states.set(fighterId, {
         assignment,
         issues,
@@ -226,7 +255,7 @@ export default function PostCycleActions({
       });
     }
     return states;
-  }, [activeRows, fighters, availability, fighterById]);
+  }, [activeRows, fighters, availability, fighterById, ownedTacticsCardIds]);
 
   const pendingStates = [...rowStates.values()];
   const totalSpend = pendingStates.reduce((sum, s) => sum + Math.max(s.cost, 0), 0);
@@ -286,6 +315,26 @@ export default function PostCycleActions({
     }
   };
 
+  /** Cards other rows have picked, labelled for the picker. */
+  const tacticsReservedFor = (fighterId: string) =>
+    new Map(
+      [...activeRows].flatMap(([otherId, row]) =>
+        otherId !== fighterId && row.tacticsCard
+          ? [
+              [
+                row.tacticsCard.id,
+                `Picked for ${fighterById.get(otherId)?.fighter_name ?? 'another fighter'}`,
+              ] as const,
+            ]
+          : []
+      )
+    );
+
+  const openTacticsPicker = (fighterId: string) => {
+    setTacticsPick(rows[fighterId]?.tacticsCard ?? null);
+    setTacticsPickerFor(fighterId);
+  };
+
   const patientOptions = (performerId: string, candidates: FighterProps[]) =>
     candidates
       .filter((f) => f.id !== performerId)
@@ -309,6 +358,7 @@ export default function PostCycleActions({
   const effectOf = (assignment: PostCycleAssignment | null) => {
     if (!assignment) return null;
     if (assignment.action === 'train') return `+${TRAIN_XP} XP`;
+    if (assignment.action === 'develop_tactics') return rows[assignment.fighterId]?.tacticsCard?.name ?? null;
     const delta = assignmentCreditsDelta(assignment);
     return delta === 0 ? null : `${delta > 0 ? '+' : ''}${delta} credits`;
   };
@@ -340,6 +390,7 @@ export default function PostCycleActions({
           if (current) onFighterUpdate?.(applyChange(current, change), true);
         }
         if (result.gang) onGangFinancialsUpdate?.(result.gang);
+        if (result.outcome?.addedTacticsCard) onTacticsCardAdded?.(result.outcome.addedTacticsCard);
 
         if (!result.success) {
           failed++;
@@ -479,6 +530,19 @@ export default function PostCycleActions({
                     </>
                   )}
 
+                  {row?.action === 'develop_tactics' && (
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start font-normal"
+                      onClick={() => openTacticsPicker(fighter.id)}
+                      disabled={!canEdit || applying}
+                    >
+                      <span className={`truncate ${row.tacticsCard ? '' : 'text-muted-foreground'}`}>
+                        {row.tacticsCard?.name ?? 'Choose a Gang Tactic'}
+                      </span>
+                    </Button>
+                  )}
+
                   {[...rowIssues, ...(failure ? [failure] : [])].map((message) => (
                     <p key={message} className="text-xs text-red-600">
                       {message}
@@ -506,6 +570,34 @@ export default function PostCycleActions({
               : `Apply ${pendingStates.length} Post-cycle Action${pendingStates.length === 1 ? '' : 's'}`}
           </Button>
         </div>
+      )}
+
+      {tacticsPickerFor && (
+        <Modal
+          title="Develop Tactics"
+          helper={`Pick the Gang Tactic ${fighterById.get(tacticsPickerFor)?.fighter_name ?? 'this fighter'} develops. It is added when the Post-cycle Actions are applied.`}
+          content={
+            <TacticsCardPicker
+              gangId={gangId}
+              ownedCardIds={ownedTacticsCardIds}
+              reservedCardIds={tacticsReservedFor(tacticsPickerFor)}
+              selectedCardIds={new Set(tacticsPick ? [tacticsPick.id] : [])}
+              onSelectionChange={(_ids, cards) => setTacticsPick(cards[0] ?? null)}
+              single
+            />
+          }
+          onClose={() => setTacticsPickerFor(null)}
+          onConfirm={() => {
+            if (tacticsPick) {
+              setRow(tacticsPickerFor, {
+                tacticsCard: { id: tacticsPick.id, name: tacticsPick.name },
+              });
+            }
+          }}
+          confirmText="Choose"
+          confirmDisabled={!tacticsPick}
+          width="lg"
+        />
       )}
     </div>
   );

@@ -100,7 +100,7 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   develop_tactics: {
     id: 'develop_tactics',
     label: 'Develop Tactics',
-    summary: 'Logged only',
+    summary: 'Add a Gang Tactic',
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
     requires: 'tacticsCardsAvailable',
   },
@@ -298,7 +298,12 @@ export const hasCriticalInjury = (fighter: PostCycleFighter): boolean =>
 export type PostCycleAssignment =
   | { fighterId: string; action: 'medical_escort'; targetFighterId: string }
   | { fighterId: string; action: 'fit_bionics'; targetFighterId: string; injuryIds: string[] }
-  | { fighterId: string; action: Exclude<PostCycleActionId, 'medical_escort' | 'fit_bionics'> };
+  /** A tactics_cards id; the server checks it is one of the gang's packs. */
+  | { fighterId: string; action: 'develop_tactics'; tacticsCardId: string }
+  | {
+      fighterId: string;
+      action: Exclude<PostCycleActionId, 'medical_escort' | 'fit_bionics' | 'develop_tactics'>;
+    };
 
 /** The fighter taken to the Doc, for the two actions that have one. */
 export const patientOf = (assignment: PostCycleAssignment): string | null =>
@@ -349,6 +354,12 @@ export function validatePostCycleAssignment(
       }
       break;
     }
+
+    case 'develop_tactics':
+      if (!assignment.tacticsCardId) {
+        issues.push(`Choose the Gang Tactic ${label} develops.`);
+      }
+      break;
 
     case 'suit_evolution':
       if ((performer.kill_count ?? 0) < SUIT_EVOLUTION_KILL_COST) {

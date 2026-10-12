@@ -7,8 +7,10 @@ import { getEditionIdBySlug } from '@/utils/editions';
 import { getGangCore, getGangFightersList, getGangSubtypes } from '@/app/lib/shared/gang-data';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import type { FighterEffect } from '@/types/fighter-effect';
+import type { GangTacticsCard } from '@/types/tactics-card';
 import { addFighterInjury, deleteFighterInjury } from './fighter-injury';
 import { editFighterStatus, updateFighterXp } from './edit-fighter';
+import { addGangTacticsCards } from './gang-tactics-cards';
 import { logPostCycleAction } from './logs/gang-post-cycle-logs';
 import {
   FIT_BIONICS_COST_PER_INJURY,
@@ -54,6 +56,8 @@ export interface PostCycleActionOutcome {
   /** What actually moved, so a failed or partial action is not billed in full. */
   creditsDelta: number;
   changes?: PostCycleFighterChange[];
+  /** Develop Tactics: the gang_tactics_cards row it added, for the page to append. */
+  addedTacticsCard?: GangTacticsCard;
   failed?: boolean;
 }
 
@@ -77,6 +81,7 @@ type Fighter = Awaited<ReturnType<typeof getGangFightersList>>[number];
 
 interface HandlerContext {
   supabase: any;
+  gangId: string;
   editionSlug: string;
   performer: Fighter;
   /** Present for the two actions that act on someone else. */
@@ -277,6 +282,34 @@ async function handleTrain(ctx: HandlerContext): Promise<HandlerOutcome> {
   };
 }
 
+/** Adds the chosen card the same way the Gang Tactics list does, checks included. */
+async function handleDevelopTactics(
+  ctx: HandlerContext,
+  tacticsCardId: string
+): Promise<HandlerOutcome> {
+  const added = await addGangTacticsCards({
+    gangId: ctx.gangId,
+    tacticsCardIds: [tacticsCardId],
+  });
+  const card = added.data?.[0];
+
+  if (!added.success || !card) {
+    return {
+      outcome: added.success
+        ? 'The gang already holds that Gang Tactic. Nothing was added.'
+        : `Failed to add the Gang Tactic: ${added.error}`,
+      creditsDelta: 0,
+      failed: true,
+    };
+  }
+
+  return {
+    outcome: `Added ${card.name} to the gang's tactics.`,
+    creditsDelta: 0,
+    addedTacticsCard: card,
+  };
+}
+
 async function runHandler(
   ctx: HandlerContext,
   assignment: PostCycleAssignment
@@ -288,6 +321,8 @@ async function runHandler(
       return handleFitBionics(ctx, assignment.injuryIds);
     case 'train':
       return handleTrain(ctx);
+    case 'develop_tactics':
+      return handleDevelopTactics(ctx, assignment.tacticsCardId);
     // The rest move their flat credits, if any, and leave a log line; anything
     // else they do is applied elsewhere on the page or by hand.
     default:
@@ -363,7 +398,7 @@ export async function resolvePostCycleAction(
     }
 
     const handled = await runHandler(
-      { supabase, editionSlug, performer, target },
+      { supabase, gangId, editionSlug, performer, target },
       assignment
     );
 
