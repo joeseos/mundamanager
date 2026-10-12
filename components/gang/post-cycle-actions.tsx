@@ -5,7 +5,6 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
-import { GrCycle } from 'react-icons/gr';
 import { FighterProps } from '@/types/fighter';
 import type { FighterEffect } from '@/types/fighter-effect';
 import { UserPermissions } from '@/types/user-permissions';
@@ -375,8 +374,7 @@ export default function PostCycleActions({
 
   return (
     <div className="mt-8">
-      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-        <GrCycle className="h-5 w-5" />
+      <h3 className="text-lg font-semibold mb-4">
         Post-Cycle Actions
       </h3>
 
