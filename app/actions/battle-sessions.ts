@@ -271,7 +271,7 @@ export async function createBattleSession(params: {
     }
 
     // A challenge's side jobs were checked when it was saved.
-    const scenarioParts = await checkScenarioParts(supabase, async () => editionId, params, []);
+    const scenarioParts = await checkScenarioParts(supabase, async () => editionId, params, [], params.scenario);
     if ('error' in scenarioParts) return { success: false, error: scenarioParts.error };
 
     const { data, error } = await supabase
