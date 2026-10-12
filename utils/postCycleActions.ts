@@ -355,12 +355,6 @@ export function validatePostCycleAssignment(
       break;
     }
 
-    case 'develop_tactics':
-      if (!assignment.tacticsCardId) {
-        issues.push(`Choose the Gang Tactic ${label} develops.`);
-      }
-      break;
-
     case 'suit_evolution':
       if ((performer.kill_count ?? 0) < SUIT_EVOLUTION_KILL_COST) {
         issues.push(`${label} needs a Kill Count of at least ${SUIT_EVOLUTION_KILL_COST}.`);
