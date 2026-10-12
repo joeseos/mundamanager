@@ -243,10 +243,8 @@ export default function PostCycleActions({
       }
       // Two fighters developing the same card would add it once.
       if (assignment?.action === 'develop_tactics') {
-        if (ownedTacticsCardIds.has(assignment.tacticsCardId)) {
-          issues.push(`The gang already holds ${row.tacticsCard?.name ?? 'that Gang Tactic'}.`);
-        } else if (tacticsTaken.has(assignment.tacticsCardId)) {
-          issues.push(`${row.tacticsCard?.name ?? 'That Gang Tactic'} is already being developed.`);
+        if (tacticsTaken.has(assignment.tacticsCardId)) {
+          issues.push(`${row.tacticsCard?.name} is already being developed.`);
         }
         tacticsTaken.add(assignment.tacticsCardId);
       }
@@ -257,7 +255,7 @@ export default function PostCycleActions({
       });
     }
     return states;
-  }, [activeRows, fighters, availability, fighterById, ownedTacticsCardIds]);
+  }, [activeRows, fighters, availability, fighterById]);
 
   const pendingStates = [...rowStates.values()];
   const totalSpend = pendingStates.reduce((sum, s) => sum + Math.max(s.cost, 0), 0);
@@ -316,21 +314,6 @@ export default function PostCycleActions({
         return null;
     }
   };
-
-  /** Cards other rows have picked, labelled for the picker. */
-  const tacticsReservedFor = (fighterId: string) =>
-    new Map(
-      [...activeRows].flatMap(([otherId, row]) =>
-        otherId !== fighterId && row.tacticsCard
-          ? [
-              [
-                row.tacticsCard.id,
-                `Picked for ${fighterById.get(otherId)?.fighter_name ?? 'another fighter'}`,
-              ] as const,
-            ]
-          : []
-      )
-    );
 
   const openTacticsPicker = (fighterId: string) => {
     setTacticsPick(rows[fighterId]?.tacticsCard ?? null);
@@ -582,7 +565,6 @@ export default function PostCycleActions({
             <TacticsCardPicker
               gangId={gangId}
               ownedCardIds={ownedTacticsCardIds}
-              reservedCardIds={tacticsReservedFor(tacticsPickerFor)}
               selectedCardIds={new Set(tacticsPick ? [tacticsPick.id] : [])}
               onSelectionChange={(_ids, cards) => setTacticsPick(cards[0] ?? null)}
               single

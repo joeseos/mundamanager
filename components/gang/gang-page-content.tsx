@@ -424,10 +424,7 @@ export default function GangPageContent({
       ...prev,
       processedData: {
         ...prev.processedData,
-        tacticsCards: [
-          ...(prev.processedData.tacticsCards || []).filter(existing => existing.id !== card.id),
-          card
-        ]
+        tacticsCards: [...(prev.processedData.tacticsCards || []), card]
       }
     }));
   }, []);

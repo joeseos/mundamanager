@@ -12,8 +12,6 @@ interface TacticsCardPickerProps {
   gangId: string;
   /** Catalogue ids the gang already holds; shown ticked and locked. */
   ownedCardIds: Set<string>;
-  /** Catalogue ids the caller has set aside elsewhere; locked like owned ones. */
-  reservedCardIds?: Map<string, string>;
   selectedCardIds: Set<string>;
   /** Also hands back the picked cards, so a caller can show them by name. */
   onSelectionChange: (cardIds: Set<string>, cards: TacticsCard[]) => void;
@@ -28,7 +26,6 @@ interface TacticsCardPickerProps {
 export default function TacticsCardPicker({
   gangId,
   ownedCardIds,
-  reservedCardIds,
   selectedCardIds,
   onSelectionChange,
   single = false
@@ -57,8 +54,7 @@ export default function TacticsCardPicker({
   // Packs carry no dice column: a deck numbered only 1-6 is a D6 table.
   const isD6Pack = catalogue.length > 0 && catalogue.every(card => card.d66_max == null || card.d66_max <= 6);
 
-  const isLocked = (cardId: string) => ownedCardIds.has(cardId) || Boolean(reservedCardIds?.has(cardId));
-  const hasRollableCard = catalogue.some(card => card.d66_min != null && !isLocked(card.id));
+  const hasRollableCard = catalogue.some(card => card.d66_min != null && !ownedCardIds.has(card.id));
 
   const select = (cardIds: Set<string>) =>
     onSelectionChange(cardIds, catalogue.filter(card => cardIds.has(card.id)));
@@ -95,7 +91,7 @@ export default function TacticsCardPicker({
     for (let attempt = 0; attempt < 50; attempt++) {
       const card = cardForRoll(outcome.total);
       // No match is a gap in the catalogue's ranges — report it rather than loop past it.
-      if (!card || !isLocked(card.id)) return outcome;
+      if (!card || !ownedCardIds.has(card.id)) return outcome;
       outcome = rollPackDice();
     }
     return outcome;
@@ -175,30 +171,26 @@ export default function TacticsCardPicker({
         <div className="max-h-96 overflow-y-auto border border-border rounded-lg">
           {catalogue.map((card, index) => {
             const isOwned = ownedCardIds.has(card.id);
-            const reservedBy = isOwned ? undefined : reservedCardIds?.get(card.id);
-            const locked = isOwned || reservedBy !== undefined;
             return (
               <label
                 key={card.id}
                 htmlFor={`tactics-card-${card.id}`}
                 className={`flex items-center gap-3 px-3 py-[6px] ${
                   index !== catalogue.length - 1 ? 'border-b border-border' : ''
-                } ${locked ? 'opacity-50' : 'hover:bg-muted cursor-pointer'} transition-colors`}
+                } ${isOwned ? 'opacity-50' : 'hover:bg-muted cursor-pointer'} transition-colors`}
               >
                 <Checkbox
                   id={`tactics-card-${card.id}`}
-                  checked={locked || selectedCardIds.has(card.id)}
-                  disabled={locked}
+                  checked={isOwned || selectedCardIds.has(card.id)}
+                  disabled={isOwned}
                   onCheckedChange={() => toggleCard(card.id)}
                 />
                 <span className="tabular-nums text-sm text-muted-foreground w-12 shrink-0">
                   {formatD66Range(card.d66_min, card.d66_max)}
                 </span>
                 <span className="text-sm font-medium text-foreground">{card.name}</span>
-                {locked && (
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {isOwned ? 'Already added' : reservedBy}
-                  </span>
+                {isOwned && (
+                  <span className="ml-auto text-xs text-muted-foreground">Already added</span>
                 )}
               </label>
             );
