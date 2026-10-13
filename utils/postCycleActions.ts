@@ -114,7 +114,7 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
     label: 'Medical Escort',
     summary: `${MEDICAL_ESCORT_COST} credits + D6`,
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
-    credits: -MEDICAL_ESCORT_COST,
+    // No flat credits: medicalEscortCost prices it, Doc discount included.
   },
   fit_bionics: {
     id: 'fit_bionics',
@@ -314,7 +314,7 @@ export function canPerformPostCycleAction(
   const { performer, openToSpyrers, requires } = POST_CYCLE_ACTIONS[actionId];
   if (requires && !availability[requires]) return false;
   if (!openToSpyrers && hasSubtype(fighter, SPYRER)) return false;
-  if (postCycleDiscount(fighter, actionId) > 0) return true;
+  if (postCycleDiscount(fighter, actionId) > 0) return !fighter.is_vehicle;
 
   switch (performer.kind) {
     case 'any':
