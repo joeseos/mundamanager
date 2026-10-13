@@ -389,33 +389,19 @@ export const getGangType = async (gangBasic: GangBasic, supabase: any): Promise<
     async () => {
       const { data, error } = await supabase
         .from('gang_types')
-        .select('id, gang_type, parent_gang_type_id')
+        .select('id, gang_type, parent_gang_type_name')
         .eq('id', gangBasic.gang_type_id)
         .single();
 
       if (error) throw error;
 
-      // Not an embed: PostgREST resolves gang_types -> gang_types to the child
-      // rows (O2M) and rejects every hint that would pick the parent side.
-      let parentGangTypeName: string | null = null;
-      if (data.parent_gang_type_id) {
-        const { data: parent, error: parentError } = await supabase
-          .from('gang_types')
-          .select('gang_type')
-          .eq('id', data.parent_gang_type_id)
-          .maybeSingle();
-
-        if (parentError) throw parentError;
-        parentGangTypeName = parent?.gang_type ?? null;
-      }
-
       return {
         id: data.id,
         gang_type: data.gang_type,
-        parent_gang_type_name: parentGangTypeName,
+        parent_gang_type_name: data.parent_gang_type_name ?? null,
       };
     },
-    [`gang-type-v4-${gangBasic.gang_type_id}`],
+    [`gang-type-v5-${gangBasic.gang_type_id}`],
     {
       tags: [TAGS.globalGangTypes()],
       revalidate: 3600

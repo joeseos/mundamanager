@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { NextRequest } from 'next/server'
 import { getUserCustomCollections } from '@/app/lib/customise/custom-collections'
 import { editionSlugFromJoin, gangEditionSlug, withEditionSlug } from '@/types/edition'
+import { joinedParentGangTypeName } from '@/utils/gang-type-label'
 import type { UserCampaign } from '@/types/campaign'
 
 export async function GET(
@@ -41,7 +42,7 @@ export async function GET(
         reputation,
         rating,
         created_at,
-        gang_types!gang_type_id ( editions:edition_id ( slug ) ),
+        gang_types!gang_type_id ( parent_gang_type_name, editions:edition_id ( slug ) ),
         custom_gang_type:custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
       `)
       .eq('user_id', userId)
@@ -325,6 +326,7 @@ export async function GET(
       // out of the row so the public shape stays flat.
       gangs: (gangs || []).map(({ gang_types, custom_gang_type, ...gang }: any) => ({
         ...gang,
+        parent_gang_type_name: joinedParentGangTypeName(gang_types),
         edition_slug: gangEditionSlug({ gang_types, custom_gang_type }),
       })),
       campaigns: dedupedCampaigns,

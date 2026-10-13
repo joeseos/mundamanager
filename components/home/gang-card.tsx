@@ -10,6 +10,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { FiStar } from 'react-icons/fi'
 import { AiFillStar } from 'react-icons/ai'
 import { dragSurfaceProps } from '@/hooks/use-dnd-sensors'
+import { compactGangTypeLabel } from '@/utils/gang-type-label'
 
 export interface GangCardProps {
   gang: Gang;
@@ -63,7 +64,7 @@ export function GangCardContent({ gang, onToggleFavourite, dragListeners, dragAt
         <h3 className="text-lg md:text-xl font-medium text-foreground truncate">{gang.name}</h3>
         <div className="text-sm md:text-base text-muted-foreground">
           <span className="truncate block">
-            {gang.gang_type}
+            {compactGangTypeLabel(gang.gang_type, gang.parent_gang_type_name)}
             {gang.gang_subtypes && gang.gang_subtypes.length > 0
               ? ` (${gang.gang_subtypes.map(v => v.subtype).join(', ')})`
               : ''}

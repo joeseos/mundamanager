@@ -11,6 +11,7 @@ import { fetchAllRows } from '@/utils/supabase/fetch-all-rows';
 import { sumFighterKills } from '@/app/lib/shared/gang-data';
 import { groupBy } from '@/utils/gang-assembly';
 import { editionSlugFromJoin } from '@/types/edition';
+import { joinedParentGangTypeName } from '@/utils/gang-type-label';
 import type { CampaignMapRow, CampaignMapObjectRow, CampaignMapBundle } from '@/types/campaign';
 
 // No TTL - infinite cache with server action invalidation only
@@ -139,7 +140,8 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
         reputation,
         rating,
         wealth,
-        credits
+        credits,
+        gang_types!gang_type_id ( parent_gang_type_name )
       `)
       .in('id', gangIds);
 
@@ -320,6 +322,7 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
         name: gangDetails?.name || '',
         gang_type: gangDetails?.gang_type || '',
         gang_type_id: gangDetails?.gang_type_id ?? null,
+        parent_gang_type_name: joinedParentGangTypeName(gangDetails?.gang_types),
         gang_colour: gangDetails?.gang_colour || '#000000',
         rating: gangDetails?.rating || 0,
         wealth: gangDetails?.wealth || 0,
@@ -378,7 +381,8 @@ async function _getCampaignTerritories(campaignId: string, supabase: SupabaseCli
         id,
         name,
         gang_type,
-        gang_colour
+        gang_colour,
+        gang_types!gang_type_id ( parent_gang_type_name )
       `)
       .in('id', territoryGangIds);
 
@@ -433,6 +437,7 @@ async function _getCampaignTerritories(campaignId: string, supabase: SupabaseCli
         id: gangDetails.id,
         name: gangDetails.name,
         gang_type: gangDetails.gang_type || '',
+        parent_gang_type_name: joinedParentGangTypeName(gangDetails.gang_types),
         gang_colour: gangDetails.gang_colour || '#000000'
       }] : []
     };
@@ -655,6 +660,7 @@ export const getCampaignMembers = async (campaignId: string) => {
     TAGS.campaignTerritories(campaignId),
     TAGS.campaignAllegiances(campaignId),
     TAGS.campaignResources(campaignId),
+    TAGS.globalGangTypes(),
     // Per-gang overview tags: standings refresh when a member gang's
     // rating/wealth/credits/name actually change (fired by the
     // updateGangFinancials choke point), NOT on every fighter edit —
@@ -666,7 +672,7 @@ export const getCampaignMembers = async (campaignId: string) => {
     async () => {
       return _getCampaignMembers(campaignId, createServiceRoleClient());
     },
-    [`campaign-members-v3-${campaignId}`],
+    [`campaign-members-v4-${campaignId}`],
     {
       tags: cacheTags,
       revalidate: false
@@ -687,10 +693,11 @@ export const getCampaignTerritories = async (campaignId: string) => {
     async () => {
       return _getCampaignTerritories(campaignId, createServiceRoleClient());
     },
-    [`campaign-territories-v2-${campaignId}`],
+    [`campaign-territories-v3-${campaignId}`],
     {
       tags: [
         TAGS.campaignTerritories(campaignId),
+        TAGS.globalGangTypes(),
         ...gangIds.map(gangId => TAGS.gangOverview(gangId))
       ],
       revalidate: false

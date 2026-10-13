@@ -44,6 +44,7 @@ interface Gang {
   id: string;
   name: string;
   gang_type: string;
+  parent_gang_type_name?: string | null;
   gang_colour: string;
 }
 
@@ -65,6 +66,7 @@ interface Member {
     id: string;
     name: string;
     gang_type: string;
+    parent_gang_type_name?: string | null;
     gang_colour: string;
     status: string | null;
     rating?: number;
