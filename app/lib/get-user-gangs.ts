@@ -3,6 +3,7 @@ import { unstable_cache } from 'next/cache';
 
 import { gangPortraitPublicUrl, joinedPortraitStoragePath } from '@/types/gang';
 import { gangEditionSlug } from '@/types/edition';
+import { joinedParentGangTypeName } from '@/utils/gang-type-label';
 
 export type Gang = {
   id: string;
@@ -22,6 +23,8 @@ export type Gang = {
   favourite_order: number | null;
   /** Derived from official or custom gang type; null treated as n23 by home filters. */
   edition_slug: string | null;
+  /** House of an alternate gang list. Null for root and custom gangs. */
+  parent_gang_type_name?: string | null;
 };
 
 /**
@@ -73,6 +76,7 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
             is_favourite,
             favourite_order,
             gang_types!gang_type_id(
+              parent_gang_type_name,
               editions:edition_id (slug)
             ),
             custom_gang_types!custom_gang_type_id(
@@ -148,6 +152,7 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
           is_favourite: gang.is_favourite ?? false,
           favourite_order: gang.favourite_order ?? null,
           edition_slug: gangEditionSlug(gang),
+          parent_gang_type_name: joinedParentGangTypeName(gang.gang_types),
         }));
       } catch (error) {
         console.error('Unexpected error in getUserGangs:', error);
@@ -160,7 +165,7 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
         throw error;
       }
     },
-    [`user-gangs-v8-${userId}`],
+    [`user-gangs-v9-${userId}`],
     {
       tags: [
         // List shape (create/delete/copy gang, favourites)

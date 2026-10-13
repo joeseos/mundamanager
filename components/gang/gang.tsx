@@ -29,6 +29,7 @@ import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { hasAlignment, hasTradePoints, hasVehicles } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
+import { detailGangTypeLabel } from '@/utils/gang-type-label';
 
 const GangEditModal = dynamic(() => import('./gang-edit-modal'), { ssr: false });
 const FighterAddModal = dynamic(() => import('./fighter-add/FighterAddModal'), { ssr: false });
@@ -1114,7 +1115,7 @@ export default function Gang({
 
                     {/* Gang Type */}
                     <div className="flex items-center gap-1">
-                      Type: <Badge variant="secondary">{gang_type}</Badge>
+                      Type: <Badge variant="secondary">{detailGangTypeLabel(gang_type, parent_gang_type_name)}</Badge>
                     </div>
 
                     {/* Gang Origin, ie. Prefecture, Path of Faith */}

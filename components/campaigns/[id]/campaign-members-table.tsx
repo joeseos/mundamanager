@@ -18,6 +18,7 @@ import { updateGangAllegiance } from "@/app/actions/campaigns/[id]/campaign-alle
 import { LuTrash2, LuPencil } from 'react-icons/lu'
 import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md"
 import { HiUser } from "react-icons/hi2";
+import { compactGangTypeLabel, joinedParentGangTypeName } from "@/utils/gang-type-label";
 import { gangEditionSlug, sameEditionForDisplay } from '@/types/edition';
 
 type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
@@ -50,6 +51,7 @@ interface Member {
     id: string;              // gang's actual UUID
     name: string;
     gang_type: string;
+    parent_gang_type_name?: string | null;
     gang_colour: string;
     rating?: number;
     wealth?: number;
@@ -69,6 +71,7 @@ interface Gang {
   id: string;
   name: string;
   gang_type: string;
+  parent_gang_type_name?: string | null;
   gang_colour: string | null;
   rating?: number;
   wealth?: number;
@@ -86,7 +89,7 @@ type GangWithCampaignCheck = {
   wealth?: number;
   reputation?: number;
   campaign_gangs?: Array<{ gang_id: string }>;
-  gang_types?: { editions?: { slug: string } | null } | null;
+  gang_types?: { parent_gang_type_name?: string | null; editions?: { slug: string } | null } | null;
   custom_gang_types?: { editions?: { slug: string } | null } | null;
 }
 
@@ -230,8 +233,8 @@ export default function MembersTable({
           bValue = b.gangs[0]?.name || '';
           break;
         case 'type':
-          aValue = a.gangs[0]?.gang_type || '';
-          bValue = b.gangs[0]?.gang_type || '';
+          aValue = compactGangTypeLabel(a.gangs[0]?.gang_type, a.gangs[0]?.parent_gang_type_name);
+          bValue = compactGangTypeLabel(b.gangs[0]?.gang_type, b.gangs[0]?.parent_gang_type_name);
           break;
         case 'player':
           aValue = a.profile.username || '';
@@ -312,6 +315,7 @@ export default function MembersTable({
           reputation,
           campaign_gangs(gang_id),
           gang_types!gang_type_id (
+            parent_gang_type_name,
             editions:edition_id (slug)
           ),
           custom_gang_types!custom_gang_type_id (
@@ -336,6 +340,7 @@ export default function MembersTable({
           return {
             ...gangData,
             gang_type,
+            parent_gang_type_name: joinedParentGangTypeName(gang_types),
             gang_colour,
             edition_slug,
             isInCampaign
@@ -398,6 +403,7 @@ export default function MembersTable({
         id: variables.gangId,
         name: gangData.name,
         gang_type: gangData.gang_type,
+        parent_gang_type_name: gangData.parent_gang_type_name ?? null,
         gang_colour: gangData.gang_colour || '#000000',
         status: isOwnGang ? 'ACCEPTED' : 'PENDING',
         rating: gangData.rating || 0,
@@ -653,7 +659,7 @@ export default function MembersTable({
             <div className="flex items-center justify-between">
               <div>
                 <p className={`font-medium ${gang.isInCampaign ? 'text-muted-foreground' : ''}`}>{gang.name}</p>
-                <p className="text-sm text-muted-foreground">{gang.gang_type || "-"}</p>
+                <p className="text-sm text-muted-foreground">{compactGangTypeLabel(gang.gang_type, gang.parent_gang_type_name) || "-"}</p>
               </div>
               <div className="w-20 flex-none text-right">
               {gang.isInCampaign && (
@@ -1042,7 +1048,7 @@ export default function MembersTable({
                 {/* Gang Type column */}
                 <td className="px-2 py-2">
                   <span className="text-muted-foreground">
-                    {member.gangs[0]?.gang_type || "-"}
+                    {compactGangTypeLabel(member.gangs[0]?.gang_type, member.gangs[0]?.parent_gang_type_name) || "-"}
                   </span>
                 </td>
                 {/* Player column */}

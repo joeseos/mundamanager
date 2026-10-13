@@ -872,9 +872,9 @@ BEGIN
   FROM public.custom_weapon_profiles wp WHERE wp.custom_equipment_id = ANY(v_eq);
 
   INSERT INTO public.custom_gang_types (id, created_at, user_id, gang_type, alignment, trading_post_type_id,
-                                        default_image_urls, description, edition_id)
+                                        description, edition_id)
   SELECT (v_map_gt ->> gt.id::text)::uuid, now(), v_user, gt.gang_type, gt.alignment, gt.trading_post_type_id,
-         gt.default_image_urls, gt.description, gt.edition_id
+         gt.description, gt.edition_id
   FROM public.custom_gang_types gt WHERE gt.id = ANY(v_gt);
 
   INSERT INTO public.custom_fighter_types (id, created_at, user_id, fighter_type, gang_type, cost, movement,
@@ -3280,7 +3280,7 @@ $$;
 -- Name: get_gang_details(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_gang_details(p_gang_id uuid) RETURNS TABLE(id uuid, name text, gang_type text, gang_type_id uuid, gang_type_image_url text, gang_colour text, credits numeric, reputation numeric, rating numeric, alignment public.alignment, positioning jsonb, note text, stash json, created_at timestamp with time zone, last_updated timestamp with time zone, fighters json, campaigns json, vehicles json, alliance_id uuid, alliance_name text, alliance_type text, gang_subtypes json, edition_slug text)
+CREATE FUNCTION public.get_gang_details(p_gang_id uuid) RETURNS TABLE(id uuid, name text, gang_type text, gang_type_id uuid, gang_colour text, credits numeric, reputation numeric, rating numeric, alignment public.alignment, positioning jsonb, note text, stash json, created_at timestamp with time zone, last_updated timestamp with time zone, fighters json, campaigns json, vehicles json, alliance_id uuid, alliance_name text, alliance_type text, gang_subtypes json, edition_slug text)
     LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -4062,7 +4062,6 @@ BEGIN
        g.name,
        g.gang_type,
        g.gang_type_id,
-       gt.image_url as gang_type_image_url,
        g.gang_colour,
        g.credits,
        g.reputation,
@@ -5187,7 +5186,6 @@ CREATE TABLE public.custom_gang_types (
     gang_type text NOT NULL,
     alignment public.alignment,
     trading_post_type_id uuid,
-    default_image_urls jsonb DEFAULT '[{"url": "https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_gang_cropped_web.webp"}, {"url": "https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_cropped_web_foy9m7.avif", "credit": {"url": "https://www.ashenquarter.com/", "name": "Djidiouf", "suffix": "(AI-assisted)"}}]'::jsonb,
     description text,
     edition_id uuid NOT NULL
 );
@@ -6431,26 +6429,17 @@ CREATE TABLE public.gang_tactics_cards (
 CREATE TABLE public.gang_types (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     gang_type text,
-    image_url text,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     alignment public.alignment,
     is_hidden boolean DEFAULT false,
     trading_post_type_id uuid,
     affiliation boolean DEFAULT false,
     gang_origin_category_id uuid,
-    default_image_urls jsonb,
     edition_id uuid,
     parent_gang_type_id uuid,
     CONSTRAINT gang_types_parent_not_self_check CHECK ((parent_gang_type_id IS DISTINCT FROM id)),
     CONSTRAINT gang_types_parent_requires_edition_check CHECK (((parent_gang_type_id IS NULL) OR (edition_id IS NOT NULL)))
 );
-
-
---
--- Name: COLUMN gang_types.default_image_urls; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.gang_types.default_image_urls IS 'List of default image URLs';
 
 
 --
@@ -6487,7 +6476,6 @@ CREATE TABLE public.gangs (
     gang_origin_id uuid,
     wealth numeric,
     hidden boolean DEFAULT false,
-    default_gang_image numeric,
     is_favourite boolean DEFAULT false NOT NULL,
     favourite_order integer,
     custom_gang_type_id uuid,
@@ -6504,13 +6492,6 @@ CREATE TABLE public.gangs (
 --
 
 COMMENT ON COLUMN public.gangs.gang_subtypes IS 'JSONB array of gang_subtype_types.id values held by this gang. Formerly gangs.gang_variants.';
-
-
---
--- Name: COLUMN gangs.default_gang_image; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.gangs.default_gang_image IS 'Default Gang Image the user selected';
 
 
 --
@@ -9644,6 +9625,20 @@ CREATE INDEX idx_vehicles_gang_id ON public.vehicles USING btree (gang_id);
 
 
 --
+-- Name: notifications_created_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX notifications_created_at_idx ON public.notifications USING btree (created_at);
+
+
+--
+-- Name: notifications_expires_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX notifications_expires_at_idx ON public.notifications USING btree (expires_at);
+
+
+--
 -- Name: notifications_receiver_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9753,6 +9748,13 @@ CREATE INDEX trading_post_equipment_equipment_id_idx ON public.trading_post_equi
 --
 
 CREATE INDEX trading_post_types_edition_id_idx ON public.trading_post_types USING btree (edition_id);
+
+
+--
+-- Name: user_notification_preferences_notification_type_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX user_notification_preferences_notification_type_idx ON public.user_notification_preferences USING btree (notification_type);
 
 
 --

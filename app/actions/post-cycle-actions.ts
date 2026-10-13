@@ -8,18 +8,24 @@ import { getGangCore, getGangFightersList, getGangSubtypes } from '@/app/lib/sha
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import type { FighterEffect } from '@/types/fighter-effect';
 import type { GangTacticsCard } from '@/types/tactics-card';
-import { addFighterInjury, deleteFighterInjury } from './fighter-injury';
+import { addFighterInjury, clearRigGlitchesDowntime, deleteFighterInjury } from './fighter-injury';
 import { editFighterStatus, updateFighterXp } from './edit-fighter';
 import { addGangTacticsCards } from './gang-tactics-cards';
+import { repairVehicleDamage } from './remove-vehicle-damage';
 import { logPostCycleAction } from './logs/gang-post-cycle-logs';
 import {
+  CHOP_SHOP_COST_PER_DAMAGE,
   FIT_BIONICS_COST_PER_INJURY,
   MEDICAL_ESCORT_COST,
+  SUIT_MAINTENANCE_COST,
   TRAIN_XP,
   assignmentCreditsDelta,
   criticalInjuriesOf,
+  lastingDamagesOf,
   patientOf,
   postCycleAvailability,
+  rigGlitchNames,
+  rigGlitchesOf,
   validatePostCycleAssignment,
   type PostCycleAssignment,
 } from '@/utils/postCycleActions';
@@ -53,7 +59,11 @@ export interface PostCycleActionOutcome {
   /** What happened beyond the action's name, ending on the credits it moved. */
   outcome: string;
   roll?: RollOutcome;
-  /** What actually moved, so a failed or partial action is not billed in full. */
+  /**
+   * What is billed once the handler is done: what actually moved, so a failed or
+   * partial action is not billed in full. Zero for Visit Chop Shop and Suit
+   * Maintenance, whose helpers charge the gang themselves.
+   */
   creditsDelta: number;
   changes?: PostCycleFighterChange[];
   /** Develop Tactics: the gang_tactics_cards row it added, for the page to append. */
@@ -310,6 +320,74 @@ async function handleDevelopTactics(
   };
 }
 
+/**
+ * Repairs the chosen Lasting Damage the same way the vehicle's Repair Damage
+ * modal does. That action charges the gang itself, so nothing is billed after.
+ */
+async function handleVisitChopShop(
+  ctx: HandlerContext,
+  damageIds: string[]
+): Promise<HandlerOutcome> {
+  const vehicle = ctx.performer;
+  // Taken from the vehicle's own list, so a repeated id is repaired and billed once.
+  const damages = lastingDamagesOf(vehicle).filter((damage) => damageIds.includes(damage.id));
+  const repairedIds = damages.map((damage) => damage.id);
+  const repairCost = damages.length * CHOP_SHOP_COST_PER_DAMAGE;
+
+  const repaired = await repairVehicleDamage({
+    damageIds: repairedIds,
+    repairCost,
+    // An N26 vehicle is the fighter itself, with no vehicles row.
+    vehicleId: null,
+    fighterId: vehicle.id,
+    gangId: ctx.gangId,
+  });
+
+  if (!repaired.success) {
+    return {
+      outcome: `Failed to repair the Lasting Damage: ${repaired.error}`,
+      creditsDelta: 0,
+      failed: true,
+    };
+  }
+
+  return {
+    outcome: `Repaired ${damages.map((damage) => damage.effect_name).join(', ')}. Cost ${repairCost} credits.`,
+    creditsDelta: 0,
+    changes: [{ fighterId: vehicle.id, removedEffectIds: repairedIds }],
+  };
+}
+
+/**
+ * Clears every Rig Glitch the way the Post-Cycle option of the fighter page's
+ * Clear all does. That action charges the gang itself, so nothing is billed after.
+ */
+async function handleSuitMaintenance(ctx: HandlerContext): Promise<HandlerOutcome> {
+  const spyrer = ctx.performer;
+  const glitches = rigGlitchesOf(spyrer);
+  const glitchIds = glitches.map((glitch) => glitch.id);
+
+  const cleared = await clearRigGlitchesDowntime({
+    fighter_id: spyrer.id,
+    glitch_ids: glitchIds,
+    credit_cost: SUIT_MAINTENANCE_COST,
+  });
+
+  if (!cleared.success) {
+    return {
+      outcome: `Failed to clear the Rig Glitches: ${cleared.error}`,
+      creditsDelta: 0,
+      failed: true,
+    };
+  }
+
+  return {
+    outcome: `Cleared ${rigGlitchNames(glitches)}. Cost ${SUIT_MAINTENANCE_COST} credits.`,
+    creditsDelta: 0,
+    changes: [{ fighterId: spyrer.id, removedEffectIds: glitchIds }],
+  };
+}
+
 async function runHandler(
   ctx: HandlerContext,
   assignment: PostCycleAssignment
@@ -323,6 +401,10 @@ async function runHandler(
       return handleTrain(ctx);
     case 'develop_tactics':
       return handleDevelopTactics(ctx, assignment.tacticsCardId);
+    case 'visit_chop_shop':
+      return handleVisitChopShop(ctx, assignment.damageIds);
+    case 'suit_maintenance':
+      return handleSuitMaintenance(ctx);
     // The rest move their flat credits, if any, and leave a log line; anything
     // else they do is applied elsewhere on the page or by hand.
     default:

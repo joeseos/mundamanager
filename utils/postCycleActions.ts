@@ -5,6 +5,7 @@
 
 import type { FighterEffect } from '@/types/fighter-effect';
 import { hasGangTacticsCards } from '@/types/edition';
+import { CHOP_SHOP_COST_PER_DAMAGE } from '@/utils/dice';
 import { countsTowardRating } from '@/utils/fighter-status';
 
 export type PostCycleActionId =
@@ -36,6 +37,7 @@ type Performer =
 export interface PostCycleActionDefinition {
   id: PostCycleActionId;
   label: string;
+  /** Follows the label in the action picker, so it has to fit one line on a phone. */
   summary: string;
   performer: Performer;
   /** Spyrers get only the Spyre Hunters list's actions, not the standard ones. */
@@ -44,16 +46,19 @@ export interface PostCycleActionDefinition {
   maxFighters?: number;
   /** Offered only when the gang has this. */
   requires?: keyof PostCycleAvailability;
-  /** Flat credits it moves, negative for a spend. Fit Bionics is priced per injury. */
+  /** Flat credits it moves, negative for a spend. Fit Bionics and Visit Chop Shop price each injury or damage. */
   credits?: number;
 }
 
 export const MEDICAL_ESCORT_COST = 30;
 export const FIT_BIONICS_COST_PER_INJURY = 50;
+/** Set by the N26 vehicle repair model, so the Repair Damage modal charges the same. */
+export { CHOP_SHOP_COST_PER_DAMAGE };
 const WORK_TERRITORY_INCOME = 15;
 const TERRORISE_TERRITORY_INCOME = 10;
 export const TRAIN_XP = 2;
 export const SUIT_EVOLUTION_KILL_COST = 4;
+export const SUIT_MAINTENANCE_COST = 100;
 
 const TERRITORY_MAX_FIGHTERS = 5;
 
@@ -80,13 +85,13 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   fit_bionics: {
     id: 'fit_bionics',
     label: 'Fit Bionics',
-    summary: `${FIT_BIONICS_COST_PER_INJURY} credits per Lasting Injury`,
+    summary: 'Remove Lasting Injuries',
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
   },
   visit_chop_shop: {
     id: 'visit_chop_shop',
     label: 'Visit Chop Shop',
-    summary: 'Logged only',
+    summary: 'Repair Damage',
     performer: { kind: 'vehicle' },
   },
   work_territory: {
@@ -149,9 +154,10 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   suit_maintenance: {
     id: 'suit_maintenance',
     label: 'Suit Maintenance',
-    summary: 'Logged only',
+    summary: 'Clear Glitches',
     performer: { kind: 'subtypes', subtypes: SPYRER },
     openToSpyrers: true,
+    credits: -SUIT_MAINTENANCE_COST,
   },
   terrorise_territory: {
     id: 'terrorise_territory',
@@ -199,7 +205,11 @@ export interface PostCycleFighter {
   captured?: boolean;
   recovery?: boolean;
   kill_count?: number;
-  effects?: { injuries?: FighterEffect[] };
+  effects?: {
+    injuries?: FighterEffect[];
+    'lasting damages'?: FighterEffect[];
+    'rig-glitches'?: FighterEffect[];
+  };
 }
 
 /** Performers only: a Doc patient is always in Recovery, so targets skip this. */
@@ -295,14 +305,41 @@ export const removableLastingInjuriesOf = (fighter: PostCycleFighter): FighterEf
 export const hasCriticalInjury = (fighter: PostCycleFighter): boolean =>
   criticalInjuriesOf(fighter).length > 0;
 
+/** An N26 vehicle is a fighter, so its Lasting Damage sits in its own effects. */
+export const lastingDamagesOf = (fighter: PostCycleFighter): FighterEffect[] =>
+  fighter.effects?.['lasting damages'] ?? [];
+
+/** Suit Maintenance clears all of them, so there is nothing to pick. */
+export const rigGlitchesOf = (fighter: PostCycleFighter): FighterEffect[] =>
+  fighter.effects?.['rig-glitches'] ?? [];
+
+/**
+ * The names as the fighter card lists them, a repeated one counted:
+ * "Superficial Damage (x2), Vox Ghosts".
+ */
+export function rigGlitchNames(glitches: FighterEffect[]): string {
+  const counts = new Map<string, number>();
+  for (const glitch of glitches) {
+    counts.set(glitch.effect_name, (counts.get(glitch.effect_name) ?? 0) + 1);
+  }
+  return [...counts]
+    .map(([name, count]) => (count > 1 ? `${name} (x${count})` : name))
+    .join(', ');
+}
+
 export type PostCycleAssignment =
   | { fighterId: string; action: 'medical_escort'; targetFighterId: string }
   | { fighterId: string; action: 'fit_bionics'; targetFighterId: string; injuryIds: string[] }
   /** A tactics_cards id; the server checks it is one of the gang's packs. */
   | { fighterId: string; action: 'develop_tactics'; tacticsCardId: string }
+  /** The vehicle's own Lasting Damage to repair. */
+  | { fighterId: string; action: 'visit_chop_shop'; damageIds: string[] }
   | {
       fighterId: string;
-      action: Exclude<PostCycleActionId, 'medical_escort' | 'fit_bionics' | 'develop_tactics'>;
+      action: Exclude<
+        PostCycleActionId,
+        'medical_escort' | 'fit_bionics' | 'develop_tactics' | 'visit_chop_shop'
+      >;
     };
 
 /** The fighter taken to the Doc, for the two actions that have one. */
@@ -313,6 +350,9 @@ export const patientOf = (assignment: PostCycleAssignment): string | null =>
 export function assignmentCreditsDelta(assignment: PostCycleAssignment): number {
   if (assignment.action === 'fit_bionics') {
     return -(assignment.injuryIds.length * FIT_BIONICS_COST_PER_INJURY);
+  }
+  if (assignment.action === 'visit_chop_shop') {
+    return -(assignment.damageIds.length * CHOP_SHOP_COST_PER_DAMAGE);
   }
   return POST_CYCLE_ACTIONS[assignment.action].credits ?? 0;
 }
@@ -355,9 +395,23 @@ export function validatePostCycleAssignment(
       break;
     }
 
+    case 'visit_chop_shop': {
+      const damaged = new Set(lastingDamagesOf(performer).map((e) => e.id));
+      if (assignment.damageIds.length === 0 || !assignment.damageIds.every((id) => damaged.has(id))) {
+        issues.push(`Choose Lasting Damage that ${label} has.`);
+      }
+      break;
+    }
+
     case 'suit_evolution':
       if ((performer.kill_count ?? 0) < SUIT_EVOLUTION_KILL_COST) {
         issues.push(`${label} needs a Kill Count of at least ${SUIT_EVOLUTION_KILL_COST}.`);
+      }
+      break;
+
+    case 'suit_maintenance':
+      if (rigGlitchesOf(performer).length === 0) {
+        issues.push(`${label} has no Rig Glitches to clear.`);
       }
       break;
   }

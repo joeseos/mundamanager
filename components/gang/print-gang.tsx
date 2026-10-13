@@ -23,6 +23,7 @@ import { GiAncientRuins } from "react-icons/gi";
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { decodeHtmlEntities, isHtmlEffectivelyEmpty } from "@/utils/htmlCleanUp";
 import { resolveGangImageUrl, UNKNOWN_GANG_IMAGE_URL } from "@/types/gang";
+import { detailGangTypeLabel } from "@/utils/gang-type-label";
 
 const ROSTER_FIGHTER_NOTE_MAX_CHARS = 110;
 
@@ -90,6 +91,7 @@ interface PrintGangProps {
     name: string;
     gang_type: string;
     gang_type_id: string;
+    parent_gang_type_name?: string | null;
     image_url?: string;
     gang_portrait_url?: string | null;
     gang_colour: string | null;
@@ -183,6 +185,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
   const {
     name,
     gang_type,
+    parent_gang_type_name,
     image_url,
     gang_portrait_url,
     credits,
@@ -210,6 +213,8 @@ export default function PrintGang({ gang }: PrintGangProps) {
     created_at,
     last_updated,
   } = gang;
+
+  const gangTypeLabel = detailGangTypeLabel(gang_type, parent_gang_type_name);
 
   const gangImageSrc = resolveGangImageUrl({
     imageUrl: image_url,
@@ -499,7 +504,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-bold leading-tight">{name}</h1>
                 <span className="text-xs uppercase tracking-wide">
-                  {gang_type}
+                  {gangTypeLabel}
                   {gang_type_has_origin && gang_origin_name && (
                     <> — {gang_origin_name}</>
                   )}
@@ -1132,7 +1137,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                             <div className="flex flex-wrap gap-x-2 gap-y-1">
                               {/* Gang Type */}
                               <div className="flex items-center gap-1">
-                                Type: <Badge variant="secondary">{gang_type}</Badge>
+                                Type: <Badge variant="secondary">{gangTypeLabel}</Badge>
                               </div>
                               {/* Gang Origin */}
                               {gang_type_has_origin && gang_origin_name && (
@@ -1524,7 +1529,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                         <div className="flex flex-wrap gap-x-2 gap-y-1">
                           {/* Gang Type */}
                           <div className="flex items-center gap-1">
-                            Type: <Badge variant="secondary">{gang_type}</Badge>
+                            Type: <Badge variant="secondary">{gangTypeLabel}</Badge>
                           </div>
                           {/* Gang Origin */}
                           {gang_type_has_origin && gang_origin_name && (
