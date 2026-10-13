@@ -26,6 +26,7 @@ import {
   lastingDamagesOf,
   patientOf,
   postCycleAvailability,
+  postCycleDiscount,
   removableLastingInjuriesOf,
   rigGlitchNames,
   rigGlitchesOf,
@@ -119,6 +120,7 @@ function EffectChecklist({
   effects,
   selected,
   costEach,
+  discount = 0,
   onChange,
   disabled,
   emptyText,
@@ -126,6 +128,8 @@ function EffectChecklist({
   effects: FighterEffect[];
   selected: string[];
   costEach: number;
+  /** A Doc discount, taken off the total rather than each row. */
+  discount?: number;
   onChange: (ids: string[]) => void;
   disabled: boolean;
   emptyText: string;
@@ -157,6 +161,11 @@ function EffectChecklist({
           <span className="text-xs text-muted-foreground">{costEach} credits</span>
         </label>
       ))}
+      {discount > 0 && (
+        <p className="px-3 py-1.5 text-xs text-muted-foreground">
+          {discount} credits off the total, never below 0
+        </p>
+      )}
     </div>
   );
 }
@@ -269,7 +278,7 @@ export default function PostCycleActions({
       states.set(fighterId, {
         assignment,
         issues,
-        cost: assignment ? -assignmentCreditsDelta(assignment) : 0,
+        cost: assignment ? -assignmentCreditsDelta(assignment, fighterById.get(fighterId)!) : 0,
       });
     }
     return states;
@@ -372,8 +381,11 @@ export default function PostCycleActions({
     if (!assignment) return null;
     if (assignment.action === 'train') return `+${TRAIN_XP} XP`;
     if (assignment.action === 'develop_tactics') return rows[assignment.fighterId]?.tacticsCard?.name ?? null;
-    const delta = assignmentCreditsDelta(assignment);
-    const credits = delta === 0 ? null : `${delta > 0 ? '+' : ''}${delta} credits`;
+    const delta = assignmentCreditsDelta(assignment, fighterById.get(assignment.fighterId)!);
+    // A Doc discount can make an action free, which is still worth saying.
+    const isDocAction = assignment.action === 'medical_escort' || assignment.action === 'fit_bionics';
+    const credits =
+      delta !== 0 ? `${delta > 0 ? '+' : ''}${delta} credits` : isDocAction ? '0 credits' : null;
     if (assignment.action === 'visit_chop_shop') {
       const vehicle = fighterById.get(assignment.fighterId);
       const repaired = vehicle
@@ -554,6 +566,7 @@ export default function PostCycleActions({
                           effects={removableLastingInjuriesOf(target)}
                           selected={row.injuryIds}
                           costEach={FIT_BIONICS_COST_PER_INJURY}
+                          discount={postCycleDiscount(fighter, 'fit_bionics')}
                           onChange={(injuryIds) => setRow(fighter.id, { injuryIds })}
                           disabled={!canEdit || applying}
                           emptyText="No removable Lasting Injuries. A Critical Injury cannot be removed with bionics."

@@ -49,7 +49,10 @@ export interface PostCycleActionDefinition {
   maxFighters?: number;
   /** Offered only when the gang has this. */
   requires?: keyof PostCycleAvailability;
-  /** Flat credits it moves, negative for a spend. Fit Bionics and Visit Chop Shop price each injury or damage. */
+  /**
+   * Flat credits it moves, negative for a spend. Fit Bionics and Visit Chop Shop
+   * price each injury or damage, and a Doc discount can lower either Doc action.
+   */
   credits?: number;
 }
 
@@ -63,6 +66,33 @@ const GRUBS_UP_INCOME = 20;
 export const TRAIN_XP = 2;
 export const SUIT_EVOLUTION_KILL_COST = 4;
 export const SUIT_MAINTENANCE_COST = 100;
+
+/**
+ * Fighters whose own rule opens a Doc action to them, at a discount taken off
+ * the action's whole cost, never below 0. Keyed by fighters.fighter_type, like
+ * the Slopper's Grub's Up, so every list's Chem Wytch or Forge Patcher counts.
+ */
+const DOC_DISCOUNTS: Record<string, Partial<Record<PostCycleActionId, number>>> = {
+  // Tend Patient
+  'chem wytch': { medical_escort: 20 },
+  // Back to the Forge!
+  'forge patcher': { fit_bionics: 20 },
+  // Patch-Up
+  'rogue doc': { medical_escort: 50, fit_bionics: 50 },
+};
+
+export function postCycleDiscount(fighter: PostCycleFighter, action: PostCycleActionId): number {
+  return DOC_DISCOUNTS[fighter.fighter_type?.toLowerCase() ?? '']?.[action] ?? 0;
+}
+
+const discounted = (cost: number, discount: number) => Math.max(cost - discount, 0);
+
+export const medicalEscortCost = (performer: PostCycleFighter): number =>
+  discounted(MEDICAL_ESCORT_COST, postCycleDiscount(performer, 'medical_escort'));
+
+/** The discount comes off the total, not each injury. */
+export const fitBionicsCost = (performer: PostCycleFighter, injuries: number): number =>
+  discounted(injuries * FIT_BIONICS_COST_PER_INJURY, postCycleDiscount(performer, 'fit_bionics'));
 
 const TERRITORY_MAX_FIGHTERS = 5;
 
@@ -84,7 +114,7 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
     label: 'Medical Escort',
     summary: `${MEDICAL_ESCORT_COST} credits + D6`,
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
-    credits: -MEDICAL_ESCORT_COST,
+    // No flat credits: medicalEscortCost prices it, Doc discount included.
   },
   fit_bionics: {
     id: 'fit_bionics',
@@ -284,6 +314,7 @@ export function canPerformPostCycleAction(
   const { performer, openToSpyrers, requires } = POST_CYCLE_ACTIONS[actionId];
   if (requires && !availability[requires]) return false;
   if (!openToSpyrers && hasSubtype(fighter, SPYRER)) return false;
+  if (postCycleDiscount(fighter, actionId) > 0) return !fighter.is_vehicle;
 
   switch (performer.kind) {
     case 'any':
@@ -305,7 +336,18 @@ export function eligiblePostCycleActions(
 ): PostCycleActionDefinition[] {
   return POST_CYCLE_ACTION_ORDER.filter((id) =>
     canPerformPostCycleAction(fighter, id, availability)
-  ).map((id) => POST_CYCLE_ACTIONS[id]);
+  ).map((id) => {
+    const action = POST_CYCLE_ACTIONS[id];
+    const discount = postCycleDiscount(fighter, id);
+    if (discount === 0) return action;
+    return {
+      ...action,
+      summary:
+        id === 'medical_escort'
+          ? `${medicalEscortCost(fighter)} credits + D6`
+          : `From ${fitBionicsCost(fighter, 1)} credits`,
+    };
+  });
 }
 
 const injuriesOf = (fighter: PostCycleFighter): FighterEffect[] =>
@@ -361,10 +403,16 @@ export type PostCycleAssignment =
 export const patientOf = (assignment: PostCycleAssignment): string | null =>
   'targetFighterId' in assignment ? assignment.targetFighterId : null;
 
-/** Negative spends. */
-export function assignmentCreditsDelta(assignment: PostCycleAssignment): number {
+/** Negative spends. The performer decides any Doc discount. */
+export function assignmentCreditsDelta(
+  assignment: PostCycleAssignment,
+  performer: PostCycleFighter
+): number {
+  if (assignment.action === 'medical_escort') {
+    return -medicalEscortCost(performer);
+  }
   if (assignment.action === 'fit_bionics') {
-    return -(assignment.injuryIds.length * FIT_BIONICS_COST_PER_INJURY);
+    return -fitBionicsCost(performer, assignment.injuryIds.length);
   }
   if (assignment.action === 'visit_chop_shop') {
     return -(assignment.damageIds.length * CHOP_SHOP_COST_PER_DAMAGE);

@@ -15,13 +15,13 @@ import { repairVehicleDamage } from './remove-vehicle-damage';
 import { logPostCycleAction } from './logs/gang-post-cycle-logs';
 import {
   CHOP_SHOP_COST_PER_DAMAGE,
-  FIT_BIONICS_COST_PER_INJURY,
-  MEDICAL_ESCORT_COST,
   SUIT_MAINTENANCE_COST,
   TRAIN_XP,
   assignmentCreditsDelta,
   criticalInjuriesOf,
+  fitBionicsCost,
   lastingDamagesOf,
+  medicalEscortCost,
   patientOf,
   postCycleAvailability,
   rigGlitchNames,
@@ -133,7 +133,7 @@ async function handleMedicalEscort(ctx: HandlerContext): Promise<HandlerOutcome>
   const target = ctx.target!;
   // Validation only accepts a patient with a Critical Injury.
   const criticalInjury = criticalInjuriesOf(target)[0];
-  const escortCost = -MEDICAL_ESCORT_COST;
+  const escortCost = -medicalEscortCost(ctx.performer);
 
   const total = rollD6();
   const escortResult = resolveMedicalEscort(total)!;
@@ -265,7 +265,7 @@ async function handleFitBionics(
     outcome: failure
       ? `Removed ${removedNames.length} of ${injuryIds.length} Lasting Injuries from ${target.fighter_name} before failing: ${failure}`
       : `Removed ${removedNames.join(', ')} from ${target.fighter_name}.`,
-    creditsDelta: -(removedIds.length * FIT_BIONICS_COST_PER_INJURY),
+    creditsDelta: -fitBionicsCost(ctx.performer, removedIds.length),
     changes:
       removedIds.length > 0
         ? [{ fighterId: target.id, removedEffectIds: removedIds }]
@@ -408,7 +408,7 @@ async function runHandler(
     // The rest move their flat credits, if any, and leave a log line; anything
     // else they do is applied elsewhere on the page or by hand.
     default:
-      return { outcome: '', creditsDelta: assignmentCreditsDelta(assignment) };
+      return { outcome: '', creditsDelta: assignmentCreditsDelta(assignment, ctx.performer) };
   }
 }
 
@@ -475,7 +475,7 @@ export async function resolvePostCycleAction(
     const patientId = patientOf(assignment);
     const target = patientId ? byId.get(patientId) : undefined;
 
-    if ((gang.credits ?? 0) < -assignmentCreditsDelta(assignment)) {
+    if ((gang.credits ?? 0) < -assignmentCreditsDelta(assignment, performer)) {
       return { success: false, error: 'Not enough credits' };
     }
 
