@@ -27,7 +27,7 @@ import {
   type ParticipantSideJob,
 } from '@/types/campaign';
 import { parseParticipants } from '@/utils/battle-winners';
-import { checkScenarioParts, type ScenarioPartEdit, type ScenarioParts } from '@/utils/scenario-parts';
+import { checkScenarioParts, customCrewName, type ScenarioPartEdit, type ScenarioParts } from '@/utils/scenario-parts';
 
 /**
  * Gangs have no edition of their own — it is always derived via the gang type,
@@ -170,7 +170,7 @@ export async function createBattleSession(params: {
       const [{ data: challenge }, { data: existingSession }] = await Promise.all([
         supabase
           .from('campaign_battles')
-          .select('campaign_id, scenario, deployment_id, objective_id, crew_selection_id, status, participants')
+          .select('campaign_id, scenario, deployment_id, objective_id, crew_selection_id, crew_selection_name, status, participants')
           .eq('id', params.campaign_battle_id)
           .maybeSingle(),
         supabase
@@ -194,6 +194,7 @@ export async function createBattleSession(params: {
         deployment_id: challenge.deployment_id,
         objective_id: challenge.objective_id,
         crew_selection_id: challenge.crew_selection_id,
+        crew_selection_name: challenge.crew_selection_name,
         gang_ids: [...challengeRoles.keys()],
         campaign_battle_id: params.campaign_battle_id,
       };
@@ -290,6 +291,7 @@ export async function createBattleSession(params: {
         deployment_id: params.deployment_id ?? null,
         objective_id: params.objective_id ?? null,
         crew_selection_id: params.crew_selection_id ?? null,
+        crew_selection_name: customCrewName(params),
         status: 'pre_battle',
         edition_id: editionId,
         campaign_battle_id: params.campaign_battle_id ?? null,
@@ -461,9 +463,10 @@ export async function setSessionScenario(
 
 /**
  * N26: sets one of the session's Deployment, Objective and Crew before the
- * battle: picks an entry, types a Deployment or Objective's name, or clears it.
- * The scenario text that keeps a typed name is rebuilt here from the saved
- * session, so changes made in quick succession don't undo each other.
+ * battle: picks an entry, types a custom name, or clears it. The scenario text
+ * that keeps a typed Deployment or Objective is rebuilt here from the saved
+ * session, so changes made in quick succession don't undo each other; a custom
+ * Crew has a column of its own.
  */
 export async function setSessionScenarioParts(
   sessionId: string,
@@ -478,7 +481,11 @@ export async function setSessionScenarioParts(
     return await updateSessionAsManager(
       sessionId,
       async (supabase, session) => {
-        if (!typeable) return { [edit.key]: entryId };
+        if (!typeable) {
+          // The Crew, whose custom name is kept beside it.
+          const crewName = customCrewName({ crew_selection_id: entryId, crew_selection_name: String(edit.typedName ?? '') });
+          return { [edit.key]: entryId, crew_selection_name: crewName };
+        }
         const parts = { deployment_id: session.deployment_id, objective_id: session.objective_id, [edit.key]: entryId };
         const typed = {
           ...typedScenarioParts(session.scenario, !!session.deployment_id, !!session.objective_id),
@@ -1587,10 +1594,10 @@ export async function completeBattleSession(
       supabase
         .from('battle_sessions')
         .select(`
-          status, campaign_id, scenario, deployment_id, objective_id, crew_selection_id, ${SESSION_SCENARIO_PARTS_SELECT},
+          status, campaign_id, scenario, deployment_id, objective_id, crew_selection_id, crew_selection_name, ${SESSION_SCENARIO_PARTS_SELECT},
           winner_gang_id, created_at, campaign_battle_id,
           challenge:campaign_battle_id (
-            scenario, deployment_id, objective_id, crew_selection_id, winner_id, note, participants,
+            scenario, deployment_id, objective_id, crew_selection_id, crew_selection_name, winner_id, note, participants,
             campaign_territory_id, cycle, status
           )
         `)
@@ -1646,7 +1653,10 @@ export async function completeBattleSession(
       return { success: false, error: 'This challenge has already been filed as played' };
 
     // N26: what the session rolled, checked as it was set.
-    const scenarioParts = Object.fromEntries(SCENARIO_PARTS.map(({ key }) => [key, session[key] ?? null]));
+    const scenarioParts = {
+      ...Object.fromEntries(SCENARIO_PARTS.map(({ key }) => [key, session[key] ?? null])),
+      crew_selection_name: customCrewName(session),
+    };
     // The name embeds are to-one, though typed as lists.
     const scenarioLabel = sessionScenarioLabel(session as any);
 

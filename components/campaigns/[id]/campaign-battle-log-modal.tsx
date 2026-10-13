@@ -199,6 +199,7 @@ const CampaignBattleLogModal = ({
         deployment_id: battleData.deployment_id,
         objective_id: battleData.objective_id,
         crew_selection_id: battleData.crew_selection_id,
+        crew_selection_name: battleData.crew_selection_name,
         winner_id: legacyWinnerId,
         note: battleData.note,
         participants: battleData.participants,
@@ -312,6 +313,7 @@ const CampaignBattleLogModal = ({
                     deployment_id: battleData.deployment_id,
                     objective_id: battleData.objective_id,
                     crew_selection_id: battleData.crew_selection_id,
+                    crew_selection_name: battleData.crew_selection_name,
                   }
                 : {}),
               winner_id: legacyWinnerId,
@@ -465,6 +467,7 @@ const CampaignBattleLogModal = ({
       deployment_id: battleToEdit.deployment_id,
       objective_id: battleToEdit.objective_id,
       crew_selection_id: battleToEdit.crew_selection_id,
+      crew_selection_name: battleToEdit.crew_selection_name,
     });
 
     if (battleToEdit.created_at) {
@@ -758,13 +761,14 @@ const CampaignBattleLogModal = ({
     // The server derives `winner_id` from participants[].is_winner /
     // claimed_territory so we don't need to send it. `null` means "draw".
     const battleData: BattleLogParams = {
-      // N26: keeps a typed Deployment or Objective.
+      // N26: keeps a typed Deployment or Objective; a custom Crew has its own field.
       scenario: usesScenarioTables ? customScenario : scenarioName,
       ...(usesScenarioTables
         ? {
             deployment_id: scenarioParts.deployment_id || null,
             objective_id: scenarioParts.objective_id || null,
             crew_selection_id: scenarioParts.crew_selection_id || null,
+            crew_selection_name: scenarioParts.crew_selection_id ? null : scenarioParts.crew_selection_name?.trim() || null,
           }
         : {}),
       winner_id: isDraw ? null : (claimerForPayload ?? activeWinners[0] ?? null),

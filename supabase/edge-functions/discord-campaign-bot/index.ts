@@ -1,7 +1,7 @@
 // @ts-nocheck
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { SCENARIO_PARTS, scenarioLabel, typedScenarioParts, type ScenarioPart } from "../../../types/campaign.ts";
+import { SCENARIO_PARTS, scenarioLabel, typedPartNames, type ScenarioPart } from "../../../types/campaign.ts";
 
 const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS")!);
 const supabase = createClient(
@@ -243,15 +243,16 @@ Deno.serve(async (req) => {
     };
 
     // N26 rolls its Deployment, Objective and Crew; a custom Deployment or Objective
-    // is kept in the scenario text. N23 (and an N26 battle with nothing rolled) is
-    // named by that text alone. Side Jobs come before the Crew.
-    const typed = typedScenarioParts(battle.scenario, !!battle.deployment_id, !!battle.objective_id);
+    // is kept in the scenario text, and a custom Crew beside it. N23 (and an N26
+    // battle with nothing rolled and no custom Crew) is named by that text alone.
+    // Side Jobs come before the Crew.
+    const typed = typedPartNames(battle);
     const partField = (part: ScenarioPart) => {
       const value = entryNames.get(battle[part.key]) ?? typed[part.key];
       return value && { name: `${SCENARIO_PART_ICONS[part.key]} ${part.label}`, value, inline: false };
     };
     const scenario = scenarioLabel(battle.scenario);
-    const scenarioFields = SCENARIO_PARTS.some((part) => battle[part.key])
+    const scenarioFields = SCENARIO_PARTS.some((part) => battle[part.key]) || typed.crew_selection_id
       ? SCENARIO_PARTS.flatMap((part) =>
           part.key === "crew_selection_id" ? [sideJobsField, partField(part)] : [partField(part)]
         )

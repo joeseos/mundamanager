@@ -38,6 +38,8 @@ export interface BattleSession {
   deployment_id?: string | null;
   objective_id?: string | null;
   crew_selection_id?: string | null;
+  /** N26: a custom Crew named by hand instead of rolled. Null while crew_selection_id is set. */
+  crew_selection_name?: string | null;
   /** N26: the rolled entries' names, embedded by the session loaders. */
   deployment?: { name: string } | null;
   objective?: { name: string } | null;

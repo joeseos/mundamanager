@@ -6,14 +6,25 @@ import {
   type ScenarioPartKey,
 } from '@/types/campaign';
 
-/** An N26 battle's Deployment, Objective and Crew, as scenario_table_entries ids. */
-export type ScenarioParts = Partial<Record<ScenarioPartKey, string | null>>;
+/**
+ * An N26 battle's Deployment, Objective and Crew, as scenario_table_entries ids,
+ * and a custom Crew's name. A custom Deployment or Objective is kept in the
+ * battle's scenario text instead.
+ */
+export type ScenarioParts = Partial<Record<ScenarioPartKey, string | null>> & {
+  crew_selection_name?: string | null;
+};
 
-/** One part picked (an entry), typed (a Deployment or Objective's name) or cleared. */
+/** One part picked (an entry), typed (a custom name) or cleared. */
 export interface ScenarioPartEdit {
   key: ScenarioPartKey;
   entryId: string | null;
   typedName?: string;
+}
+
+/** The custom Crew name to store: none while a Crew entry is picked, and none when blank. */
+export function customCrewName(parts: ScenarioParts): string | null {
+  return parts.crew_selection_id ? null : parts.crew_selection_name?.trim() || null;
 }
 
 /** A to-one embed, which may arrive as an array. */
