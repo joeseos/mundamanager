@@ -219,11 +219,11 @@ Deno.serve(async (req) => {
     }
 
     if (territoryName) {
-      fields.push({ name: "🏭 Territory Claimed", value: territoryName, inline: true });
+      fields.push({ name: "🏭 Territory Claimed", value: territoryName, inline: false });
     }
 
     if (battle.cycle) {
-      fields.push({ name: "🔄 Cycle", value: `${battle.cycle}`, inline: true });
+      fields.push({ name: "🔄 Cycle", value: `${battle.cycle}`, inline: false });
     }
 
     // N26 rolls its Deployment, Objective and Crew; a custom Deployment or Objective
@@ -234,11 +234,11 @@ Deno.serve(async (req) => {
       for (const part of SCENARIO_PARTS) {
         const value = entryNames.get(battle[part.key]) ?? typed[part.key];
         if (value) {
-          fields.push({ name: `${SCENARIO_PART_ICONS[part.key]} ${part.label}`, value, inline: true });
+          fields.push({ name: `${SCENARIO_PART_ICONS[part.key]} ${part.label}`, value, inline: false });
         }
       }
     } else if (battle.scenario) {
-      fields.push({ name: "📋 Scenario", value: battle.scenario, inline: true });
+      fields.push({ name: "📋 Scenario", value: battle.scenario, inline: false });
     }
 
     const sideJobLines = participantRows
