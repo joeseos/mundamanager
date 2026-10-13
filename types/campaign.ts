@@ -1,4 +1,6 @@
 // Campaign-related type definitions
+//
+// The Discord bot edge function (Deno) imports this file too, so it must not import anything.
 
 /**
  * Gang reference used when gang is nested under another entity.

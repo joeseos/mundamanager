@@ -1,6 +1,7 @@
 // @ts-nocheck
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { SCENARIO_PARTS, scenarioLabel, typedScenarioParts, type ScenarioPart } from "../../../types/campaign.ts";
 
 const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS")!);
 const supabase = createClient(
@@ -11,6 +12,8 @@ const supabase = createClient(
 const DISCORD_BOT_TOKEN = Deno.env.get("DISCORD_BOT_TOKEN")!
 
 const DISCORD_CHANNEL_TYPES = { TEXT: 0, FORUM: 15 } as const;
+
+const SCENARIO_PART_ICONS = { deployment_id: "🗺️", objective_id: "🎯", crew_selection_id: "🎲" };
 
 Deno.serve(async (req) => {
   const auth = req.headers.get("Authorization");
@@ -59,14 +62,46 @@ Deno.serve(async (req) => {
           .map((p: any) => p.gang_id as string)
       : [];
 
-    const { data: gangs } = await supabase
-      .from("gangs")
-      .select("id, name, gang_type, rating, reputation")
-      .in("id", gangIds);
+    // N26: what the battle rolled for its Deployment, Objective and Crew, and each gang for its Side Job.
+    const entryIds = [
+      ...SCENARIO_PARTS.map((part) => battle[part.key]),
+      ...participants.map((p: { side_job_id?: string | null }) => p.side_job_id),
+    ].filter(Boolean);
+
+    const [{ data: gangs }, { data: entries, error: entriesError }, { data: territory }] = await Promise.all([
+      supabase
+        .from("gangs")
+        .select("id, name, gang_type, rating, reputation")
+        .in("id", gangIds),
+      entryIds.length > 0
+        ? supabase.from("scenario_table_entries").select("id, name").in("id", entryIds)
+        : { data: [] },
+      battle.campaign_territory_id
+        ? supabase
+            .from("campaign_territories")
+            .select("territory_name")
+            .eq("id", battle.campaign_territory_id)
+            .single()
+        : { data: null },
+    ]);
+
+    if (entriesError) {
+      console.error("Scenario table entries lookup failed:", entriesError);
+    }
 
     const gangMap = new Map(gangs?.map((g) => [g.id, g]) ?? []);
+    const entryNames = new Map(entries?.map((e) => [e.id, e.name]) ?? []);
+    const territoryName: string | null = territory?.territory_name ?? null;
 
-    type BattleParticipantRow = { gang_id: string; role?: string; is_winner?: boolean };
+    type BattleParticipantRow = {
+      gang_id: string;
+      role?: string;
+      is_winner?: boolean;
+      side_job_id?: string | null;
+      /** A custom Side Job, which has no entry. */
+      side_job_name?: string | null;
+      side_job_completed?: boolean;
+    };
     const participantRows: BattleParticipantRow[] = Array.isArray(participants)
       ? participants
       : [];
@@ -110,17 +145,6 @@ Deno.serve(async (req) => {
         .map((id) => gangMap.get(id)?.name)
         .filter(Boolean)
         .join("\n");
-
-    // Resolve territory name via campaign_territory_id
-    let territoryName: string | null = null;
-    if (battle.campaign_territory_id) {
-      const { data: territory } = await supabase
-        .from("campaign_territories")
-        .select("territory_name")
-        .eq("id", battle.campaign_territory_id)
-        .single();
-      territoryName = territory?.territory_name ?? null;
-    }
 
     const fields: { name: string; value: string; inline: boolean }[] = [];
 
@@ -196,16 +220,43 @@ Deno.serve(async (req) => {
     }
 
     if (territoryName) {
-      fields.push({ name: "🏭 Territory Claimed", value: territoryName, inline: true });
+      fields.push({ name: "🏭 Territory Claimed", value: territoryName, inline: false });
     }
 
     if (battle.cycle) {
-      fields.push({ name: "🔄 Cycle", value: `${battle.cycle}`, inline: true });
+      fields.push({ name: "🔄 Cycle", value: `${battle.cycle}`, inline: false });
     }
 
-    if (battle.scenario) {
-      fields.push({ name: "📋 Scenario", value: battle.scenario, inline: true });
-    }
+    const sideJobLines = participantRows
+      .map((p) => {
+        const gang = gangMap.get(p.gang_id);
+        const sideJob = entryNames.get(p.side_job_id) ?? p.side_job_name;
+        if (!gang || !sideJob) return null;
+        return `**${gang.name}**: ${sideJob}${p.side_job_completed ? " (completed)" : ""}`;
+      })
+      .filter(Boolean);
+
+    const sideJobsField = sideJobLines.length > 0 && {
+      name: sideJobLines.length > 1 ? "💼 Side Jobs" : "💼 Side Job",
+      value: sideJobLines.join("\n"),
+      inline: false,
+    };
+
+    // N26 rolls its Deployment, Objective and Crew; a custom Deployment or Objective
+    // is kept in the scenario text. N23 (and an N26 battle with nothing rolled) is
+    // named by that text alone. Side Jobs come before the Crew.
+    const typed = typedScenarioParts(battle.scenario, !!battle.deployment_id, !!battle.objective_id);
+    const partField = (part: ScenarioPart) => {
+      const value = entryNames.get(battle[part.key]) ?? typed[part.key];
+      return value && { name: `${SCENARIO_PART_ICONS[part.key]} ${part.label}`, value, inline: false };
+    };
+    const scenario = scenarioLabel(battle.scenario);
+    const scenarioFields = SCENARIO_PARTS.some((part) => battle[part.key])
+      ? SCENARIO_PARTS.flatMap((part) =>
+          part.key === "crew_selection_id" ? [sideJobsField, partField(part)] : [partField(part)]
+        )
+      : [scenario && { name: "📋 Scenario", value: scenario, inline: false }, sideJobsField];
+    fields.push(...scenarioFields.filter(Boolean));
 
     const DISCORD_DESC_MAX = 4096;
     const DISCORD_TOTAL_MAX = 6000;
