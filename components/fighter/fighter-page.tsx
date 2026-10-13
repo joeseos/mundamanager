@@ -1491,7 +1491,6 @@ export default function FighterPage({
               gangTypeId={fighterData.gang.gang_type_id}
               fighterId={fighterData.fighter.id}
               fighterTypeId={fighterData.fighter.fighter_type.fighter_type_id}
-              gangAffiliationId={fighterData.gang.gang_affiliation_id}
               fighterCredits={fighterData.fighter.credits}
               fighterHasLegacy={Boolean((fighterData as any)?.fighter?.fighter_gang_legacy_id)}
               fighterLegacyName={(fighterData as any)?.fighter?.fighter_gang_legacy?.name}
