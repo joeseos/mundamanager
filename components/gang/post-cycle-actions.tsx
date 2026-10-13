@@ -269,7 +269,7 @@ export default function PostCycleActions({
       states.set(fighterId, {
         assignment,
         issues,
-        cost: assignment ? -assignmentCreditsDelta(assignment) : 0,
+        cost: assignment ? -assignmentCreditsDelta(assignment, fighterById.get(fighterId)!) : 0,
       });
     }
     return states;
@@ -372,7 +372,7 @@ export default function PostCycleActions({
     if (!assignment) return null;
     if (assignment.action === 'train') return `+${TRAIN_XP} XP`;
     if (assignment.action === 'develop_tactics') return rows[assignment.fighterId]?.tacticsCard?.name ?? null;
-    const delta = assignmentCreditsDelta(assignment);
+    const delta = assignmentCreditsDelta(assignment, fighterById.get(assignment.fighterId)!);
     const credits = delta === 0 ? null : `${delta > 0 ? '+' : ''}${delta} credits`;
     if (assignment.action === 'visit_chop_shop') {
       const vehicle = fighterById.get(assignment.fighterId);
