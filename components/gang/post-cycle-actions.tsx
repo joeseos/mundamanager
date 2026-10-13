@@ -382,7 +382,10 @@ export default function PostCycleActions({
     if (assignment.action === 'train') return `+${TRAIN_XP} XP`;
     if (assignment.action === 'develop_tactics') return rows[assignment.fighterId]?.tacticsCard?.name ?? null;
     const delta = assignmentCreditsDelta(assignment, fighterById.get(assignment.fighterId)!);
-    const credits = delta === 0 ? null : `${delta > 0 ? '+' : ''}${delta} credits`;
+    // A Doc discount can make an action free, which is still worth saying.
+    const isDocAction = assignment.action === 'medical_escort' || assignment.action === 'fit_bionics';
+    const credits =
+      delta !== 0 ? `${delta > 0 ? '+' : ''}${delta} credits` : isDocAction ? '0 credits' : null;
     if (assignment.action === 'visit_chop_shop') {
       const vehicle = fighterById.get(assignment.fighterId);
       const repaired = vehicle

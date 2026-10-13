@@ -345,7 +345,7 @@ export function eligiblePostCycleActions(
       summary:
         id === 'medical_escort'
           ? `${medicalEscortCost(fighter)} credits + D6`
-          : `${action.summary}, ${discount} credits off`,
+          : `From ${fitBionicsCost(fighter, 1)} credits`,
     };
   });
 }
