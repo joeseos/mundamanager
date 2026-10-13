@@ -1,7 +1,7 @@
 // @ts-nocheck
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { SCENARIO_PARTS, typedScenarioParts } from "../../../types/campaign.ts";
+import { SCENARIO_PARTS, scenarioLabel, typedScenarioParts, type ScenarioPart } from "../../../types/campaign.ts";
 
 const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS")!);
 const supabase = createClient(
@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
       ...participants.map((p: { side_job_id?: string | null }) => p.side_job_id),
     ].filter(Boolean);
 
-    const [{ data: gangs }, { data: entries }] = await Promise.all([
+    const [{ data: gangs }, { data: entries, error: entriesError }, { data: territory }] = await Promise.all([
       supabase
         .from("gangs")
         .select("id, name, gang_type, rating, reputation")
@@ -76,10 +76,22 @@ Deno.serve(async (req) => {
       entryIds.length > 0
         ? supabase.from("scenario_table_entries").select("id, name").in("id", entryIds)
         : { data: [] },
+      battle.campaign_territory_id
+        ? supabase
+            .from("campaign_territories")
+            .select("territory_name")
+            .eq("id", battle.campaign_territory_id)
+            .single()
+        : { data: null },
     ]);
+
+    if (entriesError) {
+      console.error("Scenario table entries lookup failed:", entriesError);
+    }
 
     const gangMap = new Map(gangs?.map((g) => [g.id, g]) ?? []);
     const entryNames = new Map(entries?.map((e) => [e.id, e.name]) ?? []);
+    const territoryName: string | null = territory?.territory_name ?? null;
 
     type BattleParticipantRow = {
       gang_id: string;
@@ -133,17 +145,6 @@ Deno.serve(async (req) => {
         .map((id) => gangMap.get(id)?.name)
         .filter(Boolean)
         .join("\n");
-
-    // Resolve territory name via campaign_territory_id
-    let territoryName: string | null = null;
-    if (battle.campaign_territory_id) {
-      const { data: territory } = await supabase
-        .from("campaign_territories")
-        .select("territory_name")
-        .eq("id", battle.campaign_territory_id)
-        .single();
-      territoryName = territory?.territory_name ?? null;
-    }
 
     const fields: { name: string; value: string; inline: boolean }[] = [];
 
@@ -242,21 +243,20 @@ Deno.serve(async (req) => {
     };
 
     // N26 rolls its Deployment, Objective and Crew; a custom Deployment or Objective
-    // is kept in the scenario text. N23 (and an N26 battle with nothing rolled) names
-    // its scenario in that text.
-    if (SCENARIO_PARTS.some((part) => battle[part.key])) {
-      const typed = typedScenarioParts(battle.scenario, !!battle.deployment_id, !!battle.objective_id);
-      const [deployment, objective, crew] = SCENARIO_PARTS.map((part) => {
-        const value = entryNames.get(battle[part.key]) ?? typed[part.key];
-        return value && { name: `${SCENARIO_PART_ICONS[part.key]} ${part.label}`, value, inline: false };
-      });
-      fields.push(...[deployment, objective, sideJobsField, crew].filter(Boolean));
-    } else {
-      if (battle.scenario) {
-        fields.push({ name: "📋 Scenario", value: battle.scenario, inline: false });
-      }
-      if (sideJobsField) fields.push(sideJobsField);
-    }
+    // is kept in the scenario text. N23 (and an N26 battle with nothing rolled) is
+    // named by that text alone. Side Jobs come before the Crew.
+    const typed = typedScenarioParts(battle.scenario, !!battle.deployment_id, !!battle.objective_id);
+    const partField = (part: ScenarioPart) => {
+      const value = entryNames.get(battle[part.key]) ?? typed[part.key];
+      return value && { name: `${SCENARIO_PART_ICONS[part.key]} ${part.label}`, value, inline: false };
+    };
+    const scenario = scenarioLabel(battle.scenario);
+    const scenarioFields = SCENARIO_PARTS.some((part) => battle[part.key])
+      ? SCENARIO_PARTS.flatMap((part) =>
+          part.key === "crew_selection_id" ? [sideJobsField, partField(part)] : [partField(part)]
+        )
+      : [scenario && { name: "📋 Scenario", value: scenario, inline: false }, sideJobsField];
+    fields.push(...scenarioFields.filter(Boolean));
 
     const DISCORD_DESC_MAX = 4096;
     const DISCORD_TOTAL_MAX = 6000;
