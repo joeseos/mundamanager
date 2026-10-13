@@ -403,6 +403,7 @@ export default function MembersTable({
         id: variables.gangId,
         name: gangData.name,
         gang_type: gangData.gang_type,
+        parent_gang_type_name: gangData.parent_gang_type_name ?? null,
         gang_colour: gangData.gang_colour || '#000000',
         status: isOwnGang ? 'ACCEPTED' : 'PENDING',
         rating: gangData.rating || 0,

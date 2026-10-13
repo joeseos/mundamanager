@@ -1,5 +1,6 @@
 -- Keep gang_types.parent_gang_type_name aligned with the parent row.
--- BEFORE parent_gang_type_id: copy the parent's gang_type, or null for a root.
+-- BEFORE INSERT OR UPDATE: copy the parent's gang_type, or null for a root.
+-- A direct write to parent_gang_type_name is overwritten from the parent link.
 -- AFTER gang_type: a renamed house updates every child list that points at it.
 --
 -- DEPLOY ORDER: apply migration 20261012133225_add_gang_types_parent_gang_type_name.sql
@@ -30,7 +31,7 @@ REVOKE EXECUTE ON FUNCTION public.gang_types_set_parent_gang_type_name() FROM an
 
 DROP TRIGGER IF EXISTS gang_types_set_parent_gang_type_name ON public.gang_types;
 CREATE TRIGGER gang_types_set_parent_gang_type_name
-  BEFORE INSERT OR UPDATE OF parent_gang_type_id ON public.gang_types
+  BEFORE INSERT OR UPDATE ON public.gang_types
   FOR EACH ROW
   EXECUTE FUNCTION public.gang_types_set_parent_gang_type_name();
 

@@ -61,5 +61,5 @@ Syncing of those files is not automatic. If you update a function on Supabase, m
 | enqueue_notification_email   | notifications      | Queues an outbound email for a new notification |
 | handle_new_user              | auth.users         | Creates a profiles row on signup (`on_auth_user_created`) |
 | gang_types_parent_must_be_root | gang_types       | Keeps parent_gang_type_id one level deep (parent must be a root) |
-| gang_types_set_parent_gang_type_name | gang_types | Copies the parent house name onto a child list when parent_gang_type_id changes |
+| gang_types_set_parent_gang_type_name | gang_types | Copies the parent house name onto a child list on insert or update, overwriting a direct write |
 | gang_types_propagate_parent_gang_type_name | gang_types | Updates every child list when the parent house name changes |

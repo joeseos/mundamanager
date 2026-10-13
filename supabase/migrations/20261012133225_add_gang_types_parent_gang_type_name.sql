@@ -1,6 +1,7 @@
 -- House name for a child gang list (Wyld Cult stores "House Escher").
--- The trigger owns the column: set it when parent_gang_type_id changes, and
--- refresh every child when the parent's gang_type is renamed.
+-- The trigger owns the column: every insert or update copies it from the
+-- parent link (a direct write is overwritten), and a renamed house refreshes
+-- every child.
 --
 -- Trigger bodies also live in supabase/functions/gang_types_sync_parent_gang_type_name.sql
 -- (canonical source redeployed by CI). Included here so the first apply is complete.
@@ -37,7 +38,7 @@ REVOKE EXECUTE ON FUNCTION public.gang_types_set_parent_gang_type_name() FROM an
 
 DROP TRIGGER IF EXISTS gang_types_set_parent_gang_type_name ON public.gang_types;
 CREATE TRIGGER gang_types_set_parent_gang_type_name
-  BEFORE INSERT OR UPDATE OF parent_gang_type_id ON public.gang_types
+  BEFORE INSERT OR UPDATE ON public.gang_types
   FOR EACH ROW
   EXECUTE FUNCTION public.gang_types_set_parent_gang_type_name();
 
