@@ -226,21 +226,6 @@ Deno.serve(async (req) => {
       fields.push({ name: "🔄 Cycle", value: `${battle.cycle}`, inline: false });
     }
 
-    // N26 rolls its Deployment, Objective and Crew; a custom Deployment or Objective
-    // is kept in the scenario text. N23 (and an N26 battle with nothing rolled) names
-    // its scenario in that text.
-    if (SCENARIO_PARTS.some((part) => battle[part.key])) {
-      const typed = typedScenarioParts(battle.scenario, !!battle.deployment_id, !!battle.objective_id);
-      for (const part of SCENARIO_PARTS) {
-        const value = entryNames.get(battle[part.key]) ?? typed[part.key];
-        if (value) {
-          fields.push({ name: `${SCENARIO_PART_ICONS[part.key]} ${part.label}`, value, inline: false });
-        }
-      }
-    } else if (battle.scenario) {
-      fields.push({ name: "📋 Scenario", value: battle.scenario, inline: false });
-    }
-
     const sideJobLines = participantRows
       .map((p) => {
         const gang = gangMap.get(p.gang_id);
@@ -250,12 +235,27 @@ Deno.serve(async (req) => {
       })
       .filter(Boolean);
 
-    if (sideJobLines.length > 0) {
-      fields.push({
-        name: sideJobLines.length > 1 ? "💼 Side Jobs" : "💼 Side Job",
-        value: sideJobLines.join("\n"),
-        inline: false,
+    const sideJobsField = sideJobLines.length > 0 && {
+      name: sideJobLines.length > 1 ? "💼 Side Jobs" : "💼 Side Job",
+      value: sideJobLines.join("\n"),
+      inline: false,
+    };
+
+    // N26 rolls its Deployment, Objective and Crew; a custom Deployment or Objective
+    // is kept in the scenario text. N23 (and an N26 battle with nothing rolled) names
+    // its scenario in that text.
+    if (SCENARIO_PARTS.some((part) => battle[part.key])) {
+      const typed = typedScenarioParts(battle.scenario, !!battle.deployment_id, !!battle.objective_id);
+      const [deployment, objective, crew] = SCENARIO_PARTS.map((part) => {
+        const value = entryNames.get(battle[part.key]) ?? typed[part.key];
+        return value && { name: `${SCENARIO_PART_ICONS[part.key]} ${part.label}`, value, inline: false };
       });
+      fields.push(...[deployment, objective, sideJobsField, crew].filter(Boolean));
+    } else {
+      if (battle.scenario) {
+        fields.push({ name: "📋 Scenario", value: battle.scenario, inline: false });
+      }
+      if (sideJobsField) fields.push(sideJobsField);
     }
 
     const DISCORD_DESC_MAX = 4096;
