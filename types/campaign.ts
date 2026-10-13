@@ -395,6 +395,14 @@ export function scenarioLabel(
     .join(SCENARIO_SEPARATOR);
 }
 
+/** A custom Crew's name: none while a Crew entry is picked, and none when blank. */
+export function customCrewName(battle: {
+  crew_selection_id?: string | null;
+  crew_selection_name?: string | null;
+}): string | null {
+  return battle.crew_selection_id ? null : battle.crew_selection_name?.trim() || null;
+}
+
 /**
  * An N26 battle's custom part names, by part: a typed Deployment or Objective
  * from its scenario text (see typedScenarioParts), and a custom Crew from its
@@ -406,7 +414,7 @@ export function typedPartNames(
     crew_selection_name?: string | null;
   }
 ): Partial<Record<ScenarioPartKey, string>> {
-  const crewName = battle.crew_selection_id ? undefined : battle.crew_selection_name?.trim();
+  const crewName = customCrewName(battle);
   return {
     ...typedScenarioParts(battle.scenario, !!battle.deployment_id, !!battle.objective_id),
     ...(crewName ? { crew_selection_id: crewName } : {}),

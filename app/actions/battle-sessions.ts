@@ -17,6 +17,7 @@ import { fetchBattleSessionDirect, SESSION_SCENARIO_PARTS_SELECT } from '@/app/l
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
 import { editionsConflict, gangEditionJoin, gangEditionSlug } from '@/types/edition';
 import {
+  customCrewName,
   participantSideJob,
   SCENARIO_PARTS,
   TYPEABLE_SCENARIO_PARTS,
@@ -27,7 +28,7 @@ import {
   type ParticipantSideJob,
 } from '@/types/campaign';
 import { parseParticipants } from '@/utils/battle-winners';
-import { checkScenarioParts, customCrewName, type ScenarioPartEdit, type ScenarioParts } from '@/utils/scenario-parts';
+import { checkScenarioParts, type ScenarioPartEdit, type ScenarioParts } from '@/utils/scenario-parts';
 
 /**
  * Gangs have no edition of their own — it is always derived via the gang type,
@@ -481,11 +482,11 @@ export async function setSessionScenarioParts(
     return await updateSessionAsManager(
       sessionId,
       async (supabase, session) => {
-        if (!typeable) {
-          // The Crew, whose custom name is kept beside it.
-          const crewName = customCrewName({ crew_selection_id: entryId, crew_selection_name: String(edit.typedName ?? '') });
-          return { [edit.key]: entryId, crew_selection_name: crewName };
+        if (edit.key === 'crew_selection_id') {
+          // A custom Crew is kept beside it, not in the scenario text.
+          return { crew_selection_id: entryId, crew_selection_name: customCrewName({ crew_selection_id: entryId, crew_selection_name: String(edit.typedName ?? '') }) };
         }
+        if (!typeable) return { [edit.key]: entryId };
         const parts = { deployment_id: session.deployment_id, objective_id: session.objective_id, [edit.key]: entryId };
         const typed = {
           ...typedScenarioParts(session.scenario, !!session.deployment_id, !!session.objective_id),
@@ -1655,7 +1656,7 @@ export async function completeBattleSession(
     // N26: what the session rolled, checked as it was set.
     const scenarioParts = {
       ...Object.fromEntries(SCENARIO_PARTS.map(({ key }) => [key, session[key] ?? null])),
-      crew_selection_name: customCrewName(session),
+      crew_selection_name: session.crew_selection_name ?? null,
     };
     // The name embeds are to-one, though typed as lists.
     const scenarioLabel = sessionScenarioLabel(session as any);

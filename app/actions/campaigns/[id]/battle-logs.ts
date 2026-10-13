@@ -13,11 +13,12 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
 import {
   challengeAnswerStatuses,
+  customCrewName,
   SCENARIO_PARTS,
   type BattleParticipant,
   type BattleStatus,
 } from '@/types/campaign';
-import { checkScenarioParts, customCrewName } from '@/utils/scenario-parts';
+import { checkScenarioParts } from '@/utils/scenario-parts';
 
 /**
  * Type definition for territory claim

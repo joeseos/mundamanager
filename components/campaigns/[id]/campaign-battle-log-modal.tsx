@@ -13,7 +13,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { createBattleLog, updateBattleLog, BattleLogParams } from "@/app/actions/campaigns/[id]/battle-logs";
 import { useMutation } from '@tanstack/react-query';
-import { Battle, BattleParticipant, BattleStatus, CampaignGang, Territory as BaseTerritory, Scenario, ScenarioTableWithEntries, neededScenarioPart, participantSideJob } from '@/types/campaign';
+import { Battle, BattleParticipant, BattleStatus, CampaignGang, Territory as BaseTerritory, Scenario, ScenarioTableWithEntries, customCrewName, neededScenarioPart, participantSideJob } from '@/types/campaign';
 import { battleStatusOf, challengeAnswerStatuses } from '@/types/campaign';
 import { getClaimerGangId, getWinnerIds } from '@/utils/battle-winners';
 import { useWinnerSelection } from '@/hooks/use-winner-selection';
@@ -768,7 +768,7 @@ const CampaignBattleLogModal = ({
             deployment_id: scenarioParts.deployment_id || null,
             objective_id: scenarioParts.objective_id || null,
             crew_selection_id: scenarioParts.crew_selection_id || null,
-            crew_selection_name: scenarioParts.crew_selection_id ? null : scenarioParts.crew_selection_name?.trim() || null,
+            crew_selection_name: customCrewName(scenarioParts),
           }
         : {}),
       winner_id: isDraw ? null : (claimerForPayload ?? activeWinners[0] ?? null),

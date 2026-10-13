@@ -22,11 +22,6 @@ export interface ScenarioPartEdit {
   typedName?: string;
 }
 
-/** The custom Crew name to store: none while a Crew entry is picked, and none when blank. */
-export function customCrewName(parts: ScenarioParts): string | null {
-  return parts.crew_selection_id ? null : parts.crew_selection_name?.trim() || null;
-}
-
 /** A to-one embed, which may arrive as an array. */
 const one = <T,>(embed: T | T[] | null | undefined): T | undefined =>
   Array.isArray(embed) ? embed[0] : embed ?? undefined;
