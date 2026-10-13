@@ -15,7 +15,7 @@ import {
 } from '@/types/battle-session';
 import { fetchBattleSessionDirect, SESSION_SCENARIO_PARTS_SELECT } from '@/app/lib/battle-sessions/get-battle-session-data';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
-import { editionsConflict, gangEditionJoin, gangEditionSlug } from '@/types/edition';
+import { editionsConflict, gangEditionJoin, gangEditionSlug, hasLeftBattlefield } from '@/types/edition';
 import {
   participantSideJob,
   SCENARIO_PARTS,
@@ -678,15 +678,18 @@ export async function advanceRound(
           fighters.map((f) => {
             const rules = rulesMap.get(f.fighter_id);
             const isDual = rules?.some((r) => DUAL_ACTIVATION_RULES.includes(r)) ?? false;
-            // Injured fighters are out of action and get no fresh activation;
+            // Injured fighters are out of action and fighters who left the
+            // battlefield are out of play, so neither gets a fresh activation;
             // players can still grant one manually via updateActivations
             const isInjured = (f.session_record?.injuries?.length ?? 0) > 0;
+            const leftBattlefield = f.session_record?.left_battlefield === true;
             const record: SessionRecord = {
               xp_earned: f.session_record?.xp_earned ?? 0,
               injuries: f.session_record?.injuries ?? [],
               conditions: f.session_record?.conditions ?? [],
               note: f.session_record?.note,
-              activations: isInjured ? 0 : isDual ? 2 : 1,
+              activations: isInjured || leftBattlefield ? 0 : isDual ? 2 : 1,
+              left_battlefield: f.session_record?.left_battlefield,
             };
             return serviceSupabase
               .from('battle_session_fighters')
@@ -1304,14 +1307,14 @@ export async function bulkAddFightersToSession(params: {
 
 async function withSessionRecord(
   sessionFighterId: string,
-  updateFn: (record: SessionRecord) => SessionRecord | { error: string }
+  updateFn: (record: SessionRecord, editionSlug: string | null) => SessionRecord | { error: string }
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient();
   const user = await getAuthenticatedUser(supabase);
 
   const { data: fighter, error: fetchError } = await supabase
     .from('battle_session_fighters')
-    .select('session_record, battle_session_id, participant_id')
+    .select('session_record, battle_session_id, participant_id, battle_sessions ( editions:edition_id ( slug ) )')
     .eq('id', sessionFighterId)
     .single();
 
@@ -1326,9 +1329,13 @@ async function withSessionRecord(
     conditions: fighter.session_record?.conditions ?? [],
     note: fighter.session_record?.note,
     activations: fighter.session_record?.activations ?? 1,
+    left_battlefield: fighter.session_record?.left_battlefield,
   };
 
-  const result = updateFn(record);
+  const session: any = Array.isArray(fighter.battle_sessions)
+    ? fighter.battle_sessions[0]
+    : fighter.battle_sessions;
+  const result = updateFn(record, session?.editions?.slug ?? null);
   if ('error' in result) return { success: false, error: result.error };
 
   const { error } = await supabase
@@ -1352,14 +1359,30 @@ export async function updateSessionXp(params: {
   }));
 }
 
+/**
+ * Saved together with the conditions so the Fighter Actions modal's Confirm is
+ * one read-modify-write of the record. Leaving the battlefield also spends the
+ * fighter's remaining activations for the round.
+ */
 export async function updateSessionConditions(params: {
   session_fighter_id: string;
   conditions: SessionCondition[];
+  left_battlefield?: boolean;
 }): Promise<{ success: boolean; error?: string }> {
-  return withSessionRecord(params.session_fighter_id, (record) => ({
-    ...record,
-    conditions: params.conditions,
-  }));
+  return withSessionRecord(params.session_fighter_id, (record, editionSlug) => {
+    if (params.left_battlefield === undefined) {
+      return { ...record, conditions: params.conditions };
+    }
+    if (!hasLeftBattlefield(editionSlug)) {
+      return { error: 'Leaving the battlefield is not available in this edition' };
+    }
+    return {
+      ...record,
+      conditions: params.conditions,
+      left_battlefield: params.left_battlefield || undefined,
+      activations: params.left_battlefield ? 0 : record.activations,
+    };
+  });
 }
 
 export async function updateActivations(params: {

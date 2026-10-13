@@ -130,6 +130,8 @@ export interface SessionRecord {
   conditions: SessionCondition[];
   note?: string;
   activations: number;
+  /** N26: removed from play without going Out of Action, so no fresh activations. */
+  left_battlefield?: boolean;
 }
 
 export interface BattleSessionFighter {

@@ -120,6 +120,7 @@ async function fetchBattleSessionDirect(
         conditions: f.session_record?.conditions ?? [],
         note: f.session_record?.note,
         activations: f.session_record?.activations ?? 1,
+        left_battlefield: f.session_record?.left_battlefield,
       },
       fighter: fighterMap.get(f.fighter_id) || undefined,
     });

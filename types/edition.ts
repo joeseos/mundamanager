@@ -250,6 +250,8 @@ const EDITION_CAPABILITIES = {
   frenzyCondition:          { n23: false, n26: true  },
   /** Fighters can be terrifying — an N26 condition token in a battle session. */
   terrifyingCondition:      { n23: false, n26: true  },
+  /** A fighter can leave the battlefield without going Out of Action — removed from play in a battle session. */
+  leftBattlefield:          { n23: false, n26: true  },
   venatorSkillAccess:       { n23: false, n26: true  },
   /** A Spyrer's Rig Glitches can send them into Recovery, so they get the Recovery toggle. */
   spyrerRecovery:           { n23: false, n26: true  },
@@ -455,6 +457,9 @@ export const hasFrenzyCondition = (editionSlug?: string | null): boolean =>
 
 export const hasTerrifyingCondition = (editionSlug?: string | null): boolean =>
   can('terrifyingCondition', editionSlug);
+
+export const hasLeftBattlefield = (editionSlug?: string | null): boolean =>
+  can('leftBattlefield', editionSlug);
 
 export const hasVenatorSkillAccess = (editionSlug: string | null | undefined): boolean =>
   can('venatorSkillAccess', editionSlug);
