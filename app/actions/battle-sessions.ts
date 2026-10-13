@@ -486,7 +486,6 @@ export async function setSessionScenarioParts(
           // A custom Crew is kept beside it, not in the scenario text.
           return { crew_selection_id: entryId, crew_selection_name: customCrewName({ crew_selection_id: entryId, crew_selection_name: String(edit.typedName ?? '') }) };
         }
-        if (!typeable) return { [edit.key]: entryId };
         const parts = { deployment_id: session.deployment_id, objective_id: session.objective_id, [edit.key]: entryId };
         const typed = {
           ...typedScenarioParts(session.scenario, !!session.deployment_id, !!session.objective_id),
