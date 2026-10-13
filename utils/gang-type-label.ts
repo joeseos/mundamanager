@@ -21,7 +21,7 @@ export function compactGangTypeLabel(
   return listName?.trim() || '';
 }
 
-/** "House Escher: Wyld Cult" on the gang page and print view. */
+/** "House Escher: Wyld Cult" on the gang page, print view, and home gangs tab. */
 export function detailGangTypeLabel(
   listName: string | null | undefined,
   parentGangTypeName: string | null | undefined
