@@ -1,4 +1,4 @@
-import type { BattleParticipant } from '@/types/campaign';
+import { participantSideJob, type BattleParticipant } from '@/types/campaign';
 
 // ---------------------------------------------------------------------------
 // Attacker / defender extraction
@@ -29,7 +29,8 @@ export function getAttackerDefenderIds(participants: BattleParticipant[]): {
  *     becomes the sole claimer (any prior flags are cleared);
  *   - at most one participant may have `claimed_territory: true`, and only if
  *     they are also a winner;
- *   - an N26 gang's Side Job is kept, and other rows stay without one.
+ *   - an N26 gang's Side Job, rolled or custom, is kept, and other rows stay
+ *     without one.
  *
  * Lives in utils/ (not inside a 'use server' file) so it can be imported by
  * both the server action and the API route without triggering Next.js's
@@ -49,9 +50,7 @@ export function normaliseParticipants(
     gang_id: p.gang_id,
     is_winner: p.is_winner === true,
     claimed_territory: false,
-    ...(p.side_job_id
-      ? { side_job_id: p.side_job_id, side_job_completed: p.side_job_completed === true }
-      : {}),
+    ...participantSideJob(p),
   }));
 
   // Backfill is_winner from the legacy winner_id when no participant is flagged.

@@ -67,8 +67,9 @@ export interface BattleSessionParticipant {
   user_id: string;
   gang_id: string;
   role: 'attacker' | 'defender' | 'none';
-  /** N26: the gang's Side Job (a scenario_table_entries id), and whether it was completed. */
+  /** N26: the gang's Side Job (a scenario_table_entries id) or custom Side Job name, and whether it was completed. */
   side_job_id?: string | null;
+  side_job_name?: string | null;
   side_job_completed?: boolean;
   gang_rating_snapshot: number | null;
   credits_earned: number;

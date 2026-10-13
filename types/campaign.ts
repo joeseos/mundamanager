@@ -23,9 +23,29 @@ export interface BattleParticipant {
   gang_id: string;
   is_winner?: boolean;
   claimed_territory?: boolean;
-  /** N26: the Side Job this gang rolled (a scenario_table_entries id), and whether it was completed. */
+  /**
+   * N26: the Side Job this gang rolled (a scenario_table_entries id) or, for a
+   * custom one, its name; and whether it was completed.
+   */
   side_job_id?: string | null;
+  side_job_name?: string | null;
   side_job_completed?: boolean;
+}
+
+export type ParticipantSideJob = Pick<BattleParticipant, 'side_job_id' | 'side_job_name' | 'side_job_completed'>;
+
+/**
+ * A gang's Side Job as campaign_battles.participants keeps it: its entry or,
+ * with none, its custom name, and whether it was completed. Empty when the
+ * gang has neither.
+ */
+export function participantSideJob(sideJob: ParticipantSideJob): ParticipantSideJob {
+  const name = sideJob.side_job_name?.trim();
+  if (!sideJob.side_job_id && !name) return {};
+  return {
+    ...(sideJob.side_job_id ? { side_job_id: sideJob.side_job_id } : { side_job_name: name }),
+    side_job_completed: sideJob.side_job_completed === true,
+  };
 }
 
 /**
