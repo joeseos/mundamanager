@@ -22,14 +22,17 @@ export type PostCycleActionId =
   | 'suit_evolution'
   | 'suit_maintenance'
   | 'terrorise_territory'
+  | 'grubs_up'
   | 'train';
 
 /**
- * Subtypes match fighters.fighter_subtypes; `vehicle` means fighters.is_vehicle;
+ * Subtypes match fighters.fighter_subtypes; `fighterType` matches
+ * fighters.fighter_type by name; `vehicle` means fighters.is_vehicle;
  * `fighter` is any model that is not a vehicle.
  */
 type Performer =
   | { kind: 'subtypes'; subtypes: readonly string[] }
+  | { kind: 'fighterType'; fighterType: string }
   | { kind: 'vehicle' }
   | { kind: 'fighter' }
   | { kind: 'any' };
@@ -56,6 +59,7 @@ export const FIT_BIONICS_COST_PER_INJURY = 50;
 export { CHOP_SHOP_COST_PER_DAMAGE };
 const WORK_TERRITORY_INCOME = 15;
 const TERRORISE_TERRITORY_INCOME = 10;
+const GRUBS_UP_INCOME = 20;
 export const TRAIN_XP = 2;
 export const SUIT_EVOLUTION_KILL_COST = 4;
 export const SUIT_MAINTENANCE_COST = 100;
@@ -168,6 +172,14 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
     maxFighters: TERRITORY_MAX_FIGHTERS,
     credits: TERRORISE_TERRITORY_INCOME,
   },
+  // The Slopper's own rule rather than a list's.
+  grubs_up: {
+    id: 'grubs_up',
+    label: "Grub's Up",
+    summary: `+${GRUBS_UP_INCOME} credits`,
+    performer: { kind: 'fighterType', fighterType: 'slopper' },
+    credits: GRUBS_UP_INCOME,
+  },
   // On both lists.
   train: {
     id: 'train',
@@ -197,6 +209,7 @@ export const POST_CYCLE_LOG_TYPE_LABELS: Record<string, string> = Object.fromEnt
 export interface PostCycleFighter {
   id: string;
   fighter_name: string;
+  fighter_type?: string;
   fighter_subtypes?: string[] | null;
   is_vehicle?: boolean;
   killed?: boolean;
@@ -281,6 +294,8 @@ export function canPerformPostCycleAction(
       return fighter.is_vehicle === true;
     case 'subtypes':
       return !fighter.is_vehicle && hasSubtype(fighter, performer.subtypes);
+    case 'fighterType':
+      return fighter.fighter_type?.toLowerCase() === performer.fighterType;
   }
 }
 
