@@ -411,9 +411,12 @@ export type VehicleRepairModel =
   | { kind: 'roll'; entries: TableEntry[] }
   | { kind: 'per-damage'; costPerDamage: number };
 
+/** What N26 charges per Lasting Damage repaired at the Chop Shop, from the Repair Damage modal or a Visit Chop Shop. */
+export const CHOP_SHOP_COST_PER_DAMAGE = 50;
+
 const VEHICLE_REPAIR_BY_EDITION: Record<EditionSlug, VehicleRepairModel> = {
   n23: { kind: 'roll', entries: VEHICLE_REPAIR_TABLE_N23 },
-  n26: { kind: 'per-damage', costPerDamage: 50 },
+  n26: { kind: 'per-damage', costPerDamage: CHOP_SHOP_COST_PER_DAMAGE },
 };
 
 /** How this edition repairs vehicle damage, or null where it publishes no rules. */

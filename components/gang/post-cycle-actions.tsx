@@ -15,6 +15,7 @@ import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { countsTowardRating } from '@/utils/fighter-status';
 import {
+  CHOP_SHOP_COST_PER_DAMAGE,
   FIT_BIONICS_COST_PER_INJURY,
   POST_CYCLE_ACTIONS,
   SUIT_EVOLUTION_KILL_COST,
@@ -22,9 +23,12 @@ import {
   assignmentCreditsDelta,
   eligiblePostCycleActions,
   hasCriticalInjury,
+  lastingDamagesOf,
   patientOf,
   postCycleAvailability,
   removableLastingInjuriesOf,
+  rigGlitchNames,
+  rigGlitchesOf,
   validatePostCycleAssignment,
   type PostCycleActionId,
   type PostCycleAssignment,
@@ -60,11 +64,13 @@ interface RowState {
   injuryIds: string[];
   /** Develop Tactics; the name is only for showing the pick. */
   tacticsCard?: Pick<TacticsCard, 'id' | 'name'>;
+  /** Visit Chop Shop: the vehicle's Lasting Damage to repair. */
+  damageIds?: string[];
 }
 
 /** Null while the row still lacks a pick its action needs. */
 function toAssignment(fighterId: string, row: RowState): PostCycleAssignment | null {
-  const { action, targetFighterId, injuryIds, tacticsCard } = row;
+  const { action, targetFighterId, injuryIds, tacticsCard, damageIds } = row;
   switch (action) {
     case 'medical_escort':
       return targetFighterId ? { fighterId, action, targetFighterId } : null;
@@ -74,6 +80,8 @@ function toAssignment(fighterId: string, row: RowState): PostCycleAssignment | n
         : null;
     case 'develop_tactics':
       return tacticsCard ? { fighterId, action, tacticsCardId: tacticsCard.id } : null;
+    case 'visit_chop_shop':
+      return damageIds?.length ? { fighterId, action, damageIds } : null;
     default:
       return { fighterId, action };
   }
@@ -85,11 +93,18 @@ function applyChange(fighter: FighterProps, change: PostCycleFighterChange): Fig
 
   if (change.removedEffectIds?.length || change.addedInjury) {
     const removed = new Set(change.removedEffectIds ?? []);
-    const kept = (next.effects?.injuries ?? []).filter((effect) => !removed.has(effect.id));
+    const keep = (effects: FighterEffect[]) => effects.filter((effect) => !removed.has(effect.id));
+    const kept = keep(next.effects?.injuries ?? []);
+    // Only a vehicle has these, repaired by Visit Chop Shop.
+    const damages = next.effects?.['lasting damages'];
+    // Cleared by a Spyrer's Suit Maintenance.
+    const glitches = next.effects?.['rig-glitches'];
 
     next.effects = {
       ...next.effects,
       injuries: change.addedInjury ? [...kept, change.addedInjury] : kept,
+      ...(damages && { 'lasting damages': keep(damages) }),
+      ...(glitches && { 'rig-glitches': keep(glitches) }),
     };
   }
 
@@ -168,6 +183,9 @@ export default function PostCycleActions({
   /** The fighter whose Gang Tactic is being picked, and the pick so far. */
   const [tacticsPickerFor, setTacticsPickerFor] = useState<string | null>(null);
   const [tacticsPick, setTacticsPick] = useState<RowState['tacticsCard'] | null>(null);
+  /** The vehicle whose Lasting Damage is being picked for the Chop Shop, and the pick so far. */
+  const [damagePickerFor, setDamagePickerFor] = useState<string | null>(null);
+  const [damagePick, setDamagePick] = useState<string[]>([]);
 
   const canEdit = userPermissions?.canEdit ?? false;
   const availability = useMemo(
@@ -306,10 +324,14 @@ export default function PostCycleActions({
           : 'No Critical Injuries';
       case 'fit_bionics':
         return injuredFighters.some((f) => f.id !== fighter.id) ? null : 'No Lasting Injuries';
+      case 'visit_chop_shop':
+        return lastingDamagesOf(fighter).length > 0 ? null : 'No Lasting Damage';
       case 'suit_evolution':
         return (fighter.kill_count ?? 0) < SUIT_EVOLUTION_KILL_COST
           ? `Needs ${SUIT_EVOLUTION_KILL_COST} kills`
           : null;
+      case 'suit_maintenance':
+        return rigGlitchesOf(fighter).length > 0 ? null : 'No Rig Glitches';
       default:
         return null;
     }
@@ -319,6 +341,12 @@ export default function PostCycleActions({
     setTacticsPick(rows[fighterId]?.tacticsCard ?? null);
     setTacticsPickerFor(fighterId);
   };
+
+  const openDamagePicker = (fighterId: string) => {
+    setDamagePick(rows[fighterId]?.damageIds ?? []);
+    setDamagePickerFor(fighterId);
+  };
+  const damagePickerVehicle = damagePickerFor ? fighterById.get(damagePickerFor) : undefined;
 
   const patientOptions = (performerId: string, candidates: FighterProps[]) =>
     candidates
@@ -345,7 +373,29 @@ export default function PostCycleActions({
     if (assignment.action === 'train') return `+${TRAIN_XP} XP`;
     if (assignment.action === 'develop_tactics') return rows[assignment.fighterId]?.tacticsCard?.name ?? null;
     const delta = assignmentCreditsDelta(assignment);
-    return delta === 0 ? null : `${delta > 0 ? '+' : ''}${delta} credits`;
+    const credits = delta === 0 ? null : `${delta > 0 ? '+' : ''}${delta} credits`;
+    if (assignment.action === 'visit_chop_shop') {
+      const vehicle = fighterById.get(assignment.fighterId);
+      const repaired = vehicle
+        ? lastingDamagesOf(vehicle).filter((damage) => assignment.damageIds.includes(damage.id))
+        : [];
+      return (
+        <>
+          <span className="block">{repaired.map((damage) => damage.effect_name).join(', ')}</span>
+          <span className="block">{credits}</span>
+        </>
+      );
+    }
+    if (assignment.action === 'suit_maintenance') {
+      const spyrer = fighterById.get(assignment.fighterId);
+      return (
+        <>
+          <span className="block">{spyrer && rigGlitchNames(rigGlitchesOf(spyrer))}</span>
+          <span className="block">{credits}</span>
+        </>
+      );
+    }
+    return credits;
   };
 
   /**
@@ -512,6 +562,17 @@ export default function PostCycleActions({
                     </>
                   )}
 
+                  {row?.action === 'visit_chop_shop' && (
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      onClick={() => openDamagePicker(fighter.id)}
+                      disabled={!canEdit || applying}
+                    >
+                      Choose Lasting Damage
+                    </Button>
+                  )}
+
                   {row?.action === 'develop_tactics' && (
                     <Button
                       size="sm"
@@ -576,6 +637,27 @@ export default function PostCycleActions({
           confirmText="Choose"
           confirmDisabled={!tacticsPick}
           width="lg"
+        />
+      )}
+
+      {damagePickerVehicle && (
+        <Modal
+          title="Visit Chop Shop"
+          helper={`Pick the Lasting Damage ${damagePickerVehicle.fighter_name} has repaired. It is repaired and paid for when the Post-cycle Actions are applied.`}
+          content={
+            <EffectChecklist
+              effects={lastingDamagesOf(damagePickerVehicle)}
+              selected={damagePick}
+              costEach={CHOP_SHOP_COST_PER_DAMAGE}
+              onChange={setDamagePick}
+              disabled={!canEdit}
+              emptyText="No Lasting Damage to repair."
+            />
+          }
+          onClose={() => setDamagePickerFor(null)}
+          onConfirm={() => setRow(damagePickerVehicle.id, { damageIds: damagePick })}
+          confirmText="Choose"
+          confirmDisabled={damagePick.length === 0}
         />
       )}
     </div>
