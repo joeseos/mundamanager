@@ -92,9 +92,7 @@ export const medicalEscortCost = (performer: PostCycleFighter): number =>
 
 /** The discount comes off the total, not each injury. */
 export const fitBionicsCost = (performer: PostCycleFighter, injuries: number): number =>
-  injuries === 0
-    ? 0
-    : discounted(injuries * FIT_BIONICS_COST_PER_INJURY, postCycleDiscount(performer, 'fit_bionics'));
+  discounted(injuries * FIT_BIONICS_COST_PER_INJURY, postCycleDiscount(performer, 'fit_bionics'));
 
 const TERRITORY_MAX_FIGHTERS = 5;
 
