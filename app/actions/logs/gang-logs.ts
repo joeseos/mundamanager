@@ -14,7 +14,6 @@ export interface CreateGangLogParams {
 
 export interface GangLogActionResult {
   success: boolean;
-  data?: any;
   error?: string;
 }
 
@@ -29,8 +28,10 @@ export async function createGangLog(params: CreateGangLogParams): Promise<GangLo
       throw new Error('User not authenticated');
     }
 
-    // Insert gang log
-    const { data, error } = await supabase
+    // No .select(): RETURNING would also apply the SELECT policy, which campaign
+    // members fail for an opponent's gang even though the INSERT policy lets
+    // them log there (battle results, territory claims), rolling the insert back.
+    const { error } = await supabase
       .from('gang_logs')
       .insert({
         gang_id: params.gang_id,
@@ -40,19 +41,14 @@ export async function createGangLog(params: CreateGangLogParams): Promise<GangLo
         fighter_id: params.fighter_id || null,
         vehicle_id: params.vehicle_id || null,
         created_at: new Date().toISOString()
-      })
-      .select()
-      .single();
+      });
 
     if (error) {
       console.error('Error creating gang log:', error);
       throw new Error(error.message || 'Failed to create gang log');
     }
 
-    return { 
-      success: true, 
-      data
-    };
+    return { success: true };
   } catch (error) {
     console.error('Error in createGangLog server action:', error);
     return { 
