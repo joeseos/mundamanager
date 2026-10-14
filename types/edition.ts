@@ -144,6 +144,8 @@ const EDITION_CAPABILITIES = {
    * if one is deleted.
    */
   cumulativeXp:             { n23: false, n26: true  },
+  /** Every fighter rolls Advancements on the one table, Gangers and Exotic Beasts included */
+  sharedAdvancementTable:   { n23: false, n26: true  },
   /**
    * Weapon profiles use the N26 statline (SR, LR, Str, AP, Lethality) rather
    * than the N23 one (Rng S/L, Acc S/L, Str, AP, D, Am). Ammo and Damage are
@@ -213,8 +215,13 @@ const EDITION_CAPABILITIES = {
    * standard promote-to-Leader type picker with catalog subtypes.
    */
   championLeaderTypePromotion: { n23: false, n26: true },
-  /** The battle's scenario is rolled for on a D6 against the edition's numbered scenarios. */
-  scenarioD6Roll: { n23: false, n26: true },
+  /**
+   * A battle's scenario is made from parts rolled on scenario tables
+   * (Deployment, Objective, Side Job, Crew) rather than picked from a list.
+   */
+  scenarioTables: { n23: false, n26: true },
+  /** A battle crew is rated by its selected fighters' value; when false, by the gang's rating. */
+  crewRating:               { n23: true,  n26: false },
   /** Fighters can catch fire — the Blaze condition token in a battle session. */
   blazeCondition:           { n23: true,  n26: false },
   /** Fighters can be intoxicated — the Intoxicated condition token in a battle session. */
@@ -235,6 +242,8 @@ const EDITION_CAPABILITIES = {
   injuredCondition:         { n23: false, n26: true  },
   /** Fighters can be rad-poisoned — an N26 condition token in a battle session. */
   radPoisonedCondition:     { n23: false, n26: true  },
+  /** A fighter's weapon can jam — an N26 condition token in a battle session. */
+  jammedCondition:          { n23: false, n26: true  },
   /** Fighters can be fearsome — an N26 condition token in a battle session. */
   fearsomeCondition:        { n23: false, n26: true  },
   /** Fighters can be in a frenzy — an N26 condition token in a battle session. */
@@ -246,6 +255,8 @@ const EDITION_CAPABILITIES = {
   spyrerRecovery:           { n23: false, n26: true  },
   /** Spyrers spend kills on Power Boosts for their hunting rig. */
   spyrerPowerBoosts:        { n23: true,  n26: false },
+  /** Each model may take one Post-cycle Action between battles (utils/postCycleActions.ts). */
+  postCycleActions:         { n23: false, n26: true  },
 } as const satisfies Record<string, Record<EditionSlug, unknown>>;
 
 type EditionCapability = keyof typeof EDITION_CAPABILITIES;
@@ -332,6 +343,9 @@ export const hasStartingXp = (editionSlug?: string | null): boolean =>
 export const hasCumulativeXp = (editionSlug?: string | null): boolean =>
   can('cumulativeXp', editionSlug);
 
+export const hasSharedAdvancementTable = (editionSlug?: string | null): boolean =>
+  can('sharedAdvancementTable', editionSlug);
+
 export const hasLethalityStatline = (editionSlug?: string | null): boolean =>
   can('lethalityStatline', editionSlug);
 
@@ -394,8 +408,11 @@ export const hasChampionLeaderTypePromotion = (
   editionSlug?: string | null
 ): boolean => can('championLeaderTypePromotion', editionSlug);
 
-export const hasScenarioD6Roll = (editionSlug?: string | null): boolean =>
-  can('scenarioD6Roll', editionSlug);
+export const hasScenarioTables = (editionSlug?: string | null): boolean =>
+  can('scenarioTables', editionSlug);
+
+export const hasCrewRating = (editionSlug?: string | null): boolean =>
+  can('crewRating', editionSlug);
 
 export const hasBlazeCondition = (editionSlug?: string | null): boolean =>
   can('blazeCondition', editionSlug);
@@ -427,6 +444,9 @@ export const hasInjuredCondition = (editionSlug?: string | null): boolean =>
 export const hasRadPoisonedCondition = (editionSlug?: string | null): boolean =>
   can('radPoisonedCondition', editionSlug);
 
+export const hasJammedCondition = (editionSlug?: string | null): boolean =>
+  can('jammedCondition', editionSlug);
+
 export const hasFearsomeCondition = (editionSlug?: string | null): boolean =>
   can('fearsomeCondition', editionSlug);
 
@@ -444,6 +464,9 @@ export const hasSpyrerRecovery = (editionSlug?: string | null): boolean =>
 
 export const hasSpyrerPowerBoosts = (editionSlug?: string | null): boolean =>
   can('spyrerPowerBoosts', editionSlug);
+
+export const hasPostCycleActions = (editionSlug?: string | null): boolean =>
+  can('postCycleActions', editionSlug);
 
 export interface Edition {
   id: string;

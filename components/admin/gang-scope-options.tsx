@@ -1,5 +1,12 @@
 'use client';
 
+import { useState } from 'react';
+import { toast } from 'sonner';
+import { HiX } from "react-icons/hi";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import Modal from '@/components/ui/modal';
+import { CountLimit } from "@/types/fighter-type";
 import { gangOriginRank } from "@/utils/gangOriginRank";
 import { getGangSubtypeRank } from "@/utils/gangSubtypeRank";
 
@@ -16,7 +23,7 @@ export interface GangScope {
 }
 
 interface GangScopeLists {
-  gangTypes: Array<{ gang_type_id: string; gang_type: string }>;
+  gangTypes: Array<{ id: string; gang_type: string }>;
   origins: GangOriginOption[];
   subtypes: Array<{ id: string; subtype: string }>;
 }
@@ -30,7 +37,7 @@ export const gangScopeKey = (scope: GangScope) =>
 export function formatGangScope(scope: GangScope, { gangTypes, origins, subtypes }: GangScopeLists): string {
   return [
     scope.gang_type_id
-      ? `Gang type: ${gangTypes.find(g => g.gang_type_id === scope.gang_type_id)?.gang_type ?? '…'}`
+      ? `Gang type: ${gangTypes.find(g => g.id === scope.gang_type_id)?.gang_type ?? '…'}`
       : null,
     scope.gang_origin_id
       ? `Origin: ${origins.find(o => o.id === scope.gang_origin_id)?.origin_name ?? '…'}`
@@ -67,7 +74,7 @@ export function GangScopeSelects({
         >
           <option value="">Any Gang Type</option>
           {gangTypes.map((gangType) => (
-            <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
+            <option key={gangType.id} value={gangType.id}>
               {gangType.gang_type}
             </option>
           ))}
@@ -157,5 +164,178 @@ export function GangSubtypeOptions(
           </option>
         ))}
     </>
+  );
+}
+
+/**
+ * The Count Limits section of an admin editor: its limits as chips and an Add Limit dialog. limits
+ * is null until loaded, which disables adding, so an unloaded list is never saved over the stored
+ * one. fighterTypeOptions adds a Fighter Type scope (equipment limits only).
+ */
+export function CountLimitsEditor({
+  limits, onChange, disabled, disabledHint, helper, labelLists, selectLists, fighterTypeOptions,
+}: {
+  limits: CountLimit[] | null;
+  onChange: (limits: CountLimit[]) => void;
+  disabled: boolean;
+  disabledHint?: string;
+  helper: string;
+  // Every edition's names label a saved limit; the dialog offers only the edition's own.
+  labelLists: GangScopeLists;
+  selectLists: GangScopeLists & { editionSlug?: string | null };
+  fighterTypeOptions?: Array<{ id: string; label: string }>;
+}) {
+  const [showDialog, setShowDialog] = useState(false);
+  const [gangTypeId, setGangTypeId] = useState('');
+  const [gangOriginId, setGangOriginId] = useState('');
+  const [gangSubtypeId, setGangSubtypeId] = useState('');
+  const [fighterTypeId, setFighterTypeId] = useState('');
+  const [min, setMin] = useState('');
+  const [max, setMax] = useState('');
+
+  // One limit per scope, so the most specific match is decided by scope alone.
+  const keyOf = (limit: CountLimit) => `${gangScopeKey(limit)}|${limit.for_fighter_type_id ?? ''}`;
+
+  const closeDialog = () => {
+    setShowDialog(false);
+    setGangTypeId('');
+    setGangOriginId('');
+    setGangSubtypeId('');
+    setFighterTypeId('');
+    setMin('');
+    setMax('');
+  };
+
+  // Modal closes the dialog itself unless this returns false.
+  const addLimit = () => {
+    const limit: CountLimit = {
+      gang_type_id: gangTypeId || null,
+      gang_origin_id: gangOriginId || null,
+      gang_subtype_id: gangSubtypeId || null,
+      for_fighter_type_id: fighterTypeId || null,
+      min_count: min ? parseInt(min) : null,
+      max_count: max ? parseInt(max) : null,
+    };
+
+    if ((limits ?? []).some(l => keyOf(l) === keyOf(limit))) {
+      toast.error('That scope already has a limit');
+      return false;
+    }
+
+    onChange([...(limits ?? []), limit]);
+  };
+
+  return (
+    <div className="col-span-3">
+      <label className="block text-sm font-medium text-muted-foreground mb-1">
+        Count Limits
+      </label>
+      <Button
+        onClick={() => setShowDialog(true)}
+        variant="outline"
+        size="sm"
+        className="mb-2"
+        disabled={disabled || limits === null}
+      >
+        Add Limit
+      </Button>
+      {disabled && disabledHint && (
+        <p className="text-sm text-muted-foreground mb-2">{disabledHint}</p>
+      )}
+
+      {(limits ?? []).length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {(limits ?? []).map((limit) => {
+            const scope = [
+              formatGangScope(limit, labelLists),
+              limit.for_fighter_type_id
+                ? `Fighter type: ${fighterTypeOptions?.find(o => o.id === limit.for_fighter_type_id)?.label ?? '…'}`
+                : null
+            ].filter(Boolean).join(', ') || 'Every gang';
+            const counts = [
+              limit.min_count != null ? `Min ${limit.min_count}` : null,
+              limit.max_count != null ? `Max ${limit.max_count}` : null
+            ].filter(Boolean).join(', ');
+
+            return (
+              <div
+                key={keyOf(limit)}
+                className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
+              >
+                <span>{counts} — {scope}</span>
+                <button
+                  type="button"
+                  onClick={() => onChange((limits ?? []).filter(l => keyOf(l) !== keyOf(limit)))}
+                  className="hover:text-red-500 focus:outline-hidden"
+                >
+                  <HiX className="h-4 w-4" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {showDialog && (
+        <Modal
+          title="Count Limit"
+          helper={helper}
+          onClose={closeDialog}
+          onConfirm={addLimit}
+          confirmText="Save Limit"
+          confirmDisabled={!min && !max}
+          width="sm"
+        >
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Min</label>
+                <Input
+                  type="number"
+                  value={min}
+                  onChange={(e) => setMin(e.target.value)}
+                  placeholder="e.g. 2 for 2+"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Max</label>
+                <Input
+                  type="number"
+                  value={max}
+                  onChange={(e) => setMax(e.target.value)}
+                  placeholder="e.g. 1 for 0-1"
+                />
+              </div>
+            </div>
+
+            <GangScopeSelects
+              {...selectLists}
+              gangTypeId={gangTypeId}
+              onGangTypeChange={setGangTypeId}
+              gangOriginId={gangOriginId}
+              onGangOriginChange={setGangOriginId}
+              gangSubtypeId={gangSubtypeId}
+              onGangSubtypeChange={setGangSubtypeId}
+            />
+
+            {fighterTypeOptions && (
+              <div>
+                <label className="block text-sm font-medium mb-1">Fighter Type</label>
+                <select
+                  value={fighterTypeId}
+                  onChange={(e) => setFighterTypeId(e.target.value)}
+                  className="w-full p-2 border rounded-md"
+                >
+                  <option value="">Any Fighter Type</option>
+                  {fighterTypeOptions.map((option) => (
+                    <option key={option.id} value={option.id}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
+    </div>
   );
 }

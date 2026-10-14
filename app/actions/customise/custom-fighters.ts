@@ -187,7 +187,7 @@ async function resolveFighterEditionId(
       ? supabase
           .from('gang_types')
           .select('edition_id, editions:edition_id (slug)')
-          .eq('gang_type_id', data.gang_type_id)
+          .eq('id', data.gang_type_id)
       : null;
 
   if (!parentQuery) return getEditionIdBySlug(data.edition_slug);

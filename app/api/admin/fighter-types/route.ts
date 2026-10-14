@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
 import { fetchAllRows } from "@/utils/supabase/fetch-all-rows";
-import { FighterTypeCountLimit, FighterTypeGrant } from "@/types/fighter-type";
+import { CountLimit, FighterTypeGrant } from "@/types/fighter-type";
 
 // Add type guard at the top of the file
 function isNonEmptyArray(value: unknown): boolean {
@@ -556,7 +556,7 @@ export async function PATCH(request: Request) {
     const { data: gangType, error: gangTypeError } = await supabase
       .from('gang_types')
       .select('edition_id')
-      .eq('gang_type_id', data.gang_type_id)
+      .eq('id', data.gang_type_id)
       .single();
 
     if (gangTypeError) {
@@ -915,7 +915,7 @@ export async function PATCH(request: Request) {
       }
 
       if (data.count_limits.length > 0) {
-        const countLimitRecords = (data.count_limits as FighterTypeCountLimit[]).map(row => ({
+        const countLimitRecords = (data.count_limits as CountLimit[]).map(row => ({
           fighter_type_id: id,
           gang_type_id: row.gang_type_id ?? null,
           gang_origin_id: row.gang_origin_id ?? null,
@@ -994,7 +994,7 @@ export async function POST(request: Request) {
     const { data: gangType, error: gangTypeError } = await supabase
       .from('gang_types')
       .select('gang_type, edition_id')
-      .eq('gang_type_id', data.gangTypeId)
+      .eq('id', data.gangTypeId)
       .single();
 
     if (gangTypeError) {

@@ -1410,8 +1410,8 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
 
     if (params.fighter_name !== undefined) updateData.fighter_name = params.fighter_name.trimEnd();
     if (params.label !== undefined) updateData.label = params.label;
-    if (params.kills !== undefined) updateData.kills = params.kills;
-    if (params.kill_count !== undefined) updateData.kill_count = params.kill_count;
+    if (params.kills !== undefined) updateData.kills = Number(params.kills) || 0;
+    if (params.kill_count !== undefined) updateData.kill_count = Number(params.kill_count) || 0;
     if (params.cost_adjustment !== undefined) updateData.cost_adjustment = params.cost_adjustment;
     if (params.special_rules !== undefined) updateData.special_rules = params.special_rules;
 

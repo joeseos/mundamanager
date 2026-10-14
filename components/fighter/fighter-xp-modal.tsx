@@ -1,12 +1,11 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
 import Modal from "@/components/ui/modal";
-import { LuPlus, LuMinus } from "react-icons/lu";
+import { Counter } from "@/components/ui/counter";
 import { FaBookDead } from "react-icons/fa";
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { updateFighterXpWithOoa } from '@/app/actions/edit-fighter';
@@ -35,7 +34,6 @@ const TARGET_CASES: TargetCaseConfig[] = [
 type XpCase = XpCaseDef & { id: XpCaseId };
 
 interface FighterXpModalProps {
-  isOpen: boolean;
   fighterId: string;
   currentXp: number;
   currentTotalXp: number;
@@ -59,7 +57,6 @@ interface FighterXpModalProps {
 }
 
 export function FighterXpModal({
-  isOpen,
   fighterId,
   currentXp,
   currentTotalXp,
@@ -131,7 +128,7 @@ export function FighterXpModal({
   const { data: campaignGangs = [], isLoading: gangsLoading } = useQuery({
     queryKey: ['campaign-gangs-fighters', gangId, campaignId],
     queryFn: () => fetchCampaignGangsAndFighters({ campaignId, gangId: gangId! }),
-    enabled: isOpen && showTargets,
+    enabled: showTargets,
     staleTime: 60_000,
   });
 
@@ -281,7 +278,7 @@ export function FighterXpModal({
     onXpUpdated(optimisticXp, optimisticTotalXp, optimisticKills, optimisticKillCount);
 
     // Close modal immediately for instant UX
-    handleModalClose();
+    onClose();
 
     // Build XP breakdown for rich log format (only when it matches the amount)
     const xpBreakdown: Record<string, number> = {};
@@ -359,35 +356,6 @@ export function FighterXpModal({
     return true;
   };
 
-  // Handle modal close - resets all state
-  const handleModalClose = () => {
-    // Reset all checkboxes
-    setXpCheckboxes(
-      xpCheckboxCases.reduce((acc, xpCase) => {
-        acc[xpCase.id] = false;
-        return acc;
-      }, {} as Record<string, boolean>)
-    );
-    // Reset all counters
-    setXpCounts(
-      xpCountCases.reduce((acc, xpCase) => {
-        acc[xpCase.id] = 0;
-        return acc;
-      }, {} as Record<string, number>)
-    );
-    // Clear XP amount, error, and misc note
-    setXpAmount('');
-    setXpError('');
-    setMiscNote('');
-    // Reset optional OOA / wreck target selectors
-    setExpandedTargets({ outOfAction: false, vehicleWrecked: false });
-    setTargetRows({ outOfAction: [], vehicleWrecked: [] });
-    // Call the parent onClose function
-    onClose();
-  };
-
-  if (!isOpen) return null;
-
   return (
     <Modal
       title="Add XP"
@@ -453,25 +421,11 @@ export function FighterXpModal({
                       </button>
                     )}
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
-                      onClick={() => handleXpCountChange(xpCase.id, Math.max(0, xpCounts[xpCase.id] - 1))}
-                    >
-                      <LuMinus className="h-4 w-4" />
-                    </Button>
-                    <span className="w-6 text-center">{xpCounts[xpCase.id]}</span>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
-                      onClick={() => handleXpCountChange(xpCase.id, xpCounts[xpCase.id] + 1)}
-                    >
-                      <LuPlus className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Counter
+                    value={xpCounts[xpCase.id]}
+                    onDecrement={() => handleXpCountChange(xpCase.id, Math.max(0, xpCounts[xpCase.id] - 1))}
+                    onIncrement={() => handleXpCountChange(xpCase.id, xpCounts[xpCase.id] + 1)}
+                  />
                 </div>
                 {xpCase.id === 'misc' && xpCounts.misc > 0 && (
                   <Input
@@ -580,7 +534,7 @@ export function FighterXpModal({
           )}
         </div>
       }
-      onClose={handleModalClose}
+      onClose={onClose}
       onConfirm={() => handleAddXp(xpCounts.outOfAction)}
       confirmText={parseInt(xpAmount || '0', 10) < 0 ? 'Subtract XP' : 'Add XP'}
       confirmDisabled={!xpAmount || !isValidXpInput(xpAmount) || hasIncompleteTargetRows}

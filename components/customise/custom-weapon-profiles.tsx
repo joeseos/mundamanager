@@ -2,7 +2,7 @@
 
 import { useState, useCallback, memo } from 'react';
 import { Button } from '@/components/ui/button';
-import { ImInfo } from "react-icons/im";
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { HiX } from "react-icons/hi";
 import { LuChevronUp, LuChevronDown } from "react-icons/lu";
 import { WeaponProfileFields } from '@/components/ui/weapon-profile-fields';
@@ -89,12 +89,9 @@ const ProfileCard = memo(({ profile, index, isFirst, isLast, usesLethality, onUp
             <label className="block text-xs font-medium text-muted-foreground">
               Profile Name *
             </label>
-            <div className="relative group">
-              <ImInfo />
-              <div className="absolute bottom-full left-0 -translate-x-1/4 mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded-sm w-72 z-50">
-                This name will be displayed on the fighter card next to the weapon stats. If the weapon has only one profile, it&apos;s suggested to name it the same as the weapon name. For multiple profiles, use descriptive names like &quot;- gas shells&quot; or &quot;- shatter shells&quot;.
-              </div>
-            </div>
+            <InfoTooltip ariaLabel="About the profile name">
+              This name will be displayed on the fighter card next to the weapon stats. If the weapon has only one profile, it&apos;s suggested to name it the same as the weapon name. For multiple profiles, use descriptive names like &quot;- gas shells&quot; or &quot;- shatter shells&quot;.
+            </InfoTooltip>
           </div>
           <input
             type="text"
@@ -240,12 +237,9 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
             <label className="block text-xs font-medium text-muted-foreground">
               Target Weapon
             </label>
-            <div className="relative group">
-              <ImInfo />
-              <div className="absolute bottom-full left-0 -translate-x-1/4 mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded-sm w-72 z-50">
-                Attach all profiles to an existing weapon. Use this for ammunition — the profiles will appear under the selected weapon when both are equipped on a fighter.
-              </div>
-            </div>
+            <InfoTooltip ariaLabel="About the target weapon">
+              Attach all profiles to an existing weapon. Use this for ammunition — the profiles will appear under the selected weapon when both are equipped on a fighter.
+            </InfoTooltip>
           </div>
 
           {targetWeapon ? (

@@ -68,6 +68,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
         custom_equipment_id,
         purchase_cost,
         cost_resource,
+        fighter_skill_id,
         equipment:equipment_id (equipment_category)
       `)
       .eq('id', params.fighter_equipment_id)
@@ -75,6 +76,10 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
 
     if (equipmentError || !equipmentData) {
       throw new Error(`Fighter equipment with ID ${params.fighter_equipment_id} not found`);
+    }
+
+    if (equipmentData.fighter_skill_id) {
+      throw new Error('This item comes with a skill and cannot be sold. Remove the skill instead.');
     }
 
     // Determine the gang_id based on whether it's fighter or vehicle equipment

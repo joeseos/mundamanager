@@ -20,11 +20,12 @@ interface Alliance {
   alignment: string | null;
   strong_alliance: string | null;
   alliance_crew_name: string | null;
+  tithe_cost: number | null;
   edition_id: string | null;
 }
 
 interface GangType {
-  gang_type_id: string;
+  id: string;
   gang_type: string;
   edition_id?: string | null;
 }
@@ -42,6 +43,7 @@ export function AdminAlliancesModal({ onClose }: AdminAlliancesModalProps) {
   const [alignment, setAlignment] = useState('');
   const [strongAlliance, setStrongAlliance] = useState('');
   const [allianceCrewName, setAllianceCrewName] = useState('');
+  const [titheCost, setTitheCost] = useState('');
   const [editionId, setEditionId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCreateMode, setIsCreateMode] = useState(false);
@@ -86,6 +88,7 @@ export function AdminAlliancesModal({ onClose }: AdminAlliancesModalProps) {
     setAlignment('');
     setStrongAlliance('');
     setAllianceCrewName('');
+    setTitheCost('');
   };
 
   const handleEditionChange = (newEditionId: string) => {
@@ -101,7 +104,7 @@ export function AdminAlliancesModal({ onClose }: AdminAlliancesModalProps) {
     }
 
     if (strongAlliance) {
-      const selectedGangType = gangTypes.find(gt => gt.gang_type_id === strongAlliance);
+      const selectedGangType = gangTypes.find(gt => gt.id === strongAlliance);
       if (selectedGangType && selectedGangType.edition_id !== newEditionId) {
         setStrongAlliance('');
       }
@@ -117,6 +120,7 @@ export function AdminAlliancesModal({ onClose }: AdminAlliancesModalProps) {
       setAlignment(alliance.alignment ?? '');
       setStrongAlliance(alliance.strong_alliance ?? '');
       setAllianceCrewName(alliance.alliance_crew_name ?? '');
+      setTitheCost(alliance.tithe_cost?.toString() ?? '');
       setEditionId(alliance.edition_id ?? '');
       setIsCreateMode(false);
     } else {
@@ -154,6 +158,7 @@ export function AdminAlliancesModal({ onClose }: AdminAlliancesModalProps) {
             alignment: alignment || null,
             strong_alliance: strongAlliance || null,
             alliance_crew_name: allianceCrewName || null,
+            tithe_cost: titheCost === '' ? null : Number(titheCost),
             edition_id: editionId,
           });
           break;
@@ -166,6 +171,7 @@ export function AdminAlliancesModal({ onClose }: AdminAlliancesModalProps) {
             alignment: alignment || null,
             strong_alliance: strongAlliance || null,
             alliance_crew_name: allianceCrewName || null,
+            tithe_cost: titheCost === '' ? null : Number(titheCost),
             edition_id: editionId,
           });
           break;
@@ -214,6 +220,7 @@ export function AdminAlliancesModal({ onClose }: AdminAlliancesModalProps) {
         setAlignment(resultData.alignment ?? '');
         setStrongAlliance(resultData.strong_alliance ?? '');
         setAllianceCrewName(resultData.alliance_crew_name ?? '');
+        setTitheCost(resultData.tithe_cost?.toString() ?? '');
         setEditionId(resultData.edition_id ?? editionId);
       } else if (operation === OperationType.DELETE) {
         setSelectedAllianceId('');
@@ -351,7 +358,7 @@ export function AdminAlliancesModal({ onClose }: AdminAlliancesModalProps) {
               >
                 <option value="">None</option>
                 {filteredGangTypes.map((gangType) => (
-                  <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
+                  <option key={gangType.id} value={gangType.id}>
                     {gangType.gang_type}
                   </option>
                 ))}
@@ -367,6 +374,22 @@ export function AdminAlliancesModal({ onClose }: AdminAlliancesModalProps) {
                 value={allianceCrewName}
                 onChange={(e) => setAllianceCrewName(e.target.value)}
                 placeholder="E.g. Corpse Guild, Corpse Harvesting Party"
+                className="w-full"
+                disabled={isFormDisabled}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
+                Tithe Cost
+              </label>
+              <Input
+                type="number"
+                min={0}
+                step={1}
+                value={titheCost}
+                onChange={(e) => setTitheCost(e.target.value)}
+                placeholder="E.g. 200"
                 className="w-full"
                 disabled={isFormDisabled}
               />

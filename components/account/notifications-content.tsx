@@ -6,7 +6,7 @@ import { LuCheck } from "react-icons/lu";
 import { ImInfo } from "react-icons/im";
 import { HiX } from "react-icons/hi";
 import { cn } from '@/app/lib/utils';
-import { useDeleteNotification, useMarkNotificationsRead, useNotifications, type Notification } from '../../hooks/use-notifications';
+import { useDeleteNotification, useMarkNotificationsRead, useNotificationToasts, useNotifications, type Notification } from '../../hooks/use-notifications';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Modal from '@/components/ui/modal';
@@ -132,8 +132,11 @@ export default function NotificationsContent({ userId }: { userId: string }) {
   const pathname = usePathname();
   const isProfilePage = pathname === '/account';
 
-  // Kept current by the header's realtime subscription (SettingsModal)
+  // Kept current by the header's realtime subscription (SettingsModal).
+  // Toasts run here as well: this page has the user id immediately, so arrivals
+  // are announced before the mark-read effect below dismisses them.
   const { notifications, refetch } = useNotifications(userId);
+  useNotificationToasts(userId);
   const { mutate: markRead } = useMarkNotificationsRead(userId);
   const { mutateAsync: deleteNotification } = useDeleteNotification(userId);
 
@@ -298,7 +301,6 @@ export default function NotificationsContent({ userId }: { userId: string }) {
         return <LuOctagonX className="h-5 w-5 text-red-500" />;
       case 'warning':
         return <LuTriangleAlert className="h-5 w-5 text-amber-500" />;
-      case 'invite': // legacy: pre-split campaign/battle invites
       case 'campaign_invite':
         return <LuUserPlus className="h-5 w-5 text-indigo-500" />;
       case 'battle_invite':

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Input } from '../ui/input';
 import Modal from '@/components/ui/modal';
 import { toast } from 'sonner';
@@ -6,13 +6,14 @@ import { VehicleProps } from '@/types/vehicle';
 import { FighterProps } from '@/types/fighter';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
-import { ImInfo } from "react-icons/im";
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { vehicleTypeRank } from "@/utils/vehicleTypeRank";
 import { addGangVehicle } from '@/app/actions/add-gang-vehicle';
 import { assignVehicleToFighter } from '@/app/actions/assign-vehicle-to-fighter';
 import { getAllowedLocomotionOptions } from '@/utils/vehicle-locomotion';
 import { UserPermissions } from '@/types/user-permissions';
 import { useCrewFighterOptions } from '@/utils/crew-fighter-combobox-options';
+import { useQuery } from '@tanstack/react-query';
 
 interface VehicleType {
   id: string;
@@ -35,6 +36,7 @@ interface AddVehicleProps {
   showModal: boolean;
   setShowModal: (show: boolean) => void;
   gangId: string;
+  gangTypeId?: string | null;
   initialCredits: number;
   onVehicleAdd: (newVehicle: VehicleProps) => void;
   onGangCreditsUpdate?: (newCredits: number) => void;
@@ -49,6 +51,7 @@ export default function AddVehicle({
   showModal,
   setShowModal,
   gangId,
+  gangTypeId,
   initialCredits,
   onVehicleAdd,
   onGangCreditsUpdate,
@@ -58,8 +61,17 @@ export default function AddVehicle({
   onFighterUpdate,
   userPermissions,
 }: AddVehicleProps) {
-  
-  const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
+  const { data: vehicleTypes = [] } = useQuery<VehicleType[]>({
+    queryKey: ['vehicle-types', gangTypeId ?? gangId],
+    queryFn: async () => {
+      const response = await fetch(`/api/gangs/${gangId}/vehicles`);
+      if (!response.ok) throw new Error('Failed to fetch vehicle types');
+      return response.json();
+    },
+    enabled: showModal,
+    staleTime: 10 * 60 * 1000,
+  });
+
   const [selectedVehicleTypeId, setSelectedVehicleTypeId] = useState('');
   const [vehicleError, setVehicleError] = useState<string | null>(null);
   const [vehicleCost, setVehicleCost] = useState('');
@@ -75,28 +87,6 @@ export default function AddVehicle({
     : [];
 
   const crewFighterOptions = useCrewFighterOptions(fighters, positioning);
-
-  // Fetch vehicle types when component mounts
-  useEffect(() => {
-    const fetchVehicleTypes = async () => {
-      if (vehicleTypes.length === 0) {
-        try {
-          const response = await fetch(`/api/gangs/${gangId}/vehicles`);
-          if (!response.ok) throw new Error('Failed to fetch vehicle types');
-          const data = await response.json();
-          setVehicleTypes(data);
-        } catch (error) {
-          console.error('Error fetching vehicle types:', error);
-          setVehicleError('Failed to load vehicle types');
-          setShowModal(false); // Close modal if fetch failed
-        }
-      }
-    };
-    
-    if (showModal) {
-      fetchVehicleTypes();
-    }
-  }, [showModal, gangId, vehicleTypes.length, setShowModal]);
 
   const handleCostChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newCost = e.target.value;
@@ -385,12 +375,9 @@ export default function AddVehicle({
               >
                 Use Listed Cost for Rating
               </label>
-              <div className="relative group">
-                <ImInfo />
-                <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
-                  When enabled, the vehicle&apos;s rating is calculated using its listed cost (from the vehicle list), even if you paid a different amount. This listed cost will be used when the vehicle is assigned to a crew. Disable this if you want the rating to reflect the price actually paid.
-                </div>
-              </div>
+              <InfoTooltip ariaLabel="About listed cost for vehicle rating">
+                When enabled, the vehicle&apos;s rating is calculated using its listed cost (from the vehicle list), even if you paid a different amount. This listed cost will be used when the vehicle is assigned to a crew. Disable this if you want the rating to reflect the price actually paid.
+              </InfoTooltip>
             </div>
           </div>
 

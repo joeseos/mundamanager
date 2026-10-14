@@ -1,6 +1,13 @@
 -- This Code is obsolete. Do not use it or update it.
 -- We now use the library app/lib/shared/gang-data.ts to get the gang details.
 -- This code is kept here for compatibility with the Rule Snatcher Tool.
+-- Rule Snatcher does not need a gang image. This function does not return
+-- gang_type_image_url and does not read gangs.default_gang_image,
+-- gang_types.image_url, or default_image_urls.
+--
+-- DEPLOY ORDER: apply migration 20261004120000_rename_gang_types_gang_type_id_to_id.sql
+-- BEFORE this file deploys. This function reads gang_types.id, which is an unused
+-- bigint until that migration drops it and renames gang_type_id to id.
 
 DROP FUNCTION IF EXISTS public.get_gang_details(uuid);
 
@@ -10,7 +17,6 @@ RETURNS TABLE(
     name text, 
     gang_type text, 
     gang_type_id uuid,
-    gang_type_image_url text,
     gang_colour text,
     credits numeric, 
     reputation numeric,
@@ -41,10 +47,29 @@ BEGIN
        FROM fighters f
        WHERE f.gang_id = p_gang_id
    ),
+   -- Two indexed lookups joined by UNION, not one OR: with an OR the planner
+   -- cannot estimate the vehicle count, so it walks whole vehicle_id indexes on
+   -- fighter_equipment and fighter_effects, and sequentially scans
+   -- fighter_effect_modifiers for the vehicles' effects.
    vehicle_ids AS (
        SELECT v.id AS v_id
        FROM vehicles v
-       WHERE v.gang_id = p_gang_id OR v.fighter_id IN (SELECT f_id FROM fighter_ids)
+       WHERE v.gang_id = p_gang_id
+       UNION
+       SELECT v.id
+       FROM vehicles v
+       WHERE v.fighter_id IN (SELECT f_id FROM fighter_ids)
+   ),
+   -- Every fighter_equipment row of the gang's fighters and vehicles. An OR of
+   -- fighter_id and vehicle_id forces a sequential scan of the whole table.
+   gang_equipment_ids AS (
+       SELECT fe.id AS fe_id
+       FROM fighter_equipment fe
+       WHERE fe.fighter_id IN (SELECT f_id FROM fighter_ids)
+       UNION
+       SELECT fe.id
+       FROM fighter_equipment fe
+       WHERE fe.vehicle_id IN (SELECT v_id FROM vehicle_ids)
    ),
    gang_fighters AS (
        SELECT
@@ -326,11 +351,7 @@ BEGIN
                       fe.id AS fe_id, fe.is_master_crafted
        FROM weapon_profiles wp
        JOIN fighter_equipment fe ON fe.equipment_id = wp.equipment_id
-       WHERE (fe.fighter_id IN (SELECT f_id FROM fighter_ids)
-          OR fe.vehicle_id IN (
-             SELECT v.id FROM vehicles v 
-             WHERE v.gang_id = p_gang_id OR v.fighter_id IN (SELECT f_id FROM fighter_ids)
-          ))
+       WHERE fe.id IN (SELECT fe_id FROM gang_equipment_ids)
        AND fe.equipment_id IS NOT NULL
    ),
    weapon_profiles_grouped AS (
@@ -385,11 +406,7 @@ BEGIN
        FROM fighter_equipment fe
        JOIN custom_weapon_profiles cwp ON (cwp.custom_equipment_id = fe.custom_equipment_id OR cwp.weapon_group_id = fe.custom_equipment_id)
        WHERE fe.custom_equipment_id IS NOT NULL
-       AND (fe.fighter_id IN (SELECT f_id FROM fighter_ids)
-          OR fe.vehicle_id IN (
-             SELECT v.id FROM vehicles v 
-             WHERE v.gang_id = p_gang_id OR v.fighter_id IN (SELECT f_id FROM fighter_ids)
-          ))
+       AND fe.id IN (SELECT fe_id FROM gang_equipment_ids)
        GROUP BY fe.id, fe.custom_equipment_id
    ),
    fighter_equipment_details AS (
@@ -427,12 +444,7 @@ BEGIN
            COALESCE(SUM(ve.purchase_cost), 0)::numeric as total_equipment_cost
        FROM fighter_equipment ve
        WHERE ve.vehicle_id IS NOT NULL
-       AND ve.vehicle_id IN (
-           SELECT v.id 
-           FROM vehicles v 
-           WHERE v.gang_id = p_gang_id 
-              OR v.fighter_id IN (SELECT f_id FROM fighter_ids)
-       )
+       AND ve.vehicle_id IN (SELECT v_id FROM vehicle_ids)
        GROUP BY ve.vehicle_id
    ),
    vehicle_equipment_details AS (
@@ -461,12 +473,7 @@ BEGIN
        LEFT JOIN equipment e ON e.id = ve.equipment_id
        LEFT JOIN custom_equipment ce ON ce.id = ve.custom_equipment_id
        WHERE ve.vehicle_id IS NOT NULL
-       AND ve.vehicle_id IN (
-           SELECT v.id 
-           FROM vehicles v 
-           WHERE v.gang_id = p_gang_id 
-              OR v.fighter_id IN (SELECT f_id FROM fighter_ids)
-       )
+       AND ve.vehicle_id IN (SELECT v_id FROM vehicle_ids)
        AND (ve.equipment_id IS NOT NULL OR ve.custom_equipment_id IS NOT NULL)
        GROUP BY ve.vehicle_id
    ),
@@ -503,7 +510,7 @@ BEGIN
        LEFT JOIN vehicle_equipment_details vep ON vep.vehicle_id = v.id
        LEFT JOIN vehicle_effects ve ON ve.vehicle_id = v.id
        LEFT JOIN vehicle_effects_credits vec2 ON vec2.vehicle_id = v.id
-       WHERE (v.fighter_id IN (SELECT f_id FROM fighter_ids) OR v.gang_id = p_gang_id)
+       WHERE v.id IN (SELECT v_id FROM vehicle_ids)
    ),
    gang_owned_vehicles AS (
        SELECT 
@@ -811,7 +818,6 @@ BEGIN
        g.name,
        g.gang_type,
        g.gang_type_id,
-       gt.image_url as gang_type_image_url,
        g.gang_colour,
        g.credits,
        g.reputation,
@@ -831,7 +837,7 @@ BEGIN
        (SELECT subtype_info FROM gang_subtype_info) as gang_subtypes,
        ed.slug AS edition_slug
    FROM gangs g
-   LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+   LEFT JOIN gang_types gt ON gt.id = g.gang_type_id
    LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
    LEFT JOIN editions ed ON ed.id = COALESCE(gt.edition_id, cgt.edition_id)
    LEFT JOIN alliances a ON a.id = g.alliance_id

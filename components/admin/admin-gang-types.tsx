@@ -1,15 +1,17 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from 'sonner';
-import { LuPlus, LuTrash2 } from "react-icons/lu";
 import { EditionSelect } from '@/components/edition-select';
-import { normaliseDefaultImageUrls, type DefaultImageEntry } from '@/types/gang';
-import { isValidHttpUrl } from '@/utils/http-url';
+import {
+  AdminGangPortraitForm,
+  type PortraitFormHandle,
+  type PortraitFormState,
+} from '@/components/admin/admin-gang-portrait-form';
 
 enum OperationType {
   POST = 'POST',
@@ -17,7 +19,7 @@ enum OperationType {
 }
 
 interface AdminGangType {
-  gang_type_id: string;
+  id: string;
   gang_type: string;
   alignment: string | null;
   is_hidden: boolean;
@@ -25,7 +27,6 @@ interface AdminGangType {
   trading_post_type_id: string | null;
   gang_origin_category_id: string | null;
   parent_gang_type_id: string | null;
-  default_image_urls: unknown[] | null;
   edition_id: string | null;
 }
 
@@ -40,118 +41,27 @@ interface OriginCategory {
   category_name: string;
 }
 
-interface ImageFormEntry {
-  url: string;
-  creditName: string;
-  creditUrl: string;
-  creditSuffix: string;
-}
-
 interface AdminGangTypesModalProps {
   onClose: () => void;
 }
 
-function emptyImageEntry(): ImageFormEntry {
-  return { url: '', creditName: '', creditUrl: '', creditSuffix: '' };
-}
+type GangCategory = 'types' | 'portraits';
 
-function DefaultImagePreview({ url, className }: { url: string; className?: string }) {
-  const [failed, setFailed] = useState(false);
-  const trimmed = url.trim();
-  const previewable = isValidHttpUrl(trimmed);
-
-  useEffect(() => {
-    setFailed(false);
-  }, [trimmed]);
-
-  return (
-    <div className={`overflow-hidden rounded-full border bg-muted flex items-center justify-center ${className ?? 'size-20'}`}>
-      {previewable && !failed ? (
-        // Native img: admin URLs may be hosts not listed in next/image remotePatterns.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={trimmed}
-          alt=""
-          className="size-full object-cover"
-          onError={() => setFailed(true)}
-        />
-      ) : (
-        <span className="text-[10px] text-muted-foreground text-center px-1">
-          {trimmed ? 'No preview' : 'No image'}
-        </span>
-      )}
-    </div>
-  );
-}
-
-function toImageFormEntries(raw: unknown[] | null | undefined): ImageFormEntry[] {
-  const normalised = normaliseDefaultImageUrls(raw) ?? [];
-  if (normalised.length === 0) return [];
-  return normalised.map((entry) => ({
-    url: entry.url ?? '',
-    creditName: entry.credit?.name ?? '',
-    creditUrl: entry.credit?.url ?? '',
-    creditSuffix: entry.credit?.suffix ?? '',
-  }));
-}
-
-function isEmptyImageRow(entry: ImageFormEntry): boolean {
-  return !entry.url.trim()
-    && !entry.creditName.trim()
-    && !entry.creditUrl.trim()
-    && !entry.creditSuffix.trim();
-}
-
-function withoutTrailingEmptyImageRows(entries: ImageFormEntry[]): ImageFormEntry[] {
-  let end = entries.length;
-  while (end > 0 && isEmptyImageRow(entries[end - 1])) {
-    end -= 1;
-  }
-  return entries.slice(0, end);
-}
-
-function defaultImagesValidationError(entries: ImageFormEntry[]): string | null {
-  const active = withoutTrailingEmptyImageRows(entries);
-  for (let index = 0; index < active.length; index++) {
-    const entry = active[index];
-    const imageUrl = entry.url.trim();
-    if (!imageUrl) {
-      return `Image ${index + 1}: image URL is required`;
-    }
-    if (!isValidHttpUrl(imageUrl)) {
-      return `Image ${index + 1}: image URL must be a valid http(s) URL`;
-    }
-
-    const creditUrl = entry.creditUrl.trim();
-    if (creditUrl && !isValidHttpUrl(creditUrl)) {
-      return `Image ${index + 1}: credit URL must be a valid http(s) URL`;
-    }
-  }
-  return null;
-}
-
-function toDefaultImagePayload(entries: ImageFormEntry[]): DefaultImageEntry[] | null {
-  const parsed = withoutTrailingEmptyImageRows(entries)
-    .map((entry) => {
-      const url = entry.url.trim();
-      const creditName = entry.creditName.trim();
-      const creditUrl = entry.creditUrl.trim();
-      const creditSuffix = entry.creditSuffix.trim();
-      const credit: DefaultImageEntry['credit'] = {
-        ...(creditName ? { name: creditName } : {}),
-        ...(creditUrl ? { url: creditUrl } : {}),
-        ...(creditSuffix ? { suffix: creditSuffix } : {}),
-      };
-
-      return Object.keys(credit).length > 0 ? { url, credit } : { url };
-    });
-
-  return parsed.length > 0 ? parsed : null;
-}
+const EMPTY_PORTRAIT_STATE: PortraitFormState = {
+  canSave: false,
+  canDelete: false,
+  hasSelection: false,
+  isBusy: false,
+  pendingAction: null,
+  isCreateMode: false,
+};
 
 export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
   const queryClient = useQueryClient();
+  const portraitFormRef = useRef<PortraitFormHandle>(null);
 
+  const [selectedCategory, setSelectedCategory] = useState<GangCategory>('types');
+  const [portraitState, setPortraitState] = useState<PortraitFormState>(EMPTY_PORTRAIT_STATE);
   const [selectedGangTypeId, setSelectedGangTypeId] = useState('');
   const [gangTypeName, setGangTypeName] = useState('');
   const [alignment, setAlignment] = useState('');
@@ -160,7 +70,6 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
   const [tradingPostTypeId, setTradingPostTypeId] = useState('');
   const [originCategoryId, setOriginCategoryId] = useState('');
   const [parentGangTypeId, setParentGangTypeId] = useState('');
-  const [defaultImages, setDefaultImages] = useState<ImageFormEntry[]>([]);
   const [editionId, setEditionId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCreateMode, setIsCreateMode] = useState(false);
@@ -196,6 +105,9 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
   });
 
   const isLoading = isLoadingGangTypes || isLoadingTradingPosts || isLoadingOriginCategories || isSubmitting;
+  const handlePortraitState = useCallback((state: PortraitFormState) => {
+    setPortraitState(state);
+  }, []);
   const isFormDisabled = (!isCreateMode && !selectedGangTypeId) || isLoading;
 
   const filteredGangTypes = useMemo(
@@ -215,12 +127,12 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
   const parentOptions = useMemo(
     () => filteredGangTypes.filter(gt =>
       !gt.parent_gang_type_id &&
-      gt.gang_type_id !== selectedGangTypeId
+      gt.id !== selectedGangTypeId
     ),
     [filteredGangTypes, selectedGangTypeId]
   );
 
-  const selectedGangType = gangTypes.find(gt => gt.gang_type_id === selectedGangTypeId);
+  const selectedGangType = gangTypes.find(gt => gt.id === selectedGangTypeId);
   const willAssignEdition = Boolean(
     !isCreateMode && selectedGangType && !selectedGangType.edition_id && editionId
   );
@@ -233,7 +145,6 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
     setTradingPostTypeId('');
     setOriginCategoryId('');
     setParentGangTypeId('');
-    setDefaultImages([]);
   };
 
   const applyGangType = (gangType: AdminGangType) => {
@@ -244,7 +155,6 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
     setTradingPostTypeId(gangType.trading_post_type_id ?? '');
     setOriginCategoryId(gangType.gang_origin_category_id ?? '');
     setParentGangTypeId(gangType.parent_gang_type_id ?? '');
-    setDefaultImages(toImageFormEntries(gangType.default_image_urls));
     setEditionId(gangType.edition_id || editionId);
   };
 
@@ -252,7 +162,7 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
     setEditionId(newEditionId);
 
     if (newEditionId && selectedGangTypeId) {
-      const gangType = gangTypes.find(gt => gt.gang_type_id === selectedGangTypeId);
+      const gangType = gangTypes.find(gt => gt.id === selectedGangTypeId);
       if (gangType?.edition_id && gangType.edition_id !== newEditionId) {
         setSelectedGangTypeId('');
         clearFormFields();
@@ -268,7 +178,7 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
     }
 
     if (parentGangTypeId) {
-      const selected = gangTypes.find(gt => gt.gang_type_id === parentGangTypeId);
+      const selected = gangTypes.find(gt => gt.id === parentGangTypeId);
       if (selected && selected.edition_id !== newEditionId) {
         setParentGangTypeId('');
       }
@@ -277,7 +187,7 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
 
   const handleGangTypeSelect = (gangTypeId: string) => {
     setSelectedGangTypeId(gangTypeId);
-    const gangType = gangTypes.find(gt => gt.gang_type_id === gangTypeId);
+    const gangType = gangTypes.find(gt => gt.id === gangTypeId);
     if (gangType) {
       applyGangType(gangType);
       setIsCreateMode(false);
@@ -293,21 +203,9 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
     setIsCreateMode(true);
   };
 
-  const updateImageEntry = (index: number, patch: Partial<ImageFormEntry>) => {
-    setDefaultImages((current) => current.map((entry, i) => (
-      i === index ? { ...entry, ...patch } : entry
-    )));
-  };
-
   const handleSubmitGangType = async (operation: OperationType) => {
     if (!gangTypeName.trim() || !editionId) {
       toast.error('Please fill in all required fields');
-      return;
-    }
-
-    const imagesError = defaultImagesValidationError(defaultImages);
-    if (imagesError) {
-      toast.error(imagesError);
       return;
     }
 
@@ -321,7 +219,6 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
         trading_post_type_id: tradingPostTypeId || null,
         gang_origin_category_id: originCategoryId || null,
         parent_gang_type_id: parentGangTypeId || null,
-        default_image_urls: toDefaultImagePayload(defaultImages),
         edition_id: editionId,
       };
 
@@ -329,7 +226,7 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
       const body = JSON.stringify(
         operation === OperationType.POST
           ? payload
-          : { gang_type_id: selectedGangTypeId, ...payload }
+          : { id: selectedGangTypeId, ...payload }
       );
 
       const response = await fetch('/api/admin/gang-types', {
@@ -356,8 +253,8 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
 
       await queryClient.invalidateQueries({ queryKey: ['admin-gang-types'] });
 
-      if (operation === OperationType.POST && resultData?.gang_type_id) {
-        setSelectedGangTypeId(resultData.gang_type_id);
+      if (operation === OperationType.POST && resultData?.id) {
+        setSelectedGangTypeId(resultData.id);
         setIsCreateMode(false);
         applyGangType(resultData);
       }
@@ -381,8 +278,8 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
       <div className="bg-card rounded-lg shadow-xl w-full max-w-3xl min-h-0 max-h-svh overflow-y-auto flex flex-col">
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <div>
-            <h3 className="text-xl md:text-2xl font-bold text-foreground">Manage Gang Types</h3>
-            <p className="text-sm text-muted-foreground">Create or edit gang types</p>
+            <h3 className="text-xl md:text-2xl font-bold text-foreground">Manage Gangs</h3>
+            <p className="text-sm text-muted-foreground">Create or edit gang types and portraits</p>
           </div>
           <button
             onClick={onClose}
@@ -394,6 +291,52 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
 
         <div className="px-[10px] py-4">
           <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
+                Category
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant={selectedCategory === 'types' ? 'default' : 'outline'}
+                  onClick={() => {
+                    setPortraitState(EMPTY_PORTRAIT_STATE);
+                    setSelectedCategory('types');
+                  }}
+                  disabled={isSubmitting || portraitState.isBusy}
+                  className={
+                    selectedCategory === 'types'
+                      ? ''
+                      : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  }
+                >
+                  Gang Types
+                </Button>
+                <Button
+                  type="button"
+                  variant={selectedCategory === 'portraits' ? 'default' : 'outline'}
+                  onClick={() => {
+                    setSelectedGangTypeId('');
+                    clearFormFields();
+                    setIsCreateMode(false);
+                    setSelectedCategory('portraits');
+                  }}
+                  disabled={isSubmitting || portraitState.isBusy}
+                  className={
+                    selectedCategory === 'portraits'
+                      ? ''
+                      : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  }
+                >
+                  Gang Portraits
+                </Button>
+              </div>
+            </div>
+
+            {selectedCategory === 'portraits' ? (
+              <AdminGangPortraitForm ref={portraitFormRef} onStateChange={handlePortraitState} />
+            ) : (
+            <>
             <div>
               <EditionSelect value={editionId} onChange={handleEditionChange} defaultToCurrent />
               {willAssignEdition && (
@@ -425,7 +368,7 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
               >
                 <option value="">Select a gang type to edit</option>
                 {filteredGangTypes.map((gangType) => (
-                  <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
+                  <option key={gangType.id} value={gangType.id}>
                     {gangType.gang_type}
                     {!gangType.edition_id ? ' (no edition)' : ''}
                     {gangType.is_hidden ? ' (hidden)' : ''}
@@ -552,101 +495,14 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
               >
                 <option value="">None (root gang type)</option>
                 {parentOptions.map((gangType) => (
-                  <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
+                  <option key={gangType.id} value={gangType.id}>
                     {gangType.gang_type}
                   </option>
                 ))}
               </select>
             </div>
-
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <label className="block text-sm font-medium text-muted-foreground">
-                  Default Images
-                </label>
-                <Button
-                  type="button"
-                  onClick={() => setDefaultImages((current) => [...current, emptyImageEntry()])}
-                  disabled={isFormDisabled}
-                  className="text-xs h-7 px-3"
-                >
-                  <LuPlus className="h-4 w-4 mr-1" />
-                  Add Image
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground mb-2">
-                Gangs pin a portrait by position. Removing an image remaps later
-                portraits and cannot be undone.
-              </p>
-              {defaultImages.length === 0 && (
-                <p className="text-xs text-muted-foreground">No default images.</p>
-              )}
-              <div className="space-y-3">
-                {defaultImages.map((entry, index) => (
-                  <div key={index} className="border rounded-md p-3 space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-medium text-muted-foreground">
-                        Image {index + 1}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          const hasPinnedUrl = Boolean(entry.url.trim());
-                          if (hasPinnedUrl && !window.confirm(
-                            'Remove this image? Gangs using it will lose that default portrait, and later images will shift. This cannot be undone.'
-                          )) {
-                            return;
-                          }
-                          setDefaultImages((current) => current.filter((_, i) => i !== index));
-                        }}
-                        disabled={isFormDisabled}
-                        className="text-xs h-7 px-2"
-                      >
-                        <LuTrash2 className="h-4 w-4 mr-1" />
-                        Remove
-                      </Button>
-                    </div>
-                    <div className="flex gap-3 items-start">
-                      <DefaultImagePreview url={entry.url} className="size-24 shrink-0" />
-                      <div className="flex-1 space-y-2 min-w-0">
-                        <Input
-                          type="text"
-                          value={entry.url}
-                          onChange={(e) => updateImageEntry(index, { url: e.target.value })}
-                          placeholder="Image URL"
-                          className="w-full"
-                          disabled={isFormDisabled}
-                        />
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                          <Input
-                            type="text"
-                            value={entry.creditName}
-                            onChange={(e) => updateImageEntry(index, { creditName: e.target.value })}
-                            placeholder="Credit name"
-                            disabled={isFormDisabled}
-                          />
-                          <Input
-                            type="text"
-                            value={entry.creditUrl}
-                            onChange={(e) => updateImageEntry(index, { creditUrl: e.target.value })}
-                            placeholder="Credit URL"
-                            disabled={isFormDisabled}
-                          />
-                          <Input
-                            type="text"
-                            value={entry.creditSuffix}
-                            onChange={(e) => updateImageEntry(index, { creditSuffix: e.target.value })}
-                            placeholder="Credit suffix"
-                            disabled={isFormDisabled}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            </>
+            )}
           </div>
         </div>
 
@@ -654,13 +510,42 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
           <Button
             variant="outline"
             onClick={onClose}
-            disabled={isLoading}
+            disabled={selectedCategory === 'portraits' ? portraitState.isBusy : isLoading}
             className="flex-1"
           >
             Cancel
           </Button>
 
-          {isCreateMode && (
+          {selectedCategory === 'portraits' && portraitState.isCreateMode && (
+            <Button
+              onClick={() => portraitFormRef.current?.save()}
+              disabled={!portraitState.canSave}
+              className="flex-1 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
+            >
+              {portraitState.pendingAction === 'save' ? 'Creating...' : 'Create Portrait'}
+            </Button>
+          )}
+
+          {selectedCategory === 'portraits' && portraitState.hasSelection && (
+            <>
+              <Button
+                onClick={() => portraitFormRef.current?.save()}
+                disabled={!portraitState.canSave}
+                className="flex-1 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
+              >
+                {portraitState.pendingAction === 'save' ? 'Updating...' : 'Update Portrait'}
+              </Button>
+              <Button
+                onClick={() => portraitFormRef.current?.remove()}
+                disabled={!portraitState.canDelete}
+                className="flex-1 bg-red-600 text-white rounded-sm hover:bg-red-700"
+              >
+                {portraitState.pendingAction === 'delete' ? 'Deleting...' : 'Delete Portrait'}
+              </Button>
+            </>
+          )}
+
+          {selectedCategory === 'types' && isCreateMode && (
             <Button
               onClick={() => handleSubmitGangType(OperationType.POST)}
               disabled={!gangTypeName.trim() || !editionId || isLoading}
@@ -670,7 +555,7 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
             </Button>
           )}
 
-          {!isCreateMode && selectedGangTypeId && (
+          {selectedCategory === 'types' && !isCreateMode && selectedGangTypeId && (
             <Button
               onClick={() => handleSubmitGangType(OperationType.UPDATE)}
               disabled={!gangTypeName.trim() || !editionId || isLoading}

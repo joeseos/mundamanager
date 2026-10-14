@@ -5,11 +5,13 @@ import Link from 'next/link';
 import { Tooltip } from 'react-tooltip';
 import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import { getPlayingCardSortKey } from '@/utils/campaigns/territory-playing-card-options';
+import { compactGangTypeLabel } from '@/utils/gang-type-label';
 
 interface Gang {
   id: string;
   name: string;
   gang_type: string;
+  parent_gang_type_name?: string | null;
   gang_colour: string;
 }
 
@@ -100,7 +102,7 @@ export default function CampaignMapGangSummary({ territories, allGangs }: Campai
                 </Link>
               </span>
               <div className="p-1 space-y-2">
-                <p className="text-xs text-muted-foreground">{gang.gang_type}</p>
+                <p className="text-xs text-muted-foreground">{compactGangTypeLabel(gang.gang_type, gang.parent_gang_type_name)}</p>
                 {owned.length > 0 ? (
                   <ul className="text-xs space-y-0.5 mt-1">
                     {owned.map(t => (

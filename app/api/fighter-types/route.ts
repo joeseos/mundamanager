@@ -187,7 +187,7 @@ async function getGangEditionId(
     const { data } = await supabase
       .from('gang_types')
       .select('edition_id')
-      .eq('gang_type_id', gangTypeId)
+      .eq('id', gangTypeId)
       .maybeSingle();
     return data?.edition_id ?? null;
   }
@@ -215,15 +215,15 @@ async function getAvailableToAllFighterTypes(
 
   const { data: sharedGangType } = await supabase
     .from('gang_types')
-    .select('gang_type_id')
+    .select('id')
     .eq('gang_type', 'Available to All')
     .eq('edition_id', editionId)
     .maybeSingle();
 
-  if (!sharedGangType?.gang_type_id) return [];
+  if (!sharedGangType?.id) return [];
 
   const { data, error } = await supabase.rpc('get_fighter_types_with_cost', {
-    p_gang_type_id: sharedGangType.gang_type_id,
+    p_gang_type_id: sharedGangType.id,
     p_gang_affiliation_id: null,
     p_is_gang_addition: false
   });
@@ -311,7 +311,7 @@ export async function GET(request: Request) {
       // Filter out fighter types from hidden gang types
       const { data: hiddenGangTypes, error: hiddenError } = await supabase
         .from('gang_types')
-        .select('gang_type_id')
+        .select('id')
         .eq('is_hidden', true);
 
       if (hiddenError) {
@@ -320,7 +320,7 @@ export async function GET(request: Request) {
       }
 
       if (hiddenGangTypes && hiddenGangTypes.length > 0) {
-        const hiddenIds = new Set(hiddenGangTypes.map(gt => gt.gang_type_id));
+        const hiddenIds = new Set(hiddenGangTypes.map(gt => gt.id));
         // The 'Subtype: <name>' pools are themselves hidden gang types, so a granted fighter has
         // to survive this filter — a rule put it in the list, not the catalogue.
         // Only subtype-scoped grants set is_gang_subtype, so an origin- or gang-type-scoped grant

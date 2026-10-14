@@ -293,6 +293,21 @@ body::before {
   }
 }
 
+/* iOS Safari fix: date and time inputs keep a minimum width of their own and
+   overflow a narrow form. Without the native look they take the width they are
+   given; Tailwind's preflight already evens out their height and alignment. */
+@supports (-webkit-touch-callout: none) {
+  @layer base {
+    input[type="date"],
+    input[type="datetime-local"],
+    input[type="time"] {
+      -webkit-appearance: none;
+      appearance: none;
+      min-width: 0;
+    }
+  }
+}
+
 /* tailwindcss fix for Firefox */
 @layer base {
   option, optgroup {

@@ -1,4 +1,6 @@
 // Campaign-related type definitions
+//
+// The Discord bot edge function (Deno) imports this file too, so it must not import anything.
 
 /**
  * Gang reference used when gang is nested under another entity.
@@ -23,6 +25,29 @@ export interface BattleParticipant {
   gang_id: string;
   is_winner?: boolean;
   claimed_territory?: boolean;
+  /**
+   * N26: the Side Job this gang rolled (a scenario_table_entries id) or, for a
+   * custom one, its name; and whether it was completed.
+   */
+  side_job_id?: string | null;
+  side_job_name?: string | null;
+  side_job_completed?: boolean;
+}
+
+export type ParticipantSideJob = Pick<BattleParticipant, 'side_job_id' | 'side_job_name' | 'side_job_completed'>;
+
+/**
+ * A gang's Side Job as campaign_battles.participants keeps it: its entry or,
+ * with none, its custom name, and whether it was completed. Empty when the
+ * gang has neither.
+ */
+export function participantSideJob(sideJob: ParticipantSideJob): ParticipantSideJob {
+  const name = sideJob.side_job_name?.trim();
+  if (!sideJob.side_job_id && !name) return {};
+  return {
+    ...(sideJob.side_job_id ? { side_job_id: sideJob.side_job_id } : { side_job_name: name }),
+    side_job_completed: sideJob.side_job_completed === true,
+  };
 }
 
 /**
@@ -79,6 +104,14 @@ export interface Battle {
   scenario_number?: number;
   scenario_name?: string;
   scenario?: string;
+  /** N26: what was rolled on the scenario tables, as scenario_table_entries ids. */
+  deployment_id?: string | null;
+  objective_id?: string | null;
+  crew_selection_id?: string | null;
+  /** N26: a custom Deployment, Objective or Crew named by hand instead of rolled. Null while its id is set. */
+  deployment_name?: string | null;
+  objective_name?: string | null;
+  crew_selection_name?: string | null;
   winner_id?: string | null;
   note?: string | null;
   participants?: BattleParticipant[] | string;
@@ -112,6 +145,8 @@ export interface Battle {
 export interface CampaignGang {
   id: string;
   name: string;
+  /** Null for a custom gang type. Picks the house Side Jobs an N26 gang may roll on. */
+  gang_type_id?: string | null;
   gang_colour?: string;
   campaign_member_id?: string;
   user_id?: string;
@@ -206,6 +241,144 @@ export interface Scenario {
 }
 
 /**
+ * N26 battles have no scenarios to pick from. A scenario is made of its parts,
+ * each rolled on a printed D6 table: a Deployment, an Objective and a Crew
+ * selection, plus a Side Job for each gang. `scenario_tables` are those tables
+ * (`table_type` says which part a table supplies) and `scenario_table_entries`
+ * their lines. These types describe what can be rolled; what a battle rolled
+ * is stored on the battle itself.
+ */
+export const SCENARIO_TABLE_TYPES = ['deployment', 'objective', 'side_job', 'crew_selection'] as const;
+
+export type ScenarioTableType = (typeof SCENARIO_TABLE_TYPES)[number];
+
+/**
+ * The parts of an N26 scenario rolled once per battle: the battle column each
+ * is stored in, and the table it is rolled on. Each may also be Custom, named
+ * by hand and kept in its name column instead; see customPartName.
+ */
+export const SCENARIO_PARTS = [
+  { key: 'deployment_id', nameKey: 'deployment_name', tableType: 'deployment', label: 'Deployment', placeholder: 'Select a Deployment' },
+  { key: 'objective_id', nameKey: 'objective_name', tableType: 'objective', label: 'Objective', placeholder: 'Select an Objective' },
+  { key: 'crew_selection_id', nameKey: 'crew_selection_name', tableType: 'crew_selection', label: 'Crew', placeholder: 'Select a Crew' },
+] as const satisfies readonly {
+  key: keyof Battle;
+  nameKey: keyof Battle;
+  tableType: ScenarioTableType;
+  label: string;
+  placeholder: string;
+}[];
+
+export type ScenarioPart = (typeof SCENARIO_PARTS)[number];
+export type ScenarioPartKey = ScenarioPart['key'];
+
+/** What the admin edits, and the name of the core table of each type. */
+export const SCENARIO_TABLE_TYPE_LABELS: Record<ScenarioTableType, string> = {
+  deployment: 'Deployments',
+  objective: 'Objectives',
+  side_job: 'Side Jobs',
+  crew_selection: 'Crew',
+};
+
+export function isScenarioTableType(value: unknown): value is ScenarioTableType {
+  return typeof value === 'string' && (SCENARIO_TABLE_TYPES as readonly string[]).includes(value);
+}
+
+export interface ScenarioTable {
+  id: string;
+  name: string;
+  edition_id: string;
+  /** NULL is the edition's core table for its type; a value is that house's Side Jobs table. */
+  gang_type_id: string | null;
+  table_type: ScenarioTableType;
+}
+
+export interface ScenarioTableEntry {
+  id: string;
+  name: string;
+  d6_min: number;
+  d6_max: number;
+  scenario_table_id: string;
+  edition_id: string;
+}
+
+/** A scenario table with its entries, as the battle log pickers read it. */
+export interface ScenarioTableWithEntries extends ScenarioTable {
+  edition_slug: string | null;
+  /** For a house table, the house and its alternate lists, which all roll on it. Empty for a core table. */
+  gang_type_ids: string[];
+  /** In printed table order. */
+  entries: ScenarioTableEntry[];
+}
+
+/** The edition's core table of a type: the one every gang rolls on. */
+export function coreScenarioTable<T extends ScenarioTable>(tables: T[], tableType: ScenarioTableType): T | undefined {
+  return tables.find((table) => table.table_type === tableType && !table.gang_type_id);
+}
+
+/** The house Side Jobs a gang type may roll on instead of the core ones; alternate lists use their house's. */
+export function houseSideJobTable(
+  tables: ScenarioTableWithEntries[],
+  gangTypeId: string | null | undefined
+): ScenarioTableWithEntries | undefined {
+  return gangTypeId
+    ? tables.find((table) => table.table_type === 'side_job' && table.gang_type_ids.includes(gangTypeId))
+    : undefined;
+}
+
+/** An N26 battle's scenario parts: each an entry id or, when custom, a name. */
+export type ScenarioPartFields = Partial<Record<ScenarioPart['key'] | ScenarioPart['nameKey'], string | null>>;
+
+/**
+ * What a battle's scenario is called in lists and logs: the name it was given
+ * (an N23 battle's scenario, or an N26 battle's optional scenario name), or
+ * else its Deployment and Objective, each its entry's name or custom name.
+ */
+export function scenarioLabel(
+  scenario: string | null | undefined,
+  deploymentName?: string | null,
+  objectiveName?: string | null
+): string {
+  return scenario?.trim() || [deploymentName, objectiveName].filter(Boolean).join(' / ');
+}
+
+/** A custom part's name: none while the part's entry is picked, and none when blank. */
+export function customPartName(battle: ScenarioPartFields, part: ScenarioPart): string | null {
+  return battle[part.key] ? null : battle[part.nameKey]?.trim() || null;
+}
+
+/** The name columns to save for a battle's parts, each cleaned by customPartName. */
+export function customPartNames(battle: ScenarioPartFields): Record<ScenarioPart['nameKey'], string | null> {
+  return Object.fromEntries(SCENARIO_PARTS.map((part) => [part.nameKey, customPartName(battle, part)])) as Record<
+    ScenarioPart['nameKey'],
+    string | null
+  >;
+}
+
+/** An N26 battle's custom part names, by part. */
+export function typedPartNames(battle: ScenarioPartFields): Partial<Record<ScenarioPartKey, string>> {
+  return Object.fromEntries(
+    SCENARIO_PARTS.flatMap((part) => {
+      const name = customPartName(battle, part);
+      return name ? [[part.key, name]] : [];
+    })
+  );
+}
+
+/** The first part an N26 battle still needs; a custom part counts. */
+export function neededScenarioPart(battle: ScenarioPartFields) {
+  return SCENARIO_PARTS.find((part) => !battle[part.key] && !customPartName(battle, part));
+}
+
+/** Printed table order: D6 ascending, then name. */
+export function compareScenarioTableEntries(
+  a: Pick<ScenarioTableEntry, 'name' | 'd6_min'>,
+  b: Pick<ScenarioTableEntry, 'name' | 'd6_min'>
+): number {
+  return a.d6_min - b.d6_min || a.name.localeCompare(b.name);
+}
+
+/**
  * Campaign member data
  */
 export interface Member {
@@ -232,6 +405,7 @@ export interface Member {
     id: string;              // gang's actual UUID
     name: string;
     gang_type: string;
+    gang_type_id?: string | null;
     gang_colour: string;
     rating?: number;
     wealth?: number;

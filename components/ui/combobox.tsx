@@ -256,7 +256,8 @@ export function Combobox({
     })
   }, [updatePosition])
 
-  React.useEffect(() => {
+  // Layout effect so the dropdown is placed before the first paint, not flashed at the initial 0,0
+  React.useLayoutEffect(() => {
     if (!open) return
 
     updatePosition()
@@ -333,7 +334,8 @@ export function Combobox({
             selectedOption && typeof selectedOption.label === 'string' && !open
               ? "placeholder:text-foreground"
               : "placeholder:text-muted-foreground",
-            "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2",
+            // An outline, not a ring: at zooms like 80% or 90% Chrome can leave a sliver of a box-shadow ring behind on blur
+            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
             "disabled:cursor-not-allowed disabled:opacity-50",
             // Always reserve chevron space; when clearable, also reserve the X so empty/filled sizes match
             clearable ? "pr-[5.5rem]" : "pr-12",

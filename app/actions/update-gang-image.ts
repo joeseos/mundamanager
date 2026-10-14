@@ -6,32 +6,26 @@ import { createClient } from '@/utils/supabase/server';
 export async function updateGangImage(
   gangId: string,
   imageUrl?: string | null,
-  defaultGangImage?: number | null
+  gangPortraitId?: string | null
 ) {
   try {
     const supabase = await createClient();
 
-    const updates: { image_url?: string | null; default_gang_image?: number | null } = {};
+    const updates: {
+      image_url?: string | null;
+      gang_portrait_id?: string | null;
+    } = {};
 
-    if (imageUrl !== undefined) {
-      // If imageUrl is provided (including null for removal), update it
-      // and clear default_gang_image when setting a custom image
+    if (gangPortraitId) {
+      updates.gang_portrait_id = gangPortraitId;
+      updates.image_url = null;
+    } else if (imageUrl === null && gangPortraitId === null) {
+      updates.image_url = null;
+      updates.gang_portrait_id = null;
+    } else if (imageUrl !== undefined) {
       updates.image_url = imageUrl;
       if (imageUrl !== null) {
-        // Setting a custom image, so clear the default image index
-        updates.default_gang_image = null;
-      }
-    }
-
-    if (defaultGangImage !== undefined) {
-      // If defaultGangImage is provided, update it
-      updates.default_gang_image = defaultGangImage;
-      if (defaultGangImage !== null) {
-        // Selecting a default image, so clear the custom image URL
-        updates.image_url = null;
-      } else {
-        // Clearing the default image index
-        // Don't modify image_url in this case
+        updates.gang_portrait_id = null;
       }
     }
 
@@ -44,9 +38,7 @@ export async function updateGangImage(
       throw updateError;
     }
 
-    // Revalidate the gang basic data used by the gang page
     invalidateGang(gangId);
-    // Also revalidate shared basic info used across pages that show the gang's basic info
     invalidateGangOverview(gangId);
 
     return { success: true };

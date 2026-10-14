@@ -1,12 +1,14 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import CreateBattleModal from '@/components/battle-session/create-battle-modal';
 import type { CampaignGang } from '@/components/battle-session/create-battle-modal';
-import { statusLabels, formatBattleSessionDate } from '@/types/battle-session';
+import { statusLabels, formatBattleSessionDate, sessionScenarioLabel } from '@/types/battle-session';
 import type { BattleSession } from '@/types/battle-session';
+
+const CreateBattleModal = dynamic(() => import('@/components/battle-session/create-battle-modal'), { ssr: false });
 
 interface BattleSessionsListProps {
   sessions: BattleSession[];
@@ -47,7 +49,7 @@ export default function BattleSessionsList({
 
   const content = (
     <>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex items-start justify-between">
         <h2 className="text-xl md:text-2xl font-bold">Battle Sessions</h2>
         {showAddButton && (
           <Button
@@ -106,7 +108,7 @@ export default function BattleSessionsList({
                   className="border-b cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
                 >
                   <td className="p-1 md:p-2">{formatBattleSessionDate(session.updated_at)}</td>
-                  <td className="p-1 md:p-2">{session.scenario || '-'}</td>
+                  <td className="p-1 md:p-2">{sessionScenarioLabel(session) || '-'}</td>
                   <td className="p-1 md:p-2 text-sm">
                     {statusLabels[session.status]}
                   </td>

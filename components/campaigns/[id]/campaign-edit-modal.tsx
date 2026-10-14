@@ -9,9 +9,7 @@ import Modal from "@/components/ui/modal";
 import { toast } from 'sonner';
 import { useRouter } from "next/navigation";
 import { deleteCampaign, updateCampaignSettings } from "@/app/actions/campaigns/[id]/campaign-settings";
-import { ImInfo } from "react-icons/im";
-import { Tooltip } from 'react-tooltip';
-import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { tradingPostRank } from "@/utils/tradingPostRank";
 import CampaignAllegiancesActions from "@/components/campaigns/[id]/campaign-allegiances-actions";
 import CampaignResourcesActions from "@/components/campaigns/[id]/campaign-resources-actions";
@@ -37,7 +35,6 @@ interface SettingsFormValues {
 }
 
 interface EditCampaignModalProps {
-  isOpen: boolean;
   campaignData: {
     id: string;
     campaign_name: string;
@@ -73,7 +70,6 @@ interface EditCampaignModalProps {
 }
 
 export default function CampaignEditModal({
-  isOpen,
   campaignData,
   onClose,
   onSaved,
@@ -103,10 +99,10 @@ export default function CampaignEditModal({
   });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [charCount, setCharCount] = useState(0);
+  const [charCount, setCharCount] = useState((campaignData.description ?? '').length);
   const [confirmText, setConfirmText] = useState('');
   const [discordChannels, setDiscordChannels] = useState<Array<{ id: string; name: string; type: number }>>([]);
-  const [loadingChannels, setLoadingChannels] = useState(false);
+  const [loadingChannels, setLoadingChannels] = useState(!!campaignData.discord_guild_id);
   const [selectedChannelId, setSelectedChannelId] = useState<string>(campaignData.discord_channel_id || '');
 
   const router = useRouter();
@@ -125,44 +121,25 @@ export default function CampaignEditModal({
     [customTradingPostTypes, campaignData.edition_slug]
   );
 
-  const [prevCampaignData, setPrevCampaignData] = useState(campaignData);
-  if (campaignData !== prevCampaignData) {
-    setPrevCampaignData(campaignData);
-    setFormValues({
-      campaignName: campaignData.campaign_name,
-      description: campaignData.description ?? '',
-      status: campaignData.status || 'Active',
-      allowJoinRequests: campaignData.allow_join_requests ?? false,
-      tradingPosts: campaignData.trading_posts || [],
-      customTradingPosts: campaignData.custom_trading_posts || [],
-    });
-    setCharCount((campaignData.description ?? '').length);
-    setSelectedChannelId(campaignData.discord_channel_id || '');
-  }
-
-  const [prevDiscordKey, setPrevDiscordKey] = useState('');
-  const discordKey = `${campaignData.discord_guild_id}:${isOpen}`;
-  if (discordKey !== prevDiscordKey) {
-    setPrevDiscordKey(discordKey);
-    if (campaignData.discord_guild_id && isOpen) {
-      setLoadingChannels(true);
-    }
+  const [prevDiscordGuildId, setPrevDiscordGuildId] = useState(campaignData.discord_guild_id);
+  if (campaignData.discord_guild_id !== prevDiscordGuildId) {
+    setPrevDiscordGuildId(campaignData.discord_guild_id);
+    setLoadingChannels(!!campaignData.discord_guild_id);
   }
 
   useEffect(() => {
-    if (campaignData.discord_guild_id && isOpen) {
-      fetch(`/api/discord/channels?guild_id=${campaignData.discord_guild_id}`)
-        .then(res => res.ok ? res.json() : [])
-        .then(channels => setDiscordChannels(channels))
-        .catch(() => setDiscordChannels([]))
-        .finally(() => setLoadingChannels(false));
-    }
-  }, [campaignData.discord_guild_id, isOpen]);
+    if (!campaignData.discord_guild_id) return;
+    let cancelled = false;
+    fetch(`/api/discord/channels?guild_id=${campaignData.discord_guild_id}`)
+      .then(res => res.ok ? res.json() : [])
+      .then(channels => { if (!cancelled) setDiscordChannels(channels); })
+      .catch(() => { if (!cancelled) setDiscordChannels([]); })
+      .finally(() => { if (!cancelled) setLoadingChannels(false); });
+    return () => { cancelled = true; };
+  }, [campaignData.discord_guild_id]);
 
   // Listen for postMessage from Discord OAuth popup
   useEffect(() => {
-    if (!isOpen) return;
-
     const handleMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
       if (event.data?.type === 'discord-connected' && event.data.guildId) {
@@ -172,7 +149,7 @@ export default function CampaignEditModal({
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [isOpen, onDiscordConnected]);
+  }, [onDiscordConnected]);
 
   const saveSettings = async (saveData: SettingsFormValues): Promise<boolean> => {
     try {
@@ -309,9 +286,6 @@ export default function CampaignEditModal({
     }
   };
 
-  // Don't render anything if modal is not open
-  if (!isOpen) return null;
-
   return (
     <div>
       <Modal
@@ -364,26 +338,18 @@ export default function CampaignEditModal({
                 }))}
               />
               <span className="text-sm font-medium">Allow join requests</span>
-              <span
-                className="relative cursor-pointer text-muted-foreground hover:text-foreground"
-                data-tooltip-id="resources-tooltip"
-                data-tooltip-description="When enabled, any logged-in user can request to join this campaign from the campaign page. Campaign owners and arbitrators receive a notification to accept or decline each request."
-              >
-                <ImInfo />
-              </span>
+              <InfoTooltip ariaLabel="About join requests">
+                When enabled, any logged-in user can request to join this campaign from the campaign page. Campaign owners and arbitrators receive a notification to accept or decline each request.
+              </InfoTooltip>
             </label>
 
             {/* Resources Section */}
             <div>
               <h3 className="text-sm font-medium flex items-center space-x-2">
                 <span>Resources</span>
-                  <span
-                    className="relative cursor-pointer text-muted-foreground hover:text-foreground"
-                    data-tooltip-id="resources-tooltip"
-                    data-tooltip-description="Resources are campaign-specific currencies that gangs can accumulate. Predefined resources come from the campaign type (e.g., Exploration Points for Underhells, Meat and Scavenging Rolls for Uprising). Campaign owners and arbitrators can also add custom resources."
-                  >
-                    <ImInfo />
-                  </span>
+                  <InfoTooltip ariaLabel="About resources">
+                    Resources are campaign-specific currencies that gangs can accumulate. Predefined resources come from the campaign type (e.g., Exploration Points for Underhells, Meat and Scavenging Rolls for Uprising). Campaign owners and arbitrators can also add custom resources.
+                  </InfoTooltip>
               </h3>
               {/* Default Resources Section (for non-custom campaigns) */}
               {predefinedResources.length > 0 && campaignData.campaign_type_name !== 'Custom' && (
@@ -416,13 +382,9 @@ export default function CampaignEditModal({
               <label className="flex items-center justify-between text-sm font-medium">
                 <div className="flex items-center space-x-2">
                   <span>Authorised Trading Posts</span>
-                  <span
-                    className="relative cursor-pointer text-muted-foreground hover:text-foreground"
-                    data-tooltip-id="resources-tooltip"
-                    data-tooltip-description="Only selected Trading Posts are available for gangs taking part in this campaign when buying equipment. However, this does not prevent players to access the Unrestricted list options."
-                  >
-                    <ImInfo />
-                  </span>
+                  <InfoTooltip ariaLabel="About authorised trading posts">
+                    Only selected Trading Posts are available for gangs taking part in this campaign when buying equipment. However, this does not prevent players to access the Unrestricted list options.
+                  </InfoTooltip>
                 </div>
                 <span className="text-xs text-muted-foreground">
                   {(
@@ -495,13 +457,16 @@ export default function CampaignEditModal({
             <div>
               <h3 className="text-sm font-medium flex items-center space-x-2">
                 <span>Allegiances</span>
-                  <span
-                    className="relative cursor-pointer text-muted-foreground hover:text-foreground"
-                    data-tooltip-id="resources-tooltip"
-                    data-tooltip-description={"Allegiances represent which side or faction a gang chooses to align with in a campaign. Some campaigns feature opposed forces (such as Imperial House vs House Aranthus, or Order vs Chaos), and while gangs may start Unaligned, they will eventually need to choose a side as the campaign progresses.\n\nWhen adding a gang to a campaign, an allegiance can be selected for the gang directly. Players can edit their own gang's allegiance, and arbitrators can update the allegiance of every gang in a campaign."}
-                  >
-                    <ImInfo />
-                  </span>
+                  <InfoTooltip ariaLabel="About allegiances">
+                    <div className="space-y-2">
+                      <p>
+                        Allegiances represent which side or faction a gang chooses to align with in a campaign. Some campaigns feature opposed forces (such as Imperial House vs House Aranthus, or Order vs Chaos), and while gangs may start Unaligned, they will eventually need to choose a side as the campaign progresses.
+                      </p>
+                      <p>
+                        When adding a gang to a campaign, an allegiance can be selected for the gang directly. Players can edit their own gang&apos;s allegiance, and arbitrators can update the allegiance of every gang in a campaign.
+                      </p>
+                    </div>
+                  </InfoTooltip>
               </h3>
               {/* Default Allegiances Section (for non-custom campaigns) */}
               {predefinedAllegiances.length > 0 && campaignData.campaign_type_name !== 'Custom' && (
@@ -536,13 +501,9 @@ export default function CampaignEditModal({
               <div>
                 <h3 className="text-sm font-medium flex items-center space-x-2">
                   <span>Discord Bot</span>
-                  <span
-                    className="relative cursor-pointer text-muted-foreground hover:text-foreground"
-                    data-tooltip-id="resources-tooltip"
-                    data-tooltip-description="Connect a Discord bot to automatically post battle reports to a channel in your Discord server."
-                  >
-                    <ImInfo />
-                  </span>
+                  <InfoTooltip ariaLabel="About the Discord bot">
+                    Connect a Discord bot to automatically post battle reports to a channel in your Discord server.
+                  </InfoTooltip>
                 </h3>
                 {campaignData.discord_guild_id ? (
                   <div className="mt-2 space-y-2">
@@ -596,13 +557,9 @@ export default function CampaignEditModal({
               <label className="flex justify-between items-center text-sm font-medium mb-1">
                 <div className="flex items-center space-x-2">
                   <span>Description</span>
-                  <span
-                    className="relative cursor-pointer text-muted-foreground hover:text-foreground"
-                    data-tooltip-id="resources-tooltip"
-                    data-tooltip-description="The campaign description is displayed on the campaign page, providing information about the campaign to all participants. This description appears below the campaign header and is visible to all members of the campaign."
-                  >
-                    <ImInfo />
-                  </span>
+                  <InfoTooltip ariaLabel="About the campaign description">
+                    The campaign description is displayed on the campaign page, providing information about the campaign to all participants. This description appears below the campaign header and is visible to all members of the campaign.
+                  </InfoTooltip>
                 </div>
                 <span className={`text-sm ${charCount > 1500 ? 'text-red-500' : 'text-muted-foreground'}`}>
                   {charCount}/1500 characters
@@ -668,18 +625,6 @@ export default function CampaignEditModal({
           confirmDisabled={confirmText !== 'Delete' || isDeleting}
         />
       )}
-      <Tooltip
-        id="resources-tooltip"
-        place="top"
-        className="bg-neutral-900! text-white! text-xs! z-[2000]!"
-        delayHide={100}
-        clickable={true}
-        render={renderDescriptionTooltip}
-        style={{
-          padding: '6px',
-          maxWidth: '20rem'
-        }}
-      />
     </div>
   );
 } 

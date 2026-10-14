@@ -11,24 +11,14 @@ import type { CustomSkill } from '@/app/lib/customise/custom-skills';
 import { CustomGangType } from '@/app/actions/customise/custom-gang-types';
 import { CustomTradingPost } from '@/app/actions/customise/custom-trading-posts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createClient } from '@/utils/supabase/client';
 import type { UserCampaign } from '@/types/campaign';
 import { editionsConflict } from '@/types/edition';
-
-// custom_shared columns that hold a shareable item id.
-type ShareColumn =
-  | 'custom_fighter_type_id'
-  | 'custom_equipment_id'
-  | 'custom_gang_type_id'
-  | 'custom_skill_id'
-  | 'custom_trading_post_id'
-  | 'custom_collection_id';
+import type { CustomSharedItemType } from '@/types/custom-shared';
 
 interface ShareToCampaignsModalProps {
   itemId: string;
   itemName: string;
-  column: ShareColumn;
-  queryKind: string;          // discriminator for the shared-campaigns query key
+  itemType: CustomSharedItemType;
   noun: string;               // e.g. "Custom fighter", "Collection" — used in toasts
   title: string;
   helper: string;
@@ -54,8 +44,7 @@ interface ShareToCampaignsModalProps {
 function ShareToCampaignsModal({
   itemId,
   itemName,
-  column,
-  queryKind,
+  itemType,
   noun,
   title,
   helper,
@@ -72,7 +61,7 @@ function ShareToCampaignsModal({
 }: ShareToCampaignsModalProps) {
   const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
   const queryClient = useQueryClient();
-  const sharedQueryKey = ['customSharedCampaigns', queryKind, itemId];
+  const sharedQueryKey = ['customSharedCampaigns', itemType, itemId];
 
   // editionsConflict, not sameEditionForDisplay: this gates an action, and edition_id is still
   // nullable on the shareable tables, so an unresolved edition must not turn anyone away.
@@ -83,14 +72,11 @@ function ShareToCampaignsModal({
 
   const { data: sharedCampaignIds = [], isLoading, isSuccess, error: fetchError } = useQuery({
     queryKey: sharedQueryKey,
-    queryFn: async () => {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from('custom_shared')
-        .select('campaign_id')
-        .eq(column, itemId);
-      if (error) throw error;
-      return Array.from(new Set((data || []).map(share => share.campaign_id)));
+    queryFn: async (): Promise<string[]> => {
+      const params = new URLSearchParams({ type: itemType, id: itemId });
+      const response = await fetch(`/api/custom-shared?${params}`);
+      if (!response.ok) throw new Error('Failed to load shared campaigns');
+      return response.json();
     },
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
@@ -207,8 +193,7 @@ export function ShareCustomFighterModal({ fighter, userCampaigns, onClose, onSuc
     <ShareToCampaignsModal
       itemId={fighter.id}
       itemName={fighter.fighter_type}
-      column="custom_fighter_type_id"
-      queryKind="fighter"
+      itemType="fighter"
       noun="Custom fighter"
       title="Share Custom Fighter"
       helper="Select campaigns to share this custom fighter with"
@@ -237,8 +222,7 @@ export function ShareCustomEquipmentModal({ equipment, userCampaigns, onClose, o
     <ShareToCampaignsModal
       itemId={equipment.id}
       itemName={equipment.equipment_name}
-      column="custom_equipment_id"
-      queryKind="equipment"
+      itemType="equipment"
       noun="Custom equipment"
       title="Share Custom Equipment"
       helper="Select campaigns to share this custom equipment with"
@@ -267,8 +251,7 @@ export function ShareCustomGangTypeModal({ gangType, userCampaigns, onClose, onS
     <ShareToCampaignsModal
       itemId={gangType.id}
       itemName={gangType.gang_type}
-      column="custom_gang_type_id"
-      queryKind="gangType"
+      itemType="gangType"
       noun="Custom gang type"
       title="Share Custom Gang Type"
       helper="Select campaigns to share this custom gang type with. Custom fighters and skills belonging to this gang type will also be shared."
@@ -297,8 +280,7 @@ export function ShareCustomTradingPostModal({ tradingPost, userCampaigns, onClos
     <ShareToCampaignsModal
       itemId={tradingPost.id}
       itemName={tradingPost.custom_trading_post_name}
-      column="custom_trading_post_id"
-      queryKind="tradingPost"
+      itemType="tradingPost"
       noun="Custom trading post"
       title="Share Custom Trading Post"
       helper="Select campaigns to share this custom trading post with"
@@ -327,8 +309,7 @@ export function ShareCustomSkillModal({ skill, userCampaigns, onClose, onSuccess
     <ShareToCampaignsModal
       itemId={skill.id}
       itemName={skill.skill_name}
-      column="custom_skill_id"
-      queryKind="skill"
+      itemType="skill"
       noun="Custom skill"
       title="Share Custom Skill"
       helper="Select campaigns to share this custom skill with"
@@ -356,8 +337,7 @@ export function ShareCustomCollectionModal({ collection, userCampaigns, onClose,
     <ShareToCampaignsModal
       itemId={collection.id}
       itemName={collection.name}
-      column="custom_collection_id"
-      queryKind="collection"
+      itemType="collection"
       noun="Asset Collection"
       title="Share Asset Collection"
       helper="Apply this asset collection to campaigns you arbitrate. All items in the asset collection (and any custom fighters and skills they reference) will be shared to the campaign."

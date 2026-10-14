@@ -1,12 +1,31 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
+import type { EquipmentGrants } from "@/types/equipment";
 
 interface Skill {
   id: string;
   name: string;
   skill_type_id: string;
   gang_origin_id: string | null;
+  grants_equipment: EquipmentGrants | null;
+}
+
+// Skills only use fixed, free grants: there is no step where a player picks an
+// option or pays when a skill is added. Anything else sent is normalised to that.
+function normalizeSkillGrants(value: unknown): EquipmentGrants | null {
+  const options = (value as EquipmentGrants | null)?.options;
+  if (!Array.isArray(options)) return null;
+  const equipmentIds = [...new Set(
+    options
+      .map(opt => opt?.equipment_id)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0)
+  )];
+  if (equipmentIds.length === 0) return null;
+  return {
+    selection_type: 'fixed',
+    options: equipmentIds.map(equipment_id => ({ equipment_id, additional_cost: 0 }))
+  };
 }
 
 export async function GET(request: Request) {
@@ -70,7 +89,7 @@ export async function GET(request: Request) {
     // matching skill-set ids first, then filter skills with .in().
     let query = supabase
       .from('skills')
-      .select('id, name, skill_type_id, gang_origin_id')
+      .select('id, name, skill_type_id, gang_origin_id, grants_equipment')
       .order('name');
 
     if (skillTypeId) {
@@ -154,6 +173,7 @@ export async function GET(request: Request) {
           skill_name: skill.name,
           skill_type_id: skill.skill_type_id,
           gang_origin_id: skill.gang_origin_id,
+          grants_equipment: skill.grants_equipment,
           effects: skillEffects
         };
       });
@@ -390,6 +410,7 @@ export async function PATCH(request: Request) {
       name: body.name,
       id: body.id,
       gang_origin_id: body.gang_origin_id || null,
+      ...('grants_equipment' in body ? { grants_equipment: normalizeSkillGrants(body.grants_equipment) } : {}),
     };
 
     const { data, error } = await supabase

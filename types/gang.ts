@@ -12,7 +12,7 @@ export interface GangOriginCategory {
 }
 
 export interface GangType {
-  gang_type_id: string;
+  id: string;
   gang_type: string;
   alignment: string;
   note?: string;
@@ -53,56 +53,37 @@ export function hasDefaultImageCredit(
   return Boolean(credit?.name?.trim() || credit?.url?.trim() || credit?.suffix?.trim());
 }
 
-export interface DefaultImageEntry {
-  url: string;
-  credit?: DefaultImageCredit;
-}
-
-/**
- * Normalises raw default_image_urls from Supabase.
- * Handles both the legacy string[] format and the new object[] format,
- * so the app works before and after the data migration.
- */
-export function normaliseDefaultImageUrls(
-  raw: unknown[] | null | undefined
-): DefaultImageEntry[] | undefined {
-  if (!raw || !Array.isArray(raw) || raw.length === 0) return undefined;
-  return raw.map((entry) => {
-    if (typeof entry === 'string') {
-      return { url: entry };
-    }
-    return entry as DefaultImageEntry;
-  });
-}
-
-/** Shown when a gang portrait URL fails to load. */
+/** Shown when a gang has no custom upload or catalogue portrait, and when a portrait URL fails to load. */
 export const UNKNOWN_GANG_IMAGE_URL =
   'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_gang_cropped_web.webp';
 
+export const GANG_TYPE_IMAGES_PUBLIC_BASE =
+  'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/gang-type-images/';
+
+export function gangPortraitPublicUrl(storagePath: string | null | undefined): string | undefined {
+  const path = storagePath?.replace(/^\/+/, '');
+  if (!path) return undefined;
+  return `${GANG_TYPE_IMAGES_PUBLIC_BASE}${path}`;
+}
+
+export function joinedPortraitStoragePath(
+  joined: { storage_path?: string | null } | { storage_path?: string | null }[] | null | undefined
+): string | undefined {
+  const portrait = Array.isArray(joined) ? joined[0] : joined;
+  return portrait?.storage_path || undefined;
+}
+
 /**
- * Custom upload, then the selected type default. Empty or missing `.url`
- * entries fall through so the caller can show a letter placeholder.
+ * Custom upload, then the catalogue portrait, then the shared silhouette.
  */
 export function resolveGangImageUrl(options: {
   imageUrl?: string | null;
-  defaultGangImage?: number | null;
-  defaultImageUrls?: DefaultImageEntry[] | null;
-}): string | undefined {
-  const { imageUrl, defaultGangImage, defaultImageUrls } = options;
+  portraitUrl?: string | null;
+}): string {
+  const { imageUrl, portraitUrl } = options;
   if (imageUrl) return imageUrl;
-
-  if (
-    defaultGangImage !== null &&
-    defaultGangImage !== undefined &&
-    Array.isArray(defaultImageUrls) &&
-    defaultGangImage >= 0 &&
-    defaultGangImage < defaultImageUrls.length
-  ) {
-    const url = defaultImageUrls[defaultGangImage]?.url;
-    if (url) return url;
-  }
-
-  return undefined;
+  if (portraitUrl) return portraitUrl;
+  return UNKNOWN_GANG_IMAGE_URL;
 }
 
 export interface ResourceUpdate {
@@ -160,9 +141,11 @@ export interface GangFighter {
   fighter_variant?: string | null;
   alliance_crew_name?: string;
   is_spyrer?: boolean;
+  is_vehicle?: boolean;
   position?: string;
   xp: number;
   kills: number;
+  kill_count?: number;
   credits: number;
   loadout_cost?: number; // Cost of equipment in active loadout only (for fighter card display)
   movement: number;

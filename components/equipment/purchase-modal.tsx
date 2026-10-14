@@ -4,7 +4,7 @@ import { useState, useRef } from 'react';
 import Modal from "@/components/ui/modal";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { ImInfo } from "react-icons/im";
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { Equipment, EquipmentGrants, ResourceCost } from '@/types/equipment';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
@@ -562,12 +562,9 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
               >
                 Use Listed Cost for Rating
               </label>
-              <div className="relative group">
-                <ImInfo />
-                <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
+              <InfoTooltip ariaLabel="About listed cost for rating">
                 When enabled, the Fighter Rating is calculated using the item&apos;s listed cost (from the fighter&apos;s Equipment List or the Trading Post), even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
-                </div>
-              </div>
+              </InfoTooltip>
             </div>
 
             {creditError && (

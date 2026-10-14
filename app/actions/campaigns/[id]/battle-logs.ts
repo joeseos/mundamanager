@@ -1,7 +1,7 @@
 'use server';
 
 // Battle log API operations
-import { invalidateGangCampaignMembership, invalidateCampaignBattles, invalidateCampaignTerritories } from '@/utils/cache-tags';
+import { invalidateGangCampaignMembership, invalidateCampaignBattles, invalidateCampaignTerritories, invalidateBattleSession } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { cache } from 'react';
 import { logBattleResult, logTerritoryClaimed } from "../../logs/gang-campaign-logs";
@@ -11,19 +11,15 @@ import { getWinnerIds, getExplicitClaimerGangId, enrichWinners } from '@/utils/b
 import { normaliseParticipants, territoryClaimerFor, getAttackerDefenderIds } from '@/utils/battle-participants';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
-import { challengeAnswerStatuses, type BattleStatus } from '@/types/campaign';
-
-/**
- * Type definition for battle participant.
- * `is_winner` / `claimed_territory` are optional flags supporting multi-winner
- * battles. Defaults to `false` when omitted.
- */
-export interface BattleParticipant {
-  role: 'attacker' | 'defender' | 'none';
-  gang_id: string;
-  is_winner?: boolean;
-  claimed_territory?: boolean;
-}
+import {
+  challengeAnswerStatuses,
+  customPartName,
+  customPartNames,
+  SCENARIO_PARTS,
+  type BattleParticipant,
+  type BattleStatus,
+} from '@/types/campaign';
+import { checkScenarioParts } from '@/utils/scenario-parts';
 
 /**
  * Type definition for territory claim
@@ -40,6 +36,7 @@ export interface TerritoryClaimRequest {
  * `territory_claimed_by_gang_id` and the server will normalise the flags.
  */
 export interface BattleLogParams {
+  /** N23: the scenario's name. N26: an optional name for it, beside its parts. Empty is saved as NULL. */
   scenario: string;
   winner_id: string | null;
   note: string | null;
@@ -54,6 +51,17 @@ export interface BattleLogParams {
   territory_claimed_by_gang_id?: string | null;
   created_at?: string;
   cycle?: number | null;
+  /**
+   * N26: what was rolled on the scenario tables, as scenario_table_entries ids.
+   * Left out, a battle keeps what it has; null clears it.
+   */
+  deployment_id?: string | null;
+  objective_id?: string | null;
+  crew_selection_id?: string | null;
+  /** N26: a custom part's name, sent with the part's id; ignored while that is set. */
+  deployment_name?: string | null;
+  objective_name?: string | null;
+  crew_selection_name?: string | null;
   /**
    * 'played' files a challenge's battle report; challenge_issued / accepted /
    * declined are the challenged gang's answer, which only its owner or an
@@ -161,6 +169,14 @@ async function logBattleParticipantResults(
   }
 }
 
+/** The campaign's edition, which a battle's scenario parts must come from. */
+const campaignEditionId = (supabase: SupabaseClient, campaignId: string) => async () => {
+  const { data, error } = await supabase.from('campaigns').select('campaign_types (edition_id)').eq('id', campaignId).single();
+  if (error) throw error;
+  const campaignType: any = Array.isArray(data?.campaign_types) ? data.campaign_types[0] : data?.campaign_types;
+  return campaignType?.edition_id as string | undefined;
+};
+
 /**
  * Create a new battle log using direct Supabase client
  */
@@ -193,6 +209,12 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       territoryClaimerFor(newTerritoryId, territory_claimed_by_gang_id, getExplicitClaimerGangId(rawParticipants))
     );
 
+    const scenarioParts = await checkScenarioParts(supabase, campaignEditionId(supabase, campaignId), params, participants, scenario);
+    if ('error' in scenarioParts) {
+      return { success: false as const, error: scenarioParts.error };
+    }
+    const scenarioLabel = scenarioParts.label;
+
     // Legacy winner_id is populated as the claimer (if any), else the first winner.
     // NULL means a draw.
     const legacyWinnerId: string | null =
@@ -206,7 +228,11 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       .insert([
         {
           campaign_id: campaignId,
-          scenario,
+          scenario: scenario || null,
+          deployment_id: params.deployment_id ?? null,
+          objective_id: params.objective_id ?? null,
+          crew_selection_id: params.crew_selection_id ?? null,
+          ...customPartNames(params),
           winner_id: legacyWinnerId,
           note,
           participants: JSON.stringify(participants),
@@ -269,7 +295,7 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
         supabase,
         participants,
         effectiveWinnerIds,
-        scenario,
+        scenarioLabel,
         campaign,
         claimed_territories,
         claimerGangId,
@@ -374,6 +400,12 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     const legacyWinnerId: string | null =
       claimerGangId ?? effectiveWinnerIds[0] ?? null;
 
+    const scenarioParts = await checkScenarioParts(supabase, campaignEditionId(supabase, campaignId), params, participants, scenario);
+    if ('error' in scenarioParts) {
+      return { success: false as const, error: scenarioParts.error };
+    }
+    const scenarioLabel = scenarioParts.label;
+
     // A challenge names its opponent through this same form. A new opponent has
     // not answered yet, so naming one (re)issues the challenge.
     const existingStatus = existingBattle.status as BattleStatus;
@@ -394,6 +426,24 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     let nextStatus = params.status;
     if (opponentChanged && nextStatus !== 'played') {
       nextStatus = challengedGangId ? 'challenge_issued' : 'challenge_pending';
+    }
+
+    // A challenge being played in a battle session is filed when that session completes,
+    // so its opponent and status stay as the session was started with.
+    const { data: linkedSession } = isOpenChallenge
+      ? await supabase
+          .from('battle_sessions')
+          .select('id')
+          .eq('campaign_battle_id', battleId)
+          .neq('status', 'completed')
+          .limit(1)
+          .maybeSingle()
+      : { data: null };
+    if (linkedSession && (opponentChanged || (!!nextStatus && nextStatus !== existingStatus))) {
+      return {
+        success: false as const,
+        error: 'This challenge is being played in a battle session. Complete or cancel the session first.',
+      };
     }
 
     // Any other status change is an answer. RLS lets any participant update
@@ -449,7 +499,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
 
     // Build update payload conditionally including created_at if provided
     const updatePayload: any = {
-      scenario,
+      scenario: scenario || null,
       winner_id: legacyWinnerId,
       note,
       participants: JSON.stringify(participants),
@@ -457,6 +507,11 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       campaign_territory_id: newTerritoryId,
       cycle,
     };
+    for (const part of SCENARIO_PARTS) {
+      if (params[part.key] === undefined) continue;
+      updatePayload[part.key] = params[part.key];
+      updatePayload[part.nameKey] = customPartName(params, part);
+    }
     if (nextStatus) {
       updatePayload.status = nextStatus;
     }
@@ -521,7 +576,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
         supabase,
         participants,
         effectiveWinnerIds,
-        scenario,
+        scenarioLabel,
         campaign,
         claimed_territories,
         claimerGangId,
@@ -551,7 +606,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
 
         if (challenger && challenged && receiverId && receiverId !== user.id) {
           const details = [
-            scenario ? `Scenario: **${scenario}**` : null,
+            scenarioLabel ? `Scenario: **${scenarioLabel}**` : null,
             stakedTerritory?.territory_name ? `Territory: **${stakedTerritory.territory_name}**` : null,
           ].filter(Boolean);
           const text = challengeIssued
@@ -586,6 +641,10 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     };
 
     invalidateCampaignBattles(campaignId);
+    // The session prefills its report from the challenge.
+    if (linkedSession) {
+      invalidateBattleSession(linkedSession.id);
+    }
     if (releasedOldTerritory || claimedTerritory) {
       invalidateCampaignTerritories(campaignId);
     }
@@ -632,6 +691,20 @@ export async function deleteBattleLog(
     if (checkError || !existingBattle) {
       console.error('Battle not found or access denied', checkError);
       throw new Error('Battle not found or access denied');
+    }
+
+    // Deleting it would orphan the session, whose completion would then log the battle again.
+    if (existingBattle.status !== 'played') {
+      const { data: linkedSession } = await supabase
+        .from('battle_sessions')
+        .select('id')
+        .eq('campaign_battle_id', battleId)
+        .neq('status', 'completed')
+        .limit(1)
+        .maybeSingle();
+      if (linkedSession) {
+        throw new Error('This challenge is being played in a battle session. Complete or cancel the session first.');
+      }
     }
 
     // Only a played battle claimed its territory; a challenge merely staked one,

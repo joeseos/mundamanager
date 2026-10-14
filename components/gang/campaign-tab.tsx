@@ -9,15 +9,14 @@ import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { createClient } from "@/utils/supabase/client";
-import { Battle } from '@/types/campaign';
+import { Battle, scenarioLabel } from '@/types/campaign';
 import { getWinnerIds } from '@/utils/battle-winners';
 import Modal from "@/components/ui/modal";
 import { BiSolidNotepad } from "react-icons/bi";
 import { GiAncientRuins } from "react-icons/gi";
 import { HiUser } from "react-icons/hi2";
 import { IoHome } from "react-icons/io5";
-import { LuSwords } from "react-icons/lu";
-import { MdFactory, MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md";
+import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md";
 import { GiHandcuffs } from "react-icons/gi";
 
 function getSubtypeRank(subtypes: string[] | null | undefined, editionSlug?: string | null) {
@@ -142,6 +141,10 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
             created_at,
             updated_at,
             scenario,
+            deployment:scenario_table_entries!campaign_battles_deployment_id_fkey (name),
+            objective:scenario_table_entries!campaign_battles_objective_id_fkey (name),
+            deployment_name,
+            objective_name,
             winner_id,
             note,
             participants,
@@ -274,6 +277,12 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
 
           return {
             ...battle,
+            // Named by its scenario name, or else (N26) its Deployment and Objective, each picked or custom.
+            scenario: scenarioLabel(
+              battle.scenario,
+              (Array.isArray(battle.deployment) ? battle.deployment[0] : battle.deployment)?.name ?? battle.deployment_name,
+              (Array.isArray(battle.objective) ? battle.objective[0] : battle.objective)?.name ?? battle.objective_name
+            ),
             campaign_id: battle.campaign_id,
             campaign_name: campaign?.campaign_name || 'Unknown Campaign',
             territory_name: battle.campaign_territory_id ? territoriesMap.get(battle.campaign_territory_id) : undefined,
@@ -435,7 +444,6 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
                   <div className="mt-8">
                     <h3 className="text-lg font-semibold mb-4 flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <MdFactory className="h-5 w-5" />
                         Territories
                       </div>
                       {campaign.territories.length > 0 && (
@@ -539,7 +547,6 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
           <div className="mt-8">
             <h3 className="text-lg font-semibold mb-4 flex items-center justify-between flex-wrap">
               <div className="flex items-center gap-2">
-                <LuSwords className="h-5 w-5" />
                 Battle Logs
               </div>
               {totalBattles > 0 && (
@@ -753,8 +760,7 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
       {/* Captured Fighters */}
       {campaigns.length > 0 && (
         <div className="mt-8">
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <GiHandcuffs className="h-5 w-5 text-red-500" />
+          <h3 className="text-lg font-semibold mb-4">
             Captured Fighters
           </h3>
           {captives.length === 0 ? (

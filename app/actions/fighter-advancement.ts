@@ -7,10 +7,12 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { updateGangRatingSimple, updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { countsTowardRating } from '@/utils/fighter-status';
 import {
+  gangEditionSlug,
   hasChampionLeaderTypePromotion,
   hasCumulativeXp,
   hasGangerChampionKeepTypePromotion,
   hasProspectSpecialisationPromotion,
+  hasSharedAdvancementTable,
 } from '@/types/edition';
 import {
   N26_CHAMPION_PROMOTION_SKILL_ID,
@@ -39,9 +41,11 @@ import {
   logRolledGangerAdvancement,
   logRolledSkillAdvancement
 } from './logs/gang-fighter-logs';
+import { logEquipmentAction } from './logs/equipment-logs';
 import type { GangLogActionResult } from './logs/gang-logs';
 import { updateFighterDetails } from './edit-fighter';
 import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
+import type { EquipmentGrants } from '@/types/equipment';
 
 // A fighter's edition comes from its gang's (custom) gang type.
 const GANG_EDITION_EMBED = `
@@ -63,15 +67,6 @@ const ROLL_LOGGER_FIGHTER_SELECT = `
   id, gang_id, fighter_name, fighter_subtypes,
   ${GANG_EDITION_EMBED}
 `;
-
-// Embeds come back as objects for these many-to-one FKs; the untyped client
-// infers arrays, hence the casts (same pattern as equipment.ts).
-function editionSlugOf(fighter: any): string | null {
-  const gang = fighter.gangs as any;
-  return gang?.gang_types?.editions?.slug
-    ?? gang?.custom_gang_types?.editions?.slug
-    ?? null;
-}
 
 /**
  * Whether the fighter may take another Advancement right now.
@@ -235,7 +230,7 @@ export async function addCharacteristicAdvancement(
 
     // N26 earns Advancements by reaching a rank rather than buying them, so its
     // XP total only ever grows and there is nothing to afford.
-    const spendsXp = !hasCumulativeXp(editionSlugOf(fighter));
+    const spendsXp = !hasCumulativeXp(gangEditionSlug(fighter.gangs));
 
     const blockedReason = advancementBlockedReason(fighter, spendsXp, params.xp_cost);
     if (blockedReason) {
@@ -436,7 +431,7 @@ async function addSkillAdvancementInternal(
 
     // N26 earns Advancements by reaching a rank rather than buying them, so its
     // XP total only ever grows and there is nothing to afford.
-    const spendsXp = !hasCumulativeXp(editionSlugOf(fighter));
+    const spendsXp = !hasCumulativeXp(gangEditionSlug(fighter.gangs));
 
     const blockedReason = advancementBlockedReason(fighter, spendsXp, params.xp_cost);
     if (blockedReason) {
@@ -609,15 +604,49 @@ async function addSkillAdvancementInternal(
     // If this is a beast fighter, also invalidate owner's cache
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase, fighter.fighter_pet_id ?? null);
 
-    // Get skill name for logging
+    // Get skill name for logging, and any equipment the skill comes with
     let skillName = 'Unknown Skill';
+    const grantedEquipmentNames: string[] = [];
     if (params.skill_id) {
       const { data: skillData } = await supabase
         .from('skills')
-        .select('name')
+        .select('name, grants_equipment')
         .eq('id', params.skill_id)
         .single();
       skillName = skillData?.name || skillName;
+
+      // Granted equipment is free and linked to the skill (fighter_skill_id), so
+      // deleting the skill deletes it. Only fixed grants: nothing to choose here.
+      const grantsConfig = skillData?.grants_equipment as EquipmentGrants | null;
+      if (grantsConfig?.selection_type === 'fixed') {
+        for (const option of grantsConfig.options) {
+          const { data: grantedEquip } = await supabase
+            .from('equipment')
+            .select('id, equipment_name, cost')
+            .eq('id', option.equipment_id)
+            .single();
+
+          if (grantedEquip) {
+            const { error: grantError } = await supabase
+              .from('fighter_equipment')
+              .insert({
+                gang_id: fighter.gang_id,
+                fighter_id: params.fighter_id,
+                equipment_id: grantedEquip.id,
+                original_cost: grantedEquip.cost,
+                purchase_cost: 0,
+                fighter_skill_id: insertedSkill.id,
+                user_id: fighter.user_id
+              });
+
+            if (grantError) {
+              console.error('Failed to insert skill-granted equipment:', grantError);
+            } else {
+              grantedEquipmentNames.push(grantedEquip.equipment_name);
+            }
+          }
+        }
+      }
     } else if (params.custom_skill_id) {
       const { data: customSkillData } = await supabase
         .from('custom_skills')
@@ -643,6 +672,17 @@ async function addSkillAdvancementInternal(
         : {}),
       ...(!isAdvance && !ratingOnly && creditsIncrease > 0 ? { credits_deducted: creditsIncrease } : {})
     });
+
+    for (const equipmentName of grantedEquipmentNames) {
+      await logEquipmentAction({
+        gang_id: fighter.gang_id,
+        fighter_id: params.fighter_id,
+        equipment_name: equipmentName,
+        purchase_cost: 0,
+        action_type: 'granted',
+        user_id: user.id
+      });
+    }
 
     // Invalidate cache for fighter advancement
     invalidateFighter(params.fighter_id, fighter.gang_id);
@@ -945,7 +985,7 @@ export async function applyN26ProspectPromotion(
       return { success: false, error: 'Fighter not found' };
     }
 
-    const editionSlug = editionSlugOf(before);
+    const editionSlug = gangEditionSlug(before.gangs);
     if (!hasProspectSpecialisationPromotion(editionSlug)) {
       return { success: false, error: 'Prospect specialisation promotion is not available for this edition' };
     }
@@ -1042,7 +1082,7 @@ export async function applyN26GangerChampionPromotion(
       return { success: false, error: 'Fighter not found' };
     }
 
-    const editionSlug = editionSlugOf(before);
+    const editionSlug = gangEditionSlug(before.gangs);
     if (!hasGangerChampionKeepTypePromotion(editionSlug)) {
       return {
         success: false,
@@ -1127,7 +1167,7 @@ export async function applyN26ChampionLeaderPromotion(
       return { success: false, error: 'Fighter not found' };
     }
 
-    const editionSlug = editionSlugOf(before);
+    const editionSlug = gangEditionSlug(before.gangs);
     if (!hasChampionLeaderTypePromotion(editionSlug)) {
       return {
         success: false,
@@ -1357,7 +1397,7 @@ export async function deleteAdvancement(
     // Note: Authorization is enforced by RLS policies on fighters table
 
     // Nothing was spent on an N26 Advancement, so deleting one refunds nothing.
-    const spendsXp = !hasCumulativeXp(editionSlugOf(fighter));
+    const spendsXp = !hasCumulativeXp(gangEditionSlug(fighter.gangs));
 
     let xpToRefund = 0;
     let ratingDelta = 0;
@@ -1416,7 +1456,7 @@ export async function deleteAdvancement(
       const currentSubtypesForGrant: string[] = Array.isArray(fighter.fighter_subtypes)
         ? fighter.fighter_subtypes
         : [];
-      const editionSlugForUndo = editionSlugOf(fighter);
+      const editionSlugForUndo = gangEditionSlug(fighter.gangs);
 
       // Load catalog subtypes once for N26 promotion undo checks.
       let catalogSubtypesForUndo: string[] = [];
@@ -2165,7 +2205,7 @@ const GANGER_ELIGIBLE_SUBTYPES = new Set(['Ganger', 'Exotic Beast']);
  * rescue an N26 fighter.
  */
 const routesRollsBySubtype = (fighter: any): boolean =>
-  !hasCumulativeXp(editionSlugOf(fighter));
+  !hasSharedAdvancementTable(gangEditionSlug(fighter.gangs));
 
 const isGangerEligible = (fighter: any): boolean =>
   !!fighter.fighter_subtypes?.some((subtype: string) => GANGER_ELIGIBLE_SUBTYPES.has(subtype));

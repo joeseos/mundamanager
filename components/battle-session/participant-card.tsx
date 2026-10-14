@@ -1,5 +1,6 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useState, useEffect, useMemo, useRef, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import { sortParticipantFightersByPositioning } from '@/utils/fighter-positioning';
@@ -8,16 +9,15 @@ import { useMutation } from '@tanstack/react-query';
 import type { GangFighter } from '@/types/gang';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { Counter } from '@/components/ui/counter';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { PatreonSupporterIcon } from '@/components/ui/patreon-supporter-icon';
-import { LuPlus, LuMinus, LuClipboard } from 'react-icons/lu';
+import { LuClipboard } from 'react-icons/lu';
 import { Combobox } from '@/components/ui/combobox';
 import Modal from '@/components/ui/modal';
-import CrewSelectionModal from '@/components/battle-session/crew-selection-modal';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import DiceRoller from '@/components/dice-roller';
-import { FighterXpModal } from '@/components/fighter/fighter-xp-modal';
 import { rollD66, rollNd6Outcome, resolveInjuryFor, resolveInjuryRangeByNameFor } from '@/utils/dice';
 import { lastingInjuryRankFor } from '@/utils/lastingInjuryRank';
 import { requiredHatredTarget } from '@/utils/injuryTarget';
@@ -43,6 +43,8 @@ import {
 import {
   removeParticipant,
   updateParticipantRole,
+  updateParticipantSideJob,
+  setSideJobCompleted,
   updateGangOutcome,
   updateParticipantResources,
   bulkAddFightersToSession,
@@ -61,7 +63,15 @@ import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { updateFighterXp } from '@/app/actions/edit-fighter';
 import FighterCard from '@/components/gang/fighter-card';
 import type { BattleSessionFull, BattleSessionParticipant, BattleSessionFighter, SessionCondition, SessionInjuryRecord } from '@/types/battle-session';
-import { beastSubtypeName, hasFleshWoundCondition, hasN26CompositeBattleMarkers } from '@/types/edition';
+import { beastSubtypeName, hasFleshWoundCondition, hasN26CompositeBattleMarkers, hasCrewRating, hasScenarioTables, hasTradePoints } from '@/types/edition';
+import type { ScenarioTableWithEntries } from '@/types/campaign';
+import { SideJobPicker } from '@/components/side-job-picker';
+
+const CrewSelectionModal = dynamic(() => import('@/components/battle-session/crew-selection-modal'), { ssr: false });
+const FighterXpModal = dynamic(
+  () => import('@/components/fighter/fighter-xp-modal').then((mod) => mod.FighterXpModal),
+  { ssr: false }
+);
 
 const DUAL_ACTIVATION_RULES = ['Spyre Hunter', 'Aranthian Beauty Plating'];
 const hasDualActivation = (rules?: string[]) =>
@@ -364,26 +374,12 @@ function FighterActionModal({
                       </span>
                       <span className="text-sm">{name}</span>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
-                        onClick={() => adjustNumericCondition(nc.key, name, -1)}
-                        disabled={current === 0}
-                      >
-                        <LuMinus className="h-4 w-4" />
-                      </Button>
-                      <span className="w-6 text-center">{current}</span>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
-                        onClick={() => adjustNumericCondition(nc.key, name, 1)}
-                      >
-                        <LuPlus className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    <Counter
+                      value={current}
+                      min={0}
+                      onDecrement={() => adjustNumericCondition(nc.key, name, -1)}
+                      onIncrement={() => adjustNumericCondition(nc.key, name, 1)}
+                    />
                   </div>
                 );
               })}
@@ -433,7 +429,6 @@ function FighterActionModal({
 
       {showXpModal && fighterData && (
         <FighterXpModal
-          isOpen
           fighterId={fighter.fighter_id}
           currentXp={fighterData.xp}
           currentTotalXp={fighterData.xp}
@@ -1170,26 +1165,12 @@ function BattleParticipationModal({
                 <div className="text-sm font-medium">{gf.fighter_name}</div>
                 {details && <div className="text-xs text-muted-foreground">{details}</div>}
               </div>
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
-                  onClick={() => adjust(gf.id, -1)}
-                  disabled={(xpAmounts[gf.id] ?? 0) === 0}
-                >
-                  <LuMinus className="h-4 w-4" />
-                </Button>
-                <span className="w-6 text-center">{xpAmounts[gf.id] ?? 0}</span>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
-                  onClick={() => adjust(gf.id, 1)}
-                >
-                  <LuPlus className="h-4 w-4" />
-                </Button>
-              </div>
+              <Counter
+                value={xpAmounts[gf.id] ?? 0}
+                min={0}
+                onDecrement={() => adjust(gf.id, -1)}
+                onIncrement={() => adjust(gf.id, 1)}
+              />
             </div>
           );
         })}
@@ -1216,6 +1197,8 @@ interface ParticipantCardProps {
   gangFightersList?: GangFighter[];
   positioning?: Record<string, any> | null;
   onBroadcast?: () => void;
+  /** The session edition's scenario tables, for an N26 gang's Side Job. */
+  scenarioTables?: ScenarioTableWithEntries[];
 }
 
 export default function ParticipantCard({
@@ -1229,6 +1212,7 @@ export default function ParticipantCard({
   gangFightersList = [],
   positioning,
   onBroadcast,
+  scenarioTables = [],
 }: ParticipantCardProps) {
   const [creditsDelta, setCreditsDelta] = useState('');
   const [repDelta, setRepDelta] = useState('');
@@ -1242,6 +1226,12 @@ export default function ParticipantCard({
   const [tradingPostRoll, setTradingPostRoll] = useState<{ dice: number[]; total: number; modifier: number; grandTotal: number } | null>(null);
   const [tradingPostModifier, setTradingPostModifier] = useState('');
   const [localRole, setLocalRole] = useState<'attacker' | 'defender' | 'none'>(participant.role);
+  const savedSideJob = {
+    id: participant.side_job_id ?? '',
+    name: participant.side_job_name ?? '',
+    completed: participant.side_job_completed === true,
+  };
+  const [localSideJob, setLocalSideJob] = useState(savedSideJob);
 
   const [readyOverride, setReadyOverride] = useState<boolean | null>(null);
   const readyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1296,6 +1286,20 @@ export default function ParticipantCard({
         toast.error(result.error || 'Failed to update role');
       }
     });
+  };
+
+  const handleSideJobChange = (sideJob: typeof savedSideJob, request: Promise<{ success: boolean; error?: string }>) => {
+    setLocalSideJob(sideJob);
+    request
+      .catch(() => ({ success: false, error: undefined }))
+      .then((result) => {
+        if (result.success) {
+          onBroadcast?.();
+        } else {
+          setLocalSideJob(savedSideJob);
+          toast.error(result.error || 'Failed to update Side Job');
+        }
+      });
   };
 
   // Map expanded gang fighters (one entry per loadout) to crew modal format
@@ -1640,6 +1644,16 @@ export default function ParticipantCard({
     setLocalRole(participant.role);
   }
 
+  const [prevSideJob, setPrevSideJob] = useState(savedSideJob);
+  if (
+    savedSideJob.id !== prevSideJob.id ||
+    savedSideJob.name !== prevSideJob.name ||
+    savedSideJob.completed !== prevSideJob.completed
+  ) {
+    setPrevSideJob(savedSideJob);
+    setLocalSideJob(savedSideJob);
+  }
+
 
 
   return (
@@ -1690,7 +1704,11 @@ export default function ParticipantCard({
                   ' Unknown'
                 )}
               </span>
-              <span>Crew Rating: {crewRating}</span>
+              <span>
+                {hasCrewRating(session.edition_slug)
+                  ? `Crew Rating: ${crewRating}`
+                  : `Gang Rating: ${participant.gang?.rating ?? 0}`}
+              </span>
               {(() => {
                 const exoticBeastCount = localFighters.filter((f) => {
                   const gf = gangFightersList.find((gf) => gf.id === f.fighter_id);
@@ -1780,6 +1798,27 @@ export default function ParticipantCard({
               </label>
             ))}
           </div>
+        )}
+        {hasScenarioTables(session.edition_slug) && (canEditRole || !!localSideJob.id || !!localSideJob.name) && (
+          <SideJobPicker
+            className="mt-2"
+            id={participant.id}
+            scenarioTables={scenarioTables}
+            gangTypeId={participant.gang?.gang_type_id}
+            value={localSideJob.id}
+            onChange={canEditRole
+              ? (id) => handleSideJobChange({ id, name: '', completed: false }, updateParticipantSideJob(session.id, participant.id, { side_job_id: id || null }))
+              : undefined}
+            customName={localSideJob.name}
+            onCustomNameChange={canEditRole
+              ? (name) => handleSideJobChange({ id: '', name, completed: false }, updateParticipantSideJob(session.id, participant.id, { side_job_name: name }))
+              : undefined}
+            saveCustomNameOnBlur
+            completed={localSideJob.completed}
+            onCompletedChange={canPostBattle
+              ? (completed) => handleSideJobChange({ ...localSideJob, completed }, setSideJobCompleted(session.id, participant.id, completed))
+              : undefined}
+          />
         )}
         {showCrewModal && (
           <CrewSelectionModal
@@ -2002,51 +2041,53 @@ export default function ParticipantCard({
 
           {canPostBattle && (
             <div className="border-t border-neutral-100 pt-3 dark:border-neutral-700 grid grid-cols-1 min-[480px]:grid-cols-2 md:grid-cols-3 gap-3">
-              <div className="col-span-full">
-                <div className="flex items-baseline gap-2 mb-1 flex-wrap">
-                  <span className="text-sm text-neutral-500">Trading Post Roll</span>
-                  {tradingPostRoll && (
-                    <span className="text-xs text-muted-foreground">
-                      Roll {tradingPostRoll.total} ({tradingPostRoll.dice.join(', ')})
-                      {tradingPostRoll.modifier !== 0 && ` ${tradingPostRoll.modifier > 0 ? '+' : ''}${tradingPostRoll.modifier} = ${tradingPostRoll.grandTotal}`}
-                    </span>
-                  )}
+              {!hasTradePoints(session.edition_slug) && (
+                <div className="col-span-full">
+                  <div className="flex items-baseline gap-2 mb-1 flex-wrap">
+                    <span className="text-sm text-neutral-500">Trading Post Roll</span>
+                    {tradingPostRoll && (
+                      <span className="text-xs text-muted-foreground">
+                        Roll {tradingPostRoll.total} ({tradingPostRoll.dice.join(', ')})
+                        {tradingPostRoll.modifier !== 0 && ` ${tradingPostRoll.modifier > 0 ? '+' : ''}${tradingPostRoll.modifier} = ${tradingPostRoll.grandTotal}`}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 flex-nowrap">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        const result = rollNd6Outcome(2);
+                        const mod = parseInt(tradingPostModifier) || 0;
+                        const grandTotal = result.total + mod;
+                        setTradingPostRoll({
+                          dice: result.dice,
+                          total: result.total,
+                          modifier: mod,
+                          grandTotal,
+                        });
+                        const desc = mod !== 0
+                          ? `Roll ${result.total} (${result.dice.join(', ')}) ${mod > 0 ? '+' : ''}${mod} = ${grandTotal}`
+                          : `Roll ${result.total} (${result.dice.join(', ')})`;
+                        createGangLog({
+                          gang_id: participant.gang_id,
+                          action_type: 'trading_post_roll',
+                          description: desc,
+                        });
+                      }}
+                    >
+                      Roll
+                    </Button>
+                    <input
+                      type="tel"
+                      inputMode="url"
+                      value={tradingPostModifier}
+                      onChange={(e) => setTradingPostModifier(e.target.value)}
+                      placeholder="Modifier"
+                      className="w-20 rounded-sm border border-neutral-300 px-2 py-2 text-base md:text-sm dark:border-neutral-600 dark:bg-neutral-800 shrink-0"
+                    />
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 flex-nowrap">
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      const result = rollNd6Outcome(2);
-                      const mod = parseInt(tradingPostModifier) || 0;
-                      const grandTotal = result.total + mod;
-                      setTradingPostRoll({
-                        dice: result.dice,
-                        total: result.total,
-                        modifier: mod,
-                        grandTotal,
-                      });
-                      const desc = mod !== 0
-                        ? `Roll ${result.total} (${result.dice.join(', ')}) ${mod > 0 ? '+' : ''}${mod} = ${grandTotal}`
-                        : `Roll ${result.total} (${result.dice.join(', ')})`;
-                      createGangLog({
-                        gang_id: participant.gang_id,
-                        action_type: 'trading_post_roll',
-                        description: desc,
-                      });
-                    }}
-                  >
-                    Roll
-                  </Button>
-                  <input
-                    type="tel"
-                    inputMode="url"
-                    value={tradingPostModifier}
-                    onChange={(e) => setTradingPostModifier(e.target.value)}
-                    placeholder="Modifier"
-                    className="w-20 rounded-sm border border-neutral-300 px-2 py-2 text-base md:text-sm dark:border-neutral-600 dark:bg-neutral-800 shrink-0"
-                  />
-                </div>
-              </div>
+              )}
               <div>
                 <label className="mb-1 block text-sm text-neutral-500">
                   Reputation Change

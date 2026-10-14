@@ -5,7 +5,6 @@ import { updateCampaignImage } from '@/app/actions/campaigns/[id]/update-campaig
 import { ImageEditModal } from '@/components/ui/image-edit-modal';
 
 interface CampaignImageEditModalProps {
-  isOpen: boolean;
   onClose: () => void;
   currentImageUrl?: string;
   campaignId: string;
@@ -14,7 +13,6 @@ interface CampaignImageEditModalProps {
 }
 
 export const CampaignImageEditModal: React.FC<CampaignImageEditModalProps> = ({
-  isOpen,
   onClose,
   currentImageUrl,
   campaignId,
@@ -23,7 +21,6 @@ export const CampaignImageEditModal: React.FC<CampaignImageEditModalProps> = ({
 }) => {
   return (
     <ImageEditModal
-      isOpen={isOpen}
       onClose={onClose}
       currentImageUrl={currentImageUrl}
       title="Edit Campaign Image"
