@@ -17,7 +17,6 @@ import { fetchBattleSessionDirect, SESSION_SCENARIO_PARTS_SELECT } from '@/app/l
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
 import { editionsConflict, gangEditionJoin, gangEditionSlug } from '@/types/edition';
 import {
-  customPartName,
   customPartNames,
   participantSideJob,
   SCENARIO_PARTS,
@@ -461,7 +460,7 @@ export async function setSessionScenarioParts(
       sessionId,
       {
         [part.key]: entryId,
-        [part.nameKey]: customPartName({ [part.key]: entryId, [part.nameKey]: String(edit.typedName ?? '') }, part),
+        [part.nameKey]: entryId ? null : String(edit.typedName ?? '').trim() || null,
       },
       {
         requireStatus: 'pre_battle',

@@ -982,7 +982,7 @@ const CampaignBattleLogModal = ({
               scenarioTables={scenarioTables}
               parts={scenarioParts}
               onChange={(change) => setScenarioParts((current) => ({ ...current, ...change }))}
-              required={showResultFields && !scenarioNamed}
+              required={showResultFields && !scenarioNameToSave}
               disabled={isLoadingBattleData}
             />
           </div>
