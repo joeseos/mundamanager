@@ -423,7 +423,7 @@ async function runHandler(
  * saved rows carry the consequence — the patient's Critical Injury is gone — so
  * the next action is validated against real state instead of against the other
  * rows of a plan. The cross-fighter rules a single call cannot see (one action
- * per fighter, the per-action caps such as five Terrorise Territories, and a patient
+ * per fighter, the per-action caps such as a single Ritual Focus, and a patient
  * taking no action of their own) are held by the panel.
  *
  * Not atomic within an action: Fit Bionics removing three injuries makes three

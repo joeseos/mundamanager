@@ -211,7 +211,7 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
     summary: `+${TERRORISE_TERRITORY_INCOME} credits`,
     performer: { kind: 'subtypes', subtypes: SPYRER },
     openToSpyrers: true,
-    maxFighters: 5,
+    // No cap, like Work Territory, so house rules can allow more than five.
     credits: TERRORISE_TERRITORY_INCOME,
   },
   // The Slopper's own rule rather than a list's.
