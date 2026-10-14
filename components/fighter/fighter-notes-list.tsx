@@ -1,13 +1,28 @@
 'use client';
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
-import { RichTextEditor } from '../ui/rich-text-editor';
+import '../ui/rich-text-editor.css'; // .prose styles for the read-only notes
 import { UserPermissions } from '@/types/user-permissions';
 import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { useMutation } from '@tanstack/react-query';
 import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp';
+
+// The editor (Tiptap and ProseMirror, about 130 KB gzipped) only shows after
+// Edit is clicked, so its code loads then instead of with the page.
+const RichTextEditor = dynamic(
+  () => import('../ui/rich-text-editor').then((mod) => mod.RichTextEditor),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="border rounded-md min-h-[200px] flex items-center justify-center">
+        <span className="text-gray-500">Loading editor...</span>
+      </div>
+    ),
+  }
+);
 
 interface FighterNotesProps {
   fighterId: string;
