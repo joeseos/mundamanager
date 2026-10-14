@@ -4626,6 +4626,12 @@ CREATE TABLE public.battle_sessions (
     deployment_id uuid,
     objective_id uuid,
     crew_selection_id uuid,
+    crew_selection_name text,
+    deployment_name text,
+    objective_name text,
+    CONSTRAINT battle_sessions_one_crew_selection_check CHECK (((crew_selection_id IS NULL) OR (crew_selection_name IS NULL))),
+    CONSTRAINT battle_sessions_one_deployment_check CHECK (((deployment_id IS NULL) OR (deployment_name IS NULL))),
+    CONSTRAINT battle_sessions_one_objective_check CHECK (((objective_id IS NULL) OR (objective_name IS NULL))),
     CONSTRAINT battle_sessions_status_check CHECK ((status = ANY (ARRAY['pre_battle'::text, 'active'::text, 'post_battle'::text, 'completed'::text])))
 );
 
@@ -4658,6 +4664,27 @@ COMMENT ON COLUMN public.battle_sessions.objective_id IS 'N26 Objective for this
 --
 
 COMMENT ON COLUMN public.battle_sessions.crew_selection_id IS 'N26 Crew selection for this session. Its scenario_crew_selection_rules fill in the crew picker.';
+
+
+--
+-- Name: COLUMN battle_sessions.crew_selection_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.battle_sessions.crew_selection_name IS 'N26 custom Crew named by hand instead of rolled. NULL while crew_selection_id is set. Copied into campaign_battles on completion.';
+
+
+--
+-- Name: COLUMN battle_sessions.deployment_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.battle_sessions.deployment_name IS 'N26 custom Deployment named by hand instead of rolled. NULL while deployment_id is set. Copied into campaign_battles on completion.';
+
+
+--
+-- Name: COLUMN battle_sessions.objective_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.battle_sessions.objective_name IS 'N26 custom Objective named by hand instead of rolled. NULL while objective_id is set. Copied into campaign_battles on completion.';
 
 
 --
@@ -4705,6 +4732,12 @@ CREATE TABLE public.campaign_battles (
     deployment_id uuid,
     objective_id uuid,
     crew_selection_id uuid,
+    crew_selection_name text,
+    deployment_name text,
+    objective_name text,
+    CONSTRAINT campaign_battles_one_crew_selection_check CHECK (((crew_selection_id IS NULL) OR (crew_selection_name IS NULL))),
+    CONSTRAINT campaign_battles_one_deployment_check CHECK (((deployment_id IS NULL) OR (deployment_name IS NULL))),
+    CONSTRAINT campaign_battles_one_objective_check CHECK (((objective_id IS NULL) OR (objective_name IS NULL))),
     CONSTRAINT campaign_battles_status_check CHECK ((status = ANY (ARRAY['challenge_pending'::text, 'challenge_issued'::text, 'challenge_accepted'::text, 'challenge_declined'::text, 'played'::text])))
 );
 
@@ -4763,6 +4796,27 @@ COMMENT ON COLUMN public.campaign_battles.objective_id IS 'N26 Objective rolled 
 --
 
 COMMENT ON COLUMN public.campaign_battles.crew_selection_id IS 'N26 Crew selection rolled for this battle: a scenario_table_entries row of a crew_selection table.';
+
+
+--
+-- Name: COLUMN campaign_battles.crew_selection_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_battles.crew_selection_name IS 'N26 custom Crew named by hand instead of rolled. NULL while crew_selection_id is set.';
+
+
+--
+-- Name: COLUMN campaign_battles.deployment_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_battles.deployment_name IS 'N26 custom Deployment named by hand instead of rolled. NULL while deployment_id is set.';
+
+
+--
+-- Name: COLUMN campaign_battles.objective_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_battles.objective_name IS 'N26 custom Objective named by hand instead of rolled. NULL while objective_id is set.';
 
 
 --
@@ -8273,6 +8327,13 @@ CREATE INDEX campaign_battles_objective_id_idx ON public.campaign_battles USING 
 
 
 --
+-- Name: campaign_battles_scenario_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_battles_scenario_id_idx ON public.campaign_battles USING btree (scenario_id);
+
+
+--
 -- Name: campaign_battles_winner_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8676,6 +8737,13 @@ CREATE INDEX fighter_effect_types_effect_name_idx ON public.fighter_effect_types
 --
 
 CREATE INDEX fighter_effect_types_fighter_effect_category_id_idx ON public.fighter_effect_types USING btree (fighter_effect_category_id);
+
+
+--
+-- Name: fighter_effects_fighter_effect_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_effects_fighter_effect_type_id_idx ON public.fighter_effects USING btree (fighter_effect_type_id);
 
 
 --
