@@ -108,8 +108,6 @@ const OWN_RULE_ACTIONS: Record<string, readonly PostCycleActionId[]> = {
 const hasOwnRuleFor = (fighter: PostCycleFighter, action: PostCycleActionId): boolean =>
   OWN_RULE_ACTIONS[fighter.fighter_type?.toLowerCase() ?? '']?.includes(action) ?? false;
 
-const TERRORISE_TERRITORY_MAX_FIGHTERS = 5;
-
 /** Must match the seeded N26 effect_name exactly. */
 export const CRITICAL_INJURY_EFFECT_NAME = 'Critical Injury';
 
@@ -213,7 +211,7 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
     summary: `+${TERRORISE_TERRITORY_INCOME} credits`,
     performer: { kind: 'subtypes', subtypes: SPYRER },
     openToSpyrers: true,
-    maxFighters: TERRORISE_TERRITORY_MAX_FIGHTERS,
+    maxFighters: 5,
     credits: TERRORISE_TERRITORY_INCOME,
   },
   // The Slopper's own rule rather than a list's.
