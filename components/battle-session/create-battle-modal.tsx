@@ -268,8 +268,7 @@ export default function CreateBattleModal({
 
       return createBattleSession({
         campaign_id: campaignId,
-        // N26: the scenario text keeps a typed Deployment or Objective.
-        ...(usesScenarioTables ? { ...scenarioParts, scenario: customScenario } : { scenario: scenarioName }),
+        ...(usesScenarioTables ? scenarioParts : { scenario: scenarioName }),
         gang_ids: allGangIds,
       });
     },
@@ -301,7 +300,7 @@ export default function CreateBattleModal({
   const canConfirm = isAddMode
     ? hasOpponents
     : usesScenarioTables
-      ? !neededScenarioPart({ ...scenarioParts, scenario: customScenario })
+      ? !neededScenarioPart(scenarioParts)
       : !!selectedScenario;
 
   const modalContent = (
@@ -467,10 +466,8 @@ export default function CreateBattleModal({
           <ScenarioPartsPicker
             scenarioTables={editionScenarioTables}
             parts={scenarioParts}
-            scenario={customScenario}
-            onChange={({ scenario, ...change }) => {
+            onChange={(change) => {
               setScenarioParts((current) => ({ ...current, ...change }));
-              setCustomScenario(scenario);
             }}
             disabled={isLoadingBattleData}
           />

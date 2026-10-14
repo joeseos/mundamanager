@@ -21,8 +21,6 @@ interface ScenarioEntryPickerProps {
   customName?: string;
   onCustomNameChange?: (name: string) => void;
   customPlaceholder?: string;
-  /** Takes out what a custom name may not hold, as it is typed. */
-  cleanCustomName?: (name: string) => string;
   /** Saves the custom name when its field loses focus instead of on every key. */
   saveCustomNameOnBlur?: boolean;
   placeholder: string;
@@ -43,7 +41,6 @@ export function ScenarioEntryPicker({
   customName,
   onCustomNameChange,
   customPlaceholder,
-  cleanCustomName,
   saveCustomNameOnBlur,
   placeholder,
   disabled,
@@ -104,7 +101,7 @@ export function ScenarioEntryPicker({
             placeholder={customPlaceholder}
             value={draft ?? customName ?? ''}
             onChange={(e) => {
-              const name = cleanCustomName ? cleanCustomName(e.target.value) : e.target.value;
+              const name = e.target.value;
               setDraft(name);
               if (!saveCustomNameOnBlur) onCustomNameChange?.(name);
             }}
