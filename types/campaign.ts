@@ -108,6 +108,8 @@ export interface Battle {
   deployment_id?: string | null;
   objective_id?: string | null;
   crew_selection_id?: string | null;
+  /** N26: a custom Crew named by hand instead of rolled. Null while crew_selection_id is set. */
+  crew_selection_name?: string | null;
   winner_id?: string | null;
   note?: string | null;
   participants?: BattleParticipant[] | string;
@@ -250,8 +252,8 @@ export type ScenarioTableType = (typeof SCENARIO_TABLE_TYPES)[number];
 
 /**
  * The parts of an N26 scenario rolled once per battle: the battle column each
- * is stored in, and the table it is rolled on. The Deployment and Objective,
- * which name the battle, may also be Custom; see typedScenarioParts.
+ * is stored in, and the table it is rolled on. Each may also be Custom, named
+ * by hand; see typedPartNames.
  */
 export const SCENARIO_PARTS = [
   { key: 'deployment_id', tableType: 'deployment', label: 'Deployment', placeholder: 'Select a Deployment' },
@@ -316,7 +318,7 @@ export function houseSideJobTable(
     : undefined;
 }
 
-/** The parts that name a battle, and may be typed in place of an entry. */
+/** The parts that name a battle, whose custom names are kept in its scenario text. */
 export const TYPEABLE_SCENARIO_PARTS: readonly ScenarioPartKey[] = ['deployment_id', 'objective_id'];
 
 const SCENARIO_SEPARATOR = ' / ';
@@ -393,11 +395,40 @@ export function scenarioLabel(
     .join(SCENARIO_SEPARATOR);
 }
 
-/** The first part an N26 battle still needs; a typed Deployment or Objective counts. */
+/** A custom Crew's name: none while a Crew entry is picked, and none when blank. */
+export function customCrewName(battle: {
+  crew_selection_id?: string | null;
+  crew_selection_name?: string | null;
+}): string | null {
+  return battle.crew_selection_id ? null : battle.crew_selection_name?.trim() || null;
+}
+
+/**
+ * An N26 battle's custom part names, by part: a typed Deployment or Objective
+ * from its scenario text (see typedScenarioParts), and a custom Crew from its
+ * own column, as a Crew does not name the battle.
+ */
+export function typedPartNames(
+  battle: Partial<Record<ScenarioPartKey, string | null>> & {
+    scenario?: string | null;
+    crew_selection_name?: string | null;
+  }
+): Partial<Record<ScenarioPartKey, string>> {
+  const crewName = customCrewName(battle);
+  return {
+    ...typedScenarioParts(battle.scenario, !!battle.deployment_id, !!battle.objective_id),
+    ...(crewName ? { crew_selection_id: crewName } : {}),
+  };
+}
+
+/** The first part an N26 battle still needs; a custom part counts. */
 export function neededScenarioPart(
-  battle: Partial<Record<ScenarioPartKey, string | null>> & { scenario?: string | null }
+  battle: Partial<Record<ScenarioPartKey, string | null>> & {
+    scenario?: string | null;
+    crew_selection_name?: string | null;
+  }
 ) {
-  const typed = typedScenarioParts(battle.scenario, !!battle.deployment_id, !!battle.objective_id);
+  const typed = typedPartNames(battle);
   return SCENARIO_PARTS.find((part) => !battle[part.key] && !typed[part.key]);
 }
 

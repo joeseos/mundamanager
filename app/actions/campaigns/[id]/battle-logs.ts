@@ -13,6 +13,7 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
 import {
   challengeAnswerStatuses,
+  customCrewName,
   SCENARIO_PARTS,
   type BattleParticipant,
   type BattleStatus,
@@ -55,6 +56,8 @@ export interface BattleLogParams {
   deployment_id?: string | null;
   objective_id?: string | null;
   crew_selection_id?: string | null;
+  /** N26: a custom Crew's name, sent with crew_selection_id; ignored while that is set. */
+  crew_selection_name?: string | null;
   /**
    * 'played' files a challenge's battle report; challenge_issued / accepted /
    * declined are the challenged gang's answer, which only its owner or an
@@ -225,6 +228,7 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
           deployment_id: params.deployment_id ?? null,
           objective_id: params.objective_id ?? null,
           crew_selection_id: params.crew_selection_id ?? null,
+          crew_selection_name: customCrewName(params),
           winner_id: legacyWinnerId,
           note,
           participants: JSON.stringify(participants),
@@ -502,6 +506,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     for (const { key } of SCENARIO_PARTS) {
       if (params[key] !== undefined) updatePayload[key] = params[key];
     }
+    if (params.crew_selection_id !== undefined) updatePayload.crew_selection_name = customCrewName(params);
     if (nextStatus) {
       updatePayload.status = nextStatus;
     }
