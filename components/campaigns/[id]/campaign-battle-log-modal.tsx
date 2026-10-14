@@ -13,7 +13,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { createBattleLog, updateBattleLog, BattleLogParams } from "@/app/actions/campaigns/[id]/battle-logs";
 import { useMutation } from '@tanstack/react-query';
-import { Battle, BattleParticipant, BattleStatus, CampaignGang, Territory as BaseTerritory, Scenario, ScenarioTableWithEntries, customCrewName, neededScenarioPart, participantSideJob, scenarioName as scenarioNameOf, typedScenarioName } from '@/types/campaign';
+import { Battle, BattleParticipant, BattleStatus, CampaignGang, Territory as BaseTerritory, Scenario, ScenarioTableWithEntries, customPartNames, neededScenarioPart, participantSideJob } from '@/types/campaign';
 import { battleStatusOf, challengeAnswerStatuses } from '@/types/campaign';
 import { getClaimerGangId, getWinnerIds } from '@/utils/battle-winners';
 import { useWinnerSelection } from '@/hooks/use-winner-selection';
@@ -92,7 +92,7 @@ const CampaignBattleLogModal = ({
   const [selectedScenario, setSelectedScenario] = useState('');
   const [customScenario, setCustomScenario] = useState('');
   const [scenarioParts, setScenarioParts] = useState<ScenarioParts>({});
-  // N26: a name for the scenario, kept in the scenario text instead of a typed Deployment or Objective.
+  // N26: an optional name for the scenario, kept in the scenario text beside its parts.
   const [scenarioNamed, setScenarioNamed] = useState(false);
   const [namedScenario, setNamedScenario] = useState('');
   const [gangsInBattle, setGangsInBattle] = useState<GangEntry[]>([emptyGangEntry(1), emptyGangEntry(2)]);
@@ -202,6 +202,8 @@ const CampaignBattleLogModal = ({
         deployment_id: battleData.deployment_id,
         objective_id: battleData.objective_id,
         crew_selection_id: battleData.crew_selection_id,
+        deployment_name: battleData.deployment_name,
+        objective_name: battleData.objective_name,
         crew_selection_name: battleData.crew_selection_name,
         winner_id: legacyWinnerId,
         note: battleData.note,
@@ -316,6 +318,8 @@ const CampaignBattleLogModal = ({
                     deployment_id: battleData.deployment_id,
                     objective_id: battleData.objective_id,
                     crew_selection_id: battleData.crew_selection_id,
+                    deployment_name: battleData.deployment_name,
+                    objective_name: battleData.objective_name,
                     crew_selection_name: battleData.crew_selection_name,
                   }
                 : {}),
@@ -456,11 +460,9 @@ const CampaignBattleLogModal = ({
     // A challenge slot is created without a scenario, so treat "none" as its own
     // state rather than falling through to an empty custom name.
     const existingScenario = battleToEdit.scenario || battleToEdit.scenario_name || '';
-    const existingName = usesScenarioTables ? scenarioNameOf(existingScenario) : undefined;
-    if (existingName) {
-      setScenarioNamed(true);
-      setNamedScenario(existingName);
-      setCustomScenario('');
+    if (usesScenarioTables) {
+      setScenarioNamed(!!existingScenario.trim());
+      setNamedScenario(existingScenario);
     } else if (matchingScenario) {
       setSelectedScenario(matchingScenario.id);
     } else if (existingScenario) {
@@ -475,6 +477,8 @@ const CampaignBattleLogModal = ({
       deployment_id: battleToEdit.deployment_id,
       objective_id: battleToEdit.objective_id,
       crew_selection_id: battleToEdit.crew_selection_id,
+      deployment_name: battleToEdit.deployment_name,
+      objective_name: battleToEdit.objective_name,
       crew_selection_name: battleToEdit.crew_selection_name,
     });
 
@@ -619,8 +623,9 @@ const CampaignBattleLogModal = ({
 
   // Every part of an N26 scenario is needed to file a report, unless the scenario is named;
   // a challenge may not have rolled them yet.
-  const missingScenarioPart = usesScenarioTables && showResultFields && !scenarioNamed
-    ? neededScenarioPart({ ...scenarioParts, scenario: customScenario })
+  const scenarioNameToSave = usesScenarioTables && scenarioNamed ? namedScenario.trim() : '';
+  const missingScenarioPart = usesScenarioTables && showResultFields && !scenarioNameToSave
+    ? neededScenarioPart(scenarioParts)
     : undefined;
 
   // Get the list of gangs that are already selected in other entries
@@ -637,11 +642,6 @@ const CampaignBattleLogModal = ({
     // Validate required fields
     if (missingScenarioPart) {
       toast.error(`Please select a ${missingScenarioPart.label}`);
-      return false;
-    }
-
-    if (scenarioNamed && !namedScenario.trim()) {
-      toast.error("Please enter a scenario name");
       return false;
     }
 
@@ -775,14 +775,13 @@ const CampaignBattleLogModal = ({
     // The server derives `winner_id` from participants[].is_winner /
     // claimed_territory so we don't need to send it. `null` means "draw".
     const battleData: BattleLogParams = {
-      // N26: keeps the scenario name or a typed Deployment or Objective; a custom Crew has its own field.
-      scenario: usesScenarioTables ? (scenarioNamed ? namedScenario.trim() : customScenario) : scenarioName,
+      scenario: usesScenarioTables ? scenarioNameToSave : scenarioName,
       ...(usesScenarioTables
         ? {
             deployment_id: scenarioParts.deployment_id || null,
             objective_id: scenarioParts.objective_id || null,
             crew_selection_id: scenarioParts.crew_selection_id || null,
-            crew_selection_name: customCrewName(scenarioParts),
+            ...customPartNames(scenarioParts),
           }
         : {}),
       winner_id: isDraw ? null : (claimerForPayload ?? activeWinners[0] ?? null),
@@ -819,7 +818,7 @@ const CampaignBattleLogModal = ({
   const formValid = useMemo(() => {
     // A challenge may not have rolled its scenario yet.
     const scenarioValid = usesScenarioTables
-      ? (scenarioNamed ? namedScenario.trim() !== '' : !missingScenarioPart)
+      ? !missingScenarioPart
       : !showResultFields || selectedScenario !== '';
 
     // Check if custom scenario has text (when custom is selected)
@@ -852,8 +851,6 @@ const CampaignBattleLogModal = ({
   }, [
     selectedScenario,
     customScenario,
-    scenarioNamed,
-    namedScenario,
     gangsInBattle,
     isDraw,
     activeWinners,
@@ -963,11 +960,7 @@ const CampaignBattleLogModal = ({
                 <Checkbox
                   id="scenario-named"
                   checked={scenarioNamed}
-                  onCheckedChange={(checked) => {
-                    setScenarioNamed(checked === true);
-                    // The name takes the scenario text, so a typed Deployment or Objective goes.
-                    setCustomScenario('');
-                  }}
+                  onCheckedChange={(checked) => setScenarioNamed(checked === true)}
                   disabled={isLoadingBattleData}
                 />
                 <Label htmlFor="scenario-named" className="text-sm font-medium">
@@ -980,7 +973,7 @@ const CampaignBattleLogModal = ({
                   className="mt-2 w-full px-3 py-2 rounded-md border border-border bg-muted"
                   placeholder="Enter scenario name"
                   value={namedScenario}
-                  onChange={(e) => setNamedScenario(typedScenarioName(e.target.value))}
+                  onChange={(e) => setNamedScenario(e.target.value)}
                   disabled={isLoadingBattleData}
                 />
               )}
@@ -988,13 +981,8 @@ const CampaignBattleLogModal = ({
             <ScenarioPartsPicker
               scenarioTables={scenarioTables}
               parts={scenarioParts}
-              scenario={customScenario}
-              onChange={({ scenario, ...change }) => {
-                setScenarioParts((current) => ({ ...current, ...change }));
-                setCustomScenario(scenario);
-              }}
+              onChange={(change) => setScenarioParts((current) => ({ ...current, ...change }))}
               required={showResultFields && !scenarioNamed}
-              scenarioNamed={scenarioNamed}
               disabled={isLoadingBattleData}
             />
           </div>

@@ -2,18 +2,17 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   SCENARIO_PARTS,
   scenarioLabel,
+  typedPartNames,
   type BattleParticipant,
+  type ScenarioPartFields,
   type ScenarioPartKey,
 } from '@/types/campaign';
 
 /**
  * An N26 battle's Deployment, Objective and Crew, as scenario_table_entries ids,
- * and a custom Crew's name. A custom Deployment or Objective is kept in the
- * battle's scenario text instead.
+ * or each a custom name.
  */
-export type ScenarioParts = Partial<Record<ScenarioPartKey, string | null>> & {
-  crew_selection_name?: string | null;
-};
+export type ScenarioParts = ScenarioPartFields;
 
 /** One part picked (an entry), typed (a custom name) or cleared. */
 export interface ScenarioPartEdit {
@@ -31,11 +30,9 @@ const one = <T,>(embed: T | T[] | null | undefined): T | undefined =>
  * from a table of its kind in that edition, and a gang's Side Job from the core
  * table or the gang's own house table (its alternate lists use the house's).
  * The edition is only looked up when there is something to check. Returns the
- * scenario's label for logs and notifications: its Deployment and Objective,
- * picked or typed into the scenario text, or an N23 battle's scenario text.
- * The label needs the battle's scenario text and both its Deployment and
- * Objective, since a part with no entry is read as typed; a check of only some
- * parts gets a partial one.
+ * scenario's label for logs and notifications: its scenario name, or else its
+ * Deployment and Objective, picked or custom. A check of only some parts gets
+ * a partial one.
  *
  * Shared by the battle log and battle session actions; lives in utils/ so
  * neither 'use server' file has to export it.
@@ -52,7 +49,8 @@ export async function checkScenarioParts(
     ...SCENARIO_PARTS.map((part) => parts[part.key]),
     ...sideJobGangs.map((p) => p.side_job_id),
   ].filter((id): id is string => !!id);
-  if (ids.length === 0) return { label: scenarioLabel(scenario) };
+  const typed = typedPartNames(parts);
+  if (ids.length === 0) return { label: scenarioLabel(scenario, typed.deployment_id, typed.objective_id) };
 
   const [entriesResult, battleEditionId, gangsResult] = await Promise.all([
     supabase
@@ -96,8 +94,8 @@ export async function checkScenarioParts(
   return {
     label: scenarioLabel(
       scenario,
-      parts.deployment_id ? entries.get(parts.deployment_id)?.name : null,
-      parts.objective_id ? entries.get(parts.objective_id)?.name : null
+      parts.deployment_id ? entries.get(parts.deployment_id)?.name : typed.deployment_id,
+      parts.objective_id ? entries.get(parts.objective_id)?.name : typed.objective_id
     ),
   };
 }
