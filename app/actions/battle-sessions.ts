@@ -1638,7 +1638,7 @@ export async function completeBattleSession(
         ...participantSideJob(p),
       }));
       const battleLog = {
-        scenario: session.scenario || '',
+        scenario: session.scenario || null,
         ...scenarioParts,
         winner_id: legacyWinnerId,
         note: options?.note || null,

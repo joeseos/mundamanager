@@ -36,7 +36,7 @@ export interface TerritoryClaimRequest {
  * `territory_claimed_by_gang_id` and the server will normalise the flags.
  */
 export interface BattleLogParams {
-  /** N23: the scenario's name. N26: an optional name for it, beside its parts. */
+  /** N23: the scenario's name. N26: an optional name for it, beside its parts. Empty is saved as NULL. */
   scenario: string;
   winner_id: string | null;
   note: string | null;
@@ -228,7 +228,7 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       .insert([
         {
           campaign_id: campaignId,
-          scenario,
+          scenario: scenario || null,
           deployment_id: params.deployment_id ?? null,
           objective_id: params.objective_id ?? null,
           crew_selection_id: params.crew_selection_id ?? null,
@@ -499,7 +499,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
 
     // Build update payload conditionally including created_at if provided
     const updatePayload: any = {
-      scenario,
+      scenario: scenario || null,
       winner_id: legacyWinnerId,
       note,
       participants: JSON.stringify(participants),
