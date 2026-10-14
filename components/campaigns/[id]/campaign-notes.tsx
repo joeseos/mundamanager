@@ -11,16 +11,13 @@ import { isHtmlEffectivelyEmpty } from "@/utils/htmlCleanUp";
 
 // The editor (Tiptap and ProseMirror, about 130 KB gzipped) only shows after
 // Edit is clicked, so its code loads then instead of with the page.
+// An empty box holds the editor's space while the code loads.
 // next/dynamic passes editorRef through to it.
 const RichTextEditor = dynamic(
   () => import("@/components/ui/rich-text-editor").then((mod) => mod.RichTextEditor),
   {
     ssr: false,
-    loading: () => (
-      <div className="border rounded-md min-h-[200px] flex items-center justify-center">
-        <span className="text-gray-500">Loading editor...</span>
-      </div>
-    ),
+    loading: () => <div className="border rounded-md min-h-[200px]" />,
   }
 );
 
