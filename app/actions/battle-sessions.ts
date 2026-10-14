@@ -1801,8 +1801,8 @@ export async function completeBattleSession(
           });
         }
 
-        // Territory claim log — added to same batch
-        if (options?.campaign_territory_id && claimerGangId && claimed_territory) {
+        // Territory claim log — added to same batch, only when the claim was made
+        if (claimedTerritory && claimerGangId && claimed_territory) {
           const claimer = gangMap.get(claimerGangId);
           if (claimer) {
             const territoryType = territoryIsCustom ? 'custom territory' : 'territory';
@@ -1816,8 +1816,14 @@ export async function completeBattleSession(
           }
         }
 
+        // Service role: the session manager may not own the other gangs, and in a
+        // standalone session gang_logs RLS denies their rows, which rolled back the
+        // whole batch. Every row is built server-side from the session's own data.
         if (logs.length > 0) {
-          await supabase.from('gang_logs').insert(logs);
+          const { error: logsError } = await createServiceRoleClient()
+            .from('gang_logs')
+            .insert(logs);
+          if (logsError) console.error('Error writing battle session gang logs:', logsError);
         }
 
         // Notifications — one insert
