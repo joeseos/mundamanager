@@ -323,7 +323,7 @@ export const TYPEABLE_SCENARIO_PARTS: readonly ScenarioPartKey[] = ['deployment_
 
 const SCENARIO_SEPARATOR = ' / ';
 
-/** A typed Deployment or Objective may not hold "/", which the scenario text keeps for its separator. */
+/** A typed Deployment, Objective or scenario name may not hold "/", which the scenario text keeps for its separator. */
 export function typedScenarioName(name: string): string {
   return name.replace(/\//g, '');
 }
@@ -331,11 +331,10 @@ export function typedScenarioName(name: string): string {
 /**
  * A typed Deployment or Objective has no column of its own: it is kept in the
  * battle's scenario text as "Deployment / Objective", each side the part's
- * typed name or its entry's, and " / Objective" while no Deployment is picked.
- * Reads the typed names back, given which parts have an entry. A typed name
- * has no "/", so the text is split at the separator beside it, and an entry's
- * name may hold " / ". Text with no separator names the Deployment, unless it
- * was matched to an entry.
+ * typed name or its entry's, empty when neither. Reads the typed names back,
+ * given which parts have an entry. A typed name has no "/", so the text is
+ * split at the separator beside it, and an entry's name may hold " / ". Text
+ * with no separator is the battle's scenario name; see scenarioName.
  */
 export function typedScenarioParts(
   scenario: string | null | undefined,
@@ -343,14 +342,11 @@ export function typedScenarioParts(
   hasObjective: boolean
 ): Partial<Record<ScenarioPartKey, string>> {
   const text = scenario ?? '';
-  if (!text.trim() || (hasDeployment && hasObjective)) return {};
   const first = text.indexOf(SCENARIO_SEPARATOR);
   const last = text.lastIndexOf(SCENARIO_SEPARATOR);
-  if (hasDeployment) {
-    return last < 0 ? {} : { objective_id: text.slice(last + SCENARIO_SEPARATOR.length).trim() || undefined };
-  }
-  if (hasObjective) return first < 0 ? {} : { deployment_id: text.slice(0, first).trim() || undefined };
-  if (first < 0) return { deployment_id: text.trim() };
+  if (first < 0 || (hasDeployment && hasObjective)) return {};
+  if (hasDeployment) return { objective_id: text.slice(last + SCENARIO_SEPARATOR.length).trim() || undefined };
+  if (hasObjective) return { deployment_id: text.slice(0, first).trim() || undefined };
   return {
     deployment_id: text.slice(0, first).trim() || undefined,
     objective_id: text.slice(first + SCENARIO_SEPARATOR.length).trim() || undefined,
@@ -373,22 +369,31 @@ export function typedScenarioText(
     const entryId = parts[key];
     return (entryId ? entryName(entryId) : typedName(key)) ?? '';
   };
-  // An Objective with an entry keeps the separator even without its name, so a typed Deployment reads back.
-  return parts.objective_id || typedName('objective_id')
-    ? `${name('deployment_id')}${SCENARIO_SEPARATOR}${name('objective_id')}`
-    : name('deployment_id');
+  // The separator is kept even with no Objective, so a typed Deployment doesn't read back as a scenario name.
+  return `${name('deployment_id')}${SCENARIO_SEPARATOR}${name('objective_id')}`;
 }
 
 /**
- * What a battle's scenario is called in lists and logs: its Deployment and
- * Objective, from the entries' names given or typed into the scenario text.
- * An N23 battle's scenario text is its name.
+ * The name a battle's scenario was given, which N26 keeps in the scenario text
+ * in place of a typed Deployment or Objective: text with no separator. It may
+ * hold no "/" (see typedScenarioName). An N23 battle's scenario text is its name.
+ */
+export function scenarioName(scenario: string | null | undefined): string | undefined {
+  return scenario?.includes(SCENARIO_SEPARATOR) ? undefined : scenario?.trim() || undefined;
+}
+
+/**
+ * What a battle's scenario is called in lists and logs: its scenario name, or
+ * else its Deployment and Objective, from the entries' names given or typed
+ * into the scenario text.
  */
 export function scenarioLabel(
   scenario: string | null | undefined,
   deploymentName?: string | null,
   objectiveName?: string | null
 ): string {
+  const name = scenarioName(scenario);
+  if (name) return name;
   const typed = typedScenarioParts(scenario, !!deploymentName, !!objectiveName);
   return [deploymentName || typed.deployment_id, objectiveName || typed.objective_id]
     .filter(Boolean)

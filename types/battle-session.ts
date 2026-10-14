@@ -56,7 +56,7 @@ export interface BattleSession {
   edition_slug?: string | null;
 }
 
-/** What a session is called: its Deployment and Objective on N26, otherwise its scenario. */
+/** What a session is called: its scenario name, or its Deployment and Objective on N26, otherwise its scenario. */
 export function sessionScenarioLabel(
   session: Pick<BattleSession, 'scenario' | 'deployment' | 'objective'>
 ): string {

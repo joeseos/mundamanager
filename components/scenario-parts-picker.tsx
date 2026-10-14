@@ -30,6 +30,8 @@ interface ScenarioPartsPickerProps {
   saveTypedNamesOnBlur?: boolean;
   /** Marks every part as needed. */
   required?: boolean;
+  /** The battle has a scenario name, which takes the scenario text, so a Deployment or Objective can't be typed. */
+  scenarioNamed?: boolean;
   disabled?: boolean;
 }
 
@@ -45,10 +47,12 @@ export function ScenarioPartsPicker({
   onChange,
   saveTypedNamesOnBlur,
   required,
+  scenarioNamed,
   disabled,
 }: ScenarioPartsPickerProps) {
   const entriesOf = (part: ScenarioPart) => coreScenarioTable(scenarioTables, part.tableType)?.entries ?? [];
-  const typed = typedPartNames({ ...parts, scenario });
+  const typed = typedPartNames({ ...parts, scenario: scenarioNamed ? null : scenario });
+  const typeable = (part: ScenarioPart) => TYPEABLE_SCENARIO_PARTS.includes(part.key);
 
   const entryName = (entryId: string) =>
     SCENARIO_PARTS.flatMap(entriesOf).find((entry) => entry.id === entryId)?.name;
@@ -74,9 +78,9 @@ export function ScenarioPartsPicker({
           value={parts[part.key] ?? ''}
           onChange={(entryId) => change(part, entryId)}
           customName={typed[part.key]}
-          onCustomNameChange={(name) => change(part, '', name)}
+          onCustomNameChange={scenarioNamed && typeable(part) ? undefined : (name) => change(part, '', name)}
           customPlaceholder={`Enter custom ${part.label} name`}
-          cleanCustomName={TYPEABLE_SCENARIO_PARTS.includes(part.key) ? typedScenarioName : undefined}
+          cleanCustomName={typeable(part) ? typedScenarioName : undefined}
           saveCustomNameOnBlur={saveTypedNamesOnBlur}
           placeholder={part.placeholder}
           disabled={disabled}

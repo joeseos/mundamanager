@@ -21,6 +21,7 @@ import {
   participantSideJob,
   SCENARIO_PARTS,
   TYPEABLE_SCENARIO_PARTS,
+  scenarioName,
   typedScenarioName,
   typedScenarioParts,
   typedScenarioText,
@@ -497,7 +498,8 @@ export async function setSessionScenarioParts(
           : { data: [], error: null };
         if (error) throw error;
         const entryName = (entryId: string) => entries?.find((entry) => entry.id === entryId)?.name;
-        return { [edit.key]: entryId, scenario: typedScenarioText(parts, typed, entryName) || null };
+        // A scenario name stays until a Deployment or Objective is typed in its place.
+        return { [edit.key]: entryId, scenario: typedScenarioText(parts, typed, entryName) || scenarioName(session.scenario) || null };
       },
       {
         requireStatus: 'pre_battle',
