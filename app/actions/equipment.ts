@@ -1510,26 +1510,37 @@ export async function applySelfUpgradesToEquipment(params: {
     // Equipment attached to a weapon (e.g. Enhance weapon) is linked to it by the
     // anchor effect written at purchase. Route the upgrades to that weapon, otherwise
     // they land on the accessory, which has no profile to modify.
-    const { data: anchorEffect } = await supabase
+    // A failed lookup must not fall through as "not attached": the upgrade would land on
+    // the accessory and skip the one-upgrade check below.
+    const { data: anchorEffect, error: anchorErr } = await supabase
       .from('fighter_effects')
       .select('target_equipment_id')
       .eq('fighter_equipment_id', params.fighter_equipment_id)
       .not('target_equipment_id', 'is', null)
       .limit(1)
       .maybeSingle();
+    if (anchorErr) {
+      return { success: false, error: `Failed to look up the attached weapon: ${anchorErr.message}` };
+    }
     const targetEquipmentId: string | null = anchorEffect?.target_equipment_id ?? null;
 
-    // Attached equipment takes one Edit: each Enhance weapon buys a single upgrade, and a
-    // weapon gets more by taking more of them. Spyrer weapons and bionics are not
-    // attached, so they keep stacking theirs across Edits.
+    // Attached equipment takes one Edit with one pick: each Enhance weapon buys a single
+    // upgrade, and a weapon gets more by taking more of them. Spyrer weapons and bionics
+    // are not attached, so they keep stacking theirs across Edits.
     if (targetEquipmentId) {
-      const { data: existingUpgrade } = await supabase
+      if (params.effect_type_ids.length > 1) {
+        return { success: false, error: 'Attached equipment takes a single upgrade' };
+      }
+      const { data: existingUpgrade, error: existingErr } = await supabase
         .from('fighter_effects')
         .select('id')
         .eq('fighter_equipment_id', params.fighter_equipment_id)
         .eq('type_specific_data->>is_editable', 'true')
         .limit(1)
         .maybeSingle();
+      if (existingErr) {
+        return { success: false, error: `Failed to check for an existing upgrade: ${existingErr.message}` };
+      }
       if (existingUpgrade) {
         return { success: false, error: 'This equipment already has an upgrade. Remove it to pick another.' };
       }
