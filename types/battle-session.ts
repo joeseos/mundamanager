@@ -142,6 +142,40 @@ export interface SessionRecord {
   left_battlefield?: boolean;
 }
 
+/**
+ * A stored session_record with its defaults filled in. Spreads the stored
+ * record first, so an optional field survives every rewrite without each
+ * caller having to list it.
+ */
+export function normalizeSessionRecord(raw?: Partial<SessionRecord> | null): SessionRecord {
+  return {
+    ...raw,
+    xp_earned: raw?.xp_earned ?? 0,
+    injuries: raw?.injuries ?? [],
+    conditions: raw?.conditions ?? [],
+    activations: raw?.activations ?? 1,
+  };
+}
+
+/**
+ * The record after the Fighter Actions modal's Confirm. Shared by the server
+ * action and the optimistic update. Leaving the battlefield spends the
+ * fighter's remaining activations for the round; undefined leaves it as is.
+ */
+export function applyConditionsUpdate(
+  record: SessionRecord,
+  conditions: SessionCondition[],
+  leftBattlefield?: boolean
+): SessionRecord {
+  if (leftBattlefield === undefined) return { ...record, conditions };
+  return {
+    ...record,
+    conditions,
+    left_battlefield: leftBattlefield || undefined,
+    activations: leftBattlefield ? 0 : record.activations,
+  };
+}
+
 export interface BattleSessionFighter {
   id: string;
   battle_session_id: string;

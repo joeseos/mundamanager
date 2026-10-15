@@ -432,7 +432,7 @@ export default function ActiveSession({
           confirmText="Complete Round"
           confirmDisabled={roundMutation.isPending}
         >
-          <p>Complete round {session.round} and start round {session.round + 1}? All fighters will be reactivated.</p>
+          <p>Complete round {session.round} and start round {session.round + 1}? All fighters still in play will be reactivated.</p>
         </Modal>,
         document.body
       )}
@@ -449,7 +449,7 @@ export default function ActiveSession({
           confirmText="Revert Round"
           confirmDisabled={revertRoundMutation.isPending}
         >
-          <p>Go back to round {session.round - 1}? All fighters will be reactivated.</p>
+          <p>Go back to round {session.round - 1}? All fighters still in play will be reactivated.</p>
         </Modal>,
         document.body
       )}

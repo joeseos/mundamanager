@@ -64,8 +64,8 @@ import { createGangLog } from '@/app/actions/logs/gang-logs';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { updateFighterXp } from '@/app/actions/edit-fighter';
 import FighterCard from '@/components/gang/fighter-card';
-import type { BattleSessionFull, BattleSessionParticipant, BattleSessionFighter, SessionCondition, SessionInjuryRecord } from '@/types/battle-session';
-import { beastSubtypeName, hasFleshWoundCondition, hasLeftBattlefield, hasN26CompositeBattleMarkers, hasCrewRating, hasScenarioTables, hasTradePoints } from '@/types/edition';
+import { applyConditionsUpdate, type BattleSessionFull, type BattleSessionParticipant, type BattleSessionFighter, type SessionCondition, type SessionInjuryRecord } from '@/types/battle-session';
+import { beastSubtypeName, canLeaveBattlefield, hasFleshWoundCondition, hasN26CompositeBattleMarkers, hasCrewRating, hasScenarioTables, hasTradePoints } from '@/types/edition';
 import type { ScenarioTableWithEntries } from '@/types/campaign';
 import { SideJobPicker } from '@/components/side-job-picker';
 
@@ -241,8 +241,10 @@ function FighterActionModal({
   const [draftConditions, setDraftConditions] = useState<SessionCondition[]>(
     fighter.session_record?.conditions ?? []
   );
-  const currentLeftBattlefield = fighter.session_record?.left_battlefield === true;
-  const [draftLeftBattlefield, setDraftLeftBattlefield] = useState(currentLeftBattlefield);
+  // Compared against the value the modal opened with, not the live prop, so a
+  // realtime change made elsewhere while it is open isn't sent back reversed.
+  const [initialLeftBattlefield] = useState(fighter.session_record?.left_battlefield === true);
+  const [draftLeftBattlefield, setDraftLeftBattlefield] = useState(initialLeftBattlefield);
 
   // Conditions the edition doesn't use aren't offered. CONDITION_BY_KEY still
   // looks up a stored key from another edition. The glyph only falls back when
@@ -311,7 +313,7 @@ function FighterActionModal({
   };
 
   const hasConditionChanges = JSON.stringify(draftConditions) !== JSON.stringify(currentConditions);
-  const hasLeftBattlefieldChange = draftLeftBattlefield !== currentLeftBattlefield;
+  const hasLeftBattlefieldChange = draftLeftBattlefield !== initialLeftBattlefield;
 
   return (
     <>
@@ -427,7 +429,7 @@ function FighterActionModal({
               </div>
             )}
           </div>
-          {hasLeftBattlefield(editionSlug) && (
+          {canLeaveBattlefield(editionSlug) && (
             <div className="space-y-2 border-t pt-3 text-left">
               <h4 className="text-sm font-medium text-neutral-500">Removed from Play</h4>
               <div className="flex items-center space-x-2">
@@ -456,11 +458,11 @@ function FighterActionModal({
           campaignId={campaignId ?? undefined}
           editionSlug={editionSlug}
           onClose={() => setShowXpModal(false)}
+          // Back to this modal rather than closing it, which would drop unsaved drafts.
           onXpUpdated={(newXp) => {
             const delta = newXp - (fighterData?.xp ?? 0);
             onXpChanged(delta);
             setShowXpModal(false);
-            onClose();
           }}
         />
       )}
@@ -474,10 +476,7 @@ function FighterActionModal({
           isSpyrer={isSpyrer}
           fighterWeapons={fighterWeapons}
           onClose={() => setShowInjuryModal(false)}
-          onInjuryAdded={(injury) => {
-            onInjuryAdded(injury);
-            onClose();
-          }}
+          onInjuryAdded={onInjuryAdded}
           onBroadcast={onBroadcast}
         />
       )}
@@ -869,6 +868,9 @@ function FighterRow({
   };
 
   const iconColor = activations >= 2 ? 'text-orange-500' : activations === 1 ? 'text-green-500' : 'text-muted-foreground/30';
+  const readyTitle = leftBattlefield
+    ? 'Left the battlefield'
+    : activations > 0 ? `${activations} activation${activations !== 1 ? 's' : ''} remaining` : 'Activated';
   const fighterType = gangFighter?.fighter_type;
   const fighterSubtypeDisplay = formatFighterSubtypeDisplay(gangFighter?.fighter_subtypes, editionSlug);
   // Second row format: type (subtype)
@@ -962,18 +964,11 @@ function FighterRow({
               title={note || 'Add note'}
               onClick={() => { setNoteDraft(note); setShowNoteModal(true); }}
             />
-            {leftBattlefield ? (
-              <ReadyActivatedIcon
-                className={`size-6 ${iconColor}`}
-                title="Left the battlefield"
-              />
-            ) : (
-              <ReadyActivatedIcon
-                className={`size-6 transition-colors duration-200 ${iconColor} cursor-pointer hover:text-muted-foreground`}
-                title={activations > 0 ? `${activations} activation${activations !== 1 ? 's' : ''} remaining` : 'Activated'}
-                onClick={toggleReady}
-              />
-            )}
+            <ReadyActivatedIcon
+              className={`size-6 ${iconColor} ${leftBattlefield ? '' : 'transition-colors duration-200 cursor-pointer hover:text-muted-foreground'}`}
+              title={readyTitle}
+              onClick={leftBattlefield ? undefined : toggleReady}
+            />
             <CgMoreVerticalO
               className="size-6 text-muted-foreground/40 hover:text-muted-foreground transition-colors duration-200 cursor-pointer"
               title="Click to open action menu"
@@ -1024,7 +1019,7 @@ function FighterRow({
             {battleActive && (
               <ReadyActivatedIcon
                 className={`size-6 ${iconColor}`}
-                title={activations > 0 ? `${activations} activation${activations !== 1 ? 's' : ''} remaining` : 'Activated'}
+                title={readyTitle}
               />
             )}
           </div>
@@ -1588,22 +1583,11 @@ export default function ParticipantCard({
     onMutate: ({ sessionFighterId, conditions, leftBattlefield }) => {
       const prev = localFighters;
       setLocalFighters((cur) =>
-        cur.map((lf) => {
-          if (lf.id !== sessionFighterId) return lf;
-          if (leftBattlefield === undefined) {
-            return { ...lf, session_record: { ...lf.session_record, conditions } };
-          }
-          // Mirrors updateSessionConditions: leaving spends the round's activations.
-          return {
-            ...lf,
-            session_record: {
-              ...lf.session_record,
-              conditions,
-              left_battlefield: leftBattlefield || undefined,
-              activations: leftBattlefield ? 0 : lf.session_record.activations,
-            },
-          };
-        })
+        cur.map((lf) =>
+          lf.id === sessionFighterId
+            ? { ...lf, session_record: applyConditionsUpdate(lf.session_record, conditions, leftBattlefield) }
+            : lf
+        )
       );
       return { prev };
     },
