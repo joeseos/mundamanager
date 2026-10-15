@@ -950,7 +950,6 @@ export default function FighterPage({
             gangTypeId={fighterData.fighter?.fighter_type?.gang_type_id || ''}
             customGangTypeId={fighterData.fighter?.fighter_type?.custom_gang_type_id || ''}
             owningGangTypeId={fighterData.gang?.gang_type_id || ''}
-            isVehicle={isVehicle}
             fighterSpecialRules={fighterData.fighter?.special_rules || []}
             fighterTypeName={fighterData.fighter?.fighter_type?.fighter_type || ''}
             fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}

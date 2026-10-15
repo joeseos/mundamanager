@@ -57,7 +57,6 @@ interface AdvancementsListProps {
   customGangTypeId?: string;
   /** The owning gang's type; gangTypeId is the fighter type's. Gates Outcast Leader. */
   owningGangTypeId?: string;
-  isVehicle?: boolean;
   fighterSpecialRules?: string[];
   fighterTypeName?: string;
   fighterTypeId?: string;
@@ -85,7 +84,6 @@ export function AdvancementsList({
   gangTypeId = '',
   customGangTypeId = '',
   owningGangTypeId = '',
-  isVehicle = false,
   fighterSpecialRules = [],
   fighterTypeName = '',
   fighterTypeId = '',
@@ -108,7 +106,6 @@ export function AdvancementsList({
     owningGangTypeId,
     fighterTypeGangTypeId: gangTypeId,
     subtypes: fighterSubtypes,
-    isVehicle,
   });
 
   const showPromoteButton =

@@ -1274,7 +1274,7 @@ export async function applyN26OutcastLeaderPromotion(
     const { data: before, error: beforeError } = await supabase
       .from('fighters')
       .select(`
-        id, fighter_subtypes, special_rules, is_vehicle,
+        id, fighter_subtypes, special_rules,
         gangs!gang_id ( gang_type_id ),
         fighter_types:fighter_type_id ( gang_type_id ),
         custom_fighter_types:custom_fighter_type_id ( gang_type_id )
@@ -1301,7 +1301,6 @@ export async function applyN26OutcastLeaderPromotion(
       owningGangTypeId,
       fighterTypeGangTypeId,
       subtypes: currentSubtypes,
-      isVehicle: before.is_vehicle,
     })) {
       return {
         success: false,
@@ -1331,25 +1330,19 @@ export async function applyN26OutcastLeaderPromotion(
       .select('fighter_pet_id')
       .eq('fighter_owner_id', params.fighter_id);
 
-    if (petLinksError) {
+    let petFailed = Boolean(petLinksError);
+    for (const link of petLinks ?? []) {
+      if (!link.fighter_pet_id) continue;
+      const petResult = await updateFighterDetails({
+        fighter_id: link.fighter_pet_id,
+        starting_xp: N26_OUTCAST_LEADER_PET_STARTING_XP,
+      });
+      if (!petResult.success) petFailed = true;
+    }
+    if (petFailed) {
       warnings.push(
-        `Promoted, but this fighter's pets could not be loaded, so their Starting XP was not set to ${N26_OUTCAST_LEADER_PET_STARTING_XP}.`
+        `Promoted, but Starting XP ${N26_OUTCAST_LEADER_PET_STARTING_XP} could not be set on this fighter's pet.`
       );
-    } else {
-      let failedPets = 0;
-      for (const link of petLinks ?? []) {
-        if (!link.fighter_pet_id) continue;
-        const petResult = await updateFighterDetails({
-          fighter_id: link.fighter_pet_id,
-          starting_xp: N26_OUTCAST_LEADER_PET_STARTING_XP,
-        });
-        if (!petResult.success) failedPets++;
-      }
-      if (failedPets > 0) {
-        warnings.push(
-          `Promoted, but Starting XP ${N26_OUTCAST_LEADER_PET_STARTING_XP} could not be set on ${failedPets} pet${failedPets === 1 ? '' : 's'}.`
-        );
-      }
     }
 
     const promoted = promotionResult.data?.fighter;
