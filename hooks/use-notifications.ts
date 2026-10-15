@@ -28,8 +28,9 @@ export type Notification = {
   created_at: string;
   dismissed: boolean;
   link: string | null;
-  // Null when no user sent it, e.g. admin notifications
+  // Null on older admin notifications sent before the author was recorded
   sender_id: string | null;
+  sender_username: string | null;
 };
 
 export const notificationsQueryKey = (userId: string) => ['notifications', userId] as const;
@@ -39,7 +40,8 @@ const markReadMutationKey = (userId: string) => ['notifications', userId, 'mark-
 const NO_NOTIFICATIONS: Notification[] = [];
 
 async function fetchNotifications(userId: string, signal: AbortSignal): Promise<Notification[]> {
-  const { data, error } = await createClient()
+  const supabase = createClient();
+  const { data, error } = await supabase
     .from('notifications')
     .select('id, text, dismissed, type, created_at, link, sender_id')
     .eq('receiver_id', userId)
@@ -49,7 +51,28 @@ async function fetchNotifications(userId: string, signal: AbortSignal): Promise<
     .abortSignal(signal);
 
   if (error) throw error;
-  return data as Notification[];
+
+  const rows = (data ?? []) as Omit<Notification, 'sender_username'>[];
+  const senderIds = [...new Set(rows.flatMap((row) => (row.sender_id ? [row.sender_id] : [])))];
+  const usernames = new Map<string, string>();
+
+  if (senderIds.length > 0) {
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, username')
+      .in('id', senderIds)
+      .abortSignal(signal);
+
+    if (profilesError) throw profilesError;
+    for (const profile of profiles ?? []) {
+      usernames.set(profile.id, profile.username);
+    }
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    sender_username: row.sender_id ? usernames.get(row.sender_id) ?? null : null,
+  }));
 }
 
 // The notifications as the user should see them: the cached list with the

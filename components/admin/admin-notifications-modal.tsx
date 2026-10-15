@@ -1,15 +1,21 @@
 'use client'
 
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import Modal from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import UserSearchBar, { type UserSearchResult } from '@/components/shared/user-search-bar'
 import { toast } from 'sonner'
 import { LuX } from 'react-icons/lu'
+import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp'
+import '@/components/ui/rich-text-editor.css'
+
+// TipTap loads with the modal, not with the admin dashboard.
+const RichTextEditor = lazy(() =>
+  import('@/components/ui/rich-text-editor').then((mod) => ({ default: mod.RichTextEditor }))
+)
 
 type Audience = 'users' | 'all'
 type NotificationType = 'info' | 'warning' | 'error'
@@ -27,7 +33,7 @@ export function AdminNotificationsModal({ onClose }: AdminNotificationsModalProp
   const [expiresInDays, setExpiresInDays] = useState(30)
 
   const canSend =
-    text.trim().length > 0 &&
+    !isHtmlEffectivelyEmpty(text) &&
     expiresInDays >= 1 &&
     (audience === 'all' || selectedUsers.length > 0)
 
@@ -88,7 +94,7 @@ export function AdminNotificationsModal({ onClose }: AdminNotificationsModalProp
       onConfirm={handleSend}
       confirmText="Send"
       confirmDisabled={!canSend}
-      width="2xl"
+      width="4xl"
     >
       <div className="space-y-4">
         <div className="space-y-2">
@@ -122,7 +128,7 @@ export function AdminNotificationsModal({ onClose }: AdminNotificationsModalProp
         </div>
 
         {audience === 'users' ? (
-          <div className="space-y-2">
+          <div className="relative z-[80] space-y-2">
             <Label>Recipients</Label>
             <UserSearchBar
               placeholder="Search users by username"
@@ -173,15 +179,26 @@ export function AdminNotificationsModal({ onClose }: AdminNotificationsModalProp
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="notification-text">Message</Label>
-          <Textarea
-            id="notification-text"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Enter the notification message"
-            rows={6}
-            className="min-h-[120px]"
-          />
+          <Label>Message</Label>
+          <div className="bg-white rounded-md">
+            <Suspense
+              fallback={
+                <div className="border rounded-md min-h-[200px]">
+                  <div className="hidden min-[769px]:block border-b rounded-t-md p-1 bg-card shadow-xs">
+                    <div className="h-8" />
+                  </div>
+                </div>
+              }
+            >
+              <RichTextEditor
+                content={text}
+                onChange={setText}
+                placeholder="Enter the notification message"
+                enableImages={false}
+                stickyWithinScrollContainer
+              />
+            </Suspense>
+          </div>
         </div>
 
         <div className="space-y-2">

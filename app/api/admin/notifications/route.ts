@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceRoleClient } from '@/utils/supabase/server'
-import { checkAdmin } from '@/utils/auth'
-import { isSafeNotificationLink } from '@/utils/notifications'
+import { checkAdmin, getUserIdFromClaims } from '@/utils/auth'
+import { isRichNotificationHtml, isSafeNotificationLink } from '@/utils/notifications'
+import { sanitizeNotificationHtml } from '@/utils/sanitize-notification-html'
+import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp'
 import { fetchAllRows } from '@/utils/supabase/fetch-all-rows'
 
 const ALLOWED_TYPES = ['info', 'warning', 'error'] as const
@@ -20,15 +22,19 @@ type RequestBody = {
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
-    const isAdmin = await checkAdmin(supabase)
-    if (!isAdmin) {
+    const senderId = await getUserIdFromClaims(supabase)
+    const isAdmin = await checkAdmin(supabase, senderId ? { id: senderId } : undefined)
+    if (!isAdmin || !senderId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = (await request.json()) as RequestBody
 
-    const text = typeof body.text === 'string' ? body.text.trim() : ''
-    if (!text) {
+    let text = typeof body.text === 'string' ? body.text.trim() : ''
+    if (isRichNotificationHtml(text)) {
+      text = sanitizeNotificationHtml(text).trim()
+    }
+    if (!text || isHtmlEffectivelyEmpty(text)) {
       return NextResponse.json({ error: 'Message text is required' }, { status: 400 })
     }
 
@@ -130,7 +136,7 @@ export async function POST(request: Request) {
     const rows = receiverIds.map((receiverId) => ({
       text,
       type,
-      sender_id: null,
+      sender_id: senderId,
       receiver_id: receiverId,
       dismissed: false,
       link,
