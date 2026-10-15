@@ -670,6 +670,11 @@ export function WeaponList({
     // Apply muted styling if a loadout is active and this equipment is not in it
     const shouldMute = activeLoadoutId !== null && !isInActiveLoadout;
     const mutedClass = shouldMute ? "text-muted-foreground" : "";
+    // Attached equipment takes one Edit; to pick another upgrade, delete the current one
+    const upgradeUsed = !!item.target_equipment_id && Object.values(fighterEffects).flat().some(e =>
+      e.fighter_equipment_id === item.fighter_equipment_id &&
+      typeof e.type_specific_data === 'object' && e.type_specific_data?.is_editable === true
+    );
 
     return (
       <tr
@@ -713,7 +718,7 @@ export function WeaponList({
         </td>
       <td className="px-1 py-1">
         <div className="flex justify-end gap-1">
-          {item.is_editable && (
+          {item.is_editable && !upgradeUsed && (
             <Button
               variant="outline"
               size="sm"

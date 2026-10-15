@@ -1519,6 +1519,22 @@ export async function applySelfUpgradesToEquipment(params: {
       .maybeSingle();
     const targetEquipmentId: string | null = anchorEffect?.target_equipment_id ?? null;
 
+    // Attached equipment takes one Edit: each Enhance weapon buys a single upgrade, and a
+    // weapon gets more by taking more of them. Spyrer weapons and bionics are not
+    // attached, so they keep stacking theirs across Edits.
+    if (targetEquipmentId) {
+      const { data: existingUpgrade } = await supabase
+        .from('fighter_effects')
+        .select('id')
+        .eq('fighter_equipment_id', params.fighter_equipment_id)
+        .eq('type_specific_data->>is_editable', 'true')
+        .limit(1)
+        .maybeSingle();
+      if (existingUpgrade) {
+        return { success: false, error: 'This equipment already has an upgrade. Remove it to pick another.' };
+      }
+    }
+
     // Insert all effects
     const results: { effect_type_id: string; success: boolean; error?: string }[] = [];
 
