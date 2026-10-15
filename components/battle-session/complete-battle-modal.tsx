@@ -161,6 +161,7 @@ export default function CompleteBattleModal({
     }
 
     toast.success('Battle completed');
+    if (completeResult.participation_xp_error) toast.error(completeResult.participation_xp_error);
     onBroadcast?.();
     return true;
   };

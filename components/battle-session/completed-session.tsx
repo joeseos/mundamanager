@@ -111,7 +111,9 @@ export default function CompletedSession({
                       {f.fighter?.fighter_name}
                     </span>
                     {(() => {
-                      const xp = (f.session_record?.xp_earned ?? 0) + (f.session_record?.participation_xp ?? 0);
+                      // Participation XP only counts once completion has added it.
+                      const participationXp = f.session_record?.participation_xp_awarded ? (f.session_record.participation_xp ?? 0) : 0;
+                      const xp = (f.session_record?.xp_earned ?? 0) + participationXp;
                       return xp > 0 && (
                         <span className="text-neutral-500">
                           +{xp} XP
