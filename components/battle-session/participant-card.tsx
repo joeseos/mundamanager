@@ -924,7 +924,7 @@ function FighterRow({
         </div>
       </td>
       {participationXp !== undefined && (
-        <td className={`p-1 md:p-2 text-center whitespace-nowrap align-top ${participationXp === 0 ? 'text-muted-foreground' : ''}`}>
+        <td className={`p-1 md:p-2 text-right whitespace-nowrap align-top ${participationXp === 0 ? 'text-muted-foreground' : ''}`}>
           {participationXp}
         </td>
       )}
@@ -1908,7 +1908,7 @@ export default function ParticipantCard({
               <thead>
                 <tr className="bg-muted border-b">
                   <th className="p-1 md:p-2 text-left font-medium w-full">Fighter</th>
-                  {isPostBattle && <th className="p-1 md:p-2 text-center font-medium max-md:whitespace-normal md:whitespace-nowrap">Participation XP</th>}
+                  {isPostBattle && <th className="p-1 md:p-2 text-right font-medium max-md:whitespace-normal md:whitespace-nowrap">Participation XP</th>}
                   <th className="p-1 md:p-2 text-right font-medium whitespace-nowrap">Value</th>
                   {(canInteract || battleActive) && <th className="p-1 md:p-2 text-right font-medium whitespace-nowrap min-w-[3.6rem]">{canInteract ? 'Actions' : 'Status'}</th>}
                 </tr>
