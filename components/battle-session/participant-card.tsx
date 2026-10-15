@@ -789,6 +789,7 @@ function FighterRow({
   loadoutName,
   cost,
   xp,
+  participationXp,
   injuryCount,
   canInteract,
   battleActive,
@@ -811,6 +812,8 @@ function FighterRow({
   loadoutName: string | undefined;
   cost: number | undefined;
   xp: number;
+  /** Shown in its own column when set (post-battle). */
+  participationXp?: number;
   injuryCount: number;
   canInteract: boolean;
   battleActive: boolean;
@@ -920,6 +923,11 @@ function FighterRow({
           </div>
         </div>
       </td>
+      {participationXp !== undefined && (
+        <td className={`p-1 md:p-2 text-center whitespace-nowrap align-top ${participationXp === 0 ? 'text-muted-foreground' : ''}`}>
+          {participationXp}
+        </td>
+      )}
       <td className="p-1 md:p-2 text-right text-muted-foreground whitespace-nowrap align-top">
         {cost !== undefined ? (cost === 0 ? '*' : cost) : '—'}
       </td>
@@ -1900,6 +1908,7 @@ export default function ParticipantCard({
               <thead>
                 <tr className="bg-muted border-b">
                   <th className="p-1 md:p-2 text-left font-medium w-full">Fighter</th>
+                  {isPostBattle && <th className="p-1 md:p-2 text-center font-medium max-md:whitespace-normal md:whitespace-nowrap">Participation XP</th>}
                   <th className="p-1 md:p-2 text-right font-medium whitespace-nowrap">Value</th>
                   {(canInteract || battleActive) && <th className="p-1 md:p-2 text-right font-medium whitespace-nowrap min-w-[3.6rem]">{canInteract ? 'Actions' : 'Status'}</th>}
                 </tr>
@@ -1907,7 +1916,7 @@ export default function ParticipantCard({
               <tbody>
                 {localFighters.length === 0 ? (
                   <tr>
-                    <td colSpan={(canInteract || battleActive) ? 3 : 2} className="text-muted-foreground italic text-center py-4">
+                    <td colSpan={2 + (isPostBattle ? 1 : 0) + ((canInteract || battleActive) ? 1 : 0)} className="text-muted-foreground italic text-center py-4">
                       {canEdit ? 'No fighters added yet.' : 'No fighters.'}
                     </td>
                   </tr>
@@ -1935,6 +1944,7 @@ export default function ParticipantCard({
                         loadoutName={match?.loadout_name}
                         cost={cost}
                         xp={xp}
+                        participationXp={isPostBattle ? (f.session_record?.participation_xp ?? 0) : undefined}
                         injuryCount={injuryCount}
                         canInteract={canInteract}
                         battleActive={battleActive}
