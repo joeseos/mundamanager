@@ -323,7 +323,7 @@ export default function PostCycleActions({
       (takenCounts.get(actionId) ?? 0) >= maxFighters &&
       rows[fighter.id]?.action !== actionId
     ) {
-      return `All ${maxFighters} taken`;
+      return maxFighters === 1 ? 'Already taken' : `All ${maxFighters} taken`;
     }
 
     switch (actionId) {

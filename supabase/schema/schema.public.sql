@@ -1155,6 +1155,50 @@ $$;
 
 
 --
+-- Name: gang_types_propagate_parent_gang_type_name(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.gang_types_propagate_parent_gang_type_name() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF OLD.gang_type IS DISTINCT FROM NEW.gang_type THEN
+    UPDATE public.gang_types
+    SET parent_gang_type_name = NEW.gang_type
+    WHERE parent_gang_type_id = NEW.id
+      AND parent_gang_type_name IS DISTINCT FROM NEW.gang_type;
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
+
+--
+-- Name: gang_types_set_parent_gang_type_name(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.gang_types_set_parent_gang_type_name() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF NEW.parent_gang_type_id IS NULL THEN
+    NEW.parent_gang_type_name := NULL;
+  ELSE
+    SELECT parent.gang_type
+    INTO NEW.parent_gang_type_name
+    FROM public.gang_types AS parent
+    WHERE parent.id = NEW.parent_gang_type_id;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: get_available_skills(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1395,10 +1439,10 @@ $$;
 
 
 --
--- Name: get_equipment_detailed_data(uuid, text, uuid, boolean, boolean, uuid, uuid, uuid, uuid[], uuid[]); Type: FUNCTION; Schema: public; Owner: -
+-- Name: get_equipment_detailed_data(uuid, text, uuid, boolean, boolean, uuid, uuid, uuid, uuid[], uuid[], boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NULL::uuid, equipment_category text DEFAULT NULL::text, fighter_type_id uuid DEFAULT NULL::uuid, fighter_type_equipment boolean DEFAULT NULL::boolean, equipment_tradingpost boolean DEFAULT NULL::boolean, fighter_id uuid DEFAULT NULL::uuid, only_equipment_id uuid DEFAULT NULL::uuid, gang_id uuid DEFAULT NULL::uuid, campaign_trading_post_type_ids uuid[] DEFAULT NULL::uuid[], campaign_custom_trading_post_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(id uuid, equipment_name text, availability text, base_cost numeric, adjusted_cost numeric, trade_points text, equipment_category text, equipment_type text, created_at timestamp with time zone, fighter_type_equipment boolean, equipment_tradingpost boolean, is_custom boolean, weapon_profiles jsonb, vehicle_upgrade_slot text, grants_equipment jsonb, is_editable boolean, trading_post_names text[], cost_resource_name text, cost_resource_amount numeric, cost_type_resource_id uuid, cost_campaign_resource_id uuid, banned boolean, min_count integer, max_count integer)
+CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NULL::uuid, equipment_category text DEFAULT NULL::text, fighter_type_id uuid DEFAULT NULL::uuid, fighter_type_equipment boolean DEFAULT NULL::boolean, equipment_tradingpost boolean DEFAULT NULL::boolean, fighter_id uuid DEFAULT NULL::uuid, only_equipment_id uuid DEFAULT NULL::uuid, gang_id uuid DEFAULT NULL::uuid, campaign_trading_post_type_ids uuid[] DEFAULT NULL::uuid[], campaign_custom_trading_post_ids uuid[] DEFAULT NULL::uuid[], include_legacy boolean DEFAULT true) RETURNS TABLE(id uuid, equipment_name text, availability text, base_cost numeric, adjusted_cost numeric, trade_points text, equipment_category text, equipment_type text, created_at timestamp with time zone, fighter_type_equipment boolean, equipment_tradingpost boolean, is_custom boolean, weapon_profiles jsonb, vehicle_upgrade_slot text, grants_equipment jsonb, is_editable boolean, trading_post_names text[], cost_resource_name text, cost_resource_amount numeric, cost_type_resource_id uuid, cost_campaign_resource_id uuid, banned boolean, min_count integer, max_count integer)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $_$
@@ -1415,8 +1459,9 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             cg.campaign_type_allegiance_id,
             fgl.fighter_type_id AS legacy_ft_id,
             ga.fighter_type_id  AS affiliation_ft_id,
-            -- Empty for gang and vehicle calls, so a subtype rule matches nothing
-            COALESCE(f.fighter_subtypes, ft_sub.fighter_subtypes, cft_sub.fighter_subtypes, '[]'::jsonb) AS fighter_subtypes,
+            -- Empty for gang and vehicle calls, so a subtype rule matches nothing.
+            -- A fighter with no subtypes of its own ('[]', never NULL) uses its type's.
+            COALESCE(NULLIF(f.fighter_subtypes, '[]'::jsonb), ft_sub.fighter_subtypes, cft_sub.fighter_subtypes, '[]'::jsonb) AS fighter_subtypes,
             COALESCE(gt.edition_id, cgt.edition_id) AS edition_id
         FROM (SELECT 1) AS _dummy
         LEFT JOIN gangs g ON g.id = $8
@@ -1431,7 +1476,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             LIMIT 1
         ) cg ON true
         LEFT JOIN fighters f ON f.id = $6 AND f.gang_id = g.id
-        LEFT JOIN fighter_gang_legacy fgl ON f.fighter_gang_legacy_id = fgl.id
+        LEFT JOIN fighter_gang_legacy fgl ON f.fighter_gang_legacy_id = fgl.id AND $11
         LEFT JOIN gang_affiliation ga ON g.gang_affiliation_id = ga.id
     ),
 
@@ -4539,6 +4584,8 @@ CREATE TABLE public.battle_session_participants (
     resource_changes jsonb DEFAULT '[]'::jsonb NOT NULL,
     side_job_id uuid,
     side_job_completed boolean DEFAULT false NOT NULL,
+    side_job_name text,
+    CONSTRAINT battle_session_participants_one_side_job_check CHECK (((side_job_id IS NULL) OR (side_job_name IS NULL))),
     CONSTRAINT battle_session_participants_role_check CHECK ((role = ANY (ARRAY['attacker'::text, 'defender'::text, 'none'::text])))
 );
 
@@ -4550,6 +4597,13 @@ ALTER TABLE ONLY public.battle_session_participants REPLICA IDENTITY FULL;
 --
 
 COMMENT ON COLUMN public.battle_session_participants.side_job_id IS 'N26 Side Job this gang rolled: a scenario_table_entries row of the core side_job table or of its house''s. Copied into campaign_battles.participants on completion.';
+
+
+--
+-- Name: COLUMN battle_session_participants.side_job_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.battle_session_participants.side_job_name IS 'N26 custom Side Job this gang named by hand instead of rolling one. NULL while side_job_id is set. Copied into campaign_battles.participants on completion.';
 
 
 --
@@ -4572,6 +4626,12 @@ CREATE TABLE public.battle_sessions (
     deployment_id uuid,
     objective_id uuid,
     crew_selection_id uuid,
+    crew_selection_name text,
+    deployment_name text,
+    objective_name text,
+    CONSTRAINT battle_sessions_one_crew_selection_check CHECK (((crew_selection_id IS NULL) OR (crew_selection_name IS NULL))),
+    CONSTRAINT battle_sessions_one_deployment_check CHECK (((deployment_id IS NULL) OR (deployment_name IS NULL))),
+    CONSTRAINT battle_sessions_one_objective_check CHECK (((objective_id IS NULL) OR (objective_name IS NULL))),
     CONSTRAINT battle_sessions_status_check CHECK ((status = ANY (ARRAY['pre_battle'::text, 'active'::text, 'post_battle'::text, 'completed'::text])))
 );
 
@@ -4604,6 +4664,27 @@ COMMENT ON COLUMN public.battle_sessions.objective_id IS 'N26 Objective for this
 --
 
 COMMENT ON COLUMN public.battle_sessions.crew_selection_id IS 'N26 Crew selection for this session. Its scenario_crew_selection_rules fill in the crew picker.';
+
+
+--
+-- Name: COLUMN battle_sessions.crew_selection_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.battle_sessions.crew_selection_name IS 'N26 custom Crew named by hand instead of rolled. NULL while crew_selection_id is set. Copied into campaign_battles on completion.';
+
+
+--
+-- Name: COLUMN battle_sessions.deployment_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.battle_sessions.deployment_name IS 'N26 custom Deployment named by hand instead of rolled. NULL while deployment_id is set. Copied into campaign_battles on completion.';
+
+
+--
+-- Name: COLUMN battle_sessions.objective_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.battle_sessions.objective_name IS 'N26 custom Objective named by hand instead of rolled. NULL while objective_id is set. Copied into campaign_battles on completion.';
 
 
 --
@@ -4651,6 +4732,12 @@ CREATE TABLE public.campaign_battles (
     deployment_id uuid,
     objective_id uuid,
     crew_selection_id uuid,
+    crew_selection_name text,
+    deployment_name text,
+    objective_name text,
+    CONSTRAINT campaign_battles_one_crew_selection_check CHECK (((crew_selection_id IS NULL) OR (crew_selection_name IS NULL))),
+    CONSTRAINT campaign_battles_one_deployment_check CHECK (((deployment_id IS NULL) OR (deployment_name IS NULL))),
+    CONSTRAINT campaign_battles_one_objective_check CHECK (((objective_id IS NULL) OR (objective_name IS NULL))),
     CONSTRAINT campaign_battles_status_check CHECK ((status = ANY (ARRAY['challenge_pending'::text, 'challenge_issued'::text, 'challenge_accepted'::text, 'challenge_declined'::text, 'played'::text])))
 );
 
@@ -4680,7 +4767,7 @@ COMMENT ON COLUMN public.campaign_battles.winner_id IS 'gang_id';
 -- Name: COLUMN campaign_battles.participants; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.campaign_battles.participants IS 'One object per gang: gang_id and role (attacker, defender or none: a scenario role), with optional is_winner and claimed_territory, and on n26 optional side_job_id (a scenario_table_entries row of a side_job table) and side_job_completed.';
+COMMENT ON COLUMN public.campaign_battles.participants IS 'One object per gang: gang_id and role (attacker, defender or none: a scenario role), with optional is_winner and claimed_territory, and on n26 optional side_job_id (a scenario_table_entries row of a side_job table) or side_job_name (a custom Side Job), and side_job_completed.';
 
 
 --
@@ -4709,6 +4796,27 @@ COMMENT ON COLUMN public.campaign_battles.objective_id IS 'N26 Objective rolled 
 --
 
 COMMENT ON COLUMN public.campaign_battles.crew_selection_id IS 'N26 Crew selection rolled for this battle: a scenario_table_entries row of a crew_selection table.';
+
+
+--
+-- Name: COLUMN campaign_battles.crew_selection_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_battles.crew_selection_name IS 'N26 custom Crew named by hand instead of rolled. NULL while crew_selection_id is set.';
+
+
+--
+-- Name: COLUMN campaign_battles.deployment_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_battles.deployment_name IS 'N26 custom Deployment named by hand instead of rolled. NULL while deployment_id is set.';
+
+
+--
+-- Name: COLUMN campaign_battles.objective_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_battles.objective_name IS 'N26 custom Objective named by hand instead of rolled. NULL while objective_id is set.';
 
 
 --
@@ -6437,6 +6545,7 @@ CREATE TABLE public.gang_types (
     gang_origin_category_id uuid,
     edition_id uuid,
     parent_gang_type_id uuid,
+    parent_gang_type_name text,
     CONSTRAINT gang_types_parent_not_self_check CHECK ((parent_gang_type_id IS DISTINCT FROM id)),
     CONSTRAINT gang_types_parent_requires_edition_check CHECK (((parent_gang_type_id IS NULL) OR (edition_id IS NOT NULL)))
 );
@@ -6447,6 +6556,13 @@ CREATE TABLE public.gang_types (
 --
 
 COMMENT ON COLUMN public.gang_types.parent_gang_type_id IS 'House this gang list belongs to. House Escher: Wyld Hunt stores House Escher''s id here; House Escher itself stores null. Each row keeps its own fighter types.';
+
+
+--
+-- Name: COLUMN gang_types.parent_gang_type_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gang_types.parent_gang_type_name IS 'House name copied from the parent gang type. Null on root types. Owned by gang_types_set_parent_gang_type_name and gang_types_propagate_parent_gang_type_name; do not write it from the app.';
 
 
 --
@@ -8211,6 +8327,13 @@ CREATE INDEX campaign_battles_objective_id_idx ON public.campaign_battles USING 
 
 
 --
+-- Name: campaign_battles_scenario_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_battles_scenario_id_idx ON public.campaign_battles USING btree (scenario_id);
+
+
+--
 -- Name: campaign_battles_winner_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8614,6 +8737,13 @@ CREATE INDEX fighter_effect_types_effect_name_idx ON public.fighter_effect_types
 --
 
 CREATE INDEX fighter_effect_types_fighter_effect_category_id_idx ON public.fighter_effect_types USING btree (fighter_effect_category_id);
+
+
+--
+-- Name: fighter_effects_fighter_effect_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_effects_fighter_effect_type_id_idx ON public.fighter_effects USING btree (fighter_effect_type_id);
 
 
 --
@@ -9837,6 +9967,20 @@ CREATE TRIGGER enforce_gang_fighter_limit BEFORE INSERT OR UPDATE OF gang_id ON 
 --
 
 CREATE TRIGGER gang_types_parent_must_be_root BEFORE INSERT OR UPDATE OF parent_gang_type_id ON public.gang_types FOR EACH ROW EXECUTE FUNCTION public.gang_types_parent_must_be_root();
+
+
+--
+-- Name: gang_types gang_types_propagate_parent_gang_type_name; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER gang_types_propagate_parent_gang_type_name AFTER UPDATE OF gang_type ON public.gang_types FOR EACH ROW EXECUTE FUNCTION public.gang_types_propagate_parent_gang_type_name();
+
+
+--
+-- Name: gang_types gang_types_set_parent_gang_type_name; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER gang_types_set_parent_gang_type_name BEFORE INSERT OR UPDATE ON public.gang_types FOR EACH ROW EXECUTE FUNCTION public.gang_types_set_parent_gang_type_name();
 
 
 --

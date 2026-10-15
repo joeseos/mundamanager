@@ -13,6 +13,8 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
 import {
   challengeAnswerStatuses,
+  customPartName,
+  customPartNames,
   SCENARIO_PARTS,
   type BattleParticipant,
   type BattleStatus,
@@ -34,6 +36,7 @@ export interface TerritoryClaimRequest {
  * `territory_claimed_by_gang_id` and the server will normalise the flags.
  */
 export interface BattleLogParams {
+  /** N23: the scenario's name. N26: an optional name for it, beside its parts. Empty is saved as NULL. */
   scenario: string;
   winner_id: string | null;
   note: string | null;
@@ -55,6 +58,10 @@ export interface BattleLogParams {
   deployment_id?: string | null;
   objective_id?: string | null;
   crew_selection_id?: string | null;
+  /** N26: a custom part's name, sent with the part's id; ignored while that is set. */
+  deployment_name?: string | null;
+  objective_name?: string | null;
+  crew_selection_name?: string | null;
   /**
    * 'played' files a challenge's battle report; challenge_issued / accepted /
    * declined are the challenged gang's answer, which only its owner or an
@@ -221,10 +228,11 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       .insert([
         {
           campaign_id: campaignId,
-          scenario,
+          scenario: scenario || null,
           deployment_id: params.deployment_id ?? null,
           objective_id: params.objective_id ?? null,
           crew_selection_id: params.crew_selection_id ?? null,
+          ...customPartNames(params),
           winner_id: legacyWinnerId,
           note,
           participants: JSON.stringify(participants),
@@ -491,7 +499,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
 
     // Build update payload conditionally including created_at if provided
     const updatePayload: any = {
-      scenario,
+      scenario: scenario || null,
       winner_id: legacyWinnerId,
       note,
       participants: JSON.stringify(participants),
@@ -499,8 +507,10 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       campaign_territory_id: newTerritoryId,
       cycle,
     };
-    for (const { key } of SCENARIO_PARTS) {
-      if (params[key] !== undefined) updatePayload[key] = params[key];
+    for (const part of SCENARIO_PARTS) {
+      if (params[part.key] === undefined) continue;
+      updatePayload[part.key] = params[part.key];
+      updatePayload[part.nameKey] = customPartName(params, part);
     }
     if (nextStatus) {
       updatePayload.status = nextStatus;

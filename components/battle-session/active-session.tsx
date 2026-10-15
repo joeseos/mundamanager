@@ -251,7 +251,6 @@ export default function ActiveSession({
               <ScenarioPartsPicker
                 scenarioTables={scenarioTables}
                 parts={session}
-                scenario={session.scenario}
                 onChange={(_change, edit) => scenarioPartMutation.mutate(edit)}
                 saveTypedNamesOnBlur
                 disabled={!canManage}

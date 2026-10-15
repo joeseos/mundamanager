@@ -149,7 +149,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   const [selectedBattle, setSelectedBattle] = useState<Battle | null>(null);
   const [battleToDelete, setBattleToDelete] = useState<Battle | null>(null);
 
-  // An N26 battle is named by its Deployment and Objective, picked or typed; an N23 one by its scenario text.
+  // A battle is named by its scenario text when it has one (N23, or an N26 scenario name), else by its Deployment and Objective.
   const scenarioLabel = useMemo(() => {
     const entryNames = new Map(
       scenarioTables.flatMap((table) => table.entries.map((entry) => [entry.id, entry.name] as const))
@@ -157,8 +157,8 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     return (battle: Battle) =>
       scenarioLabelOf(
         battle.scenario,
-        battle.deployment_id ? entryNames.get(battle.deployment_id) : null,
-        battle.objective_id ? entryNames.get(battle.objective_id) : null
+        battle.deployment_id ? entryNames.get(battle.deployment_id) : battle.deployment_name,
+        battle.objective_id ? entryNames.get(battle.objective_id) : battle.objective_name
       ) || battle.scenario_name || '';
   }, [scenarioTables]);
 

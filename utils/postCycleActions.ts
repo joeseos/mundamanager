@@ -94,7 +94,19 @@ export const medicalEscortCost = (performer: PostCycleFighter): number =>
 export const fitBionicsCost = (performer: PostCycleFighter, injuries: number): number =>
   discounted(injuries * FIT_BIONICS_COST_PER_INJURY, postCycleDiscount(performer, 'fit_bionics'));
 
-const TERRITORY_MAX_FIGHTERS = 5;
+/**
+ * Fighters whose own rule lets them take an action their class normally can't,
+ * keyed by fighters.fighter_type like DOC_DISCOUNTS.
+ */
+const OWN_RULE_ACTIONS: Record<string, readonly PostCycleActionId[]> = {
+  // Excavation Automata: a Brute
+  "luther pattern excavation automata ('ambot')": ['work_territory'],
+  // Agitate the Masses: a Hanger-on
+  agitator: ['work_territory'],
+};
+
+const hasOwnRuleFor = (fighter: PostCycleFighter, action: PostCycleActionId): boolean =>
+  OWN_RULE_ACTIONS[fighter.fighter_type?.toLowerCase() ?? '']?.includes(action) ?? false;
 
 /** Must match the seeded N26 effect_name exactly. */
 export const CRITICAL_INJURY_EFFECT_NAME = 'Critical Injury';
@@ -133,7 +145,7 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
     label: 'Work Territory',
     summary: `+${WORK_TERRITORY_INCOME} credits`,
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION_GANGER_PROSPECT },
-    maxFighters: TERRITORY_MAX_FIGHTERS,
+    // No cap: some fighters and gangs may work more than five, and house rules vary.
     credits: WORK_TERRITORY_INCOME,
   },
   develop_tactics: {
@@ -199,7 +211,7 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
     summary: `+${TERRORISE_TERRITORY_INCOME} credits`,
     performer: { kind: 'subtypes', subtypes: SPYRER },
     openToSpyrers: true,
-    maxFighters: TERRITORY_MAX_FIGHTERS,
+    // No cap, like Work Territory, so house rules can allow more than five.
     credits: TERRORISE_TERRITORY_INCOME,
   },
   // The Slopper's own rule rather than a list's.
@@ -314,7 +326,9 @@ export function canPerformPostCycleAction(
   const { performer, openToSpyrers, requires } = POST_CYCLE_ACTIONS[actionId];
   if (requires && !availability[requires]) return false;
   if (!openToSpyrers && hasSubtype(fighter, SPYRER)) return false;
-  if (postCycleDiscount(fighter, actionId) > 0) return !fighter.is_vehicle;
+  if (postCycleDiscount(fighter, actionId) > 0 || hasOwnRuleFor(fighter, actionId)) {
+    return !fighter.is_vehicle;
+  }
 
   switch (performer.kind) {
     case 'any':

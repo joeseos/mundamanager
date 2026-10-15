@@ -38,6 +38,10 @@ export interface BattleSession {
   deployment_id?: string | null;
   objective_id?: string | null;
   crew_selection_id?: string | null;
+  /** N26: a custom Deployment, Objective or Crew named by hand instead of rolled. Null while its id is set. */
+  deployment_name?: string | null;
+  objective_name?: string | null;
+  crew_selection_name?: string | null;
   /** N26: the rolled entries' names, embedded by the session loaders. */
   deployment?: { name: string } | null;
   objective?: { name: string } | null;
@@ -54,11 +58,15 @@ export interface BattleSession {
   edition_slug?: string | null;
 }
 
-/** What a session is called: its Deployment and Objective on N26, otherwise its scenario. */
+/** What a session is called: its scenario name, or else its Deployment and Objective on N26, picked or custom. */
 export function sessionScenarioLabel(
-  session: Pick<BattleSession, 'scenario' | 'deployment' | 'objective'>
+  session: Pick<BattleSession, 'scenario' | 'deployment' | 'objective' | 'deployment_name' | 'objective_name'>
 ): string {
-  return scenarioLabel(session.scenario, session.deployment?.name, session.objective?.name);
+  return scenarioLabel(
+    session.scenario,
+    session.deployment?.name ?? session.deployment_name,
+    session.objective?.name ?? session.objective_name
+  );
 }
 
 export interface BattleSessionParticipant {
