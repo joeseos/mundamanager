@@ -11,6 +11,8 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Counter } from '@/components/ui/counter';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import { PatreonSupporterIcon } from '@/components/ui/patreon-supporter-icon';
 import { LuClipboard } from 'react-icons/lu';
@@ -62,8 +64,8 @@ import { createGangLog } from '@/app/actions/logs/gang-logs';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { updateFighterXp } from '@/app/actions/edit-fighter';
 import FighterCard from '@/components/gang/fighter-card';
-import type { BattleSessionFull, BattleSessionParticipant, BattleSessionFighter, SessionCondition, SessionInjuryRecord } from '@/types/battle-session';
-import { beastSubtypeName, hasFleshWoundCondition, hasN26CompositeBattleMarkers, hasCrewRating, hasScenarioTables, hasTradePoints } from '@/types/edition';
+import { applyConditionsUpdate, type BattleSessionFull, type BattleSessionParticipant, type BattleSessionFighter, type SessionCondition, type SessionInjuryRecord } from '@/types/battle-session';
+import { beastSubtypeName, canLeaveBattlefield, hasFleshWoundCondition, hasN26CompositeBattleMarkers, hasCrewRating, hasScenarioTables, hasTradePoints } from '@/types/edition';
 import type { ScenarioTableWithEntries } from '@/types/campaign';
 import { SideJobPicker } from '@/components/side-job-picker';
 
@@ -227,7 +229,7 @@ function FighterActionModal({
   isSpyrer: boolean;
   fighterWeapons: { id: string; name: string; equipment_category?: string; effect_names?: string[] }[];
   onXpChanged: (delta: number) => void;
-  onConditionsChanged: (conditions: SessionCondition[]) => void;
+  onConditionsChanged: (conditions: SessionCondition[], leftBattlefield?: boolean) => void;
   onInjuryAdded: (injury: SessionInjuryRecord) => void;
   onBroadcast?: () => void;
   onClose: () => void;
@@ -239,6 +241,10 @@ function FighterActionModal({
   const [draftConditions, setDraftConditions] = useState<SessionCondition[]>(
     fighter.session_record?.conditions ?? []
   );
+  // Compared against the value the modal opened with, not the live prop, so a
+  // realtime change made elsewhere while it is open isn't sent back reversed.
+  const [initialLeftBattlefield] = useState(fighter.session_record?.left_battlefield === true);
+  const [draftLeftBattlefield, setDraftLeftBattlefield] = useState(initialLeftBattlefield);
 
   // Conditions the edition doesn't use aren't offered. CONDITION_BY_KEY still
   // looks up a stored key from another edition. The glyph only falls back when
@@ -307,6 +313,7 @@ function FighterActionModal({
   };
 
   const hasConditionChanges = JSON.stringify(draftConditions) !== JSON.stringify(currentConditions);
+  const hasLeftBattlefieldChange = draftLeftBattlefield !== initialLeftBattlefield;
 
   return (
     <>
@@ -314,11 +321,11 @@ function FighterActionModal({
         title="Fighter Actions"
         onClose={onClose}
         onConfirm={async () => {
-          onConditionsChanged(draftConditions);
+          onConditionsChanged(draftConditions, hasLeftBattlefieldChange ? draftLeftBattlefield : undefined);
           return true;
         }}
         confirmText="Confirm"
-        confirmDisabled={!hasConditionChanges}
+        confirmDisabled={!hasConditionChanges && !hasLeftBattlefieldChange}
       >
         <div className="space-y-4">
           <div className="flex gap-2">
@@ -422,8 +429,21 @@ function FighterActionModal({
               </div>
             )}
           </div>
-
-
+          {canLeaveBattlefield(editionSlug) && (
+            <div className="space-y-2 border-t pt-3 text-left">
+              <h4 className="text-sm font-medium text-neutral-500">Removed from Play</h4>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id={`left-battlefield-${fighter.id}`}
+                  checked={draftLeftBattlefield}
+                  onCheckedChange={(checked) => setDraftLeftBattlefield(checked === true)}
+                />
+                <Label htmlFor={`left-battlefield-${fighter.id}`} className="text-sm">
+                  Left the Battlefield
+                </Label>
+              </div>
+            </div>
+          )}
         </div>
       </Modal>
 
@@ -438,11 +458,11 @@ function FighterActionModal({
           campaignId={campaignId ?? undefined}
           editionSlug={editionSlug}
           onClose={() => setShowXpModal(false)}
+          // Back to this modal rather than closing it, which would drop unsaved drafts.
           onXpUpdated={(newXp) => {
             const delta = newXp - (fighterData?.xp ?? 0);
             onXpChanged(delta);
             setShowXpModal(false);
-            onClose();
           }}
         />
       )}
@@ -456,10 +476,7 @@ function FighterActionModal({
           isSpyrer={isSpyrer}
           fighterWeapons={fighterWeapons}
           onClose={() => setShowInjuryModal(false)}
-          onInjuryAdded={(injury) => {
-            onInjuryAdded(injury);
-            onClose();
-          }}
+          onInjuryAdded={onInjuryAdded}
           onBroadcast={onBroadcast}
         />
       )}
@@ -822,7 +839,7 @@ function FighterRow({
   candidateGangs: CampaignGangWithFighters[];
   isSkirmish: boolean;
   onXpChanged: (delta: number) => void;
-  onConditionsChanged: (conditions: SessionCondition[]) => void;
+  onConditionsChanged: (conditions: SessionCondition[], leftBattlefield?: boolean) => void;
   onActivationsChange: (activations: number) => void;
   onInjuryAdded: (injury: SessionInjuryRecord) => void;
   onNoteChanged: (note: string) => void;
@@ -840,6 +857,7 @@ function FighterRow({
   const injuryCountLabel = isSpyrer
     ? `${injuryCount} ${injuryCount === 1 ? 'Glitch' : 'Glitches'}`
     : `${injuryCount} ${injuryCount === 1 ? 'Injury' : 'Injuries'}`;
+  const leftBattlefield = fighter.session_record?.left_battlefield === true;
   const activations = fighter.session_record?.activations ?? 1;
   const isReady = activations > 0;
   const maxActivations = hasTwoActivations ? 2 : 1;
@@ -850,6 +868,9 @@ function FighterRow({
   };
 
   const iconColor = activations >= 2 ? 'text-orange-500' : activations === 1 ? 'text-green-500' : 'text-muted-foreground/30';
+  const readyTitle = leftBattlefield
+    ? 'Left the battlefield'
+    : activations > 0 ? `${activations} activation${activations !== 1 ? 's' : ''} remaining` : 'Activated';
   const fighterType = gangFighter?.fighter_type;
   const fighterSubtypeDisplay = formatFighterSubtypeDisplay(gangFighter?.fighter_subtypes, editionSlug);
   // Second row format: type (subtype)
@@ -886,8 +907,13 @@ function FighterRow({
             {fighterDetails && (
               <div className="text-xs text-muted-foreground">{fighterDetails}</div>
             )}
-            {(xp > 0 || injuryCount > 0 || conditions.length > 0 || (!canInteract && !battleActive && injuries.length > 0)) && (
+            {(xp > 0 || injuryCount > 0 || conditions.length > 0 || leftBattlefield || (!canInteract && !battleActive && injuries.length > 0)) && (
               <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                {leftBattlefield && (
+                  <span className="inline-flex items-center rounded-full bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+                    Left Battlefield
+                  </span>
+                )}
                 {xp > 0 && (
                   <span className="inline-flex items-center rounded-full bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
                     +{xp} XP
@@ -939,9 +965,9 @@ function FighterRow({
               onClick={() => { setNoteDraft(note); setShowNoteModal(true); }}
             />
             <ReadyActivatedIcon
-              className={`size-6 transition-colors duration-200 ${iconColor} cursor-pointer hover:text-muted-foreground`}
-              title={activations > 0 ? `${activations} activation${activations !== 1 ? 's' : ''} remaining` : 'Activated'}
-              onClick={toggleReady}
+              className={`size-6 ${iconColor} ${leftBattlefield ? '' : 'transition-colors duration-200 cursor-pointer hover:text-muted-foreground'}`}
+              title={readyTitle}
+              onClick={leftBattlefield ? undefined : toggleReady}
             />
             <CgMoreVerticalO
               className="size-6 text-muted-foreground/40 hover:text-muted-foreground transition-colors duration-200 cursor-pointer"
@@ -993,7 +1019,7 @@ function FighterRow({
             {battleActive && (
               <ReadyActivatedIcon
                 className={`size-6 ${iconColor}`}
-                title={activations > 0 ? `${activations} activation${activations !== 1 ? 's' : ''} remaining` : 'Activated'}
+                title={readyTitle}
               />
             )}
           </div>
@@ -1549,17 +1575,17 @@ export default function ParticipantCard({
   });
 
   const updateConditionsMutation = useMutation({
-    mutationFn: async ({ sessionFighterId, conditions }: { sessionFighterId: string; conditions: SessionCondition[] }) => {
-      const result = await updateSessionConditions({ session_fighter_id: sessionFighterId, conditions });
+    mutationFn: async ({ sessionFighterId, conditions, leftBattlefield }: { sessionFighterId: string; conditions: SessionCondition[]; leftBattlefield?: boolean }) => {
+      const result = await updateSessionConditions({ session_fighter_id: sessionFighterId, conditions, left_battlefield: leftBattlefield });
       if (!result.success) throw new Error(result.error || 'Failed to update conditions');
       return result;
     },
-    onMutate: ({ sessionFighterId, conditions }) => {
+    onMutate: ({ sessionFighterId, conditions, leftBattlefield }) => {
       const prev = localFighters;
       setLocalFighters((cur) =>
         cur.map((lf) =>
           lf.id === sessionFighterId
-            ? { ...lf, session_record: { ...lf.session_record, conditions } }
+            ? { ...lf, session_record: applyConditionsUpdate(lf.session_record, conditions, leftBattlefield) }
             : lf
         )
       );
@@ -1972,10 +1998,11 @@ export default function ParticipantCard({
                           const totalXp = (f.session_record?.xp_earned ?? 0) + delta;
                           updateXpMutation.mutate({ sessionFighterId: f.id, totalXp });
                         }}
-                        onConditionsChanged={(conditions) => {
+                        onConditionsChanged={(conditions, leftBattlefield) => {
                           updateConditionsMutation.mutate({
                             sessionFighterId: f.id,
                             conditions,
+                            leftBattlefield,
                           });
                         }}
                         onActivationsChange={(activations) => {
