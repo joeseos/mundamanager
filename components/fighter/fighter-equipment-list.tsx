@@ -664,6 +664,12 @@ export function WeaponList({
     setActiveLoadoutMutation.mutate(loadoutId);
   };
 
+  const allEffects = Object.values(fighterEffects).flat();
+  // Effects picked through Edit (Spyrer tiers, Enhance weapon upgrades), as opposed to
+  // the fixed effects that come with the equipment
+  const isEditableEffect = (e: FighterEffect) =>
+    typeof e.type_specific_data === 'object' && e.type_specific_data?.is_editable === true;
+
   const renderRow = (item: Equipment, isChild: boolean = false) => {
     // Check if this equipment is in the active loadout (or if no loadout is active)
     const isInActiveLoadout = isEquipmentInActiveLoadout(item.fighter_equipment_id, loadouts, activeLoadoutId);
@@ -671,9 +677,8 @@ export function WeaponList({
     const shouldMute = activeLoadoutId !== null && !isInActiveLoadout;
     const mutedClass = shouldMute ? "text-muted-foreground" : "";
     // Attached equipment takes one Edit; to pick another upgrade, delete the current one
-    const upgradeUsed = !!item.target_equipment_id && Object.values(fighterEffects).flat().some(e =>
-      e.fighter_equipment_id === item.fighter_equipment_id &&
-      typeof e.type_specific_data === 'object' && e.type_specific_data?.is_editable === true
+    const upgradeUsed = !!item.target_equipment_id && allEffects.some(e =>
+      e.fighter_equipment_id === item.fighter_equipment_id && isEditableEffect(e)
     );
 
     return (
@@ -785,10 +790,9 @@ export function WeaponList({
   // (isChild) only the editable ones are shown: the fixed effect linking it to its
   // parent is already conveyed by the nesting.
   const renderEffectRows = (item: Equipment, isChild: boolean = false) => {
-    const allEffects = Object.values(fighterEffects).flat();
     const equipmentEffects = allEffects
       .filter((e) => e.fighter_equipment_id === item.fighter_equipment_id)
-      .filter((e) => !isChild || (typeof e.type_specific_data === 'object' && e.type_specific_data?.is_editable === true))
+      .filter((e) => !isChild || isEditableEffect(e))
       .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
 
     if (equipmentEffects.length === 0) return null;
@@ -825,7 +829,7 @@ export function WeaponList({
           </td>
           <td className="px-1 py-1">
             <div className="flex justify-end gap-1">
-              {typeData?.is_editable === true && (
+              {isEditableEffect(effect) && (
                 <Button
                   variant="outline_remove"
                   size="sm"
