@@ -51,6 +51,7 @@ import {
   removeFighterFromSession,
   updateFighterLoadout,
   updateSessionXp,
+  updateSessionParticipationXp,
   addSessionInjury,
   updateSessionConditions,
   updateActivations,
@@ -60,7 +61,6 @@ import {
 import { addFighterInjury } from '@/app/actions/fighter-injury';
 import { createGangLog } from '@/app/actions/logs/gang-logs';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
-import { updateFighterXp } from '@/app/actions/edit-fighter';
 import FighterCard from '@/components/gang/fighter-card';
 import type { BattleSessionFull, BattleSessionParticipant, BattleSessionFighter, SessionCondition, SessionInjuryRecord } from '@/types/battle-session';
 import { beastSubtypeName, hasFleshWoundCondition, hasN26CompositeBattleMarkers, hasCrewRating, hasScenarioTables, hasTradePoints } from '@/types/edition';
@@ -1105,71 +1105,53 @@ function BattleParticipationModal({
   crewFighters: BattleSessionFighter[];
   gangFightersList: GangFighter[];
   editionSlug?: string | null;
-  onConfirm: (xpByFighterId: Record<string, number>) => void;
+  /** Participation XP by session fighter id, for the fighters whose amount changed. */
+  onConfirm: (xpBySessionFighterId: Record<string, number>) => void;
   onClose: () => void;
 }) {
-  const crewLoadouts = useMemo(
-    () => new Map(crewFighters.map((f) => [f.fighter_id, f.loadout_id])),
-    [crewFighters]
-  );
-
-  const uniqueFighters = useMemo(() => {
-    const seen = new Set<string>();
-    const result: GangFighter[] = [];
-    for (const gf of gangFightersList) {
-      if (seen.has(gf.id)) continue;
-      const crewLoadoutId = crewLoadouts.get(gf.id);
-      if (crewLoadoutId !== undefined && gf.active_loadout_id === (crewLoadoutId ?? undefined)) {
-        seen.add(gf.id);
-        result.push(gf);
-      }
-    }
-    for (const gf of gangFightersList) {
-      if (seen.has(gf.id)) continue;
-      seen.add(gf.id);
-      result.push(gf);
-    }
-    return result;
-  }, [gangFightersList, crewLoadouts]);
-
   const [xpAmounts, setXpAmounts] = useState<Record<string, number>>(() =>
-    Object.fromEntries(uniqueFighters.map((gf) => [gf.id, crewLoadouts.has(gf.id) ? 1 : 0]))
+    Object.fromEntries(crewFighters.map((f) => [f.id, f.session_record?.participation_xp ?? 0]))
   );
 
   const adjust = (id: string, delta: number) =>
     setXpAmounts((cur) => ({ ...cur, [id]: Math.max(0, (cur[id] ?? 0) + delta) }));
-
-  const totalXp = Object.values(xpAmounts).reduce((sum, v) => sum + v, 0);
 
   return (
     <Modal
       title="Participation XP"
       onClose={onClose}
       onConfirm={async () => {
-        const filtered = Object.fromEntries(
-          Object.entries(xpAmounts).filter(([, xp]) => xp > 0)
+        const changed = Object.fromEntries(
+          crewFighters
+            .filter((f) => xpAmounts[f.id] !== (f.session_record?.participation_xp ?? 0))
+            .map((f) => [f.id, xpAmounts[f.id] ?? 0])
         );
-        onConfirm(filtered);
+        onConfirm(changed);
         return true;
       }}
       confirmText="Confirm"
-      confirmDisabled={totalXp === 0}
     >
       <div className="space-y-3">
-        {uniqueFighters.map((gf) => {
-          const subtypeDisplay = formatFighterSubtypeDisplay(gf.fighter_subtypes, editionSlug);
-          const details = [gf.fighter_type, subtypeDisplay ? `(${subtypeDisplay})` : ''].filter(Boolean).join(' ');
+        <p className="text-sm text-muted-foreground">
+          Each fighter gains this XP when the battle is completed. Lower it to 0 for a fighter who did not take part.
+        </p>
+        {crewFighters.map((f) => {
+          const gf = gangFightersList.find(
+            (g) => g.id === f.fighter_id && g.active_loadout_id === (f.loadout_id ?? undefined)
+          ) ?? gangFightersList.find((g) => g.id === f.fighter_id);
+          const subtypeDisplay = gf ? formatFighterSubtypeDisplay(gf.fighter_subtypes, editionSlug) : '';
+          const details = [gf?.fighter_type, subtypeDisplay ? `(${subtypeDisplay})` : ''].filter(Boolean).join(' ');
           return (
-            <div key={gf.id} className="flex items-center justify-between">
+            <div key={f.id} className="flex items-center justify-between">
               <div>
-                <div className="text-sm font-medium">{gf.fighter_name}</div>
+                <div className="text-sm font-medium">{gf?.fighter_name ?? f.fighter?.fighter_name ?? 'Unknown Fighter'}</div>
                 {details && <div className="text-xs text-muted-foreground">{details}</div>}
               </div>
               <Counter
-                value={xpAmounts[gf.id] ?? 0}
+                value={xpAmounts[f.id] ?? 0}
                 min={0}
-                onDecrement={() => adjust(gf.id, -1)}
-                onIncrement={() => adjust(gf.id, 1)}
+                onDecrement={() => adjust(f.id, -1)}
+                onIncrement={() => adjust(f.id, 1)}
               />
             </div>
           );
@@ -1457,7 +1439,7 @@ export default function ParticipantCard({
       participant_id: participant.id,
       fighter_id: fighterId,
       loadout_id: loadoutId,
-      session_record: { xp_earned: 0, injuries: [], conditions: [], activations: isDual ? 2 : 1 },
+      session_record: { xp_earned: 0, participation_xp: 1, injuries: [], conditions: [], activations: isDual ? 2 : 1 },
       created_at: new Date().toISOString(),
       fighter: gf ? { id: gf.id, fighter_name: gf.fighter_name, credits: gf.credits, special_rules: fullGf?.special_rules } : undefined,
     };
@@ -1879,30 +1861,27 @@ export default function ParticipantCard({
             gangFightersList={gangFightersList}
             editionSlug={session.edition_slug}
             onClose={() => setShowParticipationModal(false)}
-            onConfirm={(xpByFighterId) => {
-              const entries = Object.entries(xpByFighterId);
+            onConfirm={(xpBySessionFighterId) => {
+              const entries = Object.entries(xpBySessionFighterId);
+              if (entries.length === 0) {
+                setShowParticipationModal(false);
+                return;
+              }
+              const prev = localFighters;
               setLocalFighters((cur) =>
-                cur.map((f) => {
-                  const xp = xpByFighterId[f.fighter_id];
-                  return xp
-                    ? { ...f, session_record: { ...f.session_record, xp_earned: (f.session_record?.xp_earned ?? 0) + xp } }
-                    : f;
-                })
+                cur.map((f) =>
+                  f.id in xpBySessionFighterId
+                    ? { ...f, session_record: { ...f.session_record, participation_xp: xpBySessionFighterId[f.id] } }
+                    : f
+                )
               );
-              const calls = entries.flatMap(([fighterId, xp]) => {
-                const sessionFighter = localFighters.find((lf) => lf.fighter_id === fighterId);
-                const persistCalls: Promise<{ success: boolean }>[] = [
-                  updateFighterXp({ fighter_id: fighterId, xp_to_add: xp }),
-                ];
-                if (sessionFighter) {
-                  const totalXp = (sessionFighter.session_record?.xp_earned ?? 0) + xp;
-                  persistCalls.push(updateSessionXp({ session_fighter_id: sessionFighter.id, xp_earned: totalXp }));
-                }
-                return persistCalls;
-              });
-              Promise.all(calls).then((results) => {
-                const failed = results.filter((r) => !r.success);
-                if (failed.length > 0) {
+              Promise.all(
+                entries.map(([sessionFighterId, xp]) =>
+                  updateSessionParticipationXp({ session_fighter_id: sessionFighterId, participation_xp: xp })
+                )
+              ).then((results) => {
+                if (results.some((r) => !r.success)) {
+                  setLocalFighters(prev);
                   toast.error('Failed to update participation XP');
                 } else {
                   toast.success(`Participation XP updated for ${entries.length} fighter${entries.length !== 1 ? 's' : ''}`);

@@ -110,11 +110,14 @@ export default function CompletedSession({
                     <span className="font-medium">
                       {f.fighter?.fighter_name}
                     </span>
-                    {(f.session_record?.xp_earned ?? 0) > 0 && (
-                      <span className="text-neutral-500">
-                        +{f.session_record.xp_earned} XP
-                      </span>
-                    )}
+                    {(() => {
+                      const xp = (f.session_record?.xp_earned ?? 0) + (f.session_record?.participation_xp ?? 0);
+                      return xp > 0 && (
+                        <span className="text-neutral-500">
+                          +{xp} XP
+                        </span>
+                      );
+                    })()}
                     {(f.session_record?.injuries ?? []).map((injury: { effect_name: string }, idx: number) => (
                       <span
                         key={idx}

@@ -116,6 +116,7 @@ async function fetchBattleSessionDirect(
       ...f,
       session_record: {
         xp_earned: f.session_record?.xp_earned ?? 0,
+        participation_xp: f.session_record?.participation_xp ?? 0,
         injuries: f.session_record?.injuries ?? [],
         conditions: f.session_record?.conditions ?? [],
         note: f.session_record?.note,

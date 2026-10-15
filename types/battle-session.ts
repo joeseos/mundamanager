@@ -134,6 +134,12 @@ export interface SessionCondition {
 
 export interface SessionRecord {
   xp_earned: number;
+  /**
+   * Participation XP the fighter gains when the battle is completed. A fighter
+   * joins the crew at 1; players lower or raise it in the Participation XP
+   * modal. Missing on sessions crewed before it existed, which award none.
+   */
+  participation_xp?: number;
   injuries: SessionInjuryRecord[];
   conditions: SessionCondition[];
   note?: string;

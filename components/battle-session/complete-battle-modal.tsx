@@ -209,7 +209,7 @@ export default function CompleteBattleModal({
               }, 0);
 
               const totalXp = (p.fighters ?? []).reduce(
-                (sum, f) => sum + (f.session_record?.xp_earned ?? 0),
+                (sum, f) => sum + (f.session_record?.xp_earned ?? 0) + (f.session_record?.participation_xp ?? 0),
                 0
               );
               const { totalInjuries, totalGlitches } = splitInjuryCounts(p.fighters ?? [], gfList);

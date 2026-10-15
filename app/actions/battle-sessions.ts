@@ -1,6 +1,8 @@
 'use server';
 
-import { invalidateGangCampaignMembership, invalidateCampaignBattles, invalidateCampaignTerritories, invalidateBattleSession, invalidateBattleSessions } from '@/utils/cache-tags';
+import { invalidateGangCampaignMembership, invalidateCampaignBattles, invalidateCampaignTerritories, invalidateBattleSession, invalidateBattleSessions, invalidateFighter } from '@/utils/cache-tags';
+import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
+import { formatXpBreakdown } from '@/app/actions/logs/log-helpers';
 import { createClient, createServiceRoleClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 
@@ -653,6 +655,7 @@ export async function advanceRound(
             const isInjured = (f.session_record?.injuries?.length ?? 0) > 0;
             const record: SessionRecord = {
               xp_earned: f.session_record?.xp_earned ?? 0,
+              participation_xp: f.session_record?.participation_xp,
               injuries: f.session_record?.injuries ?? [],
               conditions: f.session_record?.conditions ?? [],
               note: f.session_record?.note,
@@ -1247,6 +1250,7 @@ export async function bulkAddFightersToSession(params: {
         ...(entry.loadout_id ? { loadout_id: entry.loadout_id } : {}),
         session_record: {
           xp_earned: 0,
+          participation_xp: 1,
           injuries: [],
           conditions: [],
           activations: isDual ? 2 : 1,
@@ -1292,6 +1296,7 @@ async function withSessionRecord(
 
   const record: SessionRecord = {
     xp_earned: fighter.session_record?.xp_earned ?? 0,
+    participation_xp: fighter.session_record?.participation_xp,
     injuries: fighter.session_record?.injuries ?? [],
     conditions: fighter.session_record?.conditions ?? [],
     note: fighter.session_record?.note,
@@ -1319,6 +1324,18 @@ export async function updateSessionXp(params: {
   return withSessionRecord(params.session_fighter_id, (record) => ({
     ...record,
     xp_earned: params.xp_earned,
+  }));
+}
+
+export async function updateSessionParticipationXp(params: {
+  session_fighter_id: string;
+  participation_xp: number;
+}): Promise<{ success: boolean; error?: string }> {
+  if (!Number.isInteger(params.participation_xp) || params.participation_xp < 0)
+    return { success: false, error: 'Participation XP must be a whole number of 0 or more' };
+  return withSessionRecord(params.session_fighter_id, (record) => ({
+    ...record,
+    participation_xp: params.participation_xp,
   }));
 }
 
@@ -1738,6 +1755,58 @@ export async function completeBattleSession(
     // Invalidate session cache so the client renders the completed state
     invalidateBattleSession(sessionId);
 
+    // --- Participation XP ---
+    // After the status guard, so a battle completed twice awards it once. Service
+    // role: the session manager may not own every gang's fighters.
+    const participationLogs: { gang_id: string; user_id: string; fighter_id: string; action_type: string; description: string; created_at: string }[] = [];
+    try {
+      const serviceSupabase = createServiceRoleClient();
+      const { data: sessionFighters, error: sessionFightersError } = await serviceSupabase
+        .from('battle_session_fighters')
+        .select('fighter_id, session_record')
+        .eq('battle_session_id', sessionId);
+      if (sessionFightersError) throw sessionFightersError;
+
+      const awards = new Map<string, number>();
+      for (const sf of sessionFighters ?? []) {
+        const xp = sf.session_record?.participation_xp ?? 0;
+        if (xp > 0) awards.set(sf.fighter_id, xp);
+      }
+
+      if (awards.size > 0) {
+        const { data: awardedFighters, error: awardedFightersError } = await serviceSupabase
+          .from('fighters')
+          .select('id, gang_id, xp, fighter_name, fighter_pet_id')
+          .in('id', [...awards.keys()]);
+        if (awardedFightersError) throw awardedFightersError;
+
+        await Promise.all((awardedFighters ?? []).map(async (fighter) => {
+          const xp = awards.get(fighter.id)!;
+          const newXp = (fighter.xp ?? 0) + xp;
+          const { error: xpError } = await serviceSupabase
+            .from('fighters')
+            .update({ xp: newXp, updated_at: new Date().toISOString() })
+            .eq('id', fighter.id);
+          if (xpError) {
+            console.error(`Failed to award participation XP to fighter ${fighter.id}:`, xpError);
+            return;
+          }
+          participationLogs.push({
+            gang_id: fighter.gang_id,
+            user_id: user.id,
+            fighter_id: fighter.id,
+            action_type: 'fighter_xp_changed',
+            description: `Fighter "${fighter.fighter_name}" gained ${xp} XP (${formatXpBreakdown({ battleParticipation: xp })})\nXP: ${fighter.xp ?? 0} → ${newXp}`,
+            created_at: new Date().toISOString(),
+          });
+          invalidateFighter(fighter.id, fighter.gang_id);
+          await invalidateBeastOwnerCache(fighter.id, fighter.gang_id, serviceSupabase, fighter.fighter_pet_id ?? null);
+        }));
+      }
+    } catch (xpErr) {
+      console.error('Error awarding participation XP:', xpErr);
+    }
+
     // === Everything below runs AFTER the response is sent ===
     after(async () => {
       try {
@@ -1762,7 +1831,7 @@ export async function completeBattleSession(
         }
 
         // Build all gang logs in one batch
-        const logs: { gang_id: string; user_id: string; action_type: string; description: string; created_at: string }[] = [];
+        const logs: { gang_id: string; user_id: string; fighter_id?: string; action_type: string; description: string; created_at: string }[] = [];
 
         for (const p of allParticipants) {
           const gang = gangMap.get(p.gang_id);
@@ -1800,6 +1869,8 @@ export async function completeBattleSession(
             created_at: new Date().toISOString(),
           });
         }
+
+        logs.push(...participationLogs);
 
         // Territory claim log — added to same batch, only when the claim was made
         if (claimedTerritory && claimerGangId && claimed_territory) {
