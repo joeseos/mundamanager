@@ -463,7 +463,7 @@ Gang logs are accessible via the "Logs" button on each gang page, positioned nex
 ## Notification System
 
 ### Overview
-The notification system provides real-time notifications to users for various application events. Notifications support different types (info, warning, error, invite) with appropriate visual indicators.
+The notification system provides real-time notifications to users for various application events. Notifications support different types (e.g. info, warning, error, campaign_invite, friend_request) with appropriate visual indicators.
 
 ### Features
 - Real-time notifications using Supabase Realtime
@@ -478,7 +478,7 @@ The notification system provides real-time notifications to users for various ap
 interface Notification {
   id: string;
   text: string;
-  type: 'info' | 'warning' | 'error' | 'invite' | 'campaign_invite' | 'friend_request' | 'battle_invite' | 'gang_invite';
+  type: 'info' | 'warning' | 'error' | 'campaign_invite' | 'friend_request' | 'battle_invite' | 'gang_invite' | 'campaign_join_request' | 'campaign_challenge';
   created_at: string;
   dismissed: boolean;
   link: string | null;

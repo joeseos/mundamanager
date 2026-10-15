@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, type MouseEvent } from 'react';
+import { useState, type MouseEvent } from 'react';
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,7 +13,7 @@ import { User as SupabaseUser } from '@supabase/supabase-js';
 import { signOutAction } from "@/app/actions/auth";
 import { createClient } from "@/utils/supabase/client";
 import Link from 'next/link';
-import { useFetchNotifications } from '@/hooks/use-notifications';
+import { useNotificationToasts, useNotificationsRealtime, useUnreadNotificationCount } from '@/hooks/use-notifications';
 import dynamic from 'next/dynamic';
 
 // Icons
@@ -45,28 +45,12 @@ interface SettingsModalProps {
 
 export default function SettingsModal({ user, isAdmin, username, patreonTierId, patreonTierTitle, patronStatus }: SettingsModalProps) {
   const [open, setOpen] = useState(false);
-  const [notificationCount, setNotificationCount] = useState(0);
+  const notificationCount = useUnreadNotificationCount(user.id);
 
-  // Notification handler for all notifications
-  const onNotifications = useCallback(
-    (newNotifications: any[]) => {
-      // No longer needed as we use onUnreadCountChange
-    },
-    []
-  );
-
-  // Handle unread count changes
-  const onUnreadCountChange = useCallback((count: number) => {
-    setNotificationCount(count);
-  }, []);
-
-  // Fetch notifications directly in this component
-  useFetchNotifications({
-    onNotifications,
-    userId: user.id,
-    realtime: true,
-    onUnreadCountChange,
-  });
+  // The header is on every page, so it keeps the notifications query current
+  // and can toast when a new one arrives.
+  useNotificationsRealtime(user.id);
+  useNotificationToasts(user.id);
 
   const handleLogout = async () => {
     setOpen(false);
@@ -124,7 +108,7 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
         
         {/* Notification indicator that overlays the menu button */}
         {notificationCount > 0 && (
-          <div className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[0.65rem] text-white z-10">
+          <div className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-xs font-bold text-white z-10">
             {notificationCount > 99 ? '99+' : notificationCount}
           </div>
         )}
@@ -158,7 +142,7 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
               <LuUser className="mr-2 h-4 w-4" />
               Account
               {notificationCount > 0 && (
-                <span className="ml-auto bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
+                <span className="ml-auto inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1 text-xs font-bold text-white">
                   {notificationCount > 99 ? '99+' : notificationCount}
                 </span>
               )}

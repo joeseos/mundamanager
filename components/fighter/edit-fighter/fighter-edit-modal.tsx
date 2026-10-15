@@ -11,7 +11,8 @@ import { toast } from 'sonner';
 import { applySpecialRulesModifiers, subtypeGrantsFromEffects } from '@/utils/effect-modifiers';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { N26_PROSPECT_SPECIALISATIONS, hasN26SpecialistSubtype } from '@/utils/keepTypePromotionN26';
-import { allowsMultipleSubtypes, hasFighterSpecialisations, namedTypeKeepsSubtypes, omitsNamedTypeSubtypeSuffix } from '@/types/edition';
+import { allowsMultipleSubtypes, hasFighterSpecialisations, hasStartingXp, namedTypeKeepsSubtypes, omitsNamedTypeSubtypeSuffix } from '@/types/edition';
+import { advancementsEarnedFor, xpAfterStartingXpChange } from '@/utils/advancementRanks';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import {
   getArchetypeCatalogSubtype,
@@ -78,7 +79,6 @@ interface FighterTypesData {
 
 interface EditFighterModalProps {
   fighter: Fighter;
-  isOpen: boolean;
   initialValues: {
     name: string;
     label: string;
@@ -115,7 +115,6 @@ interface EditFighterModalProps {
 
 export function EditFighterModal({
   fighter,
-  isOpen,
   initialValues,
   gangId,
   gangTypeId,
@@ -161,7 +160,6 @@ export function EditFighterModal({
       if (!response.ok) throw new Error('Failed to fetch fighter types');
       return response.json();
     },
-    enabled: isOpen,
     staleTime: 10 * 60 * 1000,
   });
 
@@ -217,9 +215,6 @@ export function EditFighterModal({
   
   // State for showing the stats modal
   const [showStatsModal, setShowStatsModal] = useState(false);
-  
-  // State for tracking if stats are being saved
-  const [isSavingStats, setIsSavingStats] = useState(false);
 
   // Add state for temporary selected fighter type - pre-select current type
   const [selectedFighterTypeId, setSelectedFighterTypeId] = useState<string>((fighter.fighter_type as any)?.fighter_type_id || (fighter as any).fighter_type_id || '');
@@ -261,6 +256,34 @@ export function EditFighterModal({
 
   const allowMultipleSubtypes = allowsMultipleSubtypes(fighter.edition_slug);
 
+  // Blank keeps the current value, which the placeholder shows: N/A is the
+  // type's call, not set from here. Seeded once, not in the init block below:
+  // that reruns when fighter types load and would wipe a value typed before then.
+  const [startingXpInput, setStartingXpInput] = useState(
+    fighter.starting_xp != null ? String(fighter.starting_xp) : ''
+  );
+  const showStartingXp = hasStartingXp(fighter.edition_slug);
+  const currentStartingXp = fighter.starting_xp ?? null;
+  const currentXp = fighter.xp ?? 0;
+  const nextStartingXp = startingXpInput.trim() === '' ? null : Number(startingXpInput);
+  const startingXpInvalid =
+    nextStartingXp !== null && (!Number.isInteger(nextStartingXp) || nextStartingXp < 0);
+  const startingXpChanged =
+    showStartingXp && nextStartingXp !== null && !startingXpInvalid && nextStartingXp !== currentStartingXp;
+
+  // Tiers widen as XP rises, so the same earned XP can be worth fewer
+  // Advancements above a higher baseline. The preview says so when it happens.
+  const startingXpPreview = (() => {
+    if (startingXpInvalid) return 'Enter a whole number of 0 or more.';
+    if (!startingXpChanged) return `Current: ${currentStartingXp ?? 'N/A'}`;
+    const nextXp = xpAfterStartingXpChange(currentXp, currentStartingXp, nextStartingXp!);
+    const earnedBefore = advancementsEarnedFor(fighter.edition_slug, currentStartingXp, currentXp);
+    const earnedAfter = advancementsEarnedFor(fighter.edition_slug, nextStartingXp, nextXp);
+    return earnedBefore === earnedAfter
+      ? `XP: ${currentXp} → ${nextXp}. XP earned since recruitment is kept.`
+      : `XP: ${currentXp} → ${nextXp}. Advancements earned: ${earnedBefore} → ${earnedAfter}.`;
+  })();
+
   // Fetch fighter subtypes for the subtype dropdown, scoped to the fighter's
   // edition: subtype_name is only unique within an edition, so an unscoped fetch
   // could resolve the wrong fighter_subtype_id (used for the archetype lookup)
@@ -274,7 +297,6 @@ export function EditFighterModal({
       if (!response.ok) throw new Error('Failed to fetch fighter subtypes');
       return response.json();
     },
-    enabled: isOpen,
     staleTime: 10 * 60 * 1000,
   });
 
@@ -453,7 +475,7 @@ export function EditFighterModal({
     fighterSubtypes: subtypesForArchetype,
   });
 
-  // Fetch archetypes using TanStack Query (only if eligible and modal is open)
+  // Fetch archetypes using TanStack Query (only if eligible)
   const { data: archetypesData } = useQuery({
     queryKey: ['skill-archetypes', archetypeFighterSubtypeId],
     queryFn: async () => {
@@ -465,7 +487,7 @@ export function EditFighterModal({
       if (!response.ok) throw new Error('Failed to fetch archetypes');
       return response.json();
     },
-    enabled: isOpen && canUseArchetypes,
+    enabled: canUseArchetypes,
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
 
@@ -500,6 +522,7 @@ export function EditFighterModal({
       fighter_variant?: string | null;
       fighter_gang_legacy_id?: string | null;
       selected_archetype_id?: string | null;
+      starting_xp?: number;
     }) => {
       const result = await updateFighterDetails({
         fighter_id: fighter.id,
@@ -518,6 +541,7 @@ export function EditFighterModal({
         fighter_variant: submit.fighter_variant,
         fighter_gang_legacy_id: submit.fighter_gang_legacy_id,
         selected_archetype_id: submit.selected_archetype_id,
+        starting_xp: submit.starting_xp,
         stat_adjustments: Object.keys(pendingStatAdjustments).length > 0 ? pendingStatAdjustments : undefined
       });
       if (!result.success) throw new Error(result.error || 'Failed to update fighter');
@@ -587,6 +611,12 @@ export function EditFighterModal({
               // Consumers read the embedded row, not the id.
               fighter_gang_legacy:
                 (availableLegacies.find(l => l.id === submit.fighter_gang_legacy_id) ?? null) as any,
+            }
+          : {}),
+        ...(submit.starting_xp !== undefined
+          ? {
+              starting_xp: submit.starting_xp,
+              xp: xpAfterStartingXpChange(currentXp, currentStartingXp, submit.starting_xp),
             }
           : {}),
         // Include optimistic effects overlay so UI updates instantly
@@ -931,8 +961,8 @@ export function EditFighterModal({
       const submitData: any = {
         name: formValues.name,
         label: formValues.label,
-        kills: formValues.kills,
-        kill_count: formValues.kill_count,
+        kills: Number(formValues.kills) || 0,
+        kill_count: Number(formValues.kill_count) || 0,
         costAdjustment: formValues.costAdjustment,
         special_rules: formValues.special_rules,
         selected_archetype_id: effectiveArchetypeId || null
@@ -942,6 +972,11 @@ export function EditFighterModal({
       const currentLegacyId = (fighter as any).fighter_gang_legacy_id || '';
       if (selectedGangLegacyId !== currentLegacyId) {
         submitData.fighter_gang_legacy_id = selectedGangLegacyId || null;
+      }
+
+      // Sent only when changed: the server moves XP by the difference.
+      if (startingXpChanged) {
+        submitData.starting_xp = nextStartingXp;
       }
 
       // Only include fighter type fields if we're actually updating the fighter type
@@ -1021,9 +1056,6 @@ export function EditFighterModal({
       return false;
     }
   };
-
-  // Don't render if modal isn't open
-  if (!isOpen) return null;
 
   return (
     <>
@@ -1219,6 +1251,28 @@ export function EditFighterModal({
                 Current: {formatFighterSubtypeDisplay(fighter.fighter_subtypes, fighter.edition_slug)}
               </div>
             </div>
+
+            {/* Starting XP - e.g. an Outcast made Leader; XP moves with it */}
+            {showStartingXp && (
+              <div>
+                <label htmlFor="starting_xp" className="block text-sm font-medium mb-1">
+                  Starting XP
+                </label>
+                <Input
+                  id="starting_xp"
+                  type="number"
+                  min={0}
+                  step={1}
+                  placeholder={currentStartingXp != null ? String(currentStartingXp) : 'N/A'}
+                  value={startingXpInput}
+                  onChange={(e) => setStartingXpInput(e.target.value)}
+                  className="w-full"
+                />
+                <div className="mt-1 text-sm text-muted-foreground">
+                  {startingXpPreview}
+                </div>
+              </div>
+            )}
 
             {/* Specialisation - the fighter's own, never its type's */}
             {canHaveSpecialisation && (
@@ -1418,6 +1472,7 @@ export function EditFighterModal({
         onConfirm={handleConfirm}
         confirmDisabled={
           !formValues.name.trim() ||
+          (showStartingXp && startingXpInvalid) ||
           (!allowsMultipleSubtypes(fighter.edition_slug) &&
             selectedFighterSubtypes.length === 0 &&
             (fighter.fighter_subtypes?.length ?? 0) > 0)
@@ -1430,7 +1485,6 @@ export function EditFighterModal({
           onClose={() => setShowStatsModal(false)} 
           fighter={currentFighter}
           onUpdateStats={handleUpdateStats}
-          isSaving={isSavingStats}
         />
       )}
 

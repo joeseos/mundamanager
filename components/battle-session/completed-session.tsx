@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import type { BattleSessionFull } from '@/types/battle-session';
+import { sessionScenarioLabel, type BattleSessionFull } from '@/types/battle-session';
 import { getSessionWinnerIds } from '@/utils/battle-winners';
 
 interface CompletedSessionProps {
@@ -26,7 +26,7 @@ export default function CompletedSession({
       <div className="mb-6 text-center">
         <h1 className="text-2xl font-bold">Battle Complete</h1>
         <p className="mt-1 text-neutral-500">
-          {session.scenario || 'Battle Session'}
+          {sessionScenarioLabel(session) || 'Battle Session'}
         </p>
         {session.campaign_name && (
           <p className="text-sm text-neutral-400">{session.campaign_name}</p>
@@ -132,6 +132,7 @@ export default function CompletedSession({
             {p.user_id === userId && (
               <Link
                 href={`/gang/${p.gang_id}`}
+                prefetch={false}
                 className="mt-2 inline-block text-sm text-blue-600 hover:underline dark:text-blue-400"
               >
                 View Gang
@@ -145,6 +146,7 @@ export default function CompletedSession({
       <div className="flex justify-center gap-4">
         <Link
           href={`/gang/${session.participants.find((p) => p.user_id === userId)?.gang_id || ''}`}
+          prefetch={false}
           className="rounded-lg border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100 dark:border-neutral-600 dark:hover:bg-neutral-800"
         >
           Back to Gang
@@ -152,6 +154,7 @@ export default function CompletedSession({
         {session.campaign_id && (
           <Link
             href={`/campaigns/${session.campaign_id}`}
+            prefetch={false}
             className="rounded-lg border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100 dark:border-neutral-600 dark:hover:bg-neutral-800"
           >
             View Campaign

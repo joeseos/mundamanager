@@ -10,7 +10,7 @@ import type { HatredTargetKind } from '@/utils/injuryTarget';
 import type { CampaignGangWithFighters } from '@/types/fighter-ooa-record';
 
 interface GangTypeRow {
-  gang_type_id: string;
+  id: string;
   gang_type: string;
   edition_slug: string | null;
   is_custom?: boolean;
@@ -94,7 +94,7 @@ export function InjuryHatredTargetPicker({
         // there is no lookup to wait on.
         .filter(row => sameEditionForDisplay(row.edition_slug, editionSlug))
         .sort((a, b) => a.gang_type.localeCompare(b.gang_type))
-        .map(row => ({ value: row.gang_type_id, label: row.gang_type })),
+        .map(row => ({ value: row.id, label: row.gang_type })),
     [gangTypes, editionSlug]
   );
 

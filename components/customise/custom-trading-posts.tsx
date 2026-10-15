@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useId, createContext, useContext } from 'react';
+import React, { useState, useEffect, createContext, useContext } from 'react';
 import { List, ListColumn, ListAction } from '@/components/ui/list';
 import Modal from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
@@ -12,8 +12,8 @@ import { Combobox } from '@/components/ui/combobox';
 import { Checkbox } from '@/components/ui/checkbox';
 import { LuEye, LuSquarePen, LuTrash2 } from 'react-icons/lu';
 import { FiShare2 } from 'react-icons/fi';
-import { ImInfo } from 'react-icons/im';
 import { BiSolidNotepad } from 'react-icons/bi';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { Tooltip } from 'react-tooltip';
 import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import { ShareCustomTradingPostModal } from '@/components/customise/custom-shared';
@@ -42,6 +42,7 @@ import type { EquipmentListItem } from '@/types/equipment';
 import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
 import { hasTradePoints, sameEditionForDisplay } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
+import type { CustomSharedItemType } from '@/types/custom-shared';
 
 interface EquipmentPendingChanges {
   costOverride: number | null;
@@ -778,7 +779,6 @@ function EquipmentItemsSection({
   const isEditable = !!(onAddEquipment || onRemoveEquipment || onEquipmentOverrideChange);
   const hidesAvailability = hasTradePoints(useTradingPostEdition());
   const [isAddEquipOpen, setIsAddEquipOpen] = useState(false);
-  const tooltipId = useId();
   const [editOverridesItem, setEditOverridesItem] = useState<CustomTPEquipment | null>(null);
 
   const { data: equipmentItems = [], isLoading: isLoadingItems, error: equipmentError } = useQuery({
@@ -840,12 +840,16 @@ function EquipmentItemsSection({
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <h4 className="text-lg font-semibold">Equipment Items</h4>
-            <span
-              className="relative cursor-pointer text-muted-foreground hover:text-foreground"
-              data-tooltip-id={tooltipId}
-            >
-              <ImInfo />
-            </span>
+            <InfoTooltip ariaLabel="About equipment item overrides">
+              <div className="space-y-2">
+                <p>
+                  To override the default cost or availability of an item from the official Trading Posts, add the equipment first, then click the edit icon next to its row.
+                </p>
+                <p>
+                  Custom rules can also be set per <strong>gang</strong>, <strong>alignment</strong>, <strong>gang subtype</strong>, or <strong>allegiance</strong> to apply a dedicated cost or availability for specific groups.
+                </p>
+              </div>
+            </InfoTooltip>
           </div>
           {isEditable && (
             <Button onClick={() => setIsAddEquipOpen(true)}>
@@ -934,27 +938,6 @@ function EquipmentItemsSection({
           tradingPostId={tradingPostId}
         />
       )}
-
-      <Tooltip
-        id={tooltipId}
-        place="top"
-        className="bg-neutral-900! text-white! text-xs! z-[2000]!"
-        delayHide={100}
-        clickable={true}
-        style={{
-          padding: '6px',
-          maxWidth: '20rem'
-        }}
-      >
-        <div>
-          <p>
-            To override the default cost or availability of an item from the official Trading Posts, add the equipment first, then click the edit icon next to its row.
-          </p>
-          <p className="mt-2">
-            Custom rules can also be set per <strong>gang</strong>, <strong>alignment</strong>, <strong>gang subtype</strong>, or <strong>allegiance</strong> to apply a dedicated cost or availability for specific groups.
-          </p>
-        </div>
-      </Tooltip>
 
     </>
   );
@@ -1236,7 +1219,7 @@ function EditEquipmentModal({
   const { data: availableResources = [] } = useQuery<ResourceOption[]>({
     queryKey: ['tpAvailableResources', tradingPostId],
     queryFn: async () => {
-      const sharedRes = await fetch(`/api/custom-trading-posts/${tradingPostId}/shared-campaigns`);
+      const sharedRes = await fetch(`/api/custom-shared?${new URLSearchParams({ type: 'tradingPost' satisfies CustomSharedItemType, id: tradingPostId })}`);
       const sharedIds: string[] = sharedRes.ok ? await sharedRes.json() : [];
 
       const reputationOption: ResourceOption = { id: 'reputation', name: 'Reputation', type: 'reputation' };
@@ -1579,8 +1562,7 @@ function EditEquipmentModal({
 // ---------------------------------------------------------------------------
 
 interface GangTypeOption {
-  gang_type_id?: string;
-  id?: string;
+  id: string;
   gang_type: string;
   is_custom?: boolean;
   available_origins?: Array<{ id: string; origin_name: string }>;
@@ -1609,7 +1591,7 @@ function GangScopeFields({
     staleTime: 10 * 60 * 1000,
   });
 
-  const selectedGangType = gangTypes.find(gt => (gt.gang_type_id || gt.id) === gangTypeId);
+  const selectedGangType = gangTypes.find(gt => gt.id === gangTypeId);
   const origins = selectedGangType?.available_origins || [];
   const systemGangTypes = gangTypes.filter(gt => !gt.is_custom);
   const customGangTypes = gangTypes.filter(gt => gt.is_custom);
@@ -1623,7 +1605,7 @@ function GangScopeFields({
           value={gangTypeId}
           onChange={(e) => {
             const val = e.target.value;
-            const gt = gangTypes.find(g => (g.gang_type_id || g.id) === val);
+            const gt = gangTypes.find(g => g.id === val);
             onGangTypeChange(val, !!gt?.is_custom, gt?.gang_type || null);
           }}
         >
@@ -1631,7 +1613,7 @@ function GangScopeFields({
           {systemGangTypes.length > 0 && (
             <optgroup label="System Gang Types">
               {systemGangTypes.map(gt => (
-                <option key={`system_${gt.gang_type_id || gt.id}`} value={gt.gang_type_id || gt.id}>
+                <option key={`system_${gt.id}`} value={gt.id}>
                   {gt.gang_type}
                 </option>
               ))}

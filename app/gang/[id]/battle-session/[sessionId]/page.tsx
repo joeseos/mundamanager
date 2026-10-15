@@ -5,7 +5,7 @@ import { getBattleSessionCached } from '@/app/lib/battle-sessions/get-battle-ses
 import { getGangFightersList, getGangPositioning } from '@/app/lib/shared/gang-data';
 import type { GangFighter } from '@/types/gang';
 import { getCampaignTerritories } from '@/app/lib/campaigns/[id]/get-campaign-data';
-import { getScenariosCached } from '@/app/lib/reference-data';
+import { getScenariosCached, getScenarioTablesCached } from '@/app/lib/reference-data';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
 import { sortFightersByPositioning } from '@/utils/fighter-positioning';
 import ActiveSession from '@/components/battle-session/active-session';
@@ -46,10 +46,11 @@ export async function renderBattleSessionPage(sessionId: string, currentPath: st
     new Set(session.participants.map((p) => p.gang_id))
   );
 
-  const [gangFighterLists, gangPositioningList, scenarios, campaignTerritories] = await Promise.all([
+  const [gangFighterLists, gangPositioningList, scenarios, scenarioTables, campaignTerritories] = await Promise.all([
     Promise.all(uniqueGangIds.map((gId) => getGangFightersList(gId, supabase, { expandLoadoutsForPrint: true }))),
     Promise.all(uniqueGangIds.map((gId) => getGangPositioning(gId, supabase))),
     getScenariosCached(supabase),
+    getScenarioTablesCached(),
     session.campaign_id ? getCampaignTerritories(session.campaign_id) : Promise.resolve([]),
   ]);
 
@@ -69,6 +70,7 @@ export async function renderBattleSessionPage(sessionId: string, currentPath: st
         userId={user.id}
         isArbitrator={isArb}
         scenarios={scenarios || []}
+        scenarioTables={scenarioTables.filter((table) => table.edition_slug === session.edition_slug)}
         gangFightersMap={gangFightersMap}
         gangPositioningMap={gangPositioningMap}
         territories={(campaignTerritories || []).map((t: any) => ({

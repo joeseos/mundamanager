@@ -18,6 +18,7 @@ import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
 import { hasEquipmentSuperCategories, hasTradePoints } from '@/types/edition';
 import { isExclusiveTradePoints, parseTradePointsCost } from '@/utils/campaigns/resources';
 import { compareEquipmentCategories } from '@/utils/getEquipmentCategoryRank';
+import { countLimitPrefix } from '@/utils/countLimitPrefix';
 import {
   getEquipmentCategoryDisplayNameN26,
   getEquipmentSuperCategoryN26,
@@ -32,7 +33,6 @@ interface ItemModalProps {
   gangTypeId?: string | null;
   fighterId: string;
   fighterTypeId?: string;
-  gangAffiliationId?: string | null;
   fighterCredits: number;
   fighterHasLegacy?: boolean;
   fighterLegacyName?: string;
@@ -84,6 +84,8 @@ interface RawEquipmentData {
   cost_type_resource_id?: string | null;
   cost_campaign_resource_id?: string | null;
   banned?: boolean;
+  min_count?: number | null;
+  max_count?: number | null;
 }
 
 interface Category {
@@ -99,7 +101,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
   gangTypeId,
   fighterId,
   fighterTypeId,
-  gangAffiliationId,
   fighterCredits,
   fighterHasLegacy,
   vehicleId,
@@ -313,12 +314,13 @@ const ItemModal: React.FC<ItemModalProps> = ({
         }
       }
 
-      // Include fighter_id so RPC can resolve legacy fighter type availability/discounts
-      // Pass fighter_id if: legacy toggle enabled OR gang has affiliation
+      // fighter_id lets the RPC match subtype rules (e.g. Leaders and Champions) against
+      // the fighter's own subtypes, which keep-type promotions change without changing
+      // the fighter type. include_legacy decides whether its Gang Legacy type applies.
       const useLegacy = includeLegacyOverride !== undefined ? includeLegacyOverride : includeLegacy;
-      const hasGangAffiliation = Boolean(gangAffiliationId);
-      if (!isVehicleEquipment && fighterId && (useLegacy || hasGangAffiliation)) {
+      if (!isVehicleEquipment && fighterId) {
         requestBody.fighter_id = fighterId;
+        requestBody.include_legacy = useLegacy;
       }
 
       const response = await fetch(
@@ -915,8 +917,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                     <div className="flex items-center gap-2 flex-wrap">
                                       <span className="text-sm font-medium">
                                         {item.equipment_type === 'vehicle_upgrade' && item.vehicle_upgrade_slot
-                                          ? `${item.vehicle_upgrade_slot}: ${item.equipment_name}`
-                                          : item.equipment_name}
+                                          ? `${item.vehicle_upgrade_slot}: ${countLimitPrefix(item)}${item.equipment_name}`
+                                          : `${countLimitPrefix(item)}${item.equipment_name}`}
                                       </span>
                                       {item.banned && (
                                         <Badge variant="destructive" className="px-1 text-[0.6rem]">

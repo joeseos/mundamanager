@@ -1,5 +1,6 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useState, useCallback, useMemo } from 'react';
 import { FighterProps } from "@/types/fighter";
 import { FighterType } from "@/types/fighter-type";
@@ -9,7 +10,7 @@ import GangInventory from "@/components/gang/stash-tab";
 import { GangNotes } from "@/components/gang/notes-tab";
 import GangTerritories from "@/components/gang/campaign-tab";
 import GangVehicles from "@/components/gang/vehicles-tab";
-import { StashItem, DefaultImageEntry } from '@/types/gang';
+import { StashItem } from '@/types/gang';
 import { VehicleProps } from '@/types/vehicle';
 import { UserPermissions } from '@/types/user-permissions';
 import { FaUsers, FaBox, FaTruckMoving } from 'react-icons/fa';
@@ -20,7 +21,6 @@ import GangTacticsCards from "@/components/gang/gang-tactics-cards";
 import type { BattleSession } from "@/types/battle-session";
 import type { GangTacticsCard } from "@/types/tactics-card";
 import { FighterCardModalsProvider } from "@/components/gang/fighter-card-modals-context";
-import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { InjuriesList } from "@/components/fighter/fighter-injury-list";
 import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages";
 import Modal from "@/components/ui/modal";
@@ -28,7 +28,13 @@ import { editFighterStatus } from "@/app/actions/edit-fighter";
 import { toast } from 'sonner';
 import type { FighterEffect } from '@/types/fighter';
 import { hasKilledStatusFlag, countsTowardRating } from '@/utils/fighter-status';
-import { hasVehicles, hasGangTacticsCards } from '@/types/edition';
+import { hasVehicles, hasGangTacticsCards, hasPostCycleActions } from '@/types/edition';
+
+const FighterXpModal = dynamic(
+  () => import('@/components/fighter/fighter-xp-modal').then((mod) => mod.FighterXpModal),
+  { ssr: false }
+);
+const PostCycleActions = dynamic(() => import('@/components/gang/post-cycle-actions'), { ssr: false });
 
 interface GangPageContentProps {
   initialGangData: any; // We'll type this properly based on the processed data structure
@@ -45,10 +51,10 @@ interface GangDataState {
     custom_gang_type_id?: string | null;
     gang_type: string;
     edition_slug?: string | null;
-    gang_type_image_url: string;
     image_url?: string;
-    default_gang_image?: number | null;
-    gang_type_default_image_urls?: DefaultImageEntry[];
+    gang_portrait_id?: string | null;
+    gang_portrait_url?: string | null;
+    parent_gang_type_name?: string | null;
     gang_colour: string;
     credits: number;
     reputation: number;
@@ -147,6 +153,21 @@ export default function GangPageContent({
       }
     }));
   }, []);
+
+  const handleGangFinancialsUpdate = useCallback(
+    (financials: { credits: number; rating: number; wealth: number }) => {
+      setGangData((prev: GangDataState) => ({
+        ...prev,
+        processedData: {
+          ...prev.processedData,
+          credits: financials.credits,
+          rating: financials.rating,
+          wealth: financials.wealth,
+        },
+      }));
+    },
+    []
+  );
 
   const handleGangTradePointsUpdate = useCallback((newTradePoints: number) => {
     setGangData((prev: GangDataState) => ({
@@ -397,6 +418,17 @@ export default function GangPageContent({
     }));
   }, []);
 
+  // Functional, since Post-cycle Actions may add several in one apply.
+  const handleTacticsCardAdded = useCallback((card: GangTacticsCard) => {
+    setGangData((prev: GangDataState) => ({
+      ...prev,
+      processedData: {
+        ...prev.processedData,
+        tacticsCards: [...(prev.processedData.tacticsCards || []), card]
+      }
+    }));
+  }, []);
+
   const handleNoteBackstoryUpdate = useCallback((updatedNoteBackstory: string) => {
     setGangData((prev: GangDataState) => ({
       ...prev,
@@ -641,6 +673,7 @@ export default function GangPageContent({
             onFighterUpdate={handleFighterUpdate}
             onGangCreditsUpdate={handleGangCreditsUpdate}
             onGangWealthUpdate={handleGangWealthUpdate}
+            onGangRatingUpdate={handleGangRatingUpdate}
             gang_subtypes={gangData.processedData.gang_subtypes}
             vehicles={gangData.processedData.vehicles || []}
             userPermissions={userPermissions}
@@ -709,6 +742,22 @@ export default function GangPageContent({
             campaigns={gangData.processedData.campaigns || []}
             editionSlug={gangData.processedData.edition_slug}
           />
+          {hasPostCycleActions(gangData.processedData.edition_slug) && gangCampaigns.length > 0 && (
+            <PostCycleActions
+              gangId={gangId}
+              editionSlug={gangData.processedData.edition_slug}
+              fighters={gangData.processedData.fighters}
+              gangCredits={gangData.processedData.credits}
+              gangType={gangData.processedData.gang_type}
+              isCustomGangType={Boolean(gangData.processedData.custom_gang_type_id)}
+              gangSubtypes={gangData.processedData.gang_subtypes || []}
+              tacticsCards={gangData.processedData.tacticsCards || []}
+              userPermissions={userPermissions}
+              onFighterUpdate={handleFighterUpdate}
+              onGangFinancialsUpdate={handleGangFinancialsUpdate}
+              onTacticsCardAdded={handleTacticsCardAdded}
+            />
+          )}
         </div>
       ),
     },
@@ -763,7 +812,6 @@ export default function GangPageContent({
       {/* Fighter card context modals */}
       {xpModalFighter && (
         <FighterXpModal
-          isOpen={true}
           fighterId={xpModalFighter.id}
           currentXp={xpModalFighter.xp ?? 0}
           currentTotalXp={xpModalFighter.xp ?? 0}
@@ -935,17 +983,7 @@ export default function GangPageContent({
                   },
                 }));
               }}
-              onGangFinancialsUpdate={(financials) => {
-                setGangData(prev => ({
-                  ...prev,
-                  processedData: {
-                    ...prev.processedData,
-                    credits: financials.credits,
-                    rating: financials.rating,
-                    wealth: financials.wealth,
-                  },
-                }));
-              }}
+              onGangFinancialsUpdate={handleGangFinancialsUpdate}
             />
           </Modal>
         );

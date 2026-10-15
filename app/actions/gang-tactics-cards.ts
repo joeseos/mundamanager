@@ -54,7 +54,7 @@ async function authoriseGangTactics(
     .select(`
       id,
       user_id,
-      gang_types!gang_type_id ( gang_type_id, parent_gang_type_id, editions:edition_id ( id, slug ) ),
+      gang_types!gang_type_id ( id, parent_gang_type_id, editions:edition_id ( id, slug ) ),
       custom_gang_types!custom_gang_type_id ( editions:edition_id ( id, slug ) )
     `)
     .eq('id', gangId)
@@ -80,7 +80,7 @@ async function authoriseGangTactics(
     .from('tactics_cards_packs')
     .select('id, gang_type_id')
     .eq('edition_id', editionId)
-    .or(tacticsCardsPackFilter(gangType?.gang_type_id, gangType?.parent_gang_type_id));
+    .or(tacticsCardsPackFilter(gangType?.id, gangType?.parent_gang_type_id));
 
   if (packsError) throw packsError;
 
@@ -162,7 +162,7 @@ export async function verifyAndLogRolledTacticsCard(params: {
     const auth = await authoriseGangTactics(supabase, params.gangId);
     if ('error' in auth) return { success: false, error: auth.error };
 
-    // Every pack is its own D66 table, so the roll only resolves once narrowed
+    // Every pack is its own roll table, so the roll only resolves once narrowed
     // to one of them.
     const packId = params.tacticsCardsPackId ?? auth.context.corePackId;
     if (!packId || !auth.context.availablePackIds.includes(packId)) {

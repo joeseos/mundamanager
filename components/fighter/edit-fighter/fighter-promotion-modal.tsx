@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { Checkbox } from "@/components/ui/checkbox";
 import { HiX } from "react-icons/hi";
-import { ImInfo } from "react-icons/im";
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import {
@@ -123,7 +123,6 @@ interface FighterPromotionModalProps {
     fighter_variant?: string | null;
   }>;
   editionSlug?: string | null;
-  isOpen: boolean;
   onClose: () => void;
   /** When true, shows guidance to use Add Advancement for XP-based promotion. */
   showXpPromotionHint?: boolean;
@@ -139,14 +138,12 @@ export function FighterPromotionModal({
   currentFighterSpecialisationId,
   fighterTypes,
   editionSlug = null,
-  isOpen,
   onClose,
   showXpPromotionHint = false,
   onPromoted,
 }: FighterPromotionModalProps) {
   const [selectedTypeId, setSelectedTypeId] = useState('');
   const [selectedSpecialisationId, setSelectedSpecialisationId] = useState('');
-  const [newSpecialRules, setNewSpecialRules] = useState<string[]>([]);
   const [newRuleInput, setNewRuleInput] = useState('');
   const [includeAllGangFighterTypes, setIncludeAllGangFighterTypes] = useState(false);
 
@@ -172,6 +169,10 @@ export function FighterPromotionModal({
     : (PROMOTION_MAP[sourceSubtype] || '');
   const isExoticBeast = resolvedSubtypes.includes('Exotic Beast') || currentSubtype === 'Exotic Beast';
   const isSimplifiedPath = isExoticBeast || isN26ProspectPromotion || isN26GangerChampionPromotion;
+  // The simplified paths keep the fighter's own rules; the others take the chosen type's.
+  const [newSpecialRules, setNewSpecialRules] = useState<string[]>(
+    () => (isSimplifiedPath ? normalizeSpecialRules(currentSpecialRules) : [])
+  );
 
   const n26ProspectSubtypes = useMemo(
     () => buildN26ProspectPromotionSubtypes(
@@ -259,6 +260,7 @@ export function FighterPromotionModal({
       }),
     [
       displayTypes,
+      editionSlug,
       resolvedCurrentSpecialisationId,
       includeAllGangFighterTypes,
       targetSubtype,
@@ -270,27 +272,6 @@ export function FighterPromotionModal({
     () => normalizeSpecialRules(currentSpecialRules),
     [currentSpecialRules]
   );
-
-  // Reset state on each open, pre-select the first eligible type
-  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
-  if (isOpen && !prevIsOpen) {
-    if (isSimplifiedPath) {
-      setSelectedTypeId('');
-      setSelectedSpecialisationId('');
-      setIncludeAllGangFighterTypes(false);
-      setNewSpecialRules(normalizeSpecialRules(currentSpecialRules));
-      setNewRuleInput('');
-    } else {
-      setIncludeAllGangFighterTypes(false);
-      setSelectedTypeId('');
-      setSelectedSpecialisationId('');
-      setNewSpecialRules([]);
-      setNewRuleInput('');
-    }
-  }
-  if (isOpen !== prevIsOpen) {
-    setPrevIsOpen(isOpen);
-  }
 
   const handleIncludeAllGangFighterTypesChange = (checked: boolean) => {
     setIncludeAllGangFighterTypes(checked);
@@ -383,8 +364,6 @@ export function FighterPromotionModal({
   const confirmDisabled = isN26ProspectPromotion
     ? !selectedSpecialisation
     : !isExoticBeast && !isN26GangerChampionPromotion && !selectedType;
-
-  if (!isOpen) return null;
 
   return (
     <Modal
@@ -490,12 +469,9 @@ export function FighterPromotionModal({
                   >
                     Include all Gang Fighter Types
                   </label>
-                  <div className="relative group">
-                    <ImInfo tabIndex={0} className="outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded-sm" />
-                    <div className="absolute bottom-full mb-2 hidden group-hover:block group-focus-within:block bg-black text-white text-xs p-2 rounded-sm w-64 -left-36 z-50">
-                      When enabled, all Fighter Types available to this gang will be shown, not just those normally eligible for promotion.
-                    </div>
-                  </div>
+                  <InfoTooltip ariaLabel="About including all gang fighter types">
+                    When enabled, all Fighter Types available to this gang will be shown, not just those normally eligible for promotion.
+                  </InfoTooltip>
                 </div>
               </div>
 

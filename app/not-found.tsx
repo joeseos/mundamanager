@@ -7,7 +7,7 @@ export default function NotFound() {
       <h1 className="text-2xl font-semibold text-white">Page not found</h1>
       <p className="text-white/80">The page you&apos;re looking for doesn&apos;t exist.</p>
       <Button asChild>
-        <Link href="/">Go home</Link>
+        <Link href="/" prefetch={false}>Go home</Link>
       </Button>
     </div>
   );

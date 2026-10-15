@@ -1,22 +1,23 @@
 "use client"
 
 import { Button } from "@/components/ui/button";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, forwardRef, useImperativeHandle, useMemo, useCallback } from "react";
 import { toast } from 'sonner';
-import CampaignBattleLogModal from "@/components/campaigns/[id]/campaign-battle-log-modal";
 import { BiSolidNotepad } from "react-icons/bi";
 import { HiX } from "react-icons/hi";
 import { LuChevronLeft, LuChevronRight } from "react-icons/lu";
 import { deleteBattleLog } from "@/app/actions/campaigns/[id]/battle-logs";
+import { createBattleSession } from "@/app/actions/battle-sessions";
 import { updateMemberRole } from "@/app/actions/campaigns/[id]/campaign-members";
 import Modal from "@/components/ui/modal";
 import Link from "next/link";
 import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md";
 import { HiUser } from "react-icons/hi2";
-import { LuTrash2, LuSquarePen } from "react-icons/lu";
+import { LuTrash2, LuSquarePen, LuSwords } from "react-icons/lu";
 import { useMutation } from '@tanstack/react-query';
-import { Battle, BattleParticipant, CampaignGang, Territory, Member } from '@/types/campaign';
+import { Battle, BattleParticipant, CampaignGang, Territory, Member, ScenarioTableWithEntries, scenarioLabel as scenarioLabelOf } from '@/types/campaign';
 import { battleStatusColors, battleStatusLabels, battleStatusOf, isPlayedBattle } from '@/types/campaign';
 import CampaignChallengeRoundModal from '@/components/campaigns/[id]/campaign-challenge-round-modal';
 import { getWinnerIds } from '@/utils/battle-winners';
@@ -24,6 +25,8 @@ import { Combobox } from "@/components/ui/combobox";
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+
+const CampaignBattleLogModal = dynamic(() => import("@/components/campaigns/[id]/campaign-battle-log-modal"), { ssr: false });
 
 interface CampaignBattleLogsTerritory extends Territory {
   default_gang_territory?: boolean;
@@ -53,6 +56,8 @@ interface CampaignBattleLogsListProps {
   isCampaignOwner?: boolean;
   isCampaignAdmin?: boolean;
   currentCycle?: number | null;
+  /** The campaign edition's scenario tables: N26 battles are made from them. */
+  scenarioTables?: ScenarioTableWithEntries[];
 }
 
 export interface CampaignBattleLogsListRef {
@@ -96,6 +101,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     isCampaignOwner = false,
     isCampaignAdmin = false,
     currentCycle = null,
+    scenarioTables = [],
   } = props;
   
   const [showBattleModal, setShowBattleModal] = useState(false);
@@ -143,6 +149,19 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   const [selectedBattle, setSelectedBattle] = useState<Battle | null>(null);
   const [battleToDelete, setBattleToDelete] = useState<Battle | null>(null);
 
+  // A battle is named by its scenario text when it has one (N23, or an N26 scenario name), else by its Deployment and Objective.
+  const scenarioLabel = useMemo(() => {
+    const entryNames = new Map(
+      scenarioTables.flatMap((table) => table.entries.map((entry) => [entry.id, entry.name] as const))
+    );
+    return (battle: Battle) =>
+      scenarioLabelOf(
+        battle.scenario,
+        battle.deployment_id ? entryNames.get(battle.deployment_id) : battle.deployment_name,
+        battle.objective_id ? entryNames.get(battle.objective_id) : battle.objective_name
+      ) || battle.scenario_name || '';
+  }, [scenarioTables]);
+
   // Extract unique values for filter options
   const filterOptions = useMemo(() => {
     const cycles = new Set<number>();
@@ -158,7 +177,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       }
 
       // Scenarios
-      const scenarioName = battle.scenario || battle.scenario_name;
+      const scenarioName = scenarioLabel(battle);
       if (scenarioName) {
         scenarios.add(scenarioName);
       }
@@ -198,7 +217,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       winningGangIds: Array.from(winningGangIds),
       hasDraws
     };
-  }, [battles]);
+  }, [battles, scenarioLabel]);
 
   const gangRatings = useMemo(() => {
     const map = new Map<string, number>();
@@ -218,8 +237,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
 
     if (filterScenario) {
       filtered = filtered.filter(battle => {
-        const scenarioName = battle.scenario || battle.scenario_name;
-        return scenarioName === filterScenario;
+        return scenarioLabel(battle) === filterScenario;
       });
     }
 
@@ -265,8 +283,8 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           bValue = b.cycle ?? -1;
           break;
         case 'scenario':
-          aValue = (a.scenario || a.scenario_name || '').toLowerCase();
-          bValue = (b.scenario || b.scenario_name || '').toLowerCase();
+          aValue = scenarioLabel(a).toLowerCase();
+          bValue = scenarioLabel(b).toLowerCase();
           break;
         case 'territory':
           aValue = (a.territory_name || '').toLowerCase();
@@ -322,7 +340,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       }
       return 0;
     });
-  }, [battles, filterCycle, filterScenario, filterParticipatingGang, filterWinningGang, filterDraws, sortField, sortDirection, gangRatings]);
+  }, [battles, filterCycle, filterScenario, filterParticipatingGang, filterWinningGang, filterDraws, sortField, sortDirection, gangRatings, scenarioLabel]);
 
   // Handle sorting
   const handleSort = (field: string) => {
@@ -436,6 +454,19 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     }
   });
 
+  // Opens the challenge's battle session, starting it on first use.
+  const playChallengeMutation = useMutation({
+    mutationFn: (battleId: string) => createBattleSession({ campaign_battle_id: battleId }),
+    onSuccess: (result) => {
+      if (!result.success || !result.session_id) {
+        toast.error(result.error || 'Failed to start battle session');
+        return;
+      }
+      router.push(`/campaigns/${campaignId}/battle-session/${result.session_id}`);
+    },
+    onError: () => toast.error('Failed to start battle session'),
+  });
+
   // Expose the openAddModal function to parent components
   useImperativeHandle(ref, () => ({
     openAddModal: () => {
@@ -463,6 +494,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
               gangsMap.set(gangKey, {
                 id: gang.id,
                 name: gang.name,
+                gang_type_id: gang.gang_type_id,
                 gang_colour: gang.gang_colour,
                 campaign_member_id: member.id || gang.campaign_member_id,
                 user_id: member.user_id,
@@ -1118,7 +1150,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                   </td>
 
                   <td className="p-1 md:p-2 align-top max-w-[8rem]">
-                    {battle.scenario || battle.scenario_name || '-'}
+                    {scenarioLabel(battle) || '-'}
                   </td>
 
                   <td className="p-1 md:p-2 align-top">
@@ -1190,7 +1222,20 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                   </td>
                   {canUserEditBattle(battle) && (
                     <td className="p-1 md:p-2 align-top text-right">
-                      <div className="flex flex-wrap justify-end gap-2">
+                      <div className="flex justify-end gap-2">
+                        {battleStatusOf(battle) === 'challenge_accepted' && (
+                          <Button
+                            onClick={() => playChallengeMutation.mutate(battle.id)}
+                            disabled={playChallengeMutation.isPending}
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            aria-label="Play as battle session"
+                            title="Play as battle session"
+                          >
+                            <LuSwords className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           onClick={() => handleEditBattle(battle)}
                           variant="outline"
@@ -1353,26 +1398,28 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         />
       )}
 
-      <CampaignBattleLogModal
-        campaignId={campaignId}
-        editionSlug={editionSlug}
-        availableGangs={availableGangs}
-        territories={territories.map(t => ({
-          id: t.id,
-          name: t.territory_name,
-          controlled_by: t.gang_id || undefined,
-          is_custom: t.is_custom,
-          default_gang_territory: t.default_gang_territory
-        }))}
-        isOpen={showBattleModal}
-        onClose={handleModalClose}
-        onBattleUpdate={onBattlesChange}
-        onTerritoryUpdate={onTerritoryUpdate}
-        battles={battles}
-        battleToEdit={selectedBattle}
-        userRole={isAdmin ? 'ARBITRATOR' : 'MEMBER'}
-        canRespondToChallenge={isAdmin || ownsGang(selectedBattle?.challenged_gang_id)}
-      />
+      {showBattleModal && (
+        <CampaignBattleLogModal
+          campaignId={campaignId}
+          editionSlug={editionSlug}
+          availableGangs={availableGangs}
+          scenarioTables={scenarioTables}
+          territories={territories.map(t => ({
+            id: t.id,
+            name: t.territory_name,
+            controlled_by: t.gang_id || undefined,
+            is_custom: t.is_custom,
+            default_gang_territory: t.default_gang_territory
+          }))}
+          onClose={handleModalClose}
+          onBattleUpdate={onBattlesChange}
+          onTerritoryUpdate={onTerritoryUpdate}
+          battles={battles}
+          battleToEdit={selectedBattle}
+          userRole={isAdmin ? 'ARBITRATOR' : 'MEMBER'}
+          canRespondToChallenge={isAdmin || ownsGang(selectedBattle?.challenged_gang_id)}
+        />
+      )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
@@ -1384,7 +1431,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
               {battleToDelete && (
                 <div className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
                   <p><span className="font-medium">Date:</span> {formatDate(battleToDelete.created_at)}</p>
-                  <p><span className="font-medium">Scenario:</span> {battleToDelete.scenario || battleToDelete.scenario_name || 'N/A'}</p>
+                  <p><span className="font-medium">Scenario:</span> {scenarioLabel(battleToDelete) || 'N/A'}</p>
                 </div>
               )}
               <p className="text-sm text-red-600 mt-4">

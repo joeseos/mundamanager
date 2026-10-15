@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import Modal from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { copyFighter } from '@/app/actions/copy-fighter';
 import { toast } from 'sonner';
-import { ImInfo } from 'react-icons/im';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 
 interface VehicleInfo {
   id: string;
@@ -18,7 +18,6 @@ interface CopyFighterModalProps {
   fighterId: string;
   currentName: string;
   currentGangId: string;
-  isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
   fighterBaseCost: number;
@@ -32,7 +31,6 @@ export default function CopyFighterModal({
   fighterId,
   currentName,
   currentGangId,
-  isOpen,
   onClose,
   onSuccess,
   fighterBaseCost,
@@ -68,21 +66,6 @@ export default function CopyFighterModal({
     return fighterCost + vehicleCost;
   }, [copyAsExperienced, fighterBaseCost, fighterFullCost, copyVehicles, hasVehicles, totalVehicleCost]);
 
-  if (!isOpen) return null;
-
-  const resetModalState = () => {
-    setName(currentName);
-    setSubmitting(false);
-    setDeductCredits(true);
-    setCopyAsExperienced(false);
-    setCopyVehicles(true);
-  };
-
-  const handleClose = () => {
-    resetModalState();
-    onClose();
-  };
-
   const handleConfirm = async () => {
     if (!name.trim()) return false;
 
@@ -110,7 +93,6 @@ export default function CopyFighterModal({
         : `${result.data?.fighter_name} was successfully copied.`
     });
 
-    resetModalState();
     onClose();
     onSuccess?.();
 
@@ -131,7 +113,7 @@ export default function CopyFighterModal({
         )
       }
       helper="Choose a name for the fighter copy."
-      onClose={handleClose}
+      onClose={onClose}
       onConfirm={handleConfirm}
       confirmText={submitting ? 'Copying...' : 'Copy'}
       confirmDisabled={!name.trim() || submitting}
@@ -161,12 +143,9 @@ export default function CopyFighterModal({
             <label htmlFor="copyAsExperienced" className="text-sm font-medium text-muted-foreground cursor-pointer">
               Copy as experienced fighter
             </label>
-            <div className="relative group">
-              <ImInfo />
-              <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
-                Includes XP, advancements, and lasting injuries
-              </div>
-            </div>
+            <InfoTooltip ariaLabel="About copying as an experienced fighter">
+              Includes XP, advancements, and lasting injuries
+            </InfoTooltip>
           </div>
 
           <div className="text-xs text-muted-foreground ml-6">
@@ -205,12 +184,9 @@ export default function CopyFighterModal({
                 <label htmlFor="copyVehicles" className="text-sm font-medium text-muted-foreground cursor-pointer">
                   Copy assigned vehicle{vehicles!.length > 1 ? 's' : ''} ({vehicles!.map(v => v.vehicle_name).join(', ')} - {totalVehicleCost} credits)
                 </label>
-                <div className="relative group">
-                  <ImInfo />
-                  <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
-                    Includes vehicle base cost and all equipment
-                  </div>
-                </div>
+                <InfoTooltip ariaLabel="About copying assigned vehicles">
+                  Includes vehicle base cost and all equipment
+                </InfoTooltip>
               </div>
             </div>
           )}

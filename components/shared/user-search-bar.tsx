@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 
@@ -16,6 +17,18 @@ interface UserSearchBarProps {
   excludeIds?: string[]
 }
 
+const SEARCH_DEBOUNCE_MS = 300
+
+async function searchUsers(query: string, signal: AbortSignal): Promise<UserSearchResult[]> {
+  const response = await fetch(`/api/search-users?query=${encodeURIComponent(query)}`, { signal })
+
+  if (!response.ok) {
+    throw new Error('Failed to search users')
+  }
+
+  return response.json()
+}
+
 export default function UserSearchBar({
   placeholder,
   onSelect,
@@ -23,45 +36,43 @@ export default function UserSearchBar({
   excludeIds = [],
 }: UserSearchBarProps) {
   const [query, setQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<UserSearchResult[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const excludeKey = excludeIds.join(',')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+  const hasSearch = debouncedQuery.trim() !== ''
 
   useEffect(() => {
-    const searchUsers = async () => {
-      if (query.trim() === '') {
-        setSearchResults([])
-        return
-      }
-
-      setIsLoading(true)
-      try {
-        const response = await fetch(`/api/search-users?query=${encodeURIComponent(query)}`)
-
-        if (!response.ok) {
-          throw new Error('Failed to search users')
-        }
-
-        const profilesData: UserSearchResult[] = await response.json()
-        const excludeSet = new Set(excludeKey ? excludeKey.split(',') : [])
-        setSearchResults((profilesData || []).filter((profile) => !excludeSet.has(profile.id)))
-      } catch (error) {
-        console.error('Error searching users:', error)
-        setSearchResults([])
-        toast.error('Failed to search users')
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    const debounceTimer = setTimeout(searchUsers, 300)
+    const debounceTimer = setTimeout(() => setDebouncedQuery(query), SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(debounceTimer)
-  }, [query, excludeKey])
+  }, [query])
+
+  // Keyed by the search text, so a response that arrives after the text has
+  // changed only fills the cache for its own query and never replaces the
+  // results shown.
+  const { data, isFetching, error } = useQuery({
+    queryKey: ['user-search', debouncedQuery],
+    queryFn: ({ signal }) => searchUsers(debouncedQuery, signal),
+    enabled: hasSearch,
+    // Keep showing the last results while the next ones load
+    placeholderData: keepPreviousData,
+    // The user can just type again, and retries would hold back the error toast
+    retry: false,
+  })
+
+  useEffect(() => {
+    if (!error) return
+    console.error('Error searching users:', error)
+    toast.error('Failed to search users')
+  }, [error])
+
+  // A disabled query still returns the placeholder, so blank text is checked here
+  const excludeSet = new Set(excludeIds)
+  const searchResults = hasSearch
+    ? (data || []).filter((profile) => !excludeSet.has(profile.id))
+    : []
 
   const handleSelect = (user: UserSearchResult) => {
     onSelect(user)
     setQuery('')
-    setSearchResults([])
+    setDebouncedQuery('')
   }
 
   return (
@@ -74,7 +85,7 @@ export default function UserSearchBar({
         className="w-full"
         disabled={disabled}
       />
-      {isLoading && (
+      {isFetching && (
         <div className="absolute right-3 top-1/2 -translate-y-1/2">
           <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
         </div>

@@ -3,7 +3,7 @@ import { countAdvancementsTaken } from '@/utils/advancementRanks';
 import { readHatredTarget } from '@/utils/injuryTarget';
 import { WeaponProps, WargearItem } from '@/types/fighter';
 import { WeaponProfile } from '@/types/equipment';
-import { applyWeaponModifiers } from '@/utils/effect-modifiers';
+import { applyWeaponModifiers, fighterWideWeaponEffects } from '@/utils/effect-modifiers';
 import type {
   GangFighter,
   GangFighterIndexEntry,
@@ -22,7 +22,7 @@ export function groupBy<T extends Record<string, any>>(array: T[], key: string):
   }, {});
 }
 
-type RawWeaponProfile = WeaponProfile & { weapon_id: string };
+type RawWeaponProfile = WeaponProfile & { equipment_id: string };
 type RawCustomWeaponProfile = WeaponProfile & { custom_equipment_id: string };
 
 const sortProfiles = (profiles: WeaponProfile[]) =>
@@ -48,9 +48,9 @@ function buildProfileMaps(equipmentRows: any[]) {
       for (const p of (item.equipment.weapon_profiles || []) as RawWeaponProfile[]) {
         if (seenStdIds.has(p.id)) continue;
         seenStdIds.add(p.id);
-        if (!standardProfilesMap.has(p.weapon_id)) standardProfilesMap.set(p.weapon_id, []);
-        standardProfilesMap.get(p.weapon_id)!.push(p);
-        if (p.weapon_group_id && p.weapon_group_id !== p.weapon_id) {
+        if (!standardProfilesMap.has(p.equipment_id)) standardProfilesMap.set(p.equipment_id, []);
+        standardProfilesMap.get(p.equipment_id)!.push(p);
+        if (p.weapon_group_id && p.weapon_group_id !== p.equipment_id) {
           if (!standardAmmoByParentWeapon.has(p.weapon_group_id)) standardAmmoByParentWeapon.set(p.weapon_group_id, []);
           standardAmmoByParentWeapon.get(p.weapon_group_id)!.push(p);
         }
@@ -363,6 +363,8 @@ export function assembleGangFighters(
             )
           : null;
 
+        const fighterWideEffects = fighterWideWeaponEffects(Object.values(effects).flat());
+
         // Process equipment and add weapon profiles
         const processedEquipment = equipment.map((item: any) => {
           const equipmentType = (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type;
@@ -375,7 +377,7 @@ export function assembleGangFighters(
 
               // Get ammo profiles ONLY if THIS fighter owns the ammo and (when loadout active) ammo is in loadout
               const standardAmmo = (standardAmmoByParentWeapon.get(item.equipment_id) || [])
-                .filter((p: any) => fighterStandardIds.has(p.weapon_id) && (loadoutEquipmentIds === null || loadoutEquipmentIds.has(p.weapon_id)));
+                .filter((p: any) => fighterStandardIds.has(p.equipment_id) && (loadoutEquipmentIds === null || loadoutEquipmentIds.has(p.equipment_id)));
               const customAmmo = (customAmmoByParentWeapon.get(item.equipment_id) || [])
                 .filter((p: any) => fighterCustomIds.has(p.custom_equipment_id) && (loadoutEquipmentIds === null || loadoutEquipmentIds.has(p.custom_equipment_id)));
 
@@ -399,7 +401,7 @@ export function assembleGangFighters(
               const customAmmo = (customAmmoByParentWeapon.get(item.custom_equipment_id) || [])
                 .filter((p: any) => fighterCustomIds.has(p.custom_equipment_id) && (loadoutEquipmentIds === null || loadoutEquipmentIds.has(p.custom_equipment_id)));
               const standardAmmo = (standardAmmoByParentWeapon.get(item.custom_equipment_id) || [])
-                .filter((p: any) => fighterStandardIds.has(p.weapon_id) && (loadoutEquipmentIds === null || loadoutEquipmentIds.has(p.weapon_id)));
+                .filter((p: any) => fighterStandardIds.has(p.equipment_id) && (loadoutEquipmentIds === null || loadoutEquipmentIds.has(p.equipment_id)));
 
               // Combine and deduplicate
               const seenIds = new Set<string>();
@@ -418,7 +420,7 @@ export function assembleGangFighters(
 
           // Apply equipment-targeted effect modifiers to weapon profiles
           if (weaponProfiles.length > 0) {
-            const targetingEffects = equipmentTargetingEffectsMap.get(item.id) || [];
+            const targetingEffects = [...(equipmentTargetingEffectsMap.get(item.id) || []), ...fighterWideEffects];
             if (targetingEffects.length > 0) {
               weaponProfiles = applyWeaponModifiers(weaponProfiles, targetingEffects);
             }
@@ -492,7 +494,7 @@ export function assembleGangFighters(
               if (item.equipment_id) {
                 const baseProfiles = vehicleStandardProfilesMap.get(item.equipment_id) || [];
                 const standardAmmo = (vehicleStandardAmmoByParent.get(item.equipment_id) || [])
-                  .filter((p: any) => vehicleStandardIds.has(p.weapon_id));
+                  .filter((p: any) => vehicleStandardIds.has(p.equipment_id));
                 const customAmmo = (vehicleCustomAmmoByParent.get(item.equipment_id) || [])
                   .filter((p: any) => vehicleCustomIds.has(p.custom_equipment_id));
 
@@ -509,7 +511,7 @@ export function assembleGangFighters(
                 const customAmmo = (vehicleCustomAmmoByParent.get(item.custom_equipment_id) || [])
                   .filter((p: any) => vehicleCustomIds.has(p.custom_equipment_id));
                 const standardAmmo = (vehicleStandardAmmoByParent.get(item.custom_equipment_id) || [])
-                  .filter((p: any) => vehicleStandardIds.has(p.weapon_id));
+                  .filter((p: any) => vehicleStandardIds.has(p.equipment_id));
 
                 const seenIds = new Set<string>();
                 weaponProfiles = [...baseProfiles, ...customAmmo, ...standardAmmo]
@@ -937,6 +939,8 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
   const myEquipmentIds = new Set(myEquipment.map((e: any) => e.id));
   const ownedStandardIds = new Set(myEquipment.filter((e: any) => e.equipment_id).map((e: any) => e.equipment_id));
 
+  const myEffects = bundle.effects.filter((e: any) => e.fighter_id === fighterId && !e.vehicle_id);
+
   // Target relationships (equipment-to-equipment upgrades)
   const targetEffectsMap = new Map<string, string>();
   // Effects that modify equipment profiles: targeting effects + self-effects
@@ -982,6 +986,15 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
     });
   });
 
+  // Same fallback as the gang view: an active loadout that can't be found holds nothing
+  const activeLoadoutId = fighterRow?.active_loadout_id;
+  const activeLoadoutEquipmentIds = activeLoadoutId
+    ? new Set((myLoadouts.find((l: any) => l.id === activeLoadoutId)?.fighter_loadout_equipment || []).map((a: any) => a.fighter_equipment_id))
+    : null;
+  const fighterWideEffects = fighterWideWeaponEffects(
+    myEffects.filter((e: any) => !activeLoadoutEquipmentIds || !e.fighter_equipment_id || activeLoadoutEquipmentIds.has(e.fighter_equipment_id))
+  );
+
   // Standard profile map from nested profiles of the fighter's own equipment;
   // each profile is also aliased under its weapon_group_id (grouped weapons,
   // e.g. smoke grenades) when the fighter owns the profile's weapon.
@@ -998,10 +1011,10 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
   stdProfiles.sort(byProfileOrder);
   const standardProfilesMap = new Map<string, any[]>();
   stdProfiles.forEach((profile: any) => {
-    if (!standardProfilesMap.has(profile.weapon_id)) standardProfilesMap.set(profile.weapon_id, []);
-    standardProfilesMap.get(profile.weapon_id)!.push(profile);
-    if (profile.weapon_group_id && profile.weapon_group_id !== profile.weapon_id
-        && ownedStandardIds.has(profile.weapon_id)) {
+    if (!standardProfilesMap.has(profile.equipment_id)) standardProfilesMap.set(profile.equipment_id, []);
+    standardProfilesMap.get(profile.equipment_id)!.push(profile);
+    if (profile.weapon_group_id && profile.weapon_group_id !== profile.equipment_id
+        && ownedStandardIds.has(profile.equipment_id)) {
       if (!standardProfilesMap.has(profile.weapon_group_id)) standardProfilesMap.set(profile.weapon_group_id, []);
       standardProfilesMap.get(profile.weapon_group_id)!.push(profile);
     }
@@ -1024,6 +1037,12 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
     customProfilesMap.get(profile.custom_equipment_id)!.push(profile);
   });
 
+  // This fighter's skills: names label skill-granted equipment (fighter_skill_id)
+  // and feed the Skills section below
+  const mySkills = bundle.skills.filter((s: any) => s.fighter_id === fighterId);
+  const skillNameOf = (s: any): string | undefined => (s.skill as any)?.name || (s.custom_skill as any)?.skill_name;
+  const skillNameById = new Map<string, string | undefined>(mySkills.map((s: any) => [s.id, skillNameOf(s)]));
+
   const equipment = myEquipment.map((item: any) => {
     const equipmentType = (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type;
     let weaponProfiles: any[] = [];
@@ -1043,7 +1062,7 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
     }
 
     if (weaponProfiles.length > 0) {
-      const weaponEffects = weaponEffectsMap.get(item.id) || [];
+      const weaponEffects = [...(weaponEffectsMap.get(item.id) || []), ...fighterWideEffects];
       if (weaponEffects.length > 0) {
         weaponProfiles = applyWeaponModifiers(weaponProfiles, weaponEffects);
       }
@@ -1068,14 +1087,16 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
       effect_names: effectNames.length > 0 ? effectNames : undefined,
       loadout_ids: loadoutIds.length > 0 ? loadoutIds : undefined,
       is_consumable: (item.equipment as any)?.is_consumable ?? (item.custom_equipment as any)?.is_consumable ?? false,
-      cost_resource: item.cost_resource ?? null
+      cost_resource: item.cost_resource ?? null,
+      fighter_skill_id: item.fighter_skill_id ?? null,
+      granted_by_skill_name: item.fighter_skill_id ? skillNameById.get(item.fighter_skill_id) : undefined
     };
   });
 
   // ---- Skills (previous getFighterSkills semantics) ----
   const skills: Record<string, any> = {};
-  bundle.skills.filter((s: any) => s.fighter_id === fighterId).forEach((skillData: any) => {
-    const skillName = (skillData.skill as any)?.name || (skillData.custom_skill as any)?.skill_name;
+  mySkills.forEach((skillData: any) => {
+    const skillName = skillNameOf(skillData);
     if (skillName) {
       const fe = skillData.fighter_effect_skills?.fighter_effects;
       const injuryName = fe?.effect_name;
@@ -1118,23 +1139,21 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
 
   // ---- Effects (previous getFighterEffects semantics) ----
   const effects: Record<string, any[]> = {};
-  bundle.effects
-    .filter((e: any) => e.fighter_id === fighterId && !e.vehicle_id)
-    .forEach((effectData: any) => {
-      const categoryName = (effectData.fighter_effect_type as any)?.fighter_effect_category?.category_name || 'uncategorized';
-      if (!effects[categoryName]) effects[categoryName] = [];
-      const effectType = effectData.fighter_effect_type as { sort_order?: number | null } | null;
-      effects[categoryName].push({
-        id: effectData.id,
-        effect_name: effectData.effect_name,
-        type_specific_data: effectData.type_specific_data,
-        sort_order: effectType?.sort_order ?? effectData.sort_order ?? null,
-        created_at: effectData.created_at,
-        updated_at: effectData.updated_at || undefined,
-        fighter_equipment_id: effectData.fighter_equipment_id || undefined,
-        fighter_effect_modifiers: effectData.fighter_effect_modifiers || [],
-      });
+  myEffects.forEach((effectData: any) => {
+    const categoryName = (effectData.fighter_effect_type as any)?.fighter_effect_category?.category_name || 'uncategorized';
+    if (!effects[categoryName]) effects[categoryName] = [];
+    const effectType = effectData.fighter_effect_type as { sort_order?: number | null } | null;
+    effects[categoryName].push({
+      id: effectData.id,
+      effect_name: effectData.effect_name,
+      type_specific_data: effectData.type_specific_data,
+      sort_order: effectType?.sort_order ?? effectData.sort_order ?? null,
+      created_at: effectData.created_at,
+      updated_at: effectData.updated_at || undefined,
+      fighter_equipment_id: effectData.fighter_equipment_id || undefined,
+      fighter_effect_modifiers: effectData.fighter_effect_modifiers || [],
     });
+  });
 
   // ---- Vehicles (previous getFighterVehicles semantics) ----
   const vehicles = bundle.vehicles
@@ -1167,11 +1186,11 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
       const vStdBase = new Map<string, any[]>();
       const vStdAmmo = new Map<string, any[]>();
       vStd.forEach((profile: any) => {
-        if (profile.weapon_id) {
-          if (!vStdBase.has(profile.weapon_id)) vStdBase.set(profile.weapon_id, []);
-          vStdBase.get(profile.weapon_id)!.push(profile);
+        if (profile.equipment_id) {
+          if (!vStdBase.has(profile.equipment_id)) vStdBase.set(profile.equipment_id, []);
+          vStdBase.get(profile.equipment_id)!.push(profile);
         }
-        if (profile.weapon_group_id && profile.weapon_group_id !== profile.weapon_id) {
+        if (profile.weapon_group_id && profile.weapon_group_id !== profile.equipment_id) {
           if (!vStdAmmo.has(profile.weapon_group_id)) vStdAmmo.set(profile.weapon_group_id, []);
           vStdAmmo.get(profile.weapon_group_id)!.push(profile);
         }
@@ -1197,7 +1216,7 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
           if (item.equipment_id) {
             const baseProfiles = vStdBase.get(item.equipment_id) || [];
             const standardAmmo = (vStdAmmo.get(item.equipment_id) || [])
-              .filter((p: any) => vehicleStandardIds.has(p.weapon_id));
+              .filter((p: any) => vehicleStandardIds.has(p.equipment_id));
             const customAmmo = (vCustAmmo.get(item.equipment_id) || [])
               .filter((p: any) => vehicleCustomIds.has(p.custom_equipment_id));
             const seenIds = new Set<string>();
@@ -1216,7 +1235,7 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
             const customAmmo = (vCustAmmo.get(item.custom_equipment_id) || [])
               .filter((p: any) => vehicleCustomIds.has(p.custom_equipment_id));
             const standardAmmo = (vStdAmmo.get(item.custom_equipment_id) || [])
-              .filter((p: any) => vehicleStandardIds.has(p.weapon_id));
+              .filter((p: any) => vehicleStandardIds.has(p.equipment_id));
             const seenIds = new Set<string>();
             weaponProfiles = [...baseProfiles, ...customAmmo, ...standardAmmo]
               .filter((p: any) => {

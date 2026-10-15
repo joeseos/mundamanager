@@ -197,21 +197,10 @@ export function PowerBoostsList({
 
     try {
       setIsLoadingPowerBoosts(true);
-      const { createClient } = await import('@/utils/supabase/client');
-      const supabase = createClient();
+      const response = await fetch('/api/fighter-effects?category=power-boosts');
+      if (!response.ok) throw new Error('Failed to fetch power boosts');
 
-      const { data, error } = await supabase
-        .from('fighter_effect_types')
-        .select(`
-          *,
-          fighter_effect_type_modifiers(*)
-        `)
-        .eq('fighter_effect_category_id', '047d6547-ab52-485e-afaa-b570d8a7d8b8')
-        .order('effect_name', { ascending: true });
-
-      if (error) throw error;
-
-      setAvailablePowerBoosts(data || []);
+      setAvailablePowerBoosts(await response.json());
     } catch (error) {
       console.error('Error fetching power boosts:', error);
       toast.error('Failed to load power boost types');
@@ -293,7 +282,7 @@ export function PowerBoostsList({
 
     // If parent has modifier selection, use the already-fetched modifiers and show selection UI
     if (hasModifierSelection && effectTypes.length === 0 && !showEffectSelection) {
-      const modifiers = (boost as any).fighter_effect_type_modifiers || [];
+      const modifiers = (boost as any).modifiers || [];
 
       if (modifiers.length > 1) {
         // Convert modifiers to effect type format for FighterEffectSelection

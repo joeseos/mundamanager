@@ -10,7 +10,7 @@ import FriendsSearchBar from "@/components/account/friends";
 import { getFriendsAndRequests } from "@/app/lib/friends";
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { Badge } from "@/components/ui/badge";
-import { ImInfo } from "react-icons/im";
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { signInPath } from "@/utils/auth";
 // Using full auth user on profile to display email and timestamps
 
@@ -58,14 +58,16 @@ export default async function AccountPage() {
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1 flex items-center gap-1">
                 Patreon Status
-                <div className="relative group">
-                  <ImInfo className="text-muted-foreground cursor-help" />
-                  <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
-                    Emails on Patreon and Munda Manager need to match for the membership to be displayed.
-                    <br /><br />
-                    Please raise a ticket on Discord if you think there is an error.
+                <InfoTooltip ariaLabel="How Patreon membership is matched">
+                  <div className="space-y-2">
+                    <p>
+                      Emails on Patreon and Munda Manager need to match for the membership to be displayed.
+                    </p>
+                    <p>
+                      Please raise a ticket on Discord if you think there is an error.
+                    </p>
                   </div>
-                </div>
+                </InfoTooltip>
               </label>
               <div className="text-foreground bg-muted rounded-md px-3 py-2">
                 {profile?.patreon_tier_id && profile?.patron_status === 'active_patron' ? (
@@ -112,7 +114,7 @@ export default async function AccountPage() {
           </div>
           
           {/* Notifications */}
-          <div className="mt-6">
+          <div id="notifications" className="mt-6 scroll-mt-20">
             <h3 className="text-lg font-semibold mb-3">Notifications</h3>
             <NotificationsSection userId={user.id} />
           </div>

@@ -174,7 +174,8 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           original_cost,
           is_master_crafted,
           is_editable,
-          vehicle_id
+          vehicle_id,
+          fighter_skill_id
         ),
         fighter_skills(
           id,
@@ -515,6 +516,16 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       }
     }
 
+    // Copy skills before equipment — the skill ID map feeds fighter_skill_id on
+    // effects and on skill-granted equipment
+    const { skillIdMap, error: skillsError } = await copySkills(
+      supabase, sourceFighter, newFighterId, gang.user_id, params.copy_as_experienced
+    );
+
+    if (skillsError) {
+      return await rollbackFighter(`Failed to copy skills: ${skillsError}`);
+    }
+
     // Copy equipment (fighter equipment only - no vehicle_id)
     // Build equipment ID map for effect FK remapping
     const equipmentIdMap = new Map<string, string>();
@@ -524,6 +535,11 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
         .filter((eq: any) => !eq.vehicle_id);
 
       for (const eq of sourceEquipNonVehicle) {
+        // Skill-granted equipment goes with its skill; a base copy that left the
+        // skill behind leaves the item behind too
+        const mappedSkillId = eq.fighter_skill_id ? skillIdMap.get(eq.fighter_skill_id) : null;
+        if (eq.fighter_skill_id && !mappedSkillId) continue;
+
         const { data: inserted, error: equipmentError } = await supabase
           .from('fighter_equipment')
           .insert({
@@ -534,6 +550,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
             original_cost: eq.original_cost,
             is_master_crafted: eq.is_master_crafted || false,
             is_editable: eq.is_editable || false,
+            fighter_skill_id: mappedSkillId,
             gang_id: params.target_gang_id,
             user_id: gang.user_id
           })
@@ -580,15 +597,6 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           equipmentIdMap.set(eq.id, inserted.id);
         }
       }
-    }
-
-    // Copy skills — skill ID map feeds effect FK remapping (fighter_skill_id)
-    const { skillIdMap, error: skillsError } = await copySkills(
-      supabase, sourceFighter, newFighterId, gang.user_id, params.copy_as_experienced
-    );
-
-    if (skillsError) {
-      return await rollbackFighter(`Failed to copy skills: ${skillsError}`);
     }
 
     // Copy effects and modifiers (when experienced: all effects; when not: exclude injuries and advancements)
@@ -767,7 +775,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           .from('fighters')
           .select(`
             *,
-            fighter_equipment(id, equipment_id, custom_equipment_id, purchase_cost, original_cost, is_master_crafted, is_editable),
+            fighter_equipment(id, equipment_id, custom_equipment_id, purchase_cost, original_cost, is_master_crafted, is_editable, fighter_skill_id),
             fighter_skills(id, skill_id, custom_skill_id, credits_increase, xp_cost, is_advance),
             fighter_effects(
               id, effect_name, fighter_effect_type_id, type_specific_data,
@@ -852,10 +860,22 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
 
         newBeastFighterIds.push(newBeastFighter.id);
 
+        // Copy beast skills first — the skill ID map relinks skill-granted equipment
+        const { skillIdMap: beastSkillIdMap, error: beastSkillsError } = await copySkills(
+          supabase, beastFighter, newBeastFighter.id, gang.user_id, params.copy_as_experienced
+        );
+
+        if (beastSkillsError) {
+          return await rollbackFighter(`Failed to copy beast skills: ${beastSkillsError}`);
+        }
+
         // Copy beast equipment — build per-beast equipment ID map for effect FK remapping
         const beastEquipmentIdMap = new Map<string, string>();
         if (beastFighter.fighter_equipment && beastFighter.fighter_equipment.length > 0) {
           for (const eq of beastFighter.fighter_equipment) {
+            const mappedSkillId = eq.fighter_skill_id ? beastSkillIdMap.get(eq.fighter_skill_id) : null;
+            if (eq.fighter_skill_id && !mappedSkillId) continue;
+
             const { data: insertedBeastEquip, error: beastEquipError } = await supabase
               .from('fighter_equipment')
               .insert({
@@ -866,6 +886,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
                 original_cost: eq.original_cost,
                 is_master_crafted: eq.is_master_crafted || false,
                 is_editable: eq.is_editable || false,
+                fighter_skill_id: mappedSkillId,
                 gang_id: params.target_gang_id,
                 user_id: gang.user_id
               })
@@ -879,15 +900,6 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
               beastEquipmentIdMap.set(eq.id, insertedBeastEquip.id);
             }
           }
-        }
-
-        // Copy beast skills
-        const { skillIdMap: beastSkillIdMap, error: beastSkillsError } = await copySkills(
-          supabase, beastFighter, newBeastFighter.id, gang.user_id, params.copy_as_experienced
-        );
-
-        if (beastSkillsError) {
-          return await rollbackFighter(`Failed to copy beast skills: ${beastSkillsError}`);
         }
 
         // Copy beast effects and modifiers

@@ -48,8 +48,6 @@ export interface UseWinnerSelectionResult {
    * removed from or swapped out of the participants list.
    */
   removeGangFromWinners: (gangId: string) => void;
-  /** Resets winners/isDraw/claimedByGangId back to empty defaults. */
-  resetWinnerSelection: () => void;
 }
 
 /**
@@ -159,12 +157,6 @@ export function useWinnerSelection({
     []
   );
 
-  const resetWinnerSelection = useCallback(() => {
-    setWinners(['']);
-    setIsDraw(false);
-    setClaimedByGangId('');
-  }, []);
-
   return {
     winners,
     isDraw,
@@ -179,6 +171,5 @@ export function useWinnerSelection({
     removeWinnerSlot,
     loadExistingWinners,
     removeGangFromWinners,
-    resetWinnerSelection,
   };
 }

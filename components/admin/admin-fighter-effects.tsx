@@ -6,11 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { toast } from 'sonner';
-import { ImInfo } from "react-icons/im";
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { HiX } from "react-icons/hi";
 import Modal from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
-import { Tooltip } from 'react-tooltip';
 import { 
   FighterEffectType, 
   FighterEffectTypeModifier, 
@@ -148,6 +147,7 @@ export function AdminFighterEffects({
     selection_group: '',
     traits_to_add: '',
     traits_to_remove: '',
+    requires_traits: '',
     special_rules_to_add: '',
     special_rules_to_remove: '',
     // Picked by id: subtype_name repeats across editions
@@ -211,6 +211,9 @@ export function AdminFighterEffects({
       const traitsToRemove = newEffect.traits_to_remove
         ? newEffect.traits_to_remove.split(',').map(t => t.trim()).filter(Boolean)
         : [];
+      const requiresTraits = newEffect.requires_traits
+        ? newEffect.requires_traits.split(',').map(t => t.trim()).filter(Boolean)
+        : [];
       const specialRulesToAdd = newEffect.special_rules_to_add
         ? newEffect.special_rules_to_add.split(',').map(t => t.trim()).filter(Boolean)
         : [];
@@ -231,6 +234,7 @@ export function AdminFighterEffects({
         ...(newEffect.selection_group && { selection_group: newEffect.selection_group }),
         ...(traitsToAdd.length > 0 && { traits_to_add: traitsToAdd }),
         ...(traitsToRemove.length > 0 && { traits_to_remove: traitsToRemove }),
+        ...(requiresTraits.length > 0 && { requires_traits: requiresTraits }),
         ...(specialRulesToAdd.length > 0 && { special_rules_to_add: specialRulesToAdd }),
         ...(specialRulesToRemove.length > 0 && { special_rules_to_remove: specialRulesToRemove }),
         ...(newEffect.fighter_subtype_ids_to_add.length > 0 && { fighter_subtype_ids_to_add: newEffect.fighter_subtype_ids_to_add }),
@@ -276,6 +280,7 @@ export function AdminFighterEffects({
         selection_group: '',
         traits_to_add: '',
         traits_to_remove: '',
+        requires_traits: '',
         special_rules_to_add: '',
         special_rules_to_remove: '',
         fighter_subtype_ids_to_add: [],
@@ -318,6 +323,7 @@ export function AdminFighterEffects({
       selection_group: '',
       traits_to_add: '',
       traits_to_remove: '',
+      requires_traits: '',
       special_rules_to_add: '',
       special_rules_to_remove: '',
       fighter_subtype_ids_to_add: [],
@@ -345,6 +351,7 @@ export function AdminFighterEffects({
       selection_group: effect.type_specific_data?.selection_group || '',
       traits_to_add: effect.type_specific_data?.traits_to_add?.join(', ') || '',
       traits_to_remove: effect.type_specific_data?.traits_to_remove?.join(', ') || '',
+      requires_traits: effect.type_specific_data?.requires_traits?.join(', ') || '',
       special_rules_to_add: effect.type_specific_data?.special_rules_to_add?.join(', ') || '',
       special_rules_to_remove: effect.type_specific_data?.special_rules_to_remove?.join(', ') || '',
       fighter_subtype_ids_to_add: effect.type_specific_data?.fighter_subtype_ids_to_add || [],
@@ -376,6 +383,9 @@ export function AdminFighterEffects({
     const traitsToRemove = newEffect.traits_to_remove
       ? newEffect.traits_to_remove.split(',').map(t => t.trim()).filter(Boolean)
       : [];
+    const requiresTraits = newEffect.requires_traits
+      ? newEffect.requires_traits.split(',').map(t => t.trim()).filter(Boolean)
+      : [];
     const specialRulesToAdd = newEffect.special_rules_to_add
       ? newEffect.special_rules_to_add.split(',').map(t => t.trim()).filter(Boolean)
       : [];
@@ -398,6 +408,7 @@ export function AdminFighterEffects({
       // Set traits arrays - use empty arrays when cleared
       traits_to_add: traitsToAdd.length > 0 ? traitsToAdd : undefined,
       traits_to_remove: traitsToRemove.length > 0 ? traitsToRemove : undefined,
+      requires_traits: requiresTraits.length > 0 ? requiresTraits : undefined,
       special_rules_to_add: specialRulesToAdd.length > 0 ? specialRulesToAdd : undefined,
       special_rules_to_remove: specialRulesToRemove.length > 0 ? specialRulesToRemove : undefined,
       fighter_subtype_ids_to_add: newEffect.fighter_subtype_ids_to_add.length > 0 ? newEffect.fighter_subtype_ids_to_add : undefined,
@@ -641,6 +652,12 @@ export function AdminFighterEffects({
                         {effect.type_specific_data?.traits_to_add && effect.type_specific_data.traits_to_add.length > 0 && (
                           <Badge variant="default" className="bg-green-600">
                             Adds: {effect.type_specific_data.traits_to_add.join(', ')}
+                          </Badge>
+                        )}
+
+                        {effect.type_specific_data?.requires_traits && effect.type_specific_data.requires_traits.length > 0 && (
+                          <Badge variant="outline">
+                            Weapons with {effect.type_specific_data.requires_traits.join(', ')}
                           </Badge>
                         )}
 
@@ -907,7 +924,8 @@ export function AdminFighterEffects({
                     checked={newEffect.applies_to === 'equipment'}
                     onCheckedChange={(checked) => setNewEffect(prev => ({
                       ...prev,
-                      applies_to: checked === true ? 'equipment' : ''
+                      applies_to: checked === true ? 'equipment' : '',
+                      ...(checked === true && { requires_traits: '' })
                     }))}
                   />
                   <span className="text-sm font-medium">
@@ -1038,7 +1056,24 @@ export function AdminFighterEffects({
               </div>
             )}
 
-            {newEffect.applies_to === 'equipment' && (
+            {!hideEquipmentOption && newEffect.applies_to !== 'equipment' && (
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-muted-foreground">
+                  Weapons With Traits (optional)
+                </label>
+                <Input
+                  type="text"
+                  value={newEffect.requires_traits}
+                  onChange={(e) => setNewEffect(prev => ({ ...prev, requires_traits: e.target.value }))}
+                  placeholder="e.g., Light"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Enter trait names separated by commas. The trait changes below apply to every weapon profile the fighter has with any of them
+                </p>
+              </div>
+            )}
+
+            {(newEffect.applies_to === 'equipment' || newEffect.requires_traits.trim() || newEffect.traits_to_add || newEffect.traits_to_remove) && (
               <>
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-muted-foreground">
@@ -1168,10 +1203,18 @@ export function AdminFighterEffects({
             <div>
               <label className="block text-sm font-medium mb-1 flex items-center gap-1">
                 Operation *
-                <ImInfo
-                  className="h-4 w-4 text-muted-foreground cursor-help"
-                  data-tooltip-id="operation-tooltip"
-                />
+                <InfoTooltip ariaLabel="How Add and Set operations work">
+                  <div>
+                    <div className="mb-2">
+                      <strong>Add:</strong> Adds to the base value<br />
+                      <span className="text-xs">(e.g., +1 to strength)</span>
+                    </div>
+                    <div>
+                      <strong>Set:</strong> Overrides the base value completely<br />
+                      <span className="text-xs">(e.g., set strength to 5)</span>
+                    </div>
+                  </div>
+                </InfoTooltip>
               </label>
               <select
                 value={newModifierOperation}
@@ -1205,22 +1248,6 @@ export function AdminFighterEffects({
         </Modal>
       )}
 
-      <Tooltip
-        id="operation-tooltip"
-        place="top"
-        style={{ maxWidth: '300px', zIndex: 9999 }}
-      >
-        <div className="text-sm">
-          <div className="mb-2">
-            <strong>Add:</strong> Adds to the base value<br />
-            <span className="text-xs">(e.g., +1 to strength)</span>
-          </div>
-          <div>
-            <strong>Set:</strong> Overrides the base value completely<br />
-            <span className="text-xs">(e.g., set strength to 5)</span>
-          </div>
-        </div>
-      </Tooltip>
     </>
   );
 }

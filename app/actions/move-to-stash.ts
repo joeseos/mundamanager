@@ -57,6 +57,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
         purchase_cost,
         original_cost,
         is_master_crafted,
+        fighter_skill_id,
         equipment:equipment_id (equipment_category)
       `)
       .eq('id', params.fighter_equipment_id)
@@ -66,6 +67,10 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       console.error('Equipment lookup error:', equipmentError);
       console.error('Looking for equipment ID:', params.fighter_equipment_id);
       throw new Error(`Fighter equipment with ID ${params.fighter_equipment_id} not found. Error: ${equipmentError?.message || 'No data returned'}`);
+    }
+
+    if (equipmentData.fighter_skill_id) {
+      throw new Error('This item comes with a skill and cannot be moved to the stash. Remove the skill instead.');
     }
 
     // Get associated fighter effects before moving to stash (they need to be removed)

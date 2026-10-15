@@ -14,6 +14,12 @@ export interface SelectedEquipmentItem {
   cost: number;
   quantity: number;
   is_editable?: boolean;
+  /**
+   * Key of the normalized selection category this item came from. Categories can
+   * offer the same equipment ids, so picker handlers scope their edits by this key
+   * instead of by equipment_id. Client-only; the server ignores it.
+   */
+  selection_key?: string;
 }
 
 /**
@@ -176,7 +182,7 @@ export function getDefaultEquipmentFromSelection(equipmentSelection: any): Selec
   if (!equipmentSelection) return defaults;
 
   const normalizedSelection = normalizeEquipmentSelection(equipmentSelection);
-  Object.values(normalizedSelection).forEach((categoryData) => {
+  Object.entries(normalizedSelection).forEach(([categoryId, categoryData]) => {
     if (categoryData?.default && Array.isArray(categoryData.default)) {
       categoryData.default.forEach((item: DefaultEquipment) => {
         defaults.push({
@@ -184,6 +190,7 @@ export function getDefaultEquipmentFromSelection(equipmentSelection: any): Selec
           cost: 0, // Default equipment from equipment selections is always cost 0
           quantity: item.quantity || 1,
           is_editable: item.is_editable || false,
+          selection_key: categoryId,
         });
       });
     }

@@ -22,7 +22,6 @@ import { toast } from 'sonner';
 import type { QueryClient } from '@tanstack/react-query';
 
 interface FighterOoaHistoryModalProps {
-  isOpen: boolean;
   fighterId: string;
   gangId?: string;
   campaignId?: string;
@@ -82,7 +81,6 @@ function invalidateOoaRecordQueries(queryClient: QueryClient) {
 }
 
 export function FighterOoaHistoryModal({
-  isOpen,
   fighterId,
   gangId,
   campaignId,
@@ -102,14 +100,14 @@ export function FighterOoaHistoryModal({
   const { data: causedRecords = [], isLoading: causedLoading, isError: causedError } = useQuery({
     queryKey: ['fighter-ooa-records', fighterId],
     queryFn: () => fetchFighterOoaRecords(fighterId, 'caused'),
-    enabled: isOpen && !!fighterId,
+    enabled: !!fighterId,
     staleTime: 30_000,
   });
 
   const { data: sustainedRecords = [], isLoading: sustainedLoading, isError: sustainedError } = useQuery({
     queryKey: ['fighter-ooa-records-sustained', fighterId],
     queryFn: () => fetchFighterOoaRecords(fighterId, 'sustained'),
-    enabled: isOpen && activeTab === 'sustained' && !!fighterId,
+    enabled: activeTab === 'sustained' && !!fighterId,
     staleTime: 30_000,
   });
 
@@ -121,7 +119,7 @@ export function FighterOoaHistoryModal({
   const { data: campaignGangs = [], isLoading: gangsLoading } = useQuery({
     queryKey: ['campaign-gangs-fighters', gangId, campaignId],
     queryFn: () => fetchCampaignGangsAndFighters({ campaignId, gangId: gangId! }),
-    enabled: isOpen && canEdit && !!gangId,
+    enabled: canEdit && !!gangId,
     staleTime: 60_000,
   });
 
@@ -175,20 +173,6 @@ export function FighterOoaHistoryModal({
       toast.error(error instanceof Error ? error.message : 'Failed to delete record');
     },
   });
-
-  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
-  if (isOpen && !prevIsOpen) {
-    setActiveTab('caused');
-    setCurrentPage(1);
-    setEditingId(null);
-    setEditForm(null);
-    setIsAdding(false);
-    setAddForm(emptyAddForm());
-    setRecordToDelete(null);
-  }
-  if (isOpen !== prevIsOpen) {
-    setPrevIsOpen(isOpen);
-  }
 
   const totalPages = Math.ceil(records.length / RECORDS_PER_PAGE);
   const startIndex = (currentPage - 1) * RECORDS_PER_PAGE;
@@ -322,8 +306,6 @@ export function FighterOoaHistoryModal({
     deleteMutation.mutate(recordId);
     return true;
   };
-
-  if (!isOpen) return null;
 
   const addCrewOnly = addForm.eventType === 'vehicle_wrecked';
 

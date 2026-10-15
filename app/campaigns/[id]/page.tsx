@@ -9,7 +9,8 @@ import {
   getTradingPostTypesCached,
   getCampaignTriumphs,
   getCampaignTypes,
-  getAllTerritories
+  getAllTerritories,
+  getScenarioTablesCached
 } from "@/app/lib/reference-data";
 
 // Import the optimized functions with unstable_cache
@@ -22,8 +23,10 @@ import {
   getCampaignResources,
   getCampaignCaptives,
   getCampaignSharedTradingPosts,
-  getCampaignMapWithObjects
+  getCampaignMapWithObjects,
+  getCampaignOoaCounts
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
+import { SESSION_SCENARIO_PARTS_SELECT } from "@/app/lib/battle-sessions/get-battle-session-data";
 
 export default async function CampaignPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -86,7 +89,9 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       campaignAllegiances,
       campaignResources,
       campaignCaptives,
-      customTradingPostTypes
+      customTradingPostTypes,
+      campaignOoaCounts,
+      allScenarioTables
     ] = await Promise.all([
       getCampaignBasic(params.id),
       getCampaignMembers(params.id),
@@ -95,7 +100,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       getCampaignMapWithObjects(params.id),
       supabase
         .from('battle_sessions')
-        .select('*')
+        .select(`*, ${SESSION_SCENARIO_PARTS_SELECT}`)
         .eq('campaign_id', params.id)
         .order('updated_at', { ascending: false }),
       getCampaignTypes(),
@@ -104,7 +109,15 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       getCampaignAllegiances(params.id),
       getCampaignResources(params.id),
       getCampaignCaptives(params.id),
-      getCampaignSharedTradingPosts(params.id)
+      getCampaignSharedTradingPosts(params.id),
+      // Only feeds an optional Triumphs leaderboard; a failure here shouldn't
+      // take down the campaign page. Caught outside the cache so an empty
+      // result is never stored.
+      getCampaignOoaCounts(params.id).catch((error) => {
+        console.error('Error loading campaign OOA counts:', error);
+        return [];
+      }),
+      getScenarioTablesCached()
     ]);
 
     // Check if campaign exists
@@ -158,6 +171,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       battles: campaignBattles,
       battleSessions: battleSessionsResult.data || [],
       triumphs: campaignTriumphs,
+      ooaCounts: campaignOoaCounts,
       captives: campaignCaptives
     };
     
@@ -176,6 +190,8 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       campaignMap,
       campaignMapObjects,
       hasPendingJoinRequest,
+      // The battle log pickers only need the campaign's own edition.
+      scenarioTables: allScenarioTables.filter((table) => table.edition_slug === campaignData.edition_slug),
     };
   } catch (error) {
     // notFound()/forbidden()/redirect() signal by throwing; let them through
@@ -214,6 +230,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
         mapData={pageProps.campaignMap}
         mapObjects={pageProps.campaignMapObjects}
         hasPendingJoinRequest={pageProps.hasPendingJoinRequest}
+        scenarioTables={pageProps.scenarioTables}
       />
     </CampaignErrorBoundary>
   );

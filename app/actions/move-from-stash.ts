@@ -391,11 +391,11 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
             ap,
             ammo,
             traits,
-            weapon_id,
+            equipment_id,
             created_at,
             weapon_group_id
           `)
-          .eq('weapon_id', stashData.equipment_id);
+          .eq('equipment_id', stashData.equipment_id);
 
         if (!profilesError && profiles) {
           weaponProfiles = profiles.map(profile => ({

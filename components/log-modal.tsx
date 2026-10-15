@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Modal from '@/components/ui/modal';
 import { ListColumn } from '@/components/ui/list';
@@ -26,7 +26,6 @@ interface LogModalProps {
   fetchUrl: string;
   title?: string;
   emptyMessage?: string;
-  isOpen: boolean;
   onClose: () => void;
   fighters?: Array<{ id: string; name: string }>;
   vehicles?: Array<{ id: string; name: string }>;
@@ -41,7 +40,6 @@ export default function LogModal({
   fetchUrl,
   title = 'Activity Logs',
   emptyMessage = 'No activity logs found.',
-  isOpen,
   onClose,
   fighters,
   vehicles,
@@ -85,16 +83,7 @@ export default function LogModal({
       }
       return response.json();
     },
-    enabled: isOpen,
   });
-
-  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
-  if (isOpen && !prevIsOpen) {
-    setCurrentPage(1);
-  }
-  if (isOpen !== prevIsOpen) {
-    setPrevIsOpen(isOpen);
-  }
 
   const getActionTypeDisplay = (actionType: string) => getLogTypeLabel(actionType, editionSlug);
 
@@ -126,11 +115,8 @@ export default function LogModal({
     setFilterActionType('');
     setFilterFighterId('');
     setFilterVehicleId('');
-  };
-
-  useEffect(() => {
     setCurrentPage(1);
-  }, [filterActionType, filterFighterId, filterVehicleId]);
+  };
 
   const totalPages = Math.ceil(filteredLogs.length / logsPerPage);
   const startIndex = (currentPage - 1) * logsPerPage;
@@ -181,8 +167,6 @@ export default function LogModal({
     }
   ];
 
-  if (!isOpen) return null;
-
   const showFighterFilter = fighters && fighters.length > 0;
   const showVehicleFilter = vehicles && vehicles.length > 0;
 
@@ -217,7 +201,7 @@ export default function LogModal({
             <Combobox
               options={actionTypeOptions}
               value={filterActionType}
-              onValueChange={setFilterActionType}
+              onValueChange={(value) => { setFilterActionType(value); setCurrentPage(1); }}
               placeholder="All Action Types"
               className="h-9"
             />
@@ -233,7 +217,7 @@ export default function LogModal({
                   ...(fighters ?? []).map(f => ({ value: f.id, label: f.name })),
                 ]}
                 value={filterFighterId}
-                onValueChange={setFilterFighterId}
+                onValueChange={(value) => { setFilterFighterId(value); setCurrentPage(1); }}
                 placeholder="All Fighters"
                 className="h-9"
               />
@@ -250,7 +234,7 @@ export default function LogModal({
                   ...(vehicles ?? []).map(v => ({ value: v.id, label: v.name })),
                 ]}
                 value={filterVehicleId}
-                onValueChange={setFilterVehicleId}
+                onValueChange={(value) => { setFilterVehicleId(value); setCurrentPage(1); }}
                 placeholder="All Vehicles"
                 className="h-9"
               />

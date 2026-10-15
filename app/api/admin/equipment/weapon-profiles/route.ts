@@ -34,7 +34,7 @@ export async function GET(request: Request) {
         weapon_group_id,
         sort_order
       `)
-      .eq('weapon_id', id)
+      .eq('equipment_id', id)
       .order('sort_order', { ascending: true });
 
     if (error) throw error;

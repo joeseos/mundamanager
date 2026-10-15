@@ -1,8 +1,9 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
 
-import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang';
+import { gangPortraitPublicUrl, joinedPortraitStoragePath } from '@/types/gang';
 import { gangEditionSlug } from '@/types/edition';
+import { joinedParentGangTypeName } from '@/utils/gang-type-label';
 
 export type Gang = {
   id: string;
@@ -10,9 +11,7 @@ export type Gang = {
   gang_type: string;
   gang_type_id: string;
   image_url: string;
-  gang_type_image_url: string;
-  default_gang_image?: number | null;
-  gang_type_default_image_urls?: DefaultImageEntry[];
+  gang_portrait_url?: string | null;
   credits: number;
   reputation: number;
   rating: number;
@@ -24,6 +23,8 @@ export type Gang = {
   favourite_order: number | null;
   /** Derived from official or custom gang type; null treated as n23 by home filters. */
   edition_slug: string | null;
+  /** House of an alternate gang list. Null for root and custom gangs. */
+  parent_gang_type_name?: string | null;
 };
 
 /**
@@ -63,7 +64,9 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
             gang_type_id,
             custom_gang_type_id,
             image_url,
-            default_gang_image,
+            gang_portraits!gangs_gang_portrait_id_fkey (
+              storage_path
+            ),
             credits,
             reputation,
             rating,
@@ -73,12 +76,10 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
             is_favourite,
             favourite_order,
             gang_types!gang_type_id(
-              image_url,
-              default_image_urls,
+              parent_gang_type_name,
               editions:edition_id (slug)
             ),
             custom_gang_types!custom_gang_type_id(
-              default_image_urls,
               editions:edition_id (slug)
             )
           `)
@@ -138,9 +139,7 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
           gang_type: gang.gang_type,
           gang_type_id: gang.gang_type_id,
           image_url: gang.image_url || '',
-          gang_type_image_url: gang.gang_types?.image_url || '',
-          default_gang_image: gang.default_gang_image ?? null,
-          gang_type_default_image_urls: normaliseDefaultImageUrls(gang.gang_types?.default_image_urls ?? gang.custom_gang_types?.default_image_urls),
+          gang_portrait_url: gangPortraitPublicUrl(joinedPortraitStoragePath(gang.gang_portraits)) ?? null,
           credits: gang.credits,
           reputation: gang.reputation,
           rating: gang.rating || 0,
@@ -153,6 +152,7 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
           is_favourite: gang.is_favourite ?? false,
           favourite_order: gang.favourite_order ?? null,
           edition_slug: gangEditionSlug(gang),
+          parent_gang_type_name: joinedParentGangTypeName(gang.gang_types),
         }));
       } catch (error) {
         console.error('Unexpected error in getUserGangs:', error);
@@ -165,13 +165,15 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
         throw error;
       }
     },
-    [`user-gangs-v5-${userId}`],
+    [`user-gangs-v9-${userId}`],
     {
       tags: [
         // List shape (create/delete/copy gang, favourites)
         TAGS.user(userId),
         // Catalog portraits/names joined from gang_types (admin gang-type writes)
         TAGS.globalGangTypes(),
+        // Catalogue file paths joined from gang_portraits
+        TAGS.globalGangPortraits(),
         // Card fields: rating/credits/name via the financials choke point
         ...gangIdsForTags.map(id => TAGS.gangOverview(id)),
         // Campaign names on cards: join/leave (previously never invalidated)

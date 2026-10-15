@@ -9,10 +9,10 @@ import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/co
 import { toast } from 'sonner';
 import { FighterType } from "@/types/fighter";
 import { WeaponProfileInput, emptyWeaponProfile, EquipmentGrants, EquipmentAvailability, EquipmentOriginAvailability, EquipmentSubtypeAvailability, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
-import { FighterTypeGrant } from "@/types/fighter-type";
+import { CountLimit, FighterTypeGrant } from "@/types/fighter-type";
 import { HiX } from "react-icons/hi";
 import { getFighterSubtypeSortRank } from "@/utils/fighterSubtypeRank";
-import { GangOriginOptions, GangSubtypeOptions } from "./gang-scope-options";
+import { CountLimitsEditor, GangOriginOptions, GangSubtypeOptions } from "./gang-scope-options";
 import { AdminFighterEffects } from "./admin-fighter-effects";
 import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
 import { hasLethalityStatline, hasTradePoints } from '@/types/edition';
@@ -125,6 +125,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [scopedGrantGangSubtype, setScopedGrantGangSubtype] = useState('');
   const [scopedGrantSubtype, setScopedGrantSubtype] = useState('');
   const [scopedGrantExcluded, setScopedGrantExcluded] = useState(false);
+  // null until loaded, so a failed load leaves the stored limits alone.
+  const [countLimits, setCountLimits] = useState<CountLimit[] | null>(null);
   const [showAdjustedCostDialog, setShowAdjustedCostDialog] = useState(false);
   const [selectedGangType, setSelectedGangType] = useState("");
   const [adjustedCostValue, setAdjustedCostValue] = useState("");
@@ -237,6 +239,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       setEquipmentSubtypeAvailabilities([]);
       setSelectedTradingPosts([]);
       setFighterTypeGrants([]);
+      setCountLimits(null);
     } else if (equipmentDetails) {
       setEquipmentName(equipmentDetails.equipment_name);
       const parsed = parseAvailability(equipmentDetails.availability);
@@ -331,6 +334,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         setFighterTypes(equipmentDetails.all_fighter_types);
       }
 
+      setCountLimits(Array.isArray(equipmentDetails.count_limits) ? equipmentDetails.count_limits : null);
+
       if (equipmentDetails.fighter_types_with_equipment) {
         setFighterTypeGrants(equipmentDetails.fighter_types_with_equipment.map((ft: any): FighterTypeGrant => ({
           fighter_type_id: ft.fighter_type_id ?? null,
@@ -381,14 +386,15 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     [allEquipment, editionId]
   );
 
-  const { data: gangTypeOptions = [], isLoading: isGangTypesLoading } = useQuery<Array<{gang_type_id: string, gang_type: string, edition_id?: string | null}>>({
+  const { data: gangTypeOptions = [], isLoading: isGangTypesLoading } = useQuery<Array<{id: string, gang_type: string, edition_id?: string | null}>>({
     queryKey: ['admin-gang-types'],
     queryFn: async () => {
       const response = await fetch('/api/admin/gang-types');
       if (!response.ok) throw new Error('Failed to fetch gang types');
       return response.json();
     },
-    enabled: showAdjustedCostDialog || showAvailabilityDialog,
+    // Also needed unopened, to label count limits
+    enabled: !!selectedEquipmentId || showAdjustedCostDialog || showAvailabilityDialog,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -532,10 +538,21 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           return true;
         })
       );
+      setCountLimits(prev => prev?.filter(limit => {
+        const ft = fighterTypes.find(f => f.id === limit.for_fighter_type_id);
+        if (ft && ft.edition_id !== newEditionId) return false;
+        const gt = gangTypeOptions.find(g => g.id === limit.gang_type_id);
+        if (gt && gt.edition_id !== newEditionId) return false;
+        const origin = gangOriginList.find(o => o.id === limit.gang_origin_id);
+        if (origin && origin.edition_id !== newEditionId) return false;
+        const subtype = gangSubtypeList.find(v => v.id === limit.gang_subtype_id);
+        if (subtype && subtype.edition_id !== newEditionId) return false;
+        return true;
+      }) ?? null);
       // Cost per Gang is keyed on a gang type, which is edition-scoped too
       setGangAdjustedCosts(prev =>
         prev.filter(cost => {
-          const gt = gangTypeOptions.find(g => g.gang_type_id === cost.gang_type_id);
+          const gt = gangTypeOptions.find(g => g.id === cost.gang_type_id);
           return !gt || gt.edition_id === newEditionId;
         })
       );
@@ -697,7 +714,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
               availability: a.availability
             }))
           : [],
-        fighter_effects: fighterEffects
+        fighter_effects: fighterEffects,
+        ...(countLimits ? { count_limits: countLimits } : {})
       };
 
       const response = await fetch(`/api/admin/equipment?id=${selectedEquipmentId}`, {
@@ -807,7 +825,14 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
               </label>
               <select
                 value={selectedEquipmentId}
-                onChange={(e) => setSelectedEquipmentId(e.target.value)}
+                onChange={(e) => {
+                  setSelectedEquipmentId(e.target.value);
+                  // Cleared here, not just on load: a failed load would otherwise leave the
+                  // previous item's limits in state and save them against this one. The sync key
+                  // is cleared too, so an item already in the cache is synced again.
+                  setCountLimits(null);
+                  setPrevSyncKey(null);
+                }}
                 className={`w-full p-2 border rounded-md ${!categoryFilter ? 'bg-muted cursor-not-allowed' : ''}`}
                 disabled={!categoryFilter}
               >
@@ -1172,13 +1197,13 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             if (selectedGangType && adjustedCostValue) {
                               const adjusted_cost = parseInt(adjustedCostValue);
                               if (adjusted_cost >= 0) {
-                                const selectedGang = gangTypeOptions.find(g => g.gang_type_id === selectedGangType);
+                                const selectedGang = gangTypeOptions.find(g => g.id === selectedGangType);
                                 if (selectedGang) {
                                   setGangAdjustedCosts(prev => [
                                     ...prev,
                                     {
                                       gang_type: selectedGang.gang_type,
-                                      gang_type_id: selectedGang.gang_type_id,
+                                      gang_type_id: selectedGang.id,
                                       adjusted_cost
                                     }
                                   ]);
@@ -1204,7 +1229,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                               <select
                                 value={selectedGangType}
                                 onChange={(e) => {
-                                  const selected = gangTypeOptions.find(g => g.gang_type_id === e.target.value);
+                                  const selected = gangTypeOptions.find(g => g.id === e.target.value);
                                   if (selected) {
                                     setSelectedGangType(e.target.value);
                                   }
@@ -1217,7 +1242,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                   <option>Loading...</option>
                                 ) : (
                                   filteredGangTypes.map((gang) => (
-                                    <option key={gang.gang_type_id} value={gang.gang_type_id}>
+                                    <option key={gang.id} value={gang.id}>
                                       {gang.gang_type}
                                     </option>
                                   ))
@@ -1296,13 +1321,13 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           onConfirm={() => {
                             const combined = combineAvailability(availValueLetter, availValueNumber);
                             if (selectedAvailabilityGangType && (combined || availExclusive)) {
-                              const selectedGang = gangTypeOptions.find(g => g.gang_type_id === selectedAvailabilityGangType);
+                              const selectedGang = gangTypeOptions.find(g => g.id === selectedAvailabilityGangType);
                               if (selectedGang) {
                                 setEquipmentAvailabilities(prev => [
                                   ...prev,
                                   {
                                     gang_type: selectedGang.gang_type,
-                                    gang_type_id: selectedGang.gang_type_id,
+                                    gang_type_id: selectedGang.id,
                                     availability: combined,
                                     exclusive: availExclusive
                                   }
@@ -1329,7 +1354,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                               <select
                                 value={selectedAvailabilityGangType}
                                 onChange={(e) => {
-                                  const selected = gangTypeOptions.find(g => g.gang_type_id === e.target.value);
+                                  const selected = gangTypeOptions.find(g => g.id === e.target.value);
                                   if (selected) {
                                     setSelectedAvailabilityGangType(e.target.value);
                                   }
@@ -1342,7 +1367,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                   <option>Loading...</option>
                                 ) : (
                                   filteredGangTypes.map((gang) => (
-                                    <option key={gang.gang_type_id} value={gang.gang_type_id}>
+                                    <option key={gang.id} value={gang.id}>
                                       {gang.gang_type}
                                     </option>
                                   ))
@@ -1908,6 +1933,19 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                   )}
                 </div>
               )}
+
+              <CountLimitsEditor
+                limits={countLimits}
+                onChange={setCountLimits}
+                disabled={!selectedEquipmentId}
+                helper="How many of this item a gang may have. Leave the scope on Any for every gang; the most specific matching limit wins."
+                labelLists={{ gangTypes: gangTypeOptions, origins: gangOriginList, subtypes: gangSubtypeList }}
+                selectLists={{ gangTypes: filteredGangTypes, origins: filteredGangOrigins, subtypes: filteredGangSubtypes, editionSlug }}
+                fighterTypeOptions={filteredFighterTypes.map(ft => ({
+                  id: ft.id,
+                  label: fighterTypeLabel(ft, editionSlugOf(editions, ft.edition_id)),
+                }))}
+              />
 
               {/* Trading Post Section - Add this above Fighter Effects */}
               {selectedEquipmentId && (

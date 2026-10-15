@@ -22,7 +22,6 @@ export interface CustomGangType {
   description?: string | null;
   alignment?: string | null;
   trading_post_type_id?: string | null;
-  default_image_urls?: any | null;
   created_at: string;
   updated_at?: string | null;
   edition_slug?: string | null;

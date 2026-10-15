@@ -147,6 +147,22 @@ export function advancementsEarnedFor(
 }
 
 /**
+ * Current XP after a model's Starting XP is edited, e.g. an Outcast made Leader.
+ *
+ * XP moves by the same amount as Starting XP. Raising Starting XP alone would
+ * leave the difference below the new baseline, and adding it as XP would count
+ * it as earned; shifting both keeps only XP earned since recruitment above the
+ * baseline. A null (N/A) Starting XP counts as zero, as in advancementsEarnedFor.
+ */
+export function xpAfterStartingXpChange(
+  currentXp: number,
+  previousStartingXp: number | null,
+  nextStartingXp: number,
+): number {
+  return Math.max(0, currentXp + nextStartingXp - (previousStartingXp ?? 0));
+}
+
+/**
  * The XP total that moves a model onto its next tier, or null when there is
  * none: a Legend of the Underhive has nothing above it, and an edition without
  * tiers has nothing to reach.

@@ -1,3 +1,7 @@
+-- DEPLOY ORDER: apply migration 20261004120000_rename_gang_types_gang_type_id_to_id.sql
+-- BEFORE this file deploys. This function reads gang_types.id, which is an unused
+-- bigint until that migration drops it and renames gang_type_id to id.
+
 DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid, text, uuid, boolean);
 DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid, text, uuid, boolean, boolean);
 DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid);
@@ -17,7 +21,10 @@ CREATE OR REPLACE FUNCTION get_equipment_detailed_data(
     only_equipment_id uuid DEFAULT NULL,      -- $7
     gang_id uuid DEFAULT NULL,               -- $8
     campaign_trading_post_type_ids uuid[] DEFAULT NULL, -- $9
-    campaign_custom_trading_post_ids uuid[] DEFAULT NULL -- $10
+    campaign_custom_trading_post_ids uuid[] DEFAULT NULL, -- $10
+    -- Whether fighter_id's Gang Legacy fighter type adds to the list. fighter_id is
+    -- also passed without it, so subtype rules see the fighter's own subtypes.
+    include_legacy boolean DEFAULT true       -- $11
 )
 RETURNS TABLE (
     id uuid,
@@ -41,7 +48,10 @@ RETURNS TABLE (
     cost_resource_amount numeric,
     cost_type_resource_id uuid,
     cost_campaign_resource_id uuid,
-    banned boolean
+    banned boolean,
+    -- From count_limits; NULL is no limit
+    min_count integer,
+    max_count integer
 )
 LANGUAGE sql
 SECURITY DEFINER
@@ -61,12 +71,13 @@ AS $$
             cg.campaign_type_allegiance_id,
             fgl.fighter_type_id AS legacy_ft_id,
             ga.fighter_type_id  AS affiliation_ft_id,
-            -- Empty for gang and vehicle calls, so a subtype rule matches nothing
-            COALESCE(f.fighter_subtypes, ft_sub.fighter_subtypes, cft_sub.fighter_subtypes, '[]'::jsonb) AS fighter_subtypes,
+            -- Empty for gang and vehicle calls, so a subtype rule matches nothing.
+            -- A fighter with no subtypes of its own ('[]', never NULL) uses its type's.
+            COALESCE(NULLIF(f.fighter_subtypes, '[]'::jsonb), ft_sub.fighter_subtypes, cft_sub.fighter_subtypes, '[]'::jsonb) AS fighter_subtypes,
             COALESCE(gt.edition_id, cgt.edition_id) AS edition_id
         FROM (SELECT 1) AS _dummy
         LEFT JOIN gangs g ON g.id = $8
-        LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+        LEFT JOIN gang_types gt ON gt.id = g.gang_type_id
         LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
         LEFT JOIN fighter_types ft_sub ON ft_sub.id = $3
         LEFT JOIN custom_fighter_types cft_sub ON cft_sub.id = $3
@@ -77,7 +88,7 @@ AS $$
             LIMIT 1
         ) cg ON true
         LEFT JOIN fighters f ON f.id = $6 AND f.gang_id = g.id
-        LEFT JOIN fighter_gang_legacy fgl ON f.fighter_gang_legacy_id = fgl.id
+        LEFT JOIN fighter_gang_legacy fgl ON f.fighter_gang_legacy_id = fgl.id AND $11
         LEFT JOIN gang_affiliation ga ON g.gang_affiliation_id = ga.id
     ),
 
@@ -87,7 +98,7 @@ AS $$
     gang_tp AS (
         SELECT gt.trading_post_type_id
         FROM gang_types gt
-        WHERE gt.gang_type_id = $1
+        WHERE gt.id = $1
           AND (
               $9 IS NULL
               OR gt.trading_post_type_id = ANY($9)
@@ -248,6 +259,65 @@ AS $$
           AND $10 IS NOT NULL AND array_length($10, 1) > 0
           AND ctpe.custom_trading_post_id = ANY($10)
         GROUP BY ctpe.equipment_id
+    ),
+
+    -- =======================================================================
+    -- 7. FIGHTER TYPE EQUIPMENT ROWS THAT CAN MATCH THIS REQUEST
+    --    The main query's join condition, evaluated once. Joined per
+    --    equipment row instead, it fetched every fighter type's rows for each
+    --    item, which is the whole table on every call.
+    -- =======================================================================
+    fte_match AS MATERIALIZED (
+        SELECT fte.id, fte.equipment_id, fte.fighter_type_id, fte.vehicle_type_id
+        FROM fighter_type_equipment fte
+        CROSS JOIN gang_data gd
+        WHERE (fte.fighter_type_id = $3
+               OR fte.vehicle_type_id = $3
+               OR (gd.legacy_ft_id IS NOT NULL
+                   AND (fte.fighter_type_id = gd.legacy_ft_id OR fte.vehicle_type_id = gd.legacy_ft_id)
+                   AND $4 = true)
+               OR (gd.affiliation_ft_id IS NOT NULL
+                   AND (fte.fighter_type_id = gd.affiliation_ft_id OR fte.vehicle_type_id = gd.affiliation_ft_id))
+               -- A subtype rule spanning every gang names no fighter of its own.
+               -- fighter_subtype must be set, or an all-NULL row matches everything.
+               OR (fte.fighter_type_id IS NULL
+                   AND fte.vehicle_type_id IS NULL
+                   AND fte.custom_fighter_type_id IS NULL
+                   AND fte.fighter_subtype IS NOT NULL))
+          AND (fte.gang_origin_id IS NULL OR fte.gang_origin_id = gd.gang_origin_id)
+          AND (fte.gang_subtype_id IS NULL OR gd.gang_subtypes ? fte.gang_subtype_id::text)
+          AND (fte.gang_type_id IS NULL OR fte.gang_type_id = $1)
+          AND (fte.fighter_subtype IS NULL OR gd.fighter_subtypes ? fte.fighter_subtype)
+          -- Grants only: this join sets is_fighter_list, so a deny matching here would grant.
+          AND NOT fte.excluded
+    ),
+
+    -- =======================================================================
+    -- 8. CUSTOM EQUIPMENT THE CALLER CAN SEE
+    --    The same three sources the custom branch filters on, gathered through
+    --    their indexes so the branch no longer reads every user's custom
+    --    equipment.
+    -- =======================================================================
+    custom_candidates AS MATERIALIZED (
+        SELECT ce.id
+        FROM custom_equipment ce
+        WHERE ce.user_id = auth.uid()
+
+        UNION
+
+        SELECT cs.custom_equipment_id
+        FROM custom_shared cs
+        JOIN campaign_gangs cg ON cg.campaign_id = cs.campaign_id
+        WHERE cg.gang_id = $8
+          AND cs.custom_equipment_id IS NOT NULL
+
+        UNION
+
+        SELECT ctpe.custom_equipment_id
+        FROM custom_trading_post_equipment ctpe
+        WHERE ctpe.custom_equipment_id IS NOT NULL
+          AND $10 IS NOT NULL AND array_length($10, 1) > 0
+          AND ctpe.custom_trading_post_id = ANY($10)
     )
 
     -- =======================================================================
@@ -324,7 +394,7 @@ AS $$
                     'traits', wp.traits,
                     'sort_order', wp.sort_order
                 ) ORDER BY COALESCE(wp.sort_order, 999), wp.profile_name
-            ) FROM weapon_profiles wp WHERE wp.weapon_id = e.id),
+            ) FROM weapon_profiles wp WHERE wp.equipment_id = e.id),
             '[]'::jsonb
         ) AS weapon_profiles,
 
@@ -390,7 +460,10 @@ AS $$
         cto.cost_type_resource_id,
         cto.cost_campaign_resource_id,
 
-        COALESCE(cto.banned, false) AS banned
+        COALESCE(cto.banned, false) AS banned,
+
+        lim.min_count,
+        lim.max_count
 
     FROM equipment e
     CROSS JOIN gang_data gd
@@ -407,28 +480,8 @@ AS $$
         AND ea_origin.gang_origin_id IS NOT NULL
         AND ea_origin.gang_origin_id = gd.gang_origin_id
 
-    -- Fighter type equipment
-    LEFT JOIN fighter_type_equipment fte
-        ON e.id = fte.equipment_id
-        AND (fte.fighter_type_id = $3
-             OR fte.vehicle_type_id = $3
-             OR (gd.legacy_ft_id IS NOT NULL
-                 AND (fte.fighter_type_id = gd.legacy_ft_id OR fte.vehicle_type_id = gd.legacy_ft_id)
-                 AND $4 = true)
-             OR (gd.affiliation_ft_id IS NOT NULL
-                 AND (fte.fighter_type_id = gd.affiliation_ft_id OR fte.vehicle_type_id = gd.affiliation_ft_id))
-             -- A subtype rule spanning every gang names no fighter of its own.
-             -- fighter_subtype must be set, or an all-NULL row matches everything.
-             OR (fte.fighter_type_id IS NULL
-                 AND fte.vehicle_type_id IS NULL
-                 AND fte.custom_fighter_type_id IS NULL
-                 AND fte.fighter_subtype IS NOT NULL))
-        AND (fte.gang_origin_id IS NULL OR fte.gang_origin_id = gd.gang_origin_id)
-        AND (fte.gang_subtype_id IS NULL OR gd.gang_subtypes ? fte.gang_subtype_id::text)
-        AND (fte.gang_type_id IS NULL OR fte.gang_type_id = $1)
-        AND (fte.fighter_subtype IS NULL OR gd.fighter_subtypes ? fte.fighter_subtype)
-        -- Grants only: this join sets is_fighter_list, so a deny matching here would grant.
-        AND NOT fte.excluded
+    -- Fighter type equipment (rows already filtered in fte_match)
+    LEFT JOIN fte_match fte ON fte.equipment_id = e.id
 
     -- Is this system equipment on the current custom fighter type's equipment list?
     -- ($3 is a custom_fighter_types.id when the fighter is a custom fighter.)
@@ -485,6 +538,26 @@ AS $$
     LEFT JOIN custom_tp_override cto ON cto.equipment_id = e.id
     LEFT JOIN campaign_type_resources ctr_res ON ctr_res.id = cto.cost_type_resource_id
     LEFT JOIN campaign_resources cr_res ON cr_res.id = cto.cost_campaign_resource_id
+
+    -- Count limit: the most specific matching rule wins, id breaking ties. A pet without
+    -- rules of its own uses its fighter type's.
+    LEFT JOIN LATERAL (
+        SELECT cl.min_count, cl.max_count
+        FROM count_limits cl
+        WHERE (cl.equipment_id = e.id
+               OR cl.fighter_type_id IN (SELECT eb.fighter_type_id FROM exotic_beasts eb WHERE eb.equipment_id = e.id))
+          AND (cl.for_fighter_type_id IS NULL OR cl.for_fighter_type_id = $3)
+          AND (cl.gang_type_id    IS NULL OR cl.gang_type_id   = $1)
+          AND (cl.gang_origin_id  IS NULL OR cl.gang_origin_id = gd.gang_origin_id)
+          AND (cl.gang_subtype_id IS NULL OR gd.gang_subtypes ? cl.gang_subtype_id::text)
+        ORDER BY (cl.equipment_id IS NOT NULL) DESC,
+                 (cl.for_fighter_type_id IS NOT NULL) DESC,
+                 (cl.gang_subtype_id IS NOT NULL) DESC,
+                 (cl.gang_origin_id  IS NOT NULL) DESC,
+                 (cl.gang_type_id    IS NOT NULL) DESC,
+                 cl.id
+        LIMIT 1
+    ) lim ON true
 
     WHERE
         -- Early filters (equipment category + specific ID)
@@ -594,8 +667,11 @@ AS $$
         END AS cost_resource_amount,
         custom_tp.cost_type_resource_id,
         custom_tp.cost_campaign_resource_id,
-        COALESCE(custom_tp.banned, false) AS banned
-    FROM custom_equipment ce
+        COALESCE(custom_tp.banned, false) AS banned,
+        NULL::integer AS min_count,
+        NULL::integer AS max_count
+    FROM custom_candidates cc
+    JOIN custom_equipment ce ON ce.id = cc.id
     CROSS JOIN gang_data gd
     LEFT JOIN (
         SELECT cs.custom_equipment_id
@@ -669,7 +745,7 @@ AS $$
         )
 $$;
 
-REVOKE ALL ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, UUID[], UUID[]) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, UUID[], UUID[]) FROM anon;
-GRANT EXECUTE ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, UUID[], UUID[]) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, UUID[], UUID[]) TO service_role;
+REVOKE ALL ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, UUID[], UUID[], BOOLEAN) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, UUID[], UUID[], BOOLEAN) FROM anon;
+GRANT EXECUTE ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, UUID[], UUID[], BOOLEAN) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, UUID[], UUID[], BOOLEAN) TO service_role;

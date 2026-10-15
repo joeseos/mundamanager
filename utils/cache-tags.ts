@@ -15,7 +15,8 @@ import { revalidateTag } from 'next/cache';
  * gang-roster-{id} fighters AND all gang     | any fighter OR vehicle
  *                  vehicles, their equipment,| mutation — NOT
  *                  effects, loadouts, stats  | updateGangFinancials
- *                  (45 KB - 1 MB)            |
+ *                  (45 KB - 1 MB); campaign  |
+ *                  OOA counts (Triumphs)     |
  * gang-overview-{id} name/rating/wealth/     | updateGangFinancials (choke
  *                  credits copies on other   | point) + gang name/reputation
  *                  pages (campaign, home)    | edits — NOT xp/image/loadouts
@@ -39,6 +40,8 @@ import { revalidateTag } from 'next/cache';
  * custom-{id}      custom content            | customise mutations
  * global-gang-types gang type catalog +      | any admin gang-type write
  *                  home-card portraits/names |
+ * global-gang-portraits catalogue file paths | catalogue row rename/delete
+ *                  joined onto gangs         | (invalidateGangPortraits) |
  */
 export const TAGS = {
   gang: (id: string) => `gang-${id}`,
@@ -72,8 +75,10 @@ export const TAGS = {
   // Global reference data
   globalEditions: () => 'global-editions',
   globalGangTypes: () => 'global-gang-types',
+  globalGangPortraits: () => 'global-gang-portraits',
   globalTerritories: () => 'global-territories-list',
   globalScenarios: () => 'global-scenarios',
+  globalScenarioTables: () => 'global-scenario-tables',
   globalTradingPostTypes: () => 'global-trading-post-types',
   globalPatreonSupporters: () => 'global-patreon-supporters',
   globalUserCount: () => 'global-user-count',
@@ -278,6 +283,11 @@ export function invalidateCampaignCatalogLists() {
  */
 export function invalidateGangTypesCatalog() {
   bust(TAGS.globalGangTypes());
+}
+
+/** A gang_portraits row's path or identity changed. Joined portrait URLs are cached with the gang. */
+export function invalidateGangPortraits() {
+  bust(TAGS.globalGangPortraits());
 }
 
 // Global reference data

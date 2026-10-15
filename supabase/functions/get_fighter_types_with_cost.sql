@@ -11,7 +11,8 @@ CREATE OR REPLACE FUNCTION get_fighter_types_with_cost(
     p_gang_type_id uuid DEFAULT NULL,
     p_gang_affiliation_id uuid DEFAULT NULL,
     p_is_gang_addition boolean DEFAULT NULL,
-    -- Applies fighter_type_availability for this gang. NULL skips it entirely.
+    -- Applies this gang's count_limits, and its fighter_type_availability outside gang additions.
+    -- NULL skips availability and leaves only the every-gang count limits.
     p_gang_id uuid DEFAULT NULL
 )
 RETURNS TABLE (
@@ -35,7 +36,9 @@ RETURNS TABLE (
     intelligence numeric,
     attacks numeric,
     save numeric,
-    limitation numeric,
+    -- From count_limits: the most specific rule matching the gang. NULL is no rule.
+    min_count integer,
+    max_count integer,
     alignment alignment,
     is_gang_addition boolean,
     alliance_id uuid,
@@ -90,6 +93,9 @@ BEGIN
         SELECT a.fighter_type_id, a.fighter_subtype, a.excluded, a.gang_subtype_id
         FROM fighter_type_availability a
         WHERE v_has_gang
+          -- Gang additions are one pool for every gang: the gang is passed for its count limits,
+          -- not to grant or deny.
+          AND p_is_gang_addition IS NOT TRUE
           AND (a.gang_subtype_id IS NULL OR v_gang_subtypes ? a.gang_subtype_id::text)
           AND (a.gang_origin_id  IS NULL OR a.gang_origin_id = v_gang_origin_id)
           AND (a.gang_type_id    IS NULL OR a.gang_type_id  = v_gang_type_id)
@@ -127,7 +133,8 @@ BEGIN
         ft.intelligence,
         ft.attacks,
         ft.save,
-        ft.limitation,
+        lim.min_count,
+        lim.max_count,
         ft.alignment,
         ft.is_gang_addition,
         ft.alliance_id,
@@ -936,6 +943,22 @@ BEGIN
     LEFT JOIN fighter_specialisations fspec ON fspec.id = ft.fighter_specialisation_id
     LEFT JOIN editions ed ON ed.id = ft.edition_id
     LEFT JOIN granted g ON g.fighter_type_id = ft.id
+    -- The most specific rule wins whole: gang subtype, then origin, then gang type, then a rule
+    -- for every gang. Without a gang only the every-gang rules can match. Two equally specific
+    -- rules can both match (a gang with two subtypes); id breaks the tie so the pick is stable.
+    LEFT JOIN LATERAL (
+        SELECT cl.min_count, cl.max_count
+        FROM count_limits cl
+        WHERE cl.fighter_type_id = ft.id
+          AND (cl.gang_type_id    IS NULL OR cl.gang_type_id   = v_gang_type_id)
+          AND (cl.gang_origin_id  IS NULL OR cl.gang_origin_id = v_gang_origin_id)
+          AND (cl.gang_subtype_id IS NULL OR v_gang_subtypes ? cl.gang_subtype_id::text)
+        ORDER BY (cl.gang_subtype_id IS NOT NULL) DESC,
+                 (cl.gang_origin_id  IS NOT NULL) DESC,
+                 (cl.gang_type_id    IS NOT NULL) DESC,
+                 cl.id
+        LIMIT 1
+    ) lim ON true
     WHERE
         (
             CASE

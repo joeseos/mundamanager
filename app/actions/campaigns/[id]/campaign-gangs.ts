@@ -4,6 +4,7 @@ import { invalidateCampaignGang, invalidateUser, invalidatePermission } from '@/
 import { createClient } from "@/utils/supabase/server";
 
 import { getAuthenticatedUser } from '@/utils/auth';
+import { logGangJoinedCampaign } from '../../logs/gang-campaign-logs';
 
 export interface AcceptGangInviteParams {
   campaignId: string;
@@ -43,7 +44,7 @@ export async function acceptGangInvite(params: AcceptGangInviteParams) {
     // Find the PENDING campaign_gang record
     const { data: campaignGang, error: fetchError } = await supabase
       .from('campaign_gangs')
-      .select('id')
+      .select('id, invited_by')
       .eq('campaign_id', campaignId)
       .eq('gang_id', gangId)
       .eq('status', 'PENDING')
@@ -52,7 +53,6 @@ export async function acceptGangInvite(params: AcceptGangInviteParams) {
     if (fetchError) throw fetchError;
     if (!campaignGang) throw new Error('No pending invitation found');
 
-    // Update status to ACCEPTED
     const now = new Date().toISOString();
     // Zero rows matched is not an error, so a lost race or an RLS denial would
     // otherwise report success — and bust caches — while the row stayed PENDING.
@@ -71,10 +71,15 @@ export async function acceptGangInvite(params: AcceptGangInviteParams) {
       return { success: false, error: 'This invitation has already been answered' };
     }
 
+    // Logged here, not at invite time: while PENDING only the gang owner passes the gang_logs policy.
+    await logGangJoinedCampaign({
+      gang_id: gangId,
+      campaign_id: campaignId,
+      actor_id: campaignGang.invited_by
+    });
+
     // Invalidate caches
     invalidateCampaignGang(campaignId, gangId);
-    invalidateUser(user.id);
-
     invalidatePermission(user.id, gangId);
     invalidateUser(user.id);
 
@@ -150,7 +155,7 @@ export async function declineGangInvite(params: DeclineGangInviteParams) {
       return { success: false, error: 'This invitation has already been answered' };
     }
 
-    // Invalidate caches - same as accept but with 'leave' action
+    // Invalidate caches
     invalidateCampaignGang(campaignId, gangId);
     invalidateUser(user.id);
 

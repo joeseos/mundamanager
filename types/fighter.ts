@@ -340,3 +340,13 @@ export interface CustomFighterType {
   updated_at?: string;
   edition_slug?: string | null;
 }
+
+export interface FighterDetailsPatch {
+  fighter_subtypes?: string[];
+  fighter_type?: string;
+  fighter_type_id?: string;
+  fighter_specialisation?: string | null;
+  fighter_specialisation_id?: string | null;
+  special_rules?: string[];
+  promoted_from_prospect?: boolean;
+}

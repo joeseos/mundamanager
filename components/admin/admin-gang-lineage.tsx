@@ -42,7 +42,7 @@ interface FighterType {
 }
 
 interface GangType {
-  gang_type_id: string;
+  id: string;
   gang_type: string;
   edition_id?: string | null;
 }
@@ -228,7 +228,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
 
     // Only blank a selection when the target is found with a confirmed different edition
     const conflicts = (gangTypeId: string) => {
-      const gangType = gangTypes.find(gt => gt.gang_type_id === gangTypeId);
+      const gangType = gangTypes.find(gt => gt.id === gangTypeId);
       return !!gangType?.edition_id && gangType.edition_id !== newEditionId;
     };
 
@@ -452,7 +452,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
         >
           <option value="">Select a gang type</option>
           {filteredGangTypes.map((gangType) => (
-            <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
+            <option key={gangType.id} value={gangType.id}>
               {gangType.gang_type}
             </option>
           ))}
@@ -498,7 +498,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
               >
                 <option value="">Select gang type</option>
                 {filteredGangTypes.map((gangType) => (
-                  <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
+                  <option key={gangType.id} value={gangType.id}>
                     {gangType.gang_type}
                   </option>
                 ))}
@@ -692,7 +692,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                     >
                       <option value="">Select a gang type</option>
                       {filteredGangTypes.map((gangType) => (
-                        <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
+                        <option key={gangType.id} value={gangType.id}>
                           {gangType.gang_type}
                         </option>
                       ))}
@@ -744,7 +744,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                         >
                           <option value="">Select gang type</option>
                           {filteredGangTypes.map((gangType) => (
-                            <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
+                            <option key={gangType.id} value={gangType.id}>
                               {gangType.gang_type}
                             </option>
                           ))}

@@ -7,7 +7,11 @@ import { fetchCampaignAllegiances } from '@/utils/campaigns/allegiances';
 import { getWinnerIdsFromParsed, getClaimerGangIdFromParsed } from '@/utils/battle-winners';
 import { fetchCampaignResources } from '@/utils/campaigns/resources';
 import { CAMPAIGN_TERRITORY_COLUMNS } from '@/utils/campaigns/territories';
+import { fetchAllRows } from '@/utils/supabase/fetch-all-rows';
+import { sumFighterKills } from '@/app/lib/shared/gang-data';
+import { groupBy } from '@/utils/gang-assembly';
 import { editionSlugFromJoin } from '@/types/edition';
+import { joinedParentGangTypeName } from '@/utils/gang-type-label';
 import type { CampaignMapRow, CampaignMapObjectRow, CampaignMapBundle } from '@/types/campaign';
 
 // No TTL - infinite cache with server action invalidation only
@@ -131,11 +135,13 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
         id,
         name,
         gang_type,
+        gang_type_id,
         gang_colour,
         reputation,
         rating,
         wealth,
-        credits
+        credits,
+        gang_types!gang_type_id ( parent_gang_type_name )
       `)
       .in('id', gangIds);
 
@@ -315,6 +321,8 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
         id: cg.gang_id,
         name: gangDetails?.name || '',
         gang_type: gangDetails?.gang_type || '',
+        gang_type_id: gangDetails?.gang_type_id ?? null,
+        parent_gang_type_name: joinedParentGangTypeName(gangDetails?.gang_types),
         gang_colour: gangDetails?.gang_colour || '#000000',
         rating: gangDetails?.rating || 0,
         wealth: gangDetails?.wealth || 0,
@@ -373,7 +381,8 @@ async function _getCampaignTerritories(campaignId: string, supabase: SupabaseCli
         id,
         name,
         gang_type,
-        gang_colour
+        gang_colour,
+        gang_types!gang_type_id ( parent_gang_type_name )
       `)
       .in('id', territoryGangIds);
 
@@ -428,6 +437,7 @@ async function _getCampaignTerritories(campaignId: string, supabase: SupabaseCli
         id: gangDetails.id,
         name: gangDetails.name,
         gang_type: gangDetails.gang_type || '',
+        parent_gang_type_name: joinedParentGangTypeName(gangDetails.gang_types),
         gang_colour: gangDetails.gang_colour || '#000000'
       }] : []
     };
@@ -442,6 +452,12 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
       created_at,
       updated_at,
       scenario,
+      deployment_id,
+      objective_id,
+      crew_selection_id,
+      deployment_name,
+      objective_name,
+      crew_selection_name,
       winner_id,
       note,
       participants,
@@ -549,6 +565,12 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
       scenario: battle.scenario || scenarioDetails?.scenario_name || '',
       scenario_name: scenarioDetails?.scenario_name || '',
       scenario_number: scenarioDetails?.scenario_number || null,
+      deployment_id: battle.deployment_id,
+      objective_id: battle.objective_id,
+      crew_selection_id: battle.crew_selection_id,
+      deployment_name: battle.deployment_name,
+      objective_name: battle.objective_name,
+      crew_selection_name: battle.crew_selection_name,
       winner_id: battle.winner_id,
       note: battle.note,
       participants: battle.participants,
@@ -593,11 +615,13 @@ const getCampaignGangIds = async (campaignId: string) => {
   return unstable_cache(
     async () => {
       const supabase = createServiceRoleClient();
-      const { data: campaignGangs } = await supabase
+      const { data: campaignGangs, error } = await supabase
         .from('campaign_gangs')
         .select('gang_id')
         .eq('campaign_id', campaignId);
 
+      // Throw rather than cache an empty list until the next membership change.
+      if (error) throw error;
       return campaignGangs?.map(cg => cg.gang_id) || [];
     },
     [`campaign-gang-ids-v2-${campaignId}`],
@@ -642,6 +666,7 @@ export const getCampaignMembers = async (campaignId: string) => {
     TAGS.campaignTerritories(campaignId),
     TAGS.campaignAllegiances(campaignId),
     TAGS.campaignResources(campaignId),
+    TAGS.globalGangTypes(),
     // Per-gang overview tags: standings refresh when a member gang's
     // rating/wealth/credits/name actually change (fired by the
     // updateGangFinancials choke point), NOT on every fighter edit —
@@ -653,7 +678,7 @@ export const getCampaignMembers = async (campaignId: string) => {
     async () => {
       return _getCampaignMembers(campaignId, createServiceRoleClient());
     },
-    [`campaign-members-v3-${campaignId}`],
+    [`campaign-members-v4-${campaignId}`],
     {
       tags: cacheTags,
       revalidate: false
@@ -674,10 +699,11 @@ export const getCampaignTerritories = async (campaignId: string) => {
     async () => {
       return _getCampaignTerritories(campaignId, createServiceRoleClient());
     },
-    [`campaign-territories-v2-${campaignId}`],
+    [`campaign-territories-v3-${campaignId}`],
     {
       tags: [
         TAGS.campaignTerritories(campaignId),
+        TAGS.globalGangTypes(),
         ...gangIds.map(gangId => TAGS.gangOverview(gangId))
       ],
       revalidate: false
@@ -815,6 +841,47 @@ async function _getCampaignCaptives(campaignId: string, supabase: SupabaseClient
 
   return Object.values(byHoldingGang).sort((a, b) => a.gangName.localeCompare(b.gangName));
 }
+
+async function _getCampaignOoaCounts(gangIds: string[], supabase: SupabaseClient) {
+  if (gangIds.length === 0) return [];
+
+  const fighters = await fetchAllRows<{ gang_id: string; kills: number | null }>((from, to) =>
+    supabase
+      .from('fighters')
+      .select('gang_id, kills')
+      .in('gang_id', gangIds)
+      // Fighters without kills add nothing to the sum.
+      .gt('kills', 0)
+      .order('id')
+      .range(from, to)
+  );
+
+  return Object.entries(groupBy(fighters, 'gang_id'))
+    .map(([gang_id, list]) => ({ gang_id, ooa_count: sumFighterKills(list) }));
+}
+
+/**
+ * Get each gang's "OOA caused" for a campaign (Slaughterer triumph): the sum
+ * of its fighters' kills, the same number the gang page shows
+ * (getGangFighterStats). One query covers all the campaign's gangs.
+ */
+export const getCampaignOoaCounts = async (campaignId: string) => {
+  const gangIds = await getCampaignGangIds(campaignId);
+  return unstable_cache(
+    async () => {
+      return _getCampaignOoaCounts(gangIds, createServiceRoleClient());
+    },
+    [`campaign-ooa-counts-v2-${campaignId}`],
+    {
+      tags: [
+        TAGS.campaignMembers(campaignId),
+        // The gang page's stats use the same tag, so both refresh together.
+        ...gangIds.map(gangId => TAGS.gangRoster(gangId))
+      ],
+      revalidate: false
+    }
+  )();
+};
 
 /**
  * Get available resources for a campaign

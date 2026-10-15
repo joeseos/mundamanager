@@ -1,26 +1,23 @@
 'use client';
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { Button } from '../ui/button';
 import { FighterProps } from '@/types/fighter';
 import { toast } from 'sonner';
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { StashItem, ResourceUpdate, DefaultImageEntry, resolveGangImageUrl, UNKNOWN_GANG_IMAGE_URL } from '@/types/gang';
+import { StashItem, ResourceUpdate, resolveGangImageUrl, UNKNOWN_GANG_IMAGE_URL } from '@/types/gang';
 import { VehicleProps } from '@/types/vehicle';
 import Image from 'next/image';
 import { DraggableFighters } from './draggable-fighters';
 import { GiAncientRuins } from "react-icons/gi";
-import FighterAddModal from './fighter-add/FighterAddModal';
-import AddVehicle from './add-vehicle';
 import { FiPrinter, FiShare2, FiCamera } from 'react-icons/fi';
 import { AiFillEyeInvisible } from "react-icons/ai";
 import { LuLogs } from "react-icons/lu";
 import { useShare } from '@/hooks/use-share';
 import { toJpeg } from 'html-to-image';
-import LogModal from '../log-modal';
 import { ViewModeDropdown, isGangPageViewMode, type GangPageViewMode } from './ViewModeDropdown';
-import GangEditModal from './gang-edit-modal';
 import GangResourcesModal from './gang-resources-modal';
 import { UserPermissions } from '@/types/user-permissions';
 import { updateGangPositioning } from '@/app/actions/update-gang-positioning';
@@ -28,11 +25,20 @@ import { FaRegCopy } from 'react-icons/fa';
 import CopyGangModal from './copy-gang-modal';
 import { Tooltip } from 'react-tooltip';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
-import { GangImageEditModal } from './gang-image-edit-modal';
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { hasAlignment, hasTradePoints, hasVehicles } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
+import { detailGangTypeLabel } from '@/utils/gang-type-label';
+
+const GangEditModal = dynamic(() => import('./gang-edit-modal'), { ssr: false });
+const FighterAddModal = dynamic(() => import('./fighter-add/FighterAddModal'), { ssr: false });
+const AddVehicle = dynamic(() => import('./add-vehicle'), { ssr: false });
+const LogModal = dynamic(() => import('../log-modal'), { ssr: false });
+const GangImageEditModal = dynamic(
+  () => import('./gang-image-edit-modal').then((mod) => mod.GangImageEditModal),
+  { ssr: false }
+);
 
 
 interface GangProps {
@@ -42,10 +48,10 @@ interface GangProps {
   custom_gang_type_id?: string | null;
   gang_type?: string;
   edition_slug?: string | null;
-  gang_type_image_url: string;
   image_url?: string;
-  default_gang_image?: number | null;
-  gang_type_default_image_urls?: DefaultImageEntry[];
+  gang_portrait_id?: string | null;
+  gang_portrait_url?: string | null;
+  parent_gang_type_name?: string | null;
   gang_colour: string | null;
   credits: number | null;
   reputation: number | null;
@@ -100,6 +106,7 @@ interface GangProps {
   onFighterUpdate?: (updatedFighter: FighterProps) => void;
   onGangCreditsUpdate?: (newCredits: number) => void;
   onGangWealthUpdate?: (newWealth: number) => void;
+  onGangRatingUpdate?: (newRating: number) => void;
   positioning: Record<number, string>;
   gang_subtypes: Array<{id: string, subtype: string}> | null;
   vehicles?: VehicleProps[];
@@ -120,8 +127,9 @@ export default function Gang({
   gang_type,
   edition_slug,
   image_url,
-  default_gang_image,
-  gang_type_default_image_urls,
+  gang_portrait_id,
+  gang_portrait_url,
+  parent_gang_type_name,
   gang_colour: initialGangColour,
   credits: initialCredits,
   reputation: initialReputation,
@@ -152,6 +160,7 @@ export default function Gang({
   onFighterUpdate,
   onGangCreditsUpdate,
   onGangWealthUpdate,
+  onGangRatingUpdate,
   positioning,
   gang_subtypes,
   vehicles,
@@ -230,7 +239,8 @@ export default function Gang({
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [currentGangImageUrl, setCurrentGangImageUrl] = useState(image_url);
-  const [currentDefaultGangImage, setCurrentDefaultGangImage] = useState<number | null | undefined>(default_gang_image);
+  const [currentPortraitUrl, setCurrentPortraitUrl] = useState(gang_portrait_url);
+  const [currentPortraitId, setCurrentPortraitId] = useState(gang_portrait_id ?? null);
   const [viewMode, setViewMode] = useState<GangPageViewMode>('normal');
   const isFirstRender = useRef(true);
 
@@ -267,10 +277,15 @@ export default function Gang({
     setWealth(initialWealth ?? 0);
   }
 
-  const [prevDefaultGangImage, setPrevDefaultGangImage] = useState(default_gang_image);
-  if (default_gang_image !== prevDefaultGangImage) {
-    setPrevDefaultGangImage(default_gang_image);
-    setCurrentDefaultGangImage(default_gang_image);
+  const [prevPortraitUrl, setPrevPortraitUrl] = useState(gang_portrait_url);
+  if (gang_portrait_url !== prevPortraitUrl) {
+    setPrevPortraitUrl(gang_portrait_url);
+    setCurrentPortraitUrl(gang_portrait_url);
+  }
+  const [prevPortraitId, setPrevPortraitId] = useState(gang_portrait_id ?? null);
+  if ((gang_portrait_id ?? null) !== prevPortraitId) {
+    setPrevPortraitId(gang_portrait_id ?? null);
+    setCurrentPortraitId(gang_portrait_id ?? null);
   }
 
   const [prevCampaigns, setPrevCampaigns] = useState(campaigns);
@@ -406,13 +421,12 @@ export default function Gang({
     e.currentTarget.src = UNKNOWN_GANG_IMAGE_URL;
   };
 
-  const getDefaultImageUrl = useCallback((): string | null => {
+  const getDefaultImageUrl = useCallback((): string => {
     return resolveGangImageUrl({
       imageUrl: currentGangImageUrl,
-      defaultGangImage: currentDefaultGangImage,
-      defaultImageUrls: gang_type_default_image_urls,
-    }) ?? null;
-  }, [currentGangImageUrl, currentDefaultGangImage, gang_type_default_image_urls]);
+      portraitUrl: currentPortraitUrl,
+    });
+  }, [currentGangImageUrl, currentPortraitUrl]);
 
   const formatDate = useCallback((date: string | Date | null) => {
     if (!date) return 'N/A';
@@ -581,6 +595,13 @@ export default function Gang({
       if (result.data) {
         setLastUpdated(result.data.last_updated);
         if (result.data.alliance_name) setAllianceName(result.data.alliance_name);
+        // An alliance change moves rating by the ally's Tithe Price on the server
+        if (variables.alliance_id !== undefined) {
+          setRating(result.data.rating);
+          onGangRatingUpdate?.(result.data.rating);
+          setWealth(result.data.wealth);
+          onGangWealthUpdate?.(result.data.wealth);
+        }
         if (result.data.gang_affiliation_name !== undefined) setGangAffiliationName(result.data.gang_affiliation_name);
         // Only update subtypes if they were actually changed in the request.
         if (variables.gang_subtypes !== undefined && result.data.gang_subtypes) {
@@ -797,19 +818,18 @@ export default function Gang({
     }
   };
 
-  const handleGangImageUpdate = (newImageUrl: string, newDefaultImageIndex?: number | null) => {
-    if (newDefaultImageIndex !== undefined) {
-      // Updating default image index
-      setCurrentGangImageUrl(undefined); // Clear custom image URL
-      setCurrentDefaultGangImage(newDefaultImageIndex); // Update default image index
-    } else {
-      // Updating custom image URL
-      setCurrentGangImageUrl(newImageUrl || undefined);
-      // If setting a custom image, clear the default image index
-      if (newImageUrl) {
-        setCurrentDefaultGangImage(null);
-      }
+  const handleGangImageUpdate = (newImageUrl: string, options?: { clearPortrait?: boolean }) => {
+    setCurrentGangImageUrl(newImageUrl || undefined);
+    if (newImageUrl || options?.clearPortrait) {
+      setCurrentPortraitUrl(null);
+      setCurrentPortraitId(null);
     }
+  };
+
+  const handlePortraitUpdate = (portraitId: string, portraitUrl: string) => {
+    setCurrentPortraitId(portraitId);
+    setCurrentPortraitUrl(portraitUrl);
+    setCurrentGangImageUrl(undefined);
   };
 
   const handlePositionsUpdate = async (newPositions: Record<number, string>) => {
@@ -1095,7 +1115,7 @@ export default function Gang({
 
                     {/* Gang Type */}
                     <div className="flex items-center gap-1">
-                      Type: <Badge variant="secondary">{gang_type}</Badge>
+                      Type: <Badge variant="secondary">{detailGangTypeLabel(gang_type, parent_gang_type_name)}</Badge>
                     </div>
 
                     {/* Gang Origin, ie. Prefecture, Path of Faith */}
@@ -1272,33 +1292,35 @@ export default function Gang({
             </div>
           </div>
 
-          <GangEditModal
-            isOpen={showEditModal}
-            onClose={() => setShowEditModal(false)}
-            gangId={id}
-            gangName={name}
-            editionSlug={edition_slug}
-            isGangOwner={userPermissions?.isOwner}
-            isAdmin={userPermissions?.isAdmin}
-            alignment={alignment}
-            allianceId={allianceId}
-            allianceName={allianceName}
-            gangColour={gangColour}
-            gangSubtypes={gangSubtypes}
-            availableSubtypes={availableSubtypes}
-            gangAffiliationId={gangAffiliationId}
-            gangAffiliationName={gangAffiliationName}
-            gangType={gang_type}
-            customGangTypeId={custom_gang_type_id}
-            gangTypeHasAffiliation={gang_type_has_affiliation}
-            gangOriginId={gangOriginId}
-            gangOriginName={gangOriginName}
-            gangOriginCategoryName={gangOriginCategoryName}
-            gangTypeHasOrigin={gang_type_has_origin || false}
-            hidden={hidden}
-            campaigns={campaignsWithOptimisticData}
-            onSave={handleGangUpdate}
-          />
+          {showEditModal && (
+            <GangEditModal
+              onClose={() => setShowEditModal(false)}
+              gangId={id}
+              gangName={name}
+              editionSlug={edition_slug}
+              credits={credits}
+              isGangOwner={userPermissions?.isOwner}
+              isAdmin={userPermissions?.isAdmin}
+              alignment={alignment}
+              allianceId={allianceId}
+              allianceName={allianceName}
+              gangColour={gangColour}
+              gangSubtypes={gangSubtypes}
+              availableSubtypes={availableSubtypes}
+              gangAffiliationId={gangAffiliationId}
+              gangAffiliationName={gangAffiliationName}
+              gangType={gang_type}
+              customGangTypeId={custom_gang_type_id}
+              gangTypeHasAffiliation={gang_type_has_affiliation}
+              gangOriginId={gangOriginId}
+              gangOriginName={gangOriginName}
+              gangOriginCategoryName={gangOriginCategoryName}
+              gangTypeHasOrigin={gang_type_has_origin || false}
+              hidden={hidden}
+              campaigns={campaignsWithOptimisticData}
+              onSave={handleGangUpdate}
+            />
+          )}
 
           <GangResourcesModal
             isOpen={showResourcesModal}
@@ -1352,6 +1374,7 @@ export default function Gang({
                 showModal={showAddVehicleModal}
                 setShowModal={setShowAddVehicleModal}
                 gangId={id}
+                gangTypeId={gang_type_id}
                 initialCredits={credits}
                 onVehicleAdd={handleVehicleAdded}
                 onGangCreditsUpdate={onGangCreditsUpdate}
@@ -1380,30 +1403,35 @@ export default function Gang({
             />
           )}
 
-          <LogModal
-            fetchUrl={`/api/gangs/${id}/logs`}
-            editionSlug={edition_slug}
-            isOpen={showLogsModal}
-            onClose={() => setShowLogsModal(false)}
-            fighters={allFightersForLogs}
-            vehicles={allVehiclesForLogs}
-          />
+          {showLogsModal && (
+            <LogModal
+              fetchUrl={`/api/gangs/${id}/logs`}
+              editionSlug={edition_slug}
+              onClose={() => setShowLogsModal(false)}
+              fighters={allFightersForLogs}
+              vehicles={allVehiclesForLogs}
+            />
+          )}
           <CopyGangModal
             gangId={id}
             currentName={name}
             isOpen={showCopyModal}
             onClose={() => setShowCopyModal(false)}
           />
-          <GangImageEditModal
-            isOpen={showImageModal}
-            onClose={() => setShowImageModal(false)}
-            currentImageUrl={currentGangImageUrl}
-            gangId={id}
-            onImageUpdate={handleGangImageUpdate}
-            defaultImageUrl={getDefaultImageUrl() || undefined}
-            defaultImageUrls={gang_type_default_image_urls}
-            currentDefaultImageIndex={currentDefaultGangImage}
-          />
+          {showImageModal && (
+            <GangImageEditModal
+              onClose={() => setShowImageModal(false)}
+              currentImageUrl={currentGangImageUrl}
+              gangId={id}
+              gangType={gang_type || ''}
+              isCustomGangType={Boolean(custom_gang_type_id)}
+              parentGangTypeName={parent_gang_type_name}
+              gangPortraitId={currentPortraitId}
+              currentPortraitUrl={currentPortraitUrl}
+              onImageUpdate={handleGangImageUpdate}
+              onPortraitUpdate={handlePortraitUpdate}
+            />
+          )}
           <Tooltip
             id="gang-composition-tooltip"
             place="top"

@@ -3,8 +3,8 @@ import { unstable_cache } from 'next/cache';
 
 import { assembleGangFighters, groupBy } from '@/utils/gang-assembly';
 import {
-  DefaultImageEntry,
-  normaliseDefaultImageUrls,
+  gangPortraitPublicUrl,
+  joinedPortraitStoragePath,
   type GangFighter,
   type GangFightersBundle,
   type GetGangFightersListOptions,
@@ -67,7 +67,8 @@ export interface GangBasic {
     } | null;
   } | null;
   image_url?: string;
-  default_gang_image?: number | null;
+  gang_portrait_id?: string | null;
+  gang_portrait_url?: string | null;
   hidden: boolean;
   venator_ranks_incomplete?: boolean;
 }
@@ -75,8 +76,7 @@ export interface GangBasic {
 export interface GangType {
   id: string;
   gang_type: string;
-  image_url: string;
-  default_image_urls?: DefaultImageEntry[];
+  parent_gang_type_name?: string | null;
 }
 
 export interface Alliance {
@@ -211,7 +211,10 @@ export const getGangCore = async (gangId: string, supabase: any): Promise<GangCo
             )
           ),
           image_url,
-          default_gang_image,
+          gang_portrait_id,
+          gang_portraits!gangs_gang_portrait_id_fkey (
+            storage_path
+          ),
           hidden
         `)
         .eq('id', gangId)
@@ -223,9 +226,10 @@ export const getGangCore = async (gangId: string, supabase: any): Promise<GangCo
         throw error;
       }
       if (!data) return null;
-      const editionSlug = gangEditionSlug(data);
+      const { gang_portraits, ...gangRow } = data;
+      const editionSlug = gangEditionSlug(gangRow);
       let venatorRanksIncomplete: boolean | undefined;
-      if (isVenatorGang(editionSlug, data.gang_type, Boolean(data.custom_gang_type_id))) {
+      if (isVenatorGang(editionSlug, gangRow.gang_type, Boolean(gangRow.custom_gang_type_id))) {
         const { data: ranksProbe } = await supabase
           .from('gang_skill_set_ranks')
           .select('rank')
@@ -233,17 +237,18 @@ export const getGangCore = async (gangId: string, supabase: any): Promise<GangCo
         venatorRanksIncomplete = (ranksProbe ?? []).length < 4;
       }
       return {
-        ...data,
+        ...gangRow,
         edition_slug: editionSlug,
-        rating: (data.rating ?? 0) as number,
-        wealth: (data.wealth ?? 0) as number,
-        alliance: data.alliance ?? null,
+        rating: (gangRow.rating ?? 0) as number,
+        wealth: (gangRow.wealth ?? 0) as number,
+        alliance: gangRow.alliance ?? null,
+        gang_portrait_url: gangPortraitPublicUrl(joinedPortraitStoragePath(gang_portraits)) ?? null,
         venator_ranks_incomplete: venatorRanksIncomplete,
       };
     },
-    [`gang-core-v6-${gangId}`],
+    [`gang-core-v10-${gangId}`],
     {
-      tags: [TAGS.gang(gangId), TAGS.globalGangTypes()],
+      tags: [TAGS.gang(gangId), TAGS.globalGangTypes(), TAGS.globalGangPortraits()],
       revalidate: false
     }
   )();
@@ -281,14 +286,15 @@ export const getGangTacticsCards = async (gangId: string, supabase: any): Promis
 export const getGangPositioning = async (gangId: string, supabase: any): Promise<Record<string, any> | null> => {
   return unstable_cache(
     async () => {
+      // maybeSingle: a just-deleted gang re-renders from a stale gang-core entry
       const { data, error } = await supabase
         .from('gangs')
         .select('positioning')
         .eq('id', gangId)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
-      return data.positioning || null;
+      return data?.positioning || null;
     },
     [`gang-positioning-v2-${gangId}`],
     {
@@ -361,7 +367,7 @@ export const getGangType = async (gangBasic: GangBasic, supabase: any): Promise<
       async () => {
         const { data, error } = await supabase
           .from('custom_gang_types')
-          .select('id, gang_type, default_image_urls')
+          .select('id, gang_type')
           .eq('id', gangBasic.custom_gang_type_id)
           .single();
 
@@ -369,11 +375,9 @@ export const getGangType = async (gangBasic: GangBasic, supabase: any): Promise<
         return {
           id: data.id,
           gang_type: data.gang_type,
-          image_url: '',
-          default_image_urls: normaliseDefaultImageUrls(data.default_image_urls)
         };
       },
-      [`custom-gang-type-${gangBasic.custom_gang_type_id}`],
+      [`custom-gang-type-v2-${gangBasic.custom_gang_type_id}`],
       {
         tags: [TAGS.globalGangTypes()],
         revalidate: 3600
@@ -385,19 +389,19 @@ export const getGangType = async (gangBasic: GangBasic, supabase: any): Promise<
     async () => {
       const { data, error } = await supabase
         .from('gang_types')
-        .select('gang_type_id, gang_type, image_url, default_image_urls')
-        .eq('gang_type_id', gangBasic.gang_type_id)
+        .select('id, gang_type, parent_gang_type_name')
+        .eq('id', gangBasic.gang_type_id)
         .single();
 
       if (error) throw error;
+
       return {
-        id: data.gang_type_id,
+        id: data.id,
         gang_type: data.gang_type,
-        image_url: data.image_url,
-        default_image_urls: normaliseDefaultImageUrls(data.default_image_urls)
+        parent_gang_type_name: data.parent_gang_type_name ?? null,
       };
     },
-    [`gang-type-${gangBasic.gang_type_id}`],
+    [`gang-type-v5-${gangBasic.gang_type_id}`],
     {
       tags: [TAGS.globalGangTypes()],
       revalidate: 3600
@@ -938,6 +942,7 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
         is_master_crafted,
         is_editable,
         cost_resource,
+        fighter_skill_id,
         equipment:equipment_id (
           equipment_name,
           equipment_type,
@@ -945,7 +950,7 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
           is_consumable,
           weapon_profiles (
             id,
-            weapon_id,
+            equipment_id,
             weapon_group_id,
             profile_name,
             range_short,
@@ -1205,6 +1210,14 @@ export interface GangFighterStats {
   deaths_breakdown: DeathsBreakdownItem[];
 }
 
+/**
+ * A gang's "OOA caused": the sum of every fighter's kills, dead and retired
+ * fighters included. Shared by the gang page's stats and the campaign
+ * Triumphs leaderboard so both always show the same number.
+ */
+export const sumFighterKills = (fighters: Array<{ kills: number | null }>) =>
+  fighters.reduce((sum, f) => sum + (Number(f.kills) || 0), 0);
+
 export const getGangFighterStats = async (
   gangId: string,
   supabase: any
@@ -1219,10 +1232,7 @@ export const getGangFighterStats = async (
       if (error) throw error;
 
       const fighterList = fighters || [];
-      const ooaCaused = fighterList.reduce(
-        (sum: number, f: { kills: number }) => sum + (Number(f.kills) || 0),
-        0
-      );
+      const ooaCaused = sumFighterKills(fighterList);
       const deathsSuffered = fighterList.filter(
         (f: { killed: boolean }) => f.killed === true
       ).length;

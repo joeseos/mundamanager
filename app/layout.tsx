@@ -4,6 +4,7 @@ import { Inter } from 'next/font/google'
 import Link from 'next/link';
 import Image from 'next/image';
 import { Toaster } from "@/components/ui/sonner"
+import { NOTIFICATION_TOASTER_ID } from "@/utils/notification-toast"
 import { WebsiteStructuredData, OrganizationStructuredData } from "@/components/structured-data";
 import { QueryClientProviderWrapper } from "@/app/providers/query-client-provider";
 import { ClientThemeProvider } from "@/components/client-theme-provider";
@@ -165,7 +166,7 @@ export default function RootLayout({
                         disabled
                         className="opacity-75 cursor-none pointer-events-none"
                       >
-                        <Link href="/sign-in">Sign in</Link>
+                        <Link href="/sign-in" prefetch={false}>Sign in</Link>
                       </Button>
                       <Button
                         asChild
@@ -174,7 +175,7 @@ export default function RootLayout({
                         disabled
                         className="opacity-75 cursor-none pointer-events-none"
                       >
-                        <Link href="/sign-up">Sign up</Link>
+                        <Link href="/sign-up" prefetch={false}>Sign up</Link>
                       </Button>
                     </div>
                   </div>
@@ -191,6 +192,13 @@ export default function RootLayout({
           richColors 
           closeButton 
           position="bottom-right" 
+        />
+        <Toaster
+          id={NOTIFICATION_TOASTER_ID}
+          position="top-right"
+          offset={{ top: '4.5rem' }}
+          mobileOffset={{ top: '4.5rem' }}
+          closeButton
         />
           </QueryClientProviderWrapper>
         </ClientThemeProvider>

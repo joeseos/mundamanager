@@ -7,8 +7,8 @@ import { WeaponList } from "@/components/fighter/fighter-equipment-list";
 import { VehicleEquipmentList } from "@/components/fighter/vehicle-equipment-list";
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
-import ItemModal from "@/components/equipment/equipment";
 import { Equipment, FighterLoadout } from '@/types/equipment';
 import { AdvancementsList } from "@/components/fighter/fighter-advancement-list";
 import { PowerBoostsList } from "@/components/fighter/fighter-power-boosts";
@@ -17,10 +17,8 @@ import { InjuriesList } from "@/components/fighter/fighter-injury-list";
 import { FighterNotes } from "@/components/fighter/fighter-notes-list";
 import { VehicleEquipment } from '@/types/fighter';
 import { VEHICLE_EQUIPMENT_CATEGORIES } from '@/utils/vehicleEquipmentCategories';
-import { EditFighterModal } from "@/components/fighter/edit-fighter/fighter-edit-modal";
 import { Vehicle } from '@/types/fighter';
 import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages";
-import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { UserPermissions } from '@/types/user-permissions';
 import { FighterActions } from "@/components/fighter/fighter-actions";
 import { Combobox } from "@/components/ui/combobox";
@@ -32,9 +30,21 @@ import { FaMedkit } from "react-icons/fa";
 import { GiHandcuffs } from "react-icons/gi";
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { sortFightersByPositioning } from '@/utils/fighter-positioning';
-import { hasCumulativeXp } from '@/types/edition';
+import { hasCumulativeXp, hasSpyrerPowerBoosts } from '@/types/edition';
 import { nextTierStartFor, openAdvancementsFor } from '@/utils/advancementRanks';
 import { hasN26ProspectPromotionOccurred } from '@/utils/keepTypePromotionN26';
+
+// Loads its code on first open, not with the page. ssr: false also gives it
+// its own Suspense boundary, so the page keeps updating while the code loads.
+const ItemModal = dynamic(() => import('@/components/equipment/equipment'), { ssr: false });
+const EditFighterModal = dynamic(
+  () => import('@/components/fighter/edit-fighter/fighter-edit-modal').then((mod) => mod.EditFighterModal),
+  { ssr: false }
+);
+const FighterXpModal = dynamic(
+  () => import('@/components/fighter/fighter-xp-modal').then((mod) => mod.FighterXpModal),
+  { ssr: false }
+);
 
 interface FighterPageProps {
   initialFighterData: any;
@@ -222,6 +232,8 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
       is_consumable: item.is_consumable,
       cost_resource_name: item.cost_resource?.name ?? null,
       cost_resource_amount: item.cost_resource?.amount ?? null,
+      fighter_skill_id: item.fighter_skill_id ?? null,
+      granted_by_skill_name: item.granted_by_skill_name,
       beast_cost_breakdown: isBeastEquipment ? {
         base: item.purchase_cost,
         advancements: advancementsBeastCost,
@@ -1012,14 +1024,9 @@ export default function FighterPage({
                 };
               });
             }}
-            onCharacteristicUpdate={(characteristicName, changeAmount) => {
-              // Characteristics are now updated through effect modifiers
-              // The stats calculation will handle the display automatically
-              // No direct characteristic updates needed
-            }}
           />
 
-          {fighterData.fighter?.is_spyrer && (
+          {fighterData.fighter?.is_spyrer && hasSpyrerPowerBoosts(editionSlug) && (
             <PowerBoostsList
               fighterId={fighterData.fighter.id}
               powerBoosts={fighterData.fighter?.effects?.['power-boosts'] || []}
@@ -1404,7 +1411,6 @@ export default function FighterPage({
 
           {uiState.modals.addXp && fighterData.fighter && (
             <FighterXpModal
-              isOpen={uiState.modals.addXp}
               fighterId={fighterId}
               currentXp={fighterData.fighter.xp ?? 0}
               currentTotalXp={fighterData.fighter.total_xp ?? 0}
@@ -1422,7 +1428,6 @@ export default function FighterPage({
           {uiState.modals.editFighter && fighterData.fighter && (
             <EditFighterModal
               fighter={convertToFighterProps({ ...fighterData.fighter, edition_slug: editionSlug })}
-              isOpen={uiState.modals.editFighter}
               initialValues={{
                 name: fighterData.fighter.fighter_name,
                 label: fighterData.fighter.label || '',
@@ -1486,7 +1491,6 @@ export default function FighterPage({
               gangTypeId={fighterData.gang.gang_type_id}
               fighterId={fighterData.fighter.id}
               fighterTypeId={fighterData.fighter.fighter_type.fighter_type_id}
-              gangAffiliationId={fighterData.gang.gang_affiliation_id}
               fighterCredits={fighterData.fighter.credits}
               fighterHasLegacy={Boolean((fighterData as any)?.fighter?.fighter_gang_legacy_id)}
               fighterLegacyName={(fighterData as any)?.fighter?.fighter_gang_legacy?.name}

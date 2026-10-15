@@ -25,6 +25,7 @@ import { useHomeEdition } from "@/hooks/use-home-edition";
 import { EditionToggle } from "@/components/home/edition-toggle";
 import { sameEditionForDisplay } from "@/types/edition";
 import type { UserCampaign } from "@/types/campaign";
+import { compactGangTypeLabel } from "@/utils/gang-type-label";
 import { toast } from 'sonner';
 
 import Link from "next/link";
@@ -43,6 +44,7 @@ interface UserData {
     id: string;
     name: string;
     gang_type: string;
+    parent_gang_type_name?: string | null;
     gang_colour: string;
     credits: number;
     reputation: number;
@@ -248,13 +250,14 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
                 <Link
                   key={gang.id}
                   href={`/gang/${gang.id}`}
+                  prefetch={false}
                   className="block p-2 border rounded-lg hover:bg-muted/50 transition-colors"
                 >
                   <div className="mb-1">
                     <h3 className="font-semibold truncate">{gang.name}</h3>
                   </div>
                   <p className="text-sm text-muted-foreground mb-1">
-                    {gang.gang_type}
+                    {compactGangTypeLabel(gang.gang_type, gang.parent_gang_type_name)}
                   </p>
                   {gang.rating !== null && gang.rating !== undefined && (
                     <div className="text-sm">
@@ -285,6 +288,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
                 <Link
                   key={campaign.id}
                   href={`/campaigns/${campaign.campaign_id}`}
+                  prefetch={false}
                   className="block p-2 border rounded-lg hover:bg-muted/50 transition-colors"
                 >
                   <div className="flex items-start justify-between">

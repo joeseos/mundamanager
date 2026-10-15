@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { createClient } from '@/utils/supabase/client';
 import {
@@ -13,7 +13,6 @@ import {
 } from '@/utils/image-processing';
 
 export interface UseImageEditorOptions {
-  isOpen: boolean;
   onImageUpdate: (newImageUrl: string) => void;
   uploadConfig: {
     entityId: string;
@@ -33,7 +32,6 @@ export interface UseImageEditorOptions {
 }
 
 export const useImageEditor = ({
-  isOpen,
   onImageUpdate,
   uploadConfig,
   imageConfig = {},
@@ -61,26 +59,6 @@ export const useImageEditor = ({
   const onCropComplete = useCallback((croppedArea: any, croppedAreaPixels: CropArea) => {
     setCroppedAreaPixels(croppedAreaPixels);
   }, []);
-
-  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
-  if (isOpen && !prevIsOpen) {
-    setImage(null);
-    setCrop({ x: 0, y: 0 });
-    setZoom(1);
-    setCroppedAreaPixels(null);
-    setIsUploading(false);
-    setIsRemoving(false);
-    setIsProcessing(false);
-  }
-  if (isOpen !== prevIsOpen) {
-    setPrevIsOpen(isOpen);
-  }
-
-  useEffect(() => {
-    if (isOpen && fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  }, [isOpen]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];

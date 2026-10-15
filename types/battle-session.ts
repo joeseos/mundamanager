@@ -1,4 +1,5 @@
 import type { CampaignResource } from '@/utils/campaigns/resources';
+import { scenarioLabel } from '@/types/campaign';
 
 export type BattleSessionStatus = 'pre_battle' | 'active' | 'post_battle' | 'completed';
 
@@ -33,6 +34,18 @@ export interface BattleSession {
   created_by: string;
   campaign_id: string | null;
   scenario: string | null;
+  /** N26: what was rolled on the scenario tables, as scenario_table_entries ids. */
+  deployment_id?: string | null;
+  objective_id?: string | null;
+  crew_selection_id?: string | null;
+  /** N26: a custom Deployment, Objective or Crew named by hand instead of rolled. Null while its id is set. */
+  deployment_name?: string | null;
+  objective_name?: string | null;
+  crew_selection_name?: string | null;
+  /** N26: the rolled entries' names, embedded by the session loaders. */
+  deployment?: { name: string } | null;
+  objective?: { name: string } | null;
+  crew_selection?: { name: string } | null;
   status: BattleSessionStatus;
   winner_gang_id: string | null;
   round: number;
@@ -45,12 +58,27 @@ export interface BattleSession {
   edition_slug?: string | null;
 }
 
+/** What a session is called: its scenario name, or else its Deployment and Objective on N26, picked or custom. */
+export function sessionScenarioLabel(
+  session: Pick<BattleSession, 'scenario' | 'deployment' | 'objective' | 'deployment_name' | 'objective_name'>
+): string {
+  return scenarioLabel(
+    session.scenario,
+    session.deployment?.name ?? session.deployment_name,
+    session.objective?.name ?? session.objective_name
+  );
+}
+
 export interface BattleSessionParticipant {
   id: string;
   battle_session_id: string;
   user_id: string;
   gang_id: string;
   role: 'attacker' | 'defender' | 'none';
+  /** N26: the gang's Side Job (a scenario_table_entries id) or custom Side Job name, and whether it was completed. */
+  side_job_id?: string | null;
+  side_job_name?: string | null;
+  side_job_completed?: boolean;
   gang_rating_snapshot: number | null;
   credits_earned: number;
   reputation_change: number;
@@ -77,6 +105,8 @@ export interface BattleSessionParticipant {
   gang?: {
     id: string;
     name: string;
+    /** Picks the house Side Jobs an N26 gang may roll on. */
+    gang_type_id?: string | null;
     gang_type_name?: string;
     gang_colour?: string;
     rating?: number;
@@ -132,6 +162,8 @@ export interface BattleSessionFull extends BattleSession {
     fighters: BattleSessionFighter[];
   })[];
   campaign_name?: string;
+  /** The challenge this session plays, which its completion files. */
+  linked_battle?: { campaign_territory_id: string | null; cycle: number | null; note: string | null } | null;
   campaign_resources?: CampaignResource[];
   campaign_gang_ids?: Record<string, string>;
 }

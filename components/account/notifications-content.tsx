@@ -1,13 +1,13 @@
 'use client';
 
-import { useCallback, useState, useEffect, type MouseEvent } from 'react';
+import { useState, useEffect } from 'react';
 import { LuOctagonX, LuUserPlus, LuTriangleAlert, LuSwords, LuLink2, LuArrowUpRight } from "react-icons/lu";
 import { LuCheck } from "react-icons/lu";
 import { ImInfo } from "react-icons/im";
 import { HiX } from "react-icons/hi";
 import { cn } from '@/app/lib/utils';
-import { useFetchNotifications } from '../../hooks/use-notifications';
-import { useRouter, usePathname } from 'next/navigation';
+import { useDeleteNotification, useMarkNotificationsRead, useNotificationToasts, useNotifications, type Notification } from '../../hooks/use-notifications';
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Modal from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
@@ -17,16 +17,6 @@ import { acceptGangInvite, declineGangInvite } from '@/app/actions/campaigns/[id
 import { acceptJoinRequest, declineJoinRequest } from '@/app/actions/campaigns/[id]/campaign-join-requests';
 import { LuTrash2 } from "react-icons/lu";
 import { notificationTextToHtml, type NotificationType, isSafeNotificationLink, resolveNotificationLink, getNotificationLinkLabel, getNotificationLinkDescription } from '@/utils/notifications';
-
-type Notification = {
-  id: string;
-  text: string;
-  type: NotificationType;
-  created_at: string;
-  dismissed: boolean;
-  link: string | null;
-  sender_id?: string; // Add sender_id for friend requests and gang invites
-};
 
 type NotificationActionResult = { success: boolean; error?: string };
 
@@ -113,10 +103,7 @@ function NotificationActionButtons({
   return (
     <div className="flex gap-2 items-center ml-2 self-center mt-2">
       <Button
-        onClick={(e) => {
-          e.stopPropagation();
-          onDecline();
-        }}
+        onClick={onDecline}
         disabled={pending !== null}
         variant="outline_remove"
         size="sm"
@@ -126,10 +113,7 @@ function NotificationActionButtons({
         {pending === 'decline' ? 'Declining...' : 'Decline'}
       </Button>
       <Button
-        onClick={(e) => {
-          e.stopPropagation();
-          onAccept();
-        }}
+        onClick={onAccept}
         disabled={pending !== null}
         variant="outline_accept"
         size="sm"
@@ -143,28 +127,34 @@ function NotificationActionButtons({
 }
 
 export default function NotificationsContent({ userId }: { userId: string }) {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notificationToDelete, setNotificationToDelete] = useState<string | null>(null);
   const [processingRequest, setProcessingRequest] = useState<{ id: string; response: NotificationResponse } | null>(null);
-  const router = useRouter();
   const pathname = usePathname();
   const isProfilePage = pathname === '/account';
 
-  // Callback to handle incoming notifications
-  const onNotifications = useCallback(
-    (newNotifications: Notification[]) => {
-      setNotifications(newNotifications);
-    },
-    []
-  );
+  // Kept current by the header's realtime subscription (SettingsModal).
+  // Toasts run here as well: this page has the user id immediately, so arrivals
+  // are announced before the mark-read effect below dismisses them.
+  const { notifications, refetch } = useNotifications(userId);
+  useNotificationToasts(userId);
+  const { mutate: markRead } = useMarkNotificationsRead(userId);
+  const { mutateAsync: deleteNotification } = useDeleteNotification(userId);
 
-  // Fetch notifications and get dismiss/delete functions
-  const { dismissNotification, dismissAllNotifications, deleteNotification } = useFetchNotifications({
-    onNotifications,
-    userId,
-    realtime: false, // Disable realtime here since SettingsModal handles it
-    isProfilePage,
-  });
+  // Opening the account page fetches the list and marks what that fetch
+  // returned as read
+  useEffect(() => {
+    if (!isProfilePage) return;
+
+    let active = true;
+    refetch({ cancelRefetch: false }).then(result => {
+      if (!active || result.status !== 'success') return;
+      const unreadIds = result.data.filter(n => !n.dismissed).map(n => n.id);
+      if (unreadIds.length > 0) markRead(unreadIds);
+    });
+    return () => {
+      active = false;
+    };
+  }, [isProfilePage, refetch, markRead]);
 
   // Resolve a notification's in-app action and its server-action args; null if either is missing
   const getNotificationAction = (notification: Notification) => {
@@ -185,8 +175,11 @@ export default function NotificationsContent({ userId }: { userId: string }) {
     try {
       const result = await action[response](args);
       if (result.success) {
-        await deleteNotification(notification.id);
-        setNotifications(prev => prev.filter(n => n.id !== notification.id));
+        try {
+          await deleteNotification(notification.id);
+        } catch {
+          toast.error('Could not remove the notification');
+        }
       } else {
         console.error(`Error ${verb} ${action.label}:`, result.error);
         toast.error(result.error || failureMessage);
@@ -206,8 +199,8 @@ export default function NotificationsContent({ userId }: { userId: string }) {
     try {
       await deleteNotification(notificationToDelete);
       return true;
-    } catch (error) {
-      console.error('Error deleting notification:', error);
+    } catch {
+      toast.error('Failed to delete notification');
       return false;
     }
   };
@@ -237,31 +230,11 @@ export default function NotificationsContent({ userId }: { userId: string }) {
   // Shared with the email worker via utils/notifications/render so both channels match.
   const renderNotificationText = (text: string) => notificationTextToHtml(text);
 
-  const handleNotificationLinkClick = (
-    event: MouseEvent,
-    notification: Notification
-  ) => {
-    event.stopPropagation();
-
-    if (!shouldShowLinkAttachment(notification)) {
-      return;
-    }
-
-    const resolved = resolveNotificationLink(notification.link);
-    if (!resolved) {
-      return;
-    }
-
-    const { href, isExternal } = resolved;
-
-    if (isExternal) {
-      window.open(href, '_blank', 'noopener,noreferrer');
-    } else {
-      router.push(href);
-    }
-
+  // The link navigates by itself (external links in a new tab), so this only
+  // marks the notification as read
+  const handleNotificationLinkClick = (notification: Notification) => {
     if (!notification.dismissed) {
-      dismissNotification(notification.id);
+      markRead([notification.id]);
     }
   };
 
@@ -302,7 +275,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
           target="_blank"
           rel="noopener noreferrer"
           className={attachmentClassName}
-          onClick={(event) => handleNotificationLinkClick(event, notification)}
+          onClick={() => handleNotificationLinkClick(notification)}
         >
           {attachmentContent}
         </a>
@@ -312,8 +285,9 @@ export default function NotificationsContent({ userId }: { userId: string }) {
     return (
       <Link
         href={href}
+        prefetch={false}
         className={attachmentClassName}
-        onClick={(event) => handleNotificationLinkClick(event, notification)}
+        onClick={() => handleNotificationLinkClick(notification)}
       >
         {attachmentContent}
       </Link>
@@ -327,7 +301,6 @@ export default function NotificationsContent({ userId }: { userId: string }) {
         return <LuOctagonX className="h-5 w-5 text-red-500" />;
       case 'warning':
         return <LuTriangleAlert className="h-5 w-5 text-amber-500" />;
-      case 'invite': // legacy: pre-split campaign/battle invites
       case 'campaign_invite':
         return <LuUserPlus className="h-5 w-5 text-indigo-500" />;
       case 'battle_invite':
@@ -385,10 +358,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                   )}
                   {!isActionableNotification(notification.type) && (
                     <Button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setNotificationToDelete(notification.id);
-                      }}
+                      onClick={() => setNotificationToDelete(notification.id)}
                       variant="ghost"
                       size="icon"
                       className="ml-2 shrink-0 text-gray-400 hover:text-red-500 hover:bg-transparent"

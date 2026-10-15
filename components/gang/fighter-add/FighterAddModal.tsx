@@ -19,9 +19,10 @@ import { bestRankedLabel } from '@/utils/rankLookup';
 import { fighterTypeRank } from '@/utils/fighterTypeRank';
 import { beastSubtypeName, hasGangAdditionCategories, sameEditionForDisplay } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
+import { countLimitPrefix } from '@/utils/countLimitPrefix';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
-import { ImInfo } from 'react-icons/im';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { addFighterToGang } from '@/app/actions/add-fighter';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { getArchetypeCatalogSubtype, isArchetypeEligible } from '@/utils/archetypeEligibility';
@@ -96,7 +97,8 @@ function mapFighterType(type: any): FighterType {
     attacks: type.attacks,
     save: type.save ?? null,
     edition_slug: type.edition_slug ?? null,
-    limitation: type.limitation,
+    min_count: type.min_count ?? null,
+    max_count: type.max_count ?? null,
     alignment: type.alignment,
     default_equipment: type.default_equipment || [],
     is_gang_addition: type.is_gang_addition || false,
@@ -796,7 +798,7 @@ export default function FighterAddModal({
       ) => {
         const delegationCost = fighter.delegation_cost;
         const costDisplay = delegationCost ? `${cost} / ${delegationCost} credits` : `${cost} credits`;
-        const displayName = `${fighter.limitation && fighter.limitation > 0 ? `0-${fighter.limitation} ` : ''}${fighter.fighter_type} - ${costDisplay}${ownerUnknown ? ' (owner unknown)' : ''}`;
+        const displayName = `${countLimitPrefix(fighter)}${fighter.fighter_type} - ${costDisplay}${ownerUnknown ? ' (owner unknown)' : ''}`;
         return {
           value: fighter.id,
           label: nested
@@ -846,6 +848,9 @@ export default function FighterAddModal({
       return a.fighter.fighter_type.localeCompare(b.fighter.fighter_type);
     };
 
+    const typeOptionLabel = (fighter: FighterType, cost: number) =>
+      `${countLimitPrefix(fighter)}${fighter.fighter_type} (${formatFighterSubtypeDisplay(fighter.fighter_subtypes, fighter.edition_slug ?? editionSlug)}) - ${cost} credits`;
+
     if (includeAllFighterTypes) {
       const groupedByGangType = Array.from(typeSubtypeMap.values()).reduce((groups, { fighter, cost }) => {
         const gangTypeName = fighter.gang_type || 'Unknown';
@@ -863,7 +868,7 @@ export default function FighterAddModal({
           disabled: true,
         });
         fighters.forEach(({ fighter, cost }) => {
-          const displayName = `${fighter.fighter_type} (${formatFighterSubtypeDisplay(fighter.fighter_subtypes, fighter.edition_slug ?? editionSlug)}) - ${cost} credits`;
+          const displayName = typeOptionLabel(fighter, cost);
           options.push({ value: fighter.id, label: <span className="ml-3">{displayName}</span>, displayValue: displayName });
         });
       });
@@ -887,7 +892,7 @@ export default function FighterAddModal({
     if (!hasMultipleGroups) {
       const fighters = (groupedByType[sortedGroups[0]] || []).sort(sortFighters);
       fighters.forEach(({ fighter, cost }) => {
-        options.push({ value: fighter.id, label: `${fighter.fighter_type} (${formatFighterSubtypeDisplay(fighter.fighter_subtypes, fighter.edition_slug ?? editionSlug)}) - ${cost} credits` });
+        options.push({ value: fighter.id, label: typeOptionLabel(fighter, cost) });
       });
       return options;
     }
@@ -901,7 +906,7 @@ export default function FighterAddModal({
         disabled: true,
       });
       fighters.forEach(({ fighter, cost }) => {
-        const displayName = `${fighter.fighter_type} (${formatFighterSubtypeDisplay(fighter.fighter_subtypes, fighter.edition_slug ?? editionSlug)}) - ${cost} credits`;
+        const displayName = typeOptionLabel(fighter, cost);
         options.push({ value: fighter.id, label: <span className="ml-3">{displayName}</span>, displayValue: displayName });
       });
     });
@@ -991,12 +996,9 @@ export default function FighterAddModal({
           <label htmlFor="include-custom-fighters" className="text-sm font-medium text-muted-foreground cursor-pointer">
             Include Custom {noun} Types
           </label>
-          <div className="relative group">
-            <ImInfo tabIndex={0} className="outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded-sm" />
-            <div className="absolute bottom-full mb-2 hidden group-hover:block group-focus-within:block bg-black text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
-              When enabled, your custom {noun.toLowerCase()} types will be included in the {noun.toLowerCase()} type dropdown. Only custom {noun.toLowerCase()}s matching this gang type will be shown.
-            </div>
-          </div>
+          <InfoTooltip ariaLabel={`About custom ${noun.toLowerCase()} types`}>
+            When enabled, your custom {noun.toLowerCase()} types will be included in the {noun.toLowerCase()} type dropdown. Only custom {noun.toLowerCase()}s matching this gang type will be shown.
+          </InfoTooltip>
         </div>
         {isAdditions && currentFighterType?.is_associated_pet && (
           <p className="text-amber-500 text-xs">
@@ -1022,12 +1024,9 @@ export default function FighterAddModal({
             <label htmlFor="include-all-fighter-types" className="text-sm font-medium text-muted-foreground cursor-pointer">
               Include all {noun} Types
             </label>
-            <div className="relative group">
-              <ImInfo tabIndex={0} className="outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded-sm" />
-              <div className="absolute bottom-full mb-2 hidden group-hover:block group-focus-within:block bg-black text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
-                When enabled, {noun.toLowerCase()} types from all gangs will be shown.{!isVehicles && ' Gang additions are found in the "Gang Additions" menu.'}
-              </div>
-            </div>
+            <InfoTooltip ariaLabel={`About showing all ${noun.toLowerCase()} types`}>
+              When enabled, {noun.toLowerCase()} types from all gangs will be shown.{!isVehicles && ' Gang additions are found in the "Gang Additions" menu.'}
+            </InfoTooltip>
           </div>
         )}
       </div>
@@ -1140,12 +1139,9 @@ export default function FighterAddModal({
           <label htmlFor="use-base-cost-for-rating" className="text-sm font-medium text-muted-foreground cursor-pointer">
             Use Listed Cost for Rating
           </label>
-          <div className="relative group">
-            <ImInfo tabIndex={0} className="outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded-sm" />
-            <div className="absolute bottom-full mb-2 hidden group-hover:block group-focus-within:block bg-neutral-900 text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
-              When enabled, the {noun.toLowerCase()}&apos;s rating is calculated using their listed cost, even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
-            </div>
-          </div>
+          <InfoTooltip ariaLabel={`About listed cost for ${noun.toLowerCase()} rating`}>
+            When enabled, the {noun.toLowerCase()}&apos;s rating is calculated using their listed cost, even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
+          </InfoTooltip>
         </div>
       </div>
 

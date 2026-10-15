@@ -10,12 +10,16 @@ import { createBattleSession, addParticipant } from '@/app/actions/battle-sessio
 import Modal from '@/components/ui/modal';
 import { Combobox } from '@/components/ui/combobox';
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
-import { editionsConflict, hasScenarioD6Roll, sameEditionForDisplay } from '@/types/edition';
-import DiceRoller from '@/components/dice-roller';
-import { rollNd6Outcome } from '@/utils/dice';
+import { editionsConflict, hasScenarioTables, sameEditionForDisplay } from '@/types/edition';
 import { Button } from '@/components/ui/button';
 import UserSearchBar, { type UserSearchResult } from '@/components/shared/user-search-bar';
-import type { Scenario } from '@/types/campaign';
+import { ScenarioPartsPicker } from '@/components/scenario-parts-picker';
+import {
+  neededScenarioPart,
+  type Scenario,
+  type ScenarioTableWithEntries,
+} from '@/types/campaign';
+import type { ScenarioParts } from '@/utils/scenario-parts';
 
 export interface CampaignGang {
   id: string;
@@ -65,6 +69,9 @@ export default function CreateBattleModal({
 
   const [selectedScenario, setSelectedScenario] = useState('');
   const [customScenario, setCustomScenario] = useState('');
+  // N26 has no scenario list: the battle's Deployment, Objective and Crew are rolled instead.
+  const usesScenarioTables = hasScenarioTables(editionSlug);
+  const [scenarioParts, setScenarioParts] = useState<ScenarioParts>({});
 
   // Non-campaign: user search + gang picker
   const [selectedUser, setSelectedUser] = useState<UserSearchResult | null>(null);
@@ -86,7 +93,7 @@ export default function CreateBattleModal({
       if (campaignId) headers['X-Campaign-Id'] = campaignId;
       const res = await fetch('/api/campaigns/battles', { headers });
       if (!res.ok) throw new Error('Failed to fetch battle data');
-      return res.json() as Promise<{ scenarios: Scenario[] }>;
+      return res.json() as Promise<{ scenarios: Scenario[]; scenarioTables: ScenarioTableWithEntries[] }>;
     },
   });
 
@@ -141,6 +148,7 @@ export default function CreateBattleModal({
     if (b.scenario_number === null) return -1;
     return a.scenario_number - b.scenario_number;
   });
+  const editionScenarioTables = (battleData?.scenarioTables ?? []).filter((table) => table.edition_slug === editionSlug);
 
   // Own gangs stay selectable — a user can own both sides of a battle.
   const opponentCampaignGangs = (campaignGangs ?? [])
@@ -260,7 +268,7 @@ export default function CreateBattleModal({
 
       return createBattleSession({
         campaign_id: campaignId,
-        scenario: scenarioName,
+        ...(usesScenarioTables ? scenarioParts : { scenario: scenarioName }),
         gang_ids: allGangIds,
       });
     },
@@ -289,7 +297,11 @@ export default function CreateBattleModal({
     ? selectedCampaignGangIds.length > 0
     : opponents.length > 0;
 
-  const canConfirm = isAddMode ? hasOpponents : !!selectedScenario;
+  const canConfirm = isAddMode
+    ? hasOpponents
+    : usesScenarioTables
+      ? !neededScenarioPart(scenarioParts)
+      : !!selectedScenario;
 
   const modalContent = (
     <Modal
@@ -450,32 +462,18 @@ export default function CreateBattleModal({
         )}
 
         {/* Scenario picker (create mode only) */}
-        {!isAddMode && (
+        {!isAddMode && usesScenarioTables && (
+          <ScenarioPartsPicker
+            scenarioTables={editionScenarioTables}
+            parts={scenarioParts}
+            onChange={(change) => {
+              setScenarioParts((current) => ({ ...current, ...change }));
+            }}
+            disabled={isLoadingBattleData}
+          />
+        )}
+        {!isAddMode && !usesScenarioTables && (
           <div>
-            {hasScenarioD6Roll(editionSlug) && (
-              <div className="mb-2">
-                <DiceRoller<Scenario>
-                  items={sortedScenarios}
-                  // scenario_number is numeric in Postgres, so it arrives as a string.
-                  getRange={(s) =>
-                    s.scenario_number != null
-                      ? { min: Number(s.scenario_number), max: Number(s.scenario_number) }
-                      : null
-                  }
-                  getName={(s) => s.scenario_name}
-                  inline
-                  rollFn={() => rollNd6Outcome(1)}
-                  buttonText="Roll D6"
-                  disabled={isLoadingBattleData || sortedScenarios.length === 0}
-                  onRolled={(rolled) => {
-                    const result = rolled[0];
-                    if (!result) return;
-                    setSelectedScenario(result.item.id);
-                    setCustomScenario('');
-                  }}
-                />
-              </div>
-            )}
             <label className="mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
               Scenario
             </label>
