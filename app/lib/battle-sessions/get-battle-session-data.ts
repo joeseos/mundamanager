@@ -2,7 +2,7 @@ import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { BattleSession, BattleSessionFull } from '@/types/battle-session';
+import { normalizeSessionRecord, type BattleSession, type BattleSessionFull } from '@/types/battle-session';
 import { fetchCampaignResources, type CampaignResource } from '@/utils/campaigns/resources';
 
 /** N26: the names of a session's Deployment, Objective and Crew, for display. */
@@ -114,14 +114,7 @@ async function fetchBattleSessionDirect(
     const list = fightersByParticipant.get(f.participant_id) || [];
     list.push({
       ...f,
-      session_record: {
-        xp_earned: f.session_record?.xp_earned ?? 0,
-        participation_xp: f.session_record?.participation_xp ?? 0,
-        injuries: f.session_record?.injuries ?? [],
-        conditions: f.session_record?.conditions ?? [],
-        note: f.session_record?.note,
-        activations: f.session_record?.activations ?? 1,
-      },
+      session_record: normalizeSessionRecord(f.session_record),
       fighter: fighterMap.get(f.fighter_id) || undefined,
     });
     fightersByParticipant.set(f.participant_id, list);
