@@ -31,6 +31,8 @@ export function getAppDb() {
   }
 
   const client = postgres(url, {
+    // postgres.js connects without TLS unless asked; the pooler is reached over the internet.
+    ssl: 'require',
     // The transaction pooler cannot hold prepared statements across transactions.
     prepare: false,
     // Each serverless instance keeps a small pool; the pooler's client limit
