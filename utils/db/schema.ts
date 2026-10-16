@@ -26,7 +26,7 @@ import { relations, sql } from 'drizzle-orm';
  * Postgres, which already encodes every value the way the Data API does.
  */
 
-export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
+type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
 
 // jsonb is passed through as Postgres returned it. Drizzle's own jsonb() would
 // JSON.parse string values again, turning e.g. the string "2" into the number 2.
@@ -435,9 +435,8 @@ export const fighterLoadoutEquipment = pgTable('fighter_loadout_equipment', {
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
 }, (table) => [primaryKey({ columns: [table.loadout_id, table.fighter_equipment_id] })]);
 
-// gangs <-> fighters has two foreign keys (gang_id, captured_by_gang_id), and
-// fighter_equipment / fighter_effects each point at both fighters and vehicles,
-// so those relations are told apart by relationName.
+// gangs <-> fighters has two foreign keys (gang_id, captured_by_gang_id), so
+// that pair is told apart by relationName.
 
 export const gangsRelations = relations(gangs, ({ many }) => ({
   fighters: many(fighters, { relationName: 'gang_fighters' }),
@@ -453,7 +452,6 @@ export const fightersRelations = relations(fighters, ({ one, many }) => ({
   captured_by: one(gangs, {
     fields: [fighters.captured_by_gang_id],
     references: [gangs.id],
-    relationName: 'captured_by',
   }),
   fighter_gang_legacy: one(fighterGangLegacy, {
     fields: [fighters.fighter_gang_legacy_id],
@@ -467,10 +465,10 @@ export const fightersRelations = relations(fighters, ({ one, many }) => ({
     fields: [fighters.fighter_specialisation_id],
     references: [fighterSpecialisations.id],
   }),
-  fighter_equipment: many(fighterEquipment, { relationName: 'fighter_held' }),
+  fighter_equipment: many(fighterEquipment),
   fighter_skills: many(fighterSkills),
-  fighter_effects: many(fighterEffects, { relationName: 'fighter_effects' }),
-  fighter_exotic_beasts: many(fighterExoticBeasts, { relationName: 'beast_owner' }),
+  fighter_effects: many(fighterEffects),
+  fighter_exotic_beasts: many(fighterExoticBeasts),
   fighter_loadouts: many(fighterLoadouts),
 }));
 
@@ -486,20 +484,18 @@ export const vehiclesRelations = relations(vehicles, ({ one, many }) => ({
     fields: [vehicles.gang_id],
     references: [gangs.id],
   }),
-  fighter_equipment: many(fighterEquipment, { relationName: 'vehicle_mounted' }),
-  fighter_effects: many(fighterEffects, { relationName: 'vehicle_effects' }),
+  fighter_equipment: many(fighterEquipment),
+  fighter_effects: many(fighterEffects),
 }));
 
 export const fighterEquipmentRelations = relations(fighterEquipment, ({ one }) => ({
   fighter: one(fighters, {
     fields: [fighterEquipment.fighter_id],
     references: [fighters.id],
-    relationName: 'fighter_held',
   }),
   vehicle: one(vehicles, {
     fields: [fighterEquipment.vehicle_id],
     references: [vehicles.id],
-    relationName: 'vehicle_mounted',
   }),
   equipment: one(equipment, {
     fields: [fighterEquipment.equipment_id],
@@ -563,12 +559,10 @@ export const fighterEffectsRelations = relations(fighterEffects, ({ one, many })
   fighter: one(fighters, {
     fields: [fighterEffects.fighter_id],
     references: [fighters.id],
-    relationName: 'fighter_effects',
   }),
   vehicle: one(vehicles, {
     fields: [fighterEffects.vehicle_id],
     references: [vehicles.id],
-    relationName: 'vehicle_effects',
   }),
   fighter_effect_type: one(fighterEffectTypes, {
     fields: [fighterEffects.fighter_effect_type_id],
@@ -595,7 +589,6 @@ export const fighterExoticBeastsRelations = relations(fighterExoticBeasts, ({ on
   fighters: one(fighters, {
     fields: [fighterExoticBeasts.fighter_owner_id],
     references: [fighters.id],
-    relationName: 'beast_owner',
   }),
   fighter_equipment: one(fighterEquipment, {
     fields: [fighterExoticBeasts.fighter_equipment_id],

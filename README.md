@@ -618,6 +618,8 @@ gateway log entries, which Supabase bills as Logs Ingest. The gang roster
 The connection signs in as `app_server` (migration
 `20261016120000_add_app_server_role.sql`), a read-only role with the privileges of
 `authenticated` but no user. RLS applies, so Drizzle suits data every signed-in
-user may read; policies that check `auth.uid()` return no rows. Its password is
-set in the SQL editor, not in the migration. Don't use the Supabase integration's
-`POSTGRES_URL` here: it signs in as `postgres`, which skips RLS.
+user may read; policies that check `auth.uid()` return no rows. The connection
+never checks who is asking, so authenticate the request before reading (the gang
+pages call `getAuthenticatedUser` first). Its password is set in the SQL editor,
+not in the migration. Don't use the Supabase integration's `POSTGRES_URL` here: it
+signs in as `postgres`, which skips RLS.

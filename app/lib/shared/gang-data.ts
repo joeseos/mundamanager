@@ -1,10 +1,8 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
-import { asc } from 'drizzle-orm';
 
 import { assembleGangFighters, groupBy } from '@/utils/gang-assembly';
-import { getAppDb } from '@/utils/db/client';
-import { fighterLoadouts } from '@/utils/db/schema';
+import { getAppDb, type AppDb } from '@/utils/db/client';
 import {
   gangPortraitPublicUrl,
   joinedPortraitStoragePath,
@@ -799,19 +797,22 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
  * gang in ONE cache entry (tag gang-{id}). Page-specific shapes are produced
  * by the pure assemble* functions in utils/gang-assembly.ts.
  *
- * With DATABASE_URL set it is one nested Drizzle query over the direct
- * connection (no API gateway log). The Data API loader stays as the fallback
+ * With the direct connection configured (utils/db) it is one nested Drizzle
+ * query, with no API gateway log. The Data API loader stays as the fallback
  * until Drizzle has run cleanly in production, then goes.
  */
 export const getGangFightersBundle = async (gangId: string, supabase: any): Promise<GangFightersBundle> => {
   return unstable_cache(
-    () =>
-      process.env.DATABASE_URL
-        ? fetchGangFightersBundleDrizzle(gangId).catch((error) => {
-            console.error(`[drizzle] gang ${gangId}: roster read failed, using the Data API`, error);
-            return fetchGangFightersBundleRest(gangId, supabase);
-          })
-        : fetchGangFightersBundleRest(gangId, supabase),
+    () => {
+      const db = getAppDb();
+      if (!db) return fetchGangFightersBundleRest(gangId, supabase);
+      return rosterQuery(db, gangId)
+        .then((gang) => flattenRoster(gangId, gang))
+        .catch((error) => {
+          console.error(`[drizzle] gang ${gangId}: roster read failed, using the Data API`, error);
+          return fetchGangFightersBundleRest(gangId, supabase);
+        });
+    },
     [`gang-fighters-bundle-v4-${gangId}`],
     {
       tags: [TAGS.gangRoster(gangId)],
@@ -1306,17 +1307,9 @@ const VEHICLE_COLUMNS = {
   cost: true,
 } as const;
 
-/**
- * The roster read over the direct connection (utils/db): one nested query from
- * the gang row instead of 7 Data API requests, and no API gateway log entry.
- * flattenRoster() rebuilds the flat bundle the Data API loader returns.
- */
-async function fetchGangFightersBundleDrizzle(gangId: string): Promise<GangFightersBundle> {
-  return flattenRoster(gangId, await rosterQuery(gangId));
-}
-
-function rosterQuery(gangId: string) {
-  return getAppDb().query.gangs.findFirst({
+/** The whole roster in one query, nested under the gang row. */
+function rosterQuery(db: AppDb, gangId: string) {
+  return db.query.gangs.findFirst({
     columns: { id: true },
     where: (gang, { eq }) => eq(gang.id, gangId),
     with: {
@@ -1364,7 +1357,8 @@ function rosterQuery(gangId: string) {
               },
             },
           },
-          fighter_effects: EFFECTS_QUERY,
+          // Likewise, effects tied to a vehicle come through vehicles below
+          fighter_effects: { ...EFFECTS_QUERY, where: (effect, { isNull }) => isNull(effect.vehicle_id) },
           fighter_exotic_beasts: {
             columns: { fighter_owner_id: true, fighter_pet_id: true, fighter_equipment_id: true },
             with: {
@@ -1375,7 +1369,7 @@ function rosterQuery(gangId: string) {
           fighter_loadouts: {
             columns: { id: true, fighter_id: true, loadout_name: true, created_at: true },
             with: { fighter_loadout_equipment: { columns: { loadout_id: true, fighter_equipment_id: true } } },
-            orderBy: asc(fighterLoadouts.created_at),
+            orderBy: (loadout, { asc }) => asc(loadout.created_at),
           },
           captured_by: { columns: { id: true, name: true } },
         },
@@ -1391,16 +1385,8 @@ function rosterQuery(gangId: string) {
   });
 }
 
-type RosterGang = NonNullable<Awaited<ReturnType<typeof rosterQuery>>>;
-
-function withoutKeys<T extends object, K extends keyof T>(row: T, keys: readonly K[]): Omit<T, K> {
-  const copy = { ...row };
-  for (const key of keys) delete copy[key];
-  return copy;
-}
-
-// Effects come from every fighter and vehicle, so they are sorted once here:
-// NULL sort_order last, like the Data API's sort_order.asc.nullslast
+// Effects from every fighter and vehicle are sorted together, NULL sort_order
+// last, like the Data API's single sort_order.asc.nullslast query
 function bySortOrder(a: { sort_order: number | null }, b: { sort_order: number | null }): number {
   if (a.sort_order === b.sort_order) return 0;
   if (a.sort_order === null) return 1;
@@ -1408,42 +1394,26 @@ function bySortOrder(a: { sort_order: number | null }, b: { sort_order: number |
   return a.sort_order - b.sort_order;
 }
 
-/**
- * Turn the nested gang -> fighters / vehicles result back into the flat lists
- * the Data API loader returns.
- */
-function flattenRoster(gangId: string, gang: RosterGang | undefined): GangFightersBundle {
+/** Turn the nested roster back into the flat lists the Data API loader returns. */
+function flattenRoster(gangId: string, gang: Awaited<ReturnType<typeof rosterQuery>>): GangFightersBundle {
   const fighterRows = gang?.fighters ?? [];
   const vehicleRows = gang?.vehicles ?? [];
-
-  // An effect on both a fighter and one of the gang's vehicles arrives twice;
-  // the Data API's single OR query returned it once.
-  const effects = new Map<string, RosterGang['fighters'][number]['fighter_effects'][number]>();
-  for (const row of [...fighterRows, ...vehicleRows]) {
-    for (const effect of row.fighter_effects) effects.set(effect.id, effect);
-  }
-
-  const capturedByGangs = new Map<string, NonNullable<RosterGang['fighters'][number]['captured_by']>>();
-  for (const fighter of fighterRows) {
-    if (fighter.captured_by) capturedByGangs.set(fighter.captured_by.id, fighter.captured_by);
-  }
+  const rows = [...fighterRows, ...vehicleRows];
+  // Several captured fighters can be held by the same gang
+  const capturedByGangs = new Map(
+    fighterRows.flatMap(({ captured_by }) => (captured_by ? [[captured_by.id, captured_by] as const] : []))
+  );
 
   return {
     gangId,
-    fighters: fighterRows.map((fighter) =>
-      withoutKeys(fighter, [
-        'fighter_equipment',
-        'fighter_skills',
-        'fighter_effects',
-        'fighter_exotic_beasts',
-        'fighter_loadouts',
-        'captured_by',
-      ] as const)
+    fighters: fighterRows.map(
+      ({ fighter_equipment, fighter_skills, fighter_effects, fighter_exotic_beasts, fighter_loadouts, captured_by, ...fighter }) =>
+        fighter
     ),
-    vehicles: vehicleRows.map((vehicle) => withoutKeys(vehicle, ['fighter_equipment', 'fighter_effects'] as const)),
-    equipment: [...fighterRows, ...vehicleRows].flatMap((row) => row.fighter_equipment),
+    vehicles: vehicleRows.map(({ fighter_equipment, fighter_effects, ...vehicle }) => vehicle),
+    equipment: rows.flatMap((row) => row.fighter_equipment),
     skills: fighterRows.flatMap((fighter) => fighter.fighter_skills),
-    effects: [...effects.values()].sort(bySortOrder),
+    effects: rows.flatMap((row) => row.fighter_effects).sort(bySortOrder),
     beastLinks: fighterRows.flatMap((fighter) => fighter.fighter_exotic_beasts),
     loadouts: fighterRows.flatMap((fighter) => fighter.fighter_loadouts),
     capturedByGangs: [...capturedByGangs.values()],

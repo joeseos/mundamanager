@@ -2,25 +2,18 @@ BEGIN;
 
 -- ============================================================================
 -- READ-ONLY LOGIN ROLE FOR THE SERVER'S DIRECT DATABASE CONNECTION
--- The Next.js server reads some data over a direct Postgres connection
--- (Drizzle, utils/db/client.ts) instead of the Data API, so those reads add no
--- API gateway log entries (billed as Logs Ingest). It signs in as app_server.
+-- utils/db/client.ts (Drizzle) signs in as app_server. It inherits
+-- `authenticated`'s privileges with no user, so RLS applies and auth.uid() is
+-- NULL. It cannot switch roles, bypass RLS or change the schema.
+-- default_transaction_read_only guards against accidental writes; a session can
+-- turn it off, so it is not a security boundary.
 --
--- app_server inherits `authenticated`'s table privileges, so RLS applies to it
--- exactly as to a signed-in Data API request, but with no user: auth.uid() is
--- NULL, and policies that check it return no rows. It cannot switch roles,
--- bypass RLS, change the schema or read the auth schema.
---
--- default_transaction_read_only stops accidental writes. A session can turn it
--- off, so it is a guard, not a security boundary: the password is a server
--- secret like SUPABASE_SERVICE_ROLE_KEY, which can do strictly more.
---
--- The password is not part of this migration. After applying it, set one in
--- the SQL editor and put the transaction pooler URL (port 6543, user
--- app_server.<project-ref>) in DATABASE_URL:
+-- The password is not part of this migration. Set it in the SQL editor, then
+-- put the transaction pooler URL (port 6543, user app_server.<project-ref>) in
+-- DATABASE_URL:
 --   ALTER ROLE app_server WITH PASSWORD '<generated secret>';
 --
--- DEPLOY ORDER: none. Nothing connects as app_server until DATABASE_URL is set.
+-- DEPLOY ORDER: apply before deploying code with DATABASE_URL set.
 -- ============================================================================
 
 DO $$

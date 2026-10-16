@@ -139,5 +139,6 @@ schema/backend changes without touching the production database.
 - Put all schema changes in a migration under `supabase/migrations/` (create with `supabase migration new <descriptive-name>`).
 - Do **not** edit `supabase/schema/schema.public.sql` or other schema dump files by hand.
 - For RPC / SQL function changes, update both the migration and the matching file under `supabase/functions/`.
+- If a migration changes a table defined in `utils/db/schema.ts` (Drizzle), update it there too.
 
 If you are unsure about anything, ask in [Discord](https://discord.gg/FrqEWShQd7).

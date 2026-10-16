@@ -5,30 +5,26 @@ import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import * as schema from './schema';
 
 /**
- * Direct Postgres connection for server-side reads.
- *
- * Queries over this connection skip the Supabase Data API, so they produce no
- * API gateway log entry (one per request, ~3 KB each, billed as Logs Ingest).
- * Postgres itself only logs DDL (log_statement = ddl), so reads here are not
- * logged at all.
+ * Direct Postgres connection for server-side reads, outside the Data API, so
+ * they add no API gateway log entries (billed as Logs Ingest).
  *
  * DATABASE_URL is the shared pooler in transaction mode (port 6543), signed in
- * as the read-only app_server role. It acts as `authenticated` with no user, so
- * RLS applies and policies that check auth.uid() return no rows.
- *
- * Unset DATABASE_URL and nothing connects; callers fall back to the Data API.
+ * as the read-only app_server role: RLS applies as for `authenticated`, but
+ * with no user. Policies that check auth.uid() return no rows, and nothing
+ * here checks who is asking, so authenticate the request before reading.
  */
 
-// One pool per server instance, reused across requests (and across dev HMR).
-const globalForDb = globalThis as unknown as { appDb?: PostgresJsDatabase<typeof schema> };
+export type AppDb = PostgresJsDatabase<typeof schema>;
 
-export function getAppDb() {
+// One pool per server instance, reused across requests (and across dev HMR).
+const globalForDb = globalThis as unknown as { appDb?: AppDb };
+
+/** The shared connection, or null when DATABASE_URL is not set. */
+export function getAppDb(): AppDb | null {
   if (globalForDb.appDb) return globalForDb.appDb;
 
   const url = process.env.DATABASE_URL;
-  if (!url) {
-    throw new Error('DATABASE_URL is not set');
-  }
+  if (!url) return null;
 
   const client = postgres(url, {
     // postgres.js connects without TLS unless asked; the pooler is reached over the internet.
@@ -40,7 +36,7 @@ export function getAppDb() {
     max: 3,
     // Close idle connections quickly so suspended instances do not hold pooler slots.
     idle_timeout: 20,
-    // A failed connection falls back to the Data API; keep that wait short.
+    // Fail fast when the pooler is unreachable.
     connect_timeout: 5,
   });
 
