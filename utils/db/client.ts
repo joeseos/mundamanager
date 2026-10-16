@@ -44,6 +44,13 @@ export function getAppDb(): AppDb {
     idle_timeout: 20,
     // Fail fast when the pooler is unreachable.
     connect_timeout: 5,
+    // Drizzle names nested subqueries by joining relation names, and the longest
+    // (…_custom_equipment_custom_weapon_profiles) pass Postgres's 63-character limit.
+    // Postgres truncates them with a notice each time, about 60 log lines per roster
+    // read. The truncated names stay unique, so skip only that notice.
+    onnotice: (notice) => {
+      if (notice.code !== '42622') console.log(notice);
+    },
   });
 
   globalForDb.appDb = drizzle(client, { schema });
