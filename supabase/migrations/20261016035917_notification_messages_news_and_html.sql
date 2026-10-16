@@ -3,8 +3,10 @@
 -- Replaces the unapplied splits of this change with one migration:
 --   * keep a notification when its sender is deleted
 --   * allow user_message, campaign_message, mm_staff_message, and mm_news
---   * queue email for those types
+--   * queue email for the two official types only
 --   * let only admins insert the two official types
+--   * block authenticated inserts of user_message and campaign_message until a
+--     composer checks the recipient (friendship or campaign role)
 --   * record whether text is TipTap HTML
 --
 -- DEPLOY ORDER: apply BEFORE any application code that inserts the new types
@@ -55,8 +57,6 @@ BEGIN
       'friend_request',
       'campaign_join_request',
       'campaign_challenge',
-      'user_message',
-      'campaign_message',
       'mm_staff_message',
       'mm_news'
    ) THEN
@@ -69,10 +69,11 @@ BEGIN
 END;
 $$;
 
--- mm_staff_message and mm_news use fixed official subjects and are sent from
--- the app's own address. Service-role inserts (the admin API) and SECURITY
--- DEFINER triggers bypass RLS. campaign_message is not restricted here: the
--- row has no campaign id to check, and its subject names the sender.
+-- Authenticated users cannot insert the four new types, except admins may
+-- insert mm_staff_message and mm_news (fixed official subjects, sent from the
+-- app's own address). user_message and campaign_message stay closed until a
+-- composer can check friendship or campaign role; the row has no campaign id.
+-- Service-role inserts and SECURITY DEFINER triggers bypass RLS.
 DROP POLICY IF EXISTS "Users can create notifications" ON public.notifications;
 
 CREATE POLICY "Users can create notifications"
@@ -82,12 +83,21 @@ CREATE POLICY "Users can create notifications"
   WITH CHECK (
     sender_id = (SELECT auth.uid() AS uid)
     AND (
-      (type)::text <> ALL (ARRAY['mm_staff_message', 'mm_news']::text[])
-      OR (SELECT private.is_admin() AS is_admin)
+      (type)::text <> ALL (ARRAY[
+        'user_message',
+        'campaign_message',
+        'mm_staff_message',
+        'mm_news'
+      ]::text[])
+      OR (
+        (type)::text = ANY (ARRAY['mm_staff_message', 'mm_news']::text[])
+        AND (SELECT private.is_admin() AS is_admin)
+      )
     )
   );
 
--- Existing rows are backfilled once with the old "starts with <" check.
+-- Existing rows are backfilled once when the text opens with a TipTap block
+-- tag. A bare "<" (for example "<3") is left as plain text.
 -- New writers set the column themselves.
 ALTER TABLE public.notifications
   ADD COLUMN is_html boolean NOT NULL DEFAULT false;
@@ -97,4 +107,4 @@ COMMENT ON COLUMN public.notifications.is_html IS
 
 UPDATE public.notifications
 SET is_html = true
-WHERE left(ltrim(text), 1) = '<';
+WHERE ltrim(text) ~* '^<(p|h[1-3]|ul|ol|blockquote)(\s|>)';
