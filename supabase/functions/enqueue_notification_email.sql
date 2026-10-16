@@ -30,7 +30,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public AS $$
 BEGIN
-   IF NEW.type IN ('campaign_invite', 'gang_invite', 'friend_request', 'campaign_join_request', 'campaign_challenge') THEN
+   IF NEW.type IN ('campaign_invite', 'gang_invite', 'friend_request', 'campaign_join_request', 'campaign_challenge', 'user_message', 'campaign_message', 'mm_staff_message', 'mm_news') THEN
       INSERT INTO email_deliveries (notification_id, user_id)
       VALUES (NEW.id, NEW.receiver_id)
       ON CONFLICT (notification_id) DO NOTHING;

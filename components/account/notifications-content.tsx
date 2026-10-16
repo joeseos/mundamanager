@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { LuOctagonX, LuUserPlus, LuTriangleAlert, LuSwords, LuLink2, LuArrowUpRight } from "react-icons/lu";
+import { LuOctagonX, LuUserPlus, LuTriangleAlert, LuSwords, LuLink2, LuArrowUpRight, LuMessageSquareText, LuMegaphone } from "react-icons/lu";
 import { LuCheck } from "react-icons/lu";
 import { ImInfo } from "react-icons/im";
 import { HiX } from "react-icons/hi";
@@ -16,7 +16,7 @@ import { acceptFriendRequest, declineFriendRequest } from '@/app/actions/friends
 import { acceptGangInvite, declineGangInvite } from '@/app/actions/campaigns/[id]/campaign-gangs';
 import { acceptJoinRequest, declineJoinRequest } from '@/app/actions/campaigns/[id]/campaign-join-requests';
 import { LuTrash2 } from "react-icons/lu";
-import { notificationTextToHtml, isRichNotificationHtml, type NotificationType, isSafeNotificationLink, resolveNotificationLink, getNotificationLinkLabel, getNotificationLinkDescription } from '@/utils/notifications';
+import { notificationTextToHtml, isRichNotificationHtml, isMessageNotificationType, type NotificationType, isSafeNotificationLink, resolveNotificationLink, getNotificationLinkLabel, getNotificationLinkDescription } from '@/utils/notifications';
 import { sanitizeNotificationHtml } from '@/utils/sanitize-notification-html';
 import '@/components/ui/rich-text-editor.css';
 
@@ -316,6 +316,12 @@ export default function NotificationsContent({ userId }: { userId: string }) {
         return <LuUserPlus className="h-5 w-5 text-orange-500" />;
       case 'campaign_join_request':
         return <LuUserPlus className="h-5 w-5 text-sky-500" />;
+      case 'mm_news':
+        return <LuMegaphone className="h-5 w-5 text-violet-500" />;
+      case 'user_message':
+      case 'campaign_message':
+      case 'mm_staff_message':
+        return <LuMessageSquareText className="h-5 w-5 text-green-500" />;
       default:
         return <ImInfo className="h-5 w-5 text-blue-500" />;
     }
@@ -354,7 +360,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                       dangerouslySetInnerHTML={{ __html: renderNotificationText(notification.text) }}
                     />
                     <p className="text-xs text-muted-foreground">
-                      {notification.sender_username && notification.sender_id && (
+                      {isMessageNotificationType(notification.type) && notification.sender_username && notification.sender_id && (
                         <>
                           From{' '}
                           <Link

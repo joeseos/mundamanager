@@ -19,7 +19,11 @@ export type NotificationType =
   | 'battle_invite'
   | 'gang_invite'
   | 'campaign_join_request'
-  | 'campaign_challenge';
+  | 'campaign_challenge'
+  | 'user_message'
+  | 'campaign_message'
+  | 'mm_staff_message'
+  | 'mm_news';
 
 export interface NotificationEmailConfig {
   /** Human label shown on the preferences screen. */
@@ -78,6 +82,39 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
     defaultEnabled: true,
     subject: 'Your gang has been challenged',
   },
+  // Munda Manager news, general announcements, and feature announcements.
+  // Not a message: the in-app list does not show a sender.
+  mm_news: {
+    label: 'Munda Manager news',
+    supportsEmail: true,
+    defaultEnabled: true,
+    subject: 'News from Munda Manager',
+    ctaPath: '/account',
+  },
+  // A user sends a message to another user. Read from the account notifications list.
+  user_message: {
+    label: 'Direct messages',
+    supportsEmail: true,
+    defaultEnabled: true,
+    subject: '{sender} sent you a message',
+    ctaPath: '/account',
+  },
+  // A campaign arbitrator messages one or more people in their campaign.
+  campaign_message: {
+    label: 'Campaign messages',
+    supportsEmail: true,
+    defaultEnabled: true,
+    subject: '{sender} sent a campaign message',
+    ctaPath: '/account',
+  },
+  // Munda Manager staff messages to users.
+  mm_staff_message: {
+    label: 'Munda Manager messages',
+    supportsEmail: true,
+    defaultEnabled: true,
+    subject: 'A message from Munda Manager',
+    ctaPath: '/account',
+  },
   // Not email-eligible (in-app only) — kept here so the type union is exhaustive.
   info: { label: 'Account & campaign updates', supportsEmail: false, defaultEnabled: false, subject: '' },
   warning: { label: 'Warnings', supportsEmail: false, defaultEnabled: false, subject: '' },
@@ -92,6 +129,17 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
  * Absent row (or enabled=true) means "master on".
  */
 export const MASTER_PREF_KEY = 'all';
+
+const MESSAGE_NOTIFICATION_TYPES = new Set<NotificationType>([
+  'user_message',
+  'campaign_message',
+  'mm_staff_message',
+]);
+
+/** Direct, campaign, and staff messages, as opposed to event notifications. */
+export function isMessageNotificationType(type: NotificationType): boolean {
+  return MESSAGE_NOTIFICATION_TYPES.has(type);
+}
 
 /** The categories a user can toggle email for (the email-eligible ones). */
 export function emailEligibleTypes(): NotificationType[] {
