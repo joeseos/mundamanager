@@ -598,3 +598,44 @@ redis-cli -u "$REDIS_URL" --scan --pattern 'munda-manager:next-cache:*' \
 ```
 
 To roll back to stock Next.js caching, unset `USE_REDIS_CACHE` and rebuild.
+
+## Direct Database Connection (Drizzle pilot)
+
+Every Data API (PostgREST) request writes one ~3 KB API gateway log entry, and
+Supabase bills log volume as Logs Ingest. Reads over a direct Postgres connection
+write none, because Postgres only logs DDL. The gang roster loader
+(`getGangFightersBundle`, used by the gang, fighter, print and battle session pages)
+is the pilot: on a cache miss it reads the roster with one Drizzle query instead of
+7 Data API requests.
+
+How it fits together:
+
+- `utils/db/client.ts`: postgres.js pool on the shared pooler in transaction mode.
+- `utils/db/schema.ts`: Drizzle tables and relations. They mirror
+  `supabase/schema/schema.public.sql` and must be kept in step with migrations
+  that change these tables.
+- `utils/db/rls.ts`: `withRls(supabase, …)` runs each query as the signed-in user,
+  the way the Data API does (verified JWT claims in `request.jwt.claims`,
+  `SET LOCAL ROLE authenticated`), so RLS policies apply unchanged.
+- `app/lib/shared/gang-data.ts`: `fetchGangFightersBundleDrizzle()` sits next to the
+  Data API version it replaces and returns the same `GangFightersBundle`. If it
+  fails, the Data API version is used and `[drizzle]` is logged.
+
+| Variable | Required | Notes |
+|---|---|---|
+| `DRIZZLE_DATABASE_URL` | runtime | Secret. Transaction pooler URL (port `6543`) as `app_server.<project-ref>`. Absent ⇒ the roster is read through the Data API |
+
+Both versions fill the same cache entry, so turning it on only affects cache misses.
+
+### Setting it up
+
+1. Apply `supabase/migrations/20261016120000_add_app_server_role.sql`. It creates
+   `app_server`, a login role that can only act through `authenticated`.
+2. In the SQL editor, set its password: `ALTER ROLE app_server WITH PASSWORD '…';`
+3. Set `DRIZZLE_DATABASE_URL` for a Vercel Preview deployment first, using the
+   transaction pooler host from the dashboard's **Connect** panel with user
+   `app_server.<project-ref>`. Check the gang, fighter, print and battle session pages.
+4. Set it for Production. Watch the runtime logs for `[drizzle]`, pooler connections
+   (Observability → Shared Pooler Client Connections) and Logs Ingest.
+
+To roll back, unset `DRIZZLE_DATABASE_URL` and redeploy.
