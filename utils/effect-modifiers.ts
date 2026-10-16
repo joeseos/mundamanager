@@ -51,12 +51,12 @@ function applyNumericModifiers(
 
   if (typeof baseValue === 'number') {
     parsedBase = baseValue;
-  } else if (typeof baseValue === 'string' && baseValue != "" && options.parseStrings) {
+  } else if (typeof baseValue === 'string' && options.parseStrings) {
     // Remove common formatting characters
     const cleaned = baseValue.replace(/["\s]/g, '').replace(/\+$/, '').trim();
 
     if (cleaned === '' || cleaned === 'N/A') {
-      // Unparseable values like "-", "N/A", etc.
+      // Unparseable values like "", "-", "N/A", etc.
       parsedBase = null;  // Will be overridden by SET or default to base
     } else {
       const parsed = parseInt(cleaned, 10);
@@ -338,9 +338,17 @@ export function applyWeaponModifiers(
     // Apply numeric fields with add/set operations
     const numericFields = ['range_short', 'range_long', 'acc_short', 'acc_long', 'strength', 'ap', 'damage', 'lethality', 'ammo'];
 
+    // A row with every stat blank is a weapon's name row (above "- frag", "- krak"...).
+    // It has no stats, so it stays blank; a single blank stat on a real profile
+    // (e.g. AP "") is treated like "-" and still takes the modifier.
+    const isNameOnlyRow = numericFields.every((fieldName) => {
+      const value = (profile as any)[fieldName];
+      return value === null || value === undefined || String(value).trim() === '';
+    });
+
     numericFields.forEach((fieldName) => {
       const baseValue = (modified as any)[fieldName];
-      if (baseValue === null || baseValue === undefined) return;
+      if (isNameOnlyRow || baseValue === null || baseValue === undefined) return;
 
       // Collect all modifiers for this field
       const fieldModifiers: EffectModifier[] = [];
