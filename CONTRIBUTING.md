@@ -51,7 +51,7 @@ would have.
 
 1. **Prerequisites**
    - Node.js 24.x (see `.nvmrc`)
-   - Supabase project URL and key
+   - Supabase project URL, key and database connection string
    - Cloudflare Turnstile keys
 
 2. **Environment setup**

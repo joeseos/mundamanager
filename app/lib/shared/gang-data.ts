@@ -794,8 +794,8 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
 
 /**
  * Fetch the raw gang fighters bundle: every fighter/vehicle-shaped row for a
- * gang in ONE cache entry (tag gang-{id}), read with one nested Drizzle query
- * over the direct connection (utils/db), so it adds no API gateway log.
+ * gang in ONE cache entry (tag gang-roster-{id}), read with one nested Drizzle
+ * query over the direct connection (utils/db), so it adds no API gateway log.
  * Page-specific shapes are produced by the pure assemble* functions in
  * utils/gang-assembly.ts.
  */
