@@ -803,15 +803,14 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
  */
 export const getGangFightersBundle = async (gangId: string, supabase: any): Promise<GangFightersBundle> => {
   return unstable_cache(
-    () => {
-      const db = getAppDb();
-      if (!db) return fetchGangFightersBundleRest(gangId, supabase);
-      return rosterQuery(db, gangId)
-        .then((gang) => flattenRoster(gangId, gang))
-        .catch((error) => {
-          console.error(`[drizzle] gang ${gangId}: roster read failed, using the Data API`, error);
-          return fetchGangFightersBundleRest(gangId, supabase);
-        });
+    async () => {
+      try {
+        const db = getAppDb();
+        if (db) return flattenRoster(gangId, await rosterQuery(db, gangId));
+      } catch (error) {
+        console.error(`[drizzle] gang ${gangId}: roster read failed, using the Data API`, error);
+      }
+      return fetchGangFightersBundleRest(gangId, supabase);
     },
     [`gang-fighters-bundle-v4-${gangId}`],
     {
