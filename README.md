@@ -610,13 +610,14 @@ gateway log entries, which Supabase bills as Logs Ingest. The gang roster
 - `utils/db/schema.ts`: Drizzle tables and relations. They mirror
   `supabase/schema/schema.public.sql`; update them when a migration changes these
   tables.
-- `utils/db/rls.ts`: `withRls(supabase, …)` runs queries as the signed-in user, so
-  RLS policies apply as they do for the Data API.
 
 | Variable | Required | Notes |
 |---|---|---|
-| `DRIZZLE_DATABASE_URL` | runtime | Secret. Transaction pooler URL (port `6543`) with user `app_server.<project-ref>`. When unset, these reads go through the Data API instead |
+| `DATABASE_URL` | runtime | Secret. Transaction pooler URL (port `6543`) with user `app_server.<project-ref>`. When unset, these reads go through the Data API instead |
 
 The connection signs in as `app_server` (migration
-`20261016120000_add_app_server_role.sql`), a role that can only act as
-`authenticated`. Its password is set in the SQL editor, not in the migration.
+`20261016120000_add_app_server_role.sql`), a read-only role with the privileges of
+`authenticated` but no user. RLS applies, so Drizzle suits data every signed-in
+user may read; policies that check `auth.uid()` return no rows. Its password is
+set in the SQL editor, not in the migration. Don't use the Supabase integration's
+`POSTGRES_URL` here: it signs in as `postgres`, which skips RLS.

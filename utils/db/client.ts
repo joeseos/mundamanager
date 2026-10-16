@@ -12,26 +12,22 @@ import * as schema from './schema';
  * Postgres itself only logs DDL (log_statement = ddl), so reads here are not
  * logged at all.
  *
- * DRIZZLE_DATABASE_URL is the shared pooler in transaction mode (port 6543),
- * signed in as the app_server role. That role holds no table privileges of its
- * own: it can only read anything inside withRls(), which switches it to
- * `authenticated` for one transaction so every RLS policy applies as usual.
+ * DATABASE_URL is the shared pooler in transaction mode (port 6543), signed in
+ * as the read-only app_server role. It acts as `authenticated` with no user, so
+ * RLS applies and policies that check auth.uid() return no rows.
  *
- * Unset DRIZZLE_DATABASE_URL and nothing connects; callers fall back to the
- * Data API.
+ * Unset DATABASE_URL and nothing connects; callers fall back to the Data API.
  */
 
-export type AppDatabase = PostgresJsDatabase<typeof schema>;
-
 // One pool per server instance, reused across requests (and across dev HMR).
-const globalForDb = globalThis as unknown as { appDb?: AppDatabase };
+const globalForDb = globalThis as unknown as { appDb?: PostgresJsDatabase<typeof schema> };
 
-export function getAppDb(): AppDatabase {
+export function getAppDb() {
   if (globalForDb.appDb) return globalForDb.appDb;
 
-  const url = process.env.DRIZZLE_DATABASE_URL;
+  const url = process.env.DATABASE_URL;
   if (!url) {
-    throw new Error('DRIZZLE_DATABASE_URL is not set');
+    throw new Error('DATABASE_URL is not set');
   }
 
   const client = postgres(url, {
@@ -44,7 +40,6 @@ export function getAppDb(): AppDatabase {
     idle_timeout: 20,
     // A failed connection falls back to the Data API; keep that wait short.
     connect_timeout: 5,
-    max_lifetime: 60 * 30,
   });
 
   globalForDb.appDb = drizzle(client, { schema });

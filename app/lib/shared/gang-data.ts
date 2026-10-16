@@ -3,8 +3,8 @@ import { unstable_cache } from 'next/cache';
 import { asc } from 'drizzle-orm';
 
 import { assembleGangFighters, groupBy } from '@/utils/gang-assembly';
-import { withRls, type AppTransaction } from '@/utils/db/rls';
-import { fighterEffects, fighterLoadouts } from '@/utils/db/schema';
+import { getAppDb } from '@/utils/db/client';
+import { fighterLoadouts } from '@/utils/db/schema';
 import {
   gangPortraitPublicUrl,
   joinedPortraitStoragePath,
@@ -796,23 +796,18 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
 
 /**
  * Fetch the raw gang fighters bundle: every fighter/vehicle-shaped row for a
- * gang in ONE cache entry (tag gang-{id}) filled by two round-trip stages of
- * wide batched queries. Page-specific shapes are produced by the pure
- * assemble* functions in utils/gang-assembly.ts.
+ * gang in ONE cache entry (tag gang-{id}). Page-specific shapes are produced
+ * by the pure assemble* functions in utils/gang-assembly.ts.
  *
- * Stage 1 (parallel): fighters, ALL gang vehicles (both keyed by gang_id)
- * Stage 2 (parallel): equipment (fighter + vehicle rows in one query),
- *   skills, effects (fighter + vehicle scopes in one query), exotic beasts,
- *   loadouts (+assignments embedded), captured-by names
+ * With DATABASE_URL set it is one nested Drizzle query over the direct
+ * connection (no API gateway log). The Data API loader stays as the fallback
+ * until Drizzle has run cleanly in production, then goes.
  */
 export const getGangFightersBundle = async (gangId: string, supabase: any): Promise<GangFightersBundle> => {
   return unstable_cache(
-    // With DRIZZLE_DATABASE_URL set, read over the direct connection (no API
-    // gateway log). The Data API version stays as the fallback until Drizzle has
-    // run cleanly in production, then goes.
     () =>
-      process.env.DRIZZLE_DATABASE_URL
-        ? fetchGangFightersBundleDrizzle(gangId, supabase).catch((error) => {
+      process.env.DATABASE_URL
+        ? fetchGangFightersBundleDrizzle(gangId).catch((error) => {
             console.error(`[drizzle] gang ${gangId}: roster read failed, using the Data API`, error);
             return fetchGangFightersBundleRest(gangId, supabase);
           })
@@ -825,7 +820,14 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
   )();
 };
 
-/** The Data API loader: the two query stages described above. */
+/**
+ * The Data API loader, in two round-trip stages of wide batched queries.
+ *
+ * Stage 1 (parallel): fighters, ALL gang vehicles (both keyed by gang_id)
+ * Stage 2 (parallel): equipment (fighter + vehicle rows in one query),
+ *   skills, effects (fighter + vehicle scopes in one query), exotic beasts,
+ *   loadouts (+assignments embedded), captured-by names
+ */
 async function fetchGangFightersBundleRest(gangId: string, supabase: any): Promise<GangFightersBundle> {
   // Stage 1: fighters and ALL gang vehicles in parallel
   const [fightersRes, vehiclesRes] = await Promise.all([
@@ -1228,8 +1230,6 @@ const EFFECTS_QUERY = {
       columns: { id: true, fighter_effect_id: true, stat_name: true, numeric_value: true, operation: true },
     },
   },
-  // ASC sorts NULLs last in Postgres, matching the Data API's sort_order.asc.nullslast
-  orderBy: asc(fighterEffects.sort_order),
 } as const;
 
 const FIGHTER_COLUMNS = {
@@ -1311,14 +1311,12 @@ const VEHICLE_COLUMNS = {
  * the gang row instead of 7 Data API requests, and no API gateway log entry.
  * flattenRoster() rebuilds the flat bundle the Data API loader returns.
  */
-async function fetchGangFightersBundleDrizzle(gangId: string, supabase: any): Promise<GangFightersBundle> {
-  const gang = await withRls(supabase, (tx) => rosterQuery(tx, gangId));
-  return flattenRoster(gangId, gang);
+async function fetchGangFightersBundleDrizzle(gangId: string): Promise<GangFightersBundle> {
+  return flattenRoster(gangId, await rosterQuery(gangId));
 }
 
-/** The single nested query; run it on a transaction from withRls(). */
-function rosterQuery(db: Pick<AppTransaction, 'query'>, gangId: string) {
-  return db.query.gangs.findFirst({
+function rosterQuery(gangId: string) {
+  return getAppDb().query.gangs.findFirst({
     columns: { id: true },
     where: (gang, { eq }) => eq(gang.id, gangId),
     with: {
@@ -1401,6 +1399,7 @@ function withoutKeys<T extends object, K extends keyof T>(row: T, keys: readonly
   return copy;
 }
 
+// Effects come from every fighter and vehicle, so they are sorted once here:
 // NULL sort_order last, like the Data API's sort_order.asc.nullslast
 function bySortOrder(a: { sort_order: number | null }, b: { sort_order: number | null }): number {
   if (a.sort_order === b.sort_order) return 0;
