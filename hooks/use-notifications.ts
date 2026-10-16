@@ -31,6 +31,8 @@ export type Notification = {
   // Null on older admin notifications sent before the author was recorded
   sender_id: string | null;
   sender_username: string | null;
+  // True when text is sanitized TipTap HTML. False is plain text with optional **bold**.
+  is_html: boolean;
 };
 
 export const notificationsQueryKey = (userId: string) => ['notifications', userId] as const;
@@ -43,7 +45,7 @@ async function fetchNotifications(userId: string, signal: AbortSignal): Promise<
   const supabase = createClient();
   const { data, error } = await supabase
     .from('notifications')
-    .select('id, text, dismissed, type, created_at, link, sender_id')
+    .select('id, text, dismissed, type, created_at, link, sender_id, is_html')
     .eq('receiver_id', userId)
     .gt('expires_at', new Date().toISOString())
     .order('created_at', { ascending: false })
@@ -63,9 +65,15 @@ async function fetchNotifications(userId: string, signal: AbortSignal): Promise<
       .in('id', senderIds)
       .abortSignal(signal);
 
-    if (profilesError) throw profilesError;
-    for (const profile of profiles ?? []) {
-      usernames.set(profile.id, profile.username);
+    // The list is still useful without sender names. An aborted request must
+    // still fail so React Query does not cache a cancelled fetch.
+    if (profilesError) {
+      if (signal.aborted) throw profilesError;
+      console.error('Failed to load notification sender names:', profilesError);
+    } else {
+      for (const profile of profiles ?? []) {
+        usernames.set(profile.id, profile.username);
+      }
     }
   }
 

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceRoleClient } from '@/utils/supabase/server'
 import { checkAdmin, getUserIdFromClaims } from '@/utils/auth'
-import { isRichNotificationHtml, isSafeNotificationLink } from '@/utils/notifications'
+import { isSafeNotificationLink } from '@/utils/notifications'
 import { sanitizeNotificationHtml } from '@/utils/sanitize-notification-html'
 import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp'
 import { fetchAllRows } from '@/utils/supabase/fetch-all-rows'
@@ -31,9 +31,8 @@ export async function POST(request: Request) {
     const body = (await request.json()) as RequestBody
 
     let text = typeof body.text === 'string' ? body.text.trim() : ''
-    if (isRichNotificationHtml(text)) {
-      text = sanitizeNotificationHtml(text).trim()
-    }
+    // This route is the rich-text composer, so the stored row is always HTML.
+    text = sanitizeNotificationHtml(text).trim()
     if (!text || isHtmlEffectivelyEmpty(text)) {
       return NextResponse.json({ error: 'Message text is required' }, { status: 400 })
     }
@@ -136,6 +135,7 @@ export async function POST(request: Request) {
     const rows = receiverIds.map((receiverId) => ({
       text,
       type,
+      is_html: true,
       sender_id: senderId,
       receiver_id: receiverId,
       dismissed: false,

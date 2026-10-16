@@ -175,14 +175,6 @@ export function notificationTextToHtml(text: string): string {
   return escapeHtml(text).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
 }
 
-// Admin messages are TipTap HTML, which always starts with a block tag. System
-// notifications are plain sentences (often with **bold**), so they stay on
-// notificationTextToHtml and are escaped. This is only a format switch:
-// HTML that matches still has to pass sanitizeNotificationHtml before render.
-export function isRichNotificationHtml(text: string): boolean {
-  return text.trimStart().startsWith('<');
-}
-
 const APP_HOSTNAMES = new Set(['www.mundamanager.com', 'mundamanager.com', 'localhost']);
 const UNSAFE_LINK_SCHEME = /^(javascript|data|vbscript|file):/i;
 

@@ -16,7 +16,7 @@ import { acceptFriendRequest, declineFriendRequest } from '@/app/actions/friends
 import { acceptGangInvite, declineGangInvite } from '@/app/actions/campaigns/[id]/campaign-gangs';
 import { acceptJoinRequest, declineJoinRequest } from '@/app/actions/campaigns/[id]/campaign-join-requests';
 import { LuTrash2 } from "react-icons/lu";
-import { notificationTextToHtml, isRichNotificationHtml, isMessageNotificationType, type NotificationType, isSafeNotificationLink, resolveNotificationLink, getNotificationLinkLabel, getNotificationLinkDescription } from '@/utils/notifications';
+import { notificationTextToHtml, isMessageNotificationType, type NotificationType, isSafeNotificationLink, resolveNotificationLink, getNotificationLinkLabel, getNotificationLinkDescription } from '@/utils/notifications';
 import { sanitizeNotificationHtml } from '@/utils/sanitize-notification-html';
 import '@/components/ui/rich-text-editor.css';
 
@@ -229,10 +229,10 @@ export default function NotificationsContent({ userId }: { userId: string }) {
   };
 
   // Plain-text notifications (invites, friend requests) escape HTML and apply **bold**.
-  // Admin messages are TipTap HTML. They are sanitized again here because any
+  // Rows with is_html are TipTap HTML. They are sanitized again here because any
   // signed-in user can insert a notification row, not only the admin API.
-  const renderNotificationText = (text: string) =>
-    isRichNotificationHtml(text) ? sanitizeNotificationHtml(text) : notificationTextToHtml(text);
+  const renderNotificationText = (notification: Notification) =>
+    notification.is_html ? sanitizeNotificationHtml(notification.text) : notificationTextToHtml(notification.text);
 
   // The link navigates by itself (external links in a new tab), so this only
   // marks the notification as read
@@ -353,11 +353,11 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                   <div className="flex-1 min-w-0">
                     <div
                       className={
-                        isRichNotificationHtml(notification.text)
+                        notification.is_html
                           ? "prose prose-sm max-w-none break-words mb-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0"
                           : "text-sm mb-1 whitespace-pre-line"
                       }
-                      dangerouslySetInnerHTML={{ __html: renderNotificationText(notification.text) }}
+                      dangerouslySetInnerHTML={{ __html: renderNotificationText(notification) }}
                     />
                     <p className="text-xs text-muted-foreground">
                       {isMessageNotificationType(notification.type) && notification.sender_username && notification.sender_id && (
