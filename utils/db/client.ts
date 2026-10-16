@@ -17,20 +17,24 @@ import { SUPABASE_ROOT_CA } from './supabase-ca';
 
 export type AppDb = PostgresJsDatabase<typeof schema>;
 
+// The local Supabase stack's database has no TLS
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1']);
+
 // One pool per server instance, reused across requests (and across dev HMR).
 const globalForDb = globalThis as unknown as { appDb?: AppDb };
 
-/** The shared connection, or null when DATABASE_URL is not set. */
-export function getAppDb(): AppDb | null {
+export function getAppDb(): AppDb {
   if (globalForDb.appDb) return globalForDb.appDb;
 
   const url = process.env.DATABASE_URL;
-  if (!url) return null;
+  if (!url) {
+    throw new Error('DATABASE_URL is not set');
+  }
 
   const client = postgres(url, {
     // TLS, verifying the pooler's certificate and hostname against Supabase's root CA
     // (postgres.js connects without TLS unless asked, and 'require' skips verification).
-    ssl: { ca: SUPABASE_ROOT_CA },
+    ssl: LOCAL_HOSTS.has(new URL(url).hostname) ? false : { ca: SUPABASE_ROOT_CA },
     // The transaction pooler cannot hold prepared statements across transactions.
     prepare: false,
     // Each serverless instance keeps a small pool; the pooler's client limit

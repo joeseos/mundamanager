@@ -64,8 +64,10 @@ would have.
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
    NEXT_PUBLIC_TURNSTILE_SITE_KEY=mundamanager-turnstile-key
    TURNSTILE_SECRET_KEY=mundamanager-turnstile-secret-key
+   DATABASE_URL=database-connection-string
    NODE_ENV=development
    ```
+   `DATABASE_URL` is the direct database connection used for the gang roster (see the README's "Drizzle ORM" section).
 
 3. **Running the environment**
    ```bash
@@ -122,6 +124,7 @@ schema/backend changes without touching the production database.
    ```
    NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
    NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key from `supabase status`>
+   DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
    ```
 
 3. **Start the app** with `npm run dev` as usual.

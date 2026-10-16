@@ -616,7 +616,7 @@ gateway log entries, which Supabase bills as Logs Ingest. The gang roster
 
 | Variable | Required | Notes |
 |---|---|---|
-| `DATABASE_URL` | runtime | Secret. Transaction pooler URL (port `6543`) with user `app_server.<project-ref>`. When unset, these reads go through the Data API instead |
+| `DATABASE_URL` | runtime | Secret. Transaction pooler URL (port `6543`) with user `app_server.<project-ref>`. With the local Supabase stack, use its own database: `postgresql://postgres:postgres@127.0.0.1:54322/postgres` |
 
 The connection signs in as `app_server` (migration
 `20261016120000_add_app_server_role.sql`), a read-only role with the privileges of
@@ -624,5 +624,5 @@ The connection signs in as `app_server` (migration
 user may read; policies that check `auth.uid()` return no rows. The connection
 never checks who is asking, so authenticate the request before reading (the gang
 pages call `getAuthenticatedUser` first). Its password is set in the SQL editor,
-not in the migration. Don't use the Supabase integration's `POSTGRES_URL` here: it
-signs in as `postgres`, which skips RLS.
+not in the migration. Don't use the Supabase integration's `POSTGRES_URL` in
+production: it signs in as `postgres`, which skips RLS.

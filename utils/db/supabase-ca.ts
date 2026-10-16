@@ -2,7 +2,7 @@
  * Supabase's root CA ("Supabase Root 2021 CA", prod-ca-2021.crt from Database
  * Settings > SSL Configuration), which signs the pooler's certificate.
  * Public, not a secret. Valid until 26 April 2031: replace it with the new one
- * from the dashboard before then, or Drizzle reads fall back to the Data API.
+ * from the dashboard before then, or the direct connection stops connecting.
  */
 export const SUPABASE_ROOT_CA = `
 -----BEGIN CERTIFICATE-----

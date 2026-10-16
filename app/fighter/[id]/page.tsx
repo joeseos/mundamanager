@@ -45,7 +45,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     const [gangBasic, gangPositioning, bundle, gangCampaigns] = await Promise.all([
       getGangCore(fighterBasic.gang_id, supabase),
       getGangPositioning(fighterBasic.gang_id, supabase),
-      getGangFightersBundle(fighterBasic.gang_id, supabase),
+      getGangFightersBundle(fighterBasic.gang_id),
       getGangCampaigns(fighterBasic.gang_id, supabase),
     ]);
 

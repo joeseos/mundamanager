@@ -794,24 +794,14 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
 
 /**
  * Fetch the raw gang fighters bundle: every fighter/vehicle-shaped row for a
- * gang in ONE cache entry (tag gang-{id}). Page-specific shapes are produced
- * by the pure assemble* functions in utils/gang-assembly.ts.
- *
- * With the direct connection configured (utils/db) it is one nested Drizzle
- * query, with no API gateway log. The Data API loader stays as the fallback
- * until Drizzle has run cleanly in production, then goes.
+ * gang in ONE cache entry (tag gang-{id}), read with one nested Drizzle query
+ * over the direct connection (utils/db), so it adds no API gateway log.
+ * Page-specific shapes are produced by the pure assemble* functions in
+ * utils/gang-assembly.ts.
  */
-export const getGangFightersBundle = async (gangId: string, supabase: any): Promise<GangFightersBundle> => {
+export const getGangFightersBundle = async (gangId: string): Promise<GangFightersBundle> => {
   return unstable_cache(
-    async () => {
-      try {
-        const db = getAppDb();
-        if (db) return flattenRoster(gangId, await rosterQuery(db, gangId));
-      } catch (error) {
-        console.error(`[drizzle] gang ${gangId}: roster read failed, using the Data API`, error);
-      }
-      return fetchGangFightersBundleRest(gangId, supabase);
-    },
+    async () => flattenRoster(gangId, await rosterQuery(getAppDb(), gangId)),
     [`gang-fighters-bundle-v4-${gangId}`],
     {
       tags: [TAGS.gangRoster(gangId)],
@@ -820,343 +810,8 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
   )();
 };
 
-/**
- * The Data API loader, in two round-trip stages of wide batched queries.
- *
- * Stage 1 (parallel): fighters, ALL gang vehicles (both keyed by gang_id)
- * Stage 2 (parallel): equipment (fighter + vehicle rows in one query),
- *   skills, effects (fighter + vehicle scopes in one query), exotic beasts,
- *   loadouts (+assignments embedded), captured-by names
- */
-async function fetchGangFightersBundleRest(gangId: string, supabase: any): Promise<GangFightersBundle> {
-  // Stage 1: fighters and ALL gang vehicles in parallel
-  const [fightersRes, vehiclesRes] = await Promise.all([
-    supabase
-      .from('fighters')
-      .select(`
-        id,
-        fighter_name,
-        label,
-        note,
-        note_backstory,
-        credits,
-        cost_adjustment,
-        movement,
-        weapon_skill,
-        ballistic_skill,
-        strength,
-        toughness,
-        wounds,
-        initiative,
-        attacks,
-        leadership,
-        cool,
-        willpower,
-        intelligence,
-        save,
-        xp,
-        starting_xp,
-        special_rules,
-        fighter_subtypes,
-        fighter_type,
-        fighter_type_id,
-        custom_fighter_type_id,
-        fighter_gang_legacy_id,
-        fighter_gang_legacy:fighter_gang_legacy_id (
-          id,
-          fighter_type_id,
-          name
-        ),
-        fighter_specialisation_id,
-        promoted_from_prospect,
-        fighter_variant,
-        killed,
-        starved,
-        retired,
-        enslaved,
-        recovery,
-        captured,
-        captured_by_gang_id,
-        free_skill,
-        kills,
-        kill_count,
-        fighter_pet_id,
-        image_url,
-        position,
-        active_loadout_id,
-        is_vehicle,
-        fighter_types!fighter_type_id (
-          fighter_type,
-          fighter_subtypes,
-          alliance_crew_name,
-          cost,
-          is_spyrer,
-          is_vehicle,
-          gang_type_id,
-          edition_id,
-          editions:edition_id (
-            slug
-          )
-        ),
-        fighter_specialisations!fighter_specialisation_id (
-          id,
-          specialisation_name
-        )
-      `)
-      .eq('gang_id', gangId),
-    supabase
-      .from('vehicles')
-      .select(`
-        id,
-        gang_id,
-        fighter_id,
-        created_at,
-        movement,
-        front,
-        side,
-        rear,
-        hull_points,
-        handling,
-        save,
-        body_slots,
-        drive_slots,
-        engine_slots,
-        body_slots_occupied,
-        drive_slots_occupied,
-        engine_slots_occupied,
-        special_rules,
-        vehicle_name,
-        vehicle_type_id,
-        vehicle_type,
-        cost
-      `)
-      .eq('gang_id', gangId)
-  ]);
-
-  const fighters = fightersRes.error ? [] : (fightersRes.data || []);
-  const vehicles = vehiclesRes.error ? [] : (vehiclesRes.data || []);
-
-  const emptyBundle: GangFightersBundle = {
-    gangId,
-    fighters,
-    vehicles,
-    equipment: [],
-    skills: [],
-    effects: [],
-    beastLinks: [],
-    loadouts: [],
-    capturedByGangs: []
-  };
-
-  if (fighters.length === 0 && vehicles.length === 0) {
-    return emptyBundle;
-  }
-
-  const fighterIds = fighters.map((f: any) => f.id);
-  const vehicleIds = vehicles.map((v: any) => v.id);
-
-  const equipmentSelect = `
-    id,
-    fighter_id,
-    vehicle_id,
-    equipment_id,
-    custom_equipment_id,
-    purchase_cost,
-    original_cost,
-    is_master_crafted,
-    is_editable,
-    cost_resource,
-    fighter_skill_id,
-    equipment:equipment_id (
-      equipment_name,
-      equipment_type,
-      equipment_category,
-      is_consumable,
-      weapon_profiles (
-        id,
-        equipment_id,
-        weapon_group_id,
-        profile_name,
-        range_short,
-        range_long,
-        acc_short,
-        acc_long,
-        strength,
-        ap,
-        damage,
-        lethality,
-        ammo,
-        traits,
-        sort_order
-      )
-    ),
-    custom_equipment:custom_equipment_id (
-      equipment_name,
-      equipment_type,
-      equipment_category,
-      is_consumable,
-      custom_weapon_profiles (
-        id,
-        custom_equipment_id,
-        weapon_group_id,
-        profile_name,
-        range_short,
-        range_long,
-        acc_short,
-        acc_long,
-        strength,
-        ap,
-        damage,
-        lethality,
-        ammo,
-        traits,
-        sort_order
-      )
-    )
-  `;
-
-  const effectsSelect = `
-    id,
-    fighter_id,
-    vehicle_id,
-    fighter_equipment_id,
-    target_equipment_id,
-    fighter_effect_type_id,
-    effect_name,
-    type_specific_data,
-    sort_order,
-    created_at,
-    updated_at,
-    fighter_effect_type:fighter_effect_type_id (
-      sort_order,
-      fighter_effect_category:fighter_effect_category_id (
-        category_name
-      )
-    ),
-    fighter_effect_modifiers (
-      id,
-      fighter_effect_id,
-      stat_name,
-      numeric_value,
-      operation
-    )
-  `;
-
-  // Equipment: fighter-held (vehicle_id null) + vehicle-mounted, one query
-  const equipmentQuery = (() => {
-    let q = supabase.from('fighter_equipment').select(equipmentSelect);
-    if (fighterIds.length > 0 && vehicleIds.length > 0) {
-      return q.or(`and(fighter_id.in.(${fighterIds.join(',')}),vehicle_id.is.null),vehicle_id.in.(${vehicleIds.join(',')})`);
-    }
-    if (fighterIds.length > 0) {
-      return q.in('fighter_id', fighterIds).is('vehicle_id', null);
-    }
-    return q.in('vehicle_id', vehicleIds);
-  })();
-
-  // Effects: fighter-scoped + vehicle-scoped, one query (partitioned at assembly)
-  const effectsQuery = (() => {
-    let q = supabase.from('fighter_effects').select(effectsSelect);
-    if (fighterIds.length > 0 && vehicleIds.length > 0) {
-      q = q.or(`fighter_id.in.(${fighterIds.join(',')}),vehicle_id.in.(${vehicleIds.join(',')})`);
-    } else if (fighterIds.length > 0) {
-      q = q.in('fighter_id', fighterIds);
-    } else {
-      q = q.in('vehicle_id', vehicleIds);
-    }
-    return q.order('sort_order', { ascending: true, nullsFirst: false });
-  })();
-
-  const capturedByGangIds = Array.from(
-    new Set(fighters.filter((f: any) => f.captured_by_gang_id).map((f: any) => f.captured_by_gang_id))
-  );
-
-  // Stage 2: everything else in parallel
-  const [
-    equipmentRes,
-    skillsRes,
-    effectsRes,
-    beastLinksRes,
-    loadoutsRes,
-    capturedByGangsRes
-  ] = await Promise.all([
-    equipmentQuery,
-    fighterIds.length > 0
-      ? supabase
-          .from('fighter_skills')
-          .select(`
-            id,
-            fighter_id,
-            credits_increase,
-            xp_cost,
-            is_advance,
-            fighter_effect_skill_id,
-            custom_skill_id,
-            created_at,
-            skill:skill_id (
-              name
-            ),
-            custom_skill:custom_skill_id (
-              skill_name
-            ),
-            fighter_effect_skills!fighter_effect_skill_id (
-              fighter_effects (
-                effect_name,
-                type_specific_data,
-                fighter_equipment_id
-              )
-            )
-          `)
-          .in('fighter_id', fighterIds)
-      : Promise.resolve({ data: [] }),
-    effectsQuery,
-    fighterIds.length > 0
-      ? supabase
-          .from('fighter_exotic_beasts')
-          .select(`
-            fighter_owner_id,
-            fighter_pet_id,
-            fighter_equipment_id,
-            fighters!fighter_owner_id (
-              fighter_name
-            ),
-            fighter_equipment!fighter_equipment_id (
-              gang_stash
-            )
-          `)
-          .in('fighter_owner_id', fighterIds)
-      : Promise.resolve({ data: [] }),
-    fighterIds.length > 0
-      ? supabase
-          .from('fighter_loadouts')
-          .select('id, fighter_id, loadout_name, created_at, fighter_loadout_equipment (loadout_id, fighter_equipment_id)')
-          .in('fighter_id', fighterIds)
-          .order('created_at', { ascending: true })
-      : Promise.resolve({ data: [] }),
-    capturedByGangIds.length > 0
-      ? supabase.from('gangs').select('id, name').in('id', capturedByGangIds)
-      : Promise.resolve({ data: [] })
-  ]);
-
-  return {
-    gangId,
-    fighters,
-    vehicles,
-    equipment: equipmentRes.data || [],
-    skills: skillsRes.data || [],
-    effects: effectsRes.data || [],
-    beastLinks: beastLinksRes.data || [],
-    loadouts: loadoutsRes.data || [],
-    capturedByGangs: capturedByGangsRes.data || []
-  };
-}
-
-// =============================================================================
-// DRIZZLE ROSTER LOADER - same bundle over the direct database connection
-// =============================================================================
-
-// The column lists mirror the Data API selects in fetchGangFightersBundleRest
-// one for one, so both loaders return identical bundles. Change them together.
+// Columns read by rosterQuery(); the equipment and effects selections are shared
+// by fighters and vehicles.
 const WEAPON_PROFILE_COLUMNS = {
   id: true,
   weapon_group_id: true,
@@ -1384,8 +1039,8 @@ function rosterQuery(db: AppDb, gangId: string) {
   });
 }
 
-// Effects from every fighter and vehicle are sorted together, NULL sort_order
-// last, like the Data API's single sort_order.asc.nullslast query
+// Effects from every fighter and vehicle are sorted together by sort_order,
+// NULLs last
 function bySortOrder(a: { sort_order: number | null }, b: { sort_order: number | null }): number {
   if (a.sort_order === b.sort_order) return 0;
   if (a.sort_order === null) return 1;
@@ -1393,7 +1048,7 @@ function bySortOrder(a: { sort_order: number | null }, b: { sort_order: number |
   return a.sort_order - b.sort_order;
 }
 
-/** Turn the nested roster back into the flat lists the Data API loader returns. */
+/** Flatten the nested roster into the bundle's per-table lists. */
 function flattenRoster(gangId: string, gang: Awaited<ReturnType<typeof rosterQuery>>): GangFightersBundle {
   const fighterRows = gang?.fighters ?? [];
   const vehicleRows = gang?.vehicles ?? [];
@@ -1437,7 +1092,7 @@ export const getGangFightersList = async (
   const callerSlug = options?.gangEditionSlug;
   const needsCore = callerSlug === undefined;
   const [bundle, core] = await Promise.all([
-    getGangFightersBundle(gangId, supabase),
+    getGangFightersBundle(gangId),
     needsCore ? getGangCore(gangId, supabase) : Promise.resolve(null)
   ]);
   return assembleGangFighters(bundle, {
