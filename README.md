@@ -11,7 +11,7 @@ A comprehensive gang management tool for Necromunda tabletop game with features 
 ## Tech Stack
 
 - **Framework:** Next.js 15.4.3 (App Router)
-- **Database:** PostgreSQL
+- **Database:** PostgreSQL (Supabase), queried through the Supabase Data API and Drizzle ORM
 - **Authentication:** Supabase Auth
 - **Styling:** Tailwind CSS
 - **Components:** shadcn/ui
@@ -599,43 +599,24 @@ redis-cli -u "$REDIS_URL" --scan --pattern 'munda-manager:next-cache:*' \
 
 To roll back to stock Next.js caching, unset `USE_REDIS_CACHE` and rebuild.
 
-## Direct Database Connection (Drizzle pilot)
+## Drizzle ORM
 
-Every Data API (PostgREST) request writes one ~3 KB API gateway log entry, and
-Supabase bills log volume as Logs Ingest. Reads over a direct Postgres connection
-write none, because Postgres only logs DDL. The gang roster loader
-(`getGangFightersBundle`, used by the gang, fighter, print and battle session pages)
-is the pilot: on a cache miss it reads the roster with one Drizzle query instead of
-7 Data API requests.
+Some server-side reads use [Drizzle ORM](https://orm.drizzle.team) over a direct
+Postgres connection instead of the Supabase Data API. Those reads don't create API
+gateway log entries, which Supabase bills as Logs Ingest. The gang roster
+(`getGangFightersBundle` in `app/lib/shared/gang-data.ts`) is read this way.
 
-How it fits together:
-
-- `utils/db/client.ts`: postgres.js pool on the shared pooler in transaction mode.
+- `utils/db/client.ts`: the connection, through the Supabase transaction pooler.
 - `utils/db/schema.ts`: Drizzle tables and relations. They mirror
-  `supabase/schema/schema.public.sql` and must be kept in step with migrations
-  that change these tables.
-- `utils/db/rls.ts`: `withRls(supabase, …)` runs each query as the signed-in user,
-  the way the Data API does (verified JWT claims in `request.jwt.claims`,
-  `SET LOCAL ROLE authenticated`), so RLS policies apply unchanged.
-- `app/lib/shared/gang-data.ts`: `fetchGangFightersBundleDrizzle()` sits next to the
-  Data API version it replaces and returns the same `GangFightersBundle`. If it
-  fails, the Data API version is used and `[drizzle]` is logged.
+  `supabase/schema/schema.public.sql`; update them when a migration changes these
+  tables.
+- `utils/db/rls.ts`: `withRls(supabase, …)` runs queries as the signed-in user, so
+  RLS policies apply as they do for the Data API.
 
 | Variable | Required | Notes |
 |---|---|---|
-| `DRIZZLE_DATABASE_URL` | runtime | Secret. Transaction pooler URL (port `6543`) as `app_server.<project-ref>`. Absent ⇒ the roster is read through the Data API |
+| `DRIZZLE_DATABASE_URL` | runtime | Secret. Transaction pooler URL (port `6543`) with user `app_server.<project-ref>`. When unset, these reads go through the Data API instead |
 
-Both versions fill the same cache entry, so turning it on only affects cache misses.
-
-### Setting it up
-
-1. Apply `supabase/migrations/20261016120000_add_app_server_role.sql`. It creates
-   `app_server`, a login role that can only act through `authenticated`.
-2. In the SQL editor, set its password: `ALTER ROLE app_server WITH PASSWORD '…';`
-3. Set `DRIZZLE_DATABASE_URL` for a Vercel Preview deployment first, using the
-   transaction pooler host from the dashboard's **Connect** panel with user
-   `app_server.<project-ref>`. Check the gang, fighter, print and battle session pages.
-4. Set it for Production. Watch the runtime logs for `[drizzle]`, pooler connections
-   (Observability → Shared Pooler Client Connections) and Logs Ingest.
-
-To roll back, unset `DRIZZLE_DATABASE_URL` and redeploy.
+The connection signs in as `app_server` (migration
+`20261016120000_add_app_server_role.sql`), a role that can only act as
+`authenticated`. Its password is set in the SQL editor, not in the migration.
