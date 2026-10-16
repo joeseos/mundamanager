@@ -3,6 +3,7 @@ import 'server-only';
 import postgres from 'postgres';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import * as schema from './schema';
+import { SUPABASE_ROOT_CA } from './supabase-ca';
 
 /**
  * Direct Postgres connection for server-side reads, outside the Data API, so
@@ -27,8 +28,9 @@ export function getAppDb(): AppDb | null {
   if (!url) return null;
 
   const client = postgres(url, {
-    // postgres.js connects without TLS unless asked; the pooler is reached over the internet.
-    ssl: 'require',
+    // TLS, verifying the pooler's certificate and hostname against Supabase's root CA
+    // (postgres.js connects without TLS unless asked, and 'require' skips verification).
+    ssl: { ca: SUPABASE_ROOT_CA },
     // The transaction pooler cannot hold prepared statements across transactions.
     prepare: false,
     // Each serverless instance keeps a small pool; the pooler's client limit

@@ -610,6 +610,9 @@ gateway log entries, which Supabase bills as Logs Ingest. The gang roster
 - `utils/db/schema.ts`: Drizzle tables and relations. They mirror
   `supabase/schema/schema.public.sql`; update them when a migration changes these
   tables.
+- `utils/db/supabase-ca.ts`: Supabase's root CA, which the connection verifies the
+  pooler's certificate against. It expires on 26 April 2031; replace it with the
+  new one from Database Settings > SSL Configuration before then.
 
 | Variable | Required | Notes |
 |---|---|---|
