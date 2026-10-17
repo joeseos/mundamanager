@@ -141,6 +141,13 @@ export interface FighterProps {
   fighter_type: string;
   fighter_type_id?: string;
   custom_fighter_type_id?: string | null;
+  /** Gang type of this fighter's fighter type, or of their custom fighter type. */
+  fighter_gang_type_id?: string | null;
+  /** Custom gang type of this fighter's custom fighter type, when they have one. */
+  fighter_custom_gang_type_id?: string | null;
+  /** Gang-scoped count_limits for this fighter's type. Null when the type has no rule. */
+  min_count?: number | null;
+  max_count?: number | null;
   is_custom_fighter?: boolean;
   alliance_crew_name?: string;
   label?: string;

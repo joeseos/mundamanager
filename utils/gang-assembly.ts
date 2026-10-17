@@ -1,5 +1,6 @@
 import 'server-only';
 import { countAdvancementsTaken } from '@/utils/advancementRanks';
+import { resolveGangCountLimit } from '@/utils/countLimitPrefix';
 import { readHatredTarget } from '@/utils/injuryTarget';
 import { WeaponProps, WargearItem } from '@/types/fighter';
 import { WeaponProfile } from '@/types/equipment';
@@ -631,7 +632,13 @@ export function assembleGangFighters(
 
         // Get fighter type info from the join
         const fighterTypeInfo = fighter.fighter_types || {};
+        const customFighterTypeInfo = fighter.custom_fighter_types || {};
         const fighterSpecialisationInfo = fighter.fighter_specialisations || null;
+        const countLimit = resolveGangCountLimit(fighterTypeInfo.count_limits, {
+          gangTypeId: options?.gangTypeId,
+          gangOriginId: options?.gangOriginId,
+          gangSubtypeIds: options?.gangSubtypeIds,
+        });
 
         // Calculate loadout cost for display: base cost + loadout equipment + skills + effects
         // This shows what the fighter costs with the current loadout
@@ -662,6 +669,12 @@ export function assembleGangFighters(
           fighter_name: fighter.fighter_name,
           label: fighter.label,
           fighter_type: fighter.fighter_type || fighterTypeInfo.fighter_type || 'Unknown',
+          fighter_type_id: fighter.fighter_type_id ?? undefined,
+          custom_fighter_type_id: fighter.custom_fighter_type_id ?? null,
+          fighter_gang_type_id: fighterTypeInfo.gang_type_id ?? customFighterTypeInfo.gang_type_id ?? null,
+          fighter_custom_gang_type_id: customFighterTypeInfo.custom_gang_type_id ?? null,
+          min_count: countLimit.min_count,
+          max_count: countLimit.max_count,
           fighter_subtypes: fighter.fighter_subtypes || [],
           promoted_from_prospect: fighter.promoted_from_prospect,
           fighter_specialisation: fighterSpecialisationInfo ? {

@@ -872,11 +872,23 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
               edition_id,
               editions:edition_id (
                 slug
+              ),
+              count_limits!count_limits_fighter_type_id_fkey (
+                id,
+                gang_type_id,
+                gang_origin_id,
+                gang_subtype_id,
+                min_count,
+                max_count
               )
             ),
             fighter_specialisations!fighter_specialisation_id (
               id,
               specialisation_name
+            ),
+            custom_fighter_types!custom_fighter_type_id (
+              gang_type_id,
+              custom_gang_type_id
             )
           `)
           .eq('gang_id', gangId),
@@ -1126,7 +1138,7 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
         capturedByGangs: capturedByGangsRes.data || []
       };
     },
-    [`gang-fighters-bundle-v4-${gangId}`],
+    [`gang-fighters-bundle-v6-${gangId}`],
     {
       tags: [TAGS.gangRoster(gangId)],
       revalidate: false
@@ -1157,7 +1169,10 @@ export const getGangFightersList = async (
   ]);
   return assembleGangFighters(bundle, {
     ...options,
-    gangEditionSlug: needsCore ? core?.edition_slug ?? null : callerSlug
+    gangEditionSlug: needsCore ? core?.edition_slug ?? null : callerSlug,
+    gangTypeId: options?.gangTypeId ?? (needsCore ? core?.gang_type_id ?? null : null),
+    gangOriginId: options?.gangOriginId ?? (needsCore ? core?.gang_origin_id ?? null : null),
+    gangSubtypeIds: options?.gangSubtypeIds ?? (needsCore ? core?.gang_subtypes ?? [] : []),
   });
 };
 
