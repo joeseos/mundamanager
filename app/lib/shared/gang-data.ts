@@ -872,11 +872,23 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
               edition_id,
               editions:edition_id (
                 slug
+              ),
+              count_limits!count_limits_fighter_type_id_fkey (
+                id,
+                gang_type_id,
+                gang_origin_id,
+                gang_subtype_id,
+                min_count,
+                max_count
               )
             ),
             fighter_specialisations!fighter_specialisation_id (
               id,
               specialisation_name
+            ),
+            custom_fighter_types!custom_fighter_type_id (
+              gang_type_id,
+              custom_gang_type_id
             )
           `)
           .eq('gang_id', gangId),
@@ -921,7 +933,8 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
         effects: [],
         beastLinks: [],
         loadouts: [],
-        capturedByGangs: []
+        capturedByGangs: [],
+        familyTypes: []
       };
 
       if (fighters.length === 0 && vehicles.length === 0) {
@@ -1047,6 +1060,42 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
         new Set(fighters.filter((f: any) => f.captured_by_gang_id).map((f: any) => f.captured_by_gang_id))
       );
 
+      // Names hired onto this gang. The family cap often sits on the unhired base
+      // row (same fighter_type, same edition, same gang type), so load those siblings too.
+      const familyTypeNames = new Set<string>();
+      const familyEditionIds = new Set<string>();
+      const familyGangTypeIds = new Set<string>();
+      for (const fighter of fighters) {
+        const type = fighter.fighter_types;
+        if (!type?.fighter_type || !type.edition_id) continue;
+        familyTypeNames.add(type.fighter_type);
+        familyEditionIds.add(type.edition_id);
+        if (type.gang_type_id) familyGangTypeIds.add(type.gang_type_id);
+      }
+      const familyTypesQuery = familyTypeNames.size > 0 && familyEditionIds.size > 0 && familyGangTypeIds.size > 0
+        ? supabase
+            .from('fighter_types')
+            .select(`
+              id,
+              fighter_type,
+              fighter_subtypes,
+              fighter_variant,
+              cost,
+              editions:edition_id (slug),
+              count_limits!count_limits_fighter_type_id_fkey (
+                id,
+                gang_type_id,
+                gang_origin_id,
+                gang_subtype_id,
+                min_count,
+                max_count
+              )
+            `)
+            .in('fighter_type', Array.from(familyTypeNames))
+            .in('edition_id', Array.from(familyEditionIds))
+            .in('gang_type_id', Array.from(familyGangTypeIds))
+        : Promise.resolve({ data: [], error: null });
+
       // Stage 2: everything else in parallel
       const [
         equipmentRes,
@@ -1054,7 +1103,8 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
         effectsRes,
         beastLinksRes,
         loadoutsRes,
-        capturedByGangsRes
+        capturedByGangsRes,
+        familyTypesRes
       ] = await Promise.all([
         equipmentQuery,
         fighterIds.length > 0
@@ -1111,8 +1161,25 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
           : Promise.resolve({ data: [] }),
         capturedByGangIds.length > 0
           ? supabase.from('gangs').select('id, name').in('id', capturedByGangIds)
-          : Promise.resolve({ data: [] })
+          : Promise.resolve({ data: [] }),
+        familyTypesQuery
       ]);
+
+      if (familyTypesRes.error) {
+        console.error('Error fetching variant-family fighter types:', familyTypesRes.error);
+      }
+      const familyTypes = (familyTypesRes.data || []).map((row: any) => {
+        const edition = Array.isArray(row.editions) ? row.editions[0] : row.editions;
+        return {
+          id: row.id,
+          fighter_type: row.fighter_type,
+          fighter_subtypes: Array.isArray(row.fighter_subtypes) ? row.fighter_subtypes : [],
+          fighter_variant: row.fighter_variant ?? null,
+          cost: Number(row.cost) || 0,
+          edition_slug: edition?.slug ?? null,
+          count_limits: row.count_limits || [],
+        };
+      });
 
       return {
         gangId,
@@ -1123,10 +1190,11 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
         effects: effectsRes.data || [],
         beastLinks: beastLinksRes.data || [],
         loadouts: loadoutsRes.data || [],
-        capturedByGangs: capturedByGangsRes.data || []
+        capturedByGangs: capturedByGangsRes.data || [],
+        familyTypes
       };
     },
-    [`gang-fighters-bundle-v4-${gangId}`],
+    [`gang-fighters-bundle-v7-${gangId}`],
     {
       tags: [TAGS.gangRoster(gangId)],
       revalidate: false
@@ -1147,17 +1215,27 @@ export const getGangFightersList = async (
   // Every fighter in a roster belongs to one gang, so the edition is resolved
   // once for the whole roster rather than per fighter from fighter_types —
   // which yields null for custom fighter types, and would leave them with no
-  // edition at all. Callers already holding the gang core pass it in; only the
-  // battle-session page, which has no core for the gangs it lists, pays a read.
+  // edition at all. Passing the edition does not skip the gang type, origin,
+  // and subtypes: count_limits scoped to those only match when the scope is known.
   const callerSlug = options?.gangEditionSlug;
-  const needsCore = callerSlug === undefined;
+  const needsEdition = callerSlug === undefined;
+  const scopeProvided =
+    options?.gangTypeId !== undefined &&
+    options?.gangOriginId !== undefined &&
+    options?.gangSubtypeIds !== undefined;
+  // A caller that already knows the edition still needs the gang's type, origin,
+  // and subtypes, or count_limits scoped to those never match.
+  const needsCore = needsEdition || !scopeProvided;
   const [bundle, core] = await Promise.all([
     getGangFightersBundle(gangId, supabase),
     needsCore ? getGangCore(gangId, supabase) : Promise.resolve(null)
   ]);
   return assembleGangFighters(bundle, {
     ...options,
-    gangEditionSlug: needsCore ? core?.edition_slug ?? null : callerSlug
+    gangEditionSlug: needsEdition ? core?.edition_slug ?? null : callerSlug,
+    gangTypeId: options?.gangTypeId ?? core?.gang_type_id ?? null,
+    gangOriginId: options?.gangOriginId ?? core?.gang_origin_id ?? null,
+    gangSubtypeIds: options?.gangSubtypeIds ?? core?.gang_subtypes ?? [],
   });
 };
 

@@ -1,5 +1,6 @@
 import 'server-only';
 import { countAdvancementsTaken } from '@/utils/advancementRanks';
+import { familyLimitsByTypeId, resolveGangCountLimit } from '@/utils/countLimitPrefix';
 import { readHatredTarget } from '@/utils/injuryTarget';
 import { WeaponProps, WargearItem } from '@/types/fighter';
 import { WeaponProfile } from '@/types/equipment';
@@ -90,6 +91,12 @@ export function assembleGangFighters(
 ): GangFighter[] {
   const expandLoadoutsForPrint = options?.expandLoadoutsForPrint ?? false;
   const gangEditionSlug = options?.gangEditionSlug ?? null;
+  const gangScope = {
+    gangTypeId: options?.gangTypeId,
+    gangOriginId: options?.gangOriginId,
+    gangSubtypeIds: options?.gangSubtypeIds,
+  };
+  const familyLimitByTypeId = familyLimitsByTypeId(bundle.familyTypes ?? [], gangScope);
   const fighters = bundle.fighters;
   if (!fighters || fighters.length === 0) return [];
 
@@ -631,7 +638,12 @@ export function assembleGangFighters(
 
         // Get fighter type info from the join
         const fighterTypeInfo = fighter.fighter_types || {};
+        const customFighterTypeInfo = fighter.custom_fighter_types || {};
         const fighterSpecialisationInfo = fighter.fighter_specialisations || null;
+        const countLimit = resolveGangCountLimit(fighterTypeInfo.count_limits, gangScope);
+        const familyLimit = fighter.fighter_type_id
+          ? familyLimitByTypeId.get(fighter.fighter_type_id)
+          : undefined;
 
         // Calculate loadout cost for display: base cost + loadout equipment + skills + effects
         // This shows what the fighter costs with the current loadout
@@ -662,6 +674,13 @@ export function assembleGangFighters(
           fighter_name: fighter.fighter_name,
           label: fighter.label,
           fighter_type: fighter.fighter_type || fighterTypeInfo.fighter_type || 'Unknown',
+          fighter_type_id: fighter.fighter_type_id ?? undefined,
+          custom_fighter_type_id: fighter.custom_fighter_type_id ?? null,
+          fighter_gang_type_id: fighterTypeInfo.gang_type_id ?? customFighterTypeInfo.gang_type_id ?? null,
+          fighter_custom_gang_type_id: customFighterTypeInfo.custom_gang_type_id ?? null,
+          min_count: familyLimit ? familyLimit.min_count : countLimit.min_count,
+          max_count: familyLimit ? familyLimit.max_count : countLimit.max_count,
+          type_subtype_key: familyLimit?.typeSubtypeKey,
           fighter_subtypes: fighter.fighter_subtypes || [],
           promoted_from_prospect: fighter.promoted_from_prospect,
           fighter_specialisation: fighterSpecialisationInfo ? {

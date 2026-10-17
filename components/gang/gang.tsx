@@ -27,9 +27,13 @@ import { Tooltip } from 'react-tooltip';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { hasAlignment, hasTradePoints, hasVehicles } from '@/types/edition';
+import { EDITION_N23, EDITION_N26, hasAlignment, hasTradePoints, hasVehicles } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
+import { fighterCountLimitDisplay } from '@/utils/countLimitPrefix';
+import { CountLimitPrefix } from '@/components/gang/count-limit-prefix';
 import { detailGangTypeLabel } from '@/utils/gang-type-label';
+import { applySpecialRulesModifiers } from '@/utils/effect-modifiers';
+import { withVariantGroups } from '@/utils/variantFamily';
 
 const GangEditModal = dynamic(() => import('./gang-edit-modal'), { ssr: false });
 const FighterAddModal = dynamic(() => import('./fighter-add/FighterAddModal'), { ssr: false });
@@ -40,6 +44,12 @@ const GangImageEditModal = dynamic(
   { ssr: false }
 );
 
+function isCompanionSubtype(subtypes: string[]) {
+  return subtypes.some((subtype) => {
+    const name = subtype.toLowerCase();
+    return name === 'exotic beast' || name === 'pet';
+  });
+}
 
 interface GangProps {
   id: string;
@@ -336,35 +346,132 @@ export default function Gang({
     );
   }, [fighters]);
 
-  // Fighters composition for tooltip: group by fighter_type and fighter_subtypes
+  // Fighters composition for tooltip: group by fighter_type and fighter_subtypes.
+  // The left-hand limit uses the catalog family (same key as the Add Fighter list),
+  // including the base type's cap when only a variant has been hired.
   const fighterTypeSubtypeCounts = useMemo(() => {
-    const counts = new Map<string, { label: string; count: number; subtypes: string[] }>();
+    const hiredFamilyById = new Map(
+      withVariantGroups(activeFighters.map((fighter) => ({
+        id: fighter.id,
+        fighter_type: fighter.fighter_type,
+        fighter_subtypes: fighter.fighter_subtypes,
+        edition_slug,
+      }))).map((row) => [row.id, row.typeSubtypeKey])
+    );
+    const hasRule = (min_count: number | null, max_count: number | null) =>
+      (max_count != null && max_count > 0) || (min_count != null && min_count > 0);
+    const counts = new Map<string, {
+      label: string;
+      count: number;
+      subtypes: string[];
+      min_count: number | null;
+      max_count: number | null;
+      familyKey: string;
+    }>();
     for (const fighter of activeFighters) {
       const typeLabel = fighter.fighter_type || 'Unknown Type';
       const subtypeLabel = formatFighterSubtypeDisplay(fighter.fighter_subtypes, edition_slug);
       const key = `${typeLabel} (${subtypeLabel})`;
+      const familyKey = fighter.type_subtype_key || hiredFamilyById.get(fighter.id) || key;
       const existing = counts.get(key);
       if (existing) {
         existing.count += 1;
+        if (!hasRule(existing.min_count, existing.max_count) && hasRule(fighter.min_count ?? null, fighter.max_count ?? null)) {
+          existing.min_count = fighter.min_count ?? null;
+          existing.max_count = fighter.max_count ?? null;
+        }
       } else {
         counts.set(key, {
           label: key,
           count: 1,
           subtypes: fighter.fighter_subtypes ?? [],
+          min_count: fighter.min_count ?? null,
+          max_count: fighter.max_count ?? null,
+          familyKey,
         });
       }
     }
-    return Array.from(counts.values()).sort((a, b) => {
-      const rankA = getFighterSubtypeSortRank(a.subtypes, edition_slug);
-      const rankB = getFighterSubtypeSortRank(b.subtypes, edition_slug);
-      if (rankA !== rankB) return rankA - rankB;
-      return a.label.localeCompare(b.label);
-    });
+    const rows = Array.from(counts.values());
+    const familyCount = new Map<string, number>();
+    const familyLimit = new Map<string, { min_count: number | null; max_count: number | null }>();
+    for (const row of rows) {
+      if (isCompanionSubtype(row.subtypes)) continue;
+      familyCount.set(row.familyKey, (familyCount.get(row.familyKey) ?? 0) + row.count);
+      const existing = familyLimit.get(row.familyKey);
+      if (!existing || (!hasRule(existing.min_count, existing.max_count) && hasRule(row.min_count, row.max_count))) {
+        familyLimit.set(row.familyKey, { min_count: row.min_count, max_count: row.max_count });
+      }
+    }
+    return rows
+      .map((row) => {
+        const limit = familyLimit.get(row.familyKey);
+        return {
+          ...row,
+          familyCount: familyCount.get(row.familyKey) ?? row.count,
+          min_count: limit ? limit.min_count : row.min_count,
+          max_count: limit ? limit.max_count : row.max_count,
+        };
+      })
+      .sort((a, b) => {
+        const rankA = getFighterSubtypeSortRank(a.subtypes, edition_slug);
+        const rankB = getFighterSubtypeSortRank(b.subtypes, edition_slug);
+        if (rankA !== rankB) return rankA - rankB;
+        return a.label.localeCompare(b.label);
+      });
   }, [activeFighters, edition_slug]);
 
   const fighterTypeSubtypeTotal = useMemo(() => {
     return fighterTypeSubtypeCounts.reduce((sum, item) => sum + item.count, 0);
   }, [fighterTypeSubtypeCounts]);
+
+  const compositionRules = useMemo(() => {
+    const hasSubtype = (fighter: FighterProps, names: Set<string>) =>
+      (fighter.fighter_subtypes ?? []).some((subtype) => names.has(subtype.toLowerCase()));
+    const leaderCount = activeFighters.filter((fighter) => hasSubtype(fighter, new Set(['leader']))).length;
+
+    const balance = (() => {
+      if (edition_slug === EDITION_N26) {
+        const restricted = new Set(['champion', 'brute', 'hanger-on']);
+        let withCount = 0;
+        let withoutCount = 0;
+        for (const fighter of activeFighters) {
+          if (hasSubtype(fighter, restricted)) withCount += 1;
+          else withoutCount += 1;
+        }
+        return [{
+          label: 'Champions, Brutes & Hangers-on',
+          text: `${withCount}-${withoutCount}`,
+          broken: withCount > withoutCount,
+        }];
+      }
+      if (edition_slug === EDITION_N23) {
+        const hasGangFighterRule = (fighter: FighterProps) => {
+          const effects = fighter.effects ? Object.values(fighter.effects).flat() : [];
+          return applySpecialRulesModifiers(fighter.special_rules ?? [], effects).some((rule) =>
+            /^gang fighter\s*\(/i.test(String(rule).trim().replace(/^"|"$/g, ''))
+          );
+        };
+        const sameGang = activeFighters.filter((fighter) =>
+          (custom_gang_type_id != null && fighter.fighter_custom_gang_type_id === custom_gang_type_id) ||
+          (gang_type_id != null && fighter.fighter_gang_type_id === gang_type_id)
+        );
+        let withCount = 0;
+        let withoutCount = 0;
+        for (const fighter of sameGang) {
+          if (hasGangFighterRule(fighter)) withCount += 1;
+          else withoutCount += 1;
+        }
+        const broken = withCount < withoutCount;
+        return [
+          { label: 'Fighters with Gang Fighter (X) rule', text: String(withCount), broken },
+          { label: 'Other Gang fighters', text: String(withoutCount), broken },
+        ];
+      }
+      return null;
+    })();
+
+    return { leaderCount, balance };
+  }, [activeFighters, edition_slug, gang_type_id, custom_gang_type_id]);
 
   const wealthBreakdownRows = useMemo(() => {
     return [
@@ -1348,6 +1455,7 @@ export default function Gang({
               onFighterReconcile={onFighterReconcile}
               gangSubtypes={gangSubtypes}
               gangAffiliationId={gangAffiliationId}
+              fighters={fighters}
             />
           )}
 
@@ -1368,6 +1476,7 @@ export default function Gang({
                 onFighterReconcile={onFighterReconcile}
                 gangSubtypes={gangSubtypes}
                 gangAffiliationId={gangAffiliationId}
+                fighters={fighters}
               />
             ) : (
               <AddVehicle
@@ -1400,6 +1509,7 @@ export default function Gang({
               onFighterRollback={onFighterRollback}
               onFighterReconcile={onFighterReconcile}
               gangAffiliationId={gangAffiliationId}
+              fighters={fighters}
             />
           )}
 
@@ -1449,18 +1559,42 @@ export default function Gang({
                 <div>No fighters</div>
               ) : (
                 <>
-                  {fighterTypeSubtypeCounts.map(({ label, count }) => (
-                    <div key={label} className="flex justify-between gap-3">
-                      <span>{label}</span>
-                      <span>{count}</span>
-                    </div>
-                  ))}
-                  <div className="mt-1 flex justify-between gap-3 border-t border-neutral-700 pt-1">
-                    <span>Total :</span>
-                    <span>{fighterTypeSubtypeTotal}</span>
-                  </div>
+                  {fighterTypeSubtypeCounts.map(({ label, count, familyCount, subtypes, min_count, max_count }) => {
+                    const isCompanion = isCompanionSubtype(subtypes);
+                    const limitText = isCompanion
+                      ? '\u2014'
+                      : fighterCountLimitDisplay({ min_count, max_count, current: familyCount }).text;
+                    const overMax = !isCompanion && max_count != null && max_count > 0 && familyCount > max_count;
+                    return (
+                      <div key={label} className="flex justify-between gap-3">
+                        <span>
+                          <CountLimitPrefix text={limitText} over={overMax} />
+                          {label}
+                        </span>
+                        <span>{count}</span>
+                      </div>
+                    );
+                  })}
                 </>
               )}
+              <div className="mt-1 flex justify-between gap-3 border-t border-neutral-700 pt-1">
+                <span>Total :</span>
+                <span>{fighterTypeSubtypeTotal}</span>
+              </div>
+              <div className="mt-1 flex justify-between gap-3">
+                <span>Leader</span>
+                <span className={`shrink-0 ${compositionRules.leaderCount === 1 ? '' : 'text-red-500'}`}>
+                  {compositionRules.leaderCount}
+                </span>
+              </div>
+              {compositionRules.balance?.map((row) => (
+                <div key={row.label} className="flex justify-between gap-3">
+                  <span>{row.label}</span>
+                  <span className={`shrink-0 ${row.broken ? 'text-red-500' : ''}`}>
+                    {row.text}
+                  </span>
+                </div>
+              ))}
             </div>
           </Tooltip>
           <Tooltip

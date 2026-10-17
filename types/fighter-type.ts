@@ -57,6 +57,7 @@ export interface FighterType {
   gang_type: string;
   cost: number;
   gang_type_id: string;
+  custom_gang_type_id?: string | null;
   special_rules: string[];
   total_cost: number;
   movement: number;
