@@ -1,19 +1,14 @@
 'use client';
 
-import { lazy, Suspense, useState } from 'react';
+import { useState } from 'react';
 import { Button } from '../ui/button';
+import { LazyRichTextEditor } from '../ui/lazy-rich-text-editor';
 import { toast } from 'sonner';
 import '../ui/rich-text-editor.css'; // Styles the read-only notes and the editor placeholder
 import { UserPermissions } from '@/types/user-permissions';
 import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { useMutation } from '@tanstack/react-query';
 import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp';
-
-// The editor (Tiptap and ProseMirror, about 130 KB gzipped) only shows after
-// Edit is clicked, so its code loads then instead of with the page.
-const RichTextEditor = lazy(() =>
-  import('../ui/rich-text-editor').then((mod) => ({ default: mod.RichTextEditor }))
-);
 
 interface FighterNotesProps {
   fighterId: string;
@@ -143,23 +138,15 @@ function NoteEditor({
           <div className="bg-white rounded-md">
             {/* Until the editor's code arrives, show the note in the editor's frame so nothing
                 moves. Below 769px the toolbar sits at the top of the screen, so no toolbar strip. */}
-            <Suspense
-              fallback={
-                <div className="border rounded-md min-h-[200px]">
-                  <div className="hidden min-[769px]:block border-b rounded-t-md p-1 bg-card shadow-xs"><div className="h-8" /></div>
-                  <div className="ProseMirror" dangerouslySetInnerHTML={{ __html: content }} />
-                </div>
-              }
-            >
-              <RichTextEditor
-                content={content}
-                onChange={onContentChange}
-                placeholder={placeholder}
-                className="min-h-[200px]"
-                charLimit={charLimit}
-                enableImages={false}
-              />
-            </Suspense>
+            <LazyRichTextEditor
+              fallbackHtml={content}
+              content={content}
+              onChange={onContentChange}
+              placeholder={placeholder}
+              className="min-h-[200px]"
+              charLimit={charLimit}
+              enableImages={false}
+            />
           </div>
         ) : (
           <div 

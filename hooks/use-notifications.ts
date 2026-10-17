@@ -28,8 +28,11 @@ export type Notification = {
   created_at: string;
   dismissed: boolean;
   link: string | null;
-  // Null when no user sent it, e.g. admin notifications
+  // Null on older admin notifications sent before the author was recorded
   sender_id: string | null;
+  sender_username: string | null;
+  // True when text is sanitized TipTap HTML. False is plain text with optional **bold**.
+  is_html: boolean;
 };
 
 export const notificationsQueryKey = (userId: string) => ['notifications', userId] as const;
@@ -39,9 +42,10 @@ const markReadMutationKey = (userId: string) => ['notifications', userId, 'mark-
 const NO_NOTIFICATIONS: Notification[] = [];
 
 async function fetchNotifications(userId: string, signal: AbortSignal): Promise<Notification[]> {
-  const { data, error } = await createClient()
+  const supabase = createClient();
+  const { data, error } = await supabase
     .from('notifications')
-    .select('id, text, dismissed, type, created_at, link, sender_id')
+    .select('id, text, dismissed, type, created_at, link, sender_id, is_html, sender:profiles!sender_id(username)')
     .eq('receiver_id', userId)
     .gt('expires_at', new Date().toISOString())
     .order('created_at', { ascending: false })
@@ -49,7 +53,19 @@ async function fetchNotifications(userId: string, signal: AbortSignal): Promise<
     .abortSignal(signal);
 
   if (error) throw error;
-  return data as Notification[];
+
+  // The query parser types a to-one embed as an array. Postgres returns an object
+  // once sender_id references profiles, so accept either shape.
+  const rows = (data ?? []) as unknown as (Omit<Notification, 'sender_username'> & {
+    sender: { username: string } | { username: string }[] | null;
+  })[];
+
+  return rows.map(({ sender, ...row }) => ({
+    ...row,
+    sender_username: Array.isArray(sender)
+      ? sender[0]?.username ?? null
+      : sender?.username ?? null,
+  }));
 }
 
 // The notifications as the user should see them: the cached list with the

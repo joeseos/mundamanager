@@ -1,20 +1,14 @@
 "use client";
 
-import { lazy, Suspense, useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { FiPrinter } from "react-icons/fi";
 import { toast } from 'sonner';
 import type { RichTextEditorHandle } from "@/components/ui/rich-text-editor";
+import { LazyRichTextEditor } from "@/components/ui/lazy-rich-text-editor";
 import "@/components/ui/rich-text-editor.css"; // Styles the read-only notes and the editor placeholder
 import { updateCampaignSettings } from "@/app/actions/campaigns/[id]/campaign-settings";
 import { isHtmlEffectivelyEmpty } from "@/utils/htmlCleanUp";
-
-// The editor (Tiptap and ProseMirror, about 130 KB gzipped) only shows after
-// Edit is clicked, so its code loads then instead of with the page.
-// lazy() passes editorRef through to it.
-const RichTextEditor = lazy(() =>
-  import("@/components/ui/rich-text-editor").then((mod) => ({ default: mod.RichTextEditor }))
-);
 
 interface CampaignNotesProps {
   campaignId: string;
@@ -156,25 +150,17 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate, canE
           <div className="bg-white rounded-md print:hidden">
             {/* Until the editor's code arrives, show the note in the editor's frame so nothing
                 moves. Below 769px the toolbar sits at the top of the screen, so no toolbar strip. */}
-            <Suspense
-              fallback={
-                <div className="border rounded-md min-h-[200px]">
-                  <div className="hidden min-[769px]:block border-b rounded-t-md p-1 bg-card shadow-xs"><div className="h-8" /></div>
-                  <div className="ProseMirror" dangerouslySetInnerHTML={{ __html: note }} />
-                </div>
-              }
-            >
-              <RichTextEditor
-                ref={editorRef}
-                content={note}
-                onChange={setNote}
-                placeholder="Add notes here..."
-                className="min-h-[200px]"
-                charLimit={NOTE_CHAR_LIMIT}
-                campaignId={campaignId}
-                enableImages={true}
-              />
-            </Suspense>
+            <LazyRichTextEditor
+              editorRef={editorRef}
+              fallbackHtml={note}
+              content={note}
+              onChange={setNote}
+              placeholder="Add notes here..."
+              className="min-h-[200px]"
+              charLimit={NOTE_CHAR_LIMIT}
+              campaignId={campaignId}
+              enableImages={true}
+            />
           </div>
           <div className="hidden print:block">
             {packBody}

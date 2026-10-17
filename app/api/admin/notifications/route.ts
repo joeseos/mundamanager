@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceRoleClient } from '@/utils/supabase/server'
-import { checkAdmin } from '@/utils/auth'
-import { isSafeNotificationLink } from '@/utils/notifications'
+import { checkAdmin, getUserIdFromClaims } from '@/utils/auth'
+import { isSafeNotificationLink, notificationPlainTextLength, NOTIFICATION_BROADCAST_MAX_LENGTH } from '@/utils/notifications'
+import { sanitizeNotificationHtml } from '@/utils/sanitize-notification-html'
+import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp'
 import { fetchAllRows } from '@/utils/supabase/fetch-all-rows'
 
 const ALLOWED_TYPES = ['info', 'warning', 'error'] as const
@@ -20,16 +22,26 @@ type RequestBody = {
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
-    const isAdmin = await checkAdmin(supabase)
-    if (!isAdmin) {
+    const senderId = await getUserIdFromClaims(supabase)
+    const isAdmin = await checkAdmin(supabase, senderId ? { id: senderId } : undefined)
+    if (!isAdmin || !senderId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = (await request.json()) as RequestBody
 
-    const text = typeof body.text === 'string' ? body.text.trim() : ''
-    if (!text) {
+    let text = typeof body.text === 'string' ? body.text.trim() : ''
+    // This route is the rich-text composer, so the stored row is always HTML.
+    text = sanitizeNotificationHtml(text).trim()
+    if (!text || isHtmlEffectivelyEmpty(text)) {
       return NextResponse.json({ error: 'Message text is required' }, { status: 400 })
+    }
+
+    if (notificationPlainTextLength(text) > NOTIFICATION_BROADCAST_MAX_LENGTH) {
+      return NextResponse.json(
+        { error: `Message must be at most ${NOTIFICATION_BROADCAST_MAX_LENGTH} characters` },
+        { status: 400 }
+      )
     }
 
     if (typeof body.type !== 'string' || !ALLOWED_TYPES.includes(body.type as NotificationType)) {
@@ -130,7 +142,8 @@ export async function POST(request: Request) {
     const rows = receiverIds.map((receiverId) => ({
       text,
       type,
-      sender_id: null,
+      is_html: true,
+      sender_id: senderId,
       receiver_id: receiverId,
       dismissed: false,
       link,
