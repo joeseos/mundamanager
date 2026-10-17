@@ -72,7 +72,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       getGangType(gangBasic, supabase),
       // Assembled inside the batch so the CPU pass overlaps the remaining
       // queries rather than landing on the critical path after all ten resolve.
-      getGangFightersBundle(params.id, supabase).then((bundle) => ({
+      getGangFightersBundle(params.id).then((bundle) => ({
         fighters: assembleGangFighters(bundle, {
           gangEditionSlug: gangBasic.edition_slug ?? null
         }),
