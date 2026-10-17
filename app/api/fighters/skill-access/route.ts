@@ -122,9 +122,9 @@ export async function GET(request: Request) {
     }
 
     // Also fetch overrides for this fighter
-    const { data: overrides, error: overridesError } = await supabase
+    const { data: overrideRows, error: overridesError } = await supabase
       .from('fighter_skill_access_override')
-      .select('skill_type_id, access_level')
+      .select('skill_type_id, custom_skill_type_id, access_level')
       .eq('fighter_id', fighterId);
 
     if (overridesError) {
@@ -135,9 +135,16 @@ export async function GET(request: Request) {
       );
     }
 
+    // Key custom Skill Set overrides by their custom id, as the defaults below are
+    const overrides = (overrideRows || []).map(o => ({
+      skill_type_id: (o.skill_type_id || o.custom_skill_type_id) as string,
+      is_custom: !o.skill_type_id,
+      access_level: o.access_level,
+    }));
+
     // Create override lookup map
     const overrideMap = new Map(
-      (overrides || []).map(o => [o.skill_type_id, o.access_level])
+      overrides.map(o => [o.skill_type_id, o.access_level])
     );
 
     // Format the response with defaults and overrides
@@ -158,31 +165,34 @@ export async function GET(request: Request) {
     const defaultSkillTypeIds = new Set((skillAccess || []).map((a) => a.skill_type_id || a.custom_skill_type_id));
 
     // Find overrides that don't have a corresponding default
-    const overrideOnlySkillTypeIds = (overrides || [])
-      .filter(o => !defaultSkillTypeIds.has(o.skill_type_id))
-      .map(o => o.skill_type_id);
+    const overrideOnly = overrides.filter(o => !defaultSkillTypeIds.has(o.skill_type_id));
 
-    if (overrideOnlySkillTypeIds.length > 0) {
+    if (overrideOnly.length > 0) {
+      const standardIds = overrideOnly.filter(o => !o.is_custom).map(o => o.skill_type_id);
+      const customIds = overrideOnly.filter(o => o.is_custom).map(o => o.skill_type_id);
+
       // Fetch skill type names for these overrides
-      const { data: overrideSkillTypes } = await supabase
-        .from('skill_types')
-        .select('id, name')
-        .in('id', overrideOnlySkillTypeIds);
+      const [{ data: overrideSkillTypes }, { data: overrideCustomSkillTypes }] = await Promise.all([
+        standardIds.length > 0
+          ? supabase.from('skill_types').select('id, name').in('id', standardIds)
+          : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+        customIds.length > 0
+          ? supabase.from('custom_skill_types').select('id, name').in('id', customIds)
+          : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+      ]);
 
       const overrideSkillTypeMap = new Map(
-        (overrideSkillTypes || []).map(st => [st.id, st.name])
+        [...(overrideSkillTypes || []), ...(overrideCustomSkillTypes || [])].map(st => [st.id, st.name])
       );
 
       // Add these to formattedSkillAccess
-      for (const override of overrides || []) {
-        if (!defaultSkillTypeIds.has(override.skill_type_id)) {
-          formattedSkillAccess.push({
-            skill_type_id: override.skill_type_id,
-            access_level: null, // no default from fighter type
-            override_access_level: override.access_level, // override from archetype
-            skill_type_name: overrideSkillTypeMap.get(override.skill_type_id) || 'Unknown'
-          });
-        }
+      for (const override of overrideOnly) {
+        formattedSkillAccess.push({
+          skill_type_id: override.skill_type_id,
+          access_level: null, // no default from fighter type
+          override_access_level: override.access_level, // override from archetype
+          skill_type_name: overrideSkillTypeMap.get(override.skill_type_id) || 'Unknown'
+        });
       }
     }
 

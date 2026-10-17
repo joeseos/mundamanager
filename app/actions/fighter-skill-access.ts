@@ -8,7 +8,9 @@ import { revalidateTag } from 'next/cache';
 
 // Types
 export interface SkillAccessOverride {
+  /** Standard or custom Skill Set id; is_custom says which */
   skill_type_id: string;
+  is_custom?: boolean;
   access_level: 'primary' | 'secondary' | 'allowed' | 'denied';
 }
 
@@ -61,7 +63,9 @@ export async function saveFighterSkillAccessOverrides(params: {
     if (params.overrides.length > 0) {
       const overrideRows = params.overrides.map(override => ({
         fighter_id: params.fighter_id,
-        skill_type_id: override.skill_type_id,
+        ...(override.is_custom
+          ? { custom_skill_type_id: override.skill_type_id }
+          : { skill_type_id: override.skill_type_id }),
         access_level: override.access_level,
         user_id: user.id
       }));

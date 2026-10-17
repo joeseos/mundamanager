@@ -1,6 +1,10 @@
 -- DEPLOY ORDER: apply migration 20261004120000_rename_gang_types_gang_type_id_to_id.sql
 -- BEFORE this file deploys. This function reads gang_types.id, which is an unused
 -- bigint until that migration drops it and renames gang_type_id to id.
+--
+-- Also apply migration 20261017120000_custom_skill_type_in_skill_access_override.sql
+-- BEFORE this file deploys. This function reads
+-- fighter_skill_access_override.custom_skill_type_id, which that migration adds.
 
 CREATE OR REPLACE FUNCTION public.get_available_skills(
     fighter_id UUID
@@ -140,7 +144,7 @@ BEGIN
                 OR (v_custom_fighter_type_id IS NULL AND ftsa.fighter_type_id = v_fighter_type_id)
             )
         LEFT JOIN fighter_skill_access_override sao ON sao.fighter_id = get_available_skills.fighter_id
-            AND (sao.skill_type_id = cs.skill_type_id OR sao.skill_type_id = cs.custom_skill_type_id)
+            AND (sao.skill_type_id = cs.skill_type_id OR sao.custom_skill_type_id = cs.custom_skill_type_id)
         WHERE (cs.user_id = auth.uid() OR shared.custom_skill_id IS NOT NULL)
         AND COALESCE(
             sao.access_level,
