@@ -2,6 +2,7 @@
 
 import { lazy, Suspense, useState, useRef } from 'react';
 import { Button } from "@/components/ui/button";
+import { FiPrinter } from "react-icons/fi";
 import { toast } from 'sonner';
 import type { RichTextEditorHandle } from "@/components/ui/rich-text-editor";
 import "@/components/ui/rich-text-editor.css"; // Styles the read-only notes and the editor placeholder
@@ -85,8 +86,8 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: Ca
   };
 
   return (
-    <div className="space-y-2">
-      <div className="flex justify-between items-start">
+    <div className="space-y-2 print:space-y-0">
+      <div className="flex justify-between items-start print:hidden">
         <h2 className="text-xl md:text-2xl font-bold mb-6">Campaign Pack</h2>
         <div className="flex items-center gap-2">
           <div className="flex gap-2">
@@ -113,12 +114,25 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: Ca
                 </Button>
               </>
             ) : (
-              <Button 
-                onClick={() => setIsEditing(true)}
-                disabled={isRefreshing}
-              >
-                {isRefreshing ? "Updating..." : "Edit"}
-              </Button>
+              <>
+                <Button
+                  onClick={() => window.print()}
+                  variant="ghost"
+                  size="icon"
+                  className="print:hidden"
+                  title="Print"
+                  aria-label="Print campaign pack"
+                >
+                  <FiPrinter className="w-5 h-5" />
+                </Button>
+                <Button 
+                  onClick={() => setIsEditing(true)}
+                  disabled={isRefreshing}
+                  className="print:hidden"
+                >
+                  {isRefreshing ? "Updating..." : "Edit"}
+                </Button>
+              </>
             )}
           </div>
         </div>
