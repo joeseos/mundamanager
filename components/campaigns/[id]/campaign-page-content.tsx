@@ -428,10 +428,10 @@ export default function CampaignPageContent({
   const canEditImage = !!(safePermissions.isOwner || safePermissions.isArbitrator || safePermissions.isAdmin);
 
   return (
-    <main className="flex min-h-screen flex-col items-center">
+    <main className="campaign-page flex min-h-screen flex-col items-center print:min-h-0">
       <div ref={campaignContentRef} className="container mx-auto max-w-5xl w-full space-y-4">
         {/* Tabs navigation */}
-        <div className="bg-card rounded-lg mb-4 flex">
+        <div className="bg-card rounded-lg mb-4 flex print:hidden">
           <button
             onClick={() => setActiveTab(0)}
             className={`flex-1 py-4 text-center transition-colors ${
@@ -979,11 +979,12 @@ export default function CampaignPageContent({
 
           {/* Notes tab content */}
           {activeTab === 3 && (
-            <div className="bg-card shadow-md rounded-lg p-4">
+            <div className="bg-card shadow-md rounded-lg p-4 print:bg-transparent print:shadow-none print:p-0 print:rounded-none">
               <div>
               <CampaignNotes
                 campaignId={campaignData.id}
                 initialNote={campaignData.note || ''}
+                canEdit={!!safePermissions.canEditCampaign}
                 onNoteUpdate={(updatedNote) => {
                   setCampaignData(prev => ({ ...prev, note: updatedNote }));
                 }}

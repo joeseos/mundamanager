@@ -4,12 +4,15 @@ import { useState } from 'react'
 import Modal from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import UserSearchBar, { type UserSearchResult } from '@/components/shared/user-search-bar'
 import { toast } from 'sonner'
 import { LuX } from 'react-icons/lu'
+import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp'
+import { notificationPlainTextLength, NOTIFICATION_BROADCAST_MAX_LENGTH } from '@/utils/notifications'
+import { LazyRichTextEditor } from '@/components/ui/lazy-rich-text-editor'
+import '@/components/ui/rich-text-editor.css'
 
 type Audience = 'users' | 'all'
 type NotificationType = 'info' | 'warning' | 'error'
@@ -27,7 +30,8 @@ export function AdminNotificationsModal({ onClose }: AdminNotificationsModalProp
   const [expiresInDays, setExpiresInDays] = useState(30)
 
   const canSend =
-    text.trim().length > 0 &&
+    !isHtmlEffectivelyEmpty(text) &&
+    notificationPlainTextLength(text) <= NOTIFICATION_BROADCAST_MAX_LENGTH &&
     expiresInDays >= 1 &&
     (audience === 'all' || selectedUsers.length > 0)
 
@@ -88,7 +92,7 @@ export function AdminNotificationsModal({ onClose }: AdminNotificationsModalProp
       onConfirm={handleSend}
       confirmText="Send"
       confirmDisabled={!canSend}
-      width="2xl"
+      width="4xl"
     >
       <div className="space-y-4">
         <div className="space-y-2">
@@ -122,7 +126,7 @@ export function AdminNotificationsModal({ onClose }: AdminNotificationsModalProp
         </div>
 
         {audience === 'users' ? (
-          <div className="space-y-2">
+          <div className="relative z-[80] space-y-2">
             <Label>Recipients</Label>
             <UserSearchBar
               placeholder="Search users by username"
@@ -173,15 +177,18 @@ export function AdminNotificationsModal({ onClose }: AdminNotificationsModalProp
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="notification-text">Message</Label>
-          <Textarea
-            id="notification-text"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Enter the notification message"
-            rows={6}
-            className="min-h-[120px]"
-          />
+          <Label>Message</Label>
+          <div className="bg-white rounded-md">
+            <LazyRichTextEditor
+              content={text}
+              onChange={setText}
+              placeholder="Enter the notification message"
+              enableImages={false}
+              stickyWithinScrollContainer
+              notificationFormatting
+              charLimit={NOTIFICATION_BROADCAST_MAX_LENGTH}
+            />
+          </div>
         </div>
 
         <div className="space-y-2">

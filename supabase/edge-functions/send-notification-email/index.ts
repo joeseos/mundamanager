@@ -66,6 +66,26 @@ const EMAIL_CONFIG: Record<string, { defaultEnabled: boolean; subject: string; c
     ctaPath: "/account",
   },
   campaign_challenge: { defaultEnabled: true, subject: "Your gang has been challenged" },
+  user_message: {
+    defaultEnabled: true,
+    subject: "{sender} sent you a message",
+    ctaPath: "/account",
+  },
+  campaign_message: {
+    defaultEnabled: true,
+    subject: "{sender} sent a campaign message",
+    ctaPath: "/account",
+  },
+  mm_staff_message: {
+    defaultEnabled: true,
+    subject: "A message from Munda Manager",
+    ctaPath: "/account",
+  },
+  mm_announcement: {
+    defaultEnabled: true,
+    subject: "An announcement from Munda Manager",
+    ctaPath: "/account",
+  },
 };
 
 function isEmailEnabled(
