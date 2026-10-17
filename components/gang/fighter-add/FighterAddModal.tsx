@@ -20,6 +20,7 @@ import { fighterTypeRank } from '@/utils/fighterTypeRank';
 import { beastSubtypeName, hasGangAdditionCategories, sameEditionForDisplay } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { fighterCountLimitDisplay } from '@/utils/countLimitPrefix';
+import { CountLimitPrefix } from '@/components/gang/count-limit-prefix';
 import { countsTowardRating } from '@/utils/fighter-status';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
@@ -125,15 +126,6 @@ function mapFighterType(type: any): FighterType {
     is_granted_with_fighter: type.is_granted_with_fighter || false,
     associated_pet_owner_id: type.associated_pet_owner_id || null,
   } as FighterType;
-}
-
-/** Gray range column, matching Lasting Injuries. The whole count turns red once it reaches the cap. */
-function CountLimitPrefix({ text, over }: { text: string; over: boolean }) {
-  return (
-    <span className={`inline-block w-11 text-center mr-1 ${over ? 'text-red-500' : 'text-gray-400'}`}>
-      {text}
-    </span>
-  );
 }
 
 export default function FighterAddModal({
@@ -422,6 +414,7 @@ export default function FighterAddModal({
       fighter_type: selectedType?.fighter_type || '',
       min_count: selectedType?.min_count ?? null,
       max_count: selectedType?.max_count ?? null,
+      type_subtype_key: selectedType?.typeSubtypeKey,
       fighter_gang_type_id: selectedType?.gang_type_id ?? null,
       fighter_custom_gang_type_id: selectedType?.custom_gang_type_id ?? null,
       fighter_subtypes: selectedType?.fighter_subtypes || [],
@@ -512,6 +505,7 @@ export default function FighterAddModal({
         is_vehicle: selectedType?.is_vehicle ?? false,
         min_count: selectedType?.min_count ?? null,
         max_count: selectedType?.max_count ?? null,
+        type_subtype_key: selectedType?.typeSubtypeKey,
         fighter_gang_type_id: selectedType?.gang_type_id ?? null,
         fighter_custom_gang_type_id: selectedType?.custom_gang_type_id ?? null,
       };

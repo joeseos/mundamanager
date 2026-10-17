@@ -1,3 +1,5 @@
+import { withVariantGroups } from '@/utils/variantFamily';
+
 export type CountLimitRule = {
   id?: string | null;
   gang_type_id?: string | null;
@@ -37,6 +39,73 @@ export function resolveGangCountLimit(
     min_count: best?.min_count ?? null,
     max_count: best?.max_count ?? null,
   };
+}
+
+export type FamilyTypeRow = {
+  id: string;
+  fighter_type: string;
+  fighter_subtypes?: string[] | null;
+  fighter_variant?: string | null;
+  cost?: number | null;
+  edition_slug?: string | null;
+  count_limits?: CountLimitRule[] | null;
+};
+
+/**
+ * Each fighter type id in a variant family, mapped to the base row's gang-scoped
+ * limit. A non-variant row wins; otherwise the cheaper row does. Hired fighters
+ * alone cannot supply this: a gang may hold only the variant, whose own
+ * count_limits row is empty while the unhired base carries the cap.
+ */
+export function familyLimitsByTypeId(
+  rows: FamilyTypeRow[],
+  gang: {
+    gangTypeId?: string | null;
+    gangOriginId?: string | null;
+    gangSubtypeIds?: string[] | null;
+  }
+): Map<string, { min_count: number | null; max_count: number | null; typeSubtypeKey: string }> {
+  const tagged = withVariantGroups(rows);
+  const representative = new Map<string, {
+    fighter_variant: string | null;
+    cost: number;
+    min_count: number | null;
+    max_count: number | null;
+  }>();
+
+  for (const row of tagged) {
+    const limit = resolveGangCountLimit(row.count_limits, gang);
+    const candidate = {
+      fighter_variant: row.fighter_variant ?? null,
+      cost: row.cost ?? 0,
+      min_count: limit.min_count,
+      max_count: limit.max_count,
+    };
+    const existing = representative.get(row.typeSubtypeKey);
+    if (!existing) {
+      representative.set(row.typeSubtypeKey, candidate);
+      continue;
+    }
+    const candidateIsBase = !candidate.fighter_variant;
+    const existingIsBase = !existing.fighter_variant;
+    const prefer =
+      candidateIsBase !== existingIsBase
+        ? candidateIsBase
+        : candidate.cost < existing.cost;
+    if (prefer) representative.set(row.typeSubtypeKey, candidate);
+  }
+
+  const byTypeId = new Map<string, { min_count: number | null; max_count: number | null; typeSubtypeKey: string }>();
+  for (const row of tagged) {
+    const rep = representative.get(row.typeSubtypeKey);
+    if (!rep) continue;
+    byTypeId.set(row.id, {
+      min_count: rep.min_count,
+      max_count: rep.max_count,
+      typeSubtypeKey: row.typeSubtypeKey,
+    });
+  }
+  return byTypeId;
 }
 
 /** The rulebook's count in front of a name: "0-1 Stimmer", "2+ Forge-Born", or "1-3". */

@@ -30,6 +30,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { EDITION_N23, EDITION_N26, hasAlignment, hasTradePoints, hasVehicles } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { fighterCountLimitDisplay } from '@/utils/countLimitPrefix';
+import { CountLimitPrefix } from '@/components/gang/count-limit-prefix';
 import { detailGangTypeLabel } from '@/utils/gang-type-label';
 import { applySpecialRulesModifiers } from '@/utils/effect-modifiers';
 import { withVariantGroups } from '@/utils/variantFamily';
@@ -43,6 +44,12 @@ const GangImageEditModal = dynamic(
   { ssr: false }
 );
 
+function isCompanionSubtype(subtypes: string[]) {
+  return subtypes.some((subtype) => {
+    const name = subtype.toLowerCase();
+    return name === 'exotic beast' || name === 'pet';
+  });
+}
 
 interface GangProps {
   id: string;
@@ -340,17 +347,19 @@ export default function Gang({
   }, [fighters]);
 
   // Fighters composition for tooltip: group by fighter_type and fighter_subtypes.
-  // The left-hand limit uses the variant family (same key as the add-fighter list),
-  // so a family split across subtype rows is judged against one cap.
+  // The left-hand limit uses the catalog family (same key as the Add Fighter list),
+  // including the base type's cap when only a variant has been hired.
   const fighterTypeSubtypeCounts = useMemo(() => {
-    const familyById = new Map(
+    const hiredFamilyById = new Map(
       withVariantGroups(activeFighters.map((fighter) => ({
         id: fighter.id,
         fighter_type: fighter.fighter_type,
         fighter_subtypes: fighter.fighter_subtypes,
         edition_slug,
-      }))).map((row) => [row.id, row])
+      }))).map((row) => [row.id, row.typeSubtypeKey])
     );
+    const hasRule = (min_count: number | null, max_count: number | null) =>
+      (max_count != null && max_count > 0) || (min_count != null && min_count > 0);
     const counts = new Map<string, {
       label: string;
       count: number;
@@ -358,18 +367,19 @@ export default function Gang({
       min_count: number | null;
       max_count: number | null;
       familyKey: string;
-      familyBaseKey: string;
     }>();
     for (const fighter of activeFighters) {
       const typeLabel = fighter.fighter_type || 'Unknown Type';
       const subtypeLabel = formatFighterSubtypeDisplay(fighter.fighter_subtypes, edition_slug);
       const key = `${typeLabel} (${subtypeLabel})`;
-      const family = familyById.get(fighter.id);
+      const familyKey = fighter.type_subtype_key || hiredFamilyById.get(fighter.id) || key;
       const existing = counts.get(key);
       if (existing) {
         existing.count += 1;
-        if (existing.max_count == null && fighter.max_count != null) existing.max_count = fighter.max_count;
-        if (existing.min_count == null && fighter.min_count != null) existing.min_count = fighter.min_count;
+        if (!hasRule(existing.min_count, existing.max_count) && hasRule(fighter.min_count ?? null, fighter.max_count ?? null)) {
+          existing.min_count = fighter.min_count ?? null;
+          existing.max_count = fighter.max_count ?? null;
+        }
       } else {
         counts.set(key, {
           label: key,
@@ -377,25 +387,18 @@ export default function Gang({
           subtypes: fighter.fighter_subtypes ?? [],
           min_count: fighter.min_count ?? null,
           max_count: fighter.max_count ?? null,
-          familyKey: family?.typeSubtypeKey ?? key,
-          familyBaseKey: family?.familyBaseKey ?? '',
+          familyKey,
         });
       }
     }
     const rows = Array.from(counts.values());
-    const isCompanion = (subtypes: string[]) =>
-      subtypes.some((subtype) => {
-        const name = subtype.toLowerCase();
-        return name === 'exotic beast' || name === 'pet';
-      });
-    const subtypeSetKey = (subtypes: string[]) =>
-      subtypes.map((name) => name.toLowerCase().trim()).sort().join(',');
     const familyCount = new Map<string, number>();
     const familyLimit = new Map<string, { min_count: number | null; max_count: number | null }>();
     for (const row of rows) {
-      if (isCompanion(row.subtypes)) continue;
+      if (isCompanionSubtype(row.subtypes)) continue;
       familyCount.set(row.familyKey, (familyCount.get(row.familyKey) ?? 0) + row.count);
-      if (subtypeSetKey(row.subtypes) === row.familyBaseKey && !familyLimit.has(row.familyKey)) {
+      const existing = familyLimit.get(row.familyKey);
+      if (!existing || (!hasRule(existing.min_count, existing.max_count) && hasRule(row.min_count, row.max_count))) {
         familyLimit.set(row.familyKey, { min_count: row.min_count, max_count: row.max_count });
       }
     }
@@ -1557,10 +1560,7 @@ export default function Gang({
               ) : (
                 <>
                   {fighterTypeSubtypeCounts.map(({ label, count, familyCount, subtypes, min_count, max_count }) => {
-                    const isCompanion = subtypes.some((subtype) => {
-                      const name = subtype.toLowerCase();
-                      return name === 'exotic beast' || name === 'pet';
-                    });
+                    const isCompanion = isCompanionSubtype(subtypes);
                     const limitText = isCompanion
                       ? '\u2014'
                       : fighterCountLimitDisplay({ min_count, max_count, current: familyCount }).text;
@@ -1568,9 +1568,7 @@ export default function Gang({
                     return (
                       <div key={label} className="flex justify-between gap-3">
                         <span>
-                          <span className={`inline-block w-11 text-center mr-1 ${overMax ? 'text-red-500' : 'text-gray-400'}`}>
-                            {limitText}
-                          </span>
+                          <CountLimitPrefix text={limitText} over={overMax} />
                           {label}
                         </span>
                         <span>{count}</span>
