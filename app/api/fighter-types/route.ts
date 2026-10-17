@@ -413,8 +413,9 @@ export async function GET(request: Request) {
       }
     }
 
-    // include_all_types already returns every gang type's fighters, shared ones included.
-    if (isVehicleParam === 'true' && !includeAllTypes) {
+    // Also needed for include_all_types: "Available to All" is a hidden gang type, so the
+    // hidden-gang-type filter above drops its vehicles.
+    if (isVehicleParam === 'true') {
       data = mergeById(data, await getAvailableToAllFighterTypes(supabase, gangTypeId, customGangTypeId));
     }
 
