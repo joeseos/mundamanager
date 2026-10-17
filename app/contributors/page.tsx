@@ -88,11 +88,8 @@ export default async function ContributorsPage() {
 
   const ongoingContributors: Contributor[] = [
     { name: "YukiTheSnowFox", link: "https://www.instagram.com/inquisitorsnowfox" },
-    { name: "Levariel" },
-    { name: "T_H_E_S_E_U_S" },
-    { name: "Age" },
-    { name: "Boschi" },
     { name: "Mundastories", link: "https://www.instagram.com/mundastories" },
+    { name: "FirstyPaints", link: "https://makerworld.com/en/@FirstyPaints" },
   ];
 
   const pastContributors: Contributor[] = [
@@ -106,6 +103,11 @@ export default async function ContributorsPage() {
     { name: "HiveScum Wonka" },
     { name: "Zaoshu" },
     { name: "Steady" },
+    { name: "v0rp_z" },
+    { name: "Levariel" },
+    { name: "T_H_E_S_E_U_S" },
+    { name: "Age" },
+    { name: "Boschi" },
   ];
 
   const graphicArtists: Contributor[] = [
