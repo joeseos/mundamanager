@@ -130,6 +130,7 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate, canE
                   className="print:hidden"
                   title="Print"
                   aria-label="Print campaign pack"
+                  disabled={isRefreshing}
                 >
                   <FiPrinter className="w-5 h-5" />
                 </Button>

@@ -202,8 +202,11 @@ Enforcing `cursor: pointer` has the default value. */
     padding: 0 !important;
   }
 
-  /* Only the campaign page: the shared layout main keeps min-h-screen, which is taller
-     than the printable area and adds a blank page. Other print routes are unchanged. */
+  /* :has() matches a descendant, not the element that carries the class. .campaign-page
+     sits on the campaign page's own <main>, which is nested inside the shared layout <main>
+     (app/layout.tsx). This rule therefore clears min-h-screen on that outer wrapper only,
+     and only while a campaign page is shown. The inner <main> uses print:min-h-0 itself.
+     Other print routes have no .campaign-page, so they keep min-h-screen. */
   main:has(.campaign-page) {
     min-height: 0 !important;
   }
