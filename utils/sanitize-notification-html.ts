@@ -29,13 +29,12 @@ const options: sanitizeHtml.IOptions = {
   transformTags: {
     a: (tagName, attribs) => {
       const href = attribs.href ?? '';
-      const external = /^https?:\/\//i.test(href);
-      return {
-        tagName,
-        attribs: external
-          ? { href, target: '_blank', rel: 'noopener noreferrer nofollow' }
-          : { href },
-      };
+      const next: Record<string, string> = { href };
+      if (/^https?:\/\//i.test(href)) {
+        next.target = '_blank';
+        next.rel = 'noopener noreferrer nofollow';
+      }
+      return { tagName, attribs: next };
     },
   },
 };

@@ -54,13 +54,17 @@ async function fetchNotifications(userId: string, signal: AbortSignal): Promise<
 
   if (error) throw error;
 
-  const rows = (data ?? []) as (Omit<Notification, 'sender_username'> & {
-    sender: { username: string } | null;
+  // The query parser types a to-one embed as an array. Postgres returns an object
+  // once sender_id references profiles, so accept either shape.
+  const rows = (data ?? []) as unknown as (Omit<Notification, 'sender_username'> & {
+    sender: { username: string } | { username: string }[] | null;
   })[];
 
   return rows.map(({ sender, ...row }) => ({
     ...row,
-    sender_username: sender?.username ?? null,
+    sender_username: Array.isArray(sender)
+      ? sender[0]?.username ?? null
+      : sender?.username ?? null,
   }));
 }
 

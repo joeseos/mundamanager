@@ -92,7 +92,7 @@ export interface RichTextEditorHandle {
   setContent: (html: string) => void;
 }
 
-interface RichTextEditorProps {
+export interface RichTextEditorProps {
   content: string;
   onChange: (content: string) => void;
   placeholder?: string;
@@ -212,7 +212,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
         notificationFormatting
           ? {
               link: false,
-              heading: { levels: [1, 2, 3] },
+              heading: { levels: [1, 2, 3] as [1, 2, 3] },
               code: false,
               codeBlock: false,
               horizontalRule: false,

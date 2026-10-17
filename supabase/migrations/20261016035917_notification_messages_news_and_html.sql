@@ -78,11 +78,24 @@ BEGIN
 END;
 $$;
 
+-- The insert policy below checks is_html, so the column has to exist first.
+-- Existing admin broadcasts, including ones sent before a sender was stored,
+-- are marked HTML when they open with a TipTap block tag. User-written rows
+-- stay plain text. A bare "<" (for example "<3") is left as plain text.
+-- New writers set the column themselves.
+ALTER TABLE public.notifications
+  ADD COLUMN is_html boolean NOT NULL DEFAULT false;
+
+COMMENT ON COLUMN public.notifications.is_html IS
+  'True when text is sanitized TipTap HTML. False is plain text, with optional **bold**.';
+
 -- Authenticated users cannot insert the four new types, except admins may
 -- insert mm_staff_message and mm_announcement (fixed official subjects, sent from the
 -- app's own address). user_message and campaign_message stay closed until a
 -- composer can check friendship or campaign role; the row has no campaign id.
--- Service-role inserts and SECURITY DEFINER triggers bypass RLS.
+-- Service-role inserts (the admin composer sets is_html) and SECURITY DEFINER
+-- triggers bypass RLS. A signed-in user cannot store HTML: an info row with
+-- headings and a link would render with no "From" line.
 DROP POLICY IF EXISTS "Users can create notifications" ON public.notifications;
 
 CREATE POLICY "Users can create notifications"
@@ -91,6 +104,7 @@ CREATE POLICY "Users can create notifications"
   TO authenticated
   WITH CHECK (
     sender_id = (SELECT auth.uid() AS uid)
+    AND is_html = false
     AND (
       (type)::text <> ALL (ARRAY[
         'user_message',
@@ -105,15 +119,12 @@ CREATE POLICY "Users can create notifications"
     )
   );
 
--- Existing rows are backfilled once when the text opens with a TipTap block
--- tag. A bare "<" (for example "<3") is left as plain text.
--- New writers set the column themselves.
-ALTER TABLE public.notifications
-  ADD COLUMN is_html boolean NOT NULL DEFAULT false;
-
-COMMENT ON COLUMN public.notifications.is_html IS
-  'True when text is sanitized TipTap HTML. False is plain text, with optional **bold**.';
-
 UPDATE public.notifications
 SET is_html = true
-WHERE ltrim(text) ~* '^<(p|h[1-3]|ul|ol|blockquote)(\s|>)';
+WHERE ltrim(text) ~* '^<(p|h[1-3]|ul|ol|blockquote)(\s|>)'
+  AND (
+    sender_id IS NULL
+    OR sender_id IN (
+      SELECT id FROM public.profiles WHERE user_role = 'admin'
+    )
+  );
