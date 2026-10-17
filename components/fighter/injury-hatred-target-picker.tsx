@@ -133,7 +133,7 @@ export function InjuryHatredTargetPicker({
   if (isLoadingCandidates) {
     return (
       <div>
-        <label className="block text-sm font-medium text-muted-foreground mb-1">Hatred for</label>
+        <label className="block text-sm font-medium text-muted-foreground mb-1">Hatred (X) for</label>
         <p className="text-sm text-muted-foreground">Loading gangs...</p>
       </div>
     );
