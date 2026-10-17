@@ -430,10 +430,13 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     },
     {
       key: 'fighter_subtypes',
-      label: 'Subtype',
+      label: 'Subtypes',
       align: 'left',
       width: '20%',
-      cellClassName: 'text-sm text-muted-foreground'
+      cellClassName: 'text-sm text-muted-foreground',
+      // String(array) joins with "," and no space. Match the view modal.
+      render: (value: string[] | null | undefined) =>
+        formatFighterSubtypeDisplay(value, editionSlug),
     },
     {
       key: 'gang_type',
