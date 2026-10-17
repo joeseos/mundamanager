@@ -81,9 +81,9 @@ const EMAIL_CONFIG: Record<string, { defaultEnabled: boolean; subject: string; c
     subject: "A message from Munda Manager",
     ctaPath: "/account",
   },
-  mm_news: {
+  mm_announcement: {
     defaultEnabled: true,
-    subject: "News from Munda Manager",
+    subject: "An announcement from Munda Manager",
     ctaPath: "/account",
   },
 };

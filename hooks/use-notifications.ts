@@ -45,7 +45,7 @@ async function fetchNotifications(userId: string, signal: AbortSignal): Promise<
   const supabase = createClient();
   const { data, error } = await supabase
     .from('notifications')
-    .select('id, text, dismissed, type, created_at, link, sender_id, is_html')
+    .select('id, text, dismissed, type, created_at, link, sender_id, is_html, sender:profiles!sender_id(username)')
     .eq('receiver_id', userId)
     .gt('expires_at', new Date().toISOString())
     .order('created_at', { ascending: false })
@@ -54,32 +54,13 @@ async function fetchNotifications(userId: string, signal: AbortSignal): Promise<
 
   if (error) throw error;
 
-  const rows = (data ?? []) as Omit<Notification, 'sender_username'>[];
-  const senderIds = [...new Set(rows.flatMap((row) => (row.sender_id ? [row.sender_id] : [])))];
-  const usernames = new Map<string, string>();
+  const rows = (data ?? []) as (Omit<Notification, 'sender_username'> & {
+    sender: { username: string } | null;
+  })[];
 
-  if (senderIds.length > 0) {
-    const { data: profiles, error: profilesError } = await supabase
-      .from('profiles')
-      .select('id, username')
-      .in('id', senderIds)
-      .abortSignal(signal);
-
-    // The list is still useful without sender names. An aborted request must
-    // still fail so React Query does not cache a cancelled fetch.
-    if (profilesError) {
-      if (signal.aborted) throw profilesError;
-      console.error('Failed to load notification sender names:', profilesError);
-    } else {
-      for (const profile of profiles ?? []) {
-        usernames.set(profile.id, profile.username);
-      }
-    }
-  }
-
-  return rows.map((row) => ({
+  return rows.map(({ sender, ...row }) => ({
     ...row,
-    sender_username: row.sender_id ? usernames.get(row.sender_id) ?? null : null,
+    sender_username: sender?.username ?? null,
   }));
 }
 

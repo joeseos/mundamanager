@@ -316,7 +316,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
         return <LuUserPlus className="h-5 w-5 text-orange-500" />;
       case 'campaign_join_request':
         return <LuUserPlus className="h-5 w-5 text-sky-500" />;
-      case 'mm_news':
+      case 'mm_announcement':
         return <LuMegaphone className="h-5 w-5 text-violet-500" />;
       case 'user_message':
       case 'campaign_message':
@@ -383,7 +383,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                       onDecline={() => handleNotificationAction(notification, 'decline')}
                     />
                   )}
-                  {!isActionableNotification(notification.type) && (
+                  {!getNotificationAction(notification) && (
                     <Button
                       onClick={() => setNotificationToDelete(notification.id)}
                       variant="ghost"

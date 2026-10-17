@@ -1,6 +1,6 @@
 'use client'
 
-import { lazy, Suspense, useState } from 'react'
+import { useState } from 'react'
 import Modal from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,12 +10,9 @@ import UserSearchBar, { type UserSearchResult } from '@/components/shared/user-s
 import { toast } from 'sonner'
 import { LuX } from 'react-icons/lu'
 import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp'
+import { notificationPlainTextLength, NOTIFICATION_BROADCAST_MAX_LENGTH } from '@/utils/notifications'
+import { LazyRichTextEditor } from '@/components/ui/lazy-rich-text-editor'
 import '@/components/ui/rich-text-editor.css'
-
-// TipTap loads with the modal, not with the admin dashboard.
-const RichTextEditor = lazy(() =>
-  import('@/components/ui/rich-text-editor').then((mod) => ({ default: mod.RichTextEditor }))
-)
 
 type Audience = 'users' | 'all'
 type NotificationType = 'info' | 'warning' | 'error'
@@ -34,6 +31,7 @@ export function AdminNotificationsModal({ onClose }: AdminNotificationsModalProp
 
   const canSend =
     !isHtmlEffectivelyEmpty(text) &&
+    notificationPlainTextLength(text) <= NOTIFICATION_BROADCAST_MAX_LENGTH &&
     expiresInDays >= 1 &&
     (audience === 'all' || selectedUsers.length > 0)
 
@@ -181,23 +179,15 @@ export function AdminNotificationsModal({ onClose }: AdminNotificationsModalProp
         <div className="space-y-2">
           <Label>Message</Label>
           <div className="bg-white rounded-md">
-            <Suspense
-              fallback={
-                <div className="border rounded-md min-h-[200px]">
-                  <div className="hidden min-[769px]:block border-b rounded-t-md p-1 bg-card shadow-xs">
-                    <div className="h-8" />
-                  </div>
-                </div>
-              }
-            >
-              <RichTextEditor
-                content={text}
-                onChange={setText}
-                placeholder="Enter the notification message"
-                enableImages={false}
-                stickyWithinScrollContainer
-              />
-            </Suspense>
+            <LazyRichTextEditor
+              content={text}
+              onChange={setText}
+              placeholder="Enter the notification message"
+              enableImages={false}
+              stickyWithinScrollContainer
+              notificationFormatting
+              charLimit={NOTIFICATION_BROADCAST_MAX_LENGTH}
+            />
           </div>
         </div>
 

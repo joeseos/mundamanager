@@ -105,6 +105,8 @@ interface RichTextEditorProps {
   maxImages?: number | null; // Max hosted images; null = unlimited; defaults to 5
   enableImages?: boolean; // When false, hide all image upload/hotlink UI
   stickyWithinScrollContainer?: boolean; // When true, sticky toolbar follows nearest scrollable parent
+  // Matches the notification sanitizer: headings 1–3, no code, no horizontal rule.
+  notificationFormatting?: boolean;
 }
 
 const colors = [
@@ -136,6 +138,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
     maxImages,
     enableImages,
     stickyWithinScrollContainer = false,
+    notificationFormatting = false,
   }: RichTextEditorProps,
   ref
 ) {
@@ -205,7 +208,17 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ link: false }),
+      StarterKit.configure(
+        notificationFormatting
+          ? {
+              link: false,
+              heading: { levels: [1, 2, 3] },
+              code: false,
+              codeBlock: false,
+              horizontalRule: false,
+            }
+          : { link: false },
+      ),
       Link.configure({
         openOnClick: false,
         HTMLAttributes: {

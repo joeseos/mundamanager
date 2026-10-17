@@ -23,7 +23,7 @@ export type NotificationType =
   | 'user_message'
   | 'campaign_message'
   | 'mm_staff_message'
-  | 'mm_news';
+  | 'mm_announcement';
 
 export interface NotificationEmailConfig {
   /** Human label shown on the preferences screen. */
@@ -84,11 +84,11 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
   },
   // Munda Manager news, general announcements, and feature announcements.
   // Not a message: the in-app list does not show a sender.
-  mm_news: {
-    label: 'Munda Manager news',
+  mm_announcement: {
+    label: 'Munda Manager announcements',
     supportsEmail: true,
     defaultEnabled: true,
-    subject: 'News from Munda Manager',
+    subject: 'An announcement from Munda Manager',
     ctaPath: '/account',
   },
   // A user sends a message to another user. Read from the account notifications list.
@@ -129,6 +129,13 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
  * Absent row (or enabled=true) means "master on".
  */
 export const MASTER_PREF_KEY = 'all';
+
+/** Visible-text cap for an admin broadcast. Each recipient stores their own row. */
+export const NOTIFICATION_BROADCAST_MAX_LENGTH = 1000;
+
+export function notificationPlainTextLength(html: string): number {
+  return html.replace(/<[^>]*>/g, '').length;
+}
 
 const MESSAGE_NOTIFICATION_TYPES = new Set<NotificationType>([
   'user_message',

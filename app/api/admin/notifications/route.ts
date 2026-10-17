@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceRoleClient } from '@/utils/supabase/server'
 import { checkAdmin, getUserIdFromClaims } from '@/utils/auth'
-import { isSafeNotificationLink } from '@/utils/notifications'
+import { isSafeNotificationLink, notificationPlainTextLength, NOTIFICATION_BROADCAST_MAX_LENGTH } from '@/utils/notifications'
 import { sanitizeNotificationHtml } from '@/utils/sanitize-notification-html'
 import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp'
 import { fetchAllRows } from '@/utils/supabase/fetch-all-rows'
@@ -35,6 +35,13 @@ export async function POST(request: Request) {
     text = sanitizeNotificationHtml(text).trim()
     if (!text || isHtmlEffectivelyEmpty(text)) {
       return NextResponse.json({ error: 'Message text is required' }, { status: 400 })
+    }
+
+    if (notificationPlainTextLength(text) > NOTIFICATION_BROADCAST_MAX_LENGTH) {
+      return NextResponse.json(
+        { error: `Message must be at most ${NOTIFICATION_BROADCAST_MAX_LENGTH} characters` },
+        { status: 400 }
+      )
     }
 
     if (typeof body.type !== 'string' || !ALLOWED_TYPES.includes(body.type as NotificationType)) {
