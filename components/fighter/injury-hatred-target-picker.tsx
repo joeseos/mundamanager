@@ -104,7 +104,7 @@ export function InjuryHatredTargetPicker({
   if (hatredTarget === 'gang_type') {
     return (
       <div>
-        <label className="block text-sm font-medium text-muted-foreground mb-1">Against</label>
+        <label className="block text-sm font-medium text-muted-foreground mb-1">Hatred (X) for</label>
         {isLoadingGangTypes ? (
           <p className="text-sm text-muted-foreground">Loading gang types...</p>
         ) : gangTypeOptions.length > 0 ? (
@@ -112,7 +112,7 @@ export function InjuryHatredTargetPicker({
             options={gangTypeOptions}
             value={value}
             onValueChange={onChange}
-            placeholder="Select enemy gang type..."
+            placeholder="Select a gang type"
             clearable
           />
         ) : (
@@ -133,7 +133,7 @@ export function InjuryHatredTargetPicker({
   if (isLoadingCandidates) {
     return (
       <div>
-        <label className="block text-sm font-medium text-muted-foreground mb-1">Against</label>
+        <label className="block text-sm font-medium text-muted-foreground mb-1">Hatred for</label>
         <p className="text-sm text-muted-foreground">Loading gangs...</p>
       </div>
     );
@@ -142,7 +142,7 @@ export function InjuryHatredTargetPicker({
   if (candidateGangs.length === 0) {
     return (
       <div>
-        <label className="block text-sm font-medium text-muted-foreground mb-1">Against</label>
+        <label className="block text-sm font-medium text-muted-foreground mb-1">Hatred (X) for</label>
         <p className="text-sm text-muted-foreground">No other gangs available.</p>
       </div>
     );
@@ -151,12 +151,12 @@ export function InjuryHatredTargetPicker({
   if (hatredTarget === 'gang') {
     return (
       <div>
-        <label className="block text-sm font-medium text-muted-foreground mb-1">Against</label>
+        <label className="block text-sm font-medium text-muted-foreground mb-1">Hatred (X) for</label>
         <Combobox
           options={gangOptions}
           value={value}
           onValueChange={onChange}
-          placeholder="Select enemy gang..."
+          placeholder="Select an enemy gang"
           clearable
         />
       </div>
@@ -166,7 +166,7 @@ export function InjuryHatredTargetPicker({
   // 'fighter': the gang step only narrows the list; only the fighter id is submitted.
   return (
     <div className="space-y-2">
-      <label className="block text-sm font-medium text-muted-foreground mb-1">Against</label>
+      <label className="block text-sm font-medium text-muted-foreground mb-1">Hatred (X) for</label>
       <Combobox
         options={gangOptions}
         value={gangStepValue}
@@ -175,7 +175,7 @@ export function InjuryHatredTargetPicker({
           // The previously chosen fighter belongs to the old gang.
           onChange('');
         }}
-        placeholder="Select enemy gang..."
+        placeholder="Select an enemy gang"
         clearable
       />
       <Combobox
