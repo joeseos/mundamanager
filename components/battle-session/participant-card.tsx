@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useState, useEffect, useMemo, useRef, Fragment } from 'react';
+import { useState, useEffect, useMemo, useRef, Fragment, type Dispatch, type SetStateAction } from 'react';
 import { createPortal } from 'react-dom';
 import { sortParticipantFightersByPositioning } from '@/utils/fighter-positioning';
 
@@ -53,6 +53,8 @@ import {
   removeFighterFromSession,
   updateFighterLoadout,
   updateSessionXp,
+  updateSessionParticipationXp,
+  addParticipationXpFighters,
   addSessionInjury,
   updateSessionConditions,
   updateActivations,
@@ -62,12 +64,16 @@ import {
 import { addFighterInjury } from '@/app/actions/fighter-injury';
 import { createGangLog } from '@/app/actions/logs/gang-logs';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
-import { updateFighterXp } from '@/app/actions/edit-fighter';
 import FighterCard from '@/components/gang/fighter-card';
 import { applyConditionsUpdate, type BattleSessionFull, type BattleSessionParticipant, type BattleSessionFighter, type SessionCondition, type SessionInjuryRecord } from '@/types/battle-session';
 import { beastSubtypeName, canLeaveBattlefield, hasFleshWoundCondition, hasN26CompositeBattleMarkers, hasCrewRating, hasScenarioTables, hasTradePoints } from '@/types/edition';
 import type { ScenarioTableWithEntries } from '@/types/campaign';
 import { SideJobPicker } from '@/components/side-job-picker';
+import type { XpCaseId } from '@/utils/xpCases';
+
+// The session pays participation XP when the battle is completed (see
+// BattleParticipationModal), so Add XP doesn't offer it a second time.
+const SESSION_EXCLUDED_XP_AWARDS: readonly XpCaseId[] = ['battleParticipation'];
 
 const CrewSelectionModal = dynamic(() => import('@/components/battle-session/crew-selection-modal'), { ssr: false });
 const FighterXpModal = dynamic(
@@ -457,6 +463,7 @@ function FighterActionModal({
           gangId={gangId}
           campaignId={campaignId ?? undefined}
           editionSlug={editionSlug}
+          excludeAwards={SESSION_EXCLUDED_XP_AWARDS}
           onClose={() => setShowXpModal(false)}
           // Back to this modal rather than closing it, which would drop unsaved drafts.
           onXpUpdated={(newXp) => {
@@ -806,6 +813,7 @@ function FighterRow({
   loadoutName,
   cost,
   xp,
+  participationXp,
   injuryCount,
   canInteract,
   battleActive,
@@ -828,6 +836,8 @@ function FighterRow({
   loadoutName: string | undefined;
   cost: number | undefined;
   xp: number;
+  /** Shown in its own column when set (post-battle). */
+  participationXp?: number;
   injuryCount: number;
   canInteract: boolean;
   battleActive: boolean;
@@ -946,6 +956,11 @@ function FighterRow({
           </div>
         </div>
       </td>
+      {participationXp !== undefined && (
+        <td className={`p-1 md:p-2 text-right whitespace-nowrap align-top ${participationXp === 0 ? 'text-muted-foreground' : ''}`}>
+          {participationXp}
+        </td>
+      )}
       <td className="p-1 md:p-2 text-right text-muted-foreground whitespace-nowrap align-top">
         {cost !== undefined ? (cost === 0 ? '*' : cost) : '—'}
       </td>
@@ -1131,75 +1146,92 @@ function BattleParticipationModal({
   crewFighters: BattleSessionFighter[];
   gangFightersList: GangFighter[];
   editionSlug?: string | null;
-  onConfirm: (xpByFighterId: Record<string, number>) => void;
+  /**
+   * The amounts that changed: by session fighter id for the crew, and by
+   * fighter id for fighters outside the crew raised above 0, who join the session.
+   */
+  onConfirm: (changes: { crew: Record<string, number>; added: Record<string, number> }) => void;
   onClose: () => void;
 }) {
-  const crewLoadouts = useMemo(
-    () => new Map(crewFighters.map((f) => [f.fighter_id, f.loadout_id])),
-    [crewFighters]
-  );
-
-  const uniqueFighters = useMemo(() => {
-    const seen = new Set<string>();
-    const result: GangFighter[] = [];
-    for (const gf of gangFightersList) {
-      if (seen.has(gf.id)) continue;
-      const crewLoadoutId = crewLoadouts.get(gf.id);
-      if (crewLoadoutId !== undefined && gf.active_loadout_id === (crewLoadoutId ?? undefined)) {
-        seen.add(gf.id);
-        result.push(gf);
-      }
-    }
-    for (const gf of gangFightersList) {
-      if (seen.has(gf.id)) continue;
+  // gangFightersList has one entry per loadout; fighters outside the crew are listed once.
+  const otherFighters = useMemo(() => {
+    const seen = new Set(crewFighters.map((f) => f.fighter_id));
+    return gangFightersList.filter((gf) => {
+      if (seen.has(gf.id)) return false;
       seen.add(gf.id);
-      result.push(gf);
-    }
-    return result;
-  }, [gangFightersList, crewLoadouts]);
+      return true;
+    });
+  }, [crewFighters, gangFightersList]);
 
-  const [xpAmounts, setXpAmounts] = useState<Record<string, number>>(() =>
-    Object.fromEntries(uniqueFighters.map((gf) => [gf.id, crewLoadouts.has(gf.id) ? 1 : 0]))
+  const [crewXp, setCrewXp] = useState<Record<string, number>>(() =>
+    Object.fromEntries(crewFighters.map((f) => [f.id, f.session_record?.participation_xp ?? 0]))
   );
+  const [otherXp, setOtherXp] = useState<Record<string, number>>({});
 
-  const adjust = (id: string, delta: number) =>
-    setXpAmounts((cur) => ({ ...cur, [id]: Math.max(0, (cur[id] ?? 0) + delta) }));
+  const adjust = (
+    setXp: Dispatch<SetStateAction<Record<string, number>>>,
+    id: string,
+    delta: number
+  ) => setXp((cur) => ({ ...cur, [id]: Math.max(0, (cur[id] ?? 0) + delta) }));
 
-  const totalXp = Object.values(xpAmounts).reduce((sum, v) => sum + v, 0);
+  const renderRow = (key: string, gf: GangFighter | undefined, fallbackName: string | undefined, value: number, onAdjust: (delta: number) => void) => {
+    const subtypeDisplay = gf ? formatFighterSubtypeDisplay(gf.fighter_subtypes, editionSlug) : '';
+    const details = [gf?.fighter_type, subtypeDisplay ? `(${subtypeDisplay})` : ''].filter(Boolean).join(' ');
+    return (
+      <div key={key} className="flex items-center justify-between">
+        <div>
+          <div className="text-sm font-medium">{gf?.fighter_name ?? fallbackName ?? 'Unknown Fighter'}</div>
+          {details && <div className="text-xs text-muted-foreground">{details}</div>}
+        </div>
+        <Counter
+          value={value}
+          min={0}
+          onDecrement={() => onAdjust(-1)}
+          onIncrement={() => onAdjust(1)}
+        />
+      </div>
+    );
+  };
 
   return (
     <Modal
       title="Participation XP"
       onClose={onClose}
       onConfirm={async () => {
-        const filtered = Object.fromEntries(
-          Object.entries(xpAmounts).filter(([, xp]) => xp > 0)
+        const crew = Object.fromEntries(
+          crewFighters
+            .filter((f) => crewXp[f.id] !== (f.session_record?.participation_xp ?? 0))
+            .map((f) => [f.id, crewXp[f.id] ?? 0])
         );
-        onConfirm(filtered);
+        const added = Object.fromEntries(Object.entries(otherXp).filter(([, xp]) => xp > 0));
+        onConfirm({ crew, added });
         return true;
       }}
       confirmText="Confirm"
-      confirmDisabled={totalXp === 0}
     >
       <div className="space-y-3">
-        {uniqueFighters.map((gf) => {
-          const subtypeDisplay = formatFighterSubtypeDisplay(gf.fighter_subtypes, editionSlug);
-          const details = [gf.fighter_type, subtypeDisplay ? `(${subtypeDisplay})` : ''].filter(Boolean).join(' ');
-          return (
-            <div key={gf.id} className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-medium">{gf.fighter_name}</div>
-                {details && <div className="text-xs text-muted-foreground">{details}</div>}
-              </div>
-              <Counter
-                value={xpAmounts[gf.id] ?? 0}
-                min={0}
-                onDecrement={() => adjust(gf.id, -1)}
-                onIncrement={() => adjust(gf.id, 1)}
-              />
-            </div>
-          );
+        <p className="text-sm text-muted-foreground">
+          Each fighter gains this XP when the battle is completed. Lower it to 0 for a fighter who did not take part.
+        </p>
+        {crewFighters.map((f) => {
+          const gf = gangFightersList.find(
+            (g) => g.id === f.fighter_id && g.active_loadout_id === (f.loadout_id ?? undefined)
+          ) ?? gangFightersList.find((g) => g.id === f.fighter_id);
+          return renderRow(f.id, gf, f.fighter?.fighter_name, crewXp[f.id] ?? 0, (delta) => adjust(setCrewXp, f.id, delta));
         })}
+        {otherFighters.length > 0 && (
+          <div className="space-y-3 border-t pt-3">
+            <div>
+              <h4 className="text-sm font-medium text-neutral-500">Not in the crew</h4>
+              <p className="text-xs text-muted-foreground">
+                Raise a fighter who joined the battle, e.g. as reinforcements, to add them.
+              </p>
+            </div>
+            {otherFighters.map((gf) =>
+              renderRow(gf.id, gf, undefined, otherXp[gf.id] ?? 0, (delta) => adjust(setOtherXp, gf.id, delta))
+            )}
+          </div>
+        )}
       </div>
     </Modal>
   );
@@ -1483,7 +1515,14 @@ export default function ParticipantCard({
       participant_id: participant.id,
       fighter_id: fighterId,
       loadout_id: loadoutId,
-      session_record: { xp_earned: 0, injuries: [], conditions: [], activations: isDual ? 2 : 1 },
+      session_record: {
+        xp_earned: 0,
+        // As bulkAddFightersToSession: a type that can't gain XP starts at 0.
+        participation_xp: fullGf?.starting_xp === null ? 0 : 1,
+        injuries: [],
+        conditions: [],
+        activations: isDual ? 2 : 1,
+      },
       created_at: new Date().toISOString(),
       fighter: gf ? { id: gf.id, fighter_name: gf.fighter_name, credits: gf.credits, special_rules: fullGf?.special_rules } : undefined,
     };
@@ -1905,33 +1944,42 @@ export default function ParticipantCard({
             gangFightersList={gangFightersList}
             editionSlug={session.edition_slug}
             onClose={() => setShowParticipationModal(false)}
-            onConfirm={(xpByFighterId) => {
-              const entries = Object.entries(xpByFighterId);
-              setLocalFighters((cur) =>
-                cur.map((f) => {
-                  const xp = xpByFighterId[f.fighter_id];
-                  return xp
-                    ? { ...f, session_record: { ...f.session_record, xp_earned: (f.session_record?.xp_earned ?? 0) + xp } }
-                    : f;
-                })
+            onConfirm={({ crew, added }) => {
+              const crewEntries = Object.entries(crew);
+              const addedEntries = Object.entries(added);
+              const count = crewEntries.length + addedEntries.length;
+              if (count === 0) {
+                setShowParticipationModal(false);
+                return;
+              }
+              const prev = localFighters;
+              setLocalFighters((cur) => [
+                ...cur.map((f) =>
+                  f.id in crew
+                    ? { ...f, session_record: { ...f.session_record, participation_xp: crew[f.id] } }
+                    : f
+                ),
+                ...addedEntries.map(([fighterId, xp]) => {
+                  const optimistic = buildOptimisticFighter(fighterId);
+                  return { ...optimistic, session_record: { ...optimistic.session_record, participation_xp: xp } };
+                }),
+              ]);
+              const calls: Promise<{ success: boolean }>[] = crewEntries.map(([sessionFighterId, xp]) =>
+                updateSessionParticipationXp({ session_fighter_id: sessionFighterId, participation_xp: xp })
               );
-              const calls = entries.flatMap(([fighterId, xp]) => {
-                const sessionFighter = localFighters.find((lf) => lf.fighter_id === fighterId);
-                const persistCalls: Promise<{ success: boolean }>[] = [
-                  updateFighterXp({ fighter_id: fighterId, xp_to_add: xp }),
-                ];
-                if (sessionFighter) {
-                  const totalXp = (sessionFighter.session_record?.xp_earned ?? 0) + xp;
-                  persistCalls.push(updateSessionXp({ session_fighter_id: sessionFighter.id, xp_earned: totalXp }));
-                }
-                return persistCalls;
-              });
+              if (addedEntries.length > 0) {
+                calls.push(addParticipationXpFighters({
+                  session_id: session.id,
+                  participant_id: participant.id,
+                  fighter_entries: addedEntries.map(([fighter_id, participation_xp]) => ({ fighter_id, participation_xp })),
+                }));
+              }
               Promise.all(calls).then((results) => {
-                const failed = results.filter((r) => !r.success);
-                if (failed.length > 0) {
+                if (results.some((r) => !r.success)) {
+                  setLocalFighters(prev);
                   toast.error('Failed to update participation XP');
                 } else {
-                  toast.success(`Participation XP updated for ${entries.length} fighter${entries.length !== 1 ? 's' : ''}`);
+                  toast.success(`Participation XP updated for ${count} fighter${count !== 1 ? 's' : ''}`);
                 }
                 onBroadcast?.();
               });
@@ -1947,6 +1995,7 @@ export default function ParticipantCard({
               <thead>
                 <tr className="bg-muted border-b">
                   <th className="p-1 md:p-2 text-left font-medium w-full">Fighter</th>
+                  {isPostBattle && <th className="p-1 md:p-2 text-right font-medium max-md:whitespace-normal md:whitespace-nowrap">Participation XP</th>}
                   <th className="p-1 md:p-2 text-right font-medium whitespace-nowrap">Value</th>
                   {(canInteract || battleActive) && <th className="p-1 md:p-2 text-right font-medium whitespace-nowrap min-w-[3.6rem]">{canInteract ? 'Actions' : 'Status'}</th>}
                 </tr>
@@ -1954,7 +2003,7 @@ export default function ParticipantCard({
               <tbody>
                 {localFighters.length === 0 ? (
                   <tr>
-                    <td colSpan={(canInteract || battleActive) ? 3 : 2} className="text-muted-foreground italic text-center py-4">
+                    <td colSpan={2 + (isPostBattle ? 1 : 0) + ((canInteract || battleActive) ? 1 : 0)} className="text-muted-foreground italic text-center py-4">
                       {canEdit ? 'No fighters added yet.' : 'No fighters.'}
                     </td>
                   </tr>
@@ -1982,6 +2031,7 @@ export default function ParticipantCard({
                         loadoutName={match?.loadout_name}
                         cost={cost}
                         xp={xp}
+                        participationXp={isPostBattle ? (f.session_record?.participation_xp ?? 0) : undefined}
                         injuryCount={injuryCount}
                         canInteract={canInteract}
                         battleActive={battleActive}
