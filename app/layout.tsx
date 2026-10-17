@@ -149,7 +149,7 @@ export default function RootLayout({
           </div>
         </header>
         {breadcrumb}
-        <main className="min-h-screen flex flex-col items-center pt-24 print-reset print:min-h-0 print:pt-0">
+        <main className="min-h-screen flex flex-col items-center pt-24 print-reset print:pt-0">
           <div className="flex-1 w-full flex flex-col items-center">
             {!hasEnvVars && (
               <nav className="w-full flex justify-center border-b border-b-foreground/10 h-12">

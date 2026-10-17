@@ -202,6 +202,12 @@ Enforcing `cursor: pointer` has the default value. */
     padding: 0 !important;
   }
 
+  /* Only the campaign page: the shared layout main keeps min-h-screen, which is taller
+     than the printable area and adds a blank page. Other print routes are unchanged. */
+  main:has(.campaign-page) {
+    min-height: 0 !important;
+  }
+
   .print-fighter-card {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;

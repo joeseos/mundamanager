@@ -428,7 +428,7 @@ export default function CampaignPageContent({
   const canEditImage = !!(safePermissions.isOwner || safePermissions.isArbitrator || safePermissions.isAdmin);
 
   return (
-    <main className="flex min-h-screen flex-col items-center print:min-h-0">
+    <main className="campaign-page flex min-h-screen flex-col items-center print:min-h-0">
       <div ref={campaignContentRef} className="container mx-auto max-w-5xl w-full space-y-4">
         {/* Tabs navigation */}
         <div className="bg-card rounded-lg mb-4 flex print:hidden">
@@ -984,6 +984,7 @@ export default function CampaignPageContent({
               <CampaignNotes
                 campaignId={campaignData.id}
                 initialNote={campaignData.note || ''}
+                canEdit={!!safePermissions.canEditCampaign}
                 onNoteUpdate={(updatedNote) => {
                   setCampaignData(prev => ({ ...prev, note: updatedNote }));
                 }}
