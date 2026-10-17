@@ -1110,7 +1110,15 @@ CREATE FUNCTION public.enqueue_notification_email() RETURNS trigger
     SET search_path TO 'public'
     AS $$
 BEGIN
-   IF NEW.type IN ('campaign_invite', 'gang_invite', 'friend_request', 'campaign_join_request', 'campaign_challenge') THEN
+   IF NEW.type IN (
+      'campaign_invite',
+      'gang_invite',
+      'friend_request',
+      'campaign_join_request',
+      'campaign_challenge',
+      'mm_staff_message',
+      'mm_announcement'
+   ) THEN
       INSERT INTO email_deliveries (notification_id, user_id)
       VALUES (NEW.id, NEW.receiver_id)
       ON CONFLICT (notification_id) DO NOTHING;
@@ -6638,10 +6646,18 @@ CREATE TABLE public.notifications (
     link text,
     expires_at timestamp with time zone DEFAULT (now() + '30 days'::interval) NOT NULL,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    CONSTRAINT notifications_type_check CHECK (((type)::text = ANY (ARRAY['info'::text, 'warning'::text, 'error'::text, 'campaign_invite'::text, 'friend_request'::text, 'battle_invite'::text, 'gang_invite'::text, 'campaign_join_request'::text, 'campaign_challenge'::text])))
+    is_html boolean DEFAULT false NOT NULL,
+    CONSTRAINT notifications_type_check CHECK (((type)::text = ANY (ARRAY['info'::text, 'warning'::text, 'error'::text, 'campaign_invite'::text, 'friend_request'::text, 'battle_invite'::text, 'gang_invite'::text, 'campaign_join_request'::text, 'campaign_challenge'::text, 'user_message'::text, 'campaign_message'::text, 'mm_staff_message'::text, 'mm_announcement'::text])))
 );
 
 ALTER TABLE ONLY public.notifications REPLICA IDENTITY FULL;
+
+
+--
+-- Name: COLUMN notifications.is_html; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.notifications.is_html IS 'True when text is sanitized TipTap HTML. False is plain text, with optional **bold**.';
 
 
 --
@@ -11869,7 +11885,7 @@ ALTER TABLE ONLY public.notifications
 --
 
 ALTER TABLE ONLY public.notifications
-    ADD CONSTRAINT notifications_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+    ADD CONSTRAINT notifications_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
 
 
 --
@@ -14306,7 +14322,7 @@ CREATE POLICY "Users can create loadouts for their gang fighters" ON public.figh
 -- Name: notifications Users can create notifications; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can create notifications" ON public.notifications FOR INSERT TO authenticated WITH CHECK ((sender_id = ( SELECT auth.uid() AS uid)));
+CREATE POLICY "Users can create notifications" ON public.notifications FOR INSERT TO authenticated WITH CHECK (((sender_id = ( SELECT auth.uid() AS uid)) AND (is_html = false) AND (((type)::text <> ALL (ARRAY['user_message'::text, 'campaign_message'::text, 'mm_staff_message'::text, 'mm_announcement'::text])) OR (((type)::text = ANY (ARRAY['mm_staff_message'::text, 'mm_announcement'::text])) AND ( SELECT private.is_admin() AS is_admin)))));
 
 
 --
