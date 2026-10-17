@@ -119,7 +119,8 @@ type AddSkillAdvancementInternalOptions = {
 
 export interface PromotionWithSkillAdvancementParams {
   fighter_id: string;
-  skill_id: string;
+  skill_id?: string;
+  custom_skill_id?: string;
   xp_cost: number;
   credits_increase: number;
   promotion: {
@@ -736,6 +737,7 @@ export async function applyPromotionWithSkillAdvancement(
     const skillResult = await addSkillAdvancement({
       fighter_id: params.fighter_id,
       skill_id: params.skill_id,
+      custom_skill_id: params.custom_skill_id,
       xp_cost: params.xp_cost,
       credits_increase: params.credits_increase,
       is_advance: true
