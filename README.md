@@ -603,8 +603,11 @@ To roll back to stock Next.js caching, unset `USE_REDIS_CACHE` and rebuild.
 
 Some server-side reads use [Drizzle ORM](https://orm.drizzle.team) over a direct
 Postgres connection instead of the Supabase Data API. Those reads don't create API
-gateway log entries, which Supabase bills as Logs Ingest. The gang roster
-(`getGangFightersBundle` in `app/lib/shared/gang-data.ts`) is read this way.
+gateway log entries, which Supabase bills as Logs Ingest. These are read this way:
+
+- the gang roster (`getGangFightersBundle` in `app/lib/shared/gang-data.ts`)
+- the fighter's own row and its total cost (`getFighterBasic` and
+  `getFighterTotalCost` in `app/lib/shared/fighter-data.ts`)
 
 - `utils/db/client.ts`: the connection, through the Supabase transaction pooler.
 - `utils/db/schema.ts`: Drizzle tables and relations. They mirror

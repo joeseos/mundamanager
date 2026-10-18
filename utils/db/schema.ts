@@ -173,6 +173,39 @@ export const fighterTypes = pgTable('fighter_types', {
   fighter_variant: text('fighter_variant'),
 });
 
+export const customFighterTypes = pgTable('custom_fighter_types', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  fighter_type: text('fighter_type'),
+  gang_type: text('gang_type'),
+  cost: numeric('cost', { mode: 'number' }),
+  movement: numeric('movement', { mode: 'number' }),
+  weapon_skill: numeric('weapon_skill', { mode: 'number' }),
+  ballistic_skill: numeric('ballistic_skill', { mode: 'number' }),
+  strength: numeric('strength', { mode: 'number' }),
+  toughness: numeric('toughness', { mode: 'number' }),
+  wounds: numeric('wounds', { mode: 'number' }),
+  initiative: numeric('initiative', { mode: 'number' }),
+  attacks: numeric('attacks', { mode: 'number' }),
+  leadership: numeric('leadership', { mode: 'number' }),
+  cool: numeric('cool', { mode: 'number' }),
+  willpower: numeric('willpower', { mode: 'number' }),
+  intelligence: numeric('intelligence', { mode: 'number' }),
+  gang_type_id: uuid('gang_type_id'),
+  special_rules: json('special_rules'),
+  free_skill: boolean('free_skill'),
+  user_id: uuid('user_id'),
+  custom_gang_type_id: uuid('custom_gang_type_id'),
+  description: text('description'),
+  edition_id: uuid('edition_id').notNull(),
+  save: numeric('save', { mode: 'number' }),
+  fighter_subtypes: json('fighter_subtypes').default(sql`'[]'::jsonb`).notNull(),
+  starting_xp: numeric('starting_xp', { mode: 'number' }),
+  is_vehicle: boolean('is_vehicle').default(false).notNull(),
+  fighter_variant: text('fighter_variant'),
+});
+
 export const editions = pgTable('editions', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: text('name').notNull(),
@@ -188,6 +221,16 @@ export const fighterSpecialisations = pgTable('fighter_specialisations', {
   specialisation_name: text('specialisation_name'),
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+});
+
+export const skillAccessArchetypes = pgTable('skill_access_archetypes', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: text('name').notNull(),
+  description: text('description'),
+  skill_access: json('skill_access').default(sql`'[]'::jsonb`).notNull(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  fighter_subtype_id: uuid('fighter_subtype_id'),
 });
 
 export const vehicles = pgTable('vehicles', {
@@ -435,8 +478,9 @@ export const fighterLoadoutEquipment = pgTable('fighter_loadout_equipment', {
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
 }, (table) => [primaryKey({ columns: [table.loadout_id, table.fighter_equipment_id] })]);
 
-// gangs <-> fighters has two foreign keys (gang_id, captured_by_gang_id), so
-// that pair is told apart by relationName.
+// gangs <-> fighters has two foreign keys (gang_id, captured_by_gang_id), and
+// fighter_exotic_beasts -> fighters two (fighter_owner_id, fighter_pet_id), so
+// those pairs are told apart by relationName.
 
 export const gangsRelations = relations(gangs, ({ many }) => ({
   fighters: many(fighters, { relationName: 'gang_fighters' }),
@@ -465,11 +509,25 @@ export const fightersRelations = relations(fighters, ({ one, many }) => ({
     fields: [fighters.fighter_specialisation_id],
     references: [fighterSpecialisations.id],
   }),
+  custom_fighter_type: one(customFighterTypes, {
+    fields: [fighters.custom_fighter_type_id],
+    references: [customFighterTypes.id],
+  }),
+  selected_archetype: one(skillAccessArchetypes, {
+    fields: [fighters.selected_archetype_id],
+    references: [skillAccessArchetypes.id],
+  }),
+  // Set on an exotic beast: the link to the fighter that owns it
+  beast_link: one(fighterExoticBeasts, {
+    fields: [fighters.fighter_pet_id],
+    references: [fighterExoticBeasts.id],
+  }),
   fighter_equipment: many(fighterEquipment),
   fighter_skills: many(fighterSkills),
   fighter_effects: many(fighterEffects),
-  fighter_exotic_beasts: many(fighterExoticBeasts),
+  fighter_exotic_beasts: many(fighterExoticBeasts, { relationName: 'beast_owner' }),
   fighter_loadouts: many(fighterLoadouts),
+  vehicles: many(vehicles),
 }));
 
 export const fighterTypesRelations = relations(fighterTypes, ({ one }) => ({
@@ -479,10 +537,21 @@ export const fighterTypesRelations = relations(fighterTypes, ({ one }) => ({
   }),
 }));
 
+export const customFighterTypesRelations = relations(customFighterTypes, ({ one }) => ({
+  editions: one(editions, {
+    fields: [customFighterTypes.edition_id],
+    references: [editions.id],
+  }),
+}));
+
 export const vehiclesRelations = relations(vehicles, ({ one, many }) => ({
   gang: one(gangs, {
     fields: [vehicles.gang_id],
     references: [gangs.id],
+  }),
+  fighter: one(fighters, {
+    fields: [vehicles.fighter_id],
+    references: [fighters.id],
   }),
   fighter_equipment: many(fighterEquipment),
   fighter_effects: many(fighterEffects),
@@ -586,8 +655,14 @@ export const fighterEffectModifiersRelations = relations(fighterEffectModifiers,
 }));
 
 export const fighterExoticBeastsRelations = relations(fighterExoticBeasts, ({ one }) => ({
+  // The owner
   fighters: one(fighters, {
     fields: [fighterExoticBeasts.fighter_owner_id],
+    references: [fighters.id],
+    relationName: 'beast_owner',
+  }),
+  pet: one(fighters, {
+    fields: [fighterExoticBeasts.fighter_pet_id],
     references: [fighters.id],
   }),
   fighter_equipment: one(fighterEquipment, {
