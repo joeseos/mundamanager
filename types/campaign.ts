@@ -100,8 +100,8 @@ export function isPlayedBattle(battle: Pick<Battle, 'status'>): boolean {
 export interface Battle {
   id: string;
   created_at: string;
-  updated_at?: string;
-  scenario_number?: number;
+  updated_at?: string | null;
+  scenario_number?: number | null;
   scenario_name?: string;
   scenario?: string;
   /** N26: what was rolled on the scenario tables, as scenario_table_entries ids. */
@@ -114,7 +114,7 @@ export interface Battle {
   crew_selection_name?: string | null;
   winner_id?: string | null;
   note?: string | null;
-  participants?: BattleParticipant[] | string;
+  participants?: BattleParticipant[] | string | null;
   campaign_territory_id?: string | null;
   territory_name?: string;
   cycle?: number | null;

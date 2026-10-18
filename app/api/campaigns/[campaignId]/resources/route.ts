@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
-import { fetchCampaignResources } from "@/utils/campaigns/resources";
+import { fetchCampaignResources } from "@/app/lib/campaigns/[id]/get-campaign-data";
+import { getUserIdFromClaims } from "@/utils/auth";
 
 export type { CampaignResource as Resource } from "@/utils/campaigns/resources";
 
@@ -25,12 +26,19 @@ export async function GET(
   }
 
   try {
-    const resources = await fetchCampaignResources(campaignId, supabase);
+    // The resources are read over the direct connection, which doesn't check who
+    // is asking, so confirm the user first
+    const userId = await getUserIdFromClaims(supabase);
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const resources = await fetchCampaignResources(campaignId);
     return NextResponse.json(resources);
   } catch (error: any) {
     console.error('Error fetching resources:', error);
 
-    if (error?.code === 'PGRST116' || error?.message === 'Campaign not found') {
+    if (error?.message === 'Campaign not found') {
       return NextResponse.json(
         { error: "Campaign not found" },
         { status: 404 }

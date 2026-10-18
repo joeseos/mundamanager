@@ -119,7 +119,7 @@ interface CampaignPageContentProps {
     edition_slug?: string | null;
     image_url?: string;
     status: string | null;
-    description: string;
+    description: string | null;
     created_at: string;
     updated_at: string | null;
     note: string | null;

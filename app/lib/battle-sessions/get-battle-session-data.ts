@@ -6,7 +6,8 @@ import { eq } from 'drizzle-orm';
 import { getAppDb } from '@/utils/db/client';
 import { battleSessionParticipants } from '@/utils/db/schema';
 import { normalizeSessionRecord, type BattleSession, type BattleSessionFull } from '@/types/battle-session';
-import { fetchCampaignResources, type CampaignResource } from '@/utils/campaigns/resources';
+import type { CampaignResource } from '@/utils/campaigns/resources';
+import { fetchCampaignResources } from '@/app/lib/campaigns/[id]/get-campaign-data';
 
 /** N26: the names of a session's Deployment, Objective and Crew, for display. */
 export const SESSION_SCENARIO_PARTS_SELECT =
@@ -72,7 +73,7 @@ async function fetchBattleSessionDirect(
         .select('id, username, patreon_tier_id, patreon_tier_title')
         .in('id', userIds),
       session.campaign_id
-        ? fetchCampaignResources(session.campaign_id, supabase)
+        ? fetchCampaignResources(session.campaign_id)
         : Promise.resolve([] as CampaignResource[]),
       session.campaign_id
         ? supabase

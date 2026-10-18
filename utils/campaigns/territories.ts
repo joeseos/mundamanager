@@ -1,8 +1,8 @@
 import type { CampaignTerritoryRow } from '@/types/campaign';
 
 /**
- * Columns every campaign_territories read selects. The cached reader and the add/create
- * mutations must agree, or an optimistically appended row is shaped differently from
+ * Columns the add/create mutations select. The cached reader (getCampaignTerritories)
+ * reads the same ones, or an optimistically appended row is shaped differently from
  * every row already in state.
  */
 export const CAMPAIGN_TERRITORY_COLUMNS =

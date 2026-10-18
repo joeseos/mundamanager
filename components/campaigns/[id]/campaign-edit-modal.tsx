@@ -38,7 +38,7 @@ interface EditCampaignModalProps {
   campaignData: {
     id: string;
     campaign_name: string;
-    description: string;
+    description: string | null;
     status: string | null;
     allow_join_requests?: boolean;
     trading_posts: string[];

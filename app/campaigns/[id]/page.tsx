@@ -121,7 +121,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
     ]);
 
     // Check if campaign exists
-    if (!campaignBasic) {
+    if (!campaignBasic?.campaign_type_id) {
       notFound();
     }
 
@@ -149,11 +149,11 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
     // Combine the data
     const campaignData = {
       id: campaignBasic.id,
-      campaign_name: campaignBasic.campaign_name,
+      campaign_name: campaignBasic.campaign_name ?? '',
       campaign_type_id: campaignBasic.campaign_type_id,
-      campaign_type_name: (campaignBasic.campaign_types as any)?.campaign_type_name || '',
-      campaign_type_image_url: (campaignBasic.campaign_types as any)?.image_url || '',
-      edition_slug: (campaignBasic.campaign_types as any)?.edition_slug ?? null,
+      campaign_type_name: campaignBasic.campaign_types?.campaign_type_name || '',
+      campaign_type_image_url: campaignBasic.campaign_types?.image_url || '',
+      edition_slug: campaignBasic.campaign_types?.edition_slug ?? null,
       image_url: campaignBasic.image_url || '',
       status: campaignBasic.status,
       description: campaignBasic.description,
@@ -165,7 +165,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       discord_channel_id: campaignBasic.discord_channel_id || null,
       allow_join_requests: campaignBasic.allow_join_requests ?? false,
       note: campaignBasic.note,
-      current_cycle: (campaignBasic as any).current_cycle ?? null,
+      current_cycle: campaignBasic.current_cycle ?? null,
       members: campaignMembers,
       territories: campaignTerritories,
       battles: campaignBattles,
