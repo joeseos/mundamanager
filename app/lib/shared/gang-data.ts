@@ -294,8 +294,6 @@ export const getGangStash = async (gangId: string): Promise<GangStashItem[]> => 
       const equipmentColumns = { equipment_name: true, equipment_type: true, equipment_category: true } as const;
       const items = await getAppDb().query.fighterEquipment.findMany({
         columns: { id: true, equipment_id: true, custom_equipment_id: true, purchase_cost: true, cost_resource: true },
-        // The row's own timestamp would arrive in Postgres's text form; select it
-        // as JSON for the ISO form the Data API returned
         extras: (item, { sql }) => ({
           created_at: sql<string | null>`to_json(${item.created_at})`.as('created_at'),
         }),
@@ -314,7 +312,6 @@ export const getGangStash = async (gangId: string): Promise<GangStashItem[]> => 
         equipment_name: item.equipment?.equipment_name || item.custom_equipment?.equipment_name || 'Unknown',
         equipment_type: item.equipment?.equipment_type || item.custom_equipment?.equipment_type || 'unknown',
         equipment_category: item.equipment?.equipment_category || item.custom_equipment?.equipment_category || 'unknown',
-        // purchase_cost allows NULL, but no stash row has one
         cost: item.purchase_cost as number,
         type: 'equipment' as const,
         cost_resource: item.cost_resource ?? null
@@ -359,7 +356,6 @@ export const getGangType = async (gangBasic: GangBasic): Promise<GangType> => {
         where: (type, { eq }) => eq(type.id, gangBasic.gang_type_id),
       });
       if (!type) throw new Error(`Gang type ${gangBasic.gang_type_id} not found`);
-      // gang_types allows a NULL name, but every row has one
       return { ...type, gang_type: type.gang_type as string };
     },
     [`gang-type-v5-${gangBasic.gang_type_id}`],
@@ -389,7 +385,6 @@ export const getGangSubtypes = async (gangSubtypeIds: string[]): Promise<GangSub
         columns: { id: true, subtype: true },
         where: (type, { inArray }) => inArray(type.id, gangSubtypeIds),
       });
-      // gang_subtype_types allows a NULL name, but every row has one
       return subtypes as GangSubtype[];
     },
     [`gang-subtypes-${gangSubtypeIds.join('-')}`],
@@ -883,7 +878,6 @@ export const getUserProfile = async (userId: string): Promise<{
   patreon_tier_title: string | null;
   patron_status: string | null;
 } | null> => {
-  // The user breadcrumb passes the id from the URL; Postgres would reject a malformed one
   if (!isUuid(userId)) return null;
 
   return unstable_cache(

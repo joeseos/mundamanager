@@ -171,8 +171,6 @@ export const getGangBattleSessionsCached = async (gangId: string): Promise<Battl
       const db = getAppDb();
       const sessions = await db.query.battleSessions.findMany({
         columns: { created_at: false, updated_at: false },
-        // The row's own timestamps would arrive in Postgres's text form; select them
-        // as JSON for the ISO form the Data API returned
         extras: (session, { sql }) => ({
           created_at: sql<string>`to_json(${session.created_at})`.as('created_at'),
           updated_at: sql<string>`to_json(${session.updated_at})`.as('updated_at'),

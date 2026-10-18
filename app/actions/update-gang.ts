@@ -82,7 +82,6 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     // Ensure the caller is authenticated (RLS handles write permissions)
     await getAuthenticatedUser(supabase);
 
-    // Gang pages look the subtypes up by these ids
     if (params.gang_subtypes !== undefined && !isUuidArray(params.gang_subtypes)) {
       return { success: false, error: 'Invalid gang subtypes' };
     }

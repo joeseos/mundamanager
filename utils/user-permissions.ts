@@ -12,10 +12,6 @@ export interface CheckPermissionResult {
   campaign_role: CampaignRole | null;
 }
 
-/**
- * The check_permission SQL function's verdict for userId. It takes the user as an
- * argument rather than reading the session, so it runs over the direct connection.
- */
 async function queryPermission(
   userId: string,
   campaignId: string | null,

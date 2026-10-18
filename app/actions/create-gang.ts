@@ -39,7 +39,6 @@ export async function createGang({
     // Get the current user with optimized getClaims()
     const user = await getAuthenticatedUser(supabase);
 
-    // Gang pages look the subtypes up by these ids
     if (!isUuidArray(gangSubtypes)) {
       return { success: false, error: 'Invalid gang subtypes' };
     }
