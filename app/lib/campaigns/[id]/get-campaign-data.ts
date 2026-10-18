@@ -1,13 +1,13 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
-import { count, eq } from 'drizzle-orm';
+import { and, count, eq, isNotNull } from 'drizzle-orm';
 
 import { getAppDb } from '@/utils/db/client';
 import { campaignTerritories } from '@/utils/db/schema';
 import type { CampaignAllegiance } from '@/utils/campaigns/allegiances';
 import { getWinnerIdsFromParsed, getClaimerGangIdFromParsed } from '@/utils/battle-winners';
 import type { CampaignResource } from '@/utils/campaigns/resources';
-import { shapeCampaignTerritory } from '@/utils/campaigns/territories';
+import { CAMPAIGN_TERRITORY_FIELDS, shapeCampaignTerritory } from '@/utils/campaigns/territories';
 import { sumFighterKills } from '@/app/lib/shared/gang-data';
 import { groupBy } from '@/utils/gang-assembly';
 import { joinedParentGangTypeName } from '@/utils/gang-type-label';
@@ -104,7 +104,7 @@ async function _getCampaignMembers(campaignId: string) {
     db
       .select({ gang_id: campaignTerritories.gang_id, count: count() })
       .from(campaignTerritories)
-      .where(eq(campaignTerritories.campaign_id, campaignId))
+      .where(and(eq(campaignTerritories.campaign_id, campaignId), isNotNull(campaignTerritories.gang_id)))
       .groupBy(campaignTerritories.gang_id),
   ]);
 
@@ -160,7 +160,7 @@ async function _getCampaignMembers(campaignId: string) {
         allegiance: allegiance ? {
           id: allegiance.id,
           name: allegiance.allegiance_name,
-          is_custom: !!cg.campaign_allegiance
+          is_custom: !cg.campaign_type_allegiance
         } : null
       };
     })
@@ -169,19 +169,7 @@ async function _getCampaignMembers(campaignId: string) {
 
 async function _getCampaignTerritories(campaignId: string) {
   const territories = await getAppDb().query.campaignTerritories.findMany({
-    columns: {
-      id: true,
-      territory_id: true,
-      territory_name: true,
-      gang_id: true,
-      ruined: true,
-      default_gang_territory: true,
-      playing_card: true,
-      description: true,
-      map_object_id: true,
-      map_hex_coords: true,
-      show_name_on_map: true,
-    },
+    columns: CAMPAIGN_TERRITORY_FIELDS,
     extras: (territory, { sql }) => ({
       created_at: sql<string>`to_json(${territory.created_at})`.as('created_at'),
     }),
@@ -330,12 +318,15 @@ async function _getCampaignBattles(campaignId: string, limit: number) {
   });
 }
 
-/**
- * A campaign's allegiances: its type's predefined ones (none for a Custom campaign),
- * then its own, each list by name.
- * @throws Error('Campaign not found') if the campaign or its type doesn't exist
- */
-async function fetchCampaignAllegiances(campaignId: string): Promise<CampaignAllegiance[]> {
+/** A campaign type's predefined entries (none for a Custom campaign), then the campaign's own. */
+function typeThenCustom<T>(typeName: string | null, typeEntries: T[], customEntries: T[]) {
+  return [
+    ...(typeName === 'Custom' ? [] : typeEntries).map((entry) => ({ ...entry, is_custom: false })),
+    ...customEntries.map((entry) => ({ ...entry, is_custom: true })),
+  ];
+}
+
+async function _getCampaignAllegiances(campaignId: string): Promise<CampaignAllegiance[]> {
   const campaign = await getAppDb().query.campaigns.findFirst({
     columns: {},
     where: (campaign, { eq }) => eq(campaign.id, campaignId),
@@ -355,22 +346,12 @@ async function fetchCampaignAllegiances(campaignId: string): Promise<CampaignAll
       },
     },
   });
-  if (!campaign?.campaign_type) throw new Error('Campaign not found');
-
+  if (!campaign?.campaign_type) return [];
   const { campaign_type: type } = campaign;
-  const typeAllegiances = type.campaign_type_name === 'Custom' ? [] : type.campaign_type_allegiances;
-  return [
-    ...typeAllegiances.map((allegiance) => ({ ...allegiance, is_custom: false })),
-    ...campaign.campaign_allegiances.map((allegiance) => ({ ...allegiance, is_custom: true })),
-  ];
+  return typeThenCustom(type.campaign_type_name, type.campaign_type_allegiances, campaign.campaign_allegiances);
 }
 
-/**
- * A campaign's resources: its type's predefined ones (none for a Custom campaign),
- * then its own, each list by name.
- * @throws Error('Campaign not found') if the campaign or its type doesn't exist
- */
-export async function fetchCampaignResources(campaignId: string): Promise<CampaignResource[]> {
+async function _getCampaignResources(campaignId: string): Promise<CampaignResource[]> {
   const campaign = await getAppDb().query.campaigns.findFirst({
     columns: {},
     where: (campaign, { eq }) => eq(campaign.id, campaignId),
@@ -390,18 +371,14 @@ export async function fetchCampaignResources(campaignId: string): Promise<Campai
       },
     },
   });
-  if (!campaign?.campaign_type) throw new Error('Campaign not found');
-
+  if (!campaign?.campaign_type) return [];
   const { campaign_type: type } = campaign;
-  const typeResources = type.campaign_type_name === 'Custom' ? [] : type.campaign_type_resources;
-  return [
-    ...typeResources.map((resource) => ({ ...resource, is_custom: false })),
-    ...campaign.campaign_resources.map((resource) => ({ ...resource, is_custom: true })),
-  ];
+  return typeThenCustom(type.campaign_type_name, type.campaign_type_resources, campaign.campaign_resources);
 }
 
 // Every entry below is keyed by campaign id alone and shared by every viewer. The
-// direct connection sees every row whoever is asking, so callers check access.
+// direct connection reads what the read policies give any signed-in user (every row
+// of these tables), not what the viewer may see, so callers check access.
 
 /**
  * Get gang IDs for a campaign (cached)
@@ -539,16 +516,7 @@ export const getCampaignBattles = async (campaignId: string, limit = 100) => {
 export async function getCampaignAllegiances(campaignId: string) {
   return unstable_cache(
     async () => {
-      try {
-        return await fetchCampaignAllegiances(campaignId);
-      } catch (error) {
-        // Return empty array if campaign not found (graceful degradation for server-side)
-        if (error instanceof Error && error.message === 'Campaign not found') {
-          return [];
-        }
-        // Re-throw other errors
-        throw error;
-      }
+      return _getCampaignAllegiances(campaignId);
     },
     [`campaign-allegiances-v2-${campaignId}`],
     {
@@ -627,7 +595,6 @@ async function _getCampaignOoaCounts(gangIds: string[]) {
     columns: { gang_id: true, kills: true },
     // Fighters without kills add nothing to the sum.
     where: (fighter, { and, gt, inArray }) => and(inArray(fighter.gang_id, gangIds), gt(fighter.kills, 0)),
-    orderBy: (fighter, { asc }) => asc(fighter.id),
   });
 
   return Object.entries(groupBy(fighters, 'gang_id'))
@@ -664,16 +631,7 @@ export const getCampaignOoaCounts = async (campaignId: string) => {
 export async function getCampaignResources(campaignId: string) {
   return unstable_cache(
     async () => {
-      try {
-        return await fetchCampaignResources(campaignId);
-      } catch (error) {
-        // Return empty array if campaign not found (graceful degradation for server-side)
-        if (error instanceof Error && error.message === 'Campaign not found') {
-          return [];
-        }
-        // Re-throw other errors
-        throw error;
-      }
+      return _getCampaignResources(campaignId);
     },
     [`campaign-resources-v2-${campaignId}`],
     {

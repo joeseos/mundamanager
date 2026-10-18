@@ -5,6 +5,7 @@ import { CampaignErrorBoundary } from "@/components/campaigns/campaign-error-bou
 import { checkCampaignPermissions } from "@/utils/user-permissions";
 import type { CampaignPermissions } from "@/types/user-permissions";
 import { getAuthenticatedUser, signInPath } from "@/utils/auth";
+import { isUuid } from "@/utils/uuid";
 import {
   getTradingPostTypesCached,
   getCampaignTriumphs,
@@ -33,9 +34,9 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
   const supabase = await createClient();
 
   // Get the user data once at the page level via claims. This is the authorisation
-  // gate for the whole page: the cached readers below fill from a service-role client
-  // and so do not enforce RLS themselves. proxy.ts already redirects anonymous
-  // requests for this path; this keeps the page correct independently of that.
+  // gate for the whole page: the cached readers below read over the direct connection,
+  // which doesn't check who is asking. proxy.ts already redirects anonymous requests
+  // for this path; this keeps the page correct independently of that.
   let user: { id: string };
   try {
     user = await getAuthenticatedUser(supabase);
@@ -43,6 +44,10 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
     redirect(signInPath(`/campaigns/${params.id}`));
   }
   const userId = user.id;
+
+  if (!isUuid(params.id)) {
+    notFound();
+  }
 
   // Calculate permissions server-side
   let permissions: CampaignPermissions | null = null;
@@ -207,9 +212,6 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       <main className="flex min-h-screen flex-col items-center">
         <div className="container mx-auto max-w-4xl w-full space-y-4">
           <div className="text-red-500">Error loading campaign data</div>
-          {error instanceof Error && (
-            <div className="text-sm text-muted-foreground">{error.message}</div>
-          )}
         </div>
       </main>
     );

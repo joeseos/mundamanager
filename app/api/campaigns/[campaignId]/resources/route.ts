@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
-import { fetchCampaignResources } from "@/app/lib/campaigns/[id]/get-campaign-data";
+import { getCampaignResources } from "@/app/lib/campaigns/[id]/get-campaign-data";
 import { getUserIdFromClaims } from "@/utils/auth";
 
 export type { CampaignResource as Resource } from "@/utils/campaigns/resources";
@@ -33,18 +33,10 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const resources = await fetchCampaignResources(campaignId);
+    const resources = await getCampaignResources(campaignId);
     return NextResponse.json(resources);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error fetching resources:', error);
-
-    if (error?.message === 'Campaign not found') {
-      return NextResponse.json(
-        { error: "Campaign not found" },
-        { status: 404 }
-      );
-    }
-
     return NextResponse.json(
       { error: "Failed to fetch resources" },
       { status: 500 }

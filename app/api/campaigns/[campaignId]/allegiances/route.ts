@@ -1,5 +1,7 @@
+import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { getCampaignAllegiances } from "@/app/lib/campaigns/[id]/get-campaign-data";
+import { getUserIdFromClaims } from "@/utils/auth";
 
 export type { CampaignAllegiance as Allegiance } from "@/utils/campaigns/allegiances";
 
@@ -13,6 +15,7 @@ export async function GET(
   props: { params: Promise<{ campaignId: string }> }
 ) {
   const params = await props.params;
+  const supabase = await createClient();
   const { campaignId } = params;
 
   if (!campaignId) {
@@ -23,6 +26,13 @@ export async function GET(
   }
 
   try {
+    // The allegiances are read over the direct connection, which doesn't check who
+    // is asking, so confirm the user first
+    const userId = await getUserIdFromClaims(supabase);
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const allegiances = await getCampaignAllegiances(campaignId);
     return NextResponse.json(allegiances);
   } catch (error) {
