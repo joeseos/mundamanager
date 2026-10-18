@@ -67,7 +67,7 @@ would have.
    DATABASE_URL=database-connection-string
    NODE_ENV=development
    ```
-   `DATABASE_URL` is the direct database connection used for the gang roster (see the README's "Drizzle ORM" section).
+   `DATABASE_URL` is the direct database connection for the reads that use Drizzle, including the gang roster and fighter pages (see the README's "Drizzle ORM" section).
 
 3. **Running the environment**
    ```bash

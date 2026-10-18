@@ -609,6 +609,8 @@ gateway log entries, which Supabase bills as Logs Ingest. These are read this wa
 - the fighter's own row and its total cost (`getFighterBasic` and
   `getFighterTotalCost` in `app/lib/shared/fighter-data.ts`)
 
+The files:
+
 - `utils/db/client.ts`: the connection, through the Supabase transaction pooler.
 - `utils/db/schema.ts`: Drizzle tables and relations. They mirror
   `supabase/schema/schema.public.sql`; update them when a migration changes these

@@ -161,6 +161,9 @@ function creditsIncrease(typeSpecificData: unknown): number {
  * Page rendering derives the same figure from the gang fighters bundle.
  */
 export const getFighterTotalCost = async (fighterId: string): Promise<number> => {
+  // No fighter has a malformed id, and Postgres would reject it
+  if (!isUuid(fighterId)) return 0;
+
   const fighter = await fighterCostQuery(getAppDb(), fighterId);
   if (!fighter) return 0;
 

@@ -478,9 +478,11 @@ export const fighterLoadoutEquipment = pgTable('fighter_loadout_equipment', {
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
 }, (table) => [primaryKey({ columns: [table.loadout_id, table.fighter_equipment_id] })]);
 
-// gangs <-> fighters has two foreign keys (gang_id, captured_by_gang_id), and
-// fighter_exotic_beasts -> fighters two (fighter_owner_id, fighter_pet_id), so
-// those pairs are told apart by relationName.
+// A one() that names its join columns (fields/references) needs nothing more.
+// A many() is matched to the one() pointing back at its table, so where two
+// one()s point at the same table, that pair gets a relationName:
+// gangs.fighters (gang_id, not captured_by_gang_id) and
+// fighters.fighter_exotic_beasts (fighter_owner_id, not fighter_pet_id).
 
 export const gangsRelations = relations(gangs, ({ many }) => ({
   fighters: many(fighters, { relationName: 'gang_fighters' }),
