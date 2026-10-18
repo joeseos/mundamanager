@@ -12,12 +12,6 @@ import { assembleFighterView, selectGangFighterIndex } from '@/utils/gang-assemb
 import { isUuid } from '@/utils/uuid';
 
 // =============================================================================
-// TYPES - The fighter row getFighterBasic returns
-// =============================================================================
-
-export type FighterBasic = NonNullable<Awaited<ReturnType<typeof fighterBasicQuery>>>;
-
-// =============================================================================
 // BASE DATA FUNCTIONS - Drizzle reads over the direct connection (utils/db)
 // =============================================================================
 
@@ -90,7 +84,7 @@ function fighterBasicQuery(db: AppDb, fighterId: string) {
  * Get fighter basic information (stats, name, type, etc.)
  * Cache: BASE_FIGHTER_BASIC
  */
-export const getFighterBasic = async (fighterId: string): Promise<FighterBasic | null> => {
+export const getFighterBasic = async (fighterId: string) => {
   // The id comes from the URL; Postgres would reject a malformed one
   if (!isUuid(fighterId)) return null;
 
