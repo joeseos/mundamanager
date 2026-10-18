@@ -47,7 +47,7 @@ export const gangs = pgTable('gangs', {
   id: uuid('id').defaultRandom().primaryKey(),
   gang_type_id: uuid('gang_type_id'),
   alignment: alignment('alignment'),
-  positioning: json('positioning'),
+  positioning: json('positioning').$type<Record<string, any>>(),
   note: text('note'),
   alliance_id: uuid('alliance_id'),
   gang_subtypes: json('gang_subtypes'),
@@ -766,11 +766,11 @@ export const gangSkillSetRanksRelations = relations(gangSkillSetRanks, ({ one })
 }));
 
 export const campaignGangsRelations = relations(campaignGangs, ({ one, many }) => ({
-  campaign_members: one(campaignMembers, {
+  campaign_member: one(campaignMembers, {
     fields: [campaignGangs.campaign_member_id],
     references: [campaignMembers.id],
   }),
-  campaigns: one(campaigns, {
+  campaign: one(campaigns, {
     fields: [campaignGangs.campaign_id],
     references: [campaigns.id],
   }),

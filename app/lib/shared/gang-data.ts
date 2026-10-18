@@ -112,8 +112,6 @@ export interface GangCampaign {
   campaign_gang_id: string;
   campaign_name: string;
   role: string;
-  invited_at?: string;
-  invited_by?: string;
   trading_posts?: string[] | null;
   trading_post_names?: string[];
   custom_trading_posts?: string[] | null;
@@ -228,9 +226,8 @@ export const getGangCore = async (gangId: string): Promise<GangCore | null> => {
       return {
         ...gangRow,
         edition_slug: editionSlug,
-        rating: (gangRow.rating ?? 0) as number,
-        wealth: (gangRow.wealth ?? 0) as number,
-        alliance: gangRow.alliance ?? null,
+        rating: gangRow.rating ?? 0,
+        wealth: gangRow.wealth ?? 0,
         gang_portrait_url: gangPortraitPublicUrl(joinedPortraitStoragePath(gang_portrait)) ?? null,
         venator_ranks_incomplete: venatorRanksIncomplete,
       } as GangCore;
@@ -280,7 +277,7 @@ export const getGangPositioning = async (gangId: string): Promise<Record<string,
         columns: { positioning: true },
         where: (gang, { eq }) => eq(gang.id, gangId),
       });
-      return (gang?.positioning as Record<string, any> | null | undefined) || null;
+      return gang?.positioning ?? null;
     },
     [`gang-positioning-v2-${gangId}`],
     {
@@ -454,8 +451,8 @@ function gangCampaignsQuery(db: AppDb, gangId: string) {
     columns: { id: true, campaign_allegiance_id: true, campaign_type_allegiance_id: true },
     where: (cg, { eq }) => eq(cg.gang_id, gangId),
     with: {
-      campaign_members: { columns: { role: true, invited_at: true, invited_by: true } },
-      campaigns: {
+      campaign_member: { columns: { role: true } },
+      campaign: {
         columns: { id: true, campaign_name: true, trading_posts: true, custom_trading_posts: true },
         with: {
           // This gang's territories only
@@ -477,8 +474,8 @@ function gangCampaignsQuery(db: AppDb, gangId: string) {
           campaign_resources: { columns: { id: true, resource_name: true } },
         },
       },
-      campaign_allegiance: { columns: { allegiance_name: true } },
-      campaign_type_allegiance: { columns: { allegiance_name: true } },
+      campaign_allegiance: { columns: { id: true, allegiance_name: true } },
+      campaign_type_allegiance: { columns: { id: true, allegiance_name: true } },
       campaign_gang_resources: {
         columns: { campaign_type_resource_id: true, campaign_resource_id: true, quantity: true },
       },
@@ -486,7 +483,13 @@ function gangCampaignsQuery(db: AppDb, gangId: string) {
   });
 }
 
-/** Trading post ids (stored as JSON arrays on campaigns) mapped to their names. */
+/**
+ * The ids in a campaign's trading post list. The settings action stores whatever
+ * the client sends, and one malformed id would fail the uuid lookup of the names.
+ */
+const tradingPostIds = (list: unknown): string[] => (Array.isArray(list) ? list.filter(isUuid) : []);
+
+/** Trading post ids mapped to their names. */
 async function tradingPostNames(db: AppDb, tradingPostIds: string[], customTradingPostIds: string[]) {
   const [tradingPosts, customTradingPosts] = await Promise.all([
     tradingPostIds.length > 0
@@ -523,28 +526,22 @@ export const getGangCampaigns = async (gangId: string): Promise<GangCampaign[]> 
       const db = getAppDb();
       const rows = await gangCampaignsQuery(db, gangId);
 
-      const idsIn = (key: 'trading_posts' | 'custom_trading_posts') =>
-        [...new Set(rows.flatMap((cg) => (cg.campaigns?.[key] as string[] | null) ?? []))];
-      const names = await tradingPostNames(db, idsIn('trading_posts'), idsIn('custom_trading_posts'));
+      const allIds = (key: 'trading_posts' | 'custom_trading_posts') =>
+        [...new Set(rows.flatMap((cg) => tradingPostIds(cg.campaign?.[key])))];
+      const names = await tradingPostNames(db, allIds('trading_posts'), allIds('custom_trading_posts'));
 
       return rows.flatMap((cg): GangCampaign[] => {
-        const campaign = cg.campaigns;
+        const { campaign } = cg;
         if (!campaign) return [];
 
-        const tradingPosts = (campaign.trading_posts as string[] | null) ?? [];
-        const customTradingPosts = (campaign.custom_trading_posts as string[] | null) ?? [];
+        const tradingPosts = tradingPostIds(campaign.trading_posts);
+        const customTradingPosts = tradingPostIds(campaign.custom_trading_posts);
 
         // A campaign's own allegiance takes precedence over its type's
-        const allegianceId = cg.campaign_allegiance_id || cg.campaign_type_allegiance_id;
-        const allegianceName = cg.campaign_allegiance_id
-          ? cg.campaign_allegiance?.allegiance_name
-          : cg.campaign_type_allegiance?.allegiance_name;
+        const allegiance = cg.campaign_allegiance_id ? cg.campaign_allegiance : cg.campaign_type_allegiance;
 
         const quantities = new Map(
-          cg.campaign_gang_resources.map((gr) => [
-            gr.campaign_type_resource_id || gr.campaign_resource_id,
-            Number(gr.quantity) || 0,
-          ])
+          cg.campaign_gang_resources.map((gr) => [gr.campaign_type_resource_id || gr.campaign_resource_id, gr.quantity])
         );
         const resource = (is_custom: boolean) => (r: { id: string; resource_name: string }): GangCampaignResource => ({
           resource_id: r.id,
@@ -557,19 +554,13 @@ export const getGangCampaigns = async (gangId: string): Promise<GangCampaign[]> 
           campaign_id: campaign.id,
           campaign_gang_id: cg.id,
           campaign_name: campaign.campaign_name as string,
-          role: cg.campaign_members?.role as string,
-          invited_at: cg.campaign_members?.invited_at ?? undefined,
-          invited_by: cg.campaign_members?.invited_by ?? undefined,
+          role: cg.campaign_member?.role as string,
           trading_posts: tradingPosts,
-          trading_post_names: tradingPosts
-            .map((id) => names.tradingPostNames.get(id))
-            .filter((name): name is string => Boolean(name)),
+          trading_post_names: tradingPosts.flatMap((id) => names.tradingPostNames.get(id) || []),
           custom_trading_posts: customTradingPosts,
-          custom_trading_post_names: customTradingPosts
-            .map((id) => names.customTradingPostNames.get(id))
-            .filter((name): name is string => Boolean(name)),
+          custom_trading_post_names: customTradingPosts.flatMap((id) => names.customTradingPostNames.get(id) || []),
           territories: campaign.campaign_territories,
-          allegiance: allegianceId && allegianceName ? { id: allegianceId, name: allegianceName } : null,
+          allegiance: allegiance?.allegiance_name ? { id: allegiance.id, name: allegiance.allegiance_name } : null,
           resources: [
             ...(campaign.campaign_type?.campaign_type_resources ?? []).map(resource(false)),
             ...campaign.campaign_resources.map(resource(true)),
