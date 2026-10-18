@@ -3,6 +3,7 @@ import { redirect, notFound, unstable_rethrow } from "next/navigation";
 import FighterPageComponent from "@/components/fighter/fighter-page";
 import { checkPermissionCached } from "@/utils/user-permissions";
 import { getAuthenticatedUser, signInPath } from "@/utils/auth";
+import { getFighterPageData } from "@/app/lib/shared/fighter-data";
 
 interface FighterPageProps {
   params: Promise<{ id: string }>;
@@ -22,8 +23,6 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
 
   let pageProps;
   try {
-    const { getFighterPageData } = await import('@/app/lib/shared/fighter-data');
-
     const pageData = await getFighterPageData(id, supabase);
     if (!pageData) {
       notFound();

@@ -12,7 +12,7 @@ import { assembleFighterView, selectGangFighterIndex } from '@/utils/gang-assemb
 import { isUuid } from '@/utils/uuid';
 
 // =============================================================================
-// TYPES - Shared interfaces for fighter data
+// TYPES - The fighter row getFighterBasic returns
 // =============================================================================
 
 export type FighterBasic = NonNullable<Awaited<ReturnType<typeof fighterBasicQuery>>>;
