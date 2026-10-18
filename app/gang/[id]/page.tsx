@@ -35,7 +35,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
   let pageProps;
   try {
     // Fetch the gang core first to check if gang exists
-    const gangBasic = await getGangCore(params.id, supabase);
+    const gangBasic = await getGangCore(params.id);
 
     if (!gangBasic) {
       notFound();
@@ -68,7 +68,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       battleSessions,
       tacticsCards
     ] = await Promise.all([
-      getGangPositioning(params.id, supabase),
+      getGangPositioning(params.id),
       getGangType(gangBasic, supabase),
       // Assembled inside the batch so the CPU pass overlaps the remaining
       // queries rather than landing on the critical path after all ten resolve.
@@ -79,7 +79,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
         vehicles: assembleGangVehicles(bundle)
       })),
       getGangStash(params.id, supabase),
-      getGangCampaigns(params.id, supabase),
+      getGangCampaigns(params.id),
       getGangSubtypes(gangBasic.gang_subtypes || [], supabase),
       getUserProfile(gangBasic.user_id, supabase),
       checkPermissionCached(user.id, params.id, gangBasic.user_id),

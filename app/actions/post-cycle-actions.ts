@@ -438,7 +438,7 @@ export async function resolvePostCycleAction(
     const user = await getAuthenticatedUser(supabase);
     const { assignment, gangId } = params;
 
-    const gang = await getGangCore(gangId, supabase);
+    const gang = await getGangCore(gangId);
     if (!gang) return { success: false, error: 'Gang not found' };
 
     const editionSlug = gang.edition_slug;
@@ -452,7 +452,7 @@ export async function resolvePostCycleAction(
     // The gang row holds subtype ids; the names decide Chaos Corrupted. A gang
     // with no subtypes skips the lookup, and the rest read a cached list.
     const [fighters, gangSubtypes] = await Promise.all([
-      getGangFightersList(gangId, supabase, { gangEditionSlug: editionSlug }),
+      getGangFightersList(gangId, { gangEditionSlug: editionSlug }),
       getGangSubtypes(gang.gang_subtypes ?? [], supabase),
     ]);
 
