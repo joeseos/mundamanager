@@ -43,7 +43,6 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
       allow_join_requests
     } = params;
 
-    // Gang pages look the trading posts up by these ids
     if ([trading_posts, custom_trading_posts].some((ids) => ids !== undefined && !isUuidArray(ids))) {
       return { success: false, error: 'Invalid trading posts' };
     }
