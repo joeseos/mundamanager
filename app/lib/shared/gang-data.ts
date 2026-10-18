@@ -5,7 +5,6 @@ import { assembleGangFighters } from '@/utils/gang-assembly';
 import { getAppDb, type AppDb } from '@/utils/db/client';
 import {
   gangPortraitPublicUrl,
-  joinedPortraitStoragePath,
   type GangFighter,
   type GangFightersBundle,
   type GetGangFightersListOptions,
@@ -228,7 +227,7 @@ export const getGangCore = async (gangId: string): Promise<GangCore | null> => {
         edition_slug: editionSlug,
         rating: gangRow.rating ?? 0,
         wealth: gangRow.wealth ?? 0,
-        gang_portrait_url: gangPortraitPublicUrl(joinedPortraitStoragePath(gang_portrait)) ?? null,
+        gang_portrait_url: gangPortraitPublicUrl(gang_portrait?.storage_path) ?? null,
         venator_ranks_incomplete: venatorRanksIncomplete,
       } as GangCore;
     },

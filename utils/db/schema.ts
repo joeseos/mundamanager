@@ -20,10 +20,13 @@ import { relations, sql } from 'drizzle-orm';
  * supabase/migrations; these definitions mirror supabase/schema/schema.public.sql
  * and must be kept in step with it when a migration changes these tables.
  *
- * Column types are chosen so values come back exactly as the Data API returns
- * them: numeric and bigint as numbers, timestamps and dates as ISO strings,
- * jsonb untouched. Relational queries read nested rows as JSON built by
- * Postgres, which already encodes every value the way the Data API does.
+ * Column types are chosen so values come back as the Data API returns them:
+ * numeric and bigint as numbers, timestamps and dates as strings, jsonb
+ * untouched. Relational queries read nested rows as JSON built by Postgres,
+ * which already encodes every value the way the Data API does. A row's own
+ * timestamps are the exception: they arrive in Postgres's text form
+ * ('2026-10-16 11:03:30+00', not '2026-10-16T11:03:30+00:00'), so a query that
+ * returns them selects them with to_json in its extras.
  */
 
 type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
