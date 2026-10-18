@@ -34,7 +34,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     // Edit/delete permissions are enforced in FighterPageComponent
     const userPermissions = await checkPermissionCached(
       user.id,
-      fighterData.fighter.gang_id,
+      fighterData.gang.id,
       gangOwnerId
     );
 

@@ -9,76 +9,13 @@ import {
   getGangPositioning,
 } from '@/app/lib/shared/gang-data';
 import { assembleFighterView, selectGangFighterIndex } from '@/utils/gang-assembly';
+import { isUuid } from '@/utils/uuid';
 
 // =============================================================================
 // TYPES - Shared interfaces for fighter data
 // =============================================================================
 
-export interface FighterBasic {
-  id: string;
-  fighter_name: string;
-  label?: string;
-  note?: string;
-  note_backstory?: string;
-  credits: number;
-  cost_adjustment?: number;
-  movement: number;
-  weapon_skill: number;
-  ballistic_skill: number;
-  strength: number;
-  toughness: number;
-  wounds: number;
-  initiative: number;
-  attacks: number;
-  leadership: number;
-  cool: number;
-  willpower: number;
-  intelligence: number;
-  save?: number | null;
-  xp: number;
-  /** null means N/A: this fighter's type cannot gain XP. */
-  starting_xp: number | null;
-  special_rules?: string[];
-  fighter_subtypes: string[];
-  fighter_type?: string;
-  fighter_type_id: string;
-  custom_fighter_type_id?: string | null;
-  custom_fighter_type?: {
-    gang_type_id: string | null;
-    custom_gang_type_id: string | null;
-    is_vehicle?: boolean;
-    editions?: { slug: string } | null;
-  } | null;
-  fighter_gang_legacy_id?: string | null;
-  fighter_gang_legacy?: {
-    id: string;
-    fighter_type_id: string;
-    name?: string;
-  } | null;
-  fighter_specialisation_id?: string;
-  promoted_from_prospect?: boolean;
-  fighter_variant?: string | null;
-  killed?: boolean;
-  starved?: boolean;
-  retired?: boolean;
-  enslaved?: boolean;
-  recovery?: boolean;
-  captured?: boolean;
-  captured_by_gang_id?: string | null;
-  free_skill?: boolean;
-  kills?: number;
-  kill_count?: number;
-  gang_id: string;
-  fighter_pet_id?: string;
-  image_url?: string;
-  position?: string;
-  active_loadout_id?: string | null;
-  selected_archetype_id?: string | null;
-  selected_archetype?: {
-    id: string;
-    name: string;
-  } | null;
-}
+export type FighterBasic = NonNullable<Awaited<ReturnType<typeof fighterBasicQuery>>>;
 
 // =============================================================================
 // BASE DATA FUNCTIONS - Drizzle reads over the direct connection (utils/db)
@@ -109,6 +46,7 @@ function fighterBasicQuery(db: AppDb, fighterId: string) {
       intelligence: true,
       save: true,
       xp: true,
+      // null means N/A: this fighter's type cannot gain XP
       starting_xp: true,
       special_rules: true,
       fighter_subtypes: true,
@@ -153,17 +91,11 @@ function fighterBasicQuery(db: AppDb, fighterId: string) {
  * Cache: BASE_FIGHTER_BASIC
  */
 export const getFighterBasic = async (fighterId: string): Promise<FighterBasic | null> => {
+  // The id comes from the URL; Postgres would reject a malformed one
+  if (!isUuid(fighterId)) return null;
+
   return unstable_cache(
-    async () => {
-      try {
-        // FighterBasic models the row's nullable columns as optional
-        return ((await fighterBasicQuery(getAppDb(), fighterId)) ?? null) as FighterBasic | null;
-      } catch (error) {
-        // A malformed id is not found (Postgres rejects it with 22P02)
-        if ((error as { cause?: { code?: string } }).cause?.code === '22P02') return null;
-        throw error;
-      }
-    },
+    async () => (await fighterBasicQuery(getAppDb(), fighterId)) ?? null,
     [`fighter-basic-v5-${fighterId}`],
     {
       tags: [TAGS.fighter(fighterId)],
@@ -258,7 +190,7 @@ export const getFighterTotalCost = async (fighterId: string): Promise<number> =>
     beastLinks.flatMap(({ pet }) =>
       pet?.fighter_types && pet.killed === false && pet.retired === false &&
       pet.enslaved === false && pet.captured === false
-        ? [[pet.id, { ...pet, fighter_types: pet.fighter_types }] as const]
+        ? [[pet.id, pet] as const]
         : []
     )
   );
@@ -269,7 +201,7 @@ export const getFighterTotalCost = async (fighterId: string): Promise<number> =>
       : beast.fighter_equipment.reduce((s, eq) => s + (eq.purchase_cost || 0), 0);
     const beastSkills = beast.fighter_skills.reduce((s, skill) => s + (skill.credits_increase || 0), 0);
     const beastEffects = beast.fighter_effects.reduce((s, effect) => s + creditsIncrease(effect.type_specific_data), 0);
-    const baseBeastCost = beast.fighter_types.cost || 0;
+    const baseBeastCost = beast.fighter_types?.cost || 0;
     return sum + baseBeastCost + beastEquipment + beastSkills + beastEffects + (beast.cost_adjustment || 0);
   }, 0);
 
@@ -290,7 +222,8 @@ export async function getFighterPageData(fighterId: string, supabase: any) {
   // Fetch basic fighter data first to check if fighter exists and resolve the gang
   const fighterBasic = await getFighterBasic(fighterId);
 
-  if (!fighterBasic) return null;
+  // A fighter without a gang has no page
+  if (!fighterBasic?.gang_id) return null;
 
   // The fighter's data comes from the SAME cache entries the gang page uses
   // (core + fighters bundle + campaigns bundle) — usually warm after any
