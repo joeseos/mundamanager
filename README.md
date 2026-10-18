@@ -606,8 +606,8 @@ Postgres connection instead of the Supabase Data API. Those reads don't create A
 gateway log entries, which Supabase bills as Logs Ingest. These are read this way:
 
 - everything the gang page reads in `app/lib/shared/gang-data.ts`: the roster,
-  core row, positioning, campaigns, stash, gang type, subtypes, owner's profile,
-  Gang Tactics cards and fighter stats
+  core row, positioning, campaigns, stash, subtypes, owner's profile, Gang
+  Tactics cards and fighter stats
 - the gang's battle sessions list (`getGangBattleSessionsCached` in
   `app/lib/battle-sessions/get-battle-session-data.ts`)
 - permission checks (`checkPermission` and `checkPermissionCached` in
