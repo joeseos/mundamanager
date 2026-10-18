@@ -483,13 +483,7 @@ function gangCampaignsQuery(db: AppDb, gangId: string) {
   });
 }
 
-/**
- * The ids in a campaign's trading post list. The settings action stores whatever
- * the client sends, and one malformed id would fail the uuid lookup of the names.
- */
-const tradingPostIds = (list: unknown): string[] => (Array.isArray(list) ? list.filter(isUuid) : []);
-
-/** Trading post ids mapped to their names. */
+/** Trading post ids (stored as JSON arrays on campaigns) mapped to their names. */
 async function tradingPostNames(db: AppDb, tradingPostIds: string[], customTradingPostIds: string[]) {
   const [tradingPosts, customTradingPosts] = await Promise.all([
     tradingPostIds.length > 0
@@ -527,15 +521,15 @@ export const getGangCampaigns = async (gangId: string): Promise<GangCampaign[]> 
       const rows = await gangCampaignsQuery(db, gangId);
 
       const allIds = (key: 'trading_posts' | 'custom_trading_posts') =>
-        [...new Set(rows.flatMap((cg) => tradingPostIds(cg.campaign?.[key])))];
+        [...new Set(rows.flatMap((cg) => cg.campaign?.[key] ?? []))];
       const names = await tradingPostNames(db, allIds('trading_posts'), allIds('custom_trading_posts'));
 
       return rows.flatMap((cg): GangCampaign[] => {
         const { campaign } = cg;
         if (!campaign) return [];
 
-        const tradingPosts = tradingPostIds(campaign.trading_posts);
-        const customTradingPosts = tradingPostIds(campaign.custom_trading_posts);
+        const tradingPosts = campaign.trading_posts ?? [];
+        const customTradingPosts = campaign.custom_trading_posts ?? [];
 
         // A campaign's own allegiance takes precedence over its type's
         const allegiance = cg.campaign_allegiance_id ? cg.campaign_allegiance : cg.campaign_type_allegiance;

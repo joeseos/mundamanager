@@ -4,6 +4,7 @@ import { invalidateGang, invalidateGangCampaignMembership, invalidateCampaignCor
 import { createClient } from "@/utils/supabase/server";
 
 import { getAuthenticatedUser } from '@/utils/auth';
+import { isUuidArray } from '@/utils/uuid';
 
 export interface UpdateCampaignSettingsParams {
   campaignId: string;
@@ -41,6 +42,11 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
       custom_trading_posts,
       allow_join_requests
     } = params;
+
+    // Gang pages look the trading posts up by these ids
+    if ([trading_posts, custom_trading_posts].some((ids) => ids !== undefined && !isUuidArray(ids))) {
+      return { success: false, error: 'Invalid trading posts' };
+    }
 
     // Only include provided fields in the update
     const updateData: any = { updated_at: new Date().toISOString() };
