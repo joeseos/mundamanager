@@ -11,7 +11,7 @@ A comprehensive gang management tool for Necromunda tabletop game with features 
 ## Tech Stack
 
 - **Framework:** Next.js 15.4.3 (App Router)
-- **Database:** PostgreSQL
+- **Database:** PostgreSQL (Supabase), queried through the Supabase Data API and Drizzle ORM
 - **Authentication:** Supabase Auth
 - **Styling:** Tailwind CSS
 - **Components:** shadcn/ui
@@ -598,3 +598,31 @@ redis-cli -u "$REDIS_URL" --scan --pattern 'munda-manager:next-cache:*' \
 ```
 
 To roll back to stock Next.js caching, unset `USE_REDIS_CACHE` and rebuild.
+
+## Drizzle ORM
+
+Some server-side reads use [Drizzle ORM](https://orm.drizzle.team) over a direct
+Postgres connection instead of the Supabase Data API. Those reads don't create API
+gateway log entries, which Supabase bills as Logs Ingest. The gang roster
+(`getGangFightersBundle` in `app/lib/shared/gang-data.ts`) is read this way.
+
+- `utils/db/client.ts`: the connection, through the Supabase transaction pooler.
+- `utils/db/schema.ts`: Drizzle tables and relations. They mirror
+  `supabase/schema/schema.public.sql`; update them when a migration changes these
+  tables.
+- `utils/db/supabase-ca.ts`: Supabase's root CA, which the connection verifies the
+  pooler's certificate against. It expires on 26 April 2031; replace it with the
+  new one from Database Settings > SSL Configuration before then.
+
+| Variable | Required | Notes |
+|---|---|---|
+| `DATABASE_URL` | runtime | Secret. Transaction pooler URL (port `6543`) with user `app_server.<project-ref>`. With the local Supabase stack, use its own database: `postgresql://postgres:postgres@127.0.0.1:54322/postgres` |
+
+The connection signs in as `app_server` (migration
+`20261016120000_add_app_server_role.sql`), a read-only role with the privileges of
+`authenticated` but no user. RLS applies, so Drizzle suits data every signed-in
+user may read; policies that check `auth.uid()` return no rows. The connection
+never checks who is asking, so authenticate the request before reading (the gang
+pages call `getAuthenticatedUser` first). Its password is set in the SQL editor,
+not in the migration. Don't use the Supabase integration's `POSTGRES_URL` in
+production: it signs in as `postgres`, which skips RLS.
