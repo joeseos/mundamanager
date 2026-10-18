@@ -453,7 +453,7 @@ export async function resolvePostCycleAction(
     // with no subtypes skips the lookup, and the rest read a cached list.
     const [fighters, gangSubtypes] = await Promise.all([
       getGangFightersList(gangId, { gangEditionSlug: editionSlug }),
-      getGangSubtypes(gang.gang_subtypes ?? [], supabase),
+      getGangSubtypes(gang.gang_subtypes ?? []),
     ]);
 
     const issues = validatePostCycleAssignment(

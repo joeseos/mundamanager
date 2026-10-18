@@ -69,7 +69,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       tacticsCards
     ] = await Promise.all([
       getGangPositioning(params.id),
-      getGangType(gangBasic, supabase),
+      getGangType(gangBasic),
       // Assembled inside the batch so the CPU pass overlaps the remaining
       // queries rather than landing on the critical path after all ten resolve.
       getGangFightersBundle(params.id).then((bundle) => ({
@@ -78,15 +78,15 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
         }),
         vehicles: assembleGangVehicles(bundle)
       })),
-      getGangStash(params.id, supabase),
+      getGangStash(params.id),
       getGangCampaigns(params.id),
-      getGangSubtypes(gangBasic.gang_subtypes || [], supabase),
-      getUserProfile(gangBasic.user_id, supabase),
+      getGangSubtypes(gangBasic.gang_subtypes || []),
+      getUserProfile(gangBasic.user_id),
       checkPermissionCached(user.id, params.id, gangBasic.user_id),
-      getGangBattleSessionsCached(params.id, supabase),
+      getGangBattleSessionsCached(params.id),
       // Editions without Gang Tactics never render the section.
       hasGangTacticsCards(gangBasic.edition_slug)
-        ? getGangTacticsCards(params.id, supabase)
+        ? getGangTacticsCards(params.id)
         : Promise.resolve([])
     ]);
 

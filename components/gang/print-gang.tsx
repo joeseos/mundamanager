@@ -114,8 +114,8 @@ interface PrintGangProps {
     campaigns: any[];
     gang_subtypes: Array<{ id: string; subtype: string }>;
     username?: string;
-    patreon_tier_id?: string;
-    patreon_tier_title?: string;
+    patreon_tier_id?: string | null;
+    patreon_tier_title?: string | null;
     hidden: boolean;
     positioning: Record<number, string>;
     note?: string;

@@ -8,11 +8,13 @@ import {
   pgEnum,
   pgTable,
   primaryKey,
+  smallint,
   text,
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
+import type { BattleSessionStatus } from '@/types/battle-session';
 
 /**
  * Drizzle schema for the tables read over the direct database connection
@@ -53,7 +55,7 @@ export const gangs = pgTable('gangs', {
   positioning: json('positioning').$type<Record<string, any>>(),
   note: text('note'),
   alliance_id: uuid('alliance_id'),
-  gang_subtypes: json('gang_subtypes'),
+  gang_subtypes: json('gang_subtypes').$type<string[]>(),
   gang_colour: text('gang_colour'),
   image_url: text('image_url'),
   note_backstory: text('note_backstory'),
@@ -120,7 +122,7 @@ export const fighters = pgTable('fighters', {
   selected_archetype_id: uuid('selected_archetype_id'),
   captured_by_gang_id: uuid('captured_by_gang_id'),
   save: numeric('save', { mode: 'number' }),
-  fighter_subtypes: json('fighter_subtypes').default(sql`'[]'::jsonb`).notNull(),
+  fighter_subtypes: json('fighter_subtypes').$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
   is_vehicle: boolean('is_vehicle').default(false).notNull(),
   starting_xp: numeric('starting_xp', { mode: 'number' }),
   fighter_variant: text('fighter_variant'),
@@ -281,7 +283,7 @@ export const fighterEquipment = pgTable('fighter_equipment', {
   loadout_id: integer('loadout_id'),
   is_editable: boolean('is_editable').default(false),
   granted_by_equipment_id: uuid('granted_by_equipment_id'),
-  cost_resource: json('cost_resource'),
+  cost_resource: json('cost_resource').$type<{ name: string; amount: number }>(),
   fighter_skill_id: uuid('fighter_skill_id'),
 });
 
@@ -700,6 +702,98 @@ export const campaignGangResources = pgTable('campaign_gang_resources', {
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
 });
 
+export const tacticsCards = pgTable('tactics_cards', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  edition_id: uuid('edition_id').notNull(),
+  name: text('name').notNull(),
+  d66_min: smallint('d66_min'),
+  d66_max: smallint('d66_max'),
+  tactics_cards_pack_id: uuid('tactics_cards_pack_id').notNull(),
+});
+
+export const gangTacticsCards = pgTable('gang_tactics_cards', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  gang_id: uuid('gang_id').notNull(),
+  tactics_cards_id: uuid('tactics_cards_id').notNull(),
+  description: text('description'),
+});
+
+export const gangSubtypeTypes = pgTable('gang_subtype_types', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  subtype: text('subtype'),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  edition_id: uuid('edition_id'),
+});
+
+export const profiles = pgTable('profiles', {
+  id: uuid('id').primaryKey(),
+  username: text('username').notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }).default(sql`timezone('utc'::text, now())`).notNull(),
+  user_role: text('user_role').default(sql`'user'::text`),
+  patreon_user_id: text('patreon_user_id'),
+  patron_status: text('patron_status'),
+  patreon_tier_title: text('patreon_tier_title'),
+  patreon_tier_id: text('patreon_tier_id'),
+  patreon_discord_role_ids: text('patreon_discord_role_ids').array(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).default(sql`timezone('utc'::text, now())`),
+});
+
+export const scenarioTableEntries = pgTable('scenario_table_entries', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  edition_id: uuid('edition_id').notNull(),
+  scenario_table_id: uuid('scenario_table_id').notNull(),
+  name: text('name').notNull(),
+  d6_min: smallint('d6_min').notNull(),
+  d6_max: smallint('d6_max').notNull(),
+});
+
+export const battleSessions = pgTable('battle_sessions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  created_by: uuid('created_by').notNull(),
+  campaign_id: uuid('campaign_id'),
+  scenario: text('scenario'),
+  status: text('status').$type<BattleSessionStatus>().default(sql`'''pre_battle''::text'::text`).notNull(),
+  winner_gang_id: uuid('winner_gang_id'),
+  campaign_battle_id: uuid('campaign_battle_id'),
+  round: integer('round').default(1).notNull(),
+  claimed_territory: text('claimed_territory'),
+  edition_id: uuid('edition_id'),
+  deployment_id: uuid('deployment_id'),
+  objective_id: uuid('objective_id'),
+  crew_selection_id: uuid('crew_selection_id'),
+  crew_selection_name: text('crew_selection_name'),
+  deployment_name: text('deployment_name'),
+  objective_name: text('objective_name'),
+});
+
+export const battleSessionParticipants = pgTable('battle_session_participants', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  battle_session_id: uuid('battle_session_id').notNull(),
+  user_id: uuid('user_id').notNull(),
+  gang_id: uuid('gang_id').notNull(),
+  role: text('role').default(sql`'none'::text`).notNull(),
+  gang_rating_snapshot: integer('gang_rating_snapshot'),
+  credits_earned: integer('credits_earned').default(0).notNull(),
+  reputation_change: integer('reputation_change').default(0).notNull(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  ready: boolean('ready').default(false),
+  is_winner: boolean('is_winner').default(false).notNull(),
+  claimed_territory: boolean('claimed_territory').default(false).notNull(),
+  resource_changes: json('resource_changes').default(sql`'[]'::jsonb`).notNull(),
+  side_job_id: uuid('side_job_id'),
+  side_job_completed: boolean('side_job_completed').default(false).notNull(),
+  side_job_name: text('side_job_name'),
+});
+
 // A one() that names its join columns (fields/references) needs nothing more.
 // A many() is matched to the one() pointing back at its table, so where two
 // one()s point at the same table, that pair gets a relationName:
@@ -1025,5 +1119,31 @@ export const fighterLoadoutEquipmentRelations = relations(fighterLoadoutEquipmen
   loadout: one(fighterLoadouts, {
     fields: [fighterLoadoutEquipment.loadout_id],
     references: [fighterLoadouts.id],
+  }),
+}));
+
+export const gangTacticsCardsRelations = relations(gangTacticsCards, ({ one }) => ({
+  tactics_cards: one(tacticsCards, {
+    fields: [gangTacticsCards.tactics_cards_id],
+    references: [tacticsCards.id],
+  }),
+}));
+
+export const battleSessionsRelations = relations(battleSessions, ({ one }) => ({
+  editions: one(editions, {
+    fields: [battleSessions.edition_id],
+    references: [editions.id],
+  }),
+  deployment: one(scenarioTableEntries, {
+    fields: [battleSessions.deployment_id],
+    references: [scenarioTableEntries.id],
+  }),
+  objective: one(scenarioTableEntries, {
+    fields: [battleSessions.objective_id],
+    references: [scenarioTableEntries.id],
+  }),
+  crew_selection: one(scenarioTableEntries, {
+    fields: [battleSessions.crew_selection_id],
+    references: [scenarioTableEntries.id],
   }),
 }));

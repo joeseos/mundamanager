@@ -12,7 +12,7 @@ import {
 import { gangEditionSlug } from '@/types/edition';
 import { isVenatorGang } from '@/utils/venatorSkillAccess';
 import { isUuid } from '@/utils/uuid';
-import { GangTacticsCard, GANG_TACTICS_CARD_SELECT, toGangTacticsCard } from '@/types/tactics-card';
+import { GangTacticsCard, toGangTacticsCard } from '@/types/tactics-card';
 
 // =============================================================================
 // TYPES - Shared interfaces for gang data
@@ -88,9 +88,9 @@ export interface Alliance {
 
 export interface GangStashItem {
   id: string;
-  created_at: string;
-  equipment_id?: string;
-  custom_equipment_id?: string;
+  created_at: string | null;
+  equipment_id?: string | null;
+  custom_equipment_id?: string | null;
   equipment_name: string;
   equipment_type: string;
   equipment_category: string;
@@ -244,17 +244,15 @@ export const getGangCore = async (gangId: string): Promise<GangCore | null> => {
  * and D66 range. Callers gate on hasGangTacticsCards(), not this.
  * Cache: gang-tactics-cards-{id}
  */
-export const getGangTacticsCards = async (gangId: string, supabase: any): Promise<GangTacticsCard[]> => {
+export const getGangTacticsCards = async (gangId: string): Promise<GangTacticsCard[]> => {
   return unstable_cache(
     async () => {
-      const { data, error } = await supabase
-        .from('gang_tactics_cards')
-        .select(GANG_TACTICS_CARD_SELECT)
-        .eq('gang_id', gangId);
-
-      if (error) throw error;
-
-      return (data ?? []).map(toGangTacticsCard);
+      const cards = await getAppDb().query.gangTacticsCards.findMany({
+        columns: { id: true, description: true, tactics_cards_id: true },
+        where: (card, { eq }) => eq(card.gang_id, gangId),
+        with: { tactics_cards: { columns: { name: true, d66_min: true, d66_max: true } } },
+      });
+      return cards.map(toGangTacticsCard);
     },
     [`gang-tactics-cards-${gangId}`],
     {
@@ -290,43 +288,34 @@ export const getGangPositioning = async (gangId: string): Promise<Record<string,
  * Get gang stash equipment
  * Cache: BASE_GANG_STASH
  */
-export const getGangStash = async (gangId: string, supabase: any): Promise<GangStashItem[]> => {
+export const getGangStash = async (gangId: string): Promise<GangStashItem[]> => {
   return unstable_cache(
     async () => {
-      const { data, error } = await supabase
-        .from('fighter_equipment')
-        .select(`
-          id,
-          created_at,
-          equipment_id,
-          custom_equipment_id,
-          purchase_cost,
-          cost_resource,
-          equipment:equipment_id (
-            equipment_name,
-            equipment_type,
-            equipment_category
-          ),
-          custom_equipment:custom_equipment_id (
-            equipment_name,
-            equipment_type,
-            equipment_category
-          )
-        `)
-        .eq('gang_id', gangId)
-        .eq('gang_stash', true);
+      const equipmentColumns = { equipment_name: true, equipment_type: true, equipment_category: true } as const;
+      const items = await getAppDb().query.fighterEquipment.findMany({
+        columns: { id: true, equipment_id: true, custom_equipment_id: true, purchase_cost: true, cost_resource: true },
+        // The row's own timestamp would arrive in Postgres's text form; select it
+        // as JSON for the ISO form the Data API returned
+        extras: (item, { sql }) => ({
+          created_at: sql<string | null>`to_json(${item.created_at})`.as('created_at'),
+        }),
+        where: (item, { and, eq }) => and(eq(item.gang_id, gangId), eq(item.gang_stash, true)),
+        with: {
+          equipment: { columns: equipmentColumns },
+          custom_equipment: { columns: equipmentColumns },
+        },
+      });
 
-      if (error) throw error;
-
-      return (data || []).map((item: any) => ({
+      return items.map((item) => ({
         id: item.id,
         created_at: item.created_at,
         equipment_id: item.equipment_id,
         custom_equipment_id: item.custom_equipment_id,
-        equipment_name: (item.equipment as any)?.equipment_name || (item.custom_equipment as any)?.equipment_name || 'Unknown',
-        equipment_type: (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type || 'unknown',
-        equipment_category: (item.equipment as any)?.equipment_category || (item.custom_equipment as any)?.equipment_category || 'unknown',
-        cost: item.purchase_cost,
+        equipment_name: item.equipment?.equipment_name || item.custom_equipment?.equipment_name || 'Unknown',
+        equipment_type: item.equipment?.equipment_type || item.custom_equipment?.equipment_type || 'unknown',
+        equipment_category: item.equipment?.equipment_category || item.custom_equipment?.equipment_category || 'unknown',
+        // purchase_cost allows NULL, but no stash row has one
+        cost: item.purchase_cost as number,
         type: 'equipment' as const,
         cost_resource: item.cost_resource ?? null
       }));
@@ -343,21 +332,17 @@ export const getGangStash = async (gangId: string, supabase: any): Promise<GangS
  * Get gang type information, resolving between system and custom gang types
  * Cache: GLOBAL_GANG_TYPES (shared, 1 hour revalidation)
  */
-export const getGangType = async (gangBasic: GangBasic, supabase: any): Promise<GangType> => {
-  if (gangBasic.custom_gang_type_id) {
+export const getGangType = async (gangBasic: GangBasic): Promise<GangType> => {
+  const customGangTypeId = gangBasic.custom_gang_type_id;
+  if (customGangTypeId) {
     return unstable_cache(
       async () => {
-        const { data, error } = await supabase
-          .from('custom_gang_types')
-          .select('id, gang_type')
-          .eq('id', gangBasic.custom_gang_type_id)
-          .single();
-
-        if (error) throw error;
-        return {
-          id: data.id,
-          gang_type: data.gang_type,
-        };
+        const type = await getAppDb().query.customGangTypes.findFirst({
+          columns: { id: true, gang_type: true },
+          where: (type, { eq }) => eq(type.id, customGangTypeId),
+        });
+        if (!type) throw new Error(`Custom gang type ${customGangTypeId} not found`);
+        return type;
       },
       [`custom-gang-type-v2-${gangBasic.custom_gang_type_id}`],
       {
@@ -369,19 +354,13 @@ export const getGangType = async (gangBasic: GangBasic, supabase: any): Promise<
 
   return unstable_cache(
     async () => {
-      const { data, error } = await supabase
-        .from('gang_types')
-        .select('id, gang_type, parent_gang_type_name')
-        .eq('id', gangBasic.gang_type_id)
-        .single();
-
-      if (error) throw error;
-
-      return {
-        id: data.id,
-        gang_type: data.gang_type,
-        parent_gang_type_name: data.parent_gang_type_name ?? null,
-      };
+      const type = await getAppDb().query.gangTypes.findFirst({
+        columns: { id: true, gang_type: true, parent_gang_type_name: true },
+        where: (type, { eq }) => eq(type.id, gangBasic.gang_type_id),
+      });
+      if (!type) throw new Error(`Gang type ${gangBasic.gang_type_id} not found`);
+      // gang_types allows a NULL name, but every row has one
+      return { ...type, gang_type: type.gang_type as string };
     },
     [`gang-type-v5-${gangBasic.gang_type_id}`],
     {
@@ -401,18 +380,17 @@ export const getGangTypeConfig = (gangBasic: GangBasic) =>
  * Get gang subtypes
  * Cache: GLOBAL_GANG_TYPES (shared since subtypes rarely change)
  */
-export const getGangSubtypes = async (gangSubtypeIds: string[], supabase: any): Promise<GangSubtype[]> => {
+export const getGangSubtypes = async (gangSubtypeIds: string[]): Promise<GangSubtype[]> => {
   if (!gangSubtypeIds || gangSubtypeIds.length === 0) return [];
   
   return unstable_cache(
     async () => {
-      const { data, error } = await supabase
-        .from('gang_subtype_types')
-        .select('id, subtype')
-        .in('id', gangSubtypeIds);
-
-      if (error) return [];
-      return data || [];
+      const subtypes = await getAppDb().query.gangSubtypeTypes.findMany({
+        columns: { id: true, subtype: true },
+        where: (type, { inArray }) => inArray(type.id, gangSubtypeIds),
+      });
+      // gang_subtype_types allows a NULL name, but every row has one
+      return subtypes as GangSubtype[];
     },
     [`gang-subtypes-${gangSubtypeIds.join('-')}`],
     {
@@ -899,22 +877,22 @@ export const getGangFightersList = async (
  * Get username and patreon tier from user_id
  * Cache: BASE_USER_PROFILE
  */
-export const getUserProfile = async (userId: string, supabase: any): Promise<{ 
+export const getUserProfile = async (userId: string): Promise<{ 
   username: string;
-  patreon_tier_id?: string;
-  patreon_tier_title?: string;
-  patron_status?: string;
+  patreon_tier_id: string | null;
+  patreon_tier_title: string | null;
+  patron_status: string | null;
 } | null> => {
+  // The user breadcrumb passes the id from the URL; Postgres would reject a malformed one
+  if (!isUuid(userId)) return null;
+
   return unstable_cache(
     async () => {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('username, patreon_tier_id, patreon_tier_title, patron_status')
-        .eq('id', userId)
-        .single();
-
-      if (error) return null;
-      return data;
+      const profile = await getAppDb().query.profiles.findFirst({
+        columns: { username: true, patreon_tier_id: true, patreon_tier_title: true, patron_status: true },
+        where: (profile, { eq }) => eq(profile.id, userId),
+      });
+      return profile ?? null;
     },
     [`user-profile-v2-${userId}`],
     {
@@ -952,38 +930,30 @@ export interface GangFighterStats {
 export const sumFighterKills = (fighters: Array<{ kills: number | null }>) =>
   fighters.reduce((sum, f) => sum + (Number(f.kills) || 0), 0);
 
-export const getGangFighterStats = async (
-  gangId: string,
-  supabase: any
-): Promise<GangFighterStats> => {
+export const getGangFighterStats = async (gangId: string): Promise<GangFighterStats> => {
   return unstable_cache(
     async () => {
-      const { data: fighters, error } = await supabase
-        .from('fighters')
-        .select('fighter_name, fighter_type, fighter_subtypes, kills, killed')
-        .eq('gang_id', gangId);
+      const fighterList = await getAppDb().query.fighters.findMany({
+        columns: { fighter_name: true, fighter_type: true, fighter_subtypes: true, kills: true, killed: true },
+        where: (fighter, { eq }) => eq(fighter.gang_id, gangId),
+      });
 
-      if (error) throw error;
-
-      const fighterList = fighters || [];
       const ooaCaused = sumFighterKills(fighterList);
-      const deathsSuffered = fighterList.filter(
-        (f: { killed: boolean }) => f.killed === true
-      ).length;
+      const deathsSuffered = fighterList.filter((f) => f.killed === true).length;
 
       const ooaBreakdown: OoaBreakdownItem[] = fighterList
-        .filter((f: { kills: number }) => (Number(f.kills) || 0) > 0)
-        .map((f: { fighter_name: string; fighter_type?: string; fighter_subtypes?: string[]; kills: number }) => ({
+        .filter((f) => (Number(f.kills) || 0) > 0)
+        .map((f) => ({
           fighter_name: f.fighter_name || 'Unknown',
           fighter_type: f.fighter_type || '—',
           fighter_subtypes: f.fighter_subtypes || [],
           kills: Number(f.kills) || 0
         }))
-        .sort((a: OoaBreakdownItem, b: OoaBreakdownItem) => b.kills - a.kills);
+        .sort((a, b) => b.kills - a.kills);
 
       const deathsBreakdown: DeathsBreakdownItem[] = fighterList
-        .filter((f: { killed: boolean }) => f.killed === true)
-        .map((f: { fighter_name: string; fighter_type?: string; fighter_subtypes?: string[] }) => ({
+        .filter((f) => f.killed === true)
+        .map((f) => ({
           fighter_name: f.fighter_name || 'Unknown',
           fighter_type: f.fighter_type || '—',
           fighter_subtypes: f.fighter_subtypes || []

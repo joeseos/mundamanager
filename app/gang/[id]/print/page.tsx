@@ -70,15 +70,15 @@ export default async function PrintGangPage(props: {
       ownerProfile,
     ] = await Promise.all([
       getGangPositioning(params.id),
-      getGangType(gangBasic, supabase),
+      getGangType(gangBasic),
       getGangFightersList(params.id, {
         expandLoadoutsForPrint: true,
         gangEditionSlug: gangBasic.edition_slug ?? null,
       }),
       getGangCampaigns(params.id),
-      getGangSubtypes(gangBasic.gang_subtypes || [], supabase),
-      getGangStash(params.id, supabase),
-      getUserProfile(gangBasic.user_id, supabase),
+      getGangSubtypes(gangBasic.gang_subtypes || []),
+      getGangStash(params.id),
+      getUserProfile(gangBasic.user_id),
     ]);
 
     // Initialize positioning if needed (lazy initialization only)

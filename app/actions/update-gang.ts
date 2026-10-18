@@ -5,6 +5,7 @@ import { createClient } from "@/utils/supabase/server";
 
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { getAuthenticatedUser } from '@/utils/auth';
+import { isUuidArray } from '@/utils/uuid';
 import { logGangResourceChanges } from './logs/gang-resource-logs';
 import { gangEditionSlug, hasTradePoints } from '@/types/edition';
 import { sanitizeResourceReason } from '@/utils/sanitize-resource-reason';
@@ -80,6 +81,11 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     
     // Ensure the caller is authenticated (RLS handles write permissions)
     await getAuthenticatedUser(supabase);
+
+    // Gang pages look the subtypes up by these ids
+    if (params.gang_subtypes !== undefined && !isUuidArray(params.gang_subtypes)) {
+      return { success: false, error: 'Invalid gang subtypes' };
+    }
 
     // Get gang information (RLS will handle permissions)
     const { data: gang, error: gangError } = await supabase
