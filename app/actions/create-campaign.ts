@@ -20,7 +20,6 @@ export async function createCampaign({ name, campaignTypeId, trading_posts }: Cr
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    // Gang pages look the trading posts up by these ids
     const tradingPosts = trading_posts || [];
     if (!isUuidArray(tradingPosts)) {
       return { success: false, error: 'Invalid trading posts' };
