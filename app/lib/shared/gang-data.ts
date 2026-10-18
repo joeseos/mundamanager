@@ -53,6 +53,7 @@ export interface GangBasic {
   gang_types?: {
     affiliation: boolean;
     gang_origin_category_id?: string;
+    parent_gang_type_name?: string | null;
     gang_origin_categories?: {
       category_name: string;
     } | null;
@@ -72,12 +73,6 @@ export interface GangBasic {
   gang_portrait_url?: string | null;
   hidden: boolean;
   venator_ranks_incomplete?: boolean;
-}
-
-export interface GangType {
-  id: string;
-  gang_type: string;
-  parent_gang_type_name?: string | null;
 }
 
 export interface Alliance {
@@ -186,7 +181,7 @@ function gangCoreQuery(db: AppDb, gangId: string) {
         with: { gang_origin_categories: { columns: { category_name: true } } },
       },
       gang_types: {
-        columns: { affiliation: true, gang_origin_category_id: true },
+        columns: { affiliation: true, gang_origin_category_id: true, parent_gang_type_name: true },
         with: {
           gang_origin_categories: { columns: { category_name: true } },
           editions: { columns: { slug: true } },
@@ -231,7 +226,7 @@ export const getGangCore = async (gangId: string): Promise<GangCore | null> => {
         venator_ranks_incomplete: venatorRanksIncomplete,
       } as GangCore;
     },
-    [`gang-core-v10-${gangId}`],
+    [`gang-core-v11-${gangId}`],
     {
       tags: [TAGS.gang(gangId), TAGS.globalGangTypes(), TAGS.globalGangPortraits()],
       revalidate: false
@@ -312,7 +307,7 @@ export const getGangStash = async (gangId: string): Promise<GangStashItem[]> => 
         equipment_name: item.equipment?.equipment_name || item.custom_equipment?.equipment_name || 'Unknown',
         equipment_type: item.equipment?.equipment_type || item.custom_equipment?.equipment_type || 'unknown',
         equipment_category: item.equipment?.equipment_category || item.custom_equipment?.equipment_category || 'unknown',
-        cost: item.purchase_cost as number,
+        cost: item.purchase_cost ?? 0,
         type: 'equipment' as const,
         cost_resource: item.cost_resource ?? null
       }));
@@ -321,47 +316,6 @@ export const getGangStash = async (gangId: string): Promise<GangStashItem[]> => 
     {
       tags: [TAGS.gangStash(gangId)],
       revalidate: false
-    }
-  )();
-};
-
-/**
- * Get gang type information, resolving between system and custom gang types
- * Cache: GLOBAL_GANG_TYPES (shared, 1 hour revalidation)
- */
-export const getGangType = async (gangBasic: GangBasic): Promise<GangType> => {
-  const customGangTypeId = gangBasic.custom_gang_type_id;
-  if (customGangTypeId) {
-    return unstable_cache(
-      async () => {
-        const type = await getAppDb().query.customGangTypes.findFirst({
-          columns: { id: true, gang_type: true },
-          where: (type, { eq }) => eq(type.id, customGangTypeId),
-        });
-        if (!type) throw new Error(`Custom gang type ${customGangTypeId} not found`);
-        return type;
-      },
-      [`custom-gang-type-v2-${gangBasic.custom_gang_type_id}`],
-      {
-        tags: [TAGS.globalGangTypes()],
-        revalidate: 3600
-      }
-    )();
-  }
-
-  return unstable_cache(
-    async () => {
-      const type = await getAppDb().query.gangTypes.findFirst({
-        columns: { id: true, gang_type: true, parent_gang_type_name: true },
-        where: (type, { eq }) => eq(type.id, gangBasic.gang_type_id),
-      });
-      if (!type) throw new Error(`Gang type ${gangBasic.gang_type_id} not found`);
-      return { ...type, gang_type: type.gang_type as string };
-    },
-    [`gang-type-v5-${gangBasic.gang_type_id}`],
-    {
-      tags: [TAGS.globalGangTypes()],
-      revalidate: 3600
     }
   )();
 };
@@ -385,7 +339,7 @@ export const getGangSubtypes = async (gangSubtypeIds: string[]): Promise<GangSub
         columns: { id: true, subtype: true },
         where: (type, { inArray }) => inArray(type.id, gangSubtypeIds),
       });
-      return subtypes as GangSubtype[];
+      return subtypes.filter((type): type is GangSubtype => type.subtype !== null);
     },
     [`gang-subtypes-${gangSubtypeIds.join('-')}`],
     {

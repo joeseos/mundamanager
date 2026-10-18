@@ -28,7 +28,6 @@ export default async function PrintGangPage(props: {
     const {
       getGangCore,
       getGangPositioning,
-      getGangType,
       getGangTypeConfig,
       getGangFightersList,
       getGangCampaigns,
@@ -62,7 +61,6 @@ export default async function PrintGangPage(props: {
     // Fetch all related data in parallel
     const [
       gangPositioning,
-      gangType,
       fighters,
       campaigns,
       gangSubtypes,
@@ -70,7 +68,6 @@ export default async function PrintGangPage(props: {
       ownerProfile,
     ] = await Promise.all([
       getGangPositioning(params.id),
-      getGangType(gangBasic),
       getGangFightersList(params.id, {
         expandLoadoutsForPrint: true,
         gangEditionSlug: gangBasic.edition_slug ?? null,
@@ -101,7 +98,7 @@ export default async function PrintGangPage(props: {
       name: gangBasic.name,
       gang_type: gangBasic.gang_type,
       gang_type_id: gangBasic.gang_type_id,
-      parent_gang_type_name: gangType.parent_gang_type_name ?? null,
+      parent_gang_type_name: gangTypeConfig?.parent_gang_type_name ?? null,
       image_url: gangBasic.image_url,
       gang_portrait_url: gangBasic.gang_portrait_url ?? null,
       gang_colour: gangBasic.gang_colour,

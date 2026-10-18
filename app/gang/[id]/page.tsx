@@ -7,7 +7,6 @@ import { initializePositioningIfNeeded } from "@/utils/fighter-positioning";
 import {
   getGangCore,
   getGangPositioning,
-  getGangType,
   getGangTypeConfig,
   getGangFightersBundle,
   getGangStash,
@@ -58,7 +57,6 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
     // Fetch all related data in parallel
     const [
       gangPositioning,
-      gangType,
       roster,
       stash,
       campaigns,
@@ -69,7 +67,6 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       tacticsCards
     ] = await Promise.all([
       getGangPositioning(params.id),
-      getGangType(gangBasic),
       // Assembled inside the batch so the CPU pass overlaps the remaining
       // queries rather than landing on the critical path after all ten resolve.
       getGangFightersBundle(params.id).then((bundle) => ({
@@ -112,7 +109,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       image_url: gangBasic.image_url,
       gang_portrait_id: gangBasic.gang_portrait_id ?? null,
       gang_portrait_url: gangBasic.gang_portrait_url ?? null,
-      parent_gang_type_name: gangType.parent_gang_type_name ?? null,
+      parent_gang_type_name: gangTypeConfig?.parent_gang_type_name ?? null,
       gang_colour: gangBasic.gang_colour,
       credits: gangBasic.credits,
       reputation: gangBasic.reputation,
