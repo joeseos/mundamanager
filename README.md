@@ -619,6 +619,8 @@ gateway log entries, which Supabase bills as Logs Ingest. These are read this wa
   `utils/user-permissions.ts`)
 - the fighter's own row and its total cost (`getFighterBasic` and
   `getFighterTotalCost` in `app/lib/shared/fighter-data.ts`)
+- the user's custom equipment, fighter types, skills, gang types, trading posts
+  and collections in `app/lib/customise`
 
 The files:
 

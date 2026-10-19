@@ -724,7 +724,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     // The selected equipment IDs will be set below, and the equipment list will be loaded via API
 
     // Pre-populate the form with existing data
-    setFighterType(fighter.fighter_type);
+    setFighterType(fighter.fighter_type ?? '');
     setCost(fighter.cost?.toString() || '');
     setSelectedGangType(fighter.custom_gang_type_id || fighter.gang_type_id || '');
 
@@ -894,7 +894,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         const result = await createCustomFighter(newFighter);
         
         if (result.success) {
-          toast.success("Success", { description: `${copyModalData.fighter_type} has been copied to your custom fighters.` });
+          toast.success("Success", { description: `${copyModalData.fighter_type || 'Unnamed'} has been copied to your custom fighters.` });
           setCopyModalData(null);
           return true;
         } else {

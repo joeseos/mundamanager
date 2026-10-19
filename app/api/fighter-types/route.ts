@@ -9,7 +9,7 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 // Fetch the user's own custom fighters plus any shared with them through campaigns,
 // de-duplicated by id.
 async function getCombinedCustomFighters(supabase: SupabaseServerClient, userId: string) {
-  const customFighters = await getUserCustomFighterTypes(userId, supabase);
+  const customFighters = await getUserCustomFighterTypes(userId);
 
   // Fetch shared custom fighters from campaigns the user is a member of
   const { data: campaignMembers } = await supabase

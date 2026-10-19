@@ -157,7 +157,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
     setEditModalData(skill);
     const isCustomType = !!skill.custom_skill_type_id;
     setEditForm({
-      skill_name: skill.skill_name,
+      skill_name: skill.skill_name ?? '',
       skill_type_id: skill.custom_skill_type_id || skill.skill_type_id || '',
       is_custom_type: isCustomType,
       description: skill.description || null,
@@ -246,7 +246,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
           : { skill_type_id: copyModalData.skill_type_id }
         ),
       });
-      toast.success(`${copyModalData.skill_name} has been copied to your custom skills.`);
+      toast.success(`${copyModalData.skill_name || 'Unnamed'} has been copied to your custom skills.`);
       return true;
     } catch (error) {
       console.error('Error copying skill:', error);
@@ -520,7 +520,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
   };
 
   const sortSkills = (a: CustomSkill, b: CustomSkill) => {
-    return a.skill_name.localeCompare(b.skill_name);
+    return (a.skill_name ?? '').localeCompare(b.skill_name ?? '');
   };
 
   return (
