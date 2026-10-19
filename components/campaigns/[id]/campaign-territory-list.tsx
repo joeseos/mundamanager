@@ -623,21 +623,21 @@ export default function CampaignTerritoryList({
                 {sortIndicator('ref')}
               </th>
               <th 
-                className="w-1/3 px-2 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
+                className="w-2/5 px-2 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
                 onClick={() => handleSort('territory')}
               >
                 Territory
                 {sortIndicator('territory')}
               </th>
               <th 
-                className="w-1/3 px-2 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
+                className="w-2/5 px-2 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
                 onClick={() => handleSort('controllingGang')}
               >
                 Controlled by
                 {sortIndicator('controllingGang')}
               </th>
               <th 
-                className="w-1/3 px-2 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
+                className="px-2 py-2 text-right font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
                 onClick={() => handleSort('credits')}
               >
                 Credits
