@@ -34,7 +34,6 @@ const FighterXpModal = dynamic(
   () => import('@/components/fighter/fighter-xp-modal').then((mod) => mod.FighterXpModal),
   { ssr: false }
 );
-const CollectIncome = dynamic(() => import('@/components/gang/collect-income'), { ssr: false });
 const PostCycleActions = dynamic(() => import('@/components/gang/post-cycle-actions'), { ssr: false });
 
 interface GangPageContentProps {
@@ -755,28 +754,21 @@ export default function GangPageContent({
             editionSlug={gangData.processedData.edition_slug}
           />
           {hasPostCycleActions(gangData.processedData.edition_slug) && gangCampaigns.length > 0 && (
-            <>
-              <CollectIncome
-                gangId={gangId}
-                gangReputation={gangData.processedData.reputation}
-                userPermissions={userPermissions}
-                onGangFinancialsUpdate={handleGangFinancialsUpdate}
-              />
-              <PostCycleActions
-                gangId={gangId}
-                editionSlug={gangData.processedData.edition_slug}
-                fighters={gangData.processedData.fighters}
-                gangCredits={gangData.processedData.credits}
-                gangType={gangData.processedData.gang_type}
-                isCustomGangType={Boolean(gangData.processedData.custom_gang_type_id)}
-                gangSubtypes={gangData.processedData.gang_subtypes || []}
-                tacticsCards={gangData.processedData.tacticsCards || []}
-                userPermissions={userPermissions}
-                onFighterUpdate={handleFighterUpdate}
-                onGangFinancialsUpdate={handleGangFinancialsUpdate}
-                onTacticsCardAdded={handleTacticsCardAdded}
-              />
-            </>
+            <PostCycleActions
+              gangId={gangId}
+              editionSlug={gangData.processedData.edition_slug}
+              fighters={gangData.processedData.fighters}
+              gangCredits={gangData.processedData.credits}
+              gangReputation={gangData.processedData.reputation}
+              gangType={gangData.processedData.gang_type}
+              isCustomGangType={Boolean(gangData.processedData.custom_gang_type_id)}
+              gangSubtypes={gangData.processedData.gang_subtypes || []}
+              tacticsCards={gangData.processedData.tacticsCards || []}
+              userPermissions={userPermissions}
+              onFighterUpdate={handleFighterUpdate}
+              onGangFinancialsUpdate={handleGangFinancialsUpdate}
+              onTacticsCardAdded={handleTacticsCardAdded}
+            />
           )}
         </div>
       ),
