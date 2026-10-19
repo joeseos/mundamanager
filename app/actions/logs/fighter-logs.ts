@@ -27,7 +27,7 @@ export interface FighterLogParams {
   /** OOA/kills values for combined XP+OOA log line */
   old_ooa?: number;
   new_ooa?: number;
-  /** XP values for the XP line of a Starting XP change, which moves XP with it */
+  /** XP values for the summary line of a Starting XP change, which moves XP with it */
   old_xp?: number;
   new_xp?: number;
   /** Gang's edition, for descriptions whose wording the edition renames. */
@@ -122,10 +122,13 @@ export async function logFighterAction(params: FighterLogParams): Promise<GangLo
         description = `Fighter "${params.fighter_name}" total XP changed from ${params.old_value || 0} to ${params.new_value || 0}`;
         break;
       case 'fighter_starting_xp_changed': {
-        const xpLine = params.old_xp !== undefined && params.new_xp !== undefined && params.old_xp !== params.new_xp
-          ? `\nXP: ${params.old_xp} → ${params.new_xp}`
-          : '';
-        description = `Fighter "${params.fighter_name}" Starting XP changed from ${params.old_value ?? 'N/A'} to ${params.new_value ?? 'N/A'}${xpLine}`;
+        const oldStartingXp = params.old_value ?? 'N/A';
+        const newStartingXp = params.new_value ?? 'N/A';
+        const summaryParts: string[] = [`Starting XP: ${oldStartingXp} → ${newStartingXp}`];
+        if (params.old_xp !== undefined && params.new_xp !== undefined && params.old_xp !== params.new_xp) {
+          summaryParts.push(`XP: ${params.old_xp} → ${params.new_xp}`);
+        }
+        description = `Fighter "${params.fighter_name}" Starting XP has been set to ${newStartingXp}\n${summaryParts.join(' | ')}`;
         break;
       }
       case 'fighter_kills_changed':
