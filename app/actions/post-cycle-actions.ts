@@ -574,16 +574,12 @@ export async function collectReputationIncome(
     const financials = await updateGangFinancials(supabase, { gangId, creditsDelta: credits });
     if (!financials.success) return { success: false, error: financials.error };
 
-    try {
-      await logPostCycleAction({
-        gang_id: gangId,
-        action: 'collect_income',
-        outcome: `Gained ${credits} credits from ${gang.reputation} Reputation.`,
-        user_id: user.id,
-      });
-    } catch (logError) {
-      console.error('Failed to log Reputation income:', logError);
-    }
+    await logPostCycleAction({
+      gang_id: gangId,
+      action: 'collect_income',
+      outcome: `Gained ${credits} credits from ${gang.reputation} Reputation.`,
+      user_id: user.id,
+    });
 
     return { success: true, gang: financials.newValues };
   } catch (error) {
