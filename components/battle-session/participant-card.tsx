@@ -1250,6 +1250,7 @@ export default function ParticipantCard({
   const [localFighters, setLocalFighters] = useState<BattleSessionFighter[]>(participant.fighters);
   const [showCrewModal, setShowCrewModal] = useState(false);
   const [showParticipationModal, setShowParticipationModal] = useState(false);
+  const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [tradingPostRoll, setTradingPostRoll] = useState<{ dice: number[]; total: number; modifier: number; grandTotal: number } | null>(null);
   const [tradingPostModifier, setTradingPostModifier] = useState('');
   const [localRole, setLocalRole] = useState<'attacker' | 'defender' | 'none'>(participant.role);
@@ -1801,7 +1802,7 @@ export default function ParticipantCard({
                 <Button
                   variant="outline_remove"
                   size="icon"
-                  onClick={() => removeMutation.mutate()}
+                  onClick={() => setShowRemoveModal(true)}
                   disabled={removeMutation.isPending}
                   title="Remove gang"
                   aria-label="Remove gang"
@@ -1848,6 +1849,23 @@ export default function ParticipantCard({
               ? (completed) => handleSideJobChange({ ...localSideJob, completed }, setSideJobCompleted(session.id, participant.id, completed))
               : undefined}
           />
+        )}
+        {showRemoveModal && createPortal(
+          <Modal
+            title="Remove Gang"
+            onClose={() => setShowRemoveModal(false)}
+            onConfirm={async () => {
+              removeMutation.mutate();
+              return true;
+            }}
+            confirmText="Remove Gang"
+            confirmDisabled={removeMutation.isPending}
+          >
+            <p>
+              Are you sure you want to remove <strong>{participant.gang?.name ?? 'this gang'}</strong> from this battle?
+            </p>
+          </Modal>,
+          document.body
         )}
         {showCrewModal && (
           <CrewSelectionModal
