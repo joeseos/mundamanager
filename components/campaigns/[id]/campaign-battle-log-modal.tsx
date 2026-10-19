@@ -743,9 +743,7 @@ const CampaignBattleLogModal = ({
       scenarioName = customScenario.trim();
     } else {
       const selectedScenarioObj = scenarios.find(s => s.id === selectedScenario);
-      scenarioName = selectedScenarioObj
-        ? selectedScenarioObj.scenario_name
-        : '';
+      scenarioName = selectedScenarioObj?.scenario_name ?? '';
     }
 
     // Validate and prepare cycle value

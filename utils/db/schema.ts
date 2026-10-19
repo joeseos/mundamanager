@@ -15,7 +15,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 import type { BattleSessionParticipant, BattleSessionStatus, SessionRecord } from '@/types/battle-session';
-import type { BattleParticipant, BattleStatus } from '@/types/campaign';
+import type { BattleParticipant, BattleStatus, ScenarioTableType } from '@/types/campaign';
 
 /**
  * Drizzle schema for the tables read over the direct database connection
@@ -220,6 +220,15 @@ export const editions = pgTable('editions', {
   is_current: boolean('is_current').default(false).notNull(),
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+});
+
+export const userGuides = pgTable('user_guides', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  edition_id: uuid('edition_id').notNull(),
+  content: text('content').default('').notNull(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  updated_by: uuid('updated_by'),
 });
 
 export const fighterSpecialisations = pgTable('fighter_specialisations', {
@@ -570,8 +579,17 @@ export const campaignTypes = pgTable('campaign_types', {
   campaign_type_name: text('campaign_type_name'),
   description: text('description'),
   image_url: text('image_url'),
-  trading_posts: json('trading_posts'),
+  trading_posts: json('trading_posts').$type<string[]>(),
   edition_id: uuid('edition_id'),
+});
+
+export const campaignTriumphs = pgTable('campaign_triumphs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  triumph: text('triumph'),
+  criteria: text('criteria'),
+  campaign_type_id: uuid('campaign_type_id'),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
 });
 
 export const campaigns = pgTable('campaigns', {
@@ -742,6 +760,16 @@ export const profiles = pgTable('profiles', {
   patreon_tier_id: text('patreon_tier_id'),
   patreon_discord_role_ids: text('patreon_discord_role_ids').array(),
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).default(sql`timezone('utc'::text, now())`),
+});
+
+export const scenarioTables = pgTable('scenario_tables', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  edition_id: uuid('edition_id').notNull(),
+  gang_type_id: uuid('gang_type_id'),
+  table_type: text('table_type').$type<ScenarioTableType>().notNull(),
+  name: text('name').notNull(),
 });
 
 export const scenarioTableEntries = pgTable('scenario_table_entries', {
@@ -1345,6 +1373,49 @@ export const campaignMapObjectsRelations = relations(campaignMapObjects, ({ one 
   campaign_map: one(campaignMaps, {
     fields: [campaignMapObjects.campaign_map_id],
     references: [campaignMaps.id],
+  }),
+}));
+
+export const scenarioTablesRelations = relations(scenarioTables, ({ one, many }) => ({
+  editions: one(editions, {
+    fields: [scenarioTables.edition_id],
+    references: [editions.id],
+  }),
+  entries: many(scenarioTableEntries),
+}));
+
+export const scenarioTableEntriesRelations = relations(scenarioTableEntries, ({ one }) => ({
+  scenario_table: one(scenarioTables, {
+    fields: [scenarioTableEntries.scenario_table_id],
+    references: [scenarioTables.id],
+  }),
+}));
+
+export const scenariosRelations = relations(scenarios, ({ one }) => ({
+  editions: one(editions, {
+    fields: [scenarios.edition_id],
+    references: [editions.id],
+  }),
+}));
+
+export const tradingPostTypesRelations = relations(tradingPostTypes, ({ one }) => ({
+  editions: one(editions, {
+    fields: [tradingPostTypes.edition_id],
+    references: [editions.id],
+  }),
+}));
+
+export const territoriesRelations = relations(territories, ({ one }) => ({
+  editions: one(editions, {
+    fields: [territories.edition_id],
+    references: [editions.id],
+  }),
+}));
+
+export const userGuidesRelations = relations(userGuides, ({ one }) => ({
+  editions: one(editions, {
+    fields: [userGuides.edition_id],
+    references: [editions.id],
   }),
 }));
 

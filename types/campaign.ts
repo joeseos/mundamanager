@@ -235,7 +235,7 @@ export interface CampaignTerritory {
  */
 export interface Scenario {
   id: string;
-  scenario_name: string;
+  scenario_name: string | null;
   scenario_number: number | null;
   edition_slug?: string | null;
 }
@@ -426,7 +426,7 @@ export interface Member {
  */
 export interface UserCampaign {
   id: string;
-  campaign_name: string;
+  campaign_name: string | null;
   status: string | null;
   /** Derived from campaign_types; campaigns carry no edition of their own. */
   edition_slug: string | null;
@@ -442,7 +442,7 @@ export interface CampaignTypeResource {
 
 export interface CampaignType {
   id: string;
-  campaign_type_name: string;
+  campaign_type_name: string | null;
   image_url?: string | null;
   trading_posts?: string[] | null;
   /** edition_id is written by the admin editor; edition_slug is what app code
