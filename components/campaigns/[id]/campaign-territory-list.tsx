@@ -620,20 +620,20 @@ export default function CampaignTerritoryList({
                 {sortIndicator('ref')}
               </th>
               <th 
-                className="w-2/5 px-2 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
+                className="w-1/3 px-2 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
                 onClick={() => handleSort('territory')}
               >
                 Territory
                 {sortIndicator('territory')}
               </th>
               <th 
-                className="w-2/5 px-2 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
+                className="w-1/3 px-2 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
                 onClick={() => handleSort('controllingGang')}
               >
                 Controlled by
                 {sortIndicator('controllingGang')}
               </th>
-              <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
+              <th className="w-1/3 px-2 py-2 text-left font-medium whitespace-nowrap">
                 Credits
               </th>
               <th className="p-1 md:p-2 text-left font-medium whitespace-nowrap">
@@ -727,7 +727,7 @@ export default function CampaignTerritoryList({
                       ) : null}
                     </div>
                   </td>
-                  <td className="px-2 py-2 text-right">
+                  <td className="px-2 py-2">
                     {item.territory.credits ?? ''}
                   </td>
                   <td className="p-1 md:p-2 align-top">
