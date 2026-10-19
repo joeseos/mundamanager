@@ -1804,6 +1804,7 @@ export default function ParticipantCard({
                   onClick={() => removeMutation.mutate()}
                   disabled={removeMutation.isPending}
                   title="Remove gang"
+                  aria-label="Remove gang"
                 >
                   <LuTrash2 className="h-4 w-4" />
                 </Button>

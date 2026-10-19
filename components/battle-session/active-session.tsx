@@ -207,7 +207,7 @@ export default function ActiveSession({
               <p className="text-sm text-neutral-500">{session.campaign_name}</p>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {canManage && (
               <>
                 {isPreBattle && (
