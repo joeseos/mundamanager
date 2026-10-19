@@ -6,6 +6,7 @@ import { getAppDb } from '@/utils/db/client';
 import { battleSessionParticipants, battleSessions } from '@/utils/db/schema';
 import { normalizeSessionRecord, type BattleSession, type BattleSessionFull } from '@/types/battle-session';
 import { getCampaignResources } from '@/app/lib/campaigns/[id]/get-campaign-data';
+import { withEditionSlug } from '@/types/edition';
 import { isUuid } from '@/utils/uuid';
 
 /** N26: the names of a session's Deployment, Objective and Crew, for display. */
@@ -28,13 +29,6 @@ const SESSION_ROW = {
     crew_selection: { columns: { name: true } },
   },
 } as const;
-
-// The edition slug is flattened in the loaders rather than in the page: the
-// realtime hook refetches through fetchBattleSessionDirect, so a field merged
-// downstream would render once and then disappear on the first refresh.
-function withEditionSlug<T extends { editions: { slug: string } | null }>({ editions, ...session }: T) {
-  return { ...session, edition_slug: editions?.slug ?? null };
-}
 
 export async function fetchBattleSessionDirect(sessionId: string): Promise<BattleSessionFull | null> {
   if (!isUuid(sessionId)) return null;
@@ -76,6 +70,9 @@ export async function fetchBattleSessionDirect(sessionId: string): Promise<Battl
   });
   if (!session) return null;
 
+  // The edition slug is flattened here rather than in the page: the realtime
+  // hook refetches through this function, so a field merged downstream would
+  // render once and then disappear on the first refresh.
   const { campaign, participants, ...sessionRow } = session;
   const sessionBase = { ...withEditionSlug(sessionRow), campaign_name: campaign?.campaign_name };
 
