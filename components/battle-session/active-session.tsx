@@ -451,7 +451,6 @@ export default function ActiveSession({
             setShowRevertRoundModal(false);
             return true;
           }}
-          confirmText="Revert Round"
           confirmDisabled={revertRoundMutation.isPending}
         >
           <p>Go back to round {session.round - 1}? All fighters still in play will be reactivated.</p>
