@@ -18,24 +18,24 @@ const startingXpFor = (value?: number | null): number | null =>
   value === undefined ? 0 : value;
 
 export interface CreateCustomFighterData {
-  fighter_type: string;
+  fighter_type: string | null;
   gang_type: string;
   gang_type_id?: string;
   custom_gang_type_id?: string;
-  cost: number;
+  cost: number | null;
   description?: string | null;
-  movement?: number;
-  weapon_skill?: number;
-  ballistic_skill?: number;
-  strength?: number;
-  toughness?: number;
-  wounds?: number;
-  initiative?: number;
-  attacks?: number;
-  leadership?: number;
-  cool?: number;
-  willpower?: number;
-  intelligence?: number;
+  movement?: number | null;
+  weapon_skill?: number | null;
+  ballistic_skill?: number | null;
+  strength?: number | null;
+  toughness?: number | null;
+  wounds?: number | null;
+  initiative?: number | null;
+  attacks?: number | null;
+  leadership?: number | null;
+  cool?: number | null;
+  willpower?: number | null;
+  intelligence?: number | null;
   save?: number | null;
   starting_xp?: number | null;
   is_vehicle?: boolean;

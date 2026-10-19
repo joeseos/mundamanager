@@ -47,12 +47,12 @@ export default async function Home() {
   ] = await Promise.all([
     getUserGangs(user.id),
     getUserCampaigns(user.id),
-    getUserCustomEquipment(user.id, supabase),
-    getUserCustomFighterTypes(user.id, supabase),
-    getUserCustomSkills(user.id, supabase),
-    getUserCustomGangTypes(user.id, supabase),
-    getUserCustomTradingPosts(user.id, supabase),
-    getUserCustomCollections(user.id, supabase)
+    getUserCustomEquipment(user.id),
+    getUserCustomFighterTypes(user.id),
+    getUserCustomSkills(user.id),
+    getUserCustomGangTypes(user.id),
+    getUserCustomTradingPosts(user.id),
+    getUserCustomCollections(user.id)
   ]);
   
   // Reference data for the create-campaign modal and the user's share-modal

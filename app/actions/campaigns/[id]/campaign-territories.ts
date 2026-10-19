@@ -272,7 +272,7 @@ export async function addTerritoryToCampaign(params: AddTerritoryParams) {
           .single(),
         supabase
           .from('territories')
-          .select('territory_name, playing_card, editions:edition_id(slug)')
+          .select('territory_name, playing_card, credits, editions:edition_id(slug)')
           .eq('id', territoryId)
           .maybeSingle(),
       ]);
@@ -320,7 +320,7 @@ export async function addTerritoryToCampaign(params: AddTerritoryParams) {
 
     return {
       success: true,
-      data: shapeCampaignTerritory(data, templateTerritory.territory_name)
+      data: shapeCampaignTerritory(data, templateTerritory)
     };
   } catch (error) {
     console.error('Error adding territory to campaign:', error);

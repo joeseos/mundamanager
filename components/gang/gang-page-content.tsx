@@ -169,6 +169,16 @@ export default function GangPageContent({
     []
   );
 
+  const handleGangReputationUpdate = useCallback((newReputation: number) => {
+    setGangData((prev: GangDataState) => ({
+      ...prev,
+      processedData: {
+        ...prev.processedData,
+        reputation: newReputation
+      }
+    }));
+  }, []);
+
   const handleGangTradePointsUpdate = useCallback((newTradePoints: number) => {
     setGangData((prev: GangDataState) => ({
       ...prev,
@@ -674,6 +684,7 @@ export default function GangPageContent({
             onGangCreditsUpdate={handleGangCreditsUpdate}
             onGangWealthUpdate={handleGangWealthUpdate}
             onGangRatingUpdate={handleGangRatingUpdate}
+            onGangReputationUpdate={handleGangReputationUpdate}
             gang_subtypes={gangData.processedData.gang_subtypes}
             vehicles={gangData.processedData.vehicles || []}
             userPermissions={userPermissions}
@@ -748,6 +759,7 @@ export default function GangPageContent({
               editionSlug={gangData.processedData.edition_slug}
               fighters={gangData.processedData.fighters}
               gangCredits={gangData.processedData.credits}
+              gangReputation={gangData.processedData.reputation}
               gangType={gangData.processedData.gang_type}
               isCustomGangType={Boolean(gangData.processedData.custom_gang_type_id)}
               gangSubtypes={gangData.processedData.gang_subtypes || []}

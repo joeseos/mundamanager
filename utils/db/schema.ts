@@ -16,6 +16,7 @@ import {
 import { relations, sql } from 'drizzle-orm';
 import type { BattleSessionParticipant, BattleSessionStatus, SessionRecord } from '@/types/battle-session';
 import type { BattleParticipant, BattleStatus, ScenarioTableType } from '@/types/campaign';
+import type { CollectionItem } from '@/app/actions/customise/custom-collections';
 
 /**
  * Drizzle schema for the tables read over the direct database connection
@@ -199,17 +200,37 @@ export const customFighterTypes = pgTable('custom_fighter_types', {
   willpower: numeric('willpower', { mode: 'number' }),
   intelligence: numeric('intelligence', { mode: 'number' }),
   gang_type_id: uuid('gang_type_id'),
-  special_rules: json('special_rules'),
+  special_rules: json('special_rules').$type<string[]>(),
   free_skill: boolean('free_skill'),
   user_id: uuid('user_id'),
   custom_gang_type_id: uuid('custom_gang_type_id'),
   description: text('description'),
   edition_id: uuid('edition_id').notNull(),
   save: numeric('save', { mode: 'number' }),
-  fighter_subtypes: json('fighter_subtypes').default(sql`'[]'::jsonb`).notNull(),
+  fighter_subtypes: json('fighter_subtypes').$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
   starting_xp: numeric('starting_xp', { mode: 'number' }),
   is_vehicle: boolean('is_vehicle').default(false).notNull(),
   fighter_variant: text('fighter_variant'),
+});
+
+export const fighterTypeSkillAccess = pgTable('fighter_type_skill_access', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  fighter_type_id: uuid('fighter_type_id'),
+  skill_type_id: uuid('skill_type_id'),
+  access_level: text('access_level').$type<'primary' | 'secondary' | 'allowed'>().notNull(),
+  custom_fighter_type_id: uuid('custom_fighter_type_id'),
+  custom_skill_type_id: uuid('custom_skill_type_id'),
+});
+
+export const fighterDefaults = pgTable('fighter_defaults', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  fighter_type_id: uuid('fighter_type_id'),
+  equipment_id: uuid('equipment_id'),
+  skill_id: uuid('skill_id'),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  custom_fighter_type_id: uuid('custom_fighter_type_id'),
+  custom_equipment_id: uuid('custom_equipment_id'),
 });
 
 export const editions = pgTable('editions', {
@@ -368,6 +389,16 @@ export const customWeaponProfiles = pgTable('custom_weapon_profiles', {
   lethality: text('lethality'),
 });
 
+export const customFighterTypeEquipment = pgTable('custom_fighter_type_equipment', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  equipment_id: uuid('equipment_id'),
+  custom_equipment_id: uuid('custom_equipment_id'),
+  custom_fighter_type_id: uuid('custom_fighter_type_id'),
+  user_id: uuid('user_id'),
+});
+
 export const fighterSkills = pgTable('fighter_skills', {
   id: uuid('id').defaultRandom().primaryKey(),
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -381,6 +412,15 @@ export const fighterSkills = pgTable('fighter_skills', {
   user_id: uuid('user_id'),
   fighter_effect_skill_id: uuid('fighter_effect_skill_id'),
   custom_skill_id: uuid('custom_skill_id'),
+});
+
+export const skillTypes = pgTable('skill_types', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  name: text('name').notNull(),
+  legendary_name: boolean('legendary_name').default(false).notNull(),
+  edition_id: uuid('edition_id'),
 });
 
 export const skills = pgTable('skills', {
@@ -404,6 +444,15 @@ export const customSkills = pgTable('custom_skills', {
   skill_type_id: uuid('skill_type_id'),
   custom_skill_type_id: uuid('custom_skill_type_id'),
   description: text('description'),
+});
+
+export const customSkillTypes = pgTable('custom_skill_types', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  name: text('name'),
+  user_id: uuid('user_id'),
+  edition_id: uuid('edition_id').notNull(),
 });
 
 export const fighterEffectSkills = pgTable('fighter_effect_skills', {
@@ -832,6 +881,7 @@ export const territories = pgTable('territories', {
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
   playing_card: text('playing_card'),
   edition_id: uuid('edition_id'),
+  credits: numeric('credits', { mode: 'number' }),
 });
 
 export const scenarios = pgTable('scenarios', {
@@ -903,6 +953,17 @@ export const customShared = pgTable('custom_shared', {
   custom_trading_post_id: uuid('custom_trading_post_id'),
   custom_collection_id: uuid('custom_collection_id'),
   edition_id: uuid('edition_id').notNull(),
+});
+
+export const customCollections = pgTable('custom_collections', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  user_id: uuid('user_id').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  items: json('items').$type<CollectionItem[]>().default(sql`'[]'::jsonb`).notNull(),
+  edition_id: uuid('edition_id'),
 });
 
 // A one() that names its join columns (fields/references) needs nothing more.
@@ -1119,6 +1180,47 @@ export const customFighterTypesRelations = relations(customFighterTypes, ({ one 
     fields: [customFighterTypes.edition_id],
     references: [editions.id],
   }),
+  custom_gang_type: one(customGangTypes, {
+    fields: [customFighterTypes.custom_gang_type_id],
+    references: [customGangTypes.id],
+  }),
+}));
+
+export const fighterTypeSkillAccessRelations = relations(fighterTypeSkillAccess, ({ one }) => ({
+  skill_type: one(skillTypes, {
+    fields: [fighterTypeSkillAccess.skill_type_id],
+    references: [skillTypes.id],
+  }),
+  custom_skill_type: one(customSkillTypes, {
+    fields: [fighterTypeSkillAccess.custom_skill_type_id],
+    references: [customSkillTypes.id],
+  }),
+}));
+
+export const fighterDefaultsRelations = relations(fighterDefaults, ({ one }) => ({
+  skill: one(skills, {
+    fields: [fighterDefaults.skill_id],
+    references: [skills.id],
+  }),
+  equipment: one(equipment, {
+    fields: [fighterDefaults.equipment_id],
+    references: [equipment.id],
+  }),
+  custom_equipment: one(customEquipment, {
+    fields: [fighterDefaults.custom_equipment_id],
+    references: [customEquipment.id],
+  }),
+}));
+
+export const customFighterTypeEquipmentRelations = relations(customFighterTypeEquipment, ({ one }) => ({
+  equipment: one(equipment, {
+    fields: [customFighterTypeEquipment.equipment_id],
+    references: [equipment.id],
+  }),
+  custom_equipment: one(customEquipment, {
+    fields: [customFighterTypeEquipment.custom_equipment_id],
+    references: [customEquipment.id],
+  }),
 }));
 
 export const vehiclesRelations = relations(vehicles, ({ one, many }) => ({
@@ -1164,14 +1266,43 @@ export const weaponProfilesRelations = relations(weaponProfiles, ({ one }) => ({
   }),
 }));
 
-export const customEquipmentRelations = relations(customEquipment, ({ many }) => ({
+export const customEquipmentRelations = relations(customEquipment, ({ one, many }) => ({
   custom_weapon_profiles: many(customWeaponProfiles),
+  editions: one(editions, {
+    fields: [customEquipment.edition_id],
+    references: [editions.id],
+  }),
 }));
 
 export const customWeaponProfilesRelations = relations(customWeaponProfiles, ({ one }) => ({
   custom_equipment: one(customEquipment, {
     fields: [customWeaponProfiles.custom_equipment_id],
     references: [customEquipment.id],
+  }),
+}));
+
+export const skillTypesRelations = relations(skillTypes, ({ one }) => ({
+  editions: one(editions, {
+    fields: [skillTypes.edition_id],
+    references: [editions.id],
+  }),
+}));
+
+export const customSkillsRelations = relations(customSkills, ({ one }) => ({
+  skill_type: one(skillTypes, {
+    fields: [customSkills.skill_type_id],
+    references: [skillTypes.id],
+  }),
+  custom_skill_type: one(customSkillTypes, {
+    fields: [customSkills.custom_skill_type_id],
+    references: [customSkillTypes.id],
+  }),
+}));
+
+export const customSkillTypesRelations = relations(customSkillTypes, ({ one }) => ({
+  editions: one(editions, {
+    fields: [customSkillTypes.edition_id],
+    references: [editions.id],
   }),
 }));
 
@@ -1418,6 +1549,13 @@ export const customSharedRelations = relations(customShared, ({ one }) => ({
 export const customTradingPostsRelations = relations(customTradingPosts, ({ one }) => ({
   editions: one(editions, {
     fields: [customTradingPosts.edition_id],
+    references: [editions.id],
+  }),
+}));
+
+export const customCollectionsRelations = relations(customCollections, ({ one }) => ({
+  editions: one(editions, {
+    fields: [customCollections.edition_id],
     references: [editions.id],
   }),
 }));
