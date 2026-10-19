@@ -623,27 +623,27 @@ export default function CampaignTerritoryList({
                 {sortIndicator('ref')}
               </th>
               <th 
-                className="w-1/3 px-2 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
+                className="w-1/4 px-2 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
                 onClick={() => handleSort('territory')}
               >
                 Territory
                 {sortIndicator('territory')}
               </th>
               <th 
-                className="w-1/3 px-2 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
+                className="w-1/4 px-2 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
                 onClick={() => handleSort('controllingGang')}
               >
                 Controlled by
                 {sortIndicator('controllingGang')}
               </th>
               <th 
-                className="w-1/3 px-2 py-2 text-right font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
+                className="w-1/4 px-2 py-2 text-right font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
                 onClick={() => handleSort('credits')}
               >
                 Credits
                 {sortIndicator('credits')}
               </th>
-              <th className="p-1 md:p-2 text-left font-medium whitespace-nowrap">
+              <th className="w-1/4 pl-10 pr-2 py-2 text-left font-medium whitespace-nowrap">
                 <span className="hidden sm:inline">Description</span>
                 <span className="sm:hidden">Desc.</span>
               </th>
@@ -737,7 +737,7 @@ export default function CampaignTerritoryList({
                   <td className="px-2 py-2 text-right">
                     {item.territory.credits ?? ''}
                   </td>
-                  <td className="p-1 md:p-2 align-top">
+                  <td className="pl-10 pr-2 py-2 align-top">
                     {item.territory.description?.trim() && (
                       <span
                         className="inline-flex text-muted-foreground hover:text-foreground cursor-help"
