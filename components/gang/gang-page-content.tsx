@@ -748,6 +748,7 @@ export default function GangPageContent({
               editionSlug={gangData.processedData.edition_slug}
               fighters={gangData.processedData.fighters}
               gangCredits={gangData.processedData.credits}
+              gangReputation={gangData.processedData.reputation}
               gangType={gangData.processedData.gang_type}
               isCustomGangType={Boolean(gangData.processedData.custom_gang_type_id)}
               gangSubtypes={gangData.processedData.gang_subtypes || []}

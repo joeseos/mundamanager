@@ -12,7 +12,7 @@ import { addFighterInjury, clearRigGlitchesDowntime, deleteFighterInjury } from 
 import { editFighterStatus, updateFighterXp } from './edit-fighter';
 import { addGangTacticsCards } from './gang-tactics-cards';
 import { repairVehicleDamage } from './remove-vehicle-damage';
-import { logPostCycleAction } from './logs/gang-post-cycle-logs';
+import { logPostCycleAction, logReputationIncome } from './logs/gang-post-cycle-logs';
 import {
   CHOP_SHOP_COST_PER_DAMAGE,
   SUIT_MAINTENANCE_COST,
@@ -24,6 +24,7 @@ import {
   medicalEscortCost,
   patientOf,
   postCycleAvailability,
+  reputationIncome,
   rigGlitchNames,
   rigGlitchesOf,
   validatePostCycleAssignment,
@@ -540,6 +541,57 @@ export async function resolvePostCycleAction(
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to resolve the action',
+    };
+  }
+}
+
+export interface CollectReputationIncomeResult {
+  success: boolean;
+  error?: string;
+  credits?: number;
+  gang?: { credits: number; rating: number; wealth: number };
+}
+
+/** Collect Income's Reputation part: adds 10x the gang's Reputation to its credits. */
+export async function collectReputationIncome(
+  gangId: string
+): Promise<CollectReputationIncomeResult> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    const gang = await getGangCore(gangId);
+    if (!gang) return { success: false, error: 'Gang not found' };
+    if (!hasPostCycleActions(gang.edition_slug)) {
+      return {
+        success: false,
+        error: 'Collect Income is only available for Necromunda (2026) gangs',
+      };
+    }
+
+    const credits = reputationIncome(gang.reputation);
+    if (credits === 0) return { success: false, error: 'The gang has no Reputation to collect on' };
+
+    const financials = await updateGangFinancials(supabase, { gangId, creditsDelta: credits });
+    if (!financials.success) return { success: false, error: financials.error };
+
+    try {
+      await logReputationIncome({
+        gang_id: gangId,
+        reputation: gang.reputation,
+        credits,
+        user_id: user.id,
+      });
+    } catch (logError) {
+      console.error('Failed to log Reputation income:', logError);
+    }
+
+    return { success: true, credits, gang: financials.newValues };
+  } catch (error) {
+    console.error('Error collecting Reputation income:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to collect income',
     };
   }
 }

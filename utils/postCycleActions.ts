@@ -66,6 +66,11 @@ const GRUBS_UP_INCOME = 20;
 export const TRAIN_XP = 2;
 export const SUIT_EVOLUTION_KILL_COST = 4;
 export const SUIT_MAINTENANCE_COST = 100;
+const REPUTATION_INCOME_PER_POINT = 10;
+
+/** Collect Income: credits equal to 10x Reputation, on top of the territory Boons. */
+export const reputationIncome = (reputation: number): number =>
+  Math.max(reputation, 0) * REPUTATION_INCOME_PER_POINT;
 
 /**
  * Fighters whose own rule opens a Doc action to them, at a discount taken off
@@ -243,9 +248,14 @@ export const POST_CYCLE_ACTION_ORDER = Object.keys(
 /** One gang log type per action, so the log can be filtered by it. */
 export const postCycleLogType = (action: PostCycleActionId) => `post_cycle_${action}`;
 
-export const POST_CYCLE_LOG_TYPE_LABELS: Record<string, string> = Object.fromEntries(
-  POST_CYCLE_ACTION_ORDER.map((id) => [postCycleLogType(id), POST_CYCLE_ACTIONS[id].label])
-);
+export const REPUTATION_INCOME_LOG_TYPE = 'post_cycle_reputation_income';
+
+export const POST_CYCLE_LOG_TYPE_LABELS: Record<string, string> = {
+  ...Object.fromEntries(
+    POST_CYCLE_ACTION_ORDER.map((id) => [postCycleLogType(id), POST_CYCLE_ACTIONS[id].label])
+  ),
+  [REPUTATION_INCOME_LOG_TYPE]: 'Reputation Income',
+};
 
 /** The fighter fields these rules read, shared by FighterProps and GangFighter. */
 export interface PostCycleFighter {

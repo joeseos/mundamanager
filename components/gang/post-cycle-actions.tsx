@@ -28,6 +28,7 @@ import {
   postCycleAvailability,
   postCycleDiscount,
   removableLastingInjuriesOf,
+  reputationIncome,
   rigGlitchNames,
   rigGlitchesOf,
   validatePostCycleAssignment,
@@ -35,6 +36,7 @@ import {
   type PostCycleAssignment,
 } from '@/utils/postCycleActions';
 import {
+  collectReputationIncome,
   resolvePostCycleAction,
   type PostCycleFighterChange,
 } from '@/app/actions/post-cycle-actions';
@@ -46,6 +48,7 @@ interface PostCycleActionsProps {
   editionSlug?: string | null;
   fighters: FighterProps[];
   gangCredits: number;
+  gangReputation: number;
   /** Gang facts the gang-specific actions depend on; see postCycleAvailability. */
   gangType?: string | null;
   isCustomGangType: boolean;
@@ -175,6 +178,7 @@ export default function PostCycleActions({
   editionSlug,
   fighters,
   gangCredits,
+  gangReputation,
   gangType,
   isCustomGangType,
   gangSubtypes,
@@ -187,6 +191,7 @@ export default function PostCycleActions({
   /** The actions picked so far; nothing is applied until Confirm. */
   const [rows, setRows] = useState<Record<string, RowState>>({});
   const [applying, setApplying] = useState(false);
+  const [collecting, setCollecting] = useState(false);
   /** Why an action failed on the last Confirm, keyed by the fighter taking it. */
   const [failures, setFailures] = useState<Record<string, string>>({});
   /** The fighter whose Gang Tactic is being picked, and the pick so far. */
@@ -468,7 +473,24 @@ export default function PostCycleActions({
     }
   };
 
-  if (actors.length === 0) return null;
+  const income = reputationIncome(gangReputation);
+
+  const handleCollectIncome = async () => {
+    setCollecting(true);
+    try {
+      const result = await collectReputationIncome(gangId);
+      if (result.gang) onGangFinancialsUpdate?.(result.gang);
+      if (result.success) {
+        toast.success(`Collected ${result.credits} credits from Reputation`);
+      } else {
+        toast.error(result.error || 'Failed to collect income');
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to collect income');
+    } finally {
+      setCollecting(false);
+    }
+  };
 
   return (
     <div className="mt-8">
@@ -476,140 +498,158 @@ export default function PostCycleActions({
         Post-Cycle Actions
       </h3>
 
-      <div className="rounded-md border">
-        <div className="hidden md:grid md:grid-cols-[minmax(0,1fr)_20rem_10rem] gap-4 px-4 py-2 bg-muted border-b rounded-t-md text-sm font-medium">
-          <span>Fighter</span>
-          <span>Action</span>
-          <span>Effect</span>
+      <div className="rounded-md border px-4 py-3 mb-4 flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <div className="font-medium">Collect Income</div>
+          <div className="text-xs text-muted-foreground">
+            {gangReputation} Reputation: +{income} credits
+          </div>
         </div>
-        <ul>
-          {actors.map((fighter) => {
-            const row = rows[fighter.id];
-            const state = rowStates.get(fighter.id);
-            const assignment = state?.assignment ?? null;
-            const effect = effectOf(assignment);
-            const rowIssues = state?.issues ?? [];
-            const target = row?.targetFighterId
-              ? fighterById.get(row.targetFighterId)
-              : undefined;
-            // Shown even once the row is cleared, for an action that partly applied.
-            const failure = failures[fighter.id];
+        <Button
+          size="sm"
+          onClick={handleCollectIncome}
+          disabled={!canEdit || collecting || applying || income === 0}
+        >
+          {collecting ? 'Collecting…' : 'Collect'}
+        </Button>
+      </div>
 
-            return (
-              <li
-                key={fighter.id}
-                className="border-b last:border-0 px-4 py-3 md:grid md:grid-cols-[minmax(0,1fr)_20rem_10rem] md:gap-4 md:items-start"
-              >
-                <div className="flex items-start justify-between gap-3 mb-2 md:mb-0 md:pt-2 min-w-0">
-                  <div className="min-w-0">
-                    <div className="font-medium truncate">{fighter.fighter_name}</div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      {`${fighter.fighter_type} (${formatFighterSubtypeDisplay(
-                        fighter.fighter_subtypes,
-                        editionSlug
-                      )})`}
+      {actors.length > 0 && (
+        <div className="rounded-md border">
+          <div className="hidden md:grid md:grid-cols-[minmax(0,1fr)_20rem_10rem] gap-4 px-4 py-2 bg-muted border-b rounded-t-md text-sm font-medium">
+            <span>Fighter</span>
+            <span>Action</span>
+            <span>Effect</span>
+          </div>
+          <ul>
+            {actors.map((fighter) => {
+              const row = rows[fighter.id];
+              const state = rowStates.get(fighter.id);
+              const assignment = state?.assignment ?? null;
+              const effect = effectOf(assignment);
+              const rowIssues = state?.issues ?? [];
+              const target = row?.targetFighterId
+                ? fighterById.get(row.targetFighterId)
+                : undefined;
+              // Shown even once the row is cleared, for an action that partly applied.
+              const failure = failures[fighter.id];
+
+              return (
+                <li
+                  key={fighter.id}
+                  className="border-b last:border-0 px-4 py-3 md:grid md:grid-cols-[minmax(0,1fr)_20rem_10rem] md:gap-4 md:items-start"
+                >
+                  <div className="flex items-start justify-between gap-3 mb-2 md:mb-0 md:pt-2 min-w-0">
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">{fighter.fighter_name}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {`${fighter.fighter_type} (${formatFighterSubtypeDisplay(
+                          fighter.fighter_subtypes,
+                          editionSlug
+                        )})`}
+                      </div>
                     </div>
+                    {effect && <span className="md:hidden max-w-[50%] text-right">{effect}</span>}
                   </div>
-                  {effect && <span className="md:hidden max-w-[50%] text-right">{effect}</span>}
-                </div>
 
-                <div className="space-y-2 min-w-0">
-                  <Combobox
-                    options={eligiblePostCycleActions(fighter, availability).map((option) => {
-                      const reason = unavailableReason(fighter, option.id);
-                      return {
-                        value: option.id,
-                        label: (
-                          <span className={reason ? 'text-muted-foreground' : undefined}>
-                            {option.label} - {reason ?? option.summary}
-                          </span>
-                        ),
-                        displayValue: option.label,
-                        disabled: reason !== null && row?.action !== option.id,
-                      };
-                    })}
-                    value={row?.action ?? ''}
-                    onValueChange={(value) => handleActionChange(fighter.id, value)}
-                    placeholder="No action"
-                    clearable
-                    disabled={!canEdit || applying}
-                  />
-
-                  {row?.action === 'medical_escort' && (
+                  <div className="space-y-2 min-w-0">
                     <Combobox
-                      options={patientOptions(fighter.id, criticallyInjured)}
-                      value={row.targetFighterId ?? ''}
-                      onValueChange={(id) => setRow(fighter.id, { targetFighterId: id || undefined })}
-                      placeholder="Critically Injured fighter"
-                      noResultsText="No fighter has a Critical Injury"
+                      options={eligiblePostCycleActions(fighter, availability).map((option) => {
+                        const reason = unavailableReason(fighter, option.id);
+                        return {
+                          value: option.id,
+                          label: (
+                            <span className={reason ? 'text-muted-foreground' : undefined}>
+                              {option.label} - {reason ?? option.summary}
+                            </span>
+                          ),
+                          displayValue: option.label,
+                          disabled: reason !== null && row?.action !== option.id,
+                        };
+                      })}
+                      value={row?.action ?? ''}
+                      onValueChange={(value) => handleActionChange(fighter.id, value)}
+                      placeholder="No action"
                       clearable
                       disabled={!canEdit || applying}
                     />
-                  )}
 
-                  {row?.action === 'fit_bionics' && (
-                    <>
+                    {row?.action === 'medical_escort' && (
                       <Combobox
-                        options={patientOptions(fighter.id, injuredFighters)}
+                        options={patientOptions(fighter.id, criticallyInjured)}
                         value={row.targetFighterId ?? ''}
-                        // Switching patient drops the injuries picked for the last one.
-                        onValueChange={(id) =>
-                          setRow(fighter.id, { targetFighterId: id || undefined, injuryIds: [] })
-                        }
-                        placeholder="Fighter to fit bionics"
-                        noResultsText="No fighter has a removable Lasting Injury"
+                        onValueChange={(id) => setRow(fighter.id, { targetFighterId: id || undefined })}
+                        placeholder="Critically Injured fighter"
+                        noResultsText="No fighter has a Critical Injury"
                         clearable
                         disabled={!canEdit || applying}
                       />
-                      {target && (
-                        <EffectChecklist
-                          effects={removableLastingInjuriesOf(target)}
-                          selected={row.injuryIds}
-                          costEach={FIT_BIONICS_COST_PER_INJURY}
-                          discount={postCycleDiscount(fighter, 'fit_bionics')}
-                          onChange={(injuryIds) => setRow(fighter.id, { injuryIds })}
+                    )}
+
+                    {row?.action === 'fit_bionics' && (
+                      <>
+                        <Combobox
+                          options={patientOptions(fighter.id, injuredFighters)}
+                          value={row.targetFighterId ?? ''}
+                          // Switching patient drops the injuries picked for the last one.
+                          onValueChange={(id) =>
+                            setRow(fighter.id, { targetFighterId: id || undefined, injuryIds: [] })
+                          }
+                          placeholder="Fighter to fit bionics"
+                          noResultsText="No fighter has a removable Lasting Injury"
+                          clearable
                           disabled={!canEdit || applying}
-                          emptyText="No removable Lasting Injuries. A Critical Injury cannot be removed with bionics."
                         />
-                      )}
-                    </>
-                  )}
+                        {target && (
+                          <EffectChecklist
+                            effects={removableLastingInjuriesOf(target)}
+                            selected={row.injuryIds}
+                            costEach={FIT_BIONICS_COST_PER_INJURY}
+                            discount={postCycleDiscount(fighter, 'fit_bionics')}
+                            onChange={(injuryIds) => setRow(fighter.id, { injuryIds })}
+                            disabled={!canEdit || applying}
+                            emptyText="No removable Lasting Injuries. A Critical Injury cannot be removed with bionics."
+                          />
+                        )}
+                      </>
+                    )}
 
-                  {row?.action === 'visit_chop_shop' && (
-                    <Button
-                      size="sm"
-                      className="w-full"
-                      onClick={() => openDamagePicker(fighter.id)}
-                      disabled={!canEdit || applying}
-                    >
-                      Choose Lasting Damage
-                    </Button>
-                  )}
+                    {row?.action === 'visit_chop_shop' && (
+                      <Button
+                        size="sm"
+                        className="w-full"
+                        onClick={() => openDamagePicker(fighter.id)}
+                        disabled={!canEdit || applying}
+                      >
+                        Choose Lasting Damage
+                      </Button>
+                    )}
 
-                  {row?.action === 'develop_tactics' && (
-                    <Button
-                      size="sm"
-                      className="w-full"
-                      onClick={() => openTacticsPicker(fighter.id)}
-                      disabled={!canEdit || applying}
-                    >
-                      Choose Gang Tactic
-                    </Button>
-                  )}
+                    {row?.action === 'develop_tactics' && (
+                      <Button
+                        size="sm"
+                        className="w-full"
+                        onClick={() => openTacticsPicker(fighter.id)}
+                        disabled={!canEdit || applying}
+                      >
+                        Choose Gang Tactic
+                      </Button>
+                    )}
 
-                  {[...rowIssues, ...(failure ? [failure] : [])].map((message) => (
-                    <p key={message} className="text-xs text-red-600">
-                      {message}
-                    </p>
-                  ))}
-                </div>
+                    {[...rowIssues, ...(failure ? [failure] : [])].map((message) => (
+                      <p key={message} className="text-xs text-red-600">
+                        {message}
+                      </p>
+                    ))}
+                  </div>
 
-                <span className="hidden md:block md:pt-2">{effect}</span>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
+                  <span className="hidden md:block md:pt-2">{effect}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       {pendingStates.length > 0 && (
         <div className="mt-4 flex flex-col items-end gap-2">
