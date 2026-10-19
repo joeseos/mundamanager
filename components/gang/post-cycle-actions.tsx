@@ -502,21 +502,20 @@ export default function PostCycleActions({
       </h3>
 
       <div className="mb-4">
-        <label
-          className={`flex items-center gap-2 text-sm ${
-            !canEdit || applying || income === 0 ? '' : 'cursor-pointer'
-          }`}
-        >
+        <div className="flex items-center space-x-2">
           <Checkbox
+            id="collect-income"
             checked={collectIncome}
             onCheckedChange={(checked) => setCollectIncome(checked === true)}
             disabled={!canEdit || applying || income === 0}
           />
-          <span className="flex-1 font-medium">Collect Income</span>
-          <span className="text-xs text-muted-foreground">
-            {gangReputation} Reputation: +{income} credits
-          </span>
-        </label>
+          <label htmlFor="collect-income" className="text-sm font-medium cursor-pointer">
+            Collect Income
+          </label>
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">
+          {gangReputation} Reputation: +{income} credits
+        </p>
         {incomeFailure && <p className="mt-1 text-xs text-red-600">{incomeFailure}</p>}
       </div>
 
