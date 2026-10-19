@@ -658,7 +658,7 @@ export default function PostCycleActions({
               The gang cannot afford these actions ({totalSpend} credits).
             </p>
           )}
-          <Button onClick={handleApply} disabled={!canEdit || applying || !readyToApply}>
+          <Button onClick={handleApply} disabled={!canEdit || applying || collecting || !readyToApply}>
             {applying
               ? 'Applying…'
               : `Apply ${pendingStates.length} Post-cycle Action${pendingStates.length === 1 ? '' : 's'}`}

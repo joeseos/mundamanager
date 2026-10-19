@@ -169,6 +169,16 @@ export default function GangPageContent({
     []
   );
 
+  const handleGangReputationUpdate = useCallback((newReputation: number) => {
+    setGangData((prev: GangDataState) => ({
+      ...prev,
+      processedData: {
+        ...prev.processedData,
+        reputation: newReputation
+      }
+    }));
+  }, []);
+
   const handleGangTradePointsUpdate = useCallback((newTradePoints: number) => {
     setGangData((prev: GangDataState) => ({
       ...prev,
@@ -674,6 +684,7 @@ export default function GangPageContent({
             onGangCreditsUpdate={handleGangCreditsUpdate}
             onGangWealthUpdate={handleGangWealthUpdate}
             onGangRatingUpdate={handleGangRatingUpdate}
+            onGangReputationUpdate={handleGangReputationUpdate}
             gang_subtypes={gangData.processedData.gang_subtypes}
             vehicles={gangData.processedData.vehicles || []}
             userPermissions={userPermissions}
