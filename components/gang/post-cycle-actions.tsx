@@ -191,7 +191,7 @@ export default function PostCycleActions({
   /** The actions picked so far; nothing is applied until Confirm. */
   const [rows, setRows] = useState<Record<string, RowState>>({});
   const [applying, setApplying] = useState(false);
-  /** Collect Income is taken on Apply, before the fighters' actions. */
+  /** Collect Income is taken on Confirm, before the fighters' actions. */
   const [collectIncome, setCollectIncome] = useState(false);
   const [incomeFailure, setIncomeFailure] = useState<string | null>(null);
   /** Why an action failed on the last Confirm, keyed by the fighter taking it. */

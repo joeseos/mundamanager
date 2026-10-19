@@ -548,7 +548,6 @@ export async function resolvePostCycleAction(
 export interface CollectReputationIncomeResult {
   success: boolean;
   error?: string;
-  credits?: number;
   gang?: { credits: number; rating: number; wealth: number };
 }
 
@@ -586,7 +585,7 @@ export async function collectReputationIncome(
       console.error('Failed to log Reputation income:', logError);
     }
 
-    return { success: true, credits, gang: financials.newValues };
+    return { success: true, gang: financials.newValues };
   } catch (error) {
     console.error('Error collecting Reputation income:', error);
     return {
