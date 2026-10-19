@@ -15,6 +15,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 import type { BattleSessionStatus } from '@/types/battle-session';
+import type { BattleParticipant, BattleStatus } from '@/types/campaign';
 
 /**
  * Drizzle schema for the tables read over the direct database connection
@@ -794,14 +795,96 @@ export const battleSessionParticipants = pgTable('battle_session_participants', 
   side_job_name: text('side_job_name'),
 });
 
+export const territories = pgTable('territories', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  campaign_type_id: uuid('campaign_type_id'),
+  territory_name: text('territory_name').notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  playing_card: text('playing_card'),
+  edition_id: uuid('edition_id'),
+});
+
+export const scenarios = pgTable('scenarios', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  scenario_name: text('scenario_name'),
+  campaign_type_id: uuid('campaign_type_id'),
+  scenario_tags: text('scenario_tags'),
+  scenario_number: numeric('scenario_number', { mode: 'number' }),
+  edition_id: uuid('edition_id'),
+});
+
+export const campaignBattles = pgTable('campaign_battles', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  attacker_id: uuid('attacker_id'),
+  defender_id: uuid('defender_id'),
+  scenario_id: uuid('scenario_id'),
+  winner_id: uuid('winner_id'),
+  note: text('note'),
+  campaign_id: uuid('campaign_id'),
+  participants: json('participants').$type<BattleParticipant[] | string>(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  scenario: text('scenario'),
+  territory_id: uuid('territory_id'),
+  cycle: integer('cycle'),
+  campaign_territory_id: uuid('campaign_territory_id'),
+  status: text('status').$type<BattleStatus>().default(sql`'played'::text`).notNull(),
+  challenger_gang_id: uuid('challenger_gang_id'),
+  challenged_gang_id: uuid('challenged_gang_id'),
+  deployment_id: uuid('deployment_id'),
+  objective_id: uuid('objective_id'),
+  crew_selection_id: uuid('crew_selection_id'),
+  crew_selection_name: text('crew_selection_name'),
+  deployment_name: text('deployment_name'),
+  objective_name: text('objective_name'),
+});
+
+export const campaignMaps = pgTable('campaign_maps', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  campaign_id: uuid('campaign_id').notNull(),
+  background_image_url: text('background_image_url').notNull(),
+  hex_grid_enabled: boolean('hex_grid_enabled').default(false).notNull(),
+  hex_size: numeric('hex_size', { mode: 'number' }).default(50).notNull(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+});
+
+export const campaignMapObjects = pgTable('campaign_map_objects', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  campaign_map_id: uuid('campaign_map_id').notNull(),
+  object_type: text('object_type').notNull(),
+  geometry: json('geometry').$type<Record<string, unknown>>().notNull(),
+  properties: json('properties').$type<Record<string, unknown>>().default(sql`'{}'::jsonb`),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+});
+
+export const customShared = pgTable('custom_shared', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  custom_equipment_id: uuid('custom_equipment_id'),
+  custom_fighter_type_id: uuid('custom_fighter_type_id'),
+  campaign_id: uuid('campaign_id'),
+  user_id: uuid('user_id'),
+  custom_skill_id: uuid('custom_skill_id'),
+  custom_gang_type_id: uuid('custom_gang_type_id'),
+  custom_trading_post_id: uuid('custom_trading_post_id'),
+  custom_collection_id: uuid('custom_collection_id'),
+  edition_id: uuid('edition_id').notNull(),
+});
+
 // A one() that names its join columns (fields/references) needs nothing more.
 // A many() is matched to the one() pointing back at its table, so where two
-// one()s point at the same table, that pair gets a relationName:
-// gangs.fighters (gang_id, not captured_by_gang_id) and
+// one()s point at the same table, each pair gets a relationName:
+// gangs.fighters (gang_id) and gangs.captives (captured_by_gang_id), and
 // fighters.fighter_exotic_beasts (fighter_owner_id, not fighter_pet_id).
 
 export const gangsRelations = relations(gangs, ({ one, many }) => ({
   fighters: many(fighters, { relationName: 'gang_fighters' }),
+  captives: many(fighters, { relationName: 'gang_captives' }),
   vehicles: many(vehicles),
   alliance: one(alliances, {
     fields: [gangs.alliance_id],
@@ -880,6 +963,10 @@ export const campaignGangsRelations = relations(campaignGangs, ({ one, many }) =
     references: [campaignTypeAllegiances.id],
   }),
   campaign_gang_resources: many(campaignGangResources),
+  gang: one(gangs, {
+    fields: [campaignGangs.gang_id],
+    references: [gangs.id],
+  }),
 }));
 
 export const campaignsRelations = relations(campaigns, ({ one, many }) => ({
@@ -889,16 +976,30 @@ export const campaignsRelations = relations(campaigns, ({ one, many }) => ({
   }),
   campaign_territories: many(campaignTerritories),
   campaign_resources: many(campaignResources),
+  campaign_allegiances: many(campaignAllegiances),
 }));
 
-export const campaignTypesRelations = relations(campaignTypes, ({ many }) => ({
+export const campaignTypesRelations = relations(campaignTypes, ({ one, many }) => ({
   campaign_type_resources: many(campaignTypeResources),
+  campaign_type_allegiances: many(campaignTypeAllegiances),
+  editions: one(editions, {
+    fields: [campaignTypes.edition_id],
+    references: [editions.id],
+  }),
 }));
 
 export const campaignTerritoriesRelations = relations(campaignTerritories, ({ one }) => ({
   campaign: one(campaigns, {
     fields: [campaignTerritories.campaign_id],
     references: [campaigns.id],
+  }),
+  gang: one(gangs, {
+    fields: [campaignTerritories.gang_id],
+    references: [gangs.id],
+  }),
+  territory: one(territories, {
+    fields: [campaignTerritories.territory_id],
+    references: [territories.id],
   }),
 }));
 
@@ -921,6 +1022,14 @@ export const campaignGangResourcesRelations = relations(campaignGangResources, (
     fields: [campaignGangResources.campaign_gang_id],
     references: [campaignGangs.id],
   }),
+  campaign_type_resource: one(campaignTypeResources, {
+    fields: [campaignGangResources.campaign_type_resource_id],
+    references: [campaignTypeResources.id],
+  }),
+  campaign_resource: one(campaignResources, {
+    fields: [campaignGangResources.campaign_resource_id],
+    references: [campaignResources.id],
+  }),
 }));
 
 export const fightersRelations = relations(fighters, ({ one, many }) => ({
@@ -932,6 +1041,7 @@ export const fightersRelations = relations(fighters, ({ one, many }) => ({
   captured_by: one(gangs, {
     fields: [fighters.captured_by_gang_id],
     references: [gangs.id],
+    relationName: 'gang_captives',
   }),
   fighter_gang_legacy: one(fighterGangLegacy, {
     fields: [fighters.fighter_gang_legacy_id],
@@ -1145,5 +1255,62 @@ export const battleSessionsRelations = relations(battleSessions, ({ one }) => ({
   crew_selection: one(scenarioTableEntries, {
     fields: [battleSessions.crew_selection_id],
     references: [scenarioTableEntries.id],
+  }),
+}));
+
+export const campaignMembersRelations = relations(campaignMembers, ({ one }) => ({
+  profile: one(profiles, {
+    fields: [campaignMembers.user_id],
+    references: [profiles.id],
+  }),
+}));
+
+export const campaignAllegiancesRelations = relations(campaignAllegiances, ({ one }) => ({
+  campaign: one(campaigns, {
+    fields: [campaignAllegiances.campaign_id],
+    references: [campaigns.id],
+  }),
+}));
+
+export const campaignTypeAllegiancesRelations = relations(campaignTypeAllegiances, ({ one }) => ({
+  campaign_type: one(campaignTypes, {
+    fields: [campaignTypeAllegiances.campaign_type_id],
+    references: [campaignTypes.id],
+  }),
+}));
+
+export const campaignBattlesRelations = relations(campaignBattles, ({ one }) => ({
+  scenario_details: one(scenarios, {
+    fields: [campaignBattles.scenario_id],
+    references: [scenarios.id],
+  }),
+  campaign_territory: one(campaignTerritories, {
+    fields: [campaignBattles.campaign_territory_id],
+    references: [campaignTerritories.id],
+  }),
+}));
+
+export const campaignMapsRelations = relations(campaignMaps, ({ many }) => ({
+  campaign_map_objects: many(campaignMapObjects),
+}));
+
+export const campaignMapObjectsRelations = relations(campaignMapObjects, ({ one }) => ({
+  campaign_map: one(campaignMaps, {
+    fields: [campaignMapObjects.campaign_map_id],
+    references: [campaignMaps.id],
+  }),
+}));
+
+export const customSharedRelations = relations(customShared, ({ one }) => ({
+  custom_trading_post: one(customTradingPosts, {
+    fields: [customShared.custom_trading_post_id],
+    references: [customTradingPosts.id],
+  }),
+}));
+
+export const customTradingPostsRelations = relations(customTradingPosts, ({ one }) => ({
+  editions: one(editions, {
+    fields: [customTradingPosts.edition_id],
+    references: [editions.id],
   }),
 }));

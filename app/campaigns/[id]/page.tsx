@@ -5,6 +5,7 @@ import { CampaignErrorBoundary } from "@/components/campaigns/campaign-error-bou
 import { checkCampaignPermissions } from "@/utils/user-permissions";
 import type { CampaignPermissions } from "@/types/user-permissions";
 import { getAuthenticatedUser, signInPath } from "@/utils/auth";
+import { isUuid } from "@/utils/uuid";
 import {
   getTradingPostTypesCached,
   getCampaignTriumphs,
@@ -33,9 +34,9 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
   const supabase = await createClient();
 
   // Get the user data once at the page level via claims. This is the authorisation
-  // gate for the whole page: the cached readers below fill from a service-role client
-  // and so do not enforce RLS themselves. proxy.ts already redirects anonymous
-  // requests for this path; this keeps the page correct independently of that.
+  // gate for the whole page: the cached readers below read over the direct connection,
+  // which doesn't check who is asking. proxy.ts already redirects anonymous requests
+  // for this path; this keeps the page correct independently of that.
   let user: { id: string };
   try {
     user = await getAuthenticatedUser(supabase);
@@ -43,6 +44,10 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
     redirect(signInPath(`/campaigns/${params.id}`));
   }
   const userId = user.id;
+
+  if (!isUuid(params.id)) {
+    notFound();
+  }
 
   // Calculate permissions server-side
   let permissions: CampaignPermissions | null = null;
@@ -121,7 +126,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
     ]);
 
     // Check if campaign exists
-    if (!campaignBasic) {
+    if (!campaignBasic?.campaign_type_id) {
       notFound();
     }
 
@@ -149,11 +154,11 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
     // Combine the data
     const campaignData = {
       id: campaignBasic.id,
-      campaign_name: campaignBasic.campaign_name,
+      campaign_name: campaignBasic.campaign_name ?? '',
       campaign_type_id: campaignBasic.campaign_type_id,
-      campaign_type_name: (campaignBasic.campaign_types as any)?.campaign_type_name || '',
-      campaign_type_image_url: (campaignBasic.campaign_types as any)?.image_url || '',
-      edition_slug: (campaignBasic.campaign_types as any)?.edition_slug ?? null,
+      campaign_type_name: campaignBasic.campaign_types?.campaign_type_name || '',
+      campaign_type_image_url: campaignBasic.campaign_types?.image_url || '',
+      edition_slug: campaignBasic.campaign_types?.edition_slug ?? null,
       image_url: campaignBasic.image_url || '',
       status: campaignBasic.status,
       description: campaignBasic.description,
@@ -165,7 +170,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       discord_channel_id: campaignBasic.discord_channel_id || null,
       allow_join_requests: campaignBasic.allow_join_requests ?? false,
       note: campaignBasic.note,
-      current_cycle: (campaignBasic as any).current_cycle ?? null,
+      current_cycle: campaignBasic.current_cycle ?? null,
       members: campaignMembers,
       territories: campaignTerritories,
       battles: campaignBattles,
@@ -207,9 +212,6 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       <main className="flex min-h-screen flex-col items-center">
         <div className="container mx-auto max-w-4xl w-full space-y-4">
           <div className="text-red-500">Error loading campaign data</div>
-          {error instanceof Error && (
-            <div className="text-sm text-muted-foreground">{error.message}</div>
-          )}
         </div>
       </main>
     );
