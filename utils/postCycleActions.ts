@@ -245,16 +245,17 @@ export const POST_CYCLE_ACTION_ORDER = Object.keys(
   POST_CYCLE_ACTIONS
 ) as PostCycleActionId[];
 
-/** One gang log type per action, so the log can be filtered by it. */
-export const postCycleLogType = (action: PostCycleActionId) => `post_cycle_${action}`;
+/** What the Post-cycle log records: each fighter action, and the gang's Collect Income. */
+export type PostCycleLogStep = PostCycleActionId | 'collect_income';
 
-export const REPUTATION_INCOME_LOG_TYPE = 'post_cycle_reputation_income';
+/** One gang log type per step, so the log can be filtered by it. */
+export const postCycleLogType = (step: PostCycleLogStep) => `post_cycle_${step}`;
 
 export const POST_CYCLE_LOG_TYPE_LABELS: Record<string, string> = {
   ...Object.fromEntries(
     POST_CYCLE_ACTION_ORDER.map((id) => [postCycleLogType(id), POST_CYCLE_ACTIONS[id].label])
   ),
-  [REPUTATION_INCOME_LOG_TYPE]: 'Reputation Income',
+  [postCycleLogType('collect_income')]: 'Collect Income',
 };
 
 /** The fighter fields these rules read, shared by FighterProps and GangFighter. */

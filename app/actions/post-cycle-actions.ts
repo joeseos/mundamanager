@@ -12,7 +12,7 @@ import { addFighterInjury, clearRigGlitchesDowntime, deleteFighterInjury } from 
 import { editFighterStatus, updateFighterXp } from './edit-fighter';
 import { addGangTacticsCards } from './gang-tactics-cards';
 import { repairVehicleDamage } from './remove-vehicle-damage';
-import { logPostCycleAction, logReputationIncome } from './logs/gang-post-cycle-logs';
+import { logPostCycleAction } from './logs/gang-post-cycle-logs';
 import {
   CHOP_SHOP_COST_PER_DAMAGE,
   SUIT_MAINTENANCE_COST,
@@ -576,10 +576,10 @@ export async function collectReputationIncome(
     if (!financials.success) return { success: false, error: financials.error };
 
     try {
-      await logReputationIncome({
+      await logPostCycleAction({
         gang_id: gangId,
-        reputation: gang.reputation,
-        credits,
+        action: 'collect_income',
+        outcome: `Gained ${credits} credits from ${gang.reputation} Reputation.`,
         user_id: user.id,
       });
     } catch (logError) {

@@ -3,17 +3,17 @@
 import { createGangLog, GangLogActionResult } from "./gang-logs";
 import { formatRollOutcomeLine, type RollOutcome } from "@/utils/dice";
 import {
-  POST_CYCLE_ACTIONS,
-  REPUTATION_INCOME_LOG_TYPE,
+  POST_CYCLE_LOG_TYPE_LABELS,
   postCycleLogType,
-  type PostCycleActionId,
+  type PostCycleLogStep,
 } from "@/utils/postCycleActions";
 
 export interface PostCycleActionLogParams {
   gang_id: string;
-  fighter_id: string;
-  fighter_name: string;
-  action: PostCycleActionId;
+  /** Absent for Collect Income, which the gang takes rather than a fighter. */
+  fighter_id?: string;
+  fighter_name?: string;
+  action: PostCycleLogStep;
   outcome?: string;
   roll?: RollOutcome;
   user_id?: string;
@@ -23,8 +23,10 @@ export interface PostCycleActionLogParams {
 export async function logPostCycleAction(
   params: PostCycleActionLogParams
 ): Promise<GangLogActionResult> {
+  const actionType = postCycleLogType(params.action);
   const description = [
-    `Fighter "${params.fighter_name}" performed the ${POST_CYCLE_ACTIONS[params.action].label} Post-cycle Action.`,
+    params.fighter_name &&
+      `Fighter "${params.fighter_name}" performed the ${POST_CYCLE_LOG_TYPE_LABELS[actionType]} Post-cycle Action.`,
     params.roll && `${formatRollOutcomeLine(params.roll.total, params.roll.dice)}.`,
     params.outcome,
   ].filter(Boolean).join(' ');
@@ -32,22 +34,8 @@ export async function logPostCycleAction(
   return createGangLog({
     gang_id: params.gang_id,
     fighter_id: params.fighter_id,
-    action_type: postCycleLogType(params.action),
+    action_type: actionType,
     description,
-    user_id: params.user_id,
-  });
-}
-
-export async function logReputationIncome(params: {
-  gang_id: string;
-  reputation: number;
-  credits: number;
-  user_id?: string;
-}): Promise<GangLogActionResult> {
-  return createGangLog({
-    gang_id: params.gang_id,
-    action_type: REPUTATION_INCOME_LOG_TYPE,
-    description: `Collected ${params.credits} credits of income from ${params.reputation} Reputation.`,
     user_id: params.user_id,
   });
 }
