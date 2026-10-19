@@ -48,7 +48,8 @@ interface PostCycleActionsProps {
   editionSlug?: string | null;
   fighters: FighterProps[];
   gangCredits: number;
-  gangReputation: number;
+  /** gangs.reputation is nullable; NULL reads as 0, as on the gang card. */
+  gangReputation: number | null;
   /** Gang facts the gang-specific actions depend on; see postCycleAvailability. */
   gangType?: string | null;
   isCustomGangType: boolean;
@@ -293,7 +294,8 @@ export default function PostCycleActions({
 
   const pendingStates = [...rowStates.values()];
   const totalSpend = pendingStates.reduce((sum, s) => sum + Math.max(s.cost, 0), 0);
-  const income = reputationIncome(gangReputation);
+  const reputation = gangReputation ?? 0;
+  const income = reputationIncome(reputation);
   const cannotAfford = totalSpend > gangCredits + (collectIncome ? income : 0);
   const readyToApply =
     (pendingStates.length > 0 || collectIncome) &&
@@ -514,7 +516,7 @@ export default function PostCycleActions({
           </label>
         </div>
         <p className="text-xs text-muted-foreground mt-1">
-          {gangReputation} Reputation: +{income} credits
+          {reputation} Reputation: +{income} credits
         </p>
         {incomeFailure && <p className="mt-1 text-xs text-red-600">{incomeFailure}</p>}
       </div>
