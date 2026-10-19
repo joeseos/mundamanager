@@ -1,8 +1,6 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
-import { eq, inArray } from 'drizzle-orm';
 import { getAppDb } from '@/utils/db/client';
-import { customFighterTypes } from '@/utils/db/schema';
 import { CustomFighterType } from "@/types/fighter";
 import { withEditionSlug } from "@/types/edition";
 import { groupBy } from '@/utils/gang-assembly';
@@ -38,25 +36,28 @@ export async function getUserCustomFighterTypes(userId: string): Promise<CustomF
   return unstable_cache(
     async () => {
       const db = getAppDb();
-      // Lets the skill and equipment reads run alongside the fighter types read.
-      const userFighterTypeIds = db
-        .select({ id: customFighterTypes.id })
-        .from(customFighterTypes)
-        .where(eq(customFighterTypes.user_id, userId));
+      const fighterTypes = await db.query.customFighterTypes.findMany({
+        ...CUSTOM_ROW,
+        where: (fighter, { eq }) => eq(fighter.user_id, userId),
+        orderBy: (fighter, { asc }) => asc(fighter.fighter_type),
+        with: {
+          editions: { columns: { slug: true } },
+          custom_gang_type: { columns: { gang_type: true } },
+        },
+      });
 
-      const [fighterTypes, skillAccess, fighterDefaults, equipmentList] = await Promise.all([
-        db.query.customFighterTypes.findMany({
-          ...CUSTOM_ROW,
-          where: (fighter, { eq }) => eq(fighter.user_id, userId),
-          orderBy: (fighter, { asc }) => asc(fighter.fighter_type),
-          with: {
-            editions: { columns: { slug: true } },
-            custom_gang_type: { columns: { gang_type: true } },
-          },
-        }),
+      if (fighterTypes.length === 0) {
+        return [];
+      }
+
+      // Flat reads rather than nested many() relations: fighter_defaults and
+      // fighter_type_skill_access have no index on custom_fighter_type_id, so a
+      // nested read would scan each table once per fighter type.
+      const fighterIds = fighterTypes.map(fighter => fighter.id);
+      const [skillAccess, fighterDefaults, equipmentList] = await Promise.all([
         db.query.fighterTypeSkillAccess.findMany({
           columns: { custom_fighter_type_id: true, skill_type_id: true, custom_skill_type_id: true, access_level: true },
-          where: (access) => inArray(access.custom_fighter_type_id, userFighterTypeIds),
+          where: (access, { inArray }) => inArray(access.custom_fighter_type_id, fighterIds),
           with: {
             skill_type: { columns: { name: true } },
             custom_skill_type: { columns: { name: true } },
@@ -64,12 +65,12 @@ export async function getUserCustomFighterTypes(userId: string): Promise<CustomF
         }),
         db.query.fighterDefaults.findMany({
           columns: { custom_fighter_type_id: true, skill_id: true, equipment_id: true, custom_equipment_id: true },
-          where: (row) => inArray(row.custom_fighter_type_id, userFighterTypeIds),
+          where: (row, { inArray }) => inArray(row.custom_fighter_type_id, fighterIds),
           with: { skill: { columns: { name: true, skill_type_id: true } }, ...EQUIPMENT_NAMES },
         }),
         db.query.customFighterTypeEquipment.findMany({
           columns: { custom_fighter_type_id: true, equipment_id: true, custom_equipment_id: true },
-          where: (row) => inArray(row.custom_fighter_type_id, userFighterTypeIds),
+          where: (row, { inArray }) => inArray(row.custom_fighter_type_id, fighterIds),
           with: EQUIPMENT_NAMES,
         }),
       ]);

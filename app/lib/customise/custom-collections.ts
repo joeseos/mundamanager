@@ -24,7 +24,7 @@ const RESOLVE = {
   gang_type: { table: customGangTypes, name: customGangTypes.gang_type },
   skill: { table: customSkills, name: customSkills.skill_name },
   trading_post: { table: customTradingPosts, name: customTradingPosts.custom_trading_post_name },
-};
+} satisfies Record<CollectionItemType, unknown>;
 
 const itemKey = (item: CollectionItem) => `${item.type}:${item.id}`;
 
