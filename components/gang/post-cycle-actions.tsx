@@ -501,7 +501,7 @@ export default function PostCycleActions({
         Post-Cycle Actions
       </h3>
 
-      <div className="rounded-md border px-4 py-3 mb-4">
+      <div className="mb-4">
         <label
           className={`flex items-center gap-2 text-sm ${
             !canEdit || applying || income === 0 ? '' : 'cursor-pointer'
@@ -657,22 +657,16 @@ export default function PostCycleActions({
         </div>
       )}
 
-      {(pendingStates.length > 0 || collectIncome) && (
-        <div className="mt-4 flex flex-col items-end gap-2">
-          {cannotAfford && (
-            <p className="text-xs text-red-600">
-              The gang cannot afford these actions ({totalSpend} credits).
-            </p>
-          )}
-          <Button onClick={handleApply} disabled={!canEdit || applying || !readyToApply}>
-            {applying
-              ? 'Applying…'
-              : pendingStates.length > 0
-                ? `Apply ${pendingStates.length} Post-cycle Action${pendingStates.length === 1 ? '' : 's'}`
-                : 'Collect Income'}
-          </Button>
-        </div>
-      )}
+      <div className="mt-4 flex flex-col items-end gap-2">
+        {cannotAfford && (
+          <p className="text-xs text-red-600">
+            The gang cannot afford these actions ({totalSpend} credits).
+          </p>
+        )}
+        <Button onClick={handleApply} disabled={!canEdit || applying || !readyToApply}>
+          Confirm
+        </Button>
+      </div>
 
       {tacticsPickerFor && (
         <Modal
