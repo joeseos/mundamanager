@@ -643,7 +643,7 @@ export default function CampaignTerritoryList({
                 {sortIndicator('controllingGang')}
               </th>
               <th 
-                className="w-1/3 px-2 py-2 text-right font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
+                className="w-1/3 px-2 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
                 onClick={() => handleSort('credits')}
               >
                 Credits
