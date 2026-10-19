@@ -940,6 +940,7 @@ export const gangsRelations = relations(gangs, ({ one, many }) => ({
     references: [gangPortraits.id],
   }),
   gang_skill_set_ranks: many(gangSkillSetRanks),
+  campaign_gangs: many(campaignGangs),
 }));
 
 export const gangOriginsRelations = relations(gangOrigins, ({ one }) => ({
@@ -1328,6 +1329,10 @@ export const campaignMembersRelations = relations(campaignMembers, ({ one }) => 
   profile: one(profiles, {
     fields: [campaignMembers.user_id],
     references: [profiles.id],
+  }),
+  campaign: one(campaigns, {
+    fields: [campaignMembers.campaign_id],
+    references: [campaigns.id],
   }),
 }));
 

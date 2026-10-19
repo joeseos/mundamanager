@@ -3,7 +3,6 @@ import { unstable_cache } from 'next/cache';
 import { and, eq, inArray } from 'drizzle-orm';
 import { getAppDb } from '@/utils/db/client';
 import { campaignMembers } from '@/utils/db/schema';
-import { groupBy } from '@/utils/gang-assembly';
 
 export type Campaign = {
   id: string;
@@ -26,68 +25,53 @@ export type Campaign = {
 export const getUserCampaigns = async (userId: string): Promise<Campaign[]> => {
   return unstable_cache(
     async () => {
-      const db = getAppDb();
-      const members = await db.query.campaignMembers.findMany({
-        columns: { id: true, campaign_id: true, role: true, is_favourite: true, favourite_order: true },
+      const members = await getAppDb().query.campaignMembers.findMany({
+        columns: { id: true, role: true, is_favourite: true, favourite_order: true },
         where: (member, { eq }) => eq(member.user_id, userId),
+        with: {
+          campaign: {
+            columns: { id: true, campaign_name: true, campaign_type_id: true, image_url: true, created_at: true, updated_at: true },
+            with: {
+              campaign_type: {
+                columns: { campaign_type_name: true, image_url: true },
+                with: { editions: { columns: { slug: true } } },
+              },
+              campaign_gangs: {
+                columns: {},
+                where: (campaignGang, { eq }) => eq(campaignGang.user_id, userId),
+                with: { gang: { columns: { id: true, name: true } } },
+              },
+            },
+          },
+        },
       });
 
       // A user can hold more than one membership in a campaign; the first one wins
-      const memberByCampaign = new Map<string, (typeof members)[number]>();
-      for (const member of members) {
-        if (member.campaign_id && !memberByCampaign.has(member.campaign_id)) {
-          memberByCampaign.set(member.campaign_id, member);
-        }
+      const campaigns = new Map<string, Campaign>();
+      for (const { campaign, ...member } of members) {
+        if (!campaign || campaigns.has(campaign.id)) continue;
+        const { campaign_type } = campaign;
+        campaigns.set(campaign.id, {
+          id: campaign.id,
+          campaign_member_id: member.id,
+          campaign_name: campaign.campaign_name,
+          campaign_type: campaign_type?.campaign_type_name || '',
+          campaign_type_id: campaign.campaign_type_id,
+          created_at: campaign.created_at,
+          updated_at: campaign.updated_at,
+          role: member.role || '',
+          image_url: campaign.image_url || '',
+          campaign_type_image_url: campaign_type?.image_url || '',
+          is_favourite: member.is_favourite,
+          favourite_order: member.favourite_order,
+          edition_slug: campaign_type?.editions?.slug ?? null,
+          user_gangs: campaign.campaign_gangs.flatMap(({ gang }) => (gang ? [gang] : [])),
+        });
       }
-      const campaignIds = [...memberByCampaign.keys()];
-      if (campaignIds.length === 0) return [];
 
-      const [campaigns, campaignGangs] = await Promise.all([
-        db.query.campaigns.findMany({
-          columns: { id: true, campaign_name: true, campaign_type_id: true, image_url: true },
-          extras: (campaign, { sql }) => ({
-            created_at: sql<string>`to_json(${campaign.created_at})`.as('created_at'),
-            updated_at: sql<string | null>`to_json(${campaign.updated_at})`.as('updated_at'),
-          }),
-          where: (campaign, { inArray }) => inArray(campaign.id, campaignIds),
-          with: {
-            campaign_type: {
-              columns: { campaign_type_name: true, image_url: true },
-              with: { editions: { columns: { slug: true } } },
-            },
-          },
-        }),
-        db.query.campaignGangs.findMany({
-          columns: { campaign_id: true },
-          where: (campaignGang, { and, eq, inArray }) =>
-            and(inArray(campaignGang.campaign_id, campaignIds), eq(campaignGang.user_id, userId)),
-          with: { gang: { columns: { id: true, name: true } } },
-        }),
-      ]);
-
-      const campaignGangsByCampaign = groupBy(campaignGangs, 'campaign_id');
-
-      return campaigns
-        .map(({ campaign_type, ...campaign }) => {
-          const member = memberByCampaign.get(campaign.id);
-          return {
-            id: campaign.id,
-            campaign_member_id: member?.id || '',
-            campaign_name: campaign.campaign_name,
-            campaign_type: campaign_type?.campaign_type_name || '',
-            campaign_type_id: campaign.campaign_type_id,
-            created_at: campaign.created_at,
-            updated_at: campaign.updated_at,
-            role: member?.role || '',
-            image_url: campaign.image_url || '',
-            campaign_type_image_url: campaign_type?.image_url || '',
-            is_favourite: member?.is_favourite ?? false,
-            favourite_order: member?.favourite_order ?? null,
-            edition_slug: campaign_type?.editions?.slug ?? null,
-            user_gangs: (campaignGangsByCampaign[campaign.id] ?? []).flatMap(({ gang }) => (gang ? [gang] : [])),
-          };
-        })
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      return [...campaigns.values()].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
     },
     [`user-campaigns-v2-${userId}`],
     {
@@ -107,18 +91,17 @@ export const getUserShareCampaigns = async (
   return unstable_cache(
     async () => {
       const db = getAppDb();
-      const members = await db
-        .select({ campaign_id: campaignMembers.campaign_id })
-        .from(campaignMembers)
-        .where(and(eq(campaignMembers.user_id, userId), inArray(campaignMembers.role, ['OWNER', 'ARBITRATOR'])));
-
-      const campaignIds = members.flatMap(({ campaign_id }) => (campaign_id ? [campaign_id] : []));
-      if (campaignIds.length === 0) return [];
-
       const campaigns = await db.query.campaigns.findMany({
         columns: { id: true, campaign_name: true, status: true },
-        where: (campaign, { inArray }) => inArray(campaign.id, campaignIds),
-        orderBy: (campaign, { asc }) => asc(campaign.campaign_name),
+        where: (campaign) =>
+          inArray(
+            campaign.id,
+            db
+              .select({ id: campaignMembers.campaign_id })
+              .from(campaignMembers)
+              .where(and(eq(campaignMembers.user_id, userId), inArray(campaignMembers.role, ['OWNER', 'ARBITRATOR'])))
+          ),
+        orderBy: (campaign, { asc }) => [asc(campaign.campaign_name), asc(campaign.id)],
         with: { campaign_type: { columns: {}, with: { editions: { columns: { slug: true } } } } },
       });
 

@@ -7,7 +7,6 @@ import { gangs, gangSubtypeTypes } from '@/utils/db/schema';
 import { gangPortraitPublicUrl } from '@/types/gang';
 import { gangEditionSlug } from '@/types/edition';
 import { joinedParentGangTypeName } from '@/utils/gang-type-label';
-import { groupBy } from '@/utils/gang-assembly';
 
 export type Gang = {
   id: string;
@@ -86,28 +85,21 @@ export const getUserGangs = async (userId: string): Promise<Gang[]> => {
             with: { editions: { columns: { slug: true } } },
           },
           custom_gang_type: { columns: {}, with: { editions: { columns: { slug: true } } } },
+          campaign_gangs: {
+            columns: { campaign_id: true },
+            with: { campaign: { columns: { campaign_name: true } } },
+          },
         },
       });
 
-      if (rows.length === 0) return [];
-
       const subtypeIds = [...new Set(rows.flatMap((gang) => gang.gang_subtypes ?? []))];
-      const [subtypes, campaignGangs] = await Promise.all([
-        subtypeIds.length > 0
-          ? db
-              .select({ id: gangSubtypeTypes.id, subtype: gangSubtypeTypes.subtype })
-              .from(gangSubtypeTypes)
-              .where(inArray(gangSubtypeTypes.id, subtypeIds))
-          : [],
-        db.query.campaignGangs.findMany({
-          columns: { gang_id: true, campaign_id: true },
-          where: (campaignGang, { inArray }) => inArray(campaignGang.gang_id, rows.map((gang) => gang.id)),
-          with: { campaign: { columns: { campaign_name: true } } },
-        }),
-      ]);
-
+      const subtypes = subtypeIds.length > 0
+        ? await db
+            .select({ id: gangSubtypeTypes.id, subtype: gangSubtypeTypes.subtype })
+            .from(gangSubtypeTypes)
+            .where(inArray(gangSubtypeTypes.id, subtypeIds))
+        : [];
       const subtypeById = new Map(subtypes.map((subtype) => [subtype.id, subtype]));
-      const campaignGangsByGang = groupBy(campaignGangs, 'gang_id');
 
       return rows.map((gang) => ({
         id: gang.id,
@@ -122,7 +114,7 @@ export const getUserGangs = async (userId: string): Promise<Gang[]> => {
         created_at: gang.created_at,
         last_updated: gang.last_updated,
         gang_subtypes: (gang.gang_subtypes ?? []).flatMap((id) => subtypeById.get(id) ?? []),
-        campaigns: (campaignGangsByGang[gang.id] ?? []).map(({ campaign_id, campaign }) => ({
+        campaigns: gang.campaign_gangs.map(({ campaign_id, campaign }) => ({
           campaign_id,
           campaign_name: campaign?.campaign_name || 'Unknown Campaign'
         })),
