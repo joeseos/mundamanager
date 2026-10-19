@@ -1815,7 +1815,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
           fighter_id: params.fighter_id,
           fighter_name: updatedFighter.fighter_name,
           action_type: 'fighter_starting_xp_changed',
-          old_value: previousStartingXp ?? 'N/A',
+          old_value: previousStartingXp ?? undefined,
           new_value: updatedFighter.starting_xp,
           old_xp: previousXp,
           new_xp: updatedFighter.xp,
