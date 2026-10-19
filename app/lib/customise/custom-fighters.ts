@@ -4,7 +4,6 @@ import { getAppDb } from '@/utils/db/client';
 import { CustomFighterType } from "@/types/fighter";
 import { withEditionSlug } from "@/types/edition";
 import { groupBy } from '@/utils/gang-assembly';
-import { CUSTOM_ROW } from './custom-row';
 
 type EquipmentRow = {
   equipment_id: string | null;
@@ -37,7 +36,11 @@ export async function getUserCustomFighterTypes(userId: string): Promise<CustomF
     async () => {
       const db = getAppDb();
       const fighterTypes = await db.query.customFighterTypes.findMany({
-        ...CUSTOM_ROW,
+        columns: { created_at: false, updated_at: false },
+        extras: (fighter, { sql }) => ({
+          created_at: sql<string>`to_json(${fighter.created_at})`.as('created_at'),
+          updated_at: sql<string | null>`to_json(${fighter.updated_at})`.as('updated_at'),
+        }),
         where: (fighter, { eq }) => eq(fighter.user_id, userId),
         orderBy: (fighter, { asc }) => asc(fighter.fighter_type),
         with: {

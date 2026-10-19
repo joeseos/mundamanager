@@ -596,7 +596,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       }
 
       // Create success message
-      let successMessage = `${copyModalData.equipment_name} has been copied to your custom equipment.`;
+      let successMessage = `${copyModalData.equipment_name || 'Unnamed'} has been copied to your custom equipment.`;
       if (copiedProfileCount > 0) {
         successMessage += ` (${copiedProfileCount} weapon profile${copiedProfileCount > 1 ? 's' : ''} included)`;
       }

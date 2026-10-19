@@ -246,7 +246,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
           : { skill_type_id: copyModalData.skill_type_id }
         ),
       });
-      toast.success(`${copyModalData.skill_name} has been copied to your custom skills.`);
+      toast.success(`${copyModalData.skill_name || 'Unnamed'} has been copied to your custom skills.`);
       return true;
     } catch (error) {
       console.error('Error copying skill:', error);

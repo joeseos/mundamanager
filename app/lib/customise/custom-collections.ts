@@ -5,7 +5,6 @@ import { getAppDb } from '@/utils/db/client';
 import { customEquipment, customFighterTypes, customGangTypes, customSkills, customTradingPosts } from '@/utils/db/schema';
 import { withEditionSlug } from "@/types/edition";
 import type { CustomCollection, CollectionItem, CollectionItemType } from "@/app/actions/customise/custom-collections";
-import { CUSTOM_ROW } from './custom-row';
 
 export type { CustomCollection, CollectionItem, CollectionItemType } from "@/app/actions/customise/custom-collections";
 
@@ -37,7 +36,11 @@ export async function getUserCustomCollections(userId: string): Promise<CustomCo
     async () => {
       const db = getAppDb();
       const collections = await db.query.customCollections.findMany({
-        ...CUSTOM_ROW,
+        columns: { created_at: false, updated_at: false },
+        extras: (collection, { sql }) => ({
+          created_at: sql<string>`to_json(${collection.created_at})`.as('created_at'),
+          updated_at: sql<string | null>`to_json(${collection.updated_at})`.as('updated_at'),
+        }),
         where: (collection, { eq }) => eq(collection.user_id, userId),
         orderBy: (collection, { asc }) => asc(collection.name),
         with: { editions: { columns: { slug: true } } },

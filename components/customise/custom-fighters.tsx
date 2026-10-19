@@ -894,7 +894,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         const result = await createCustomFighter(newFighter);
         
         if (result.success) {
-          toast.success("Success", { description: `${copyModalData.fighter_type} has been copied to your custom fighters.` });
+          toast.success("Success", { description: `${copyModalData.fighter_type || 'Unnamed'} has been copied to your custom fighters.` });
           setCopyModalData(null);
           return true;
         } else {

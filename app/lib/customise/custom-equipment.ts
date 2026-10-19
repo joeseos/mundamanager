@@ -3,7 +3,6 @@ import { unstable_cache } from 'next/cache';
 import { getAppDb } from '@/utils/db/client';
 import { CustomEquipment } from "@/types/equipment";
 import { withEditionSlug } from "@/types/edition";
-import { CUSTOM_ROW } from './custom-row';
 
 // Re-export for backward compatibility
 export type { CustomEquipment } from "@/types/equipment";
@@ -12,7 +11,11 @@ export async function getUserCustomEquipment(userId: string): Promise<CustomEqui
   return unstable_cache(
     async () => {
       const customEquipment = await getAppDb().query.customEquipment.findMany({
-        ...CUSTOM_ROW,
+        columns: { created_at: false, updated_at: false },
+        extras: (item, { sql }) => ({
+          created_at: sql<string>`to_json(${item.created_at})`.as('created_at'),
+          updated_at: sql<string | null>`to_json(${item.updated_at})`.as('updated_at'),
+        }),
         where: (item, { eq }) => eq(item.user_id, userId),
         orderBy: (item, { asc }) => asc(item.equipment_name),
         with: { editions: { columns: { slug: true } } },

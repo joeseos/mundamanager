@@ -1,7 +1,6 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
 import { getAppDb } from '@/utils/db/client';
-import { CUSTOM_ROW } from './custom-row';
 
 export interface CustomSkill {
   id: string;
@@ -21,7 +20,11 @@ export async function getUserCustomSkills(userId: string): Promise<CustomSkill[]
   return unstable_cache(
     async () => {
       const customSkills = await getAppDb().query.customSkills.findMany({
-        ...CUSTOM_ROW,
+        columns: { created_at: false, updated_at: false },
+        extras: (skill, { sql }) => ({
+          created_at: sql<string>`to_json(${skill.created_at})`.as('created_at'),
+          updated_at: sql<string | null>`to_json(${skill.updated_at})`.as('updated_at'),
+        }),
         where: (skill, { eq }) => eq(skill.user_id, userId),
         orderBy: (skill, { asc }) => asc(skill.skill_name),
         with: {
