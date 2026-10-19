@@ -207,7 +207,7 @@ export default function ActiveSession({
               <p className="text-sm text-neutral-500">{session.campaign_name}</p>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2">
             {canManage && (
               <>
                 {isPreBattle && (
@@ -216,38 +216,22 @@ export default function ActiveSession({
                   </Button>
                 )}
                 {battleActive && (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowReturnToSetupModal(true)}
-                      disabled={changePhaseMutation.isPending}
-                    >
-                      Back to Pre-Battle
-                    </Button>
-                    <Button
-                      onClick={() => changePhaseMutation.mutate('forward')}
-                      disabled={changePhaseMutation.isPending}
-                    >
-                      End Battle
-                    </Button>
-                  </>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowReturnToSetupModal(true)}
+                    disabled={changePhaseMutation.isPending}
+                  >
+                    Back to Pre-Battle
+                  </Button>
                 )}
                 {isPostBattle && (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => changePhaseMutation.mutate('back')}
-                      disabled={changePhaseMutation.isPending}
-                    >
-                      Resume Battle
-                    </Button>
-                    <Button
-                      onClick={() => setShowCompleteBattleModal(true)}
-                      disabled={!session.participants.every((p) => p.ready)}
-                    >
-                      Complete Battle
-                    </Button>
-                  </>
+                  <Button
+                    variant="outline"
+                    onClick={() => changePhaseMutation.mutate('back')}
+                    disabled={changePhaseMutation.isPending}
+                  >
+                    Resume Battle
+                  </Button>
                 )}
                 <Button
                   variant="destructive"
@@ -313,7 +297,7 @@ export default function ActiveSession({
         )}
 
         {battleActive && (
-          <div className="mt-4 flex items-center gap-3">
+          <div className="mt-4 flex flex-wrap items-center gap-3">
             <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
               Round {session.round}
             </span>
@@ -334,33 +318,53 @@ export default function ActiveSession({
             >
               Complete Round
             </Button>
+            {canManage && (
+              <Button
+                className="w-full sm:ml-auto sm:w-auto"
+                onClick={() => changePhaseMutation.mutate('forward')}
+                disabled={changePhaseMutation.isPending}
+              >
+                End Battle
+              </Button>
+            )}
           </div>
         )}
 
         {isPostBattle && (
-          <div className="mt-4">
-            <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-              Post-Battle — enter reputation and income, then ready up
-            </p>
-            {session.participants.length >= 2 && (() => {
-              const readyCount = session.participants.filter((p) => p.ready).length;
-              const total = session.participants.length;
-              const notReady = session.participants.filter((p) => !p.ready);
-              return (
-                <div className="mt-2 text-sm text-muted-foreground">
-                  {readyCount === total ? (
-                    <span className="text-green-600 font-medium">All players ready</span>
-                  ) : (
-                    <span>
-                      {readyCount}/{total} ready
-                      {notReady.length > 0 && (
-                        <span> — Waiting for {notReady.map((p) => p.gang?.name || 'Unknown').join(', ')}</span>
-                      )}
-                    </span>
-                  )}
-                </div>
-              );
-            })()}
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <div>
+              <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                Post-Battle — enter reputation and income, then ready up
+              </p>
+              {session.participants.length >= 2 && (() => {
+                const readyCount = session.participants.filter((p) => p.ready).length;
+                const total = session.participants.length;
+                const notReady = session.participants.filter((p) => !p.ready);
+                return (
+                  <div className="mt-2 text-sm text-muted-foreground">
+                    {readyCount === total ? (
+                      <span className="text-green-600 font-medium">All players ready</span>
+                    ) : (
+                      <span>
+                        {readyCount}/{total} ready
+                        {notReady.length > 0 && (
+                          <span> — Waiting for {notReady.map((p) => p.gang?.name || 'Unknown').join(', ')}</span>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+            {canManage && (
+              <Button
+                className="w-full sm:ml-auto sm:w-auto"
+                onClick={() => setShowCompleteBattleModal(true)}
+                disabled={!session.participants.every((p) => p.ready)}
+              >
+                Complete Battle
+              </Button>
+            )}
           </div>
         )}
       </div>
