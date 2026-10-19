@@ -467,7 +467,6 @@ export default function ActiveSession({
             setShowReturnToSetupModal(false);
             return true;
           }}
-          confirmText="Return to Pre-Battle"
           confirmDisabled={changePhaseMutation.isPending}
         >
           <p>Return to Pre-Battle Sequence? This will unlock crew selection for all players.</p>
