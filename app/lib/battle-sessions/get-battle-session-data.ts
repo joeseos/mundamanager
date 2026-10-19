@@ -62,6 +62,7 @@ export async function fetchBattleSessionDirect(sessionId: string): Promise<Battl
           gang: { columns: { id: true, name: true, gang_type_id: true, gang_colour: true, rating: true } },
           profile: { columns: { username: true, patreon_tier_id: true, patreon_tier_title: true } },
           fighters: {
+            orderBy: (sessionFighter, { asc }) => [asc(sessionFighter.created_at), asc(sessionFighter.id)],
             with: { fighter: { columns: { id: true, fighter_name: true, credits: true, special_rules: true } } },
           },
         },
