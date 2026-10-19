@@ -23,19 +23,26 @@ export const CAMPAIGN_TERRITORY_FIELDS = {
 /** CAMPAIGN_TERRITORY_FIELDS as a Data API select, for the mutations. */
 export const CAMPAIGN_TERRITORY_COLUMNS = [...Object.keys(CAMPAIGN_TERRITORY_FIELDS), 'created_at'].join(', ');
 
+/** Fields read from the linked `territories` row; absent for custom territories. */
+export interface CampaignTerritoryTemplate {
+  territory_name: string;
+  credits: number | null;
+}
+
 /**
  * Apply the derived fields the cached reader adds on top of the raw row, so a freshly
  * inserted territory matches what a page render would have produced for it.
  */
 export function shapeCampaignTerritory(
   row: Record<string, any>,
-  originalTerritoryName: string | null = null
-): CampaignTerritoryRow & { original_territory_name: string | null; is_custom: boolean } {
+  template: CampaignTerritoryTemplate | null = null
+): CampaignTerritoryRow & { original_territory_name: string | null; credits: number | null; is_custom: boolean } {
   return {
     id: row.id,
     territory_id: row.territory_id,
     territory_name: row.territory_name,
-    original_territory_name: row.territory_id ? originalTerritoryName : null,
+    original_territory_name: row.territory_id ? template?.territory_name ?? null : null,
+    credits: row.territory_id ? template?.credits ?? null : null,
     gang_id: row.gang_id,
     created_at: row.created_at,
     ruined: row.ruined || false,

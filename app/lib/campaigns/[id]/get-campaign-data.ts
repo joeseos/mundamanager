@@ -179,13 +179,13 @@ async function _getCampaignTerritories(campaignId: string) {
         columns: { id: true, name: true, gang_type: true, gang_colour: true },
         with: { gang_types: { columns: { parent_gang_type_name: true } } },
       },
-      // Catalog/template name for Reset-to-original in the edit modal
-      territory: { columns: { territory_name: true } },
+      // Catalog/template name for Reset-to-original in the edit modal, and the credits it gives
+      territory: { columns: { territory_name: true, credits: true } },
     },
   });
 
   return territories.map(({ gang, territory, ...row }) => ({
-    ...shapeCampaignTerritory(row, territory?.territory_name ?? null),
+    ...shapeCampaignTerritory(row, territory ?? null),
     owning_gangs: gang ? [{
       id: gang.id,
       name: gang.name || '',
@@ -471,7 +471,7 @@ export const getCampaignTerritories = async (campaignId: string) => {
     async () => {
       return _getCampaignTerritories(campaignId);
     },
-    [`campaign-territories-v3-${campaignId}`],
+    [`campaign-territories-v4-${campaignId}`],
     {
       tags: [
         TAGS.campaignTerritories(campaignId),

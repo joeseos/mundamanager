@@ -53,6 +53,8 @@ interface Territory {
   territory_name: string;
   /** Catalog/template name when linked via territory_id; null for custom territories */
   original_territory_name?: string | null;
+  /** Credits the catalog territory gives; null for custom territories or when unset */
+  credits?: number | null;
   playing_card?: string | null;
   description?: string | null;
   gang_id: string | null;
@@ -631,6 +633,9 @@ export default function CampaignTerritoryList({
                 Controlled by
                 {sortIndicator('controllingGang')}
               </th>
+              <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
+                Credits
+              </th>
               <th className="p-1 md:p-2 text-left font-medium whitespace-nowrap">
                 <span className="hidden sm:inline">Description</span>
                 <span className="sm:hidden">Desc.</span>
@@ -641,7 +646,7 @@ export default function CampaignTerritoryList({
           <tbody>
             {visibleTerritories.length === 0 ? (
               <tr>
-                <td colSpan={5} className="text-muted-foreground italic text-center py-4">
+                <td colSpan={6} className="text-muted-foreground italic text-center py-4">
                   {!listDefaultTerritories
                     ? 'No territories to show with default territories hidden'
                     : 'No territories in this campaign'}
@@ -721,6 +726,9 @@ export default function CampaignTerritoryList({
                         </button>
                       ) : null}
                     </div>
+                  </td>
+                  <td className="px-2 py-2 text-right">
+                    {item.territory.credits ?? ''}
                   </td>
                   <td className="p-1 md:p-2 align-top">
                     {item.territory.description?.trim() && (
