@@ -483,13 +483,6 @@ export default function CampaignTerritoryList({
     return getPlayingCardSortKey(territory.playing_card);
   };
 
-  // Credits sort as numbers, with territories that have none first
-  const compareCredits = (a: Territory, b: Territory): number => {
-    const aCredits = a.credits ?? -Infinity;
-    const bCredits = b.credits ?? -Infinity;
-    return aCredits === bCredits ? 0 : aCredits < bCredits ? -1 : 1;
-  };
-
   // Helper function to create a unified sorted list for display
   const createSortedDisplayList = (territories: Territory[]): DisplayItem[] => {
     const { controlledTerritories, uncontrolledTerritories } = groupTerritoriesForDisplay(territories);
@@ -516,8 +509,9 @@ export default function CampaignTerritoryList({
     const allItems = [...controlledItems, ...uncontrolledItems];
     
     allItems.sort((a, b) => {
+      // Credits sort as numbers, with territories that have none first
       const comparison = sortField === 'credits'
-        ? compareCredits(a.territory, b.territory)
+        ? (a.territory.credits ?? -1) - (b.territory.credits ?? -1)
         : a.sortKey.localeCompare(b.sortKey);
       return sortDirection === 'asc' ? comparison : -comparison;
     });
