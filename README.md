@@ -605,9 +605,13 @@ Some server-side reads use [Drizzle ORM](https://orm.drizzle.team) over a direct
 Postgres connection instead of the Supabase Data API. Those reads don't create API
 gateway log entries, which Supabase bills as Logs Ingest. These are read this way:
 
-- the gang's roster, core row, positioning and campaigns (`getGangFightersBundle`,
-  `getGangCore`, `getGangPositioning` and `getGangCampaigns` in
-  `app/lib/shared/gang-data.ts`)
+- everything the gang page reads in `app/lib/shared/gang-data.ts`: the roster,
+  core row, positioning, campaigns, stash, subtypes, owner's profile, Gang
+  Tactics cards and fighter stats
+- the gang's battle sessions list (`getGangBattleSessionsCached` in
+  `app/lib/battle-sessions/get-battle-session-data.ts`)
+- permission checks (`checkPermission` and `checkPermissionCached` in
+  `utils/user-permissions.ts`)
 - the fighter's own row and its total cost (`getFighterBasic` and
   `getFighterTotalCost` in `app/lib/shared/fighter-data.ts`)
 

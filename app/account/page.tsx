@@ -22,7 +22,7 @@ export default async function AccountPage() {
   }
 
   // Fetch profile data via the cached entry (user-{id})
-  const profile = await getUserProfile(user.id, supabase).catch((error) => {
+  const profile = await getUserProfile(user.id).catch((error) => {
     console.error('Error fetching profile:', error);
     return null;
   });

@@ -2,6 +2,9 @@ import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { eq } from 'drizzle-orm';
+import { getAppDb } from '@/utils/db/client';
+import { battleSessionParticipants } from '@/utils/db/schema';
 import { normalizeSessionRecord, type BattleSession, type BattleSessionFull } from '@/types/battle-session';
 import { fetchCampaignResources, type CampaignResource } from '@/utils/campaigns/resources';
 
@@ -162,34 +165,38 @@ export const getBattleSessionCached = async (
   )();
 };
 
-export const getGangBattleSessionsCached = async (
-  gangId: string,
-  supabase: SupabaseClient
-): Promise<BattleSession[]> => {
+export const getGangBattleSessionsCached = async (gangId: string): Promise<BattleSession[]> => {
   return unstable_cache(
     async () => {
-      const { data: participantSessions } = await supabase
-        .from('battle_session_participants')
-        .select('battle_session_id')
-        .eq('gang_id', gangId);
+      const db = getAppDb();
+      const sessions = await db.query.battleSessions.findMany({
+        columns: { created_at: false, updated_at: false },
+        extras: (session, { sql }) => ({
+          created_at: sql<string>`to_json(${session.created_at})`.as('created_at'),
+          updated_at: sql<string>`to_json(${session.updated_at})`.as('updated_at'),
+        }),
+        where: (session, { inArray }) =>
+          inArray(
+            session.id,
+            db
+              .select({ id: battleSessionParticipants.battle_session_id })
+              .from(battleSessionParticipants)
+              .where(eq(battleSessionParticipants.gang_id, gangId))
+          ),
+        orderBy: (session, { desc }) => desc(session.updated_at),
+        with: {
+          editions: { columns: { slug: true } },
+          deployment: { columns: { name: true } },
+          objective: { columns: { name: true } },
+          crew_selection: { columns: { name: true } },
+        },
+      });
 
-      const sessionIds = Array.from(
-        new Set((participantSessions || []).map((p: any) => p.battle_session_id))
-      ) as string[];
-
-      if (sessionIds.length === 0) return [];
-
-      // Same embed + flatten as fetchBattleSessionDirect. BattleSession declares
+      // Same flatten as fetchBattleSessionDirect. BattleSession declares
       // edition_slug, so a list loader that quietly omitted it would leave the
       // field undefined here and populated there — the kind of inconsistency a
       // future consumer only discovers at runtime.
-      const { data: sessions } = await supabase
-        .from('battle_sessions')
-        .select(`*, editions:edition_id ( slug ), ${SESSION_SCENARIO_PARTS_SELECT}`)
-        .in('id', sessionIds)
-        .order('updated_at', { ascending: false });
-
-      return (sessions || []).map(({ editions, ...session }: any) => ({
+      return sessions.map(({ editions, ...session }) => ({
         ...session,
         edition_slug: editions?.slug ?? null,
       }));

@@ -1,7 +1,8 @@
 import { TAGS } from '@/utils/cache-tags';
 import 'server-only';
 
-import { createClient } from '@/utils/supabase/server';
+import { sql } from 'drizzle-orm';
+import { getAppDb } from '@/utils/db/client';
 import type { UserPermissions, CampaignPermissions } from '@/types/user-permissions';
 import type { CampaignRole } from '@/types/user-permissions';
 import { unstable_cache } from 'next/cache';
@@ -11,23 +12,27 @@ export interface CheckPermissionResult {
   campaign_role: CampaignRole | null;
 }
 
+async function queryPermission(
+  userId: string,
+  campaignId: string | null,
+  gangId: string | null
+): Promise<CheckPermissionResult> {
+  const [row] = await getAppDb().execute<{ result: CheckPermissionResult }>(
+    sql`select public.check_permission(${userId}::uuid, ${campaignId}::uuid, ${gangId}::uuid) as result`
+  );
+  return row.result;
+}
+
 export async function checkPermission(
   userId: string,
   opts: { campaignId?: string | null; gangId?: string | null } = {}
 ): Promise<CheckPermissionResult> {
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc('check_permission', {
-    p_user_id: userId,
-    p_campaign_id: opts.campaignId ?? null,
-    p_gang_id: opts.gangId ?? null,
-  });
-
-  if (error) {
-    console.error('Error in check_permission RPC:', error);
+  try {
+    return await queryPermission(userId, opts.campaignId ?? null, opts.gangId ?? null);
+  } catch (error) {
+    console.error('Error in check_permission:', error);
     return { is_admin: false, campaign_role: null };
   }
-
-  return data as CheckPermissionResult;
 }
 
 export async function checkPermissionCached(
@@ -35,9 +40,7 @@ export async function checkPermissionCached(
   gangId: string,
   gangOwnerId: string | null
 ): Promise<UserPermissions> {
-  const supabase = await createClient();
-
-  // Settled outside the cache so an owner keeps canEdit even if the RPC or cache is broken.
+  // Settled outside the cache so an owner keeps canEdit even if the query or cache is broken.
   const withOwnership = (permissions: UserPermissions): UserPermissions =>
     gangOwnerId !== null && gangOwnerId === userId
       ? { ...permissions, isOwner: true, canEdit: true, canDelete: true }
@@ -45,21 +48,10 @@ export async function checkPermissionCached(
 
   try {
     const permissions = await unstable_cache(
-      async (uid: string, gid: string, ownerId: string | null) => {
-        const { data, error } = await supabase.rpc('check_permission', {
-          p_user_id: uid,
-          p_campaign_id: null,
-          p_gang_id: gid,
-        });
-
-        // Must throw: unstable_cache persists a returned deny, and revalidate: false
-        // makes it permanent.
-        if (error) {
-          throw new Error(`check_permission RPC failed: ${error.message}`);
-        }
-
-        return deriveGangPermissions(uid, ownerId, data as CheckPermissionResult);
-      },
+      // A failed query must throw: unstable_cache persists a returned deny, and
+      // revalidate: false makes it permanent.
+      async (uid: string, gid: string, ownerId: string | null) =>
+        deriveGangPermissions(uid, ownerId, await queryPermission(uid, null, gid)),
       [`check-permission-${userId}-${gangId}`],
       {
         tags: [

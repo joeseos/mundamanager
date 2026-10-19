@@ -24,14 +24,14 @@ export async function GET(
   }
 
   try {
-    // getGangFighterStats caches per gang across users. Without a session, RLS
-    // returns no fighters, which would be cached as a zero "OOA caused".
+    // The stats are read over the direct connection, which doesn't check who is
+    // asking, so confirm the user first
     const userId = await getUserIdFromClaims(supabase);
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const stats = await getGangFighterStats(gangId, supabase);
+    const stats = await getGangFighterStats(gangId);
     return NextResponse.json(stats);
   } catch (error: any) {
     console.error('Error fetching gang fighter stats:', error);
