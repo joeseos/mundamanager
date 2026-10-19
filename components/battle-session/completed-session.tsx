@@ -108,7 +108,7 @@ export default function CompletedSession({
                     className="flex items-center gap-2 text-sm"
                   >
                     <span className="font-medium">
-                      {f.fighter?.fighter_name}
+                      {f.fighter?.fighter_name ?? 'Unknown Fighter'}
                     </span>
                     {(f.session_record?.xp_earned ?? 0) > 0 && (
                       <span className="text-neutral-500">

@@ -27,7 +27,7 @@ import {
   getCampaignMapWithObjects,
   getCampaignOoaCounts
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
-import { SESSION_SCENARIO_PARTS_SELECT } from "@/app/lib/battle-sessions/get-battle-session-data";
+import { getCampaignBattleSessions } from "@/app/lib/battle-sessions/get-battle-session-data";
 
 export default async function CampaignPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -87,7 +87,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       campaignTerritories,
       campaignBattles,
       campaignMapBundle,
-      battleSessionsResult,
+      battleSessions,
       campaignTypes,
       allTerritories,
       tradingPostTypes,
@@ -103,11 +103,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       getCampaignTerritories(params.id),
       getCampaignBattles(params.id, 100),
       getCampaignMapWithObjects(params.id),
-      supabase
-        .from('battle_sessions')
-        .select(`*, ${SESSION_SCENARIO_PARTS_SELECT}`)
-        .eq('campaign_id', params.id)
-        .order('updated_at', { ascending: false }),
+      getCampaignBattleSessions(params.id),
       getCampaignTypes(),
       getAllTerritories(),
       getTradingPostTypesCached(supabase),
@@ -174,7 +170,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       members: campaignMembers,
       territories: campaignTerritories,
       battles: campaignBattles,
-      battleSessions: battleSessionsResult.data || [],
+      battleSessions,
       triumphs: campaignTriumphs,
       ooaCounts: campaignOoaCounts,
       captives: campaignCaptives

@@ -2,7 +2,7 @@
 
 import { invalidateGangCampaignMembership, invalidateCampaignBattles, invalidateCampaignTerritories, invalidateBattleSession, invalidateBattleSessions } from '@/utils/cache-tags';
 import { createClient, createServiceRoleClient } from '@/utils/supabase/server';
-import { getAuthenticatedUser } from '@/utils/auth';
+import { getAuthenticatedUser, getUserIdFromClaims } from '@/utils/auth';
 
 import { after } from 'next/server';
 import { updateGang } from '@/app/actions/update-gang';
@@ -41,9 +41,12 @@ const GANG_EDITION_SELECT = `
 // Data Fetching
 // =============================================================================
 
+// The direct connection doesn't check who is asking, so only signed-in users
+// get a session, as RLS on the Data API allowed.
 export async function fetchBattleSession(sessionId: string): Promise<BattleSessionFull | null> {
   const supabase = await createClient();
-  return fetchBattleSessionDirect(sessionId, supabase);
+  if (!(await getUserIdFromClaims(supabase))) return null;
+  return fetchBattleSessionDirect(sessionId);
 }
 
 // =============================================================================

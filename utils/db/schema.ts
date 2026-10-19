@@ -14,7 +14,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
-import type { BattleSessionStatus } from '@/types/battle-session';
+import type { BattleSessionParticipant, BattleSessionStatus, SessionRecord } from '@/types/battle-session';
 import type { BattleParticipant, BattleStatus } from '@/types/campaign';
 import type { CollectionItem } from '@/app/actions/customise/custom-collections';
 
@@ -96,7 +96,7 @@ export const fighters = pgTable('fighters', {
   gang_id: uuid('gang_id'),
   kills: numeric('kills', { mode: 'number' }).default(0),
   xp: numeric('xp', { mode: 'number' }).default(0),
-  special_rules: jsonArray('special_rules'),
+  special_rules: jsonArray('special_rules').$type<string[]>(),
   position: integer('position').default(0).notNull(),
   total_xp: numeric('total_xp', { mode: 'number' }).default(0),
   free_skill: boolean('free_skill'),
@@ -830,7 +830,7 @@ export const battleSessionParticipants = pgTable('battle_session_participants', 
   battle_session_id: uuid('battle_session_id').notNull(),
   user_id: uuid('user_id').notNull(),
   gang_id: uuid('gang_id').notNull(),
-  role: text('role').default(sql`'none'::text`).notNull(),
+  role: text('role').$type<BattleSessionParticipant['role']>().default(sql`'none'::text`).notNull(),
   gang_rating_snapshot: integer('gang_rating_snapshot'),
   credits_earned: integer('credits_earned').default(0).notNull(),
   reputation_change: integer('reputation_change').default(0).notNull(),
@@ -838,10 +838,20 @@ export const battleSessionParticipants = pgTable('battle_session_participants', 
   ready: boolean('ready').default(false),
   is_winner: boolean('is_winner').default(false).notNull(),
   claimed_territory: boolean('claimed_territory').default(false).notNull(),
-  resource_changes: json('resource_changes').default(sql`'[]'::jsonb`).notNull(),
+  resource_changes: json('resource_changes').$type<BattleSessionParticipant['resource_changes']>().default(sql`'[]'::jsonb`).notNull(),
   side_job_id: uuid('side_job_id'),
   side_job_completed: boolean('side_job_completed').default(false).notNull(),
   side_job_name: text('side_job_name'),
+});
+
+export const battleSessionFighters = pgTable('battle_session_fighters', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  battle_session_id: uuid('battle_session_id').notNull(),
+  participant_id: uuid('participant_id').notNull(),
+  fighter_id: uuid('fighter_id').notNull(),
+  session_record: json('session_record').$type<Partial<SessionRecord>>().default(sql`'{"injuries": [], "xp_earned": 0, "conditions": [], "activations": 1}'::jsonb`).notNull(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  loadout_id: uuid('loadout_id'),
 });
 
 export const territories = pgTable('territories', {
@@ -1037,6 +1047,7 @@ export const campaignsRelations = relations(campaigns, ({ one, many }) => ({
   campaign_territories: many(campaignTerritories),
   campaign_resources: many(campaignResources),
   campaign_allegiances: many(campaignAllegiances),
+  campaign_gangs: many(campaignGangs),
 }));
 
 export const campaignTypesRelations = relations(campaignTypes, ({ one, many }) => ({
@@ -1369,7 +1380,16 @@ export const gangTacticsCardsRelations = relations(gangTacticsCards, ({ one }) =
   }),
 }));
 
-export const battleSessionsRelations = relations(battleSessions, ({ one }) => ({
+export const battleSessionsRelations = relations(battleSessions, ({ one, many }) => ({
+  campaign: one(campaigns, {
+    fields: [battleSessions.campaign_id],
+    references: [campaigns.id],
+  }),
+  linked_battle: one(campaignBattles, {
+    fields: [battleSessions.campaign_battle_id],
+    references: [campaignBattles.id],
+  }),
+  participants: many(battleSessionParticipants),
   editions: one(editions, {
     fields: [battleSessions.edition_id],
     references: [editions.id],
@@ -1385,6 +1405,33 @@ export const battleSessionsRelations = relations(battleSessions, ({ one }) => ({
   crew_selection: one(scenarioTableEntries, {
     fields: [battleSessions.crew_selection_id],
     references: [scenarioTableEntries.id],
+  }),
+}));
+
+export const battleSessionParticipantsRelations = relations(battleSessionParticipants, ({ one, many }) => ({
+  battle_session: one(battleSessions, {
+    fields: [battleSessionParticipants.battle_session_id],
+    references: [battleSessions.id],
+  }),
+  gang: one(gangs, {
+    fields: [battleSessionParticipants.gang_id],
+    references: [gangs.id],
+  }),
+  profile: one(profiles, {
+    fields: [battleSessionParticipants.user_id],
+    references: [profiles.id],
+  }),
+  fighters: many(battleSessionFighters),
+}));
+
+export const battleSessionFightersRelations = relations(battleSessionFighters, ({ one }) => ({
+  participant: one(battleSessionParticipants, {
+    fields: [battleSessionFighters.participant_id],
+    references: [battleSessionParticipants.id],
+  }),
+  fighter: one(fighters, {
+    fields: [battleSessionFighters.fighter_id],
+    references: [fighters.id],
   }),
 }));
 
