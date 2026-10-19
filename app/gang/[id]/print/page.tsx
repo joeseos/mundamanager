@@ -38,7 +38,7 @@ export default async function PrintGangPage(props: {
     } = await import("@/app/lib/shared/gang-data");
 
     // Fetch the gang core first to check if gang exists
-    const gangBasic = await getGangCore(params.id, supabase);
+    const gangBasic = await getGangCore(params.id);
 
     if (!gangBasic) {
       notFound();
@@ -69,13 +69,13 @@ export default async function PrintGangPage(props: {
       stash,
       ownerProfile,
     ] = await Promise.all([
-      getGangPositioning(params.id, supabase),
+      getGangPositioning(params.id),
       getGangType(gangBasic, supabase),
-      getGangFightersList(params.id, supabase, {
+      getGangFightersList(params.id, {
         expandLoadoutsForPrint: true,
         gangEditionSlug: gangBasic.edition_slug ?? null,
       }),
-      getGangCampaigns(params.id, supabase),
+      getGangCampaigns(params.id),
       getGangSubtypes(gangBasic.gang_subtypes || [], supabase),
       getGangStash(params.id, supabase),
       getUserProfile(gangBasic.user_id, supabase),

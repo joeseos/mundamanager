@@ -19,7 +19,7 @@ export default async function FighterBreadcrumb({
   // Reads the fighter/gang cached entries instead of an uncached query
   const fighterData = userId ? await getFighterBasic(id).catch(() => null) : null
   const gang = fighterData?.gang_id
-    ? await getGangCore(fighterData.gang_id, supabase).catch(() => null)
+    ? await getGangCore(fighterData.gang_id).catch(() => null)
     : null
 
   return (

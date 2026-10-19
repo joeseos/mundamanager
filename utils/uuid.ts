@@ -5,6 +5,10 @@ const UUID_RE = new RegExp(`^${UUID}$`, 'i');
 export const isUuid = (value: unknown): value is string =>
   typeof value === 'string' && UUID_RE.test(value);
 
+/** Whether value is an array of UUIDs. */
+export const isUuidArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every(isUuid);
+
 /**
  * The path with every UUID in it lower-cased. Ids are compared, cached and
  * tagged in lower case, as Postgres prints them.

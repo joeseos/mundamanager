@@ -20,10 +20,13 @@ import { relations, sql } from 'drizzle-orm';
  * supabase/migrations; these definitions mirror supabase/schema/schema.public.sql
  * and must be kept in step with it when a migration changes these tables.
  *
- * Column types are chosen so values come back exactly as the Data API returns
- * them: numeric and bigint as numbers, timestamps and dates as ISO strings,
- * jsonb untouched. Relational queries read nested rows as JSON built by
- * Postgres, which already encodes every value the way the Data API does.
+ * Column types are chosen so values come back as the Data API returns them:
+ * numeric and bigint as numbers, timestamps and dates as strings, jsonb
+ * untouched. Relational queries read nested rows as JSON built by Postgres,
+ * which already encodes every value the way the Data API does. A row's own
+ * timestamps are the exception: they arrive in Postgres's text form
+ * ('2026-10-16 11:03:30+00', not '2026-10-16T11:03:30+00:00'), so a query that
+ * returns them selects them with to_json in its extras.
  */
 
 type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
@@ -47,7 +50,7 @@ export const gangs = pgTable('gangs', {
   id: uuid('id').defaultRandom().primaryKey(),
   gang_type_id: uuid('gang_type_id'),
   alignment: alignment('alignment'),
-  positioning: json('positioning'),
+  positioning: json('positioning').$type<Record<string, any>>(),
   note: text('note'),
   alliance_id: uuid('alliance_id'),
   gang_subtypes: json('gang_subtypes'),
@@ -478,15 +481,352 @@ export const fighterLoadoutEquipment = pgTable('fighter_loadout_equipment', {
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
 }, (table) => [primaryKey({ columns: [table.loadout_id, table.fighter_equipment_id] })]);
 
+export const alliances = pgTable('alliances', {
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  alliance_type: text('alliance_type'),
+  alliance_name: text('alliance_name'),
+  alignment: text('alignment'),
+  strong_alliance: uuid('strong_alliance'),
+  id: uuid('id').defaultRandom().primaryKey(),
+  alliance_crew_name: text('alliance_crew_name'),
+  edition_id: uuid('edition_id'),
+  tithe_cost: numeric('tithe_cost', { mode: 'number' }),
+});
+
+export const gangAffiliation = pgTable('gang_affiliation', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  name: text('name'),
+  fighter_type_id: uuid('fighter_type_id'),
+  edition_id: uuid('edition_id'),
+});
+
+export const gangOriginCategories = pgTable('gang_origin_categories', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  category_name: text('category_name'),
+});
+
+export const gangOrigins = pgTable('gang_origins', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  origin_name: text('origin_name'),
+  gang_origin_category_id: uuid('gang_origin_category_id'),
+  edition_id: uuid('edition_id'),
+});
+
+export const gangTypes = pgTable('gang_types', {
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  gang_type: text('gang_type'),
+  id: uuid('id').defaultRandom().primaryKey(),
+  alignment: alignment('alignment'),
+  is_hidden: boolean('is_hidden').default(false),
+  trading_post_type_id: uuid('trading_post_type_id'),
+  affiliation: boolean('affiliation').default(false),
+  gang_origin_category_id: uuid('gang_origin_category_id'),
+  edition_id: uuid('edition_id'),
+  parent_gang_type_id: uuid('parent_gang_type_id'),
+  parent_gang_type_name: text('parent_gang_type_name'),
+});
+
+export const customGangTypes = pgTable('custom_gang_types', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  user_id: uuid('user_id').notNull(),
+  gang_type: text('gang_type').notNull(),
+  alignment: alignment('alignment'),
+  trading_post_type_id: uuid('trading_post_type_id'),
+  description: text('description'),
+  edition_id: uuid('edition_id').notNull(),
+});
+
+export const gangPortraits = pgTable('gang_portraits', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  storage_path: text('storage_path').notNull(),
+  credit: json('credit').notNull(),
+  group_label: text('group_label').notNull(),
+  style: text('style').notNull(),
+  label: text('label'),
+});
+
+export const gangSkillSetRanks = pgTable('gang_skill_set_ranks', {
+  gang_id: uuid('gang_id').notNull(),
+  rank: integer('rank').notNull(),
+  skill_type_id: uuid('skill_type_id').notNull(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+}, (table) => [primaryKey({ columns: [table.gang_id, table.rank] })]);
+
+export const campaignTypes = pgTable('campaign_types', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  campaign_type_name: text('campaign_type_name'),
+  description: text('description'),
+  image_url: text('image_url'),
+  trading_posts: json('trading_posts'),
+  edition_id: uuid('edition_id'),
+});
+
+export const campaigns = pgTable('campaigns', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  campaign_name: text('campaign_name'),
+  campaign_type_id: uuid('campaign_type_id'),
+  status: text('status'),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  note: text('note'),
+  description: text('description'),
+  image_url: text('image_url'),
+  trading_posts: json('trading_posts').$type<string[]>(),
+  discord_channel_id: text('discord_channel_id'),
+  discord_guild_id: text('discord_guild_id'),
+  discord_channel_type: integer('discord_channel_type').default(0).notNull(),
+  created_by: uuid('created_by').default(sql`auth.uid()`),
+  custom_trading_posts: json('custom_trading_posts').$type<string[]>(),
+  allow_join_requests: boolean('allow_join_requests').default(false).notNull(),
+  current_cycle: integer('current_cycle'),
+});
+
+export const campaignMembers = pgTable('campaign_members', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  user_id: uuid('user_id').notNull(),
+  campaign_id: uuid('campaign_id'),
+  invited_by: uuid('invited_by'),
+  role: text('role'),
+  invited_at: timestamp('invited_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+  joined_at: timestamp('joined_at', { withTimezone: true, mode: 'string' }),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  is_favourite: boolean('is_favourite').default(false).notNull(),
+  favourite_order: integer('favourite_order'),
+});
+
+export const campaignGangs = pgTable('campaign_gangs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  campaign_id: uuid('campaign_id'),
+  user_id: uuid('user_id').notNull(),
+  role: text('role'),
+  status: text('status'),
+  invited_at: timestamp('invited_at', { withTimezone: true, mode: 'string' }),
+  joined_at: timestamp('joined_at', { withTimezone: true, mode: 'string' }),
+  invited_by: uuid('invited_by'),
+  gang_id: uuid('gang_id'),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  campaign_member_id: uuid('campaign_member_id'),
+  campaign_type_allegiance_id: uuid('campaign_type_allegiance_id'),
+  campaign_allegiance_id: uuid('campaign_allegiance_id'),
+});
+
+export const campaignTerritories = pgTable('campaign_territories', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  territory_id: uuid('territory_id'),
+  campaign_id: uuid('campaign_id'),
+  owner: json('owner'),
+  territory_name: text('territory_name'),
+  gang_id: uuid('gang_id'),
+  ruined: boolean('ruined').default(false),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  default_gang_territory: boolean('default_gang_territory').default(false),
+  playing_card: text('playing_card'),
+  description: text('description'),
+  map_object_id: uuid('map_object_id'),
+  map_hex_coords: json('map_hex_coords'),
+  show_name_on_map: boolean('show_name_on_map').default(true),
+});
+
+export const tradingPostTypes = pgTable('trading_post_types', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  trading_post_name: text('trading_post_name'),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  edition_id: uuid('edition_id'),
+});
+
+export const customTradingPosts = pgTable('custom_trading_posts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  user_id: uuid('user_id').notNull(),
+  custom_trading_post_name: text('custom_trading_post_name').notNull(),
+  description: text('description'),
+  edition_id: uuid('edition_id'),
+});
+
+export const campaignAllegiances = pgTable('campaign_allegiances', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  campaign_id: uuid('campaign_id').notNull(),
+  allegiance_name: text('allegiance_name').notNull(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+});
+
+export const campaignTypeAllegiances = pgTable('campaign_type_allegiances', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  campaign_type_id: uuid('campaign_type_id').notNull(),
+  allegiance_name: text('allegiance_name').notNull(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+});
+
+export const campaignTypeResources = pgTable('campaign_type_resources', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  campaign_type_id: uuid('campaign_type_id').notNull(),
+  resource_name: text('resource_name').notNull(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+});
+
+export const campaignResources = pgTable('campaign_resources', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  campaign_id: uuid('campaign_id').notNull(),
+  resource_name: text('resource_name').notNull(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+});
+
+export const campaignGangResources = pgTable('campaign_gang_resources', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  campaign_gang_id: uuid('campaign_gang_id').notNull(),
+  campaign_type_resource_id: uuid('campaign_type_resource_id'),
+  campaign_resource_id: uuid('campaign_resource_id'),
+  quantity: numeric('quantity', { mode: 'number' }).default(0).notNull(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+});
+
 // A one() that names its join columns (fields/references) needs nothing more.
 // A many() is matched to the one() pointing back at its table, so where two
 // one()s point at the same table, that pair gets a relationName:
 // gangs.fighters (gang_id, not captured_by_gang_id) and
 // fighters.fighter_exotic_beasts (fighter_owner_id, not fighter_pet_id).
 
-export const gangsRelations = relations(gangs, ({ many }) => ({
+export const gangsRelations = relations(gangs, ({ one, many }) => ({
   fighters: many(fighters, { relationName: 'gang_fighters' }),
   vehicles: many(vehicles),
+  alliance: one(alliances, {
+    fields: [gangs.alliance_id],
+    references: [alliances.id],
+  }),
+  gang_affiliation: one(gangAffiliation, {
+    fields: [gangs.gang_affiliation_id],
+    references: [gangAffiliation.id],
+  }),
+  gang_origin: one(gangOrigins, {
+    fields: [gangs.gang_origin_id],
+    references: [gangOrigins.id],
+  }),
+  gang_types: one(gangTypes, {
+    fields: [gangs.gang_type_id],
+    references: [gangTypes.id],
+  }),
+  custom_gang_type: one(customGangTypes, {
+    fields: [gangs.custom_gang_type_id],
+    references: [customGangTypes.id],
+  }),
+  gang_portrait: one(gangPortraits, {
+    fields: [gangs.gang_portrait_id],
+    references: [gangPortraits.id],
+  }),
+  gang_skill_set_ranks: many(gangSkillSetRanks),
+}));
+
+export const gangOriginsRelations = relations(gangOrigins, ({ one }) => ({
+  gang_origin_categories: one(gangOriginCategories, {
+    fields: [gangOrigins.gang_origin_category_id],
+    references: [gangOriginCategories.id],
+  }),
+}));
+
+export const gangTypesRelations = relations(gangTypes, ({ one }) => ({
+  gang_origin_categories: one(gangOriginCategories, {
+    fields: [gangTypes.gang_origin_category_id],
+    references: [gangOriginCategories.id],
+  }),
+  editions: one(editions, {
+    fields: [gangTypes.edition_id],
+    references: [editions.id],
+  }),
+}));
+
+export const customGangTypesRelations = relations(customGangTypes, ({ one }) => ({
+  editions: one(editions, {
+    fields: [customGangTypes.edition_id],
+    references: [editions.id],
+  }),
+}));
+
+export const gangSkillSetRanksRelations = relations(gangSkillSetRanks, ({ one }) => ({
+  gang: one(gangs, {
+    fields: [gangSkillSetRanks.gang_id],
+    references: [gangs.id],
+  }),
+}));
+
+export const campaignGangsRelations = relations(campaignGangs, ({ one, many }) => ({
+  campaign_member: one(campaignMembers, {
+    fields: [campaignGangs.campaign_member_id],
+    references: [campaignMembers.id],
+  }),
+  campaign: one(campaigns, {
+    fields: [campaignGangs.campaign_id],
+    references: [campaigns.id],
+  }),
+  campaign_allegiance: one(campaignAllegiances, {
+    fields: [campaignGangs.campaign_allegiance_id],
+    references: [campaignAllegiances.id],
+  }),
+  campaign_type_allegiance: one(campaignTypeAllegiances, {
+    fields: [campaignGangs.campaign_type_allegiance_id],
+    references: [campaignTypeAllegiances.id],
+  }),
+  campaign_gang_resources: many(campaignGangResources),
+}));
+
+export const campaignsRelations = relations(campaigns, ({ one, many }) => ({
+  campaign_type: one(campaignTypes, {
+    fields: [campaigns.campaign_type_id],
+    references: [campaignTypes.id],
+  }),
+  campaign_territories: many(campaignTerritories),
+  campaign_resources: many(campaignResources),
+}));
+
+export const campaignTypesRelations = relations(campaignTypes, ({ many }) => ({
+  campaign_type_resources: many(campaignTypeResources),
+}));
+
+export const campaignTerritoriesRelations = relations(campaignTerritories, ({ one }) => ({
+  campaign: one(campaigns, {
+    fields: [campaignTerritories.campaign_id],
+    references: [campaigns.id],
+  }),
+}));
+
+export const campaignResourcesRelations = relations(campaignResources, ({ one }) => ({
+  campaign: one(campaigns, {
+    fields: [campaignResources.campaign_id],
+    references: [campaigns.id],
+  }),
+}));
+
+export const campaignTypeResourcesRelations = relations(campaignTypeResources, ({ one }) => ({
+  campaign_type: one(campaignTypes, {
+    fields: [campaignTypeResources.campaign_type_id],
+    references: [campaignTypes.id],
+  }),
+}));
+
+export const campaignGangResourcesRelations = relations(campaignGangResources, ({ one }) => ({
+  campaign_gang: one(campaignGangs, {
+    fields: [campaignGangResources.campaign_gang_id],
+    references: [campaignGangs.id],
+  }),
 }));
 
 export const fightersRelations = relations(fighters, ({ one, many }) => ({

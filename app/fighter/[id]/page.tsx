@@ -23,7 +23,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
 
   let pageProps;
   try {
-    const pageData = await getFighterPageData(id, supabase);
+    const pageData = await getFighterPageData(id);
     if (!pageData) {
       notFound();
     }

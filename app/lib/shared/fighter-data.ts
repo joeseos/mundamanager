@@ -215,7 +215,7 @@ export const getFighterTotalCost = async (fighterId: string): Promise<number> =>
  * does not exist. Callers authenticate first and check permissions against
  * gangOwnerId.
  */
-export async function getFighterPageData(fighterId: string, supabase: any) {
+export async function getFighterPageData(fighterId: string) {
   // Fetch basic fighter data first to check if fighter exists and resolve the gang
   const fighterBasic = await getFighterBasic(fighterId);
 
@@ -227,10 +227,10 @@ export async function getFighterPageData(fighterId: string, supabase: any) {
   // gang page visit. The bundle is read ONCE: both the fighter view and the
   // navigation roster are pure selectors over it.
   const [gangBasic, gangPositioning, bundle, gangCampaigns] = await Promise.all([
-    getGangCore(fighterBasic.gang_id, supabase),
-    getGangPositioning(fighterBasic.gang_id, supabase),
+    getGangCore(fighterBasic.gang_id),
+    getGangPositioning(fighterBasic.gang_id),
     getGangFightersBundle(fighterBasic.gang_id),
-    getGangCampaigns(fighterBasic.gang_id, supabase),
+    getGangCampaigns(fighterBasic.gang_id),
   ]);
 
   // Check if gang exists (shouldn't happen but handle gracefully)
