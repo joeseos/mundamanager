@@ -176,9 +176,9 @@ export interface FighterLoadout {
 export interface CustomEquipment {
   id: string;
   user_id: string;
-  equipment_name: string;
+  equipment_name: string | null;
   availability: string | null;
-  cost: number;
+  cost: number | null;
   /** N26 Trade Points cost (text: numeric string or E); surfaced when edition uses trade points */
   trade_points?: string;
   variant?: string | null;

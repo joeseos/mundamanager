@@ -5,8 +5,8 @@ import { CUSTOM_ROW } from './custom-row';
 
 export interface CustomSkill {
   id: string;
-  user_id: string;
-  skill_name: string;
+  user_id: string | null;
+  skill_name: string | null;
   skill_type_id?: string | null;
   custom_skill_type_id?: string | null;
   skill_type_name?: string;

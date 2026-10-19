@@ -724,7 +724,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     // The selected equipment IDs will be set below, and the equipment list will be loaded via API
 
     // Pre-populate the form with existing data
-    setFighterType(fighter.fighter_type);
+    setFighterType(fighter.fighter_type ?? '');
     setCost(fighter.cost?.toString() || '');
     setSelectedGangType(fighter.custom_gang_type_id || fighter.gang_type_id || '');
 
@@ -915,8 +915,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
 
   const handleSubmit = () => {
     // Validation
-    const costValue = parseInt(cost);
-    if (!selectedGangType || !fighterType || Number.isNaN(costValue) || (!allowMultipleSubtypes && selectedFighterSubtypes.length === 0)) {
+    if (!selectedGangType || !fighterType || !cost || (!allowMultipleSubtypes && selectedFighterSubtypes.length === 0)) {
       toast.error('Please fill in all required fields');
       return false;
     }
@@ -944,7 +943,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
 
     const requestData = {
       fighter_type: fighterType,
-      cost: costValue,
+      cost: parseInt(cost),
       gang_type_id: isCustomGangType ? undefined : selectedGangType,
       custom_gang_type_id: isCustomGangType ? selectedGangType : undefined,
       gang_type: selectedGang?.gang_type || '',

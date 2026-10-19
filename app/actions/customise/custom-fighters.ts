@@ -18,11 +18,11 @@ const startingXpFor = (value?: number | null): number | null =>
   value === undefined ? 0 : value;
 
 export interface CreateCustomFighterData {
-  fighter_type: string;
+  fighter_type: string | null;
   gang_type: string;
   gang_type_id?: string;
   custom_gang_type_id?: string;
-  cost: number;
+  cost: number | null;
   description?: string | null;
   movement?: number | null;
   weapon_skill?: number | null;

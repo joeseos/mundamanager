@@ -115,10 +115,10 @@ export async function deleteCustomEquipment(equipmentId: string) {
 }
 
 export async function createCustomEquipment(data: {
-  equipment_name: string;
+  equipment_name: string | null;
   availability: string | null;
   trade_points?: string;
-  cost: number;
+  cost: number | null;
   equipment_category_id: string;
   equipment_type: 'wargear' | 'weapon';
   is_consumable?: boolean;
@@ -155,7 +155,7 @@ export async function createCustomEquipment(data: {
     .from('custom_equipment')
     .insert({
       user_id: user.id,
-      equipment_name: data.equipment_name.trimEnd(),
+      equipment_name: data.equipment_name?.trimEnd() ?? null,
       availability: data.availability,
       trade_points: data.trade_points ?? '0',
       cost: data.cost,

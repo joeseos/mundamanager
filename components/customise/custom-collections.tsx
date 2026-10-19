@@ -99,9 +99,9 @@ export function CustomiseCollections({
   // Candidate items available to add, keyed by type.
   const candidates: Record<CollectionItemType, CandidateItem[]> = {
     gang_type: customGangTypes.map(g => ({ id: g.id, name: g.gang_type })),
-    fighter_type: customFighterTypes.map(f => ({ id: f.id, name: f.fighter_type })),
+    fighter_type: customFighterTypes.map(f => ({ id: f.id, name: f.fighter_type || 'Unnamed' })),
     equipment: customEquipment.map(e => ({ id: e.id, name: e.equipment_name || 'Unnamed' })),
-    skill: customSkills.map(s => ({ id: s.id, name: s.skill_name })),
+    skill: customSkills.map(s => ({ id: s.id, name: s.skill_name || 'Unnamed' })),
     trading_post: customTradingPosts.map(t => ({ id: t.id, name: t.custom_trading_post_name })),
   };
 

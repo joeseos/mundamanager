@@ -639,7 +639,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
 
   // Sort equipment by name alphabetically
   const sortEquipment = (a: CustomEquipment, b: CustomEquipment) => {
-    return a.equipment_name.localeCompare(b.equipment_name);
+    return (a.equipment_name ?? '').localeCompare(b.equipment_name ?? '');
   };
 
   const renderDescriptionField = (isReadOnly = false) => {
