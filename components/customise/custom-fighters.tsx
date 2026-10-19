@@ -915,7 +915,8 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
 
   const handleSubmit = () => {
     // Validation
-    if (!selectedGangType || !fighterType || !cost || (!allowMultipleSubtypes && selectedFighterSubtypes.length === 0)) {
+    const costValue = parseInt(cost);
+    if (!selectedGangType || !fighterType || Number.isNaN(costValue) || (!allowMultipleSubtypes && selectedFighterSubtypes.length === 0)) {
       toast.error('Please fill in all required fields');
       return false;
     }
@@ -943,7 +944,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
 
     const requestData = {
       fighter_type: fighterType,
-      cost: parseInt(cost),
+      cost: costValue,
       gang_type_id: isCustomGangType ? undefined : selectedGangType,
       custom_gang_type_id: isCustomGangType ? selectedGangType : undefined,
       gang_type: selectedGang?.gang_type || '',

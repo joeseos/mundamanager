@@ -4,7 +4,6 @@ import { invalidateUserCustoms } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from '@/utils/auth';
 import { getEditionIdBySlug } from '@/utils/editions';
-import { getUserCustomEquipmentByCategory } from "@/app/lib/customise/custom-equipment";
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
 import { removeItemFromAllCollections } from './custom-collections';
 
@@ -113,19 +112,6 @@ export async function deleteCustomEquipment(equipmentId: string) {
   invalidateUserCustoms(user.id);
 
   return { success: true };
-}
-
-export async function fetchUserCustomEquipment(category?: string) {
-  try {
-    const equipment = await getUserCustomEquipmentByCategory(category);
-    return { success: true, data: equipment };
-  } catch (error) {
-    console.error('Error in fetchUserCustomEquipment:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to fetch custom equipment' 
-    };
-  }
 }
 
 export async function createCustomEquipment(data: {

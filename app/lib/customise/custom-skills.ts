@@ -1,83 +1,39 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
-import { editionSlugFromJoin, withEditionSlug } from "@/types/edition";
-import type { SupabaseClient } from '@supabase/supabase-js';
-
-export interface CustomSkillType {
-  id: string;
-  user_id: string;
-  name: string;
-  created_at: string;
-  updated_at?: string;
-  edition_slug?: string | null;
-}
-
-export async function getUserCustomSkillTypes(userId: string, supabase: SupabaseClient): Promise<CustomSkillType[]> {
-  const { data, error } = await supabase
-    .from('custom_skill_types')
-    .select('id, user_id, name, created_at, updated_at, editions:edition_id (slug)')
-    .eq('user_id', userId)
-    .order('name', { ascending: true });
-
-  if (error) {
-    console.error('Error fetching custom skill types:', error);
-    throw new Error(`Failed to fetch custom skill types: ${error.message}`);
-  }
-
-  return (data || []).map(withEditionSlug);
-}
+import { getAppDb } from '@/utils/db/client';
+import { CUSTOM_ROW } from './custom-row';
 
 export interface CustomSkill {
   id: string;
   user_id: string;
   skill_name: string;
-  skill_type_id?: string;
-  custom_skill_type_id?: string;
+  skill_type_id?: string | null;
+  custom_skill_type_id?: string | null;
   skill_type_name?: string;
   description?: string | null;
   created_at: string;
-  updated_at?: string;
+  updated_at?: string | null;
   /** Derived from skill_types / custom_skill_types edition. */
   edition_slug?: string | null;
 }
 
-export async function getUserCustomSkills(userId: string, supabase: SupabaseClient): Promise<CustomSkill[]> {
+export async function getUserCustomSkills(userId: string): Promise<CustomSkill[]> {
   return unstable_cache(
     async () => {
-      const { data: customSkills, error } = await supabase
-        .from('custom_skills')
-        .select(`
-          id,
-          user_id,
-          skill_name,
-          skill_type_id,
-          custom_skill_type_id,
-          description,
-          created_at,
-          updated_at,
-          skill_types (name, editions:edition_id (slug)),
-          custom_skill_types (name, editions:edition_id (slug))
-        `)
-        .eq('user_id', userId)
-        .order('skill_name', { ascending: true });
+      const customSkills = await getAppDb().query.customSkills.findMany({
+        ...CUSTOM_ROW,
+        where: (skill, { eq }) => eq(skill.user_id, userId),
+        orderBy: (skill, { asc }) => asc(skill.skill_name),
+        with: {
+          skill_type: { columns: { name: true }, with: { editions: { columns: { slug: true } } } },
+          custom_skill_type: { columns: { name: true }, with: { editions: { columns: { slug: true } } } },
+        },
+      });
 
-      if (error) {
-        console.error('Error fetching custom skills:', error);
-        throw new Error(`Failed to fetch custom skills: ${error.message}`);
-      }
-
-      return (customSkills || []).map((skill: any) => ({
-        id: skill.id,
-        user_id: skill.user_id,
-        skill_name: skill.skill_name,
-        skill_type_id: skill.skill_type_id,
-        custom_skill_type_id: skill.custom_skill_type_id,
-        skill_type_name: skill.skill_types?.name || skill.custom_skill_types?.name || 'Unknown',
-        description: skill.description,
-        created_at: skill.created_at,
-        updated_at: skill.updated_at,
-        edition_slug: editionSlugFromJoin(skill.custom_skill_types?.editions)
-          ?? editionSlugFromJoin(skill.skill_types?.editions),
+      return customSkills.map(({ skill_type, custom_skill_type, ...skill }) => ({
+        ...skill,
+        skill_type_name: skill_type?.name || custom_skill_type?.name || 'Unknown',
+        edition_slug: custom_skill_type?.editions?.slug ?? skill_type?.editions?.slug ?? null,
       }));
     },
     [`user-custom-skills-v3-${userId}`],

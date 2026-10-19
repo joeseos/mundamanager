@@ -292,19 +292,19 @@ export interface CustomFighterType {
   fighter_type: string;
   gang_type: string;
   cost: number;
-  movement?: number;
-  weapon_skill?: number;
-  ballistic_skill?: number;
-  strength?: number;
-  toughness?: number;
-  wounds?: number;
-  initiative?: number;
-  attacks?: number;
-  leadership?: number;
-  cool?: number;
-  willpower?: number;
-  intelligence?: number;
-  gang_type_id?: string;
+  movement?: number | null;
+  weapon_skill?: number | null;
+  ballistic_skill?: number | null;
+  strength?: number | null;
+  toughness?: number | null;
+  wounds?: number | null;
+  initiative?: number | null;
+  attacks?: number | null;
+  leadership?: number | null;
+  cool?: number | null;
+  willpower?: number | null;
+  intelligence?: number | null;
+  gang_type_id?: string | null;
   custom_gang_type_id?: string | null;
   /** N26 Sv. Null on editions without the characteristic. */
   save?: number | null;
@@ -337,7 +337,7 @@ export interface CustomFighterType {
     equipment_name: string;
   }[];
   created_at: string;
-  updated_at?: string;
+  updated_at?: string | null;
   edition_slug?: string | null;
 }
 
