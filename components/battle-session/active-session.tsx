@@ -225,13 +225,21 @@ export default function ActiveSession({
                   </Button>
                 )}
                 {isPostBattle && (
-                  <Button
-                    variant="outline"
-                    onClick={() => changePhaseMutation.mutate('back')}
-                    disabled={changePhaseMutation.isPending}
-                  >
-                    Resume Battle
-                  </Button>
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => changePhaseMutation.mutate('back')}
+                      disabled={changePhaseMutation.isPending}
+                    >
+                      Resume Battle
+                    </Button>
+                    <Button
+                      onClick={() => setShowCompleteBattleModal(true)}
+                      disabled={!session.participants.every((p) => p.ready)}
+                    >
+                      Complete Battle
+                    </Button>
+                  </>
                 )}
                 <Button
                   variant="destructive"
@@ -388,17 +396,6 @@ export default function ActiveSession({
               disabled={changePhaseMutation.isPending}
             >
               End Battle
-            </Button>
-          </div>
-        )}
-
-        {isPostBattle && canManage && (
-          <div className="mt-4 flex justify-end gap-2">
-            <Button
-              onClick={() => setShowCompleteBattleModal(true)}
-              disabled={!session.participants.every((p) => p.ready)}
-            >
-              Complete Battle
             </Button>
           </div>
         )}

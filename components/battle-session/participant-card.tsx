@@ -15,7 +15,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import { PatreonSupporterIcon } from '@/components/ui/patreon-supporter-icon';
-import { LuClipboard } from 'react-icons/lu';
+import { LuClipboard, LuTrash2 } from 'react-icons/lu';
 import { Combobox } from '@/components/ui/combobox';
 import Modal from '@/components/ui/modal';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
@@ -457,6 +457,7 @@ function FighterActionModal({
           gangId={gangId}
           campaignId={campaignId ?? undefined}
           editionSlug={editionSlug}
+          hideBattleParticipation
           onClose={() => setShowXpModal(false)}
           // Back to this modal rather than closing it, which would drop unsaved drafts.
           onXpUpdated={(newXp) => {
@@ -1771,7 +1772,7 @@ export default function ParticipantCard({
               {(canEdit || canPostBattle) && (
                 <>
                   <Button
-                    variant={localReady ? 'default' : 'outline'}
+                    variant={localReady ? 'default' : 'success'}
                     onClick={async () => {
                       const prev = localReady;
                       setReadyOverride(!prev);
@@ -1798,12 +1799,13 @@ export default function ParticipantCard({
               )}
               {(canManage || isMyGang) && editable && !isPostBattle && (
                 <Button
-                  variant="destructive"
+                  variant="outline_remove"
+                  size="icon"
                   onClick={() => removeMutation.mutate()}
                   disabled={removeMutation.isPending}
-                  className="px-3.5"
+                  title="Remove gang"
                 >
-                  Remove
+                  <LuTrash2 className="h-4 w-4" />
                 </Button>
               )}
             </div>

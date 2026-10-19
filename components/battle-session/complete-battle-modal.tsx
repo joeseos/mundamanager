@@ -182,7 +182,7 @@ export default function CompleteBattleModal({
       title="Complete Battle"
       onClose={onClose}
       onConfirm={handleConfirm}
-      confirmText="Complete Battle"
+      confirmText="Confirm"
       confirmDisabled={!hasAnyWinnerSelected || submitting || isReportOverLimit}
     >
       <div className="space-y-4">
