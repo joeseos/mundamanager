@@ -167,7 +167,7 @@ export default function CampaignTerritoryList({
   const [territoryToEdit, setTerritoryToEdit] = useState<Territory | null>(null);
   const [editGroupTerritories, setEditGroupTerritories] = useState<Territory[]>([]);
   const [territoryToDelete, setTerritoryToDelete] = useState<{ id: string, name: string } | null>(null);
-  const [sortField, setSortField] = useState<'ref' | 'territory' | 'controllingGang'>('territory');
+  const [sortField, setSortField] = useState<'ref' | 'territory' | 'controllingGang' | 'credits'>('territory');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const listDefaultTerritories = useSyncExternalStore(
     subscribeToTerritoryPref,
@@ -430,7 +430,7 @@ export default function CampaignTerritoryList({
   };
 
   // Handle column header click for sorting
-  const handleSort = (field: 'ref' | 'territory' | 'controllingGang') => {
+  const handleSort = (field: 'ref' | 'territory' | 'controllingGang' | 'credits') => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
@@ -439,7 +439,7 @@ export default function CampaignTerritoryList({
     }
   };
 
-  const sortIndicator = (field: 'ref' | 'territory' | 'controllingGang') =>
+  const sortIndicator = (field: 'ref' | 'territory' | 'controllingGang' | 'credits') =>
     sortField === field ? <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span> : null;
 
   // Helper function to group territories for display
@@ -483,6 +483,13 @@ export default function CampaignTerritoryList({
     return getPlayingCardSortKey(territory.playing_card);
   };
 
+  // Credits sort as numbers, with territories that have none first
+  const compareCredits = (a: Territory, b: Territory): number => {
+    const aCredits = a.credits ?? -Infinity;
+    const bCredits = b.credits ?? -Infinity;
+    return aCredits === bCredits ? 0 : aCredits < bCredits ? -1 : 1;
+  };
+
   // Helper function to create a unified sorted list for display
   const createSortedDisplayList = (territories: Territory[]): DisplayItem[] => {
     const { controlledTerritories, uncontrolledTerritories } = groupTerritoriesForDisplay(territories);
@@ -509,7 +516,9 @@ export default function CampaignTerritoryList({
     const allItems = [...controlledItems, ...uncontrolledItems];
     
     allItems.sort((a, b) => {
-      const comparison = a.sortKey.localeCompare(b.sortKey);
+      const comparison = sortField === 'credits'
+        ? compareCredits(a.territory, b.territory)
+        : a.sortKey.localeCompare(b.sortKey);
       return sortDirection === 'asc' ? comparison : -comparison;
     });
 
@@ -633,8 +642,12 @@ export default function CampaignTerritoryList({
                 Controlled by
                 {sortIndicator('controllingGang')}
               </th>
-              <th className="w-1/3 px-2 py-2 text-right font-medium whitespace-nowrap">
+              <th 
+                className="w-1/3 px-2 py-2 text-right font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
+                onClick={() => handleSort('credits')}
+              >
                 Credits
+                {sortIndicator('credits')}
               </th>
               <th className="p-1 md:p-2 text-left font-medium whitespace-nowrap">
                 <span className="hidden sm:inline">Description</span>
