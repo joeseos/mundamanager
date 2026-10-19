@@ -24,6 +24,7 @@ import {
   medicalEscortCost,
   patientOf,
   postCycleAvailability,
+  reputationIncome,
   rigGlitchNames,
   rigGlitchesOf,
   validatePostCycleAssignment,
@@ -540,6 +541,52 @@ export async function resolvePostCycleAction(
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to resolve the action',
+    };
+  }
+}
+
+export interface CollectReputationIncomeResult {
+  success: boolean;
+  error?: string;
+  gang?: { credits: number; rating: number; wealth: number };
+}
+
+/** Collect Income's Reputation part: adds 10x the gang's Reputation to its credits. */
+export async function collectReputationIncome(
+  gangId: string
+): Promise<CollectReputationIncomeResult> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    const gang = await getGangCore(gangId);
+    if (!gang) return { success: false, error: 'Gang not found' };
+    if (!hasPostCycleActions(gang.edition_slug)) {
+      return {
+        success: false,
+        error: 'Collect Income is only available for Necromunda (2026) gangs',
+      };
+    }
+
+    const credits = reputationIncome(gang.reputation);
+    if (credits === 0) return { success: false, error: 'The gang has no Reputation to collect on' };
+
+    const financials = await updateGangFinancials(supabase, { gangId, creditsDelta: credits });
+    if (!financials.success) return { success: false, error: financials.error };
+
+    await logPostCycleAction({
+      gang_id: gangId,
+      action: 'collect_income',
+      outcome: `Gained ${credits} credits from ${gang.reputation} Reputation.`,
+      user_id: user.id,
+    });
+
+    return { success: true, gang: financials.newValues };
+  } catch (error) {
+    console.error('Error collecting Reputation income:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to collect income',
     };
   }
 }
