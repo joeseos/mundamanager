@@ -6908,7 +6908,8 @@ CREATE TABLE public.territories (
     territory_name text NOT NULL,
     updated_at timestamp with time zone,
     playing_card text,
-    edition_id uuid
+    edition_id uuid,
+    credits numeric
 );
 
 
@@ -8399,6 +8400,13 @@ CREATE INDEX campaign_members_is_favourite_idx ON public.campaign_members USING 
 
 
 --
+-- Name: campaign_territories_gang_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_territories_gang_id_idx ON public.campaign_territories USING btree (gang_id);
+
+
+--
 -- Name: campaign_territories_territory_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9246,6 +9254,13 @@ CREATE INDEX gangs_created_at_idx ON public.gangs USING btree (created_at);
 
 
 --
+-- Name: gangs_credits_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gangs_credits_idx ON public.gangs USING btree (credits);
+
+
+--
 -- Name: gangs_custom_gang_type_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9267,6 +9282,20 @@ CREATE INDEX gangs_gang_type_id_idx ON public.gangs USING btree (gang_type_id);
 
 
 --
+-- Name: gangs_gang_type_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gangs_gang_type_idx ON public.gangs USING btree (gang_type);
+
+
+--
+-- Name: gangs_hidden_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gangs_hidden_idx ON public.gangs USING btree (hidden);
+
+
+--
 -- Name: gangs_is_favourite_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9274,10 +9303,24 @@ CREATE INDEX gangs_is_favourite_idx ON public.gangs USING btree (is_favourite);
 
 
 --
+-- Name: gangs_last_updated_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gangs_last_updated_idx ON public.gangs USING btree (last_updated);
+
+
+--
 -- Name: gangs_name_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX gangs_name_idx ON public.gangs USING btree (name);
+
+
+--
+-- Name: gangs_reputation_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gangs_reputation_idx ON public.gangs USING btree (reputation);
 
 
 --
@@ -9820,6 +9863,13 @@ CREATE INDEX scenarios_scenario_name_idx ON public.scenarios USING btree (scenar
 
 
 --
+-- Name: scenarios_scenario_number_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX scenarios_scenario_number_idx ON public.scenarios USING btree (scenario_number);
+
+
+--
 -- Name: skill_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9880,6 +9930,13 @@ CREATE INDEX territories_campaign_type_id_idx ON public.territories USING btree 
 --
 
 CREATE INDEX territories_edition_id_idx ON public.territories USING btree (edition_id);
+
+
+--
+-- Name: territories_territory_name_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX territories_territory_name_idx ON public.territories USING btree (territory_name);
 
 
 --
