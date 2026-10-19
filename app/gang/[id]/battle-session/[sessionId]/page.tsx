@@ -21,7 +21,7 @@ export async function renderBattleSessionPage(sessionId: string, currentPath: st
     redirect(signInPath(currentPath));
   }
 
-  const session = await getBattleSessionCached(sessionId, supabase);
+  const session = await getBattleSessionCached(sessionId);
 
   if (!session) {
     notFound();

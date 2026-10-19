@@ -76,7 +76,7 @@ const FighterXpModal = dynamic(
 );
 
 const DUAL_ACTIVATION_RULES = ['Spyre Hunter', 'Aranthian Beauty Plating'];
-const hasDualActivation = (rules?: string[]) =>
+const hasDualActivation = (rules?: string[] | null) =>
   rules?.some((r) => DUAL_ACTIVATION_RULES.includes(r)) ?? false;
 
 /** Splits session injuries by fighter_types.is_spyrer; a gang can field both. */
@@ -1288,7 +1288,7 @@ export default function ParticipantCard({
             f.fighter
               ? [{
                   id: f.fighter.id,
-                  fighter_name: f.fighter.fighter_name,
+                  fighter_name: f.fighter.fighter_name ?? 'Unknown Fighter',
                   fighter_type: f.fighter.fighter_type ?? null,
                   gang_id: p.gang_id,
                 }]
@@ -1971,7 +1971,7 @@ export default function ParticipantCard({
                       fullMatch?.fighter_subtypes?.some(c => c.toLowerCase() === 'exotic beast' || c.toLowerCase() === 'exotic beast specialist' || c.toLowerCase() === 'pet') &&
                       Boolean(fullMatch?.owner_id);
                     const name = isAssociatedExoticBeast ? `— ${rawName}` : rawName;
-                    const cost = match?.credits ?? f.fighter?.credits;
+                    const cost = match?.credits ?? f.fighter?.credits ?? undefined;
                     const xp = f.session_record?.xp_earned ?? 0;
                     const injuryCount = f.session_record?.injuries?.length ?? 0;
                     return (

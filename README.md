@@ -608,8 +608,10 @@ gateway log entries, which Supabase bills as Logs Ingest. These are read this wa
 - everything the gang page reads in `app/lib/shared/gang-data.ts`: the roster,
   core row, positioning, campaigns, stash, subtypes, owner's profile, Gang
   Tactics cards and fighter stats
-- the gang's battle sessions list (`getGangBattleSessionsCached` in
-  `app/lib/battle-sessions/get-battle-session-data.ts`)
+- the battle session page and its live refetches (`fetchBattleSessionDirect` and
+  `getBattleSessionCached`), and the gang's and campaign's battle sessions lists
+  (`getGangBattleSessionsCached` and `getCampaignBattleSessions`), all in
+  `app/lib/battle-sessions/get-battle-session-data.ts`
 - the campaign page's data in `app/lib/campaigns/[id]/get-campaign-data.ts`: the
   campaign row, members, territories, battles, allegiances, resources, captives,
   OOA counts, map and shared trading posts
