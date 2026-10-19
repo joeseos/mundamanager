@@ -71,7 +71,7 @@ async function fetchCampaignCountsByEdition(since?: string): Promise<EditionCoun
 
 const getCachedGangCountsByEdition = unstable_cache(
   async () => fetchGangCountsByEdition(),
-  ['global-gang-counts-by-edition'],
+  ['global-gang-counts-by-edition-v2'],
   {
     tags: [TAGS.globalGangCount()],
     revalidate: 86400,
@@ -80,7 +80,7 @@ const getCachedGangCountsByEdition = unstable_cache(
 
 const getCachedCampaignCountsByEdition = unstable_cache(
   async () => fetchCampaignCountsByEdition(),
-  ['global-campaign-counts-by-edition'],
+  ['global-campaign-counts-by-edition-v2'],
   {
     tags: [TAGS.globalCampaignCount()],
     revalidate: 86400,

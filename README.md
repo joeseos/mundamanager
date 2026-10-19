@@ -619,8 +619,7 @@ gateway log entries, which Supabase bills as Logs Ingest. These are read this wa
   (`app/lib/get-user-gangs.ts` and `app/lib/get-user-campaigns.ts`)
 - the scenarios, trading post types, campaign types, territories, scenario
   tables and campaign triumphs in `app/lib/reference-data.ts`
-- the user guide (`app/lib/user-guide.ts`) and the site stats
-  (`app/lib/get-stats-*.ts`)
+- the site stats (`app/lib/get-stats-*.ts`)
 - permission checks (`checkPermission` and `checkPermissionCached` in
   `utils/user-permissions.ts`)
 - the fighter's own row and its total cost (`getFighterBasic` and

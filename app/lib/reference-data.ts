@@ -126,10 +126,12 @@ export const getScenarioTablesCached = async (): Promise<ScenarioTableWithEntrie
       });
 
       const houseIds = tables.flatMap((table) => (table.gang_type_id ? [table.gang_type_id] : []));
-      const alternates = await db
-        .select({ id: gangTypes.id, parent_gang_type_id: gangTypes.parent_gang_type_id })
-        .from(gangTypes)
-        .where(inArray(gangTypes.parent_gang_type_id, houseIds));
+      const alternates = houseIds.length > 0
+        ? await db
+            .select({ id: gangTypes.id, parent_gang_type_id: gangTypes.parent_gang_type_id })
+            .from(gangTypes)
+            .where(inArray(gangTypes.parent_gang_type_id, houseIds))
+        : [];
 
       return tables.map(({ entries, ...table }) => ({
         ...withEditionSlug(table),

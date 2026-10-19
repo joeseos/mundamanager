@@ -222,15 +222,6 @@ export const editions = pgTable('editions', {
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
 });
 
-export const userGuides = pgTable('user_guides', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  edition_id: uuid('edition_id').notNull(),
-  content: text('content').default('').notNull(),
-  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
-  updated_by: uuid('updated_by'),
-});
-
 export const fighterSpecialisations = pgTable('fighter_specialisations', {
   id: uuid('id').defaultRandom().primaryKey(),
   specialisation_name: text('specialisation_name'),
@@ -1408,13 +1399,6 @@ export const tradingPostTypesRelations = relations(tradingPostTypes, ({ one }) =
 export const territoriesRelations = relations(territories, ({ one }) => ({
   editions: one(editions, {
     fields: [territories.edition_id],
-    references: [editions.id],
-  }),
-}));
-
-export const userGuidesRelations = relations(userGuides, ({ one }) => ({
-  editions: one(editions, {
-    fields: [userGuides.edition_id],
     references: [editions.id],
   }),
 }));

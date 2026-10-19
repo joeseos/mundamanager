@@ -93,10 +93,12 @@ export const getUserGangs = async (userId: string): Promise<Gang[]> => {
 
       const subtypeIds = [...new Set(rows.flatMap((gang) => gang.gang_subtypes ?? []))];
       const [subtypes, campaignGangs] = await Promise.all([
-        db
-          .select({ id: gangSubtypeTypes.id, subtype: gangSubtypeTypes.subtype })
-          .from(gangSubtypeTypes)
-          .where(inArray(gangSubtypeTypes.id, subtypeIds)),
+        subtypeIds.length > 0
+          ? db
+              .select({ id: gangSubtypeTypes.id, subtype: gangSubtypeTypes.subtype })
+              .from(gangSubtypeTypes)
+              .where(inArray(gangSubtypeTypes.id, subtypeIds))
+          : [],
         db.query.campaignGangs.findMany({
           columns: { gang_id: true, campaign_id: true },
           where: (campaignGang, { inArray }) => inArray(campaignGang.gang_id, rows.map((gang) => gang.id)),
