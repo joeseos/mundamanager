@@ -633,7 +633,7 @@ export default function CampaignTerritoryList({
                 Controlled by
                 {sortIndicator('controllingGang')}
               </th>
-              <th className="w-1/3 px-2 py-2 text-left font-medium whitespace-nowrap">
+              <th className="w-1/3 px-2 py-2 text-right font-medium whitespace-nowrap">
                 Credits
               </th>
               <th className="p-1 md:p-2 text-left font-medium whitespace-nowrap">
@@ -727,7 +727,7 @@ export default function CampaignTerritoryList({
                       ) : null}
                     </div>
                   </td>
-                  <td className="px-2 py-2">
+                  <td className="px-2 py-2 text-right">
                     {item.territory.credits ?? ''}
                   </td>
                   <td className="p-1 md:p-2 align-top">
