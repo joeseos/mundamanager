@@ -216,13 +216,21 @@ export default function ActiveSession({
                   </Button>
                 )}
                 {battleActive && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowReturnToSetupModal(true)}
-                    disabled={changePhaseMutation.isPending}
-                  >
-                    Back to Pre-Battle
-                  </Button>
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowReturnToSetupModal(true)}
+                      disabled={changePhaseMutation.isPending}
+                    >
+                      Back to Pre-Battle
+                    </Button>
+                    <Button
+                      onClick={() => changePhaseMutation.mutate('forward')}
+                      disabled={changePhaseMutation.isPending}
+                    >
+                      End Battle
+                    </Button>
+                  </>
                 )}
                 {isPostBattle && (
                   <>
@@ -388,17 +396,6 @@ export default function ActiveSession({
             />
           ))}
         </div>
-
-        {battleActive && canManage && (
-          <div className="mt-4 flex justify-end gap-2">
-            <Button
-              onClick={() => changePhaseMutation.mutate('forward')}
-              disabled={changePhaseMutation.isPending}
-            >
-              End Battle
-            </Button>
-          </div>
-        )}
       </div>
 
       {showCancelModal && createPortal(
