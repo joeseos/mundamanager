@@ -862,6 +862,7 @@ export const territories = pgTable('territories', {
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
   playing_card: text('playing_card'),
   edition_id: uuid('edition_id'),
+  credits: numeric('credits', { mode: 'number' }),
 });
 
 export const scenarios = pgTable('scenarios', {
