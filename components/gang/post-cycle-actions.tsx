@@ -499,9 +499,9 @@ export default function PostCycleActions({
 
   return (
     <div className="mt-8">
-      <h2 className="text-xl md:text-2xl font-bold mb-4">
+      <h3 className="text-xl md:text-2xl font-bold mb-4">
         Post-Cycle Actions
-      </h2>
+      </h3>
 
       <div className="mb-4">
         <div className="flex items-center space-x-2">
