@@ -15,7 +15,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import { PatreonSupporterIcon } from '@/components/ui/patreon-supporter-icon';
-import { LuClipboard } from 'react-icons/lu';
+import { LuClipboard, LuTrash2 } from 'react-icons/lu';
 import { Combobox } from '@/components/ui/combobox';
 import Modal from '@/components/ui/modal';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
@@ -457,6 +457,7 @@ function FighterActionModal({
           gangId={gangId}
           campaignId={campaignId ?? undefined}
           editionSlug={editionSlug}
+          hideBattleParticipation
           onClose={() => setShowXpModal(false)}
           // Back to this modal rather than closing it, which would drop unsaved drafts.
           onXpUpdated={(newXp) => {
@@ -1249,6 +1250,7 @@ export default function ParticipantCard({
   const [localFighters, setLocalFighters] = useState<BattleSessionFighter[]>(participant.fighters);
   const [showCrewModal, setShowCrewModal] = useState(false);
   const [showParticipationModal, setShowParticipationModal] = useState(false);
+  const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [tradingPostRoll, setTradingPostRoll] = useState<{ dice: number[]; total: number; modifier: number; grandTotal: number } | null>(null);
   const [tradingPostModifier, setTradingPostModifier] = useState('');
   const [localRole, setLocalRole] = useState<'attacker' | 'defender' | 'none'>(participant.role);
@@ -1771,7 +1773,7 @@ export default function ParticipantCard({
               {(canEdit || canPostBattle) && (
                 <>
                   <Button
-                    variant={localReady ? 'default' : 'outline'}
+                    variant={localReady ? 'default' : 'success'}
                     onClick={async () => {
                       const prev = localReady;
                       setReadyOverride(!prev);
@@ -1798,12 +1800,14 @@ export default function ParticipantCard({
               )}
               {(canManage || isMyGang) && editable && !isPostBattle && (
                 <Button
-                  variant="destructive"
-                  onClick={() => removeMutation.mutate()}
+                  variant="outline_remove"
+                  size="icon"
+                  onClick={() => setShowRemoveModal(true)}
                   disabled={removeMutation.isPending}
-                  className="px-3.5"
+                  title="Remove gang"
+                  aria-label="Remove gang"
                 >
-                  Remove
+                  <LuTrash2 className="h-4 w-4" />
                 </Button>
               )}
             </div>
@@ -1845,6 +1849,23 @@ export default function ParticipantCard({
               ? (completed) => handleSideJobChange({ ...localSideJob, completed }, setSideJobCompleted(session.id, participant.id, completed))
               : undefined}
           />
+        )}
+        {showRemoveModal && createPortal(
+          <Modal
+            title="Remove Gang"
+            onClose={() => setShowRemoveModal(false)}
+            onConfirm={async () => {
+              removeMutation.mutate();
+              return true;
+            }}
+            confirmText="Remove Gang"
+            confirmDisabled={removeMutation.isPending}
+          >
+            <p>
+              Are you sure you want to remove <strong>{participant.gang?.name ?? 'this gang'}</strong> from this battle?
+            </p>
+          </Modal>,
+          document.body
         )}
         {showCrewModal && (
           <CrewSelectionModal
