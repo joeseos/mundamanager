@@ -442,7 +442,7 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
                 {/* Territories Table */}
                 {campaign.territories && campaign.territories.length > 0 ? (
                   <div className="mt-8">
-                    <h3 className="text-lg font-semibold mb-4 flex items-center justify-between">
+                    <h2 className="text-xl md:text-2xl font-bold mb-4 flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         Territories
                       </div>
@@ -451,7 +451,7 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
                           {campaign.territories.length} controlled
                         </span>
                       )}
-                    </h3>
+                    </h2>
                     <div className="overflow-x-auto rounded-md border">
                     <table className="w-full text-sm">
                       <thead>
@@ -545,7 +545,7 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
         
         return (
           <div className="mt-8">
-            <h3 className="text-lg font-semibold mb-4 flex items-center justify-between flex-wrap">
+            <h2 className="text-xl md:text-2xl font-bold mb-4 flex items-center justify-between flex-wrap">
               <div className="flex items-center gap-2">
                 Battle Logs
               </div>
@@ -574,7 +574,7 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
                   )}
                 </span>
               )}
-            </h3>
+            </h2>
           {isLoadingBattles ? (
             <div className="text-muted-foreground italic text-center p-4">
               Loading battle logs...
@@ -760,9 +760,9 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
       {/* Captured Fighters */}
       {campaigns.length > 0 && (
         <div className="mt-8">
-          <h3 className="text-lg font-semibold mb-4">
+          <h2 className="text-xl md:text-2xl font-bold mb-4">
             Captured Fighters
-          </h3>
+          </h2>
           {captives.length === 0 ? (
             <p className="text-muted-foreground italic text-sm">
               No fighters are currently held captive by this gang.
