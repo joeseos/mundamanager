@@ -1,14 +1,76 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceRoleClient } from '@/utils/supabase/server'
 import { checkAdmin, getUserIdFromClaims } from '@/utils/auth'
-import { isSafeNotificationLink, notificationPlainTextLength, NOTIFICATION_BROADCAST_MAX_LENGTH } from '@/utils/notifications'
+import {
+  isAdminNotificationType,
+  isSafeNotificationLink,
+  notificationPlainTextLength,
+  NOTIFICATION_BROADCAST_MAX_LENGTH,
+} from '@/utils/notifications'
 import { sanitizeNotificationHtml } from '@/utils/sanitize-notification-html'
 import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp'
 import { fetchAllRows } from '@/utils/supabase/fetch-all-rows'
 
-const ALLOWED_TYPES = ['info', 'warning', 'error'] as const
-type NotificationType = (typeof ALLOWED_TYPES)[number]
 const BATCH_SIZE = 500
+const PREVIEW_LENGTH = 60
+
+type AdminSentNotification = {
+  id: string
+  type: string
+  text: string
+  link: string
+  sentAt: string
+  senderUsername: string
+  recipientCount: number
+  recipientUsernames: string[]
+}
+
+function notificationPreview(html: string): string {
+  const plain = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+  if (plain.length <= PREVIEW_LENGTH) return plain
+  return `${plain.slice(0, PREVIEW_LENGTH).trimEnd()}…`
+}
+
+export async function GET() {
+  try {
+    const supabase = await createClient()
+    const senderId = await getUserIdFromClaims(supabase)
+    const isAdmin = await checkAdmin(supabase, senderId ? { id: senderId } : undefined)
+    if (!isAdmin || !senderId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const serviceClient = createServiceRoleClient()
+    const { data, error } = await serviceClient.rpc('list_admin_sent_notifications')
+    if (error) {
+      console.error('Failed to fetch sent notifications:', error)
+      return NextResponse.json({ error: 'Failed to load sent messages' }, { status: 500 })
+    }
+
+    const rows = (Array.isArray(data) ? data : []) as AdminSentNotification[]
+    const sends = rows.flatMap((row) => {
+      if (!isAdminNotificationType(row.type)) return []
+      const text = sanitizeNotificationHtml(typeof row.text === 'string' ? row.text : '')
+      const link = typeof row.link === 'string' && isSafeNotificationLink(row.link) ? row.link.trim() : ''
+      return [{
+        id: row.id,
+        type: row.type,
+        sentAt: row.sentAt,
+        senderUsername: row.senderUsername || 'Unknown',
+        recipientCount: row.recipientCount,
+        recipientUsernames: Array.isArray(row.recipientUsernames) ? row.recipientUsernames : [],
+        preview: notificationPreview(text),
+        text,
+        link,
+      }]
+    })
+
+    return NextResponse.json({ sends })
+  } catch (error) {
+    console.error('Admin notifications history error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
 
 type RequestBody = {
   text?: unknown
@@ -44,18 +106,18 @@ export async function POST(request: Request) {
       )
     }
 
-    if (typeof body.type !== 'string' || !ALLOWED_TYPES.includes(body.type as NotificationType)) {
+    if (typeof body.type !== 'string' || !isAdminNotificationType(body.type)) {
       return NextResponse.json(
-        { error: 'Type must be one of: info, warning, error' },
+        { error: 'Type must be one of: mm_announcement, mm_staff_message' },
         { status: 400 }
       )
     }
-    const type = body.type as NotificationType
+    const type = body.type
 
     const link = typeof body.link === 'string' ? body.link.trim() : ''
     if (link && !isSafeNotificationLink(link)) {
       return NextResponse.json(
-        { error: 'Link must be a relative path or http(s) URL' },
+        { error: 'Link must be a relative path or https URL' },
         { status: 400 }
       )
     }

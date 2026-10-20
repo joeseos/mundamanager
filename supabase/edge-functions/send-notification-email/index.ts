@@ -22,6 +22,7 @@ import {
   notificationTextToHtml,
   notificationTextToPlain,
 } from "./_email-layout.ts";
+import { notificationHtmlEmailBody } from "./_notification-html.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -48,6 +49,8 @@ const MASTER_PREF_KEY = "all";
 // sync deliberately — see the note in _email-layout.ts about the Deno/Next import split.
 // A `{sender}` token in a subject is replaced with the sender's username (see resolveSubject).
 // `ctaPath` points the email button at an app path instead of notification.link.
+// Announcements, staff messages, and campaign messages prefer notification.link
+// and use ctaPath only when that link is empty or not a safe https or site-relative URL.
 const EMAIL_CONFIG: Record<string, { defaultEnabled: boolean; subject: string; ctaPath?: string }> = {
   campaign_invite: { defaultEnabled: true, subject: "You've been invited to a campaign" },
   gang_invite: {
@@ -79,14 +82,32 @@ const EMAIL_CONFIG: Record<string, { defaultEnabled: boolean; subject: string; c
   mm_staff_message: {
     defaultEnabled: true,
     subject: "A message from Munda Manager",
+    // Fallback only. notification.link is the email button when it is a safe URL.
     ctaPath: "/account",
   },
   mm_announcement: {
     defaultEnabled: true,
     subject: "An announcement from Munda Manager",
+    // Fallback only. notification.link is the email button when it is a safe URL.
     ctaPath: "/account",
   },
 };
+
+const PREFER_EMBEDDED_LINK = new Set([
+  "mm_announcement",
+  "mm_staff_message",
+  "campaign_message",
+]);
+
+function embeddedCtaUrl(link: string | null | undefined): string | null {
+  if (!link) return null;
+  const trimmed = link.trim();
+  if (trimmed.startsWith("/") && !trimmed.startsWith("//")) {
+    return `${APP_URL.replace(/\/$/, "")}${trimmed}`;
+  }
+  if (/^https:\/\//i.test(trimmed)) return trimmed;
+  return null;
+}
 
 function isEmailEnabled(
   type: string,
@@ -218,7 +239,7 @@ async function buildEmail(delivery: {
 > {
   const { data: notification } = await supabase
     .from("notifications")
-    .select("id, type, text, link, sender_id")
+    .select("id, type, text, link, sender_id, is_html")
     .eq("id", delivery.notification_id)
     .maybeSingle();
 
@@ -256,14 +277,26 @@ async function buildEmail(delivery: {
 
   const subject = await resolveSubject(cfg.subject, notification.sender_id);
 
+  // is_html rows are sanitized TipTap HTML (announcements and staff messages).
+  // Everything else stays escaped plain text with the **bold** convention.
+  const htmlBody = notification.is_html
+    ? notificationHtmlEmailBody(notification.text ?? "", APP_URL)
+    : null;
+
   const { html, text } = emailLayout({
     subject,
-    bodyHtml: notificationTextToHtml(notification.text),
-    bodyText: notificationTextToPlain(notification.text),
-    ctaUrl: cfg.ctaPath
-      ? `${APP_URL}${cfg.ctaPath}`
-      // In-app links may be app-relative; an email needs them absolute.
-      : notification.link?.startsWith("/") ? `${APP_URL}${notification.link}` : notification.link,
+    bodyHtml: htmlBody ? htmlBody.html : notificationTextToHtml(notification.text),
+    bodyText: htmlBody ? htmlBody.text : notificationTextToPlain(notification.text),
+    bodyIsHtml: Boolean(htmlBody),
+    ctaUrl: (PREFER_EMBEDDED_LINK.has(notification.type)
+      ? embeddedCtaUrl(notification.link)
+      : null)
+      ?? (cfg.ctaPath
+        ? `${APP_URL}${cfg.ctaPath}`
+        // In-app links may be app-relative; an email needs them absolute.
+        : notification.link?.startsWith("/")
+          ? `${APP_URL}${notification.link}`
+          : notification.link),
     preferencesUrl: `${APP_URL}/account`,
     unsubscribeUrl: unsubscribePageUrl,
   });

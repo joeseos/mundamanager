@@ -37,6 +37,8 @@ export interface NotificationEmailConfig {
   /**
    * App path for the email button, overriding the notification's `link`. Used when the
    * notification is acted on elsewhere (e.g. accept/decline in the account notifications list).
+   * For announcements and staff messages the worker uses `link` as the button
+   * instead, and falls back to this path when that link is empty or not a safe URL.
    */
   ctaPath?: string;
 }
@@ -83,12 +85,13 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
     subject: 'Your gang has been challenged',
   },
   // Munda Manager news, general announcements, and feature announcements.
-  // Not a message: the in-app list does not show a sender.
+  // The in-app list shows a fixed From line (MM_ANNOUNCEMENT_FROM) linking to the contributors page.
   mm_announcement: {
     label: 'Munda Manager announcements',
     supportsEmail: true,
     defaultEnabled: true,
     subject: 'An announcement from Munda Manager',
+    // Fallback only. notification.link is the email button when it is a safe URL.
     ctaPath: '/account',
   },
   // A user sends a message to another user. Read from the account notifications list.
@@ -113,6 +116,7 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
     supportsEmail: true,
     defaultEnabled: true,
     subject: 'A message from Munda Manager',
+    // Fallback only. notification.link is the email button when it is a safe URL.
     ctaPath: '/account',
   },
   // Not email-eligible (in-app only) — kept here so the type union is exhaustive.
@@ -129,6 +133,23 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
  * Absent row (or enabled=true) means "master on".
  */
 export const MASTER_PREF_KEY = 'all';
+
+/** Types the admin composer may send. */
+export const ADMIN_NOTIFICATION_TYPES = ['mm_announcement', 'mm_staff_message'] as const;
+export type AdminNotificationType = (typeof ADMIN_NOTIFICATION_TYPES)[number];
+
+export const adminNotificationTypeLabel: Record<AdminNotificationType, string> = {
+  mm_announcement: 'Munda Manager Announcement',
+  mm_staff_message: 'Munda Manager Staff Message',
+};
+
+export function isAdminNotificationType(value: string): value is AdminNotificationType {
+  return (ADMIN_NOTIFICATION_TYPES as readonly string[]).includes(value);
+}
+
+/** From line for mm_announcement. Links to the contributors page, not a user profile. */
+export const MM_ANNOUNCEMENT_FROM = 'Munda Manager Team';
+export const MM_ANNOUNCEMENT_FROM_PATH = '/contributors';
 
 /** Visible-text cap for an admin broadcast. Each recipient stores their own row. */
 export const NOTIFICATION_BROADCAST_MAX_LENGTH = 1000;
@@ -209,7 +230,7 @@ export function isSafeNotificationLink(link: string | null | undefined): link is
 
   try {
     const url = new URL(trimmed);
-    return url.protocol === 'http:' || url.protocol === 'https:';
+    return url.protocol === 'https:';
   } catch {
     if (trimmed.includes(':')) {
       return false;
@@ -235,7 +256,7 @@ export function resolveNotificationLink(
   try {
     const url = new URL(trimmed);
 
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    if (url.protocol !== 'https:') {
       return null;
     }
 
@@ -256,7 +277,16 @@ export function resolveNotificationLink(
   }
 }
 
-export function getNotificationLinkLabel(link: string): string {
+const CAMPAIGN_LINK_ID = /^\/campaigns\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+
+export function campaignIdFromNotificationLink(link: string): string | null {
+  const resolved = resolveNotificationLink(link);
+  if (!resolved) return null;
+  const match = resolved.href.split('?')[0].match(CAMPAIGN_LINK_ID);
+  return match?.[1] ?? null;
+}
+
+export function getNotificationLinkLabel(link: string, campaignName?: string | null): string {
   const resolved = resolveNotificationLink(link);
   if (!resolved) {
     return 'Open link';
@@ -265,8 +295,9 @@ export function getNotificationLinkLabel(link: string): string {
   const { href } = resolved;
   const pathname = href.split('?')[0];
 
-  if (/^\/campaigns\/[^/]+$/.test(pathname)) {
-    return 'View campaign';
+  if (CAMPAIGN_LINK_ID.test(pathname)) {
+    const name = campaignName?.trim();
+    return name ? `View campaign: ${name}` : 'View campaign';
   }
 
   if (pathname.includes('/battle-session/')) {
