@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Combobox } from "@/components/ui/combobox"
 import { InfoTooltip } from '@/components/ui/info-tooltip'
+import { hasRuinedTerritories } from '@/types/edition'
 import {
   TERRITORY_PLAYING_CARD_NONE,
   TERRITORY_PLAYING_CARD_CUSTOM,
@@ -44,6 +45,8 @@ interface TerritoryEditModalProps {
   currentCredits?: number | null;
   /** Owners/arbitrators may rename and set credits; members see both as read-only */
   canManage?: boolean;
+  /** The campaign's edition; Ruined is offered only where the edition has it */
+  editionSlug?: string | null;
   groupedTerritories?: Array<{
     id: string;
     territory_name: string;
@@ -91,6 +94,7 @@ export default function TerritoryEditModal({
   currentDescription,
   currentCredits = null,
   canManage = false,
+  editionSlug = null,
   groupedTerritories = [],
   selectedTerritoryId,
   onSelectTerritory,
@@ -309,19 +313,21 @@ export default function TerritoryEditModal({
         )}
       </div>
 
-      <div className="flex items-center space-x-2">
-        <Checkbox
-          id="ruined-checkbox"
-          checked={ruined}
-          onCheckedChange={(checked) => setRuined(checked === true)}
-        />
-        <label 
-          htmlFor="ruined-checkbox" 
-          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-        >
-          Ruined
-        </label>
-      </div>
+      {hasRuinedTerritories(editionSlug) && (
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id="ruined-checkbox"
+            checked={ruined}
+            onCheckedChange={(checked) => setRuined(checked === true)}
+          />
+          <label 
+            htmlFor="ruined-checkbox" 
+            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+          >
+            Ruined
+          </label>
+        </div>
+      )}
       
       <div className="flex items-center space-x-2">
         <Checkbox

@@ -27,7 +27,7 @@ import { Tooltip } from 'react-tooltip';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { hasAlignment, hasTradePoints, hasVehicles } from '@/types/edition';
+import { hasAlignment, hasRuinedTerritories, hasTradePoints, hasVehicles } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { detailGangTypeLabel } from '@/utils/gang-type-label';
 
@@ -1528,7 +1528,7 @@ export default function Gang({
                           className="cursor-pointer hover:bg-secondary flex items-center gap-1"
                         >
                           {territory.territory_name}
-                          {territory.ruined && <GiAncientRuins className="text-red-500" />}
+                          {hasRuinedTerritories(edition_slug) && territory.ruined && <GiAncientRuins className="text-red-500" />}
                         </Badge>
                       ))}
                   </div>

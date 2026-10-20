@@ -23,6 +23,7 @@ import {
   updateTerritoryStatus
 } from "@/app/actions/campaigns/[id]/campaign-territories";
 import { getPlayingCardSortKey } from "@/utils/campaigns/territory-playing-card-options";
+import { hasRuinedTerritories } from "@/types/edition";
 
 interface Gang {
   id: string;
@@ -110,6 +111,7 @@ interface CampaignTerritoryListProps {
   onTerritoryUpdate?: (update: TerritoryUpdate) => void;
   /** Shown on the right of the Territories heading (e.g. Add territory). */
   sectionHeaderEnd?: React.ReactNode;
+  editionSlug?: string | null;
 }
 
 const LIST_DEFAULT_TERRITORIES_STORAGE_KEY = 'campaign-list-default-territories';
@@ -148,9 +150,11 @@ export default function CampaignTerritoryList({
   members,
   permissions,
   onTerritoryUpdate,
-  sectionHeaderEnd
+  sectionHeaderEnd,
+  editionSlug = null
 }: CampaignTerritoryListProps) {
-  
+  const showRuined = hasRuinedTerritories(editionSlug);
+
   const router = useRouter();
 
   // Use programmatic navigation to avoid Link prefetching
@@ -677,7 +681,7 @@ export default function CampaignTerritoryList({
                   <td className="w-[20%] px-2 py-2">
                     <div className="font-medium">
                       {item.territory.territory_name}
-                      {item.territory.ruined && (
+                      {showRuined && item.territory.ruined && (
                         <GiAncientRuins 
                           className="h-4 w-4 text-muted-foreground inline ml-1" 
                           data-tooltip-id="ruined-tooltip"
@@ -840,6 +844,7 @@ export default function CampaignTerritoryList({
           currentDescription={territoryToEdit.description ?? null}
           currentCredits={territoryToEdit.credits ?? null}
           canManage={permissions.canManageTerritories}
+          editionSlug={editionSlug}
           groupedTerritories={editGroupTerritories}
           selectedTerritoryId={territoryToEdit.id}
           onSelectTerritory={(territoryId: string) => {

@@ -10,7 +10,7 @@ import { sortFightersByPositioning } from "@/utils/fighter-positioning";
 import { injuryAggregationLabel } from "@/utils/injuryTarget";
 import WeaponTable from "./fighter-card-weapon-table";
 import { StatsTable, StatsType } from "../ui/fighter-card-stats-table";
-import { hasAlignment, hasFleshWoundCondition, hasInjuredCondition, hasSaveCharacteristic, hasTradePoints } from "@/types/edition";
+import { hasAlignment, hasFleshWoundCondition, hasInjuredCondition, hasRuinedTerritories, hasSaveCharacteristic, hasTradePoints } from "@/types/edition";
 import { formatFighterSubtypeDisplay } from "@/utils/fighterSubtypeDisplay";
 import { MdCheckBoxOutlineBlank } from "react-icons/md";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -254,6 +254,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
   const [cardsGangCardsPosition, setCardsGangCardsPosition] = useState<"before" | "after">("before");
   const [scaleCardsToContent, setScaleCardsToContent] = useState(true);
   const gangDamageTrack = damageTrack(edition_slug);
+  const showRuined = hasRuinedTerritories(edition_slug);
 
   // Keep fancy-print on the body while Fancy is selected. iOS Safari's window.print()
   // is non-blocking, so adding/removing the class around the print call drops it
@@ -1312,7 +1313,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                                       className="max-w-full whitespace-normal break-words [overflow-wrap:anywhere] items-center gap-1"
                                     >
                                       {territory.territory_name}
-                                      {territory.ruined && <GiAncientRuins className="text-red-500" />}
+                                      {showRuined && territory.ruined && <GiAncientRuins className="text-red-500" />}
                                     </Badge>
                                   ))}
                               </div>
@@ -1704,7 +1705,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                                   className="max-w-full whitespace-normal break-words [overflow-wrap:anywhere] items-center gap-1"
                                 >
                                   {territory.territory_name}
-                                  {territory.ruined && <GiAncientRuins className="text-red-500" />}
+                                  {showRuined && territory.ruined && <GiAncientRuins className="text-red-500" />}
                                 </Badge>
                               ))}
                           </div>

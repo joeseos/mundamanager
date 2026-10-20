@@ -10,6 +10,7 @@ import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { createClient } from "@/utils/supabase/client";
 import { Battle, scenarioLabel } from '@/types/campaign';
+import { hasRuinedTerritories } from '@/types/edition';
 import { getWinnerIds } from '@/utils/battle-winners';
 import Modal from "@/components/ui/modal";
 import { BiSolidNotepad } from "react-icons/bi";
@@ -494,7 +495,7 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
                               <td className="px-4 py-2 text-right">{territory.credits ?? ''}</td>
                               <td className="px-4 py-2 text-right">
                                 <div className="flex items-center justify-end gap-2">
-                                  {territory.ruined && (
+                                  {hasRuinedTerritories(editionSlug) && territory.ruined && (
                                     <Badge 
                                       variant="destructive"
                                       className="font-medium items-center gap-1"

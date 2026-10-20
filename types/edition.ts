@@ -259,6 +259,8 @@ const EDITION_CAPABILITIES = {
   spyrerPowerBoosts:        { n23: true,  n26: false },
   /** Each model may take one Post-cycle Action between battles (utils/postCycleActions.ts). */
   postCycleActions:         { n23: false, n26: true  },
+  /** Campaign territories can be marked Ruined, which changes the boon they give. */
+  ruinedTerritories:        { n23: true,  n26: false },
 } as const satisfies Record<string, Record<EditionSlug, unknown>>;
 
 type EditionCapability = keyof typeof EDITION_CAPABILITIES;
@@ -472,6 +474,9 @@ export const hasSpyrerPowerBoosts = (editionSlug?: string | null): boolean =>
 
 export const hasPostCycleActions = (editionSlug?: string | null): boolean =>
   can('postCycleActions', editionSlug);
+
+export const hasRuinedTerritories = (editionSlug?: string | null): boolean =>
+  can('ruinedTerritories', editionSlug);
 
 export interface Edition {
   id: string;

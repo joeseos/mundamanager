@@ -853,6 +853,7 @@ export default function CampaignPageContent({
                   canClaimTerritories: safePermissions.canClaimTerritories
                 }}
                 onTerritoryUpdate={handleTerritoryUpdate}
+                editionSlug={campaignData.edition_slug ?? null}
               />
             </div>
 
@@ -886,6 +887,7 @@ export default function CampaignPageContent({
                     ) : undefined
                   }
                   onTerritoryUpdate={handleTerritoryUpdate}
+                  editionSlug={campaignData.edition_slug ?? null}
                 />
               </div>
             </div>
