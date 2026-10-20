@@ -321,12 +321,6 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           bValue = new Date(b.created_at).getTime();
       }
       
-      // Challenges outrank played battles regardless of the chosen sort:
-      // they are the outstanding work, the history sits below them.
-      const aPending = isPlayedBattle(a) ? 1 : 0;
-      const bPending = isPlayedBattle(b) ? 1 : 0;
-      if (aPending !== bPending) return aPending - bPending;
-
       const comparison =
         typeof aValue === 'string' && typeof bValue === 'string'
           ? aValue.localeCompare(bValue)
@@ -334,7 +328,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       if (comparison !== 0) return sortDirection === 'asc' ? comparison : -comparison;
 
       // Slots opened together tie on every column, so rank them by challenger rating.
-      if (aPending === 0 && bPending === 0) {
+      if (!isPlayedBattle(a) && !isPlayedBattle(b)) {
         return (gangRatings.get(a.challenger_gang_id ?? '') ?? 0)
           - (gangRatings.get(b.challenger_gang_id ?? '') ?? 0);
       }
@@ -377,15 +371,27 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     setCurrentPage(1);
   }, [filterCycle, filterScenario, filterParticipatingGang, filterWinningGang, filterDraws, sortField, sortDirection]);
 
-  // Calculate total pages - use filtered battles for pagination
-  const totalPages = Math.ceil(sortedAndFilteredBattles.length / itemsPerPage);
+  // Challenges are the outstanding work and get their own table above the played battles
+  const challenges = useMemo(
+    () => sortedAndFilteredBattles.filter(battle => !isPlayedBattle(battle)),
+    [sortedAndFilteredBattles]
+  );
+  const battleLogs = useMemo(
+    () => sortedAndFilteredBattles.filter(isPlayedBattle),
+    [sortedAndFilteredBattles]
+  );
+  const hasChallenges = battles.some(battle => !isPlayedBattle(battle));
+  const hasBattleLogs = battles.some(isPlayedBattle);
+
+  // Calculate total pages - only the battle logs are paginated
+  const totalPages = Math.ceil(battleLogs.length / itemsPerPage);
   
-  // Get current battles for pagination
-  const currentBattles = useMemo(() => {
+  // Get current battle logs for pagination
+  const currentBattleLogs = useMemo(() => {
     const indexOfLastItem = currentPage * itemsPerPage;
     const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-    return sortedAndFilteredBattles.slice(indexOfFirstItem, indexOfLastItem);
-  }, [sortedAndFilteredBattles, currentPage, itemsPerPage]);
+    return battleLogs.slice(indexOfFirstItem, indexOfLastItem);
+  }, [battleLogs, currentPage, itemsPerPage]);
 
   // Check if any filters are active
   const hasActiveFilters = filterCycle || filterScenario || filterParticipatingGang || filterWinningGang || filterDraws;
@@ -907,6 +913,203 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     }
   };
 
+  const renderBattlesTable = (rows: Battle[], isChallengeTable: boolean, emptyText: string) => (
+    <div className="rounded-md border overflow-x-auto">
+      <table className="w-full text-xs md:text-sm">
+        <thead>
+          <tr className="bg-muted border-b">
+            <th 
+              className="p-1 md:p-2 text-left font-medium min-w-[5rem] md:min-w-[6.2rem] cursor-pointer hover:bg-muted transition-colors select-none"
+              onClick={() => handleSort('date')}
+            >
+              <div className="flex items-center gap-1">
+                Date
+                {sortField === 'date' && (
+                  <span className="text-muted-foreground">
+                    {sortDirection === 'asc' ? '↑' : '↓'}
+                  </span>
+                )}
+              </div>
+            </th>
+            <th 
+              className="p-1 md:p-2 text-left font-medium min-w-[1rem] cursor-pointer hover:bg-muted transition-colors select-none"
+              onClick={() => handleSort('cycle')}
+            >
+              <div className="flex items-center gap-1">
+                Cycle
+                {sortField === 'cycle' && (
+                  <span className="text-muted-foreground">
+                    {sortDirection === 'asc' ? '↑' : '↓'}
+                  </span>
+                )}
+              </div>
+            </th>
+            <th 
+              className="p-1 md:p-2 text-left font-medium max-w-[8rem] cursor-pointer hover:bg-muted transition-colors select-none"
+              onClick={() => handleSort('scenario')}
+            >
+              <div className="flex items-center gap-1">
+                Scenario
+                {sortField === 'scenario' && (
+                  <span className="text-muted-foreground">
+                    {sortDirection === 'asc' ? '↑' : '↓'}
+                  </span>
+                )}
+              </div>
+            </th>
+            <th 
+              className="p-1 md:p-2 text-left font-medium cursor-pointer hover:bg-muted transition-colors select-none"
+              onClick={() => handleSort('territory')}
+            >
+              <div className="flex items-center gap-1">
+                Territory
+                {sortField === 'territory' && (
+                  <span className="text-muted-foreground">
+                    {sortDirection === 'asc' ? '↑' : '↓'}
+                  </span>
+                )}
+              </div>
+            </th>
+            <th className="px-7 py-2 text-left font-medium">Gangs</th>
+            {isChallengeTable
+              ? <th className="p-1 md:p-2 text-left font-medium">Status</th>
+              : <th className="px-2 py-2 text-left font-medium">Winner(s)</th>}
+            <th className="p-1 md:p-2 text-left font-medium">Report</th>
+            {(isAdmin || availableGangs.length > 0) && <th className="p-1 md:p-2 text-right font-medium">Actions</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr>
+              <td colSpan={(isAdmin || availableGangs.length > 0) ? 8 : 7} className="text-muted-foreground italic text-center">
+                {emptyText}
+              </td>
+            </tr>
+          ) : (
+            rows.map((battle) => (
+              <tr key={battle.id} className="border-b">
+                <td className="p-1 md:p-2 align-top max-w-[5rem]">
+                  {formatDate(battle.created_at)}
+                </td>
+
+                <td className="p-1 md:p-2 align-top text-right">
+                  {battle.cycle || '-'}
+                </td>
+
+                <td className="p-1 md:p-2 align-top max-w-[8rem]">
+                  {scenarioLabel(battle) || '-'}
+                </td>
+
+                <td className="p-1 md:p-2 align-top">
+                  {battle.territory_name || '-'}
+                </td>
+
+                <td className="p-1 md:p-2 align-top">
+                  {getGangsWithRoles(battle)}
+                </td>
+
+                {isChallengeTable ? (
+                  <td className="p-1 md:p-2 align-top">
+                    <span className={`inline-block whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium ${battleStatusColors[battleStatusOf(battle)]}`}>
+                      {battleStatusLabels[battleStatusOf(battle)]}
+                    </span>
+                  </td>
+                ) : (
+                  <td className="p-1 md:p-2 align-top">
+                    {(() => {
+                      const winnerIds = getWinnerIds(battle);
+                      if (winnerIds.length === 0) {
+                        return <span className="ml-2 text-xs">Draw</span>;
+                      }
+                      // Resolve names from the enriched winners array first,
+                      // fall back to the legacy single-winner enrichment for
+                      // historical rows where only `winner` is populated.
+                      const lookupName = (id: string): string =>
+                        battle.winners?.find((w) => w.id === id)?.name
+                        ?? (battle.winner?.id === id ? battle.winner.name : null)
+                        ?? 'Unknown';
+                      return (
+                        <div className="flex flex-col items-start gap-1">
+                          {winnerIds.map((id) => (
+                            <span
+                              key={id}
+                              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
+                              style={{ color: getGangColour(id) }}
+                            >
+                              <a
+                                href={`/gang/${id}`}
+                                className="hover:text-muted-foreground transition-colors"
+                                onClick={(e) => handleGangClick(e, id)}
+                              >
+                                {lookupName(id)}
+                              </a>
+                            </span>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </td>
+                )}
+
+                <td className="p-1 md:p-2 align-top">
+                  {battle.note && (
+                    <button
+                      onClick={() => {
+                        setActiveNote(battle.note || '');
+                        setShowNoteModal(true);
+                      }}
+                      className="text-muted-foreground hover:text-foreground"
+                      aria-label="View note"
+                    >
+                      <BiSolidNotepad className="text-lg" />
+                    </button>
+                  )}
+                </td>
+                {canUserEditBattle(battle) && (
+                  <td className="p-1 md:p-2 align-top text-right">
+                    <div className="flex justify-end gap-2">
+                      {battleStatusOf(battle) === 'challenge_accepted' && (
+                        <Button
+                          onClick={() => playChallengeMutation.mutate(battle.id)}
+                          disabled={playChallengeMutation.isPending}
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          aria-label="Play as battle session"
+                          title="Play as battle session"
+                        >
+                          <LuSwords className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Button
+                        onClick={() => handleEditBattle(battle)}
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        aria-label="Edit battle"
+                      >
+                        <LuSquarePen className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        onClick={(e) => handleDeleteBattle(battle, e)}
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        aria-label="Delete battle"
+                      >
+                        <LuTrash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </td>
+                )}
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+
   // The content to render
   const content = (
     <>
@@ -1066,203 +1269,19 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         </div>
       </div>
 
-      <div className="rounded-md border overflow-x-auto">
-        <table className="w-full text-xs md:text-sm">
-          <thead>
-            <tr className="bg-muted border-b">
-              <th 
-                className="p-1 md:p-2 text-left font-medium min-w-[5rem] md:min-w-[6.2rem] cursor-pointer hover:bg-muted transition-colors select-none"
-                onClick={() => handleSort('date')}
-              >
-                <div className="flex items-center gap-1">
-                  Date
-                  {sortField === 'date' && (
-                    <span className="text-muted-foreground">
-                      {sortDirection === 'asc' ? '↑' : '↓'}
-                    </span>
-                  )}
-                </div>
-              </th>
-              <th 
-                className="p-1 md:p-2 text-left font-medium min-w-[1rem] cursor-pointer hover:bg-muted transition-colors select-none"
-                onClick={() => handleSort('cycle')}
-              >
-                <div className="flex items-center gap-1">
-                  Cycle
-                  {sortField === 'cycle' && (
-                    <span className="text-muted-foreground">
-                      {sortDirection === 'asc' ? '↑' : '↓'}
-                    </span>
-                  )}
-                </div>
-              </th>
-              <th 
-                className="p-1 md:p-2 text-left font-medium max-w-[8rem] cursor-pointer hover:bg-muted transition-colors select-none"
-                onClick={() => handleSort('scenario')}
-              >
-                <div className="flex items-center gap-1">
-                  Scenario
-                  {sortField === 'scenario' && (
-                    <span className="text-muted-foreground">
-                      {sortDirection === 'asc' ? '↑' : '↓'}
-                    </span>
-                  )}
-                </div>
-              </th>
-              <th 
-                className="p-1 md:p-2 text-left font-medium cursor-pointer hover:bg-muted transition-colors select-none"
-                onClick={() => handleSort('territory')}
-              >
-                <div className="flex items-center gap-1">
-                  Territory
-                  {sortField === 'territory' && (
-                    <span className="text-muted-foreground">
-                      {sortDirection === 'asc' ? '↑' : '↓'}
-                    </span>
-                  )}
-                </div>
-              </th>
-              <th className="px-7 py-2 text-left font-medium">Gangs</th>
-              <th className="px-2 py-2 text-left font-medium">Winner(s)</th>
-              <th className="p-1 md:p-2 text-left font-medium">Status</th>
-              <th className="p-1 md:p-2 text-left font-medium">Report</th>
-              {(isAdmin || availableGangs.length > 0) && <th className="p-1 md:p-2 text-right font-medium">Actions</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {sortedAndFilteredBattles.length === 0 ? (
-              <tr>
-                <td colSpan={(isAdmin || availableGangs.length > 0) ? 9 : 8} className="text-muted-foreground italic text-center">
-                  {battles.length === 0 
-                    ? "No battles recorded yet."
-                    : "No battles match the selected filters."}
-                </td>
-              </tr>
-            ) : (
-              currentBattles.map((battle) => (
-                <tr key={battle.id} className="border-b">
-                  <td className="p-1 md:p-2 align-top max-w-[5rem]">
-                    {formatDate(battle.created_at)}
-                  </td>
+      {hasChallenges && (
+        <div className="mb-8">
+          <h3 className="text-xl md:text-2xl font-bold mb-3">Challenges</h3>
+          {renderBattlesTable(challenges, true, "No challenges match the selected filters.")}
+        </div>
+      )}
 
-                  <td className="p-1 md:p-2 align-top text-right">
-                    {battle.cycle || '-'}
-                  </td>
-
-                  <td className="p-1 md:p-2 align-top max-w-[8rem]">
-                    {scenarioLabel(battle) || '-'}
-                  </td>
-
-                  <td className="p-1 md:p-2 align-top">
-                    {battle.territory_name || '-'}
-                  </td>
-
-                  <td className="p-1 md:p-2 align-top">
-                    {getGangsWithRoles(battle)}
-                  </td>
-
-                  <td className="p-1 md:p-2 align-top">
-                    {(() => {
-                      const winnerIds = getWinnerIds(battle);
-                      if (winnerIds.length === 0) {
-                        // A draw is a result. An unplayed challenge has none yet,
-                        // so it gets the same plain placeholder as the other columns.
-                        return isPlayedBattle(battle)
-                          ? <span className="ml-2 text-xs">Draw</span>
-                          : '-';
-                      }
-                      // Resolve names from the enriched winners array first,
-                      // fall back to the legacy single-winner enrichment for
-                      // historical rows where only `winner` is populated.
-                      const lookupName = (id: string): string =>
-                        battle.winners?.find((w) => w.id === id)?.name
-                        ?? (battle.winner?.id === id ? battle.winner.name : null)
-                        ?? 'Unknown';
-                      return (
-                        <div className="flex flex-col items-start gap-1">
-                          {winnerIds.map((id) => (
-                            <span
-                              key={id}
-                              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
-                              style={{ color: getGangColour(id) }}
-                            >
-                              <a
-                                href={`/gang/${id}`}
-                                className="hover:text-muted-foreground transition-colors"
-                                onClick={(e) => handleGangClick(e, id)}
-                              >
-                                {lookupName(id)}
-                              </a>
-                            </span>
-                          ))}
-                        </div>
-                      );
-                    })()}
-                  </td>
-
-                  <td className="p-1 md:p-2 align-top">
-                    <span className={`inline-block whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium ${battleStatusColors[battleStatusOf(battle)]}`}>
-                      {battleStatusLabels[battleStatusOf(battle)]}
-                    </span>
-                  </td>
-
-                  <td className="p-1 md:p-2 align-top">
-                    {battle.note && (
-                      <button
-                        onClick={() => {
-                          setActiveNote(battle.note || '');
-                          setShowNoteModal(true);
-                        }}
-                        className="text-muted-foreground hover:text-foreground"
-                        aria-label="View note"
-                      >
-                        <BiSolidNotepad className="text-lg" />
-                      </button>
-                    )}
-                  </td>
-                  {canUserEditBattle(battle) && (
-                    <td className="p-1 md:p-2 align-top text-right">
-                      <div className="flex justify-end gap-2">
-                        {battleStatusOf(battle) === 'challenge_accepted' && (
-                          <Button
-                            onClick={() => playChallengeMutation.mutate(battle.id)}
-                            disabled={playChallengeMutation.isPending}
-                            variant="outline"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            aria-label="Play as battle session"
-                            title="Play as battle session"
-                          >
-                            <LuSwords className="h-4 w-4" />
-                          </Button>
-                        )}
-                        <Button
-                          onClick={() => handleEditBattle(battle)}
-                          variant="outline"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          aria-label="Edit battle"
-                        >
-                          <LuSquarePen className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          onClick={(e) => handleDeleteBattle(battle, e)}
-                          variant="outline"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                          aria-label="Delete battle"
-                        >
-                          <LuTrash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <h3 className="text-xl md:text-2xl font-bold mb-3">Battle Logs</h3>
+      {renderBattlesTable(
+        currentBattleLogs,
+        false,
+        hasBattleLogs ? "No battles match the selected filters." : "No battles recorded yet."
+      )}
 
       {/* Pagination Controls */}
       {totalPages > 1 && (
