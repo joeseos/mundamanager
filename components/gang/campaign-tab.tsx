@@ -40,7 +40,7 @@ interface Territory {
   description?: string | null;
   ruined?: boolean;
   default_gang_territory?: boolean;
-  /** Credits the catalog territory gives; null for custom territories or when unset */
+  /** Credits the territory gives; null when unset */
   credits?: number | null;
   created_at?: string;
 }

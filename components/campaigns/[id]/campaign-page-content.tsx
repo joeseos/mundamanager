@@ -85,7 +85,7 @@ interface Territory {
   territory_name: string;
   /** Catalog/template name when linked via territory_id; null for custom territories */
   original_territory_name?: string | null;
-  /** Credits the catalog territory gives; null for custom territories or when unset */
+  /** Credits the territory gives; null when unset */
   credits?: number | null;
   playing_card?: string | null;
   gang_id: string | null;

@@ -207,6 +207,7 @@ export interface CampaignTerritoryRow {
   default_gang_territory?: boolean;
   playing_card?: string | null;
   description?: string | null;
+  credits?: number | null;
   map_object_id?: string | null;
   map_hex_coords?: { x: number; y: number; z: number } | null;
   show_name_on_map?: boolean;
