@@ -1270,7 +1270,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       </div>
 
       <div className="mb-8">
-        <h3 className="text-xl md:text-2xl font-bold mb-3">Challenges</h3>
+        <h3 className="text-xl md:text-2xl font-bold mb-4">Challenges</h3>
         {renderBattlesTable(
           challenges,
           true,
@@ -1278,7 +1278,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         )}
       </div>
 
-      <h3 className="text-xl md:text-2xl font-bold mb-3">Battle Logs</h3>
+      <h3 className="text-xl md:text-2xl font-bold mb-4">Battle Logs</h3>
       {renderBattlesTable(
         currentBattleLogs,
         false,
@@ -1316,7 +1316,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
 
       {/* Standings Table */}
       <div className="mt-8">
-        <h3 className="text-xl md:text-2xl font-bold mb-3">Standings</h3>
+        <h3 className="text-xl md:text-2xl font-bold mb-4">Standings</h3>
         <div className="rounded-md border overflow-x-auto">
           <table className="w-full text-xs md:text-sm">
             <thead>
