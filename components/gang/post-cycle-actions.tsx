@@ -301,7 +301,6 @@ export default function PostCycleActions({
   const reputation = gangReputation ?? 0;
   const income = reputationIncome(reputation);
   const incomeTerritories = territories.filter((territory) => territory.credits);
-  // A territory lost meanwhile drops out of the pick.
   const pickedTerritories = incomeTerritories.filter((territory) =>
     collectTerritoryIds.includes(territory.id)
   );
