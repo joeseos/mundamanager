@@ -75,7 +75,6 @@ export async function GET() {
 type RequestBody = {
   text?: unknown
   type?: unknown
-  link?: unknown
   expiresInDays?: unknown
   audience?: unknown
   userIds?: unknown
@@ -113,14 +112,6 @@ export async function POST(request: Request) {
       )
     }
     const type = body.type
-
-    const link = typeof body.link === 'string' ? body.link.trim() : ''
-    if (link && !isSafeNotificationLink(link)) {
-      return NextResponse.json(
-        { error: 'Link must be a relative path or https URL' },
-        { status: 400 }
-      )
-    }
 
     const expiresInDays =
       typeof body.expiresInDays === 'number' && Number.isFinite(body.expiresInDays)
@@ -208,7 +199,7 @@ export async function POST(request: Request) {
       sender_id: senderId,
       receiver_id: receiverId,
       dismissed: false,
-      link,
+      link: null,
       expires_at: expiresAt,
     }))
 

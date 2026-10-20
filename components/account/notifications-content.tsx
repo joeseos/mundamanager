@@ -381,7 +381,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                     <div
                       className={
                         notification.is_html
-                          ? "prose prose-sm max-w-none break-words mb-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0"
+                          ? "notification-html prose prose-sm max-w-none break-words mb-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0"
                           : "text-sm mb-1 whitespace-pre-line"
                       }
                       dangerouslySetInnerHTML={{ __html: renderNotificationText(notification) }}

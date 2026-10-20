@@ -8,10 +8,8 @@
   color: hsl(var(--primary));
 }
 
-/* Bold, links, and headings inherit the prose color so they follow light/dark mode
-   and an authored colour on a parent span. Tailwind Typography otherwise paints
-   headings with --tw-prose-headings (near-black) and links with --tw-prose-links. */
-.prose a,
+/* Bold and headings inherit the prose color so they follow light/dark mode.
+   Tailwind Typography otherwise paints headings with --tw-prose-headings (near-black). */
 .prose strong,
 .prose b,
 .prose h1,
@@ -20,6 +18,12 @@
 .prose h4,
 .prose h5,
 .prose h6 {
+  color: inherit;
+}
+
+/* Notification HTML only. A bare .prose a rule would recolour links in notes
+   once this stylesheet loads on the same page. */
+.notification-html a {
   color: inherit;
 }
 

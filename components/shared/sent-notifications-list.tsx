@@ -88,7 +88,7 @@ function SentMessageTooltip({ html, link, campaignName }: { html: string; link: 
           color: 'hsl(var(--card-foreground))',
         }}
       >
-        <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: html }} />
+        <div className="notification-html prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: html }} />
         {resolved && (
           <a
             href={resolved.href}
