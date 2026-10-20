@@ -106,7 +106,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       getCampaignBattleSessions(params.id),
       getCampaignTypes(),
       getAllTerritories(),
-      getTradingPostTypesCached(supabase),
+      getTradingPostTypesCached(),
       getCampaignAllegiances(params.id),
       getCampaignResources(params.id),
       getCampaignCaptives(params.id),

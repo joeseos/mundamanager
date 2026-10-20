@@ -247,7 +247,7 @@ export function AdminCampaignManagementModal({
     setIsCreateModeCampaignType(false);
     const selected = campaignTypes.find(ct => ct.id === id);
     if (selected) {
-      setCampaignTypeName(selected.campaign_type_name);
+      setCampaignTypeName(selected.campaign_type_name ?? '');
       setImageUrl(selected.image_url || '');
       setCampaignTypeEditionId(selected.edition_id ?? '');
       setRelatedTradingPostIds(selected.trading_posts || []);

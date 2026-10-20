@@ -253,7 +253,7 @@ export default function CreateBattleModal({
 
       const scenarioName = selectedScenario === 'custom'
         ? customScenario.trim()
-        : sortedScenarios.find((s) => s.id === selectedScenario)?.scenario_name;
+        : sortedScenarios.find((s) => s.id === selectedScenario)?.scenario_name ?? undefined;
       const allGangIds = effectiveGangId ? [effectiveGangId] : [];
 
       if (campaignId) {

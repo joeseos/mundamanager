@@ -45,8 +45,8 @@ export default async function Home() {
     customTradingPosts,
     customCollections
   ] = await Promise.all([
-    getUserGangs(user.id, supabase),
-    getUserCampaigns(user.id, supabase),
+    getUserGangs(user.id),
+    getUserCampaigns(user.id),
     getUserCustomEquipment(user.id),
     getUserCustomFighterTypes(user.id),
     getUserCustomSkills(user.id),
@@ -59,8 +59,8 @@ export default async function Home() {
   // campaigns — all cached (campaign-types / global / user-{id} tags).
   const [campaignTypes, tradingPostTypes, userCampaigns] = await Promise.all([
     getCampaignTypes(),
-    getTradingPostTypesCached(supabase),
-    getUserShareCampaigns(user.id, supabase)
+    getTradingPostTypesCached(),
+    getUserShareCampaigns(user.id)
   ]);
 
   return (

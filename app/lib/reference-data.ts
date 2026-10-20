@@ -1,27 +1,29 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
-import { createClient, createServiceRoleClient } from '@/utils/supabase/server';
+import { inArray } from 'drizzle-orm';
+import { getAppDb } from '@/utils/db/client';
+import { gangTypes } from '@/utils/db/schema';
 import { withEditionSlug } from '@/types/edition';
 import { compareScenarioTableEntries, type Scenario, type ScenarioTableWithEntries } from '@/types/campaign';
 
 /**
  * Cached global reference data (admin-owned tables, not scoped to any
  * gang/campaign instance). Invalidated by the admin routes that edit these
- * tables (plus a time-based fallback where noted).
+ * tables (plus a time-based fallback where noted). Every signed-in user reads
+ * the same rows, so the direct connection reads them for everyone.
  */
 
 export type { Scenario };
 
-export const getScenariosCached = async (supabase: any): Promise<Scenario[]> => {
+export const getScenariosCached = async (): Promise<Scenario[]> => {
   return unstable_cache(
     async () => {
-      const { data, error } = await supabase
-        .from('scenarios')
-        .select('id, scenario_name, scenario_number, editions:edition_id (slug)')
-        .order('scenario_number');
-
-      if (error) throw error;
-      return (data || []).map(withEditionSlug);
+      const scenarios = await getAppDb().query.scenarios.findMany({
+        columns: { id: true, scenario_name: true, scenario_number: true },
+        orderBy: (scenario, { asc }) => asc(scenario.scenario_number),
+        with: { editions: { columns: { slug: true } } },
+      });
+      return scenarios.map(withEditionSlug);
     },
     ['global-scenarios'],
     {
@@ -33,20 +35,19 @@ export const getScenariosCached = async (supabase: any): Promise<Scenario[]> => 
 
 export interface TradingPostType {
   id: string;
-  trading_post_name: string;
+  trading_post_name: string | null;
   edition_slug?: string | null;
 }
 
-export const getTradingPostTypesCached = async (supabase: any): Promise<TradingPostType[]> => {
+export const getTradingPostTypesCached = async (): Promise<TradingPostType[]> => {
   return unstable_cache(
     async () => {
-      const { data, error } = await supabase
-        .from('trading_post_types')
-        .select('id, trading_post_name, editions:edition_id (slug)')
-        .order('trading_post_name');
-
-      if (error) throw error;
-      return (data || []).map(withEditionSlug);
+      const tradingPostTypes = await getAppDb().query.tradingPostTypes.findMany({
+        columns: { id: true, trading_post_name: true },
+        orderBy: (tradingPostType, { asc }) => asc(tradingPostType.trading_post_name),
+        with: { editions: { columns: { slug: true } } },
+      });
+      return tradingPostTypes.map(withEditionSlug);
     },
     ['global-trading-post-types'],
     {
@@ -60,16 +61,14 @@ export const getTradingPostTypesCached = async (supabase: any): Promise<TradingP
  * Get all campaign types with persistent caching
  */
 export const getCampaignTypes = async () => {
-  const supabase = await createClient();
   return unstable_cache(
     async () => {
-      const { data, error } = await supabase
-        .from('campaign_types')
-        .select('id, campaign_type_name, trading_posts, editions:edition_id (slug)')
-        .order('campaign_type_name');
-
-      if (error) throw error;
-      return (data || []).map(withEditionSlug);
+      const campaignTypes = await getAppDb().query.campaignTypes.findMany({
+        columns: { id: true, campaign_type_name: true, trading_posts: true },
+        orderBy: (campaignType, { asc }) => asc(campaignType.campaign_type_name),
+        with: { editions: { columns: { slug: true } } },
+      });
+      return campaignTypes.map(withEditionSlug);
     },
     ['campaign-types'],
     {
@@ -84,22 +83,17 @@ export const getCampaignTypes = async () => {
  * Used by territory selection components
  */
 export const getAllTerritories = async () => {
-  const supabase = await createClient();
   return unstable_cache(
     async () => {
-      const { data, error } = await supabase
-        .from('territories')
-        .select('id, territory_name, campaign_type_id, playing_card, editions:edition_id (slug)')
-        .order('territory_name');
-
-      if (error) throw error;
-      return (data || []).map(territory => {
-        const withSlug = withEditionSlug(territory);
-        return {
-          ...withSlug,
-          territory_id: withSlug.id
-        };
+      const territories = await getAppDb().query.territories.findMany({
+        columns: { id: true, territory_name: true, campaign_type_id: true, playing_card: true },
+        orderBy: (territory, { asc }) => asc(territory.territory_name),
+        with: { editions: { columns: { slug: true } } },
       });
+      return territories.map(territory => ({
+        ...withEditionSlug(territory),
+        territory_id: territory.id
+      }));
     },
     ['territories-list'],
     {
@@ -112,41 +106,45 @@ export const getAllTerritories = async () => {
 /**
  * Every edition's scenario tables with their entries, for the N26 battle log
  * and battle session pickers. Also tagged with gang types: a house table lists
- * the gang types that roll on it, its alternate lists included. Read with the
- * service role, so a signed-out caller (the battle data route has no sign-in
- * check) can never fill the shared cache with what RLS hides from it.
+ * the gang types that roll on it, its alternate lists included. The direct
+ * connection reads the same rows whoever asks, so a signed-out caller (the
+ * battle data route has no sign-in check) can never fill the shared cache with
+ * less.
  */
 export const getScenarioTablesCached = async (): Promise<ScenarioTableWithEntries[]> =>
   unstable_cache(
     async () => {
-      const supabase = createServiceRoleClient();
-      // The hint picks the plain foreign key over the composite edition one.
-      const { data, error } = await supabase
-        .from('scenario_tables')
-        .select(
-          'id, name, edition_id, gang_type_id, table_type, editions:edition_id (slug), ' +
-          'entries:scenario_table_entries!scenario_table_entries_scenario_table_id_fkey (id, name, d6_min, d6_max, scenario_table_id, edition_id)'
-        );
-      if (error) throw error;
+      const db = getAppDb();
+      const tables = await db.query.scenarioTables.findMany({
+        columns: { id: true, name: true, edition_id: true, gang_type_id: true, table_type: true },
+        with: {
+          editions: { columns: { slug: true } },
+          entries: {
+            columns: { id: true, name: true, d6_min: true, d6_max: true, scenario_table_id: true, edition_id: true },
+          },
+        },
+      });
 
-      const houseIds = (data ?? []).map((table: any) => table.gang_type_id).filter(Boolean);
-      const { data: alternates, error: alternatesError } = houseIds.length
-        ? await supabase.from('gang_types').select('id, parent_gang_type_id').in('parent_gang_type_id', houseIds)
-        : { data: [], error: null };
-      if (alternatesError) throw alternatesError;
+      const houseIds = tables.flatMap((table) => (table.gang_type_id ? [table.gang_type_id] : []));
+      const alternates = houseIds.length > 0
+        ? await db
+            .select({ id: gangTypes.id, parent_gang_type_id: gangTypes.parent_gang_type_id })
+            .from(gangTypes)
+            .where(inArray(gangTypes.parent_gang_type_id, houseIds))
+        : [];
 
-      return (data ?? []).map(({ entries, ...table }: any) => ({
+      return tables.map(({ entries, ...table }) => ({
         ...withEditionSlug(table),
         gang_type_ids: table.gang_type_id
           ? [
               table.gang_type_id,
-              ...(alternates ?? [])
-                .filter((alternate: any) => alternate.parent_gang_type_id === table.gang_type_id)
-                .map((alternate: any) => alternate.id),
+              ...alternates
+                .filter((alternate) => alternate.parent_gang_type_id === table.gang_type_id)
+                .map((alternate) => alternate.id),
             ]
           : [],
-        entries: [...(entries ?? [])].sort(compareScenarioTableEntries),
-      })) as ScenarioTableWithEntries[];
+        entries: entries.sort(compareScenarioTableEntries),
+      }));
     },
     ['global-scenario-tables'],
     {
@@ -159,24 +157,17 @@ export const getScenarioTablesCached = async (): Promise<ScenarioTableWithEntrie
  * Get campaign triumphs for a campaign type with persistent caching
  */
 export const getCampaignTriumphs = async (campaignTypeId: string) => {
-  const supabase = await createClient();
   return unstable_cache(
     async () => {
-      const { data: triumphs, error } = await supabase
-        .from('campaign_triumphs')
-        .select(`
-          id,
-          triumph,
-          criteria,
-          campaign_type_id,
-          created_at,
-          updated_at
-        `)
-        .eq('campaign_type_id', campaignTypeId)
-        .order('triumph', { ascending: true });
-
-      if (error) throw error;
-      return triumphs || [];
+      return getAppDb().query.campaignTriumphs.findMany({
+        columns: { id: true, triumph: true, criteria: true, campaign_type_id: true },
+        extras: (triumph, { sql }) => ({
+          created_at: sql<string>`to_json(${triumph.created_at})`.as('created_at'),
+          updated_at: sql<string | null>`to_json(${triumph.updated_at})`.as('updated_at'),
+        }),
+        where: (triumph, { eq }) => eq(triumph.campaign_type_id, campaignTypeId),
+        orderBy: (triumph, { asc }) => asc(triumph.triumph),
+      });
     },
     [`campaign-triumphs-${campaignTypeId}`],
     {
