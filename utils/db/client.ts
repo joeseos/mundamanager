@@ -1,6 +1,7 @@
 import 'server-only';
 
 import postgres from 'postgres';
+import { sql } from 'drizzle-orm';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import * as schema from './schema';
 import { SUPABASE_ROOT_CA } from './supabase-ca';
@@ -13,9 +14,11 @@ import { SUPABASE_ROOT_CA } from './supabase-ca';
  * as the read-only app_server role: RLS applies as for `authenticated`, but
  * with no user. Policies that check auth.uid() return no rows, and nothing
  * here checks who is asking, so authenticate the request before reading.
+ * Tables whose policies check auth.uid() are read through withUserClaims.
  */
 
 export type AppDb = PostgresJsDatabase<typeof schema>;
+export type AppTx = Parameters<Parameters<AppDb['transaction']>[0]>[0];
 
 // The local Supabase stack's database has no TLS
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1']);
@@ -55,4 +58,18 @@ export function getAppDb(): AppDb {
 
   globalForDb.appDb = drizzle(client, { schema });
   return globalForDb.appDb;
+}
+
+/**
+ * Runs `read` in a transaction where auth.uid() is `userId`, so policies that
+ * check it apply as they do over the Data API. The claims last only for the
+ * transaction, so the pooled connection is not left signed in as the user.
+ * `userId` must be the authenticated caller's own id.
+ */
+export function withUserClaims<T>(userId: string, read: (tx: AppTx) => Promise<T>): Promise<T> {
+  return getAppDb().transaction(async (tx) => {
+    const claims = JSON.stringify({ sub: userId, role: 'authenticated' });
+    await tx.execute(sql`select set_config('request.jwt.claims', ${claims}, true)`);
+    return read(tx);
+  });
 }

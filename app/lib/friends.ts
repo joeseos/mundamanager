@@ -1,13 +1,13 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
-import { getAppDb } from '@/utils/db/client';
+import { withUserClaims } from '@/utils/db/client';
 
 const profileColumns = { id: true, username: true, updated_at: true, user_role: true } as const;
 
 export const getFriendsAndRequests = async (userId: string) => {
   return unstable_cache(
     async () => {
-      const rows = await getAppDb().query.friends.findMany({
+      const rows = await withUserClaims(userId, (tx) => tx.query.friends.findMany({
         columns: { requester_id: true, status: true },
         where: (friend, { and, eq, inArray, or }) =>
           and(
@@ -18,7 +18,7 @@ export const getFriendsAndRequests = async (userId: string) => {
           requester: { columns: profileColumns },
           addressee: { columns: profileColumns },
         },
-      });
+      }));
 
       return rows.map((row) => {
         const outgoing = row.requester_id === userId;
