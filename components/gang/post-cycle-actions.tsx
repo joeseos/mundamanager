@@ -530,34 +530,34 @@ export default function PostCycleActions({
           />
           <label htmlFor="collect-income" className="text-sm font-medium cursor-pointer">
             Collect Income
+            <span className="ml-2 font-normal text-muted-foreground">
+              ({reputation} Reputation: +{income} credits)
+            </span>
           </label>
         </div>
-        <p className="text-xs text-muted-foreground mt-1">
-          {reputation} Reputation: +{income} credits
-        </p>
         {incomeTerritories.map((territory) => (
-          <div key={territory.id} className="mt-2">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id={`collect-territory-${territory.id}`}
-                checked={collectTerritoryIds.includes(territory.id)}
-                onCheckedChange={(checked) =>
-                  setCollectTerritoryIds((prev) =>
-                    checked === true
-                      ? [...prev, territory.id]
-                      : prev.filter((id) => id !== territory.id)
-                  )
-                }
-                disabled={!canEdit || applying}
-              />
-              <label
-                htmlFor={`collect-territory-${territory.id}`}
-                className="text-sm font-medium cursor-pointer"
-              >
-                {territory.territory_name}
-              </label>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">+{territory.credits} credits</p>
+          <div key={territory.id} className="mt-2 flex items-center space-x-2">
+            <Checkbox
+              id={`collect-territory-${territory.id}`}
+              checked={collectTerritoryIds.includes(territory.id)}
+              onCheckedChange={(checked) =>
+                setCollectTerritoryIds((prev) =>
+                  checked === true
+                    ? [...prev, territory.id]
+                    : prev.filter((id) => id !== territory.id)
+                )
+              }
+              disabled={!canEdit || applying}
+            />
+            <label
+              htmlFor={`collect-territory-${territory.id}`}
+              className="text-sm font-medium cursor-pointer"
+            >
+              {territory.territory_name}
+              <span className="ml-2 font-normal text-muted-foreground">
+                (+{territory.credits} credits)
+              </span>
+            </label>
           </div>
         ))}
         {incomeFailure && <p className="mt-1 text-xs text-red-600">{incomeFailure}</p>}
