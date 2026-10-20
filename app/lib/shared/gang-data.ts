@@ -395,6 +395,8 @@ function gangCampaignsQuery(db: AppDb, gangId: string) {
               default_gang_territory: true,
             },
             where: (territory, { eq }) => eq(territory.gang_id, gangId),
+            // The credits the catalog territory gives
+            with: { territory: { columns: { credits: true } } },
           },
           campaign_type: { columns: {}, with: { campaign_type_resources: { columns: { id: true, resource_name: true } } } },
           campaign_resources: { columns: { id: true, resource_name: true } },
@@ -479,7 +481,10 @@ export const getGangCampaigns = async (gangId: string): Promise<GangCampaign[]> 
           trading_post_names: tradingPosts.flatMap((id) => names.tradingPostNames.get(id) || []),
           custom_trading_posts: customTradingPosts,
           custom_trading_post_names: customTradingPosts.flatMap((id) => names.customTradingPostNames.get(id) || []),
-          territories: campaign.campaign_territories,
+          territories: campaign.campaign_territories.map(({ territory, ...row }) => ({
+            ...row,
+            credits: territory?.credits ?? null,
+          })),
           allegiance: allegiance?.allegiance_name ? { id: allegiance.id, name: allegiance.allegiance_name } : null,
           resources: [
             ...(campaign.campaign_type?.campaign_type_resources ?? []).map(resource(false)),
@@ -488,10 +493,12 @@ export const getGangCampaigns = async (gangId: string): Promise<GangCampaign[]> 
         }];
       });
     },
-    [`gang-campaigns-v3-${gangId}`],
+    [`gang-campaigns-v4-${gangId}`],
     {
       tags: [
         TAGS.gangCampaigns(gangId),
+        // Catalog credits are copied in, so an admin edit to a territory refreshes this entry
+        TAGS.globalTerritories(),
         ...campaignIdsForTags.flatMap(id => [
           TAGS.campaignCore(id),
           TAGS.campaignMembers(id),

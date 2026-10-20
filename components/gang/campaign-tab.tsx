@@ -40,6 +40,8 @@ interface Territory {
   description?: string | null;
   ruined?: boolean;
   default_gang_territory?: boolean;
+  /** Credits the catalog territory gives; null for custom territories or when unset */
+  credits?: number | null;
   created_at?: string;
 }
 
@@ -457,11 +459,12 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
                       <thead>
                         <tr className="bg-muted border-b">
                           <th className="px-2 py-2 font-medium text-center w-11 min-w-[2.75rem]">Ref.</th>
-                          <th className="px-4 py-2 font-medium text-left">Territory</th>
-                          <th className="px-4 py-2 font-medium text-left">
+                          <th className="w-1/3 px-4 py-2 font-medium text-left">Territory</th>
+                          <th className="w-1/4 px-4 py-2 font-medium text-left">
                             <span className="hidden sm:inline">Description</span>
                             <span className="sm:hidden">Desc.</span>
                           </th>
+                          <th className="px-4 py-2 font-medium text-right">Credits</th>
                           <th className="px-4 py-2 font-medium text-right">Status</th>
                         </tr>
                       </thead>
@@ -488,6 +491,7 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
                                   </span>
                                 )}
                               </td>
+                              <td className="px-4 py-2 text-right">{territory.credits ?? ''}</td>
                               <td className="px-4 py-2 text-right">
                                 <div className="flex items-center justify-end gap-2">
                                   {territory.ruined && (
