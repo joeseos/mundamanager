@@ -36,7 +36,7 @@ import {
   type PostCycleAssignment,
 } from '@/utils/postCycleActions';
 import {
-  collectReputationIncome,
+  collectIncome,
   resolvePostCycleAction,
   type PostCycleFighterChange,
 } from '@/app/actions/post-cycle-actions';
@@ -50,6 +50,8 @@ interface PostCycleActionsProps {
   gangCredits: number;
   /** gangs.reputation is nullable; NULL reads as 0, as on the gang card. */
   gangReputation: number | null;
+  /** The gang's territories across its campaigns; credits is null when unset. */
+  territories: Array<{ id: string; territory_name: string; credits: number | null }>;
   /** Gang facts the gang-specific actions depend on; see postCycleAvailability. */
   gangType?: string | null;
   isCustomGangType: boolean;
@@ -180,6 +182,7 @@ export default function PostCycleActions({
   fighters,
   gangCredits,
   gangReputation,
+  territories,
   gangType,
   isCustomGangType,
   gangSubtypes,
@@ -193,7 +196,8 @@ export default function PostCycleActions({
   const [rows, setRows] = useState<Record<string, RowState>>({});
   const [applying, setApplying] = useState(false);
   /** Collect Income is taken on Confirm, before the fighters' actions. */
-  const [collectIncome, setCollectIncome] = useState(false);
+  const [collectReputation, setCollectReputation] = useState(false);
+  const [collectTerritoryIds, setCollectTerritoryIds] = useState<string[]>([]);
   const [incomeFailure, setIncomeFailure] = useState<string | null>(null);
   /** Why an action failed on the last Confirm, keyed by the fighter taking it. */
   const [failures, setFailures] = useState<Record<string, string>>({});
@@ -296,9 +300,17 @@ export default function PostCycleActions({
   const totalSpend = pendingStates.reduce((sum, s) => sum + Math.max(s.cost, 0), 0);
   const reputation = gangReputation ?? 0;
   const income = reputationIncome(reputation);
-  const cannotAfford = totalSpend > gangCredits + (collectIncome ? income : 0);
+  const incomeTerritories = territories.filter((territory) => territory.credits);
+  const pickedTerritories = incomeTerritories.filter((territory) =>
+    collectTerritoryIds.includes(territory.id)
+  );
+  const collecting = collectReputation || pickedTerritories.length > 0;
+  const collected =
+    (collectReputation ? income : 0) +
+    pickedTerritories.reduce((sum, territory) => sum + (territory.credits ?? 0), 0);
+  const cannotAfford = totalSpend > gangCredits + collected;
   const readyToApply =
-    (pendingStates.length > 0 || collectIncome) &&
+    (pendingStates.length > 0 || collecting) &&
     pendingStates.every((s) => s.assignment && s.issues.length === 0) &&
     !cannotAfford;
 
@@ -430,7 +442,7 @@ export default function PostCycleActions({
       const assignment = rowStates.get(f.id)?.assignment;
       return assignment ? [assignment] : [];
     });
-    if (applying || (queue.length === 0 && !collectIncome)) return;
+    if (applying || (queue.length === 0 && !collecting)) return;
 
     setApplying(true);
     setFailures({});
@@ -438,12 +450,17 @@ export default function PostCycleActions({
     let failed = 0;
 
     // First, so the actions can spend the income.
-    if (collectIncome) {
+    if (collecting) {
       try {
-        const result = await collectReputationIncome(gangId);
+        const result = await collectIncome({
+          gangId,
+          reputation: collectReputation,
+          territoryIds: pickedTerritories.map((territory) => territory.id),
+        });
         if (result.gang) onGangFinancialsUpdate?.(result.gang);
         if (result.success) {
-          setCollectIncome(false);
+          setCollectReputation(false);
+          setCollectTerritoryIds([]);
         } else {
           failed++;
           setIncomeFailure(result.error || 'Collecting income failed.');
@@ -490,7 +507,7 @@ export default function PostCycleActions({
 
     setApplying(false);
     if (failed > 0) {
-      const total = queue.length + (collectIncome ? 1 : 0);
+      const total = queue.length + (collecting ? 1 : 0);
       toast.error(`${failed} of ${total} Post-cycle steps failed. See the marked rows.`);
     } else {
       toast.success('Post-cycle Actions applied');
@@ -507,8 +524,8 @@ export default function PostCycleActions({
         <div className="flex items-center space-x-2">
           <Checkbox
             id="collect-income"
-            checked={collectIncome}
-            onCheckedChange={(checked) => setCollectIncome(checked === true)}
+            checked={collectReputation}
+            onCheckedChange={(checked) => setCollectReputation(checked === true)}
             disabled={!canEdit || applying || income === 0}
           />
           <label htmlFor="collect-income" className="text-sm font-medium cursor-pointer">
@@ -518,6 +535,31 @@ export default function PostCycleActions({
         <p className="text-xs text-muted-foreground mt-1">
           {reputation} Reputation: +{income} credits
         </p>
+        {incomeTerritories.map((territory) => (
+          <div key={territory.id} className="mt-2">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id={`collect-territory-${territory.id}`}
+                checked={collectTerritoryIds.includes(territory.id)}
+                onCheckedChange={(checked) =>
+                  setCollectTerritoryIds((prev) =>
+                    checked === true
+                      ? [...prev, territory.id]
+                      : prev.filter((id) => id !== territory.id)
+                  )
+                }
+                disabled={!canEdit || applying}
+              />
+              <label
+                htmlFor={`collect-territory-${territory.id}`}
+                className="text-sm font-medium cursor-pointer"
+              >
+                {territory.territory_name}
+              </label>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">+{territory.credits} credits</p>
+          </div>
+        ))}
         {incomeFailure && <p className="mt-1 text-xs text-red-600">{incomeFailure}</p>}
       </div>
 

@@ -760,6 +760,7 @@ export default function GangPageContent({
               fighters={gangData.processedData.fighters}
               gangCredits={gangData.processedData.credits}
               gangReputation={gangData.processedData.reputation}
+              territories={gangCampaigns.flatMap((campaign) => campaign.territories)}
               gangType={gangData.processedData.gang_type}
               isCustomGangType={Boolean(gangData.processedData.custom_gang_type_id)}
               gangSubtypes={gangData.processedData.gang_subtypes || []}
