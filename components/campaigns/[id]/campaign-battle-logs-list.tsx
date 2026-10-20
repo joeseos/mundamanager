@@ -380,7 +380,6 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     () => sortedAndFilteredBattles.filter(isPlayedBattle),
     [sortedAndFilteredBattles]
   );
-  const hasChallenges = battles.some(battle => !isPlayedBattle(battle));
   const hasBattleLogs = battles.some(isPlayedBattle);
 
   // Calculate total pages - only the battle logs are paginated
@@ -913,7 +912,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     }
   };
 
-  const renderBattlesTable = (rows: Battle[], isChallengeTable: boolean, emptyText: string) => (
+  const renderBattlesTable = (rows: Battle[], isChallengeTable: boolean, emptyText?: string) => (
     <div className="rounded-md border overflow-x-auto">
       <table className="w-full text-xs md:text-sm">
         <thead>
@@ -1269,10 +1268,10 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         </div>
       </div>
 
-      {hasChallenges && (
+      {challenges.length > 0 && (
         <div className="mb-8">
           <h3 className="text-xl md:text-2xl font-bold mb-3">Challenges</h3>
-          {renderBattlesTable(challenges, true, "No challenges match the selected filters.")}
+          {renderBattlesTable(challenges, true)}
         </div>
       )}
 
