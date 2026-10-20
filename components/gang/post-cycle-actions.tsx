@@ -510,7 +510,7 @@ export default function PostCycleActions({
       const total = queue.length + (collecting ? 1 : 0);
       toast.error(`${failed} of ${total} Post-cycle steps failed. See the marked rows.`);
     } else {
-      toast.success('Post-cycle Actions applied');
+      toast.success('Post-cycle Sequence applied');
     }
   };
 
@@ -530,9 +530,9 @@ export default function PostCycleActions({
             disabled={!canEdit || applying || income === 0}
           />
           <label htmlFor="collect-income" className="text-sm font-medium cursor-pointer">
-            Collect Income
+            {reputation} Reputation
             <span className="ml-2 font-normal text-muted-foreground">
-              ({reputation} Reputation: +{income} credits)
+              (+{income} credits)
             </span>
           </label>
         </div>
@@ -565,7 +565,7 @@ export default function PostCycleActions({
       </div>
 
       {actors.length > 0 && (
-        <div>
+        <>
           <h4 className="text-lg font-bold mb-3">Post-Cycle Actions</h4>
           <div className="rounded-md border">
             <div className="hidden md:grid md:grid-cols-[minmax(0,1fr)_20rem_10rem] gap-4 px-4 py-2 bg-muted border-b rounded-t-md text-sm font-medium">
@@ -701,7 +701,7 @@ export default function PostCycleActions({
               })}
             </ul>
           </div>
-        </div>
+        </>
       )}
 
       <div className="mt-4 flex flex-col items-end gap-2">
