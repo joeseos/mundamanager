@@ -277,8 +277,8 @@ async function buildEmail(delivery: {
 
   const subject = await resolveSubject(cfg.subject, notification.sender_id);
 
-  // is_html rows are sanitized TipTap HTML (announcements and staff messages).
-  // Everything else stays escaped plain text with the **bold** convention.
+  // is_html rows are sanitized TipTap HTML (announcements, staff messages, and
+  // campaign messages). Everything else stays escaped plain text with the **bold** convention.
   const htmlBody = notification.is_html
     ? notificationHtmlEmailBody(notification.text ?? "", APP_URL)
     : null;
