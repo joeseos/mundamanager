@@ -499,7 +499,7 @@ export default function PostCycleActions({
 
   return (
     <div className="mt-8">
-      <h3 className="text-lg font-semibold mb-4">
+      <h3 className="text-xl md:text-2xl font-bold mb-4">
         Post-Cycle Actions
       </h3>
 
