@@ -1,7 +1,7 @@
 'use server';
 
 import { invalidateCampaignTerritories, invalidateGangCampaignMembership } from '@/utils/cache-tags';
-import { CAMPAIGN_TERRITORY_COLUMNS, shapeCampaignTerritory } from '@/utils/campaigns/territories';
+import { CAMPAIGN_TERRITORY_COLUMNS, parseCredits, shapeCampaignTerritory } from '@/utils/campaigns/territories';
 import { createClient } from "@/utils/supabase/server";
 import { logTerritoryLost, logTerritoryClaimed } from "../../logs/gang-campaign-logs";
 import { getAuthenticatedUser } from '@/utils/auth';
@@ -528,11 +528,12 @@ export async function updateTerritoryStatus(params: UpdateTerritoryStatusParams)
     }
 
     if (creditsChanged) {
-      if (credits !== null && !Number.isFinite(credits)) {
+      const normalisedCredits = parseCredits(credits);
+      if (normalisedCredits === undefined) {
         return { success: false, error: 'Credits must be a number' };
       }
 
-      updatePayload.credits = credits;
+      updatePayload.credits = normalisedCredits;
     }
 
     const { error } = await supabase

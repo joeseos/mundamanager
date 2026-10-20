@@ -476,6 +476,8 @@ export const getCampaignTerritories = async (campaignId: string) => {
       tags: [
         TAGS.campaignTerritories(campaignId),
         TAGS.globalGangTypes(),
+        // The catalog name is read in for Reset, so an admin edit to a territory refreshes this entry
+        TAGS.globalTerritories(),
         ...gangIds.map(gangId => TAGS.gangOverview(gangId))
       ],
       revalidate: false

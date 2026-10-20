@@ -21,6 +21,12 @@ export const CAMPAIGN_TERRITORY_FIELDS = {
   credits: true,
 } as const;
 
+/** Credits a territory gives: a finite number, null when left blank, undefined when invalid. */
+export function parseCredits(credits: unknown): number | null | undefined {
+  if (credits === null || credits === '') return null;
+  return typeof credits === 'number' && Number.isFinite(credits) ? credits : undefined;
+}
+
 /** CAMPAIGN_TERRITORY_FIELDS as a Data API select, for the mutations. */
 export const CAMPAIGN_TERRITORY_COLUMNS = [...Object.keys(CAMPAIGN_TERRITORY_FIELDS), 'created_at'].join(', ');
 
