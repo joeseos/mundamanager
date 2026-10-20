@@ -12,6 +12,7 @@ import {
   text,
   timestamp,
   uuid,
+  varchar,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 import type { BattleSessionParticipant, BattleSessionStatus, SessionRecord } from '@/types/battle-session';
@@ -803,6 +804,15 @@ export const profiles = pgTable('profiles', {
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).default(sql`timezone('utc'::text, now())`),
 });
 
+export const friends = pgTable('friends', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  requester_id: uuid('requester_id').notNull(),
+  addressee_id: uuid('addressee_id').notNull(),
+  status: varchar('status', { length: 20 }).$type<'pending' | 'accepted' | 'blocked'>().notNull(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+});
+
 export const scenarioTables = pgTable('scenario_tables', {
   id: uuid('id').defaultRandom().primaryKey(),
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -1465,6 +1475,17 @@ export const campaignMembersRelations = relations(campaignMembers, ({ one }) => 
   campaign: one(campaigns, {
     fields: [campaignMembers.campaign_id],
     references: [campaigns.id],
+  }),
+}));
+
+export const friendsRelations = relations(friends, ({ one }) => ({
+  requester: one(profiles, {
+    fields: [friends.requester_id],
+    references: [profiles.id],
+  }),
+  addressee: one(profiles, {
+    fields: [friends.addressee_id],
+    references: [profiles.id],
   }),
 }));
 
