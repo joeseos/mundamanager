@@ -179,13 +179,13 @@ async function _getCampaignTerritories(campaignId: string) {
         columns: { id: true, name: true, gang_type: true, gang_colour: true },
         with: { gang_types: { columns: { parent_gang_type_name: true } } },
       },
-      // Catalog/template name for Reset-to-original in the edit modal, and the credits it gives
-      territory: { columns: { territory_name: true, credits: true } },
+      // Catalog/template name for Reset-to-original in the edit modal
+      territory: { columns: { territory_name: true } },
     },
   });
 
   return territories.map(({ gang, territory, ...row }) => ({
-    ...shapeCampaignTerritory(row, territory ?? null),
+    ...shapeCampaignTerritory(row, territory?.territory_name ?? null),
     owning_gangs: gang ? [{
       id: gang.id,
       name: gang.name || '',
@@ -476,7 +476,7 @@ export const getCampaignTerritories = async (campaignId: string) => {
       tags: [
         TAGS.campaignTerritories(campaignId),
         TAGS.globalGangTypes(),
-        // Catalog credits are copied in, so an admin edit to a territory refreshes this entry
+        // The catalog name is read in for Reset, so an admin edit to a territory refreshes this entry
         TAGS.globalTerritories(),
         ...gangIds.map(gangId => TAGS.gangOverview(gangId))
       ],

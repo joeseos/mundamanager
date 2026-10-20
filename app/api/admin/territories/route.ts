@@ -2,12 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { checkAdmin } from "@/utils/auth";
 import { invalidateCampaignCatalogLists } from "@/utils/cache-tags";
-
-/** Credits a territory gives: a finite number, null when left blank, undefined when invalid. */
-function parseCredits(credits: unknown): number | null | undefined {
-  if (credits === null || credits === '') return null;
-  return typeof credits === 'number' && Number.isFinite(credits) ? credits : undefined;
-}
+import { parseCredits } from "@/utils/campaigns/territories";
 
 export async function GET(request: Request) {
   const supabase = await createClient();

@@ -554,7 +554,7 @@ export interface CollectIncomeParams {
   gangId: string;
   /** Collect 10x the gang's Reputation. */
   reputation: boolean;
-  /** campaign_territories ids; each adds its catalog territory's credits. */
+  /** campaign_territories ids; each adds its credits. */
   territoryIds: string[];
 }
 

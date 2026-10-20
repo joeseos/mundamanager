@@ -18,16 +18,17 @@ export const CAMPAIGN_TERRITORY_FIELDS = {
   map_object_id: true,
   map_hex_coords: true,
   show_name_on_map: true,
+  credits: true,
 } as const;
+
+/** Credits a territory gives: a finite number, null when left blank, undefined when invalid. */
+export function parseCredits(credits: unknown): number | null | undefined {
+  if (credits === null || credits === '') return null;
+  return typeof credits === 'number' && Number.isFinite(credits) ? credits : undefined;
+}
 
 /** CAMPAIGN_TERRITORY_FIELDS as a Data API select, for the mutations. */
 export const CAMPAIGN_TERRITORY_COLUMNS = [...Object.keys(CAMPAIGN_TERRITORY_FIELDS), 'created_at'].join(', ');
-
-/** Fields read from the linked `territories` row; absent for custom territories. */
-export interface CampaignTerritoryTemplate {
-  territory_name: string;
-  credits: number | null;
-}
 
 /**
  * Apply the derived fields the cached reader adds on top of the raw row, so a freshly
@@ -35,20 +36,20 @@ export interface CampaignTerritoryTemplate {
  */
 export function shapeCampaignTerritory(
   row: Record<string, any>,
-  template: CampaignTerritoryTemplate | null = null
-): CampaignTerritoryRow & { original_territory_name: string | null; credits: number | null; is_custom: boolean } {
+  originalTerritoryName: string | null = null
+): CampaignTerritoryRow & { original_territory_name: string | null; is_custom: boolean } {
   return {
     id: row.id,
     territory_id: row.territory_id,
     territory_name: row.territory_name,
-    original_territory_name: row.territory_id ? template?.territory_name ?? null : null,
-    credits: row.territory_id ? template?.credits ?? null : null,
+    original_territory_name: row.territory_id ? originalTerritoryName : null,
     gang_id: row.gang_id,
     created_at: row.created_at,
     ruined: row.ruined || false,
     default_gang_territory: row.default_gang_territory || false,
     playing_card: row.playing_card ?? null,
     description: row.description ?? null,
+    credits: row.credits ?? null,
     is_custom: !row.territory_id,
     map_object_id: row.map_object_id ?? null,
     map_hex_coords: row.map_hex_coords ?? null,
