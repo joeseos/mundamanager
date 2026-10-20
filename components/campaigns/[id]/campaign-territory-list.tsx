@@ -858,17 +858,19 @@ export default function CampaignTerritoryList({
       )}
 
       {/* Tooltips */}
-      <Tooltip 
-        id="ruined-tooltip" 
-        place="top" 
-        className="bg-neutral-900! text-white! text-xs! z-[2000]!"
-        delayHide={100}
-        clickable={true}
-        style={{
-          padding: '6px',
-          maxWidth: '20rem'
-        }}
-      />
+      {showRuined && (
+        <Tooltip
+          id="ruined-tooltip"
+          place="top"
+          className="bg-neutral-900! text-white! text-xs! z-[2000]!"
+          delayHide={100}
+          clickable={true}
+          style={{
+            padding: '6px',
+            maxWidth: '20rem'
+          }}
+        />
+      )}
       <Tooltip 
         id="default-territory-tooltip" 
         place="top" 
