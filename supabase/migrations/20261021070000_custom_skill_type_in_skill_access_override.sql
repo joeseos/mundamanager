@@ -13,7 +13,7 @@ ALTER TABLE public.fighter_skill_access_override
   );
 
 ALTER TABLE public.fighter_skill_access_override
-  ADD CONSTRAINT fighter_skill_access_override_fighter_id_custom_skill_type_id_key
+  ADD CONSTRAINT fighter_skill_access_override_custom_skill_type_id_key
   UNIQUE (fighter_id, custom_skill_type_id);
 
 -- Match custom skill set overrides on the new column
