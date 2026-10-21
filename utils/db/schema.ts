@@ -506,7 +506,7 @@ export const gangWeaponRules = pgTable('gang_weapon_rules', {
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
   fighter_effect_type_id: uuid('fighter_effect_type_id').notNull(),
-  gang_type_id: uuid('gang_type_id'),
+  gang_type_id: uuid('gang_type_id').notNull(),
   gang_origin_id: uuid('gang_origin_id'),
   gang_subtype_id: uuid('gang_subtype_id'),
   excluded: boolean('excluded').default(false).notNull(),

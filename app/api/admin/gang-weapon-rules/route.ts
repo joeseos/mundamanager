@@ -5,22 +5,22 @@ import { invalidateGangWeaponRules } from '@/utils/cache-tags';
 
 const COLUMNS = 'id, fighter_effect_type_id, gang_type_id, gang_origin_id, gang_subtype_id, excluded';
 
-/** The gang scopes of one gang weapon rule (a fighter effect type in the gang-weapon-rules category). */
+/** A gang type's weapon rule rows, each with its fighter effect type and modifiers. */
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
   if (!(await checkAdmin(supabase))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const effectTypeId = new URL(request.url).searchParams.get('fighter_effect_type_id');
-  if (!effectTypeId) {
-    return NextResponse.json({ error: 'fighter_effect_type_id is required' }, { status: 400 });
+  const gangTypeId = new URL(request.url).searchParams.get('gang_type_id');
+  if (!gangTypeId) {
+    return NextResponse.json({ error: 'gang_type_id is required' }, { status: 400 });
   }
 
   const { data, error } = await supabase
     .from('gang_weapon_rules')
-    .select(COLUMNS)
-    .eq('fighter_effect_type_id', effectTypeId)
+    .select(`${COLUMNS}, fighter_effect_types (id, effect_name, type_specific_data, fighter_effect_type_modifiers (id, stat_name, default_numeric_value, operation))`)
+    .eq('gang_type_id', gangTypeId)
     .order('created_at');
 
   if (error) {
@@ -37,15 +37,15 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  if (!body.fighter_effect_type_id) {
-    return NextResponse.json({ error: 'fighter_effect_type_id is required' }, { status: 400 });
+  if (!body.fighter_effect_type_id || !body.gang_type_id) {
+    return NextResponse.json({ error: 'fighter_effect_type_id and gang_type_id are required' }, { status: 400 });
   }
 
   const { data, error } = await supabase
     .from('gang_weapon_rules')
     .insert({
       fighter_effect_type_id: body.fighter_effect_type_id,
-      gang_type_id: body.gang_type_id || null,
+      gang_type_id: body.gang_type_id,
       gang_origin_id: body.gang_origin_id || null,
       gang_subtype_id: body.gang_subtype_id || null,
       excluded: body.excluded === true

@@ -8,13 +8,23 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import Modal from '@/components/ui/modal';
-import { EditionSelect, useEditions } from '@/components/edition-select';
-import { GangScope, GangScopeSelects, formatGangScope } from '@/components/admin/gang-scope-options';
-import { FighterEffectCategory, FighterEffectType, TypeSpecificData } from '@/types/fighter-effect';
+import { useEditions } from '@/components/edition-select';
+import { GangOriginOptions, GangSubtypeOptions, formatGangScope } from '@/components/admin/gang-scope-options';
+import { FighterEffectCategory, FighterEffectTypeModifier, TypeSpecificData } from '@/types/fighter-effect';
 
-interface GangWeaponRuleScope extends GangScope {
+interface GangWeaponRuleRow {
   id: string;
+  fighter_effect_type_id: string;
+  gang_type_id: string;
+  gang_origin_id: string | null;
+  gang_subtype_id: string | null;
   excluded: boolean;
+  fighter_effect_types: {
+    id: string;
+    effect_name: string;
+    type_specific_data: TypeSpecificData | null;
+    fighter_effect_type_modifiers: FighterEffectTypeModifier[];
+  };
 }
 
 // The weapon profile fields applyWeaponModifiers changes
@@ -31,6 +41,7 @@ const WEAPON_STATS = [
 ];
 
 const CATEGORY_NAME = 'gang-weapon-rules';
+const NEW_RULE = 'new';
 
 const toList = (value: string) => value.split(',').map(t => t.trim()).filter(Boolean);
 const fromList = (value: string[] | undefined) => value?.join(', ') ?? '';
@@ -48,16 +59,22 @@ const jsonInit = (method: string, body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 });
 
-interface AdminGangWeaponRulesModalProps {
-  onClose: () => void;
+const chipClass = 'flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted';
+
+interface GangWeaponRulesSectionProps {
+  gangTypeId: string;
+  editionId: string;
 }
 
-export function AdminGangWeaponRulesModal({ onClose }: AdminGangWeaponRulesModalProps) {
+/**
+ * The Gangs modal's Weapon Rules: rules a gang type applies to its own fighters' weapons, e.g. the
+ * Chymist Cult's Deadly Poisons. Each rule is a fighter effect type in the gang-weapon-rules
+ * category plus gang_weapon_rules rows for this gang type, narrowed or denied by origin/subtype.
+ */
+export function GangWeaponRulesSection({ gangTypeId, editionId }: GangWeaponRulesSectionProps) {
   const queryClient = useQueryClient();
 
-  const [editionId, setEditionId] = useState('');
-  const [selectedId, setSelectedId] = useState('');
-  const [isCreateMode, setIsCreateMode] = useState(false);
+  const [editingId, setEditingId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [name, setName] = useState('');
@@ -69,11 +86,15 @@ export function AdminGangWeaponRulesModal({ onClose }: AdminGangWeaponRulesModal
   const [modifierStat, setModifierStat] = useState('');
   const [modifierValue, setModifierValue] = useState('');
 
-  const [showScopeDialog, setShowScopeDialog] = useState(false);
-  const [scopeGangType, setScopeGangType] = useState('');
-  const [scopeGangOrigin, setScopeGangOrigin] = useState('');
-  const [scopeGangSubtype, setScopeGangSubtype] = useState('');
+  const [scopeOrigin, setScopeOrigin] = useState('');
+  const [scopeSubtype, setScopeSubtype] = useState('');
   const [scopeExcluded, setScopeExcluded] = useState(false);
+
+  const rowsKey = ['admin-gang-weapon-rules', gangTypeId];
+  const { data: rows = [] } = useQuery<GangWeaponRuleRow[]>({
+    queryKey: rowsKey,
+    queryFn: () => request(`/api/admin/gang-weapon-rules?gang_type_id=${gangTypeId}`),
+  });
 
   const { data: categoryId } = useQuery<string | undefined>({
     queryKey: ['admin-fighter-effect-categories', CATEGORY_NAME],
@@ -81,26 +102,6 @@ export function AdminGangWeaponRulesModal({ onClose }: AdminGangWeaponRulesModal
       const categories: FighterEffectCategory[] = await request('/api/admin/fighter-effects?categories=true');
       return categories.find(c => c.category_name === CATEGORY_NAME)?.id;
     },
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const rulesKey = ['admin-fighter-effects', categoryId];
-  const { data: rules = [] } = useQuery<FighterEffectType[]>({
-    queryKey: rulesKey,
-    queryFn: () => request(`/api/admin/fighter-effects?categoryId=${categoryId}`),
-    enabled: !!categoryId,
-  });
-
-  const scopesKey = ['admin-gang-weapon-rules', selectedId];
-  const { data: scopes = [] } = useQuery<GangWeaponRuleScope[]>({
-    queryKey: scopesKey,
-    queryFn: () => request(`/api/admin/gang-weapon-rules?fighter_effect_type_id=${selectedId}`),
-    enabled: !!selectedId,
-  });
-
-  const { data: gangTypes = [] } = useQuery<Array<{ id: string; gang_type: string; edition_id?: string | null }>>({
-    queryKey: ['admin-gang-types'],
-    queryFn: () => request('/api/admin/gang-types'),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -118,45 +119,30 @@ export function AdminGangWeaponRulesModal({ onClose }: AdminGangWeaponRulesModal
 
   const { data: editions = [] } = useEditions();
   const editionSlug = editions.find(edition => edition.id === editionId)?.slug;
+  const inEdition = <T extends { edition_id?: string | null }>(list: T[]) =>
+    editionId ? list.filter(item => item.edition_id === editionId) : list;
 
-  const inEdition = <T extends { edition_id?: string | null }>(rows: T[]) =>
-    editionId ? rows.filter(row => row.edition_id === editionId) : rows;
-  const filteredRules = inEdition(rules);
-  const scopeLists = { gangTypes, origins, subtypes };
-  // Every edition's names label a saved gang; the dialog offers only this edition's
-  const scopeSelectLists = { gangTypes: inEdition(gangTypes), origins: inEdition(origins), subtypes: inEdition(subtypes), editionSlug };
+  // One entry per rule, with this gang type's rows for it
+  const rules = [...new Map(rows.map(row => [row.fighter_effect_type_id, row.fighter_effect_types])).values()];
+  const editingRule = rules.find(rule => rule.id === editingId);
+  const editingRows = rows.filter(row => row.fighter_effect_type_id === editingId);
 
-  const selectedRule = rules.find(rule => rule.id === selectedId);
-  const isFormDisabled = (!isCreateMode && !selectedId) || isSubmitting;
-
-  const fillForm = (rule?: FighterEffectType) => {
-    const tsd = rule?.type_specific_data;
-    setName(rule?.effect_name ?? '');
+  const openEditor = (ruleId: string) => {
+    const tsd = rules.find(rule => rule.id === ruleId)?.type_specific_data;
+    setEditingId(ruleId);
+    setName(rules.find(rule => rule.id === ruleId)?.effect_name ?? '');
     setRequiresTraits(fromList(tsd?.requires_traits));
     setExcludesTraits(fromList(tsd?.excludes_traits));
     setTraitsToAdd(fromList(tsd?.traits_to_add));
     setTraitsToRemove(fromList(tsd?.traits_to_remove));
   };
 
-  const handleSelect = (id: string) => {
-    setSelectedId(id);
-    setIsCreateMode(false);
-    fillForm(rules.find(rule => rule.id === id));
-  };
-
-  const handleCreateNew = () => {
-    setSelectedId('');
-    setIsCreateMode(true);
-    fillForm();
-  };
-
-  // Runs an admin write, then refreshes the rule list and the selected rule's scopes
+  // Runs an admin write, then refreshes this gang type's rules
   const submit = async (action: () => Promise<void>, success: string) => {
     setIsSubmitting(true);
     try {
       await action();
-      await queryClient.invalidateQueries({ queryKey: rulesKey });
-      await queryClient.invalidateQueries({ queryKey: ['admin-gang-weapon-rules'] });
+      await queryClient.invalidateQueries({ queryKey: rowsKey });
       toast.success(success);
       return true;
     } catch (error) {
@@ -167,50 +153,55 @@ export function AdminGangWeaponRulesModal({ onClose }: AdminGangWeaponRulesModal
     }
   };
 
-  // false keeps the modal open, so a new rule can be given its stat changes and gangs
+  const addRow = (fighterEffectTypeId: string, scope: { gang_origin_id?: string; gang_subtype_id?: string; excluded?: boolean } = {}) =>
+    request('/api/admin/gang-weapon-rules', jsonInit('POST', {
+      fighter_effect_type_id: fighterEffectTypeId,
+      gang_type_id: gangTypeId,
+      ...scope,
+    }));
+
+  // false keeps the editor open, so a new rule can be given its stat changes and gangs
   const handleSave = async () => {
-    await saveRule();
+    await submit(async () => {
+      const typeSpecificData: TypeSpecificData = {
+        ...(editingRule?.type_specific_data ?? {}),
+        requires_traits: toList(requiresTraits),
+        excludes_traits: toList(excludesTraits),
+        traits_to_add: toList(traitsToAdd),
+        traits_to_remove: toList(traitsToRemove),
+      };
+      (Object.keys(typeSpecificData) as Array<keyof TypeSpecificData>).forEach(key => {
+        const value = typeSpecificData[key];
+        if (Array.isArray(value) && value.length === 0) delete typeSpecificData[key];
+      });
+
+      const body = {
+        effect_name: name.trim(),
+        fighter_effect_category_id: categoryId,
+        type_specific_data: typeSpecificData,
+        edition_id: editionId || null,
+      };
+
+      if (editingId === NEW_RULE) {
+        // A new rule applies to the whole gang type until narrowed below
+        const created = await request('/api/admin/fighter-effects', jsonInit('POST', body));
+        await addRow(created.id);
+        setEditingId(created.id);
+      } else {
+        await request(`/api/admin/fighter-effects?id=${editingId}`, jsonInit('PATCH', body));
+      }
+    }, editingId === NEW_RULE ? 'Rule created' : 'Rule updated');
     return false;
   };
 
-  const saveRule = () => submit(async () => {
-    const typeSpecificData: TypeSpecificData = {
-      ...(selectedRule?.type_specific_data ?? {}),
-      requires_traits: toList(requiresTraits),
-      excludes_traits: toList(excludesTraits),
-      traits_to_add: toList(traitsToAdd),
-      traits_to_remove: toList(traitsToRemove),
-    };
-    (Object.keys(typeSpecificData) as Array<keyof TypeSpecificData>).forEach(key => {
-      const value = typeSpecificData[key];
-      if (Array.isArray(value) && value.length === 0) delete typeSpecificData[key];
-    });
-
-    const body = {
-      effect_name: name.trim(),
-      fighter_effect_category_id: categoryId,
-      type_specific_data: typeSpecificData,
-      edition_id: editionId || null,
-    };
-
-    if (isCreateMode) {
-      const created = await request('/api/admin/fighter-effects', jsonInit('POST', body));
-      setSelectedId(created.id);
-      setIsCreateMode(false);
-    } else {
-      await request(`/api/admin/fighter-effects?id=${selectedId}`, jsonInit('PATCH', body));
-    }
-  }, isCreateMode ? 'Rule created' : 'Rule updated');
-
   const handleDelete = () => submit(async () => {
-    await request(`/api/admin/fighter-effects?id=${selectedId}`, { method: 'DELETE' });
-    setSelectedId('');
-    fillForm();
+    await request(`/api/admin/fighter-effects?id=${editingId}`, { method: 'DELETE' });
+    setEditingId('');
   }, 'Rule deleted');
 
   const handleAddModifier = () => submit(async () => {
     await request('/api/admin/fighter-effects', jsonInit('POST', {
-      fighter_effect_type_id: selectedId,
+      fighter_effect_type_id: editingId,
       stat_name: modifierStat,
       default_numeric_value: parseInt(modifierValue, 10),
       operation: 'add',
@@ -219,219 +210,158 @@ export function AdminGangWeaponRulesModal({ onClose }: AdminGangWeaponRulesModal
     setModifierValue('');
   }, 'Stat change added');
 
-  const handleDeleteModifier = (modifierId: string) => submit(async () => {
-    await request(`/api/admin/fighter-effects?id=${modifierId}&is_modifier=true`, { method: 'DELETE' });
-  }, 'Stat change removed');
-
-  const closeScopeDialog = () => {
-    setShowScopeDialog(false);
-    setScopeGangType('');
-    setScopeGangOrigin('');
-    setScopeGangSubtype('');
-    setScopeExcluded(false);
-  };
-
-  // Modal closes the dialog when this resolves true
   const handleAddScope = () => submit(async () => {
-    await request('/api/admin/gang-weapon-rules', jsonInit('POST', {
-      fighter_effect_type_id: selectedId,
-      gang_type_id: scopeGangType || null,
-      gang_origin_id: scopeGangOrigin || null,
-      gang_subtype_id: scopeGangSubtype || null,
+    await addRow(editingId, {
+      gang_origin_id: scopeOrigin || undefined,
+      gang_subtype_id: scopeSubtype || undefined,
       excluded: scopeExcluded,
-    }));
-  }, 'Gang added');
+    });
+    setScopeOrigin('');
+    setScopeSubtype('');
+    setScopeExcluded(false);
+  }, 'Gangs updated');
 
-  const handleDeleteScope = (scopeId: string) => submit(async () => {
-    await request(`/api/admin/gang-weapon-rules?id=${scopeId}`, { method: 'DELETE' });
-  }, 'Gang removed');
+  const handleDeleteScope = (rowId: string) => submit(async () => {
+    await request(`/api/admin/gang-weapon-rules?id=${rowId}`, { method: 'DELETE' });
+  }, 'Gangs updated');
+
+  const removeButton = (onClick: () => void) => (
+    <button type="button" onClick={onClick} className="hover:text-red-500 focus:outline-hidden" disabled={isSubmitting}>
+      <HiX className="h-4 w-4" />
+    </button>
+  );
 
   return (
-    <Modal
-      title="Gang Weapon Rules"
-      helper="Changes to every weapon a gang's own fighters carry, e.g. the Chymist Cult's Deadly Poisons. Hired guns and other fighters from outside the gang's own list are not affected."
-      onClose={onClose}
-      onConfirm={handleSave}
-      confirmText={isCreateMode ? 'Create Rule' : 'Save Rule'}
-      confirmDisabled={isFormDisabled || !name.trim() || !categoryId}
-      onDelete={selectedId && !isCreateMode ? handleDelete : undefined}
-      deleteLabel="Delete Rule"
-      width="2xl"
-    >
-      <div className="space-y-4">
-        <EditionSelect
-          value={editionId}
-          onChange={(id) => {
-            setEditionId(id);
-            handleSelect('');
-          }}
-          defaultToCurrent
-        />
-
-        <div>
-          <div className="flex justify-between items-center mb-1">
-            <label className="block text-sm font-medium text-muted-foreground">Rule</label>
-            <Button onClick={handleCreateNew} disabled={isSubmitting} className="text-xs h-7 px-3">
-              Add Rule
-            </Button>
-          </div>
-          <select
-            value={selectedId}
-            onChange={(e) => handleSelect(e.target.value)}
-            className="w-full p-2 border rounded-md"
-            disabled={isSubmitting}
-          >
-            <option value="">Select a rule to edit</option>
-            {filteredRules.map(rule => (
-              <option key={rule.id} value={rule.id}>{rule.effect_name}</option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-muted-foreground mb-1">Name *</label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Deadly Poisons" disabled={isFormDisabled} />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-muted-foreground mb-1">Weapons With Traits</label>
-            <Input value={requiresTraits} onChange={(e) => setRequiresTraits(e.target.value)} placeholder="e.g. Toxin" disabled={isFormDisabled} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-muted-foreground mb-1">Weapons Without Traits</label>
-            <Input value={excludesTraits} onChange={(e) => setExcludesTraits(e.target.value)} placeholder="e.g. Shred" disabled={isFormDisabled} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-muted-foreground mb-1">Traits to Add</label>
-            <Input value={traitsToAdd} onChange={(e) => setTraitsToAdd(e.target.value)} placeholder="e.g. Shred (6+)" disabled={isFormDisabled} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-muted-foreground mb-1">Traits to Remove</label>
-            <Input value={traitsToRemove} onChange={(e) => setTraitsToRemove(e.target.value)} disabled={isFormDisabled} />
-          </div>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Comma separated. Leave Weapons With Traits empty for every weapon. In Weapons With and Without Traits, a trait name without a value matches every value, so Toxin matches Toxin (4+).
-        </p>
-
-        {selectedRule && (
-          <>
-            <div className="border-t pt-4">
-              <label className="block text-sm font-medium text-muted-foreground mb-1">Stat Changes</label>
-              <div className="flex flex-wrap gap-2 mb-2">
-                {selectedRule.modifiers.map(modifier => (
-                  <div key={modifier.id} className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted">
-                    <span>
-                      {WEAPON_STATS.find(s => s.stat_name === modifier.stat_name)?.label ?? modifier.stat_name}{' '}
-                      {(modifier.default_numeric_value ?? 0) > 0 ? '+' : ''}{modifier.default_numeric_value}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => modifier.id && handleDeleteModifier(modifier.id)}
-                      className="hover:text-red-500 focus:outline-hidden"
-                      disabled={isSubmitting}
-                    >
-                      <HiX className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <select
-                  value={modifierStat}
-                  onChange={(e) => setModifierStat(e.target.value)}
-                  className="flex-1 p-2 border rounded-md"
-                >
-                  <option value="">Select a stat</option>
-                  {WEAPON_STATS.map(stat => (
-                    <option key={stat.stat_name} value={stat.stat_name}>{stat.label}</option>
-                  ))}
-                </select>
-                <Input
-                  type="number"
-                  value={modifierValue}
-                  onChange={(e) => setModifierValue(e.target.value)}
-                  placeholder="e.g. -1"
-                  className="w-24"
-                />
-                <Button
-                  variant="outline"
-                  onClick={handleAddModifier}
-                  disabled={isSubmitting || !modifierStat || !Number.isFinite(parseInt(modifierValue, 10))}
-                >
-                  Add
-                </Button>
-              </div>
-            </div>
-
-            <div className="border-t pt-4">
-              <div className="flex justify-between items-center mb-1">
-                <label className="block text-sm font-medium text-muted-foreground">Gangs</label>
-                <Button variant="outline" size="sm" onClick={() => setShowScopeDialog(true)} disabled={isSubmitting}>
-                  Add Gang
-                </Button>
-              </div>
-              {scopes.length === 0 && (
-                <p className="text-sm text-muted-foreground">No gangs yet, so the rule applies to none.</p>
-              )}
-              <div className="flex flex-wrap gap-2">
-                {scopes.map(scope => (
-                  <div key={scope.id} className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted">
-                    <span>{scope.excluded ? 'Deny' : 'Grant'} — {formatGangScope(scope, scopeLists)}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteScope(scope.id)}
-                      className="hover:text-red-500 focus:outline-hidden"
-                      disabled={isSubmitting}
-                    >
-                      <HiX className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
-
-        {showScopeDialog && (
-          <Modal
-            title="Gang Weapon Rule Gang"
-            helper="The rule applies to gangs matching a grant, unless they also match a deny."
-            onClose={closeScopeDialog}
-            onConfirm={handleAddScope}
-            confirmText="Add Gang"
-            // scope_chk: an all-null scope would apply to every gang in the game
-            confirmDisabled={isSubmitting || (!scopeGangType && !scopeGangOrigin && !scopeGangSubtype)}
-            width="sm"
-          >
-            <div className="space-y-4">
-              <GangScopeSelects
-                {...scopeSelectLists}
-                gangTypeId={scopeGangType}
-                onGangTypeChange={setScopeGangType}
-                gangOriginId={scopeGangOrigin}
-                onGangOriginChange={setScopeGangOrigin}
-                gangSubtypeId={scopeGangSubtype}
-                onGangSubtypeChange={setScopeGangSubtype}
-              />
-              <label className="flex items-start space-x-2">
-                <Checkbox
-                  checked={scopeExcluded}
-                  onCheckedChange={(checked) => setScopeExcluded(checked === true)}
-                  className="mt-1"
-                />
-                <div>
-                  <span className="text-sm font-medium text-muted-foreground">Deny</span>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Cancels the rule for matching gangs, e.g. a gang subtype that loses a house rule.
-                  </p>
-                </div>
-              </label>
-            </div>
-          </Modal>
-        )}
+    <div>
+      <div className="flex justify-between items-center mb-1">
+        <label className="block text-sm font-medium text-muted-foreground">Weapon Rules</label>
+        <Button onClick={() => openEditor(NEW_RULE)} variant="outline" size="sm" disabled={!categoryId}>
+          Add Rule
+        </Button>
       </div>
-    </Modal>
+      <p className="text-xs text-muted-foreground mb-2">
+        Changes to every weapon this gang type&apos;s own fighters carry. Hired guns and other fighters from outside its list are not affected.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {rules.map(rule => (
+          <button key={rule.id} type="button" onClick={() => openEditor(rule.id)} className={`${chipClass} hover:bg-muted/70`}>
+            {rule.effect_name}
+          </button>
+        ))}
+      </div>
+
+      {editingId && (
+        <Modal
+          title={editingId === NEW_RULE ? 'Add Weapon Rule' : 'Edit Weapon Rule'}
+          onClose={() => setEditingId('')}
+          onConfirm={handleSave}
+          confirmText={editingId === NEW_RULE ? 'Create Rule' : 'Save Rule'}
+          confirmDisabled={isSubmitting || !name.trim()}
+          onDelete={editingRule ? handleDelete : undefined}
+          deleteLabel="Delete Rule"
+          width="2xl"
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Name *</label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Deadly Poisons" />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">Weapons With Traits</label>
+                <Input value={requiresTraits} onChange={(e) => setRequiresTraits(e.target.value)} placeholder="e.g. Toxin" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">Weapons Without Traits</label>
+                <Input value={excludesTraits} onChange={(e) => setExcludesTraits(e.target.value)} placeholder="e.g. Shred" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">Traits to Add</label>
+                <Input value={traitsToAdd} onChange={(e) => setTraitsToAdd(e.target.value)} placeholder="e.g. Shred (6+)" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">Traits to Remove</label>
+                <Input value={traitsToRemove} onChange={(e) => setTraitsToRemove(e.target.value)} />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Comma separated. Leave Weapons With Traits empty for every weapon. In Weapons With and Without Traits, a trait name without a value matches every value, so Toxin matches Toxin (4+).
+            </p>
+
+            {editingRule && (
+              <>
+                <div className="border-t pt-4">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">Stat Changes</label>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {editingRule.fighter_effect_type_modifiers.map(modifier => (
+                      <div key={modifier.id} className={chipClass}>
+                        <span>
+                          {WEAPON_STATS.find(s => s.stat_name === modifier.stat_name)?.label ?? modifier.stat_name}{' '}
+                          {(modifier.default_numeric_value ?? 0) > 0 ? '+' : ''}{modifier.default_numeric_value}
+                        </span>
+                        {removeButton(() => submit(async () => {
+                          await request(`/api/admin/fighter-effects?id=${modifier.id}&is_modifier=true`, { method: 'DELETE' });
+                        }, 'Stat change removed'))}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <select value={modifierStat} onChange={(e) => setModifierStat(e.target.value)} className="flex-1 p-2 border rounded-md">
+                      <option value="">Select a stat</option>
+                      {WEAPON_STATS.map(stat => (
+                        <option key={stat.stat_name} value={stat.stat_name}>{stat.label}</option>
+                      ))}
+                    </select>
+                    <Input type="number" value={modifierValue} onChange={(e) => setModifierValue(e.target.value)} placeholder="e.g. -1" className="w-24" />
+                    <Button
+                      variant="outline"
+                      onClick={handleAddModifier}
+                      disabled={isSubmitting || !modifierStat || !Number.isFinite(parseInt(modifierValue, 10))}
+                    >
+                      Add
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="border-t pt-4 space-y-2">
+                  <label className="block text-sm font-medium text-muted-foreground">Gangs</label>
+                  <p className="text-xs text-muted-foreground">
+                    The rule applies to gangs of this gang type matching a grant, unless they also match a deny, e.g. deny a corrupted subtype.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {editingRows.map(row => (
+                      <div key={row.id} className={chipClass}>
+                        <span>
+                          {row.excluded ? 'Deny' : 'Grant'} — {formatGangScope({ ...row, gang_type_id: null }, { gangTypes: [], origins, subtypes }) || 'every gang'}
+                        </span>
+                        {removeButton(() => handleDeleteScope(row.id))}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto_auto] gap-2 items-center">
+                    <select value={scopeOrigin} onChange={(e) => setScopeOrigin(e.target.value)} className="p-2 border rounded-md">
+                      <option value="">Any Gang Origin</option>
+                      <GangOriginOptions origins={inEdition(origins)} />
+                    </select>
+                    <select value={scopeSubtype} onChange={(e) => setScopeSubtype(e.target.value)} className="p-2 border rounded-md">
+                      <option value="">Any Gang Subtype</option>
+                      <GangSubtypeOptions subtypes={inEdition(subtypes)} editionSlug={editionSlug} />
+                    </select>
+                    <label className="flex items-center gap-2 text-sm">
+                      <Checkbox checked={scopeExcluded} onCheckedChange={(checked) => setScopeExcluded(checked === true)} />
+                      Deny
+                    </label>
+                    <Button variant="outline" onClick={handleAddScope} disabled={isSubmitting}>
+                      Add
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </Modal>
+      )}
+    </div>
   );
 }

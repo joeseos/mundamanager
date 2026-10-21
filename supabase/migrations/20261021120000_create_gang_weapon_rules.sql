@@ -7,7 +7,7 @@
 -- The change itself is an ordinary fighter_effect_types row in the new 'gang-weapon-rules'
 -- category, so it reuses type_specific_data (requires_traits, excludes_traits, traits_to_add,
 -- traits_to_remove) and fighter_effect_type_modifiers for stat changes, and the existing effect
--- editor. This table only says which gangs it applies to, in the same shape as
+-- editor. This table only says which gangs of a gang type it applies to, in the same shape as
 -- fighter_type_availability.
 --
 -- The app resolves the rules when it assembles a roster (utils/gangWeaponRules.ts) and applies
@@ -28,26 +28,23 @@ CREATE TABLE public.gang_weapon_rules (
     -- the change, kept in the effect's type_specific_data and modifiers
     fighter_effect_type_id uuid        NOT NULL REFERENCES public.fighter_effect_types(id) ON DELETE CASCADE,
 
-    -- gang scope: every non-NULL axis must match, at least one must be set
-    gang_type_id           uuid        REFERENCES public.gang_types(id) ON DELETE CASCADE,
+    -- gang scope: the rule's gang type, narrowed by origin and/or subtype when set
+    gang_type_id           uuid        NOT NULL REFERENCES public.gang_types(id) ON DELETE CASCADE,
     gang_origin_id         uuid        REFERENCES public.gang_origins(id) ON DELETE CASCADE,
     gang_subtype_id        uuid        REFERENCES public.gang_subtype_types(id) ON DELETE CASCADE,
 
-    excluded               boolean     NOT NULL DEFAULT false,
-
-    CONSTRAINT gang_weapon_rules_scope_chk CHECK (
-        num_nonnulls(gang_type_id, gang_origin_id, gang_subtype_id) >= 1
-    )
+    excluded               boolean     NOT NULL DEFAULT false
 );
 
 COMMENT ON TABLE public.gang_weapon_rules IS
   'Which gangs a gang-weapon-rules fighter effect type applies to. The rule applies when at least '
   'one of its non-excluded rows matches the gang and none of its excluded rows does.';
+COMMENT ON COLUMN public.gang_weapon_rules.gang_type_id IS
+  'Required: a gang weapon rule is a gang type''s rule, e.g. Van Saar, even when a subtype such as '
+  'Malstrain Corrupted cancels it. Its fighters are the ones the rule applies to.';
 COMMENT ON COLUMN public.gang_weapon_rules.excluded IS
   'true denies the rule to gangs matching this row''s scope, e.g. a subtype that cancels a house '
   'rule. A deny wins over any grant of the same rule.';
-COMMENT ON CONSTRAINT gang_weapon_rules_scope_chk ON public.gang_weapon_rules IS
-  'At least one scope axis must be set; an all-NULL scope would apply to every gang in the game.';
 
 -- excluded is deliberately not in the key, so a grant and a deny for one scope collide.
 CREATE UNIQUE INDEX gang_weapon_rules_scope_uidx

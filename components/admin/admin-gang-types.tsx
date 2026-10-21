@@ -12,6 +12,7 @@ import {
   type PortraitFormHandle,
   type PortraitFormState,
 } from '@/components/admin/admin-gang-portrait-form';
+import { GangWeaponRulesSection } from '@/components/admin/admin-gang-weapon-rules';
 
 enum OperationType {
   POST = 'POST',
@@ -501,6 +502,10 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
                 ))}
               </select>
             </div>
+
+            {!isCreateMode && selectedGangTypeId && (
+              <GangWeaponRulesSection key={selectedGangTypeId} gangTypeId={selectedGangTypeId} editionId={editionId} />
+            )}
             </>
             )}
           </div>

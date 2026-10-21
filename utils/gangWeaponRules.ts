@@ -2,7 +2,7 @@ import { TraitModificationData } from '@/types/fighter-effect';
 
 /** A gang_weapon_rules row with its fighter effect type, as getGangWeaponRules reads it. */
 export interface GangWeaponRuleRow {
-  gang_type_id: string | null;
+  gang_type_id: string;
   gang_origin_id: string | null;
   gang_subtype_id: string | null;
   excluded: boolean;
@@ -34,12 +34,12 @@ interface GangScopeFields {
 
 /**
  * The weapon rules that apply to a gang: those with a matching grant row and no matching deny
- * row. A row matches when every scope axis it sets matches the gang.
+ * row. A row matches the gangs of its gang type, narrowed by its origin and subtype when set.
  */
 export function resolveGangWeaponRules(rows: GangWeaponRuleRow[], gang: GangScopeFields): GangWeaponRuleEffect[] {
   const subtypes = gang.gang_subtypes ?? [];
   const matches = (row: GangWeaponRuleRow) =>
-    (!row.gang_type_id || row.gang_type_id === gang.gang_type_id)
+    row.gang_type_id === gang.gang_type_id
     && (!row.gang_origin_id || row.gang_origin_id === gang.gang_origin_id)
     && (!row.gang_subtype_id || subtypes.includes(row.gang_subtype_id));
 
