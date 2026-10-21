@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useState, useEffect, forwardRef, useImperativeHandle, useMemo, useCallback } from "react";
+import { useState, useEffect, forwardRef, useImperativeHandle, useMemo, useCallback, type ReactNode } from "react";
 import { toast } from 'sonner';
 import { BiSolidNotepad } from "react-icons/bi";
 import { HiX } from "react-icons/hi";
@@ -58,6 +58,8 @@ interface CampaignBattleLogsListProps {
   currentCycle?: number | null;
   /** The campaign edition's scenario tables: N26 battles are made from them. */
   scenarioTables?: ScenarioTableWithEntries[];
+  /** Shown between the battle logs and the standings. */
+  battleSessions?: ReactNode;
 }
 
 export interface CampaignBattleLogsListRef {
@@ -102,6 +104,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     isCampaignAdmin = false,
     currentCycle = null,
     scenarioTables = [],
+    battleSessions,
   } = props;
   
   const [showBattleModal, setShowBattleModal] = useState(false);
@@ -1270,7 +1273,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       </div>
 
       <div className="mb-8">
-        <h3 className="text-xl md:text-2xl font-bold mb-4">Challenges</h3>
+        <h3 className="text-lg font-bold mb-3">Challenges</h3>
         {renderBattlesTable(
           challenges,
           true,
@@ -1278,7 +1281,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         )}
       </div>
 
-      <h3 className="text-xl md:text-2xl font-bold mb-4">Battle Logs</h3>
+      <h3 className="text-lg font-bold mb-3">Battle Logs</h3>
       {renderBattlesTable(
         currentBattleLogs,
         false,
@@ -1314,9 +1317,11 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         </div>
       )}
 
+      {battleSessions && <div className="mt-8">{battleSessions}</div>}
+
       {/* Standings Table */}
       <div className="mt-8">
-        <h3 className="text-xl md:text-2xl font-bold mb-4">Standings</h3>
+        <h3 className="text-lg font-bold mb-3">Standings</h3>
         <div className="rounded-md border overflow-x-auto">
           <table className="w-full text-xs md:text-sm">
             <thead>

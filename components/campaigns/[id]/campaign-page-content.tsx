@@ -894,28 +894,6 @@ export default function CampaignPageContent({
           {/* Battle Log tab content */}
           {activeTab === 2 && (
             <>
-            {(campaignData.battleSessions ?? []).length > 0 || userId ? (
-              <div className="bg-card shadow-md rounded-lg p-4 mb-4">
-                <CampaignBattleSessions
-                  sessions={campaignData.battleSessions || []}
-                  campaignId={campaignData.id}
-                  userId={userId}
-                  canAdd={safePermissions.canAddBattleLogs}
-                  editionSlug={campaignData.edition_slug ?? null}
-                  campaignGangs={campaignData.members.flatMap((m: Member) =>
-                    m.gangs
-                      .filter((g) => g.status === 'ACCEPTED')
-                      .map((g) => ({
-                        id: g.id,
-                        name: g.name,
-                        gang_colour: g.gang_colour,
-                        user_id: m.user_id,
-                        owner_username: m.username,
-                      }))
-                  )}
-                />
-              </div>
-            ) : null}
             <div className="bg-card shadow-md rounded-lg p-4">
               <div>
                 <div className="flex justify-between items-start mb-4">
@@ -973,6 +951,26 @@ export default function CampaignPageContent({
                     isCampaignAdmin={!!safePermissions.isArbitrator || !!safePermissions.isAdmin}
                     currentCycle={campaignData.current_cycle ?? null}
                     scenarioTables={scenarioTables}
+                    battleSessions={(campaignData.battleSessions ?? []).length > 0 || userId ? (
+                      <CampaignBattleSessions
+                        sessions={campaignData.battleSessions || []}
+                        campaignId={campaignData.id}
+                        userId={userId}
+                        canAdd={safePermissions.canAddBattleLogs}
+                        editionSlug={campaignData.edition_slug ?? null}
+                        campaignGangs={campaignData.members.flatMap((m: Member) =>
+                          m.gangs
+                            .filter((g) => g.status === 'ACCEPTED')
+                            .map((g) => ({
+                              id: g.id,
+                              name: g.name,
+                              gang_colour: g.gang_colour,
+                              user_id: m.user_id,
+                              owner_username: m.username,
+                            }))
+                        )}
+                      />
+                    ) : null}
                   />
                 </div>
               </div>

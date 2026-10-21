@@ -29,7 +29,8 @@ export default function CampaignBattleSessions({
       editionSlug={editionSlug}
       variant="table"
       sessionUrl={(id) => `/campaigns/${campaignId}/battle-session/${id}`}
-      wrapper={(children) => <div className="mb-6">{children}</div>}
+      wrapper={(children) => <>{children}</>}
+      subheader
     />
   );
 }

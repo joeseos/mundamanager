@@ -23,6 +23,8 @@ interface BattleSessionsListProps {
   variant?: 'cards' | 'table';
   sessionUrl: (sessionId: string) => string;
   wrapper?: (children: ReactNode) => ReactNode;
+  /** Use a sub-header, for when the list sits inside another card. */
+  subheader?: boolean;
 }
 
 export default function BattleSessionsList({
@@ -37,6 +39,7 @@ export default function BattleSessionsList({
   variant = 'cards',
   sessionUrl,
   wrapper,
+  subheader = false,
 }: BattleSessionsListProps) {
   const router = useRouter();
   const [filter, setFilter] = useState<'active' | 'all'>('active');
@@ -49,8 +52,12 @@ export default function BattleSessionsList({
 
   const content = (
     <>
-      <div className="mb-4 flex items-start justify-between">
-        <h2 className="text-xl md:text-2xl font-bold">Battle Sessions</h2>
+      <div className={`flex justify-between ${subheader ? 'mb-3 items-center' : 'mb-4 items-start'}`}>
+        {subheader ? (
+          <h3 className="text-lg font-bold">Battle Sessions</h3>
+        ) : (
+          <h2 className="text-xl md:text-2xl font-bold">Battle Sessions</h2>
+        )}
         {showAddButton && (
           <Button
             onClick={() => setShowCreateModal(true)}
