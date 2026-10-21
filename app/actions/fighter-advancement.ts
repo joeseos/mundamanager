@@ -704,6 +704,26 @@ async function addSkillAdvancementInternal(
   }
 }
 
+type KeepTypePromotionFighterSnapshot = {
+  id: string;
+  gang_id: string;
+  fighter_name: string;
+  gangs: unknown;
+  fighter_subtypes: string[] | null;
+  fighter_type: string | null;
+  fighter_type_id: string | null;
+  fighter_specialisation: string | null;
+  fighter_specialisation_id: string | null;
+  special_rules: string[] | null;
+};
+
+const KEEP_TYPE_PROMOTION_FIGHTER_SELECT = `
+  id, user_id, gang_id, fighter_name,
+  fighter_subtypes, fighter_type, fighter_type_id,
+  fighter_specialisation, fighter_specialisation_id, special_rules,
+  ${GANG_EDITION_EMBED}
+`;
+
 /** Logs a finished promotion with what it changed. */
 async function logFighterPromotion(
   before: KeepTypePromotionFighterSnapshot,
@@ -812,26 +832,6 @@ export async function applyPromotionWithSkillAdvancement(
     };
   }
 }
-
-type KeepTypePromotionFighterSnapshot = {
-  id: string;
-  gang_id: string;
-  fighter_name: string;
-  gangs: unknown;
-  fighter_subtypes: string[] | null;
-  fighter_type: string | null;
-  fighter_type_id: string | null;
-  fighter_specialisation: string | null;
-  fighter_specialisation_id: string | null;
-  special_rules: string[] | null;
-};
-
-const KEEP_TYPE_PROMOTION_FIGHTER_SELECT = `
-  id, user_id, gang_id, fighter_name,
-  fighter_subtypes, fighter_type, fighter_type_id,
-  fighter_specialisation, fighter_specialisation_id, special_rules,
-  ${GANG_EDITION_EMBED}
-`;
 
 /** Resolve a catalog skill by preferred id, falling back to unique name match. */
 async function resolveCatalogSkillId(
