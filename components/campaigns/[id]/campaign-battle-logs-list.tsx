@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useState, useEffect, forwardRef, useImperativeHandle, useMemo, useCallback, type ReactNode } from "react";
+import { useState, useMemo, useCallback, type ReactNode } from "react";
 import { toast } from 'sonner';
 import { BiSolidNotepad } from "react-icons/bi";
 import { HiX } from "react-icons/hi";
@@ -63,11 +63,6 @@ interface CampaignBattleLogsListProps {
   battleSessions?: ReactNode;
 }
 
-export interface CampaignBattleLogsListRef {
-  openAddModal: () => void;
-  openChallengeRoundModal: () => void;
-}
-
 const formatRole = (role: MemberRole | undefined) => {
   switch (role) {
     case 'OWNER':
@@ -87,7 +82,7 @@ const formatDate = (dateString: string | null) => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
 
-const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBattleLogsListProps>((props, ref) => {
+export default function CampaignBattleLogsList(props: CampaignBattleLogsListProps) {
   const {
     campaignId,
     editionSlug,
@@ -112,7 +107,6 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   const [showBattleModal, setShowBattleModal] = useState(false);
   const [showChallengeRoundModal, setShowChallengeRoundModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [availableGangs, setAvailableGangs] = useState<CampaignGang[]>([]);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [activeNote, setActiveNote] = useState<string | null>(null);
   const [showRoleModal, setShowRoleModal] = useState(false);
@@ -147,8 +141,6 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   const itemsPerPage = 10;
 
   // Map of gang IDs to gang names for lookup
-  const [gangNameMap, setGangNameMap] = useState<Map<string, string>>(new Map());
-  const [gangColourMap, setGangColourMap] = useState<Map<string, string>>(new Map());
 
   // State for the selected battle (will be used for edit functionality)
   const [selectedBattle, setSelectedBattle] = useState<Battle | null>(null);
@@ -372,9 +364,12 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   };
 
   // Reset pagination when filters or sort change
-  useEffect(() => {
+  const pageResetKey = JSON.stringify([filterCycle, filterScenario, filterParticipatingGang, filterWinningGang, filterDraws, sortField, sortDirection]);
+  const [lastPageResetKey, setLastPageResetKey] = useState(pageResetKey);
+  if (pageResetKey !== lastPageResetKey) {
+    setLastPageResetKey(pageResetKey);
     setCurrentPage(1);
-  }, [filterCycle, filterScenario, filterParticipatingGang, filterWinningGang, filterDraws, sortField, sortDirection]);
+  }
 
   // Challenges are the outstanding work and get their own table above the played battles
   const challenges = useMemo(
@@ -478,50 +473,41 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     onError: () => toast.error('Failed to start battle session'),
   });
 
-  // Expose the openAddModal function to parent components
-  useImperativeHandle(ref, () => ({
-    openAddModal: () => {
-      setSelectedBattle(null);
-      setShowBattleModal(true);
-    },
-    openChallengeRoundModal: () => setShowChallengeRoundModal(true)
-  }));
-
   // Extract gangs from members
-  useEffect(() => {
-    if (members && members.length > 0) {
-      // Extract unique gangs from all members
-      const gangsMap = new Map<string, CampaignGang>();
-      const gangNamesMap = new Map<string, string>();
-      const gangColourMap = new Map<string, string>();
-      
-      members.forEach(member => {
-        if (member.gangs && member.gangs.length > 0) {
-          member.gangs.forEach(gang => {
-            // Create a unique key for each gang instance that includes member instance info
-            const gangKey = gang.id;
-            
-            if (!gangsMap.has(gangKey)) {
-              gangsMap.set(gangKey, {
-                id: gang.id,
-                name: gang.name,
-                gang_type_id: gang.gang_type_id,
-                gang_colour: gang.gang_colour,
-                campaign_member_id: member.id || gang.campaign_member_id,
-                user_id: member.user_id,
-                owner_username: member.profile?.username || member.username || 'Unknown'
-              });
-              gangNamesMap.set(gang.id, gang.name);
-              gangColourMap.set(gang.id, gang.gang_colour || '#000000');
-            }
-          });
-        }
-      });
-      
-      setAvailableGangs(Array.from(gangsMap.values()));
-      setGangNameMap(gangNamesMap);
-      setGangColourMap(gangColourMap);
-    }
+  const { availableGangs, gangNameMap, gangColourMap } = useMemo(() => {
+    // Extract unique gangs from all members
+    const gangsMap = new Map<string, CampaignGang>();
+    const gangNamesMap = new Map<string, string>();
+    const gangColourMap = new Map<string, string>();
+
+    members?.forEach(member => {
+      if (member.gangs && member.gangs.length > 0) {
+        member.gangs.forEach(gang => {
+          // Create a unique key for each gang instance that includes member instance info
+          const gangKey = gang.id;
+          
+          if (!gangsMap.has(gangKey)) {
+            gangsMap.set(gangKey, {
+              id: gang.id,
+              name: gang.name,
+              gang_type_id: gang.gang_type_id,
+              gang_colour: gang.gang_colour,
+              campaign_member_id: member.id || gang.campaign_member_id,
+              user_id: member.user_id,
+              owner_username: member.profile?.username || member.username || 'Unknown'
+            });
+            gangNamesMap.set(gang.id, gang.name);
+            gangColourMap.set(gang.id, gang.gang_colour || '#000000');
+          }
+        });
+      }
+    });
+
+    return {
+      availableGangs: Array.from(gangsMap.values()),
+      gangNameMap: gangNamesMap,
+      gangColourMap,
+    };
   }, [members]);
 
   // Get gang name by ID - prioritize battle data, fallback to member data
@@ -1281,7 +1267,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       </div>
 
       <div className="flex justify-between items-center mb-3">
-        <h3 className="text-lg font-bold">Battle Logs</h3>
+        <h3 className="text-lg font-bold">Battle Reports</h3>
         {addButton}
       </div>
       {renderBattlesTable(
@@ -1523,8 +1509,4 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       {content}
     </div>
   );
-});
-
-CampaignBattleLogsList.displayName = "CampaignBattleLogsList";
-
-export default CampaignBattleLogsList; 
+}

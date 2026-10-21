@@ -21,7 +21,6 @@ import { InfoTooltip } from '@/components/ui/info-tooltip';
 import CampaignTerritoryList from "@/components/campaigns/[id]/campaign-territory-list";
 import CampaignCaptivesList from "@/components/campaigns/[id]/campaign-captives-list";
 import CampaignAddTerritoryModal from "@/components/campaigns/[id]/campaign-add-territory-modal";
-import { CampaignBattleLogsListRef } from "@/components/campaigns/[id]/campaign-battle-logs-list";
 import CampaignTriumphs from "@/components/campaigns/[id]/campaign-triumphs";
 import type { CampaignPermissions } from '@/types/user-permissions';
 import type { Battle, CampaignType, ScenarioTableWithEntries } from '@/types/campaign';
@@ -215,7 +214,6 @@ export default function CampaignPageContent({
   const { shareUrl } = useShare();
   const campaignContentRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState(0);
-  const battleLogsRef = useRef<CampaignBattleLogsListRef>(null);
   const [showImageModal, setShowImageModal] = useState(false);
   const [showTerritoryModal, setShowTerritoryModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -886,7 +884,6 @@ export default function CampaignPageContent({
                 </div>
                 <div id="campaign-battle-logs">
                   <CampaignBattleLogsList
-                    ref={battleLogsRef}
                     campaignId={campaignData.id}
                     editionSlug={campaignData.edition_slug ?? null}
                     battles={campaignData.battles || []}
