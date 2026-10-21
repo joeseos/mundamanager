@@ -524,24 +524,24 @@ export const getGangCampaigns = async (gangId: string): Promise<GangCampaign[]> 
  * utils/gang-assembly.ts.
  */
 export const getGangFightersBundle = async (gangId: string): Promise<GangFightersBundle> => {
-  // The gang's weapon rules come from separately cached entries, so editing a
-  // rule or the gang's type/subtypes takes effect without busting the roster
-  const [roster, core, weaponRules] = await Promise.all([
+  // The rules are cached globally, so editing one takes effect without busting
+  // every roster; the gang's own scope columns come with the roster, whose tag
+  // invalidateGang busts when the gang's origin or subtypes change
+  const [{ gangScope, ...roster }, weaponRules] = await Promise.all([
     unstable_cache(
       async () => flattenRoster(gangId, await rosterQuery(getAppDb(), gangId)),
-      [`gang-fighters-bundle-v4-${gangId}`],
+      [`gang-fighters-bundle-v5-${gangId}`],
       {
         tags: [TAGS.gangRoster(gangId)],
         revalidate: false
       }
     )(),
-    getGangCore(gangId),
     getGangWeaponRules()
   ]);
   return {
     ...roster,
-    gangTypeId: core?.gang_type_id ?? null,
-    gangWeaponRules: core ? resolveGangWeaponRules(weaponRules, core) : []
+    gangTypeId: gangScope?.gang_type_id ?? null,
+    gangWeaponRules: gangScope ? resolveGangWeaponRules(weaponRules, gangScope) : []
   };
 };
 
@@ -727,7 +727,7 @@ const VEHICLE_COLUMNS = {
 /** The whole roster in one query, nested under the gang row. */
 function rosterQuery(db: AppDb, gangId: string) {
   return db.query.gangs.findFirst({
-    columns: { id: true },
+    columns: { id: true, gang_type_id: true, gang_origin_id: true, gang_subtypes: true },
     where: (gang, { eq }) => eq(gang.id, gangId),
     with: {
       fighters: {
@@ -815,7 +815,9 @@ function bySortOrder(a: { sort_order: number | null }, b: { sort_order: number |
 function flattenRoster(
   gangId: string,
   gang: Awaited<ReturnType<typeof rosterQuery>>
-): Omit<GangFightersBundle, 'gangTypeId' | 'gangWeaponRules'> {
+): Omit<GangFightersBundle, 'gangTypeId' | 'gangWeaponRules'> & {
+  gangScope: { gang_type_id: string | null; gang_origin_id: string | null; gang_subtypes: string[] | null } | null;
+} {
   const fighterRows = gang?.fighters ?? [];
   const vehicleRows = gang?.vehicles ?? [];
   const rows = [...fighterRows, ...vehicleRows];
@@ -826,6 +828,9 @@ function flattenRoster(
 
   return {
     gangId,
+    gangScope: gang
+      ? { gang_type_id: gang.gang_type_id, gang_origin_id: gang.gang_origin_id, gang_subtypes: gang.gang_subtypes }
+      : null,
     fighters: fighterRows.map(
       ({ fighter_equipment, fighter_skills, fighter_effects, fighter_exotic_beasts, fighter_loadouts, captured_by, ...fighter }) =>
         fighter
