@@ -19,14 +19,38 @@ export interface DefaultEquipment {
   is_editable?: boolean;
 }
 
-export interface WeaponsSelection {
-  default?: DefaultEquipment[];
-  options?: EquipmentOption[];
-  select_type: 'optional' | 'optional_single' | 'single' | 'multiple';
+/**
+ * One item in a stored equipment selection group. The admin form saves id/cost/quantity
+ * and the replacement fields; get_fighter_types_with_cost adds the equipment details.
+ */
+export interface EquipmentSelectionItem {
+  id: string;
+  cost?: number;
+  quantity?: number;
+  max_quantity?: number;
+  is_default?: boolean;
+  is_editable?: boolean;
+  replacement_mode?: 'flexible' | 'strict';
+  replacements?: EquipmentSelectionItem[];
+  equipment_name?: string;
+  equipment_type?: string;
+  equipment_category?: string;
 }
 
-export interface EquipmentSelection {
-  weapons?: WeaponsSelection;
+interface EquipmentSelectionGroups {
+  weapons: EquipmentSelectionItem[][];
+  wargear: EquipmentSelectionItem[][];
+}
+
+/**
+ * equipment_selection as stored in fighter_equipment_selections and returned by
+ * get_fighter_types_with_cost: groups of items by select_type and category.
+ */
+export interface EquipmentSelectionDataModel {
+  optional: EquipmentSelectionGroups;
+  optional_single: EquipmentSelectionGroups;
+  single: EquipmentSelectionGroups;
+  multiple: EquipmentSelectionGroups;
 }
 
 /**
@@ -80,7 +104,7 @@ export interface FighterType {
   is_gang_addition: boolean;
   alliance_id: string;
   alliance_crew_name: string;
-  equipment_selection?: EquipmentSelection;
+  equipment_selection?: EquipmentSelectionDataModel;
   specialisation?: {
     id: string;
     specialisation_name: string;
