@@ -39,10 +39,12 @@ import {
   logRolledSkillAdvancement
 } from './logs/gang-fighter-logs';
 import { logEquipmentAction } from './logs/equipment-logs';
+import { logFighterAction } from './logs/fighter-logs';
 import type { GangLogActionResult } from './logs/gang-logs';
 import { updateFighterDetails } from './edit-fighter';
 import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 import type { EquipmentGrants } from '@/types/equipment';
+import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 
 // A fighter's edition comes from its gang's (custom) gang type.
 const GANG_EDITION_EMBED = `
@@ -117,12 +119,8 @@ type AddSkillAdvancementInternalOptions = {
   ratingOnly?: boolean;
 };
 
-export interface PromotionWithSkillAdvancementParams {
+export interface PromotionParams {
   fighter_id: string;
-  skill_id?: string;
-  custom_skill_id?: string;
-  xp_cost: number;
-  credits_increase: number;
   promotion: {
     fighter_type: string;
     fighter_type_id: string;
@@ -131,6 +129,13 @@ export interface PromotionWithSkillAdvancementParams {
     fighter_specialisation?: string | null;
     fighter_specialisation_id?: string | null;
   };
+}
+
+export interface PromotionWithSkillAdvancementParams extends PromotionParams {
+  skill_id?: string;
+  custom_skill_id?: string;
+  xp_cost: number;
+  credits_increase: number;
 }
 
 export interface N26ProspectPromotionParams {
@@ -701,6 +706,92 @@ async function addSkillAdvancementInternal(
   }
 }
 
+type PromotionLogSnapshot = Pick<
+  KeepTypePromotionFighterSnapshot,
+  'fighter_type' | 'fighter_subtypes' | 'fighter_specialisation'
+>;
+
+/**
+ * Logs a finished promotion with what it changed against the fighter before it.
+ * Never throws: the promotion is already saved, so a log failure must not report it as failed.
+ */
+async function logFighterPromotion(fighterId: string, before: PromotionLogSnapshot): Promise<void> {
+  try {
+    const supabase = await createClient();
+    const { data: after } = await supabase
+      .from('fighters')
+      .select(`gang_id, fighter_name, fighter_type, fighter_subtypes, fighter_specialisation, ${GANG_EDITION_EMBED}`)
+      .eq('id', fighterId)
+      .single();
+
+    if (!after) return;
+
+    const editionSlug = gangEditionSlug(after.gangs);
+    const changes: string[] = [];
+    if (after.fighter_type !== before.fighter_type) {
+      changes.push(`Type: ${before.fighter_type ?? 'None'} → ${after.fighter_type ?? 'None'}`);
+    }
+    const subtypesBefore = formatFighterSubtypeDisplay(before.fighter_subtypes, editionSlug);
+    const subtypesAfter = formatFighterSubtypeDisplay(after.fighter_subtypes, editionSlug);
+    if (subtypesAfter !== subtypesBefore) {
+      changes.push(`Subtypes: ${subtypesBefore} → ${subtypesAfter}`);
+    }
+    if ((after.fighter_specialisation ?? null) !== (before.fighter_specialisation ?? null)) {
+      changes.push(
+        `Specialisation: ${before.fighter_specialisation ?? 'None'} → ${after.fighter_specialisation ?? 'None'}`
+      );
+    }
+
+    await logFighterAction({
+      gang_id: after.gang_id,
+      fighter_id: fighterId,
+      fighter_name: after.fighter_name,
+      action_type: 'fighter_promoted',
+      promotion_changes: changes,
+    });
+  } catch (error) {
+    console.error('Failed to log fighter promotion:', error);
+  }
+}
+
+/** Promotes a fighter to a new fighter type and logs it. */
+export async function applyPromotion(params: PromotionParams): ReturnType<typeof updateFighterDetails> {
+  try {
+    const supabase = await createClient();
+    const { data: before, error: beforeError } = await supabase
+      .from('fighters')
+      .select('fighter_subtypes, fighter_type, fighter_specialisation')
+      .eq('id', params.fighter_id)
+      .single();
+
+    if (beforeError || !before) {
+      return { success: false, error: 'Fighter not found' };
+    }
+
+    const result = await updateFighterDetails({
+      fighter_id: params.fighter_id,
+      fighter_subtypes: params.promotion.fighter_subtypes,
+      fighter_type: params.promotion.fighter_type,
+      fighter_type_id: params.promotion.fighter_type_id,
+      fighter_specialisation: params.promotion.fighter_specialisation ?? null,
+      fighter_specialisation_id: params.promotion.fighter_specialisation_id ?? null,
+      special_rules: params.promotion.special_rules
+    });
+
+    if (result.success) {
+      await logFighterPromotion(params.fighter_id, before);
+    }
+
+    return result;
+  } catch (error) {
+    console.error('Error applying promotion:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
 /**
  * Promotes a fighter and adds a skill advancement as one logical operation.
  * If the skill step fails after promotion succeeds, the fighter's subtype/type is reverted.
@@ -763,6 +854,8 @@ export async function applyPromotionWithSkillAdvancement(
 
       return { success: false, error: skillResult.error || 'Failed to add skill' };
     }
+
+    await logFighterPromotion(params.fighter_id, before);
 
     return skillResult;
   } catch (error) {
@@ -901,6 +994,7 @@ async function applyKeepTypePromotionWithSkillGrant(args: {
   }
 
   if (!args.skillId) {
+    await logFighterPromotion(args.fighterId, args.before);
     return { success: true };
   }
 
@@ -935,6 +1029,8 @@ async function applyKeepTypePromotionWithSkillGrant(args: {
 
     return { success: false, error: skillResult.error || 'Failed to add skill' };
   }
+
+  await logFighterPromotion(args.fighterId, args.before);
 
   return {
     success: true,
