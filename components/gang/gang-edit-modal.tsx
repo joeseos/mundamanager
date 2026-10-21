@@ -217,6 +217,7 @@ export default function GangEditModal({
   const effectiveAlignment = showAlignment ? alignment : '';
 
   const isVenator = isVenatorGang(editionSlug, gangType, Boolean(customGangTypeId));
+  const skillSetRank = getSkillSetRank(editionSlug);
 
   const { data: skillTypes = [] } = useQuery<Array<{ id: string; name: string }>>({
     queryKey: ['skill-types', editionSlug, 'strict'],
@@ -809,7 +810,7 @@ export default function GangEditModal({
                   excludeIds: new Set(ranks),
                   // Venators rank the core Skill Sets; others stay pickable but muted
                   formatItem: (item) => {
-                    const rank = getSkillSetRank(editionSlug)[item.name.toLowerCase()] ?? Infinity;
+                    const rank = skillSetRank[item.name.toLowerCase()] ?? Infinity;
                     const isCore = getSkillSetGroupLabel(rank) === 'Universal Skill Sets';
                     return {
                       label: isCore ? (
