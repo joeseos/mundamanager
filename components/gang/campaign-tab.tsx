@@ -534,7 +534,7 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
         )}
       </div>
 
-      {/* Battle Reports Section */}
+      {/* Battle Logs Section */}
       {campaigns.length > 0 && (() => {
         // Calculate overall stats across all campaigns using the multi-winner
         // helper so this gang counts as a victor whenever it is flagged among
@@ -551,7 +551,7 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
           <div className="mt-8">
             <h3 className="text-xl md:text-2xl font-bold mb-4 flex items-center justify-between flex-wrap">
               <div className="flex items-center gap-2">
-                Battle Reports
+                Battle Logs
               </div>
               {totalBattles > 0 && (
                 <span className="text-xs font-normal text-muted-foreground">

@@ -1260,7 +1260,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
       </div>
 
       <div className="flex justify-between items-center mb-3">
-        <h3 className="text-lg font-bold">Battle Reports</h3>
+        <h3 className="text-lg font-bold">Battle Logs</h3>
         {renderAddButton(false)}
       </div>
       {renderBattlesTable(
