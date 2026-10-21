@@ -52,6 +52,7 @@ interface CampaignBattleLogsListProps {
   territories?: CampaignBattleLogsTerritory[];
   noContainer?: boolean;
   hideAddButton?: boolean;
+  canStartChallengeRound?: boolean;
   userId: string;
   isCampaignOwner?: boolean;
   isCampaignAdmin?: boolean;
@@ -99,6 +100,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     territories = [],
     noContainer = false,
     hideAddButton = false,
+    canStartChallengeRound = false,
     userId,
     isCampaignOwner = false,
     isCampaignAdmin = false,
@@ -1113,38 +1115,25 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     </div>
   );
 
+  const addButton = !hideAddButton && (
+    <Button
+      onClick={() => {
+        setSelectedBattle(null);
+        setShowBattleModal(true);
+      }}
+      className="bg-neutral-900 hover:bg-gray-800 text-white"
+      aria-label="Add battle report"
+    >
+      Add
+    </Button>
+  );
+
   // The content to render
   const content = (
     <>
       {!noContainer && (
-        <div className="flex justify-between items-center mb-4">
+        <div className="mb-4">
           <h2 className="text-xl md:text-2xl font-bold">Battles</h2>
-          {!hideAddButton && (
-            <Button
-              onClick={() => {
-                setSelectedBattle(null);
-                setShowBattleModal(true);
-              }}
-              className="bg-neutral-900 hover:bg-gray-800 text-white"
-              aria-label="Add battle report"
-            >
-              Add
-            </Button>
-          )}
-        </div>
-      )}
-      {noContainer && !hideAddButton && (
-        <div className="flex justify-end mb-4">
-          <Button
-            onClick={() => {
-              setSelectedBattle(null);
-              setShowBattleModal(true);
-            }}
-            className="bg-neutral-900 hover:bg-gray-800 text-white"
-            aria-label="Add battle report"
-          >
-            Add
-          </Button>
         </div>
       )}
 
@@ -1273,7 +1262,17 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       </div>
 
       <div className="mb-8">
-        <h3 className="text-lg font-bold mb-3">Challenges</h3>
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-lg font-bold">Challenges</h3>
+          <div className="flex gap-2">
+            {canStartChallengeRound && (
+              <Button variant="outline" onClick={() => setShowChallengeRoundModal(true)}>
+                Challenge Round
+              </Button>
+            )}
+            {addButton}
+          </div>
+        </div>
         {renderBattlesTable(
           challenges,
           true,
@@ -1281,7 +1280,10 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         )}
       </div>
 
-      <h3 className="text-lg font-bold mb-3">Battle Logs</h3>
+      <div className="flex justify-between items-center mb-3">
+        <h3 className="text-lg font-bold">Battle Logs</h3>
+        {addButton}
+      </div>
       {renderBattlesTable(
         currentBattleLogs,
         false,

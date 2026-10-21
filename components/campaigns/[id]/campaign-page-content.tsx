@@ -364,21 +364,6 @@ export default function CampaignPageContent({
     && !safePermissions.isAdmin
     && !!campaignData.allow_join_requests;
 
-  // Add this function to handle the Add button click
-  const handleAddBattleLog = () => {
-    console.log('Add battle log button clicked');
-    console.log('User role:', safePermissions.campaignRole);
-    console.log('Is admin:', isAdmin);
-    console.log('battleLogsRef exists:', !!battleLogsRef.current);
-    
-    if (battleLogsRef.current) {
-      console.log('Opening battle log modal via ref');
-      battleLogsRef.current.openAddModal();
-    } else {
-      console.error('battleLogsRef.current is null');
-    }
-  };
-
   // Add this function to handle the Add territory button click
   const handleAddTerritory = () => {
     setShowTerritoryModal(true);
@@ -896,26 +881,8 @@ export default function CampaignPageContent({
             <>
             <div className="bg-card shadow-md rounded-lg p-4">
               <div>
-                <div className="flex justify-between items-start mb-4">
+                <div className="mb-4">
                   <h2 className="text-xl md:text-2xl font-bold">Battles</h2>
-                  <div className="flex gap-2">
-                    {safePermissions.canEditCampaign && (
-                      <Button
-                        variant="outline"
-                        onClick={() => battleLogsRef.current?.openChallengeRoundModal()}
-                      >
-                        Challenge Round
-                      </Button>
-                    )}
-                    {safePermissions.canAddBattleLogs && (
-                      <Button
-                        className="bg-neutral-900 hover:bg-gray-800 text-white"
-                        onClick={handleAddBattleLog}
-                      >
-                        Add
-                      </Button>
-                    )}
-                  </div>
                 </div>
                 <div id="campaign-battle-logs">
                   <CampaignBattleLogsList
@@ -945,7 +912,8 @@ export default function CampaignPageContent({
                     members={campaignData.members}
                     territories={campaignData.territories}
                     noContainer={true}
-                    hideAddButton={true}
+                    hideAddButton={!safePermissions.canAddBattleLogs}
+                    canStartChallengeRound={!!safePermissions.canEditCampaign}
                     userId={userId || ''}
                     isCampaignOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}
                     isCampaignAdmin={!!safePermissions.isArbitrator || !!safePermissions.isAdmin}
