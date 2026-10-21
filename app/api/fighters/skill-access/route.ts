@@ -10,6 +10,18 @@ interface FormattedSkillAccess {
   skill_type_name: string;
 }
 
+// Rows from fighter_type_skill_access and fighter_skill_access_override point at
+// either a skill set or a custom skill set (a CHECK keeps exactly one set).
+type SkillSetRef = {
+  skill_type_id: string | null;
+  custom_skill_type_id: string | null;
+  skill_types?: unknown;
+  custom_skill_types?: unknown;
+};
+const skillSetId = (row: SkillSetRef) => (row.skill_type_id || row.custom_skill_type_id) as string;
+const skillSetName = (row: SkillSetRef): string =>
+  (row.skill_types as any)?.name || (row.custom_skill_types as any)?.name || 'Unknown';
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -147,34 +159,34 @@ export async function GET(request: Request) {
 
     // Create override lookup map
     const overrideMap = new Map(
-      (overrides || []).map(o => [o.skill_type_id || o.custom_skill_type_id, o.access_level])
+      (overrides || []).map(o => [skillSetId(o), o.access_level])
     );
 
     // Format the response with defaults and overrides
     // access_level = default from fighter type, override_access_level = override from archetype
     // UI computes effective level as: override_access_level ?? access_level
     const formattedSkillAccess = (skillAccess || []).map((access) => {
-      const effectiveId = access.skill_type_id || access.custom_skill_type_id;
+      const effectiveId = skillSetId(access);
       const overrideLevel = overrideMap.get(effectiveId) || null;
       return {
         skill_type_id: effectiveId,
         access_level: access.access_level, // default from fighter type
         override_access_level: overrideLevel, // override from archetype (or null)
-        skill_type_name: (access.skill_types as any)?.name || (access.custom_skill_types as any)?.name || 'Unknown'
+        skill_type_name: skillSetName(access)
       };
     });
 
     // Add overrides that don't have defaults (e.g., from archetypes)
-    const defaultSkillTypeIds = new Set((skillAccess || []).map((a) => a.skill_type_id || a.custom_skill_type_id));
+    const defaultSkillTypeIds = new Set((skillAccess || []).map(skillSetId));
 
     for (const override of overrides || []) {
-      const effectiveId = override.skill_type_id || override.custom_skill_type_id;
+      const effectiveId = skillSetId(override);
       if (!defaultSkillTypeIds.has(effectiveId)) {
         formattedSkillAccess.push({
           skill_type_id: effectiveId,
           access_level: null, // no default from fighter type
           override_access_level: override.access_level, // override from archetype
-          skill_type_name: (override.skill_types as any)?.name || (override.custom_skill_types as any)?.name || 'Unknown'
+          skill_type_name: skillSetName(override)
         });
       }
     }

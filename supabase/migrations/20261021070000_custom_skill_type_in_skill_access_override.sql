@@ -5,6 +5,8 @@ ALTER TABLE public.fighter_skill_access_override
   ADD COLUMN custom_skill_type_id uuid REFERENCES public.custom_skill_types(id) ON DELETE CASCADE,
   ALTER COLUMN skill_type_id DROP NOT NULL;
 
+CREATE INDEX idx_fsao_custom_skill_type_id ON public.fighter_skill_access_override(custom_skill_type_id);
+
 ALTER TABLE public.fighter_skill_access_override
   ADD CONSTRAINT chk_fsao_skill_type_xor
   CHECK (
