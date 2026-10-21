@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import Modal from '@/components/ui/modal';
+import { STAT_MAPPINGS } from '@/components/admin/admin-fighter-effects';
+import { WEAPON_NUMERIC_FIELDS } from '@/utils/effect-modifiers';
 import { useEditions } from '@/components/edition-select';
 import { GangOriginOptions, GangSubtypeOptions, formatGangScope } from '@/components/admin/gang-scope-options';
 import { FighterEffectCategory, FighterEffectTypeModifier, TypeSpecificData } from '@/types/fighter-effect';
@@ -27,18 +29,7 @@ interface GangWeaponRuleRow {
   };
 }
 
-// The weapon profile fields applyWeaponModifiers changes
-const WEAPON_STATS = [
-  { stat_name: 'range_short', label: 'Range (Short)' },
-  { stat_name: 'range_long', label: 'Range (Long)' },
-  { stat_name: 'acc_short', label: 'Accuracy (Short)' },
-  { stat_name: 'acc_long', label: 'Accuracy (Long)' },
-  { stat_name: 'strength', label: 'Strength' },
-  { stat_name: 'ap', label: 'Armour Piercing' },
-  { stat_name: 'damage', label: 'Damage' },
-  { stat_name: 'ammo', label: 'Ammo' },
-  { stat_name: 'lethality', label: 'Lethality' },
-];
+const WEAPON_STATS = STAT_MAPPINGS.filter(m => WEAPON_NUMERIC_FIELDS.includes(m.stat_name));
 
 const CATEGORY_NAME = 'gang-weapon-rules';
 const NEW_RULE = 'new';
@@ -297,7 +288,7 @@ export function GangWeaponRulesSection({ gangTypeId, editionId }: GangWeaponRule
                     {editingRule.fighter_effect_type_modifiers.map(modifier => (
                       <div key={modifier.id} className={chipClass}>
                         <span>
-                          {WEAPON_STATS.find(s => s.stat_name === modifier.stat_name)?.label ?? modifier.stat_name}{' '}
+                          {WEAPON_STATS.find(s => s.stat_name === modifier.stat_name)?.display_name ?? modifier.stat_name}{' '}
                           {(modifier.default_numeric_value ?? 0) > 0 ? '+' : ''}{modifier.default_numeric_value}
                         </span>
                         {removeButton(() => submit(async () => {
@@ -310,7 +301,7 @@ export function GangWeaponRulesSection({ gangTypeId, editionId }: GangWeaponRule
                     <select value={modifierStat} onChange={(e) => setModifierStat(e.target.value)} className="flex-1 p-2 border rounded-md">
                       <option value="">Select a stat</option>
                       {WEAPON_STATS.map(stat => (
-                        <option key={stat.stat_name} value={stat.stat_name}>{stat.label}</option>
+                        <option key={stat.stat_name} value={stat.stat_name}>{stat.display_name}</option>
                       ))}
                     </select>
                     <Input type="number" value={modifierValue} onChange={(e) => setModifierValue(e.target.value)} placeholder="e.g. -1" className="w-24" />
