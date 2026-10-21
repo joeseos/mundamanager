@@ -182,7 +182,7 @@ function emailSanitizeOptions(appUrl) {
       ),
       span: (_tagName, attribs) => {
         const style = filterAuthorStyle(attribs.style);
-        const colorMatch = style.match(/(?:^|;)color:(#[0-9a-f]{3}|#[0-9a-f]{6})/i);
+        const colorMatch = style.match(/(?:^|;)color:(#[0-9a-f]{6}|#[0-9a-f]{3})(?![0-9a-f])/i);
         if (colorMatch) {
           return { tagName: "font", attribs: { color: colorMatch[1] } };
         }

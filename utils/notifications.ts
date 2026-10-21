@@ -8,7 +8,9 @@
 // files don't use), and the DB knows nothing about these types — the enqueue trigger gates
 // on a coarse capability list and the worker resolves preferences at send time.
 
+import { decodeHtmlEntities, isHtmlEffectivelyEmpty } from './htmlCleanUp';
 import { escapeHtml } from './html';
+import { sanitizeNotificationHtml } from './sanitize-notification-html';
 
 export type NotificationType =
   | 'info'
@@ -154,8 +156,47 @@ export const MM_ANNOUNCEMENT_FROM_PATH = '/contributors';
 /** Visible-text cap for an admin broadcast. Each recipient stores their own row. */
 export const NOTIFICATION_BROADCAST_MAX_LENGTH = 1000;
 
+/** How long a composed notification may stay before the expiry job deletes the recipient rows. */
+export const NOTIFICATION_EXPIRES_MIN_DAYS = 1;
+export const NOTIFICATION_EXPIRES_MAX_DAYS = 365;
+
+/** Campaign message sends allowed per campaign per UTC day. */
+export const CAMPAIGN_MESSAGE_DAILY_CAP = 5;
+
+const NOTIFICATION_PREVIEW_LENGTH = 60;
+
 export function notificationPlainTextLength(html: string): number {
   return html.replace(/<[^>]*>/g, '').length;
+}
+
+/** Integer day count in the allowed range, or null. */
+export function parseExpiresInDays(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  const days = Math.floor(value);
+  if (days < NOTIFICATION_EXPIRES_MIN_DAYS || days > NOTIFICATION_EXPIRES_MAX_DAYS) return null;
+  return days;
+}
+
+export function prepareNotificationHtml(
+  raw: unknown
+): { ok: true; text: string } | { ok: false; error: string } {
+  const text = sanitizeNotificationHtml(typeof raw === 'string' ? raw.trim() : '').trim();
+  if (!text || isHtmlEffectivelyEmpty(text)) {
+    return { ok: false, error: 'Message text is required' };
+  }
+  if (notificationPlainTextLength(text) > NOTIFICATION_BROADCAST_MAX_LENGTH) {
+    return {
+      ok: false,
+      error: `Message must be at most ${NOTIFICATION_BROADCAST_MAX_LENGTH} characters`,
+    };
+  }
+  return { ok: true, text };
+}
+
+export function notificationPreview(html: string): string {
+  const plain = decodeHtmlEntities(html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim());
+  if (plain.length <= NOTIFICATION_PREVIEW_LENGTH) return plain;
+  return `${plain.slice(0, NOTIFICATION_PREVIEW_LENGTH).trimEnd()}…`;
 }
 
 const MESSAGE_NOTIFICATION_TYPES = new Set<NotificationType>([
@@ -230,7 +271,8 @@ export function isSafeNotificationLink(link: string | null | undefined): link is
 
   try {
     const url = new URL(trimmed);
-    return url.protocol === 'https:';
+    if (url.protocol === 'https:') return true;
+    return url.protocol === 'http:' && url.hostname === 'localhost';
   } catch {
     if (trimmed.includes(':')) {
       return false;
@@ -256,11 +298,12 @@ export function resolveNotificationLink(
   try {
     const url = new URL(trimmed);
 
-    if (url.protocol !== 'https:') {
+    const localhostHttp = url.protocol === 'http:' && url.hostname === 'localhost';
+    if (url.protocol !== 'https:' && !localhostHttp) {
       return null;
     }
 
-    if (APP_HOSTNAMES.has(url.hostname)) {
+    if (localhostHttp || APP_HOSTNAMES.has(url.hostname)) {
       return {
         href: `${url.pathname}${url.search}${url.hash}`,
         isExternal: false,
@@ -279,10 +322,22 @@ export function resolveNotificationLink(
 
 const CAMPAIGN_LINK_ID = /^\/campaigns\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 
+/** Path only, so a query or hash does not hide a campaign link. External URLs stay whole. */
+function notificationPathname(href: string): string {
+  if (!href.startsWith('/')) {
+    return href.split(/[?#]/)[0] ?? href;
+  }
+  try {
+    return new URL(href, 'http://localhost').pathname;
+  } catch {
+    return href.split(/[?#]/)[0] ?? href;
+  }
+}
+
 export function campaignIdFromNotificationLink(link: string): string | null {
   const resolved = resolveNotificationLink(link);
   if (!resolved) return null;
-  const match = resolved.href.split('?')[0].match(CAMPAIGN_LINK_ID);
+  const match = notificationPathname(resolved.href).match(CAMPAIGN_LINK_ID);
   return match?.[1] ?? null;
 }
 
@@ -293,7 +348,7 @@ export function getNotificationLinkLabel(link: string, campaignName?: string | n
   }
 
   const { href } = resolved;
-  const pathname = href.split('?')[0];
+  const pathname = notificationPathname(href);
 
   if (CAMPAIGN_LINK_ID.test(pathname)) {
     const name = campaignName?.trim();

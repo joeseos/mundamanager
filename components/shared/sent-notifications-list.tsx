@@ -15,6 +15,7 @@ export type SentHistoryStatus = 'idle' | 'loading' | 'ready' | 'error'
 
 export type SentNotificationRow = {
   id: string
+  type?: string
   sentAt: string
   senderUsername: string
   recipientCount: number
