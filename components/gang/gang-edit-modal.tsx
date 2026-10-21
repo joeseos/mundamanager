@@ -23,6 +23,7 @@ import { restrictToParentElement, restrictToVerticalAxis } from '@dnd-kit/modifi
 import { CSS } from '@dnd-kit/utilities';
 import { useDndSensorsConfig, dragSurfaceProps } from '@/hooks/use-dnd-sensors';
 import { buildGroupedSkillSetComboboxOptions } from '@/utils/skillSetComboboxOptions';
+import { getSkillSetGroupLabel, getSkillSetRank } from '@/utils/skillSetRank';
 import { LuGripVertical, LuX } from 'react-icons/lu';
 
 interface GangUpdates {
@@ -804,7 +805,22 @@ export default function GangEditModal({
               options={buildGroupedSkillSetComboboxOptions(
                 skillTypes,
                 editionSlug,
-                { excludeIds: new Set(ranks) },
+                {
+                  excludeIds: new Set(ranks),
+                  // Venators rank the core Skill Sets; others stay pickable but muted
+                  formatItem: (item) => {
+                    const rank = getSkillSetRank(editionSlug)[item.name.toLowerCase()] ?? Infinity;
+                    const isCore = getSkillSetGroupLabel(rank) === 'Universal Skill Sets';
+                    return {
+                      label: isCore ? (
+                        <span className="pl-3">{item.name}</span>
+                      ) : (
+                        <span className="pl-3 italic text-neutral-400">{item.name}</span>
+                      ),
+                      displayValue: item.name,
+                    };
+                  },
+                },
               )}
               placeholder="Add a Skill Set"
               dropdownPlacement="down"
