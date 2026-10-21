@@ -63,7 +63,7 @@ export default function BattleSessionsList({
             onClick={() => setShowCreateModal(true)}
             className="bg-neutral-900 hover:bg-gray-800 text-white"
           >
-            New
+            Add
           </Button>
         )}
       </div>
