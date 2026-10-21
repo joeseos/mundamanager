@@ -626,6 +626,8 @@ gateway log entries, which Supabase bills as Logs Ingest. These are read this wa
   `getFighterTotalCost` in `app/lib/shared/fighter-data.ts`)
 - the user's custom equipment, fighter types, skills, gang types, trading posts
   and collections in `app/lib/customise`
+- the account page's friends and friend requests (`getFriendsAndRequests` in
+  `app/lib/friends.ts`)
 
 The files:
 
@@ -644,8 +646,11 @@ The files:
 The connection signs in as `app_server` (migration
 `20261016120000_add_app_server_role.sql`), a read-only role with the privileges of
 `authenticated` but no user. RLS applies, so Drizzle suits data every signed-in
-user may read; policies that check `auth.uid()` return no rows. The connection
-never checks who is asking, so authenticate the request before reading (the gang
+user may read; policies that check `auth.uid()` return no rows. The exception is
+`withUserClaims` in `utils/db/client.ts`: it runs a read in a transaction with
+`auth.uid()` set to the given user, so those policies apply as over the Data API
+(the friends read uses it). Pass only the authenticated caller's own id. The
+connection never checks who is asking, so authenticate the request before reading (the gang
 pages call `getAuthenticatedUser` first). Its password is set in the SQL editor,
 not in the migration. Don't use the Supabase integration's `POSTGRES_URL` in
 production: it signs in as `postgres`, which skips RLS.
